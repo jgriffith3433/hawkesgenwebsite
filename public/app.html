@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Hawkes Gen — Creator Studio</title>
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/public.css">
+  <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-project="hawkesgen" defer></script>
+  <script type="module" src="https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
+</head>
+<body>
+  <!-- Inline Auth View (shown when GET /v1/users/me returns 401) -->
+  <div id="studioAuthScreen" hidden>
+    <header class="hg-navbar">
+      <div class="hg-container hg-navbar-inner">
+        <a href="/" class="hg-brand">
+          <img src="/favicon.svg" alt="Hawkes Gen">
+          <span>Hawkes Gen</span>
+          <span class="hg-brand-badge">Creator Studio</span>
+        </a>
+        <div class="hg-nav-actions">
+          <a href="/" class="btn btn-ghost">← Back to Website</a>
+        </div>
+      </div>
+    </header>
+    <div class="hg-container">
+      <div class="auth-inline-wrap">
+        <span class="portfolio-genre">Hawkes Biomedical Cloud</span>
+        <h2 style="margin:6px 0 8px;font-size:1.55rem;" id="inlineAuthTitle">Sign In to Creator Studio</h2>
+        <p style="margin:0 0 20px;color:var(--text-secondary);font-size:0.9rem;">
+          Create images, videos, 3D meshes, rigged characters, animations, voice lines, music &amp; SFX. New accounts start with 50 free credits.
+        </p>
+        <div style="display:flex;gap:8px;margin-bottom:18px;">
+          <button type="button" class="btn btn-secondary" style="flex:1;" id="inlineTabLogin">Sign In</button>
+          <button type="button" class="btn btn-ghost" style="flex:1;" id="inlineTabSignup">Sign Up (50 Free Credits)</button>
+        </div>
+        <form id="inlineAuthForm" class="form-grid">
+          <div class="form-field" id="inlineNameWrap" style="display:none;">
+            <label for="inlineName">Your Name / Studio</label>
+            <input type="text" id="inlineName" class="form-input" placeholder="Studio Name">
+          </div>
+          <div class="form-field">
+            <label for="inlineEmail">Email Address</label>
+            <input type="email" id="inlineEmail" class="form-input" placeholder="creator@studio.com" required>
+          </div>
+          <div class="form-field">
+            <label for="inlinePassword">Password</label>
+            <input type="password" id="inlinePassword" class="form-input" placeholder="••••••••" minlength="6" required>
+          </div>
+          <div id="inlineAuthError" style="color:var(--rose-400);font-size:0.85rem;display:none;"></div>
+          <button type="submit" class="btn btn-primary" style="width:100%;padding:12px;" id="inlineAuthSubmit">
+            Enter Creator Studio →
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Authenticated Creator Studio Shell -->
+  <div class="studio-shell" id="studioAppShell">
+    <!-- Top Bar -->
+    <header class="studio-topbar">
+      <div style="display:flex;align-items:center;gap:16px;">
+        <a href="/" class="hg-brand">
+          <img src="/favicon.svg" alt="Hawkes Gen">
+          <span>Hawkes Gen</span>
+          <span class="hg-brand-badge">Creator Studio</span>
+        </a>
+        <span id="sseStatusBadge" class="tool-tag" title="Real-time event stream status">● Live Stream</span>
+      </div>
+
+      <div class="studio-topbar-right">
+        <div class="credit-pill" id="walletCreditPill" title="Available Generation Credits">
+          <span>⚡</span>
+          <span id="walletCreditsCount">0</span>
+          <span>Credits</span>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" id="openBuyCreditsBtn">+ Buy Credits</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="openApiKeysBtn">API &amp; Unity Key</button>
+        <span id="userEmailBadge" style="font-size:0.82rem;color:var(--text-secondary);"></span>
+        <button type="button" class="btn btn-ghost btn-sm" id="logoutBtn">Sign Out</button>
+      </div>
+    </header>
+
+    <!-- Main 2-Column Workspace (Left Sidebar + Center Stage) -->
+    <div class="studio-workspace">
+      <!-- Left Sidebar — 6 Creation Studios -->
+      <aside class="studio-sidebar" aria-label="Creation Studios">
+        <div>
+          <div class="sidebar-group-label">Creation Studios (6)</div>
+          <div class="studio-nav-list" id="studioSidebarNav">
+            <button type="button" class="studio-nav-btn active" data-studio="image">
+              <span>1. Image &amp; Textures</span>
+              <span class="tool-tag">6</span>
+            </button>
+            <button type="button" class="studio-nav-btn" data-studio="video">
+              <span>2. Video &amp; Lip-Sync</span>
+              <span class="tool-tag">6</span>
+            </button>
+            <button type="button" class="studio-nav-btn" data-studio="mesh">
+              <span>3. 3D Mesh &amp; Rigging</span>
+              <span class="tool-tag">5</span>
+            </button>
+            <button type="button" class="studio-nav-btn" data-studio="motion">
+              <span>4. Animation &amp; Motion</span>
+              <span class="tool-tag">CC0</span>
+            </button>
+            <button type="button" class="studio-nav-btn" data-studio="audio">
+              <span>5. Audio Studio</span>
+              <span class="tool-tag">4</span>
+            </button>
+            <button type="button" class="studio-nav-btn" data-studio="pipelines">
+              <span>6. Pipelines</span>
+              <span class="tool-tag">1-Click</span>
+            </button>
+          </div>
+        </div>
+
+        <div style="margin-top:auto;padding:14px;background:var(--bg-panel);border:1px solid var(--border-subtle);border-radius:var(--radius-md);font-size:0.8rem;color:var(--text-secondary);">
+          <div style="font-weight:700;color:var(--text-primary);margin-bottom:4px;">Zero-Risk Guarantee</div>
+          Reserved credits are automatically refunded if any job fails or is cancelled.
+        </div>
+      </aside>
+
+      <!-- Center Stage + My Generations Gallery -->
+      <main class="studio-main">
+        <!-- Checkout Success Banner -->
+        <div id="checkoutBanner" class="banner-toast" hidden>
+          <div>
+            <strong>Payment Confirmed!</strong> Your credit pack has been added to your studio wallet.
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm" id="dismissCheckoutBanner">Dismiss</button>
+        </div>
+
+        <!-- Studio Header & Tool Selector Chips -->
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:10px;">
+            <div>
+              <span class="portfolio-genre" id="activeStudioEyebrow">Studio 1 · Image &amp; PBR Materials</span>
+              <h1 style="margin:2px 0 0;font-size:1.55rem;" id="activeStudioHeading">Image &amp; Textures Studio</h1>
+            </div>
+            <div class="tool-tag" id="activeToolIdBadge">image.generate</div>
+          </div>
+          <div class="studio-subtools" id="studioToolChips" role="tablist"></div>
+        </div>
+
+        <!-- Smart Composer + Live Job Feed -->
+        <div class="composer-grid">
+          <!-- Left: Smart Composer -->
+          <section class="studio-panel" aria-label="Smart Composer">
+            <div class="studio-panel-header">
+              <div>
+                <h2 class="studio-panel-title" id="composerToolTitle">Generate Image</h2>
+                <p style="margin:4px 0 0;font-size:0.84rem;color:var(--text-secondary);" id="composerToolDesc">
+                  Generate concept art, character references, or seamless textures.
+                </p>
+              </div>
+            </div>
+
+            <form id="composerForm" class="form-grid">
+              <!-- Dynamic tool controls injected by app.js -->
+              <div id="composerDynamicFields" class="form-grid"></div>
+
+              <!-- Preset Selector (from GET /v1/presets) -->
+              <div class="form-row-2" id="presetSelectorRow">
+                <div class="form-field">
+                  <label for="composerPresetSelect">Art Direction Preset (Optional)</label>
+                  <select id="composerPresetSelect" class="form-select">
+                    <option value="">None (Custom Prompt)</option>
+                  </select>
+                </div>
+                <div class="form-field">
+                  <label for="composerNegativePrompt">Negative Prompt</label>
+                  <input type="text" id="composerNegativePrompt" class="form-input" placeholder="blurry, watermark, text, deformed">
+                </div>
+              </div>
+
+              <!-- Input File Upload / Library Picker (shown when tool takes an image/video/mesh/audio input) -->
+              <div class="form-field" id="composerInputSection" hidden>
+                <label>
+                  <span id="composerInputLabel">Source Asset Input</span>
+                  <button type="button" class="btn btn-secondary btn-sm" id="openLibraryPickerBtn">Pick from My Library</button>
+                </label>
+                <div class="dropzone" id="composerDropzone">
+                  <input type="file" id="composerFileInput" hidden>
+                  <div id="dropzoneStatusText" style="font-size:0.86rem;color:var(--text-secondary);">
+                    Drag &amp; drop a file here, click to upload (<code>POST /v1/assets</code>), or pick from your library
+                  </div>
+                </div>
+                <input type="text" id="composerInputAssetRef" class="form-input" placeholder="asset:a_... or blob:..." style="margin-top:6px;font-family:var(--font-mono);font-size:0.82rem;">
+              </div>
+
+              <div id="composerErrorMsg" style="color:var(--rose-400);font-size:0.85rem;display:none;"></div>
+
+              <div class="composer-footer">
+                <button type="submit" class="btn btn-primary generate-btn" id="generateSubmitBtn">
+                  <span>Generate</span>
+                  <span class="credit-badge-inline" id="liveQuoteBadge">5 Credits</span>
+                </button>
+              </div>
+            </form>
+
+            <!-- Built-in 3D Motion Library Browser (shown in Studio 4: Animation & Motion) -->
+            <div id="motionLibraryBrowser" hidden style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border-subtle);">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
+                <div>
+                  <h3 style="margin:0;font-size:1rem;">CC0 3D Motion Library Browser (Quaternius UAL 1 &amp; 2)</h3>
+                  <p style="margin:2px 0 0;font-size:0.8rem;color:var(--text-secondary);">Search 100+ CC0 skeletal animations via <code>GET /v1/motions</code> and copy or retarget onto any character.</p>
+                </div>
+                <input type="search" id="motionSearchInput" class="form-input" style="max-width:240px;" placeholder="Search walk, melee, idle...">
+              </div>
+              <div id="motionResultsList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;max-height:280px;overflow-y:auto;"></div>
+            </div>
+          </section>
+
+          <!-- Right: Live Job Feed -->
+          <section class="studio-panel" aria-label="Live Job Feed">
+            <div class="studio-panel-header">
+              <h2 class="studio-panel-title">Live Job Feed</h2>
+              <button type="button" class="btn btn-ghost btn-sm" id="refreshJobsBtn">Refresh</button>
+            </div>
+            <div id="liveJobFeedList" class="job-list">
+              <div style="color:var(--text-muted);font-size:0.88rem;padding:18px 0;text-align:center;">
+                No active or recent jobs yet. Submit a prompt on the left to start generating!
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- My Generations Gallery -->
+        <section class="studio-panel" aria-label="My Generations Gallery">
+          <div class="studio-panel-header" style="flex-wrap:wrap;">
+            <div>
+              <h2 class="studio-panel-title">My Generations Gallery</h2>
+              <p style="margin:2px 0 0;font-size:0.82rem;color:var(--text-secondary);">
+                Every generated image, video, 3D GLB model, and audio track—with full recipe lineage and 1-click "Use in..." actions.
+              </p>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <div class="filter-pills" id="galleryKindFilters" style="margin-bottom:0;">
+                <button type="button" class="filter-pill active" data-kind="">All</button>
+                <button type="button" class="filter-pill" data-kind="image">Images</button>
+                <button type="button" class="filter-pill" data-kind="video">Videos</button>
+                <button type="button" class="filter-pill" data-kind="mesh">3D Models</button>
+                <button type="button" class="filter-pill" data-kind="audio">Audio</button>
+              </div>
+              <input type="search" id="gallerySearchInput" class="form-input" style="width:220px;" placeholder="Search prompts or tools...">
+            </div>
+          </div>
+
+          <div id="galleryGrid" class="gallery-grid"></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- Credit Wallet, Packs & Ledger Modal -->
+  <div class="hg-modal-backdrop" id="creditsModal" hidden>
+    <div class="hg-modal">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div>
+          <span class="portfolio-genre">Stripe Checkout &amp; Credit Ledger</span>
+          <h3 style="margin:4px 0 0;font-size:1.35rem;">Credit Wallet &amp; Top-Up Packs</h3>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" data-close-modal="creditsModal">✕</button>
+      </div>
+
+      <div id="modalPacksContainer" class="pricing-grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:24px;"></div>
+
+      <div id="checkoutErrorBox" style="color:var(--rose-400);font-size:0.85rem;margin-bottom:14px;display:none;"></div>
+
+      <h4 style="margin:0 0 10px;font-size:1rem;">Credit Ledger History (<code>GET /v1/billing/ledger</code>)</h4>
+      <div class="pricing-table-wrap" style="max-height:240px;overflow-y:auto;">
+        <table class="pricing-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Kind</th>
+              <th>Detail</th>
+              <th>Delta</th>
+              <th>Balance</th>
+            </tr>
+          </thead>
+          <tbody id="creditLedgerTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- API & Unity Key Modal -->
+  <div class="hg-modal-backdrop" id="apiKeyModal" hidden>
+    <div class="hg-modal">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div>
+          <span class="portfolio-genre">Developer &amp; Engine Access</span>
+          <h3 style="margin:4px 0 0;font-size:1.35rem;">Personal API Key, Unity Package &amp; MCP</h3>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" data-close-modal="apiKeyModal">✕</button>
+      </div>
+
+      <p style="margin:0 0 14px;color:var(--text-secondary);font-size:0.9rem;">
+        Mint or rotate your personal <code>hg_...</code> key via <code>POST /v1/users/api-key</code> to call Hawkes Gen from cURL, the JS SDK, Unity Editor, or Claude MCP.
+      </p>
+
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+        <input type="text" id="mintedApiKeyInput" class="form-input" readonly value="hg_••••••••••••••••••••••••" style="font-family:var(--font-mono);">
+        <button type="button" class="btn btn-primary" id="mintApiKeyBtn">Mint New Key</button>
+        <button type="button" class="btn btn-secondary" id="copyApiKeyBtn">Copy</button>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div>
+          <div style="font-size:0.8rem;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">cURL Example</div>
+          <pre class="code-snippet" id="snippetCurl">curl -X POST https://hawkesgen.com/v1/jobs \
+  -H "Authorization: Bearer hg_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"tool":"image.generate","params":{"prompt":"A glowing obsidian crystal"}}'</pre>
+        </div>
+        <div>
+          <div style="font-size:0.8rem;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">JavaScript SDK (<code>/client/hawkesgen.mjs</code>)</div>
+          <pre class="code-snippet" id="snippetJs">import { HawkesGen } from 'https://hawkesgen.com/client/hawkesgen.mjs';
+const gen = new HawkesGen({ url: 'https://hawkesgen.com', key: 'hg_YOUR_KEY' });
+const job = await gen.run('image.generate', { prompt: 'Seamless sci-fi hull plating', seamless: true });</pre>
+        </div>
+        <div>
+          <div style="font-size:0.8rem;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">Unity Editor (<code>com.hawkes.gen</code>)</div>
+          <pre class="code-snippet" id="snippetUnity">// Unity Editor: Window > Hawkes Gen -> Server: https://hawkesgen.com | API Key: hg_YOUR_KEY</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pick From My Library Modal -->
+  <div class="hg-modal-backdrop" id="libraryPickerModal" hidden>
+    <div class="hg-modal">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <h3 style="margin:0;font-size:1.25rem;">Pick an Asset from My Library</h3>
+        <button type="button" class="btn btn-ghost btn-sm" data-close-modal="libraryPickerModal">✕</button>
+      </div>
+      <div id="libraryPickerGrid" class="gallery-grid" style="max-height:420px;overflow-y:auto;"></div>
+    </div>
+  </div>
+
+  <!-- Recipe / Prompt Drawer Modal -->
+  <div class="hg-modal-backdrop" id="recipeDrawerModal" hidden>
+    <div class="hg-modal">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <h3 style="margin:0;font-size:1.25rem;" id="recipeDrawerTitle">Asset Recipe &amp; Lineage</h3>
+        <button type="button" class="btn btn-ghost btn-sm" data-close-modal="recipeDrawerModal">✕</button>
+      </div>
+      <pre class="code-snippet" id="recipeDrawerPre" style="max-height:420px;overflow-y:auto;white-space:pre-wrap;"></pre>
+    </div>
+  </div>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

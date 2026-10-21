@@ -1,0 +1,18 @@
+{
+  "name": "hawkesgenwebsite",
+  "private": true,
+  "type": "module",
+  "description": "hawkesgen.com: the Hawkes Gen customer portal (accounts, credits, Stripe) on top of the Hawkes Gen backend.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.ts",
+    "typecheck": "tsc -p . && node --check public/app.js",
+    "test": "node --disable-warning=ExperimentalWarning --test \"test/**/*.test.ts\""
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}

@@ -1,0 +1,19 @@
+[Unit]
+Description=hawkesgen.com portal
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=hawkes
+Group=hawkes
+WorkingDirectory=/srv/hawkes/hawkesgenwebsite
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning src/server.ts
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/srv/hawkes/hawkesgenwebsite/.data
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
