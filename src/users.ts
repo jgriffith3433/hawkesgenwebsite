@@ -16,13 +16,15 @@ export type User = {
   stripe_customer_id: string | null;
   created: number;
   last_login: number | null;
+  role: 'customer' | 'admin';
+  disabled: number;
 };
 
 export const SESSION_COOKIE = 'hg_session';
 export const SESSION_TTL_MS = 30 * 24 * 3600 * 1000;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export const toPublicUser = (u: User) => ({ id: u.id, email: u.email, name: u.name, project: u.project, credits: u.credits, created: u.created, last_login: u.last_login });
+export const toPublicUser = (u: User) => ({ id: u.id, email: u.email, name: u.name, project: u.project, credits: u.credits, role: u.role, created: u.created, last_login: u.last_login });
 
 export function hashPassword(password: string) {
   const salt = crypto.randomBytes(16);
@@ -86,6 +88,7 @@ export function login(input: { email?: unknown; password?: unknown }) {
   if (!email || !password) throw new PortalError('Email and password are required');
   const user = getUserByEmail(email);
   if (!user || !verifyPassword(password, user.password_hash)) throw new PortalError('Invalid email or password', { status: 401 });
+  if (user.disabled) throw new PortalError('This account is disabled. Contact support@hawkesgen.com.', { status: 403 });
   db.prepare('UPDATE users SET last_login = ? WHERE id = ?').run(Date.now(), user.id);
   return { user: toPublicUser(getUser(user.id)!), sessionToken: createSession(user.id) };
 }
@@ -150,7 +153,7 @@ export function authenticate(req: IncomingMessage): User | null {
     const row = db.prepare('SELECT id, user_id FROM api_keys WHERE key_hash = ? AND disabled = 0').get(sha256(key)) as { id: string; user_id: string } | undefined;
     if (!row) return null;
     db.prepare('UPDATE api_keys SET last_used = ? WHERE id = ?').run(Date.now(), row.id);
-    return getUser(row.user_id);
+    return active(getUser(row.user_id));
   }
   const token = sessionToken(req);
   if (!token) return null;
@@ -160,5 +163,44 @@ export function authenticate(req: IncomingMessage): User | null {
     deleteSession(token);
     return null;
   }
-  return getUser(s.user_id);
+  return active(getUser(s.user_id));
+}
+
+const active = (u: User | null) => (u && !u.disabled ? u : null);
+
+/** A one-time link to set a password, good for a day. */
+export function passwordLink(userId: string, site: string) {
+  const token = crypto.randomBytes(32).toString('base64url');
+  const now = Date.now();
+  db.prepare('INSERT INTO password_tokens (token_hash, user_id, created, expires) VALUES (?, ?, ?, ?)').run(sha256(token), userId, now, now + 24 * 3600_000);
+  return `${site}/reset?token=${token}`;
+}
+
+/** Sets the password a link was made for; the link is spent, and every other session ends. */
+export function setPasswordWithToken(token: string, password: string) {
+  if (typeof password !== 'string' || password.length < 8) throw new PortalError('Password must be at least 8 characters');
+  const row = db.prepare('SELECT user_id, expires, used FROM password_tokens WHERE token_hash = ?').get(sha256(String(token ?? ''))) as { user_id: string; expires: number; used: number | null } | undefined;
+  if (!row || row.used || row.expires < Date.now()) throw new PortalError('This link has expired or was already used. Ask for a new one.', { status: 410 });
+  tx(() => {
+    db.prepare('UPDATE password_tokens SET used = ? WHERE token_hash = ?').run(Date.now(), sha256(token));
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(password), row.user_id);
+    db.prepare('DELETE FROM sessions WHERE user_id = ?').run(row.user_id);
+  });
+  const user = getUser(row.user_id)!;
+  return { user: toPublicUser(user), sessionToken: createSession(user.id) };
+}
+
+/** An account made by an admin (no starter credits; a password link to finish it), or an existing one promoted. */
+export function ensureAdmin(email: string, name?: string) {
+  const norm = String(email ?? '').trim().toLowerCase();
+  if (!EMAIL_RE.test(norm)) throw new PortalError('Enter a valid email address');
+  const found = getUserByEmail(norm);
+  if (found) {
+    db.prepare("UPDATE users SET role = 'admin', disabled = 0 WHERE id = ?").run(found.id);
+    return getUser(found.id)!;
+  }
+  const userId = id(PROJECT_PREFIX, 8);
+  db.prepare("INSERT INTO users (id, email, name, password_hash, project, credits, created, role) VALUES (?, ?, ?, ?, ?, 0, ?, 'admin')")
+    .run(userId, norm, name?.trim() || norm.split('@')[0], hashPassword(crypto.randomBytes(24).toString('base64url')), userId, Date.now());
+  return getUser(userId)!;
 }

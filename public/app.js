@@ -5,8 +5,8 @@
 
 const STUDIOS = {
   image: {
-    eyebrow: 'Studio 1 · Image & PBR Materials',
-    heading: 'Image & Textures Studio',
+    eyebrow: 'Images',
+    heading: 'Images & textures',
     tools: [
       {
         id: 'image.generate',
@@ -85,8 +85,8 @@ const STUDIOS = {
   },
 
   video: {
-    eyebrow: 'Studio 2 · AI Video & Character Lip-Sync',
-    heading: 'Video & Lip-Sync Studio',
+    eyebrow: 'Video',
+    heading: 'Video',
     tools: [
       {
         id: 'video.t2v',
@@ -158,8 +158,8 @@ const STUDIOS = {
   },
 
   mesh: {
-    eyebrow: 'Studio 3 · 3D GLB Meshes & Auto-Rigging',
-    heading: '3D Mesh & Rigging Studio',
+    eyebrow: '3D',
+    heading: '3D models & rigging',
     tools: [
       {
         id: 'mesh.views3d',
@@ -238,8 +238,8 @@ const STUDIOS = {
   },
 
   motion: {
-    eyebrow: 'Studio 4 · 3D Skeletal Motion & CC0 Library',
-    heading: 'Animation & Motion Studio',
+    eyebrow: 'Motion',
+    heading: 'Animation',
     tools: [
       {
         id: 'motion.from-text',
@@ -255,8 +255,8 @@ const STUDIOS = {
   },
 
   audio: {
-    eyebrow: 'Studio 5 · Music, Voice & Sound Effects',
-    heading: 'Audio Studio',
+    eyebrow: 'Audio',
+    heading: 'Voice, sound & music',
     tools: [
       {
         id: 'audio.music',
@@ -315,8 +315,8 @@ const STUDIOS = {
   },
 
   pipelines: {
-    eyebrow: 'Studio 6 · Curated 1-Click Multi-Step Pipelines',
-    heading: 'End-to-End Pipelines (asset.make)',
+    eyebrow: 'Chains',
+    heading: 'Multi-step jobs',
     tools: [
       {
         id: 'pipeline.char3d',

@@ -86,7 +86,7 @@ async function newCustomer() {
 test('pages and the open routes', async () => {
   assert.match((await call('/')).body, /<html/i);
   assert.match((await call('/app')).body, /<html/i);
-  assert.equal((await call('/v1/portfolio')).body.title, 'Built With Hawkes Gen');
+  assert.equal((await call('/v1/portfolio')).body.items.length, 3);
   assert.equal((await call('/v1/billing/packs')).body.packs.length, 3);
   assert.equal((await call('/../src/config.ts')).status, 404);
   assert.equal((await call('/v1/jobs')).status, 401);
@@ -200,4 +200,44 @@ test('Stripe: a signed, paid checkout adds the pack once; a bad signature adds n
   assert.equal(ok.body.creditsAdded, 1000);
   assert.equal((await post(sig('whsec_test'))).body.duplicate, true);
   assert.equal(await credits(c.cookie), 1050);
+});
+
+test('admins: made from the CLI path with a one-time link; customers never see the admin routes', async () => {
+  const { ensureAdmin, passwordLink } = await import('../src/users.ts');
+  const a = ensureAdmin('boss@hawkesgen.com', 'Boss');
+  const link = passwordLink(a.id, 'https://hawkesgen.test');
+  const token = new URL(link).searchParams.get('token');
+  assert.equal((await call('/v1/users/password', { body: { token, password: 'short' } })).status, 400);
+  const set = await call('/v1/users/password', { body: { token, password: 'a-real-password' } });
+  assert.equal(set.status, 200);
+  assert.equal(set.body.user.role, 'admin');
+  assert.equal((await call('/v1/users/password', { body: { token, password: 'another-password' } })).status, 410, 'one use');
+  const boss = set.cookie!;
+
+  const c = await newCustomer();
+  assert.equal((await call('/v1/admin/overview', { cookie: c.cookie })).status, 404);
+  assert.equal((await call(`/v1/admin/users/${c.user.id}/credits`, { cookie: c.cookie, body: { delta: 100, note: 'x' } })).status, 404);
+
+  const o = await call('/v1/admin/overview', { cookie: boss });
+  assert.equal(o.status, 200);
+  assert.ok(o.body.accounts.total >= 2);
+  assert.ok((await call(`/v1/admin/users?q=${encodeURIComponent(c.user.email)}`, { cookie: boss })).body.items.some((u: any) => u.id === c.user.id));
+
+  assert.equal((await call(`/v1/admin/users/${c.user.id}/credits`, { cookie: boss, body: { delta: 25, note: '' } })).status, 400, 'a note is required');
+  assert.equal((await call(`/v1/admin/users/${c.user.id}/credits`, { cookie: boss, body: { delta: -500, note: 'too much' } })).status, 400);
+  assert.equal((await call(`/v1/admin/users/${c.user.id}/credits`, { cookie: boss, body: { delta: 25, note: 'Launch thank-you' } })).body.credits, 75);
+  const detail = (await call(`/v1/admin/users/${c.user.id}`, { cookie: boss })).body;
+  assert.match(detail.ledger[0].detail, /Launch thank-you \(by boss@hawkesgen.com\)/);
+
+  await call(`/v1/admin/users/${c.user.id}/disable`, { cookie: boss, body: {} });
+  assert.equal((await call('/v1/users/me', { cookie: c.cookie })).status, 401);
+  assert.equal((await call('/v1/users/me', { key: c.key })).status, 401);
+  assert.equal((await call('/v1/users/login', { body: { email: c.user.email, password: 'password123' } })).status, 403);
+  await call(`/v1/admin/users/${c.user.id}/enable`, { cookie: boss, body: {} });
+  assert.equal((await call('/v1/users/me', { key: c.key })).status, 200);
+
+  assert.equal((await call(`/v1/admin/users/${a.id}/disable`, { cookie: boss, body: {} })).status, 400, 'not yourself');
+  assert.equal((await call(`/v1/admin/users/${a.id}/role`, { cookie: boss, body: { role: 'customer' } })).status, 400);
+  const reset = await call(`/v1/admin/users/${c.user.id}/password-link`, { cookie: boss, body: {} });
+  assert.match(reset.body.url, /\/reset\?token=/);
 });

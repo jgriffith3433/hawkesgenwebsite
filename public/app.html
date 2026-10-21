@@ -26,14 +26,14 @@
     </header>
     <div class="hg-container">
       <div class="auth-inline-wrap">
-        <span class="portfolio-genre">Hawkes Biomedical Cloud</span>
-        <h2 style="margin:6px 0 8px;font-size:1.55rem;" id="inlineAuthTitle">Sign In to Creator Studio</h2>
+        <span class="portfolio-genre">Hawkes Gen</span>
+        <h2 style="margin:6px 0 8px;font-size:1.55rem;" id="inlineAuthTitle">Sign in</h2>
         <p style="margin:0 0 20px;color:var(--text-secondary);font-size:0.9rem;">
-          Create images, videos, 3D meshes, rigged characters, animations, voice lines, music &amp; SFX. New accounts start with 50 free credits.
+          New accounts start with 50 credits.
         </p>
         <div style="display:flex;gap:8px;margin-bottom:18px;">
           <button type="button" class="btn btn-secondary" style="flex:1;" id="inlineTabLogin">Sign In</button>
-          <button type="button" class="btn btn-ghost" style="flex:1;" id="inlineTabSignup">Sign Up (50 Free Credits)</button>
+          <button type="button" class="btn btn-ghost" style="flex:1;" id="inlineTabSignup">New account</button>
         </div>
         <form id="inlineAuthForm" class="form-grid">
           <div class="form-field" id="inlineNameWrap" style="display:none;">
@@ -46,11 +46,11 @@
           </div>
           <div class="form-field">
             <label for="inlinePassword">Password</label>
-            <input type="password" id="inlinePassword" class="form-input" placeholder="••••••••" minlength="6" required>
+            <input type="password" id="inlinePassword" class="form-input" placeholder="••••••••" minlength="8" required>
           </div>
           <div id="inlineAuthError" style="color:var(--rose-400);font-size:0.85rem;display:none;"></div>
           <button type="submit" class="btn btn-primary" style="width:100%;padding:12px;" id="inlineAuthSubmit">
-            Enter Creator Studio →
+            Sign in
           </button>
         </form>
       </div>
@@ -67,19 +67,18 @@
           <span>Hawkes Gen</span>
           <span class="hg-brand-badge">Creator Studio</span>
         </a>
-        <span id="sseStatusBadge" class="tool-tag" title="Real-time event stream status">● Live Stream</span>
+        <span id="sseStatusBadge" class="tool-tag" title="Live updates">live</span>
       </div>
 
       <div class="studio-topbar-right">
         <div class="credit-pill" id="walletCreditPill" title="Available Generation Credits">
-          <span>⚡</span>
-          <span id="walletCreditsCount">0</span>
+                    <span id="walletCreditsCount">0</span>
           <span>Credits</span>
         </div>
-        <button type="button" class="btn btn-primary btn-sm" id="openBuyCreditsBtn">+ Buy Credits</button>
-        <button type="button" class="btn btn-secondary btn-sm" id="openApiKeysBtn">API &amp; Unity Key</button>
+        <button type="button" class="btn btn-primary btn-sm" id="openBuyCreditsBtn">Buy credits</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="openApiKeysBtn">API key</button>
         <span id="userEmailBadge" style="font-size:0.82rem;color:var(--text-secondary);"></span>
-        <button type="button" class="btn btn-ghost btn-sm" id="logoutBtn">Sign Out</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="logoutBtn">Sign out</button>
       </div>
     </header>
 
@@ -88,38 +87,33 @@
       <!-- Left Sidebar — 6 Creation Studios -->
       <aside class="studio-sidebar" aria-label="Creation Studios">
         <div>
-          <div class="sidebar-group-label">Creation Studios (6)</div>
+          <div class="sidebar-group-label">Make</div>
           <div class="studio-nav-list" id="studioSidebarNav">
             <button type="button" class="studio-nav-btn active" data-studio="image">
-              <span>1. Image &amp; Textures</span>
-              <span class="tool-tag">6</span>
-            </button>
+              <span>Images &amp; textures</span>
+                          </button>
             <button type="button" class="studio-nav-btn" data-studio="video">
-              <span>2. Video &amp; Lip-Sync</span>
-              <span class="tool-tag">6</span>
-            </button>
+              <span>Video</span>
+                          </button>
             <button type="button" class="studio-nav-btn" data-studio="mesh">
-              <span>3. 3D Mesh &amp; Rigging</span>
-              <span class="tool-tag">5</span>
-            </button>
+              <span>3D &amp; rigging</span>
+                          </button>
             <button type="button" class="studio-nav-btn" data-studio="motion">
-              <span>4. Animation &amp; Motion</span>
-              <span class="tool-tag">CC0</span>
+              <span>Animation</span>
+              
             </button>
             <button type="button" class="studio-nav-btn" data-studio="audio">
-              <span>5. Audio Studio</span>
-              <span class="tool-tag">4</span>
-            </button>
+              <span>Voice, sound &amp; music</span>
+                          </button>
             <button type="button" class="studio-nav-btn" data-studio="pipelines">
-              <span>6. Pipelines</span>
-              <span class="tool-tag">1-Click</span>
+              <span>Chains</span>
+              
             </button>
           </div>
         </div>
 
         <div style="margin-top:auto;padding:14px;background:var(--bg-panel);border:1px solid var(--border-subtle);border-radius:var(--radius-md);font-size:0.8rem;color:var(--text-secondary);">
-          <div style="font-weight:700;color:var(--text-primary);margin-bottom:4px;">Zero-Risk Guarantee</div>
-          Reserved credits are automatically refunded if any job fails or is cancelled.
+          Jobs that fail or that you cancel give their credits back.
         </div>
       </aside>
 
@@ -128,7 +122,7 @@
         <!-- Checkout Success Banner -->
         <div id="checkoutBanner" class="banner-toast" hidden>
           <div>
-            <strong>Payment Confirmed!</strong> Your credit pack has been added to your studio wallet.
+            Payment received. Your credits are in your account.
           </div>
           <button type="button" class="btn btn-ghost btn-sm" id="dismissCheckoutBanner">Dismiss</button>
         </div>
@@ -137,8 +131,8 @@
         <div>
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:10px;">
             <div>
-              <span class="portfolio-genre" id="activeStudioEyebrow">Studio 1 · Image &amp; PBR Materials</span>
-              <h1 style="margin:2px 0 0;font-size:1.55rem;" id="activeStudioHeading">Image &amp; Textures Studio</h1>
+              <span class="portfolio-genre" id="activeStudioEyebrow">Images</span>
+              <h1 style="margin:2px 0 0;font-size:1.55rem;" id="activeStudioHeading">Images &amp; textures</h1>
             </div>
             <div class="tool-tag" id="activeToolIdBadge">image.generate</div>
           </div>
@@ -148,7 +142,7 @@
         <!-- Smart Composer + Live Job Feed -->
         <div class="composer-grid">
           <!-- Left: Smart Composer -->
-          <section class="studio-panel" aria-label="Smart Composer">
+          <section class="studio-panel" aria-label="New job">
             <div class="studio-panel-header">
               <div>
                 <h2 class="studio-panel-title" id="composerToolTitle">Generate Image</h2>
@@ -165,9 +159,9 @@
               <!-- Preset Selector (from GET /v1/presets) -->
               <div class="form-row-2" id="presetSelectorRow">
                 <div class="form-field">
-                  <label for="composerPresetSelect">Art Direction Preset (Optional)</label>
+                  <label for="composerPresetSelect">Style preset (optional)</label>
                   <select id="composerPresetSelect" class="form-select">
-                    <option value="">None (Custom Prompt)</option>
+                    <option value="">None</option>
                   </select>
                 </div>
                 <div class="form-field">
@@ -180,7 +174,7 @@
               <div class="form-field" id="composerInputSection" hidden>
                 <label>
                   <span id="composerInputLabel">Source Asset Input</span>
-                  <button type="button" class="btn btn-secondary btn-sm" id="openLibraryPickerBtn">Pick from My Library</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="openLibraryPickerBtn">From my library</button>
                 </label>
                 <div class="dropzone" id="composerDropzone">
                   <input type="file" id="composerFileInput" hidden>
@@ -229,10 +223,10 @@
         </div>
 
         <!-- My Generations Gallery -->
-        <section class="studio-panel" aria-label="My Generations Gallery">
+        <section class="studio-panel" aria-label="Your library">
           <div class="studio-panel-header" style="flex-wrap:wrap;">
             <div>
-              <h2 class="studio-panel-title">My Generations Gallery</h2>
+              <h2 class="studio-panel-title">Your library</h2>
               <p style="margin:2px 0 0;font-size:0.82rem;color:var(--text-secondary);">
                 Every generated image, video, 3D GLB model, and audio track—with full recipe lineage and 1-click "Use in..." actions.
               </p>
@@ -260,8 +254,8 @@
     <div class="hg-modal">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
         <div>
-          <span class="portfolio-genre">Stripe Checkout &amp; Credit Ledger</span>
-          <h3 style="margin:4px 0 0;font-size:1.35rem;">Credit Wallet &amp; Top-Up Packs</h3>
+          <span class="portfolio-genre">Credits</span>
+          <h3 style="margin:4px 0 0;font-size:1.35rem;">Buy credits</h3>
         </div>
         <button type="button" class="btn btn-ghost btn-sm" data-close-modal="creditsModal">✕</button>
       </div>

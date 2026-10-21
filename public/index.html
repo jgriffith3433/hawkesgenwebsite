@@ -3,727 +3,277 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Hawkes Gen — Generative AI Pipeline for Games, Film &amp; Interactive Media</title>
-  <meta name="description" content="One Prompt Pipeline for Games, Film &amp; Interactive Media — Image, Video, 3D Mesh, Rigged Characters, Animation, Voice, Music &amp; SFX.">
+  <title>Hawkes Gen — game assets from a prompt</title>
+  <meta name="description" content="Images, video, 3D models, rigs, motion, voice, music and sound for games. From the web or an API call; pay per generation.">
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/public.css">
   <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-project="hawkesgen" defer></script>
 </head>
 <body>
-  <!-- Top Navigation -->
   <header class="hg-navbar">
-    <div class="hg-container hg-navbar-inner">
-      <a href="/" class="hg-brand">
-        <img src="/favicon.svg" alt="Hawkes Gen logo">
-        <span>Hawkes Gen</span>
-        <span class="hg-brand-badge">Studio Cloud</span>
-      </a>
+    <div class="wrap hg-navbar-inner">
+      <a href="/" class="hg-brand"><span class="wordmark">Hawkes Gen</span></a>
       <nav class="hg-nav-links">
-        <a href="#modalities">Modalities</a>
-        <a href="#portfolio">Built With Hawkes Gen</a>
-        <a href="#pricing">Credit Pricing</a>
-        <a href="/app">Creator Studio</a>
+        <a href="#tools">Tools</a>
+        <a href="#work">Work</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#api">API</a>
       </nav>
       <div class="hg-nav-actions">
-        <button type="button" class="btn btn-secondary" data-open-auth="login">Sign In</button>
-        <button type="button" class="btn btn-primary" data-open-auth="signup">Start Creating</button>
+        <button type="button" class="btn btn-ghost" data-open-auth="login">Sign in</button>
+        <button type="button" class="btn btn-primary" data-open-auth="signup">Create account</button>
       </div>
     </div>
   </header>
 
-  <!-- Hero Section -->
-  <section class="hero-section" id="modalities">
-    <div class="hg-container">
-      <div class="hero-eyebrow">
-        <span>Hawkes Biomedical Generative Studio</span>
-        <span>•</span>
-        <span>50 Free Starter Credits on Sign Up</span>
-      </div>
-      <h1 class="hero-title">
-        One Prompt Pipeline for Games, Film &amp; Interactive Media —
-        <span class="grad-text">Image, Video, 3D Mesh, Rigged Characters, Animation, Voice, Music &amp; SFX.</span>
-      </h1>
-      <p class="hero-subtitle">
-        Describe what your game or film needs. Hawkes Gen schedules the right GPU server, ComfyUI workflow, Blender rig pipeline, or audio synthesis model—and keeps every asset and reproducible recipe in your library.
-      </p>
-      <div class="hero-ctas">
-        <button type="button" class="btn btn-primary btn-lg" data-open-auth="signup">Start Creating — Get 50 Free Credits</button>
-        <button type="button" class="btn btn-secondary btn-lg" data-open-auth="login">Sign In</button>
-        <a href="/app" class="btn btn-ghost btn-lg">Open Creator Studio →</a>
-      </div>
-
-      <!-- Live Interactive Modality Tabs -->
-      <div class="modality-showcase" aria-label="Interactive Modality Recipes">
-        <div class="modality-tabs" id="heroModalityTabs" role="tablist">
-          <button type="button" class="modality-tab active" data-modality="image" role="tab">Image &amp; PBR Textures</button>
-          <button type="button" class="modality-tab" data-modality="video" role="tab">Video &amp; Lip-Sync</button>
-          <button type="button" class="modality-tab" data-modality="mesh" role="tab">3D Mesh &amp; Rigging</button>
-          <button type="button" class="modality-tab" data-modality="motion" role="tab">Animation &amp; Motion</button>
-          <button type="button" class="modality-tab" data-modality="audio" role="tab">Voice, Music &amp; SFX</button>
-          <button type="button" class="modality-tab" data-modality="pipeline" role="tab">Multi-Step Pipelines</button>
+  <main>
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <div>
+          <div class="label">Generation for game studios</div>
+          <h1 style="margin-top:18px;">Game assets,<br><em>made to order.</em></h1>
+          <p class="lede">Images, video, 3D models, rigs, motion, voice, music and sound effects, from the web or from one API call. The same pipeline we use to build our own games. You pay per generation, and only for what finishes.</p>
+          <div class="actions">
+            <button type="button" class="btn btn-primary btn-lg" data-open-auth="signup">Create an account</button>
+            <a class="btn btn-secondary btn-lg" href="#api">Read the API</a>
+          </div>
+          <div class="fine">50 credits to start. No card needed.</div>
         </div>
+        <div class="sheet" aria-label="An example request">
+          <div class="sheet-head"><span class="label">Request</span><span class="label">5 credits · $0.05</span></div>
+<pre><span class="c"># a tileable floor texture</span>
+curl https://hawkesgen.com/v1/run \
+  -H <span class="k">"Authorization: Bearer hg_…"</span> \
+  -d '{
+    "tool": "image.generate",
+    "params": {
+      "prompt": "worn temple floor tiles, top-down",
+      "seamless": true
+    }
+  }'
 
-        <div class="modality-panel" id="heroModalityContent">
-          <div class="modality-recipe-card">
-            <div>
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-                <span class="portfolio-genre" id="modCategoryLabel">Image &amp; Seamless PBR Materials</span>
-                <span class="credit-pill" id="modCreditBadge">5 Credits ($0.05)</span>
-              </div>
-              <h3 style="margin:8px 0 6px;font-size:1.35rem;" id="modTitle">Concept Art, Turnarounds &amp; PBR Material Maps</h3>
-              <p style="margin:0;color:var(--text-secondary);font-size:0.94rem;" id="modDescription">
-                Generate production character turnarounds, cutouts, 360° equirectangular skyboxes, or tileable textures automatically decomposed into Albedo, Normal, Roughness, Metallic, and Height maps.
-              </p>
-              <pre class="modality-code" id="modCode">{
-  "tool": "image.generate",
-  "params": {
-    "prompt": "Weathered obsidian temple floor tiles with glowing cyan runes, top-down orthographic",
-    "seamless": true,
-    "width": 1024,
-    "height": 1024
-  }
-}</pre>
-            </div>
-            <div class="modality-meta-row">
-              <div id="modToolsList" class="portfolio-tools">
-                <span class="tool-tag">image.generate</span>
-                <span class="tool-tag">image.edit</span>
-                <span class="tool-tag">image.cutout</span>
-                <span class="tool-tag">image.angles</span>
-                <span class="tool-tag">image.panorama</span>
-                <span class="tool-tag">texture.maps</span>
-              </div>
-              <div style="display:flex;gap:10px;">
-                <a href="/app?studio=image" id="modTryLink" class="btn btn-primary btn-sm">Run in Creator Studio →</a>
-              </div>
-            </div>
-          </div>
-
-          <div class="modality-recipe-card" style="background:linear-gradient(160deg, rgba(139,92,246,0.12), rgba(6,182,212,0.06));">
-            <div>
-              <span class="portfolio-genre">Production Guarantee</span>
-              <h4 style="margin:8px 0 10px;font-size:1.15rem;">Deterministic Recipes &amp; Zero Double-Billing</h4>
-              <p style="color:var(--text-secondary);font-size:0.9rem;margin:0 0 14px;">
-                Every output stores its exact ComfyUI graph, seed, model SHA, and input lineage. Failed or cancelled jobs automatically refund your reserved credits immediately.
-              </p>
-              <ul class="pricing-features" style="margin-bottom:0;">
-                <li>✓ Instant quote via <code>POST /v1/billing/quote</code> before you run</li>
-                <li>✓ Automatic credit refund if a GPU job fails or is cancelled</li>
-                <li>✓ Web App, REST API, JS SDK, Unity Editor Package &amp; MCP Server</li>
-                <li>✓ Commercial-cleared 3D rigging &amp; CC0 motion library</li>
-              </ul>
-            </div>
-            <div class="modality-meta-row">
-              <span style="font-size:0.82rem;color:var(--text-muted);">1 Credit = $0.01 USD</span>
-              <button type="button" class="btn btn-secondary btn-sm" data-open-auth="signup">Create Free Account</button>
-            </div>
-          </div>
+<span class="c"># → { "status": "done",
+#     "outputs": [{ "id": "a_…", "kind": "image" }] }</span></pre>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- 'Built With Hawkes Gen' Portfolio Showcase Section -->
-  <section class="section-block" id="portfolio">
-    <div class="hg-container">
-      <div class="section-header">
-        <span class="portfolio-genre">Production-Proven Across Every Modality</span>
-        <h2 class="section-title">Built With Hawkes Gen</h2>
-        <p class="section-desc">
-          Live games and interactive productions shipping across the Hawkes Biomedical universe—built end-to-end with Hawkes Gen pipelines.
-        </p>
-      </div>
-
-      <!-- Modality Filter Pills -->
-      <div class="filter-pills" id="portfolioFilters" role="tablist" aria-label="Filter games by modality">
-        <button type="button" class="filter-pill active" data-filter="all">All</button>
-        <button type="button" class="filter-pill" data-filter="3d">3D &amp; Rigging</button>
-        <button type="button" class="filter-pill" data-filter="video">Video &amp; Animation</button>
-        <button type="button" class="filter-pill" data-filter="image">Image &amp; PBR Textures</button>
-        <button type="button" class="filter-pill" data-filter="audio">Voice, SFX &amp; Music</button>
-      </div>
-
-      <!-- Portfolio Grid (pre-populated & hydrated from GET /v1/portfolio) -->
-      <div class="portfolio-grid" id="portfolioGrid">
-        <!-- Dose Of Destruction -->
-        <article class="portfolio-card" data-project="doseofdestruction" data-modalities="video image audio">
+    <section class="section" id="tools">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="label">01 — Tools</div>
           <div>
-            <div class="portfolio-card-header">
-              <div>
-                <span class="portfolio-genre">2D Platform Fighter</span>
-                <h3 class="portfolio-card-title">Dose Of Destruction</h3>
-              </div>
-              <a href="https://doseofdestruction.com" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">Play Live ↗</a>
-            </div>
-            <p style="color:var(--text-secondary);font-size:0.9rem;margin:0;">
-              33 Fighters, 990 Wan 2.2 Animation Clips, 9 Multi-Layer Stages, 247 ElevenLabs Voice Lines.
-            </p>
-            <ul class="portfolio-highlights">
-              <li>33 Fighters</li>
-              <li>990 Wan 2.2 Animation Clips</li>
-              <li>9 Multi-Layer Stages</li>
-              <li>247 ElevenLabs Voice Lines</li>
-            </ul>
+            <h2>One account, every kind of asset.</h2>
+            <p>Each tool is a tested pipeline: the right model on the right GPU, with the settings worked out. Prices are quoted before you run, in credits (1 credit = $0.01).</p>
           </div>
-          <div class="portfolio-tools">
-            <span class="tool-tag">image.generate</span>
-            <span class="tool-tag">image.edit</span>
-            <span class="tool-tag">video.i2v</span>
-            <span class="tool-tag">image.cutout</span>
-            <span class="tool-tag">audio.voice</span>
-            <span class="tool-tag">audio.music</span>
-          </div>
-        </article>
-
-        <!-- PH Origins -->
-        <article class="portfolio-card" data-project="phorigins" data-modalities="3d image audio video">
-          <div>
-            <div class="portfolio-card-header">
-              <div>
-                <span class="portfolio-genre">3D Corporate Thriller</span>
-                <h3 class="portfolio-card-title">PH Origins</h3>
-              </div>
-              <a href="https://phorigins.com" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">Play Live ↗</a>
-            </div>
-            <p style="color:var(--text-secondary);font-size:0.9rem;margin:0;">
-              47 3D GLB Models, Seamless PBR Material Maps (<code>texture.maps</code>), 160 Voice &amp; SFX Cues.
-            </p>
-            <ul class="portfolio-highlights">
-              <li>47 3D GLB Models</li>
-              <li>Seamless PBR Material Maps (texture.maps)</li>
-              <li>160 Voice &amp; SFX Cues</li>
-              <li>360° Skyboxes &amp; Gaussian Splats</li>
-            </ul>
-          </div>
-          <div class="portfolio-tools">
-            <span class="tool-tag">image.viewsheet</span>
-            <span class="tool-tag">mesh.views3d</span>
-            <span class="tool-tag">texture.maps</span>
-            <span class="tool-tag">image.panorama</span>
-            <span class="tool-tag">audio.voice</span>
-            <span class="tool-tag">audio.sfx</span>
-          </div>
-        </article>
-
-        <!-- Sick Of It -->
-        <article class="portfolio-card" data-project="sickofit" data-modalities="image video audio">
-          <div>
-            <div class="portfolio-card-header">
-              <div>
-                <span class="portfolio-genre">2D Action Roguelite</span>
-                <h3 class="portfolio-card-title">Sick Of It</h3>
-              </div>
-              <a href="https://sickofitgame.com" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">Play Live ↗</a>
-            </div>
-            <p style="color:var(--text-secondary);font-size:0.9rem;margin:0;">
-              1,000 Floors of Hell, 29 Enemy Sprite Sheets, 468 Voice &amp; SFX Clips.
-            </p>
-            <ul class="portfolio-highlights">
-              <li>1,000 Floors of Hell</li>
-              <li>29 Enemy Sprite Sheets</li>
-              <li>468 Voice &amp; SFX Clips</li>
-              <li>90s Arcade Soundtracks</li>
-            </ul>
-          </div>
-          <div class="portfolio-tools">
-            <span class="tool-tag">image.paint</span>
-            <span class="tool-tag">image.edit</span>
-            <span class="tool-tag">video.i2v</span>
-            <span class="tool-tag">audio.voice-design</span>
-            <span class="tool-tag">audio.sfx</span>
-            <span class="tool-tag">audio.music</span>
-          </div>
-        </article>
-
-        <!-- Yooba Land -->
-        <article class="portfolio-card" data-project="yoobaland" data-modalities="3d image audio">
-          <div>
-            <div class="portfolio-card-header">
-              <div>
-                <span class="portfolio-genre">3D Creature Adventure</span>
-                <h3 class="portfolio-card-title">Yooba Land</h3>
-              </div>
-              <a href="https://yoobalandgame.com" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">Play Live ↗</a>
-            </div>
-            <p style="color:var(--text-secondary);font-size:0.9rem;margin:0;">
-              Image → 4-View Sheet → Hunyuan3D 2.1 Textured GLB → UniRig Mixamo Auto-Rigging.
-            </p>
-            <ul class="portfolio-highlights">
-              <li>Image → 4-View Sheet</li>
-              <li>Hunyuan3D 2.1 Textured GLB</li>
-              <li>UniRig Mixamo Auto-Rigging</li>
-              <li>Quaternius Motion Retargeting</li>
-            </ul>
-          </div>
-          <div class="portfolio-tools">
-            <span class="tool-tag">image.generate</span>
-            <span class="tool-tag">image.viewsheet</span>
-            <span class="tool-tag">mesh.views3d</span>
-            <span class="tool-tag">mesh.rig</span>
-            <span class="tool-tag">blender.character</span>
-          </div>
-        </article>
-
-        <!-- The Place Department -->
-        <article class="portfolio-card" data-project="theplacedepartment" data-modalities="3d image audio">
-          <div>
-            <div class="portfolio-card-header">
-              <div>
-                <span class="portfolio-genre">3D Stylized Wave Defense</span>
-                <h3 class="portfolio-card-title">The Place Department</h3>
-              </div>
-              <a href="https://theplacedepartment.com" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">Play Live ↗</a>
-            </div>
-            <p style="color:var(--text-secondary);font-size:0.9rem;margin:0;">
-              Image → 4-View Sheet → Hunyuan3D 2.1 Textured GLB → UniRig Mixamo Auto-Rigging &amp; Moonlit Shanty Score.
-            </p>
-            <ul class="portfolio-highlights">
-              <li>Image → 4-View Sheet</li>
-              <li>Hunyuan3D 2.1 Textured GLB</li>
-              <li>UniRig Mixamo Auto-Rigging</li>
-              <li>Solo Piano Shanty Themes</li>
-            </ul>
-          </div>
-          <div class="portfolio-tools">
-            <span class="tool-tag">image.generate</span>
-            <span class="tool-tag">image.viewsheet</span>
-            <span class="tool-tag">mesh.views3d</span>
-            <span class="tool-tag">mesh.rig</span>
-            <span class="tool-tag">blender.character</span>
-            <span class="tool-tag">audio.music</span>
-          </div>
-        </article>
-
-        <!-- Imagine Live TV -->
-        <article class="portfolio-card" data-project="imaginelivetv" data-modalities="video audio image">
-          <div>
-            <div class="portfolio-card-header">
-              <div>
-                <span class="portfolio-genre">Interactive FMV Story</span>
-                <h3 class="portfolio-card-title">Imagine Live TV</h3>
-              </div>
-              <a href="https://imaginelivetv.com" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">Play Live ↗</a>
-            </div>
-            <p style="color:var(--text-secondary);font-size:0.9rem;margin:0;">
-              Branching AI Video Storytelling &amp; Full-Length ACE-Step 1.5 Music.
-            </p>
-            <ul class="portfolio-highlights">
-              <li>Branching AI Video Storytelling</li>
-              <li>Full-Length ACE-Step 1.5 Music</li>
-              <li>Character Seed Continuity</li>
-              <li>Narrated FMV Cinema Clips</li>
-            </ul>
-          </div>
-          <div class="portfolio-tools">
-            <span class="tool-tag">video.i2v</span>
-            <span class="tool-tag">video.compose</span>
-            <span class="tool-tag">audio.music</span>
-            <span class="tool-tag">audio.voice</span>
-            <span class="tool-tag">image.edit</span>
-          </div>
-        </article>
-      </div>
-    </div>
-  </section>
-
-  <!-- Transparent Credit Pricing Section -->
-  <section class="section-block" id="pricing">
-    <div class="hg-container">
-      <div class="section-header">
-        <span class="portfolio-genre">Pay As You Generate — Credits Never Expire</span>
-        <h2 class="section-title">Transparent Credit Pricing</h2>
-        <p class="section-desc">
-          Start with 50 free credits on sign-up. Top up anytime with one-time credit packs—no recurring subscriptions required.
-        </p>
-      </div>
-
-      <div class="pricing-grid" id="pricingPacksGrid">
-        <!-- Starter Pack -->
-        <div class="pricing-card" data-pack-id="starter_10">
-          <div>
-            <span class="portfolio-genre">Starter Pack</span>
-            <div class="pricing-price">$10</div>
-            <div class="pricing-credits">1,000 Credits</div>
-            <ul class="pricing-features">
-              <li>✓ <strong>200</strong> Concept Images or PBR Map Sets (5 cr)</li>
-              <li>✓ <strong>125</strong> ElevenLabs Voice Lines or SFX (8 cr)</li>
-              <li>✓ <strong>50</strong> Full ACE-Step 1.5 Songs or Auto-Rigs (20 cr)</li>
-              <li>✓ <strong>25</strong> Wan 2.2 AI Video Clips (40 cr)</li>
-              <li>✓ <strong>20</strong> Textured 3D GLB Meshes (50 cr)</li>
-            </ul>
-          </div>
-          <button type="button" class="btn btn-secondary" data-open-auth="signup">Get Starter Pack</button>
         </div>
-
-        <!-- Creator Pack -->
-        <div class="pricing-card featured" data-pack-id="creator_25">
-          <span class="pricing-badge">Most Popular · 10% Bonus</span>
-          <div>
-            <span class="portfolio-genre">Creator Pack</span>
-            <div class="pricing-price">$25</div>
-            <div class="pricing-credits">2,750 Credits</div>
-            <ul class="pricing-features">
-              <li>✓ <strong>550</strong> Concept Images or PBR Map Sets (5 cr)</li>
-              <li>✓ <strong>343</strong> ElevenLabs Voice Lines or SFX (8 cr)</li>
-              <li>✓ <strong>137</strong> Full ACE-Step 1.5 Songs or Auto-Rigs (20 cr)</li>
-              <li>✓ <strong>68</strong> Wan 2.2 AI Video Clips (40 cr)</li>
-              <li>✓ <strong>55</strong> Textured 3D GLB Meshes (50 cr)</li>
-            </ul>
-          </div>
-          <button type="button" class="btn btn-primary" data-open-auth="signup">Get Creator Pack</button>
-        </div>
-
-        <!-- Studio Pack -->
-        <div class="pricing-card" data-pack-id="studio_100">
-          <span class="pricing-badge" style="background:rgba(34,211,238,0.2);border:1px solid var(--cyan-400);color:var(--cyan-400);">20% Bonus</span>
-          <div>
-            <span class="portfolio-genre">Studio Pack</span>
-            <div class="pricing-price">$100</div>
-            <div class="pricing-credits">12,000 Credits</div>
-            <ul class="pricing-features">
-              <li>✓ <strong>2,400</strong> Concept Images or PBR Map Sets (5 cr)</li>
-              <li>✓ <strong>1,500</strong> ElevenLabs Voice Lines or SFX (8 cr)</li>
-              <li>✓ <strong>600</strong> Full ACE-Step 1.5 Songs or Auto-Rigs (20 cr)</li>
-              <li>✓ <strong>300</strong> Wan 2.2 AI Video Clips (40 cr)</li>
-              <li>✓ <strong>240</strong> Textured 3D GLB Meshes (50 cr)</li>
-            </ul>
-          </div>
-          <button type="button" class="btn btn-secondary" data-open-auth="signup">Get Studio Pack</button>
-        </div>
-      </div>
-
-      <!-- Clear Comparison Table -->
-      <div class="pricing-table-wrap">
-        <table class="pricing-table" aria-label="What Each Credit Pack Buys">
-          <thead>
-            <tr>
-              <th>Modality / Tool</th>
-              <th>Credit Cost</th>
-              <th>Starter ($10 / 1,000 cr)</th>
-              <th>Creator ($25 / 2,750 cr)</th>
-              <th>Studio ($100 / 12,000 cr)</th>
-            </tr>
-          </thead>
+        <table class="tool-table">
+          <thead><tr><th class="label">What</th><th class="label">Tools</th><th class="label" style="text-align:right">From</th></tr></thead>
           <tbody>
-            <tr>
-              <td><strong>Image Generation &amp; PBR Maps</strong> (<code>image.generate</code>, <code>texture.maps</code>)</td>
-              <td>5 credits</td>
-              <td>200 images</td>
-              <td>550 images</td>
-              <td>2,400 images</td>
-            </tr>
-            <tr>
-              <td><strong>Background Cutout &amp; Framing</strong> (<code>image.cutout</code>, <code>image.remove-background</code>)</td>
-              <td>2 credits</td>
-              <td>500 cutouts</td>
-              <td>1,375 cutouts</td>
-              <td>6,000 cutouts</td>
-            </tr>
-            <tr>
-              <td><strong>Voice Lines &amp; Sound Effects</strong> (<code>audio.voice</code>, <code>audio.sfx</code>)</td>
-              <td>8 credits</td>
-              <td>125 clips</td>
-              <td>343 clips</td>
-              <td>1,500 clips</td>
-            </tr>
-            <tr>
-              <td><strong>Full Music &amp; 3D Auto-Rigging</strong> (<code>audio.music</code>, <code>mesh.rig</code>, <code>motion.from-text</code>)</td>
-              <td>20 credits</td>
-              <td>50 songs / rigs</td>
-              <td>137 songs / rigs</td>
-              <td>600 songs / rigs</td>
-            </tr>
-            <tr>
-              <td><strong>AI Video &amp; Lip-Sync</strong> (<code>video.t2v</code>, <code>video.i2v</code>, <code>video.animate</code>, <code>video.talk</code>)</td>
-              <td>40 credits</td>
-              <td>25 videos</td>
-              <td>68 videos</td>
-              <td>300 videos</td>
-            </tr>
-            <tr>
-              <td><strong>3D Textured GLB Meshes</strong> (<code>mesh.views3d</code>, <code>mesh.textured</code>, <code>mesh.from-image</code>)</td>
-              <td>50 credits</td>
-              <td>20 3D meshes</td>
-              <td>55 3D meshes</td>
-              <td>240 3D meshes</td>
-            </tr>
+            <tr><td>Images &amp; textures</td><td class="ids">image.generate · image.edit · image.cutout · image.angles · image.panorama · texture.maps</td><td class="from">5 cr</td></tr>
+            <tr><td>Video</td><td class="ids">video.t2v · video.i2v · video.animate · video.upscale · video.interpolate</td><td class="from">40 cr</td></tr>
+            <tr><td>3D models</td><td class="ids">image.viewsheet · mesh.views3d · mesh.textured</td><td class="from">50 cr</td></tr>
+            <tr><td>Rigging &amp; motion</td><td class="ids">mesh.rig · motion.from-text · blender.character · a CC0 motion library</td><td class="from">20 cr</td></tr>
+            <tr><td>Voice &amp; sound</td><td class="ids">audio.voice · audio.voice-design · audio.sfx</td><td class="from">8 cr</td></tr>
+            <tr><td>Music</td><td class="ids">audio.music</td><td class="from">20 cr</td></tr>
+            <tr><td>Chains</td><td class="ids">asset.make: several steps as one job, e.g. concept → four views → mesh → rig</td><td class="from">quoted</td></tr>
           </tbody>
         </table>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- Footer -->
-  <footer style="padding:40px 0;color:var(--text-muted);font-size:0.86rem;">
-    <div class="hg-container" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
-      <div>
-        <strong>Hawkes Gen</strong> · Shared Generative AI Cloud by Hawkes Biomedical
+    <section class="section" id="how">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="label">02 — Billing</div>
+          <div><h2>You pay for results.</h2></div>
+        </div>
+        <div class="steps">
+          <div><div class="label">Quote</div><h3>See the price first.</h3><p>Every job is priced before it runs, in the app and through <code>/v1/billing/quote</code>.</p></div>
+          <div><div class="label">Run</div><h3>Credits are held.</h3><p>The quote is held while the job runs. Progress streams live to the app and to your code.</p></div>
+          <div><div class="label">Keep</div><h3>Failures cost nothing.</h3><p>A job that fails or that you cancel gives its credits back, automatically. Credits don't expire.</p></div>
+        </div>
       </div>
-      <div style="display:flex;gap:20px;">
-        <a href="/app">Creator Studio</a>
-        <a href="#portfolio">Portfolio</a>
-        <a href="#pricing">Pricing</a>
+    </section>
+
+    <section class="section" id="work">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="label">03 — Work</div>
+          <div>
+            <h2>Built with it.</h2>
+            <p>We make games, and Hawkes Gen is how we make their art, animation and sound. These are live.</p>
+          </div>
+        </div>
+        <div class="work">
+          <div class="work-row">
+            <div><div class="label">Platform fighter</div><h3 style="margin-top:6px">Dose Of Destruction</h3></div>
+            <div>
+              <p>33 fighters with 2,219 animation clips, 9 stages, character voices and music.</p>
+              <div class="tools"><span class="tool-tag">image.edit</span><span class="tool-tag">video.i2v</span><span class="tool-tag">image.cutout</span><span class="tool-tag">audio.voice</span><span class="tool-tag">audio.music</span></div>
+            </div>
+            <a class="btn btn-secondary btn-sm" href="https://doseofdestruction.com" target="_blank" rel="noopener">Play ↗</a>
+          </div>
+          <div class="work-row">
+            <div><div class="label">3D story game</div><h3 style="margin-top:6px">PH Origins</h3></div>
+            <div>
+              <p>Voiced dialogue, sound effects and tileable PBR materials for a one-night thriller in a corporate tower.</p>
+              <div class="tools"><span class="tool-tag">audio.voice</span><span class="tool-tag">audio.sfx</span><span class="tool-tag">texture.maps</span></div>
+            </div>
+            <a class="btn btn-secondary btn-sm" href="https://phorigins.com" target="_blank" rel="noopener">Play ↗</a>
+          </div>
+          <div class="work-row">
+            <div><div class="label">Arcade climber</div><h3 style="margin-top:6px">Sick Of It</h3></div>
+            <div>
+              <p>Enemy art, character voices and sound effects, generated from the build tools and the Unity editor.</p>
+              <div class="tools"><span class="tool-tag">image.paint</span><span class="tool-tag">audio.voice</span><span class="tool-tag">audio.sfx</span></div>
+            </div>
+            <a class="btn btn-secondary btn-sm" href="https://sickofitgame.com" target="_blank" rel="noopener">Play ↗</a>
+          </div>
+        </div>
       </div>
+    </section>
+
+    <section class="section" id="pricing">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="label">04 — Pricing</div>
+          <div>
+            <h2>Credits, not subscriptions.</h2>
+            <p>Buy a pack when you need one. Every account starts with 50 credits.</p>
+          </div>
+        </div>
+        <div class="packs" id="packs">
+          <div class="pack" data-pack="starter_10">
+            <div class="label">Starter</div>
+            <div class="price">$10</div>
+            <div class="credits">1,000 credits</div>
+            <div class="per">about 200 images, or 25 video clips</div>
+            <button type="button" class="btn btn-secondary" data-open-auth="signup">Get started</button>
+          </div>
+          <div class="pack featured" data-pack="creator_25">
+            <div class="label">Creator · 10% more</div>
+            <div class="price">$25</div>
+            <div class="credits">2,750 credits</div>
+            <div class="per">about 55 textured 3D models</div>
+            <button type="button" class="btn btn-primary" data-open-auth="signup">Get started</button>
+          </div>
+          <div class="pack" data-pack="studio_100">
+            <div class="label">Studio · 20% more</div>
+            <div class="price">$100</div>
+            <div class="credits">12,000 credits</div>
+            <div class="per">for a team's month of production</div>
+            <button type="button" class="btn btn-secondary" data-open-auth="signup">Get started</button>
+          </div>
+        </div>
+        <div class="pricing-notes">
+          <span>1 credit = $0.01</span><span>Credits never expire</span><span>Failed jobs are refunded</span><span>Payments by Stripe</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="api">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="label">05 — API</div>
+          <div>
+            <h2>Your pipeline, not ours.</h2>
+            <p>Everything in the app is an HTTP call. Make a key in your account and generate from build scripts, tools or your engine.</p>
+          </div>
+        </div>
+        <div class="api-grid">
+          <div>
+            <h3>REST</h3>
+            <p><code>POST /v1/jobs</code> to start, <code>GET /v1/jobs/:id</code> or the <code>/v1/events</code> stream to follow, <code>/v1/assets/:id/file</code> to download. <code>POST /v1/run</code> starts one and waits.</p>
+            <div class="sheet"><pre>curl https://hawkesgen.com/v1/billing/quote \
+  -H "Authorization: Bearer hg_…" \
+  -d '{"tool":"audio.sfx","params":{"prompt":"door creak"}}'</pre></div>
+          </div>
+          <div>
+            <h3>JavaScript</h3>
+            <p>One file, no dependencies, for the browser and Node.</p>
+            <div class="sheet"><pre>import { HawkesGen } from 'https://hawkesgen.com/client/hawkesgen.mjs';
+const gen = new HawkesGen({ url: 'https://hawkesgen.com', key });
+const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <span>© 2026 Hawkes Gen</span>
+      <span><a href="mailto:support@hawkesgen.com">support@hawkesgen.com</a> · <a href="/app">Creator Studio</a></span>
     </div>
   </footer>
 
-  <!-- Built-in Auth Modal (Sign Up / Sign In) -->
   <div class="hg-modal-backdrop" id="authModal" hidden>
-    <div class="hg-modal" style="max-width:440px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
-        <h3 style="margin:0;font-size:1.3rem;" id="authModalTitle">Create Your Studio Account</h3>
-        <button type="button" class="btn btn-ghost btn-sm" id="closeAuthModal" aria-label="Close">✕</button>
+    <div class="hg-modal" role="dialog" aria-modal="true" aria-labelledby="authTitle" style="max-width:420px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:18px">
+        <h3 id="authTitle">Create an account</h3>
+        <button type="button" class="btn btn-ghost btn-sm" id="authClose" aria-label="Close">Close</button>
       </div>
-
-      <div style="display:flex;gap:8px;margin-bottom:18px;">
-        <button type="button" class="btn btn-secondary" style="flex:1;" id="tabSignupBtn">Sign Up (50 Free Credits)</button>
-        <button type="button" class="btn btn-ghost" style="flex:1;" id="tabLoginBtn">Sign In</button>
+      <div class="segmented" style="margin-bottom:18px">
+        <button type="button" data-mode="signup" class="on">New account</button>
+        <button type="button" data-mode="login">Sign in</button>
       </div>
-
       <form id="authForm" class="form-grid">
-        <div class="form-field" id="authNameField">
-          <label for="authName">Creator / Studio Name</label>
-          <input type="text" id="authName" class="form-input" placeholder="Ada Lovelace">
-        </div>
-        <div class="form-field">
-          <label for="authEmail">Email Address</label>
-          <input type="email" id="authEmail" class="form-input" placeholder="you@studio.com" required>
-        </div>
-        <div class="form-field">
-          <label for="authPassword">Password (min 6 characters)</label>
-          <input type="password" id="authPassword" class="form-input" placeholder="••••••••" minlength="6" required>
-        </div>
-        <div id="authError" style="color:var(--rose-400);font-size:0.85rem;display:none;"></div>
-        <button type="submit" class="btn btn-primary" style="width:100%;padding:12px;" id="authSubmitBtn">
-          Create Account &amp; Open Studio →
-        </button>
+        <div class="form-field" id="authNameField"><label for="authName">Name or studio</label><input id="authName" class="form-input" autocomplete="organization"></div>
+        <div class="form-field"><label for="authEmail">Email</label><input id="authEmail" type="email" class="form-input" autocomplete="email" required></div>
+        <div class="form-field"><label for="authPassword">Password <span class="muted" id="pwHint">(8 characters or more)</span></label><input id="authPassword" type="password" class="form-input" minlength="8" autocomplete="new-password" required></div>
+        <div class="form-error" id="authError" hidden></div>
+        <button type="submit" class="btn btn-primary btn-lg" id="authSubmit" style="width:100%">Create account</button>
       </form>
     </div>
   </div>
 
   <script type="module">
-    const MODALITY_RECIPES = {
-      image: {
-        category: 'Image & Seamless PBR Materials',
-        credits: '5 Credits ($0.05)',
-        title: 'Concept Art, Turnarounds & PBR Material Maps',
-        description: 'Generate production character turnarounds, cutouts, 360° equirectangular skyboxes, or tileable textures automatically decomposed into Albedo, Normal, Roughness, Metallic, and Height maps.',
-        code: JSON.stringify({
-          tool: 'image.generate',
-          params: {
-            prompt: 'Weathered obsidian temple floor tiles with glowing cyan runes, top-down orthographic',
-            seamless: true,
-            width: 1024,
-            height: 1024
-          }
-        }, null, 2),
-        tools: ['image.generate', 'image.edit', 'image.cutout', 'image.angles', 'image.panorama', 'texture.maps'],
-        studio: 'image'
-      },
-      video: {
-        category: 'Video & Character Lip-Sync',
-        credits: '40 Credits ($0.40)',
-        title: 'Wan 2.2 Motion Clips, Character Transfer & Portrait Lip-Sync',
-        description: 'Turn concept stills into 16–24 fps gameplay animation clips, transfer choreography from reference video, or drive expressive character dialogue from an ElevenLabs voice line.',
-        code: JSON.stringify({
-          tool: 'video.i2v',
-          inputs: { image: 'asset:a_fighter_idle' },
-          params: {
-            prompt: 'Leaps forward with a spinning plasma roundhouse kick, smooth fighting game arc',
-            seconds: 4
-          }
-        }, null, 2),
-        tools: ['video.t2v', 'video.i2v', 'video.animate', 'video.talk', 'video.control', 'video.upscale'],
-        studio: 'video'
-      },
-      mesh: {
-        category: '3D Mesh & Commercial Auto-Rigging',
-        credits: '50 Credits ($0.50)',
-        title: '4-View Verified Turnaround → Textured GLB → Mixamo Auto-Rig',
-        description: 'Generate verified front/back/left/right character sheets, lift into clean watertight textured GLB meshes with Hunyuan3D 2.1, and auto-rig bipeds or creatures with skeletal weights.',
-        code: JSON.stringify({
-          tool: 'mesh.views3d',
-          inputs: { image: 'asset:a_4view_sheet' },
-          params: { octreeResolution: 256 }
-        }, null, 2),
-        tools: ['image.viewsheet', 'mesh.views3d', 'mesh.textured', 'mesh.from-image', 'mesh.rig', 'blender.character'],
-        studio: 'mesh'
-      },
-      motion: {
-        category: '3D Skeletal Animation & CC0 Library',
-        credits: '20 Credits ($0.20)',
-        title: 'Text-to-Motion Synthesis & CC0 Quaternius Motion Library',
-        description: 'Synthesize custom 3D skeletal animations from natural language prompts (Kimodo SOMA / HY-Motion) or retarget 100+ CC0 locomotion, combat, and emote clips directly onto your character.',
-        code: JSON.stringify({
-          tool: 'motion.from-text',
-          params: {
-            prompt: 'A heavy armored knight swings a greatsword overhead and recovers into combat stance',
-            seconds: 4
-          }
-        }, null, 2),
-        tools: ['motion.from-text', 'blender.character', 'motion.library'],
-        studio: 'motion'
-      },
-      audio: {
-        category: 'ACE-Step 1.5 Music & ElevenLabs Voice/SFX',
-        credits: '8–20 Credits ($0.08–$0.20)',
-        title: 'Full-Length Songs, Character Voices, Custom Voice Design & Game SFX',
-        description: 'Compose loopable instrumental stage themes or full vocal tracks with ACE-Step 1.5, design bespoke NPC voices, and generate frame-accurate combat and UI sound effects.',
-        code: JSON.stringify({
-          tool: 'audio.music',
-          params: {
-            prompt: 'Driving cyberpunk boss battle synthwave with heavy distorted bass and crisp arpeggios',
-            instrumental: true,
-            seconds: 90
-          }
-        }, null, 2),
-        tools: ['audio.music', 'audio.voice', 'audio.voice-design', 'audio.sfx'],
-        studio: 'audio'
-      },
-      pipeline: {
-        category: '1-Click Multi-Step Pipelines',
-        credits: '55–90 Credits',
-        title: 'Chained End-to-End Asset Pipelines (asset.make)',
-        description: 'Chain concept generation, background removal, 4-view sheet verification, 3D textured mesh extraction, and skeletal rigging into a single reproducible job with automatic Claude quality judging.',
-        code: JSON.stringify({
-          tool: 'asset.make',
-          params: {
-            steps: [
-              { tool: 'image.generate', params: { prompt: 'Stylized low-poly goblin alchemist, T-pose' } },
-              { tool: 'image.viewsheet', params: {} },
-              { tool: 'mesh.views3d', params: {} },
-              { tool: 'mesh.rig', params: { kind: 'humanoid' } }
-            ]
-          }
-        }, null, 2),
-        tools: ['asset.make', 'image.generate', 'image.viewsheet', 'mesh.views3d', 'mesh.rig', 'texture.maps'],
-        studio: 'pipelines'
-      }
-    };
-
-    // Modality tabs interaction
-    const modTabs = document.querySelectorAll('#heroModalityTabs .modality-tab');
-    modTabs.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        modTabs.forEach((b) => b.classList.remove('active'));
-        btn.classList.add('active');
-        const key = btn.getAttribute('data-modality') || 'image';
-        const data = MODALITY_RECIPES[key] || MODALITY_RECIPES.image;
-        document.getElementById('modCategoryLabel').textContent = data.category;
-        document.getElementById('modCreditBadge').textContent = data.credits;
-        document.getElementById('modTitle').textContent = data.title;
-        document.getElementById('modDescription').textContent = data.description;
-        document.getElementById('modCode').textContent = data.code;
-        document.getElementById('modTryLink').setAttribute('href', `/app?studio=${data.studio}`);
-        const toolsEl = document.getElementById('modToolsList');
-        toolsEl.innerHTML = data.tools.map((t) => `<span class="tool-tag">${t}</span>`).join('');
-      });
-    });
-
-    // Portfolio filter interaction
-    const filterBtns = document.querySelectorAll('#portfolioFilters .filter-pill');
-    filterBtns.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        filterBtns.forEach((b) => b.classList.remove('active'));
-        btn.classList.add('active');
-        const filter = btn.getAttribute('data-filter') || 'all';
-        document.querySelectorAll('#portfolioGrid .portfolio-card').forEach((card) => {
-          const mods = (card.getAttribute('data-modalities') || '').split(/\s+/);
-          card.style.display = (filter === 'all' || mods.includes(filter)) ? '' : 'none';
-        });
-      });
-    });
-
-    // Hydrate live counts from GET /v1/portfolio and GET /v1/billing/packs
-    fetch('/v1/portfolio').then((r) => r.ok ? r.json() : null).then((data) => {
-      if (!data || !Array.isArray(data.items)) return;
-      for (const item of data.items) {
-        const card = document.querySelector(`#portfolioGrid .portfolio-card[data-project="${item.project}"]`);
-        if (card && item.assetCounts?.total) {
-          card.setAttribute('title', `${item.title}: ${item.assetCounts.total.toLocaleString()} generated assets`);
-        }
-      }
-    }).catch(() => {});
-
-    fetch('/v1/billing/packs').then((r) => r.ok ? r.json() : null).then((data) => {
-      if (!data || !Array.isArray(data.packs)) return;
-      for (const p of data.packs) {
-        const el = document.querySelector(`#pricingPacksGrid [data-pack-id="${p.id}"] .pricing-credits`);
-        if (el) el.textContent = `${Number(p.credits).toLocaleString()} Credits`;
-      }
-    }).catch(() => {});
-
-    // Built-in Auth Modal
-    const authModal = document.getElementById('authModal');
-    const authForm = document.getElementById('authForm');
-    const authNameField = document.getElementById('authNameField');
-    const authModalTitle = document.getElementById('authModalTitle');
-    const authSubmitBtn = document.getElementById('authSubmitBtn');
-    const authError = document.getElementById('authError');
-    const tabSignupBtn = document.getElementById('tabSignupBtn');
-    const tabLoginBtn = document.getElementById('tabLoginBtn');
-    let authMode = 'signup';
-
-    function setAuthMode(mode) {
-      authMode = mode;
-      authError.style.display = 'none';
-      if (mode === 'signup') {
-        authModalTitle.textContent = 'Create Your Studio Account';
-        authNameField.style.display = '';
-        authSubmitBtn.textContent = 'Create Account & Open Studio →';
-        tabSignupBtn.className = 'btn btn-secondary';
-        tabLoginBtn.className = 'btn btn-ghost';
-      } else {
-        authModalTitle.textContent = 'Sign In to Hawkes Gen';
-        authNameField.style.display = 'none';
-        authSubmitBtn.textContent = 'Sign In & Open Studio →';
-        tabLoginBtn.className = 'btn btn-secondary';
-        tabSignupBtn.className = 'btn btn-ghost';
-      }
+    const modal = document.getElementById('authModal');
+    const form = document.getElementById('authForm');
+    const err = document.getElementById('authError');
+    let mode = 'signup';
+    function setMode(m) {
+      mode = m;
+      document.querySelectorAll('.segmented button').forEach((b) => b.classList.toggle('on', b.dataset.mode === m));
+      document.getElementById('authTitle').textContent = m === 'signup' ? 'Create an account' : 'Sign in';
+      document.getElementById('authSubmit').textContent = m === 'signup' ? 'Create account' : 'Sign in';
+      document.getElementById('authNameField').hidden = m !== 'signup';
+      document.getElementById('pwHint').hidden = m !== 'signup';
+      document.getElementById('authPassword').autocomplete = m === 'signup' ? 'new-password' : 'current-password';
+      err.hidden = true;
     }
-
-    document.querySelectorAll('[data-open-auth]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        setAuthMode(btn.getAttribute('data-open-auth') || 'signup');
-        authModal.hidden = false;
-      });
-    });
-
-    tabSignupBtn.addEventListener('click', () => setAuthMode('signup'));
-    tabLoginBtn.addEventListener('click', () => setAuthMode('login'));
-    document.getElementById('closeAuthModal').addEventListener('click', () => {
-      authModal.hidden = true;
-    });
-
-    authForm.addEventListener('submit', async (e) => {
+    document.querySelectorAll('[data-open-auth]').forEach((b) => b.addEventListener('click', () => { setMode(b.dataset.openAuth); modal.hidden = false; document.getElementById('authEmail').focus(); }));
+    document.querySelectorAll('.segmented button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+    document.getElementById('authClose').addEventListener('click', () => { modal.hidden = true; });
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.hidden = true; });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') modal.hidden = true; });
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      authError.style.display = 'none';
-      authSubmitBtn.disabled = true;
-      const email = document.getElementById('authEmail').value.trim();
-      const password = document.getElementById('authPassword').value;
-      const name = document.getElementById('authName').value.trim();
-      const endpoint = authMode === 'signup' ? '/v1/users/signup' : '/v1/users/login';
+      err.hidden = true;
+      const submit = document.getElementById('authSubmit');
+      submit.disabled = true;
+      const body = { email: document.getElementById('authEmail').value.trim(), password: document.getElementById('authPassword').value };
+      if (mode === 'signup') body.name = document.getElementById('authName').value.trim();
       try {
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(authMode === 'signup' ? { email, password, name } : { email, password })
-        });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(body.error || 'Authentication failed');
-        }
-        if (body.apiKey) {
-          try { localStorage.setItem('hg_last_minted_key', body.apiKey); } catch {}
-        }
-        window.location.href = '/app';
-      } catch (err) {
-        authError.textContent = err.message || String(err);
-        authError.style.display = 'block';
+        const r = await fetch(mode === 'signup' ? '/v1/users/signup' : '/v1/users/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.error || 'That did not work. Try again.');
+        if (data.apiKey) try { localStorage.setItem('hg_last_minted_key', data.apiKey); } catch {}
+        location.href = data.user?.role === 'admin' ? '/admin' : '/app';
+      } catch (x) {
+        err.textContent = x.message;
+        err.hidden = false;
       } finally {
-        authSubmitBtn.disabled = false;
+        submit.disabled = false;
       }
     });
+    // Already signed in: the top-right goes straight to the app.
+    fetch('/v1/users/me').then((r) => (r.ok ? r.json() : null)).then((d) => {
+      if (!d?.user) return;
+      const actions = document.querySelector('.hg-nav-actions');
+      actions.innerHTML = `${d.user.role === 'admin' ? '<a class="btn btn-ghost" href="/admin">Admin</a>' : ''}<a class="btn btn-primary" href="/app">Open the studio</a>`;
+    }).catch(() => {});
   </script>
 </body>
 </html>

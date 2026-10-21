@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning src/server.ts",
-    "typecheck": "tsc -p . && node --check public/app.js",
+    "typecheck": "tsc -p . && node --check public/app.js && node --check public/admin.js",
     "test": "node --disable-warning=ExperimentalWarning --test \"test/**/*.test.ts\""
   },
   "devDependencies": {

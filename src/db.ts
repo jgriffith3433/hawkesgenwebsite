@@ -61,7 +61,21 @@ CREATE TABLE IF NOT EXISTS jobs (
   settled INTEGER
 );
 CREATE INDEX IF NOT EXISTS jobs_open ON jobs (settled) WHERE settled IS NULL;
+CREATE INDEX IF NOT EXISTS jobs_user ON jobs (user_id, created);
+-- One-time links to set a password (an admin's first sign-in, a reset an admin hands out).
+CREATE TABLE IF NOT EXISTS password_tokens (
+  token_hash TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created INTEGER NOT NULL,
+  expires INTEGER NOT NULL,
+  used INTEGER
+);
 `);
+
+// Columns added after the first release.
+const cols = (table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
+if (!cols('users').includes('role')) db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'customer'");
+if (!cols('users').includes('disabled')) db.exec('ALTER TABLE users ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0');
 
 /** Runs fn in one transaction. */
 export function tx<T>(fn: () => T): T {

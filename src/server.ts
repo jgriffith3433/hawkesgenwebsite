@@ -13,9 +13,10 @@ import * as users from './users.ts';
 import { PACKS, stripeStatus, checkout, ledger, stripeWebhook } from './billing.ts';
 import { quote, submit, settle, watch } from './jobs.ts';
 import { getPortfolio } from './portfolio.ts';
+import * as admin from './admin.ts';
 
 const PUBLIC = path.join(ROOT, 'public');
-const PAGES: Record<string, string> = { '/': 'index.html', '/home': 'index.html', '/app': 'app.html', '/client/hawkesgen.mjs': 'hawkesgen.mjs' };
+const PAGES: Record<string, string> = { '/': 'index.html', '/home': 'index.html', '/app': 'app.html', '/admin': 'admin.html', '/reset': 'reset.html', '/client/hawkesgen.mjs': 'hawkesgen.mjs' };
 const TYPES: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webp': 'image/webp' };
 
 // Gen routes a signed-in customer may use as they are (Gen scopes them to the customer's project).
@@ -90,6 +91,13 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       users.setSessionCookie(res, req, r.sessionToken);
       return send(res, 200, { user: r.user });
     }
+    if (route === '/v1/users/password' && method === 'POST') {
+      limitLogins(clientIp(req));
+      const b = await readJson(req);
+      const r = users.setPasswordWithToken(b.token, b.password);
+      users.setSessionCookie(res, req, r.sessionToken);
+      return send(res, 200, { user: r.user });
+    }
     if (route === '/v1/users/logout' && method === 'POST') {
       users.deleteSession(users.sessionToken(req));
       users.clearSessionCookie(res, req);
@@ -105,6 +113,25 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (route === '/v1/billing/quote' && method === 'POST') return send(res, 200, await quote(user, await readJson(req)));
     if (route === '/v1/billing/checkout' && method === 'POST') return send(res, 200, await checkout(user, await readJson(req)));
     if (route === '/v1/billing/ledger' && method === 'GET') return send(res, 200, ledger(user.id, Number(url.searchParams.get('limit')) || 100));
+
+    // ------------------------------------------------------------ admins (anyone else gets a 404)
+    if (route.startsWith('/v1/admin/')) {
+      admin.requireAdmin(user);
+      const m = /^\/v1\/admin\/users\/(usr_[0-9a-f]+)(?:\/(credits|disable|enable|role|password-link))?$/.exec(route);
+      if (route === '/v1/admin/overview' && method === 'GET') return send(res, 200, admin.overview());
+      if (route === '/v1/admin/users' && method === 'GET') return send(res, 200, admin.listUsers({ search: url.searchParams.get('q'), limit: Number(url.searchParams.get('limit')), offset: Number(url.searchParams.get('offset')) }));
+      if (route === '/v1/admin/jobs' && method === 'GET') return send(res, 200, { jobs: admin.recentJobs(Number(url.searchParams.get('limit')) || 100) });
+      if (route === '/v1/admin/purchases' && method === 'GET') return send(res, 200, { purchases: admin.purchases(Number(url.searchParams.get('limit')) || 100) });
+      if (m && !m[2] && method === 'GET') return send(res, 200, admin.userDetail(m[1]));
+      if (m && method === 'POST') {
+        const b = await readJson(req);
+        if (m[2] === 'credits') return send(res, 200, admin.adjustCredits(user, m[1], b.delta, b.note));
+        if (m[2] === 'disable' || m[2] === 'enable') return send(res, 200, admin.setDisabled(user, m[1], m[2] === 'disable'));
+        if (m[2] === 'role') return send(res, 200, admin.setRole(user, m[1], b.role));
+        if (m[2] === 'password-link') return send(res, 200, admin.resetLink(m[1]));
+      }
+      return send(res, 404, { error: 'Not found' });
+    }
 
     if (route === '/v1/jobs' && method === 'POST') {
       const body = await readJson(req);

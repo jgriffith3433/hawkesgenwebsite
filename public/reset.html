@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <title>Set your password — Hawkes Gen</title>
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/public.css">
+</head>
+<body>
+  <header class="hg-navbar"><div class="wrap hg-navbar-inner"><a href="/" class="hg-brand"><span class="wordmark">Hawkes Gen</span></a></div></header>
+  <div class="wrap">
+    <form class="auth-inline-wrap form-grid" id="f">
+      <h3 style="font:400 30px/1.1 var(--serif)">Set your password</h3>
+      <p class="muted" style="margin:0">This link works once. Pick at least 8 characters.</p>
+      <div class="form-field"><label for="p1">New password</label><input id="p1" type="password" class="form-input" minlength="8" autocomplete="new-password" required></div>
+      <div class="form-field"><label for="p2">Again</label><input id="p2" type="password" class="form-input" minlength="8" autocomplete="new-password" required></div>
+      <div class="form-error" id="err" hidden></div>
+      <button class="btn btn-primary btn-lg" type="submit">Save and sign in</button>
+    </form>
+  </div>
+  <script type="module">
+    const token = new URLSearchParams(location.search).get('token') || '';
+    history.replaceState(null, '', '/reset');
+    const err = document.getElementById('err');
+    document.getElementById('f').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      err.hidden = true;
+      const p1 = document.getElementById('p1').value;
+      if (p1 !== document.getElementById('p2').value) { err.textContent = "Those don't match."; err.hidden = false; return; }
+      const r = await fetch('/v1/users/password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, password: p1 }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { err.textContent = d.error || 'That did not work.'; err.hidden = false; return; }
+      location.href = d.user?.role === 'admin' ? '/admin' : '/app';
+    });
+  </script>
+</body>
+</html>
