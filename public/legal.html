@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Terms, privacy and refunds — Hawkes Gen</title>
+  <meta name="description" content="The terms of service, privacy policy and refund policy for Hawkes Gen.">
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/public.css">
+  <style>
+    .legal { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 48px; padding: 56px 0 96px; }
+    .legal nav { position: sticky; top: 84px; align-self: start; display: grid; gap: 10px; }
+    .legal nav a { text-decoration: none; color: var(--ink-2); font-size: 14px; }
+    .legal nav a:hover { color: var(--ink); }
+    .legal article { max-width: 44em; }
+    .legal h1 { font: 400 52px/1 var(--serif); letter-spacing: -0.02em; }
+    .legal h2 { font: 400 34px/1.1 var(--serif); margin: 64px 0 6px; padding-top: 24px; border-top: 1px solid var(--ink); }
+    .legal h3 { font: 600 15px/1.4 var(--sans); margin: 28px 0 6px; }
+    .legal p, .legal li { color: var(--ink-2); }
+    .legal ul { padding-left: 1.2em; }
+    .legal li { margin: 4px 0; }
+    .legal .updated { margin: 14px 0 0; font: 12px var(--mono); color: var(--ink-3); }
+    @media (max-width: 800px) { .legal { grid-template-columns: 1fr; gap: 24px; } .legal nav { position: static; grid-auto-flow: column; justify-content: start; gap: 18px; } }
+  </style>
+</head>
+<body>
+  <header class="hg-navbar">
+    <div class="wrap hg-navbar-inner">
+      <a href="/" class="hg-brand"><span class="wordmark">Hawkes Gen</span></a>
+      <div class="hg-nav-actions"><a class="btn btn-ghost" href="/">Home</a><a class="btn btn-primary" href="/app">Open the studio</a></div>
+    </div>
+  </header>
+
+  <main class="wrap legal">
+    <nav aria-label="On this page">
+      <span class="label">Legal</span>
+      <a href="#terms">Terms of service</a>
+      <a href="#privacy">Privacy policy</a>
+      <a href="#refunds">Refunds</a>
+      <a href="#contact">Contact</a>
+    </nav>
+    <article>
+      <h1>Terms, privacy and refunds</h1>
+      <p class="updated">Last updated October 21, 2026</p>
+      <p>Hawkes Gen ("we", "us") runs hawkesgen.com: a service that generates images, video, 3D models, animation, voice, music and sound effects. These pages explain the deal between you and us, what we do with your data, and when you get your money back. We've kept them short and in plain language.</p>
+
+      <h2 id="terms">Terms of service</h2>
+
+      <h3>Your account</h3>
+      <p>You need an account to use Hawkes Gen. You must be at least 13 years old, and at least 18 (or have a parent or guardian's permission) to buy credits. Keep your password and API keys private: anything done with them counts as done by you. Tell us right away if you think someone else has access.</p>
+
+      <h3>Credits and payment</h3>
+      <ul>
+        <li>Generation is paid in credits. One credit is worth one US cent. Every job is priced before it runs.</li>
+        <li>Credits are bought in packs through Stripe. Prices are in US dollars and include any fees we charge; your bank may add its own.</li>
+        <li>Credits don't expire while your account is open. They have no cash value and can't be transferred to another account.</li>
+        <li>When a job starts, its quoted credits are held. If the job fails or you cancel it, they come back to your balance automatically.</li>
+        <li>New accounts get free starter credits. We may change or stop free credits at any time.</li>
+      </ul>
+
+      <h3>What you make</h3>
+      <p>As between you and us, what you generate is yours, along with the prompts and files you upload. You can use it for any lawful purpose, including commercial games and products. You give us only the permissions we need to run the service: to store your files, process them, and show them back to you. We don't use your prompts, uploads or outputs to train models, and we don't show them to other customers.</p>
+      <p>Generated work can resemble existing work, and the law on who owns AI-generated content differs by country and is still changing. It's your job to check that what you publish doesn't infringe anyone's rights.</p>
+
+      <h3>What you can't do</h3>
+      <ul>
+        <li>Generate or upload anything illegal, including sexual content involving minors.</li>
+        <li>Create content meant to deceive people about a real person: deepfakes, impersonation, or a real person's voice without their permission.</li>
+        <li>Upload material you don't have the rights to use.</li>
+        <li>Harass, threaten, or promote violence against people.</li>
+        <li>Attack, overload, scrape or reverse-engineer the service, get around its limits or billing, or resell access without our written permission.</li>
+      </ul>
+      <p>We may refuse a job, remove content, or suspend an account that breaks these rules. If we close your account for something other than breaking these terms, we'll refund any purchased credits you haven't used.</p>
+
+      <h3>The service</h3>
+      <p>We work hard to keep Hawkes Gen running and our tools working, but the service is provided "as is". Generated results vary, and we can't promise any particular output, uptime, or that a tool will stay available. We may change, add or remove tools, and change prices for future jobs. A price change never touches credits you've already bought.</p>
+      <p>To the extent the law allows, we aren't liable for indirect or consequential losses. Our total liability to you for anything to do with the service is limited to what you paid us in the 12 months before the claim.</p>
+
+      <h3>Ending</h3>
+      <p>You can stop using Hawkes Gen and ask us to close your account at any time. We may change these terms. If a change matters, we'll tell you on the site or by email before it takes effect. Using the service after that means you accept the new terms.</p>
+
+      <h2 id="privacy">Privacy policy</h2>
+
+      <h3>What we collect</h3>
+      <ul>
+        <li><strong>Account:</strong> your email address, your name if you give one, and your password, stored only as a salted hash.</li>
+        <li><strong>Your work:</strong> the prompts, settings and files you send, and what we generate for you.</li>
+        <li><strong>Billing:</strong> what you bought and your credit history. Card details go straight to Stripe; we never see or store them.</li>
+        <li><strong>Usage:</strong> sign-in times, the jobs you run, and basic request logs (IP address, browser) we keep for security and troubleshooting.</li>
+        <li><strong>Site statistics:</strong> anonymous page statistics from our own analytics. They use no cookies and contain no personal data.</li>
+      </ul>
+
+      <h3>Cookies</h3>
+      <p>We set one cookie, to keep you signed in. We use no advertising or tracking cookies.</p>
+
+      <h3>How we use it</h3>
+      <p>To run your jobs, keep your account and library, process payments, prevent abuse, answer you when you contact us, and tell you about changes to the service. We don't sell your data and we don't use it for advertising.</p>
+
+      <h3>Who else handles it</h3>
+      <p>To make your assets, we send your job (prompts and the input files that job needs) to the companies that run parts of the work. Each one handles it only to provide that service:</p>
+      <ul>
+        <li><strong>Amazon Web Services:</strong> the servers and GPUs that run the service, and file storage (United States).</li>
+        <li><strong>Anthropic:</strong> language and vision models, for the tools that use them.</li>
+        <li><strong>ElevenLabs:</strong> voice and sound effects.</li>
+        <li><strong>Stripe:</strong> payments.</li>
+      </ul>
+      <p>We may also disclose information if the law requires it, or to protect people from harm.</p>
+
+      <h3>How long we keep it</h3>
+      <p>We keep your account, library and credit history while your account is open. If you ask us to delete your account, we delete your files and personal data within 30 days. We keep billing records as long as tax and accounting law require.</p>
+
+      <h3>Your choices</h3>
+      <p>You can ask for a copy of your data, a correction, or deletion of your account at any time. Write to us at the address below. Depending on where you live (for example in the EU, the UK or California), you may have further rights, and we honor them.</p>
+
+      <h3>Security</h3>
+      <p>Connections are encrypted (HTTPS). Passwords are hashed, API keys are stored only as hashes, and each customer's work is kept separate from every other customer's. No system is perfectly secure; if a breach affects you, we'll tell you.</p>
+
+      <h2 id="refunds">Refunds</h2>
+      <ul>
+        <li><strong>Failed and cancelled jobs:</strong> refunded to your credit balance automatically, right away.</li>
+        <li><strong>Unused credits:</strong> within 14 days of a purchase, we refund it in full to your card if you haven't spent any of that pack's credits. Write to us with the email on your account.</li>
+        <li><strong>A result you're unhappy with:</strong> generation is unpredictable, so completed jobs aren't refunded as a rule. If a tool clearly didn't do what it says, tell us and we'll make it right, usually with credits.</li>
+        <li><strong>Charged in error, or twice:</strong> tell us and we'll refund it.</li>
+      </ul>
+      <p>Card refunds go back through Stripe and usually reach your account in 5 to 10 business days.</p>
+
+      <h2 id="contact">Contact</h2>
+      <p>Questions, requests about your data, refunds: <a href="mailto:support@hawkesgen.com">support@hawkesgen.com</a>.</p>
+    </article>
+  </main>
+
+  <footer class="footer"><div class="wrap"><span>© 2026 Hawkes Gen</span><span><a href="/legal#terms">Terms</a> · <a href="/legal#privacy">Privacy</a> · <a href="/legal#refunds">Refunds</a></span></div></footer>
+</body>
+</html>

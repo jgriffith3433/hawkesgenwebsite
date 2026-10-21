@@ -162,7 +162,7 @@ curl https://hawkesgen.com/v1/run \
             <div class="label">Studio · 20% more</div>
             <div class="price">$100</div>
             <div class="credits">12,000 credits</div>
-            <div class="per">for a team's month of production</div>
+            <div class="per">for a team in production</div>
             <button type="button" class="btn btn-secondary" data-open-auth="signup">Get started</button>
           </div>
         </div>
@@ -204,7 +204,7 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
   <footer class="footer">
     <div class="wrap">
       <span>© 2026 Hawkes Gen</span>
-      <span><a href="mailto:support@hawkesgen.com">support@hawkesgen.com</a> · <a href="/app">Creator Studio</a></span>
+      <span><a href="/legal#terms">Terms</a> · <a href="/legal#privacy">Privacy</a> · <a href="/legal#refunds">Refunds</a> · <a href="mailto:support@hawkesgen.com">support@hawkesgen.com</a></span>
     </div>
   </footer>
 
@@ -224,6 +224,7 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
         <div class="form-field"><label for="authPassword">Password <span class="muted" id="pwHint">(8 characters or more)</span></label><input id="authPassword" type="password" class="form-input" minlength="8" autocomplete="new-password" required></div>
         <div class="form-error" id="authError" hidden></div>
         <button type="submit" class="btn btn-primary btn-lg" id="authSubmit" style="width:100%">Create account</button>
+        <p class="muted" id="authTerms" style="margin:0;font-size:12.5px">By creating an account you agree to the <a href="/legal#terms" target="_blank">terms</a> and <a href="/legal#privacy" target="_blank">privacy policy</a>.</p>
       </form>
     </div>
   </div>
@@ -240,6 +241,7 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
       document.getElementById('authSubmit').textContent = m === 'signup' ? 'Create account' : 'Sign in';
       document.getElementById('authNameField').hidden = m !== 'signup';
       document.getElementById('pwHint').hidden = m !== 'signup';
+      document.getElementById('authTerms').hidden = m !== 'signup';
       document.getElementById('authPassword').autocomplete = m === 'signup' ? 'new-password' : 'current-password';
       err.hidden = true;
     }

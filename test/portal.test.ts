@@ -86,6 +86,7 @@ async function newCustomer() {
 test('pages and the open routes', async () => {
   assert.match((await call('/')).body, /<html/i);
   assert.match((await call('/app')).body, /<html/i);
+  for (const p of ['/legal', '/terms', '/privacy', '/refunds']) assert.match((await call(p)).body, /Refunds/);
   assert.equal((await call('/v1/portfolio')).body.items.length, 3);
   assert.equal((await call('/v1/billing/packs')).body.packs.length, 3);
   assert.equal((await call('/../src/config.ts')).status, 404);
