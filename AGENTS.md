@@ -25,6 +25,7 @@ customer ──https──▶ hawkesgen.com (this repo, its own EC2 box, Caddy, 
 - Prices come from Gen (`POST /v1/billing/quote`). Packs are in `billing.ts PACKS`.
 - Secrets live in `.env` on the box (gitignored): `HAWKESGEN_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`,
   `STRIPE_WEBHOOK_SECRET`. Never commit, print or log them.
+- **Design:** paper and ink, one accent (`--accent`), hairline rules, Instrument Serif headings, IBM Plex Sans/Mono (`public/public.css`). No gradients, glows or emoji. Copy is plain and true: no claims we can't show.
 - No runtime dependencies (Node 24, `node:sqlite`, TypeScript by type stripping: erasable syntax only, `.ts` imports).
 
 ## Run
@@ -44,7 +45,9 @@ npm test             # against a fake Gen, offline
 | `src/billing.ts` | Packs, the ledger (hold, attach, refund), Stripe Checkout and the signed webhook |
 | `src/jobs.ts` | Quote, take credits, submit to Gen as the customer, settle from Gen's event stream (`watch`) and the sweep |
 | `src/gen.ts` | The Gen client (the portal's key, narrowed per call) |
-| `src/portfolio.ts` | "Built With Hawkes Gen" (curated) |
+| `src/admin.ts`, `public/admin.html` + `admin.js` | `/admin`: overview (revenue, accounts, credits, jobs), accounts with ledger and jobs, credit adjustments (with a note, in their ledger), disable, roles, password links. `/v1/admin/*` answers 404 to anyone but an admin |
+| `src/cli.ts` | On the box: `sudo -u hawkes node src/cli.ts admin <email>` makes an admin and prints a one-time link to set the password; `password-link <email>` for a locked-out customer |
+| `src/portfolio.ts` | "Built with Hawkes Gen": only claims we can show |
 | `public/` | The pages: `index.html` (landing, portfolio, pricing), `app.html` + `app.js` (Creator Studio), `public.css`, `hawkesgen.mjs` (the JS client, a copy of `hawkesgen/clients/js`) |
 | `deploy/` | The box: `setup.mjs` (one-time, from J's PC), `Caddyfile`, the systemd units, `pull.mjs` (self-deploy) |
 
