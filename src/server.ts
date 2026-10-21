@@ -113,9 +113,11 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (route === '/v1/run' && method === 'POST') {
       // Submit and wait (up to `timeout` seconds, default 10 minutes).
       const body = await readJson(req);
+      let gone = false;
+      res.on('close', () => { gone = true; });
       let [job] = await submit(user, [body]);
       const until = Date.now() + Math.max(1, Math.min(3600, Number(body.timeout) || 600)) * 1000;
-      while (!['done', 'failed', 'cancelled'].includes(job.status) && Date.now() < until && !req.destroyed) {
+      while (!['done', 'failed', 'cancelled'].includes(job.status) && Date.now() < until && !gone) {
         await new Promise((r) => setTimeout(r, 2000));
         job = await gen(`/v1/jobs/${job.id}`, { as: user.project });
       }

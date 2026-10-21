@@ -149,6 +149,17 @@ test('done keeps the credits; cancel gives them back; the sweep settles what the
   assert.equal(await credits(c.cookie), 42);
 });
 
+test('/v1/run waits for the job to end', async () => {
+  const c = await newCustomer();
+  const pending = call('/v1/run', { key: c.key, body: { tool: 'llm.text', params: { credits: 3 }, timeout: 30 } });
+  await until(async () => [...jobs.values()].some((j) => j.project === c.user.project));
+  const job = [...jobs.values()].find((j) => j.project === c.user.project);
+  setTimeout(() => jobs.set(job.id, { ...job, status: 'done', result: 'ok' }), 300);
+  const r = await pending;
+  assert.equal(r.body.status, 'done');
+  assert.equal(await credits(c.cookie), 47);
+});
+
 test('not enough credits: 402, and Gen never hears of it; a job Gen refuses is not charged', async () => {
   const c = await newCustomer();
   seen.length = 0;

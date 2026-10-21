@@ -20,7 +20,6 @@ hawkesgen.com {
 	reverse_proxy 127.0.0.1:8800 {
 		# Live job progress (server-sent events) goes out as it happens.
 		flush_interval -1
-		header_up X-Forwarded-For {remote_host}
 	}
 	log {
 		output file /var/log/caddy/access.log {

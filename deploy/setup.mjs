@@ -29,7 +29,7 @@ ssh(`sudo install -m 755 /dev/stdin /usr/local/bin/git-credential-hawkes-portal`
 ssh(`sudo -u hawkes -H git config --global credential.https://github.com.helper /usr/local/bin/git-credential-hawkes-portal && sudo -u hawkes -H git config --global pull.ff only`);
 
 step('code');
-ssh(`sudo install -d -o hawkes -g hawkes /srv/hawkes && if [ -d ${DIR}/.git ]; then sudo -u hawkes -H git -C ${DIR} fetch -q origin main && sudo -u hawkes -H git -C ${DIR} merge --ff-only -q origin/main; else sudo -u hawkes -H git clone -q --branch main https://github.com/jgriffith3433/hawkesgenwebsite.git ${DIR}; fi && sudo install -d -m 700 -o hawkes -g hawkes ${DIR}/.data && git -C ${DIR} log -1 --format='%h %s'`);
+ssh(`sudo install -d -o hawkes -g hawkes /srv/hawkes && if [ -d ${DIR}/.git ]; then sudo -u hawkes -H git -C ${DIR} fetch -q origin main && sudo -u hawkes -H git -C ${DIR} merge --ff-only -q origin/main; else sudo -u hawkes -H git clone -q --branch main https://github.com/jgriffith3433/hawkesgenwebsite.git ${DIR}; fi && sudo install -d -m 700 -o hawkes -g hawkes ${DIR}/.data && sudo -u hawkes -H git -C ${DIR} log -1 --format='%h %s'`);
 
 if (envFile) {
   step('.env');
@@ -45,5 +45,5 @@ console.log(ssh('sleep 3; curl -s -m 5 http://127.0.0.1:8800/v1/health'));
 
 step('Caddy');
 put(path.join(HERE, 'Caddyfile'), '/tmp/Caddyfile.portal', 644);
-ssh('sudo install -d -o caddy -g caddy /var/log/caddy && sudo caddy validate --config /tmp/Caddyfile.portal --adapter caddyfile >/dev/null 2>&1 && sudo install -m 644 /tmp/Caddyfile.portal /etc/caddy/Caddyfile && sudo rm /tmp/Caddyfile.portal && sudo systemctl reload-or-restart caddy && systemctl is-active caddy');
+ssh('sudo install -d -o caddy -g caddy /var/log/caddy && sudo touch /var/log/caddy/access.log && sudo chown caddy:caddy /var/log/caddy/access.log && sudo -u caddy caddy validate --config /tmp/Caddyfile.portal --adapter caddyfile >/dev/null 2>&1 && sudo install -m 644 /tmp/Caddyfile.portal /etc/caddy/Caddyfile && sudo rm /tmp/Caddyfile.portal && sudo systemctl reload-or-restart caddy && systemctl is-active caddy');
 step('done');
