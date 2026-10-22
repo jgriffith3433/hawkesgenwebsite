@@ -452,7 +452,7 @@ const PROMPTS = [
 
 async function present(c: Caller, t: Task, opts: { previews?: boolean } = {}) {
   if (t.state === 'running') {
-    return { content: [{ type: 'text', text: `Still working on "${t.name}" (step ${Math.min(t.step + 1, t.steps.length)} of ${t.steps.length}: ${t.detail ?? 'running'}). Credits so far: ${t.credits}. Call get_task with task_id "${t.id}" to wait for it.` }], structuredContent: { task_id: t.id, state: t.state, step: t.step + 1, steps: t.steps.length, detail: t.detail, credits: t.credits } };
+    return { content: [{ type: 'text', text: `Still working on "${t.name}" (step ${Math.min(t.step + 1, t.steps.length)} of ${t.steps.length}: ${t.detail ?? 'running'}). Credits so far: ${t.credits}. Call get_task with task_id "${t.id}" to wait for it.` }], structuredContent: { task_id: t.id, state: t.state, step: t.step + 1, steps: t.steps.length, detail: t.detail, credits: t.credits, progress: progressOf(t) } };
   }
   if (t.state !== 'done') {
     const broke = /Not enough credits/.test(t.error ?? '') ? ' Use buy_credits to get a checkout link for the user (it takes a minute), then try again.' : '';
