@@ -215,14 +215,14 @@ const TOOLS: ToolDef[] = [
     annotations: gpu,
     async build(a, { caller }) {
       const sheet = { count: clamp(a.frames, 2, 32, 8), columns: clamp(a.columns, 0, 32, 0), cell: clamp(a.frame_size, 32, 512, 256), fps: 12 };
-      if (a.video) return { name: 'sprite sheet', steps: [{ tool: 'sprite.sheet', title: 'Making the sprite sheet', params: { ...sheet, key: String(a.key ?? '') }, inputs: { video: await file(caller, a.video, 'video') } }] };
+      if (a.video) return { name: 'sprite sheet', steps: [{ tool: 'sprite.sheet', title: 'Making the sprite sheet', params: { ...sheet, key: String(a.key ?? ''), loop: a.loop !== false }, inputs: { video: await file(caller, a.video, 'video') } }] };
       if (!a.image || !a.motion) throw new PortalError('Give image and motion (or a video)');
       const loop = a.loop !== false;
       return { name: `${a.motion}`, steps: [
         { tool: 'image.cutout', title: 'Cutting out the character', inputs: { image: await file(caller, a.image, 'image') } },
         { tool: 'image.frame', title: 'Placing it on a green screen', params: { width: 640, height: 640, color: '00ff00', fill: 0.78 }, inputs: { image: { from: 0 } } },
         { tool: 'video.i2v', title: 'Animating', params: { prompt: `${a.motion}. The character stays in place, centered, full body in frame. Flat solid green background, no shadows.`, width: 640, height: 640, frames: 33 }, inputs: loop ? { start: { from: 1 }, end: { from: 1 } } : { start: { from: 1 } }, keep: true },
-        { tool: 'sprite.sheet', title: 'Making the sprite sheet', params: { ...sheet, key: '00ff00' }, inputs: { video: { from: 2 } }, keep: true },
+        { tool: 'sprite.sheet', title: 'Making the sprite sheet', params: { ...sheet, key: '00ff00', loop }, inputs: { video: { from: 2 } }, keep: true },
       ] };
     },
   },
@@ -400,7 +400,8 @@ async function present(c: Caller, t: Task, opts: { previews?: boolean } = {}) {
     return { isError: true, content: [{ type: 'text', text: `"${t.name}" ${t.state === 'cancelled' ? 'was cancelled' : `failed: ${t.error}`}. The credits for the step that didn't finish were refunded; ${t.credits} credits were used by earlier steps.` }], structuredContent: { task_id: t.id, state: t.state, error: t.error, credits: t.credits } };
   }
   const outs = results(t);
-  const base = t.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'asset';
+  // Short names: the first few words of what was asked ("walking-in-place", "mossy-cobblestone").
+  const base = t.name.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter((w) => !['a', 'an', 'the', 'of', 'with'].includes(w)).slice(0, 3).join('-').slice(0, 32) || 'asset';
   const files = outs.map((o, i) => {
     const ext = o.title === 'sprite sheet frames' ? '.json' : extFor(o.mime) || '';
     const name = o.title === 'sprite sheet' ? `${base}-sheet.png` : o.title === 'sprite sheet frames' ? `${base}-sheet.json` : o.title === 'preview' ? `${base}-preview${ext}` : `${base}${outs.length > 1 ? `-${o.title && !/save|output/i.test(o.title) ? o.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') : i + 1}` : ''}${ext}`;

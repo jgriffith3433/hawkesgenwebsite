@@ -111,7 +111,8 @@ async function run(t: Task) {
         break;
       }
       t.outputs[t.step] = (j.outputs ?? []).map((o: any) => ({ asset: o.asset, kind: o.kind, mime: o.mime, title: o.title, step: t.step }));
-      save(t, { outputs: t.outputs, step: t.step + 1 });
+      const next = t.steps[t.step + 1];
+      save(t, { outputs: t.outputs, step: t.step + 1, detail: next ? `${next.title}: starting` : null });
     }
     if (t.state === 'running') save(t, { state: 'done', detail: null });
   } catch (e: any) {
