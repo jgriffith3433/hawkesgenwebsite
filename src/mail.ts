@@ -131,3 +131,37 @@ export function sendGift(email: string, name: string | null, credits: number, ba
   void sendEmail(email, m.subject, m.text, m.html).catch((e) => console.warn(`[portal] gift email to ${email}: ${e.message}`));
   return env('PORTAL_MAIL') === 'ses';
 }
+
+/** The low-balance email: what's left, what a pack gets them (and the first-pack bonus while they've never bought). */
+export function lowBalanceEmail(name: string | null, credits: number, firstBonus: number) {
+  const site = publicUrl();
+  const hi = name ? `Hi ${name},` : 'Hi,';
+  const bonus = firstBonus ? ` Your first pack comes with ${firstBonus}% more credits.` : '';
+  const text = `${hi}
+
+You have ${credits} credit${credits === 1 ? '' : 's'} left on Hawkes Gen.${bonus}
+
+Top up: ${site}/app#credits
+Packs start at $10 for 1,000 credits: about 200 images, or 20 sprite sheets.
+
+Hawkes Gen
+${site}
+
+You get this once when your balance runs low.`;
+  const html = `<!doctype html><html><body style="margin:0;background:#f4f2ed;padding:32px 16px;font-family:'IBM Plex Sans',Helvetica,Arial,sans-serif;color:#1a1915">
+<div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #d6d1c6;border-radius:3px;padding:32px">
+<div style="font:400 26px Georgia,'Times New Roman',serif;margin-bottom:24px">Hawkes Gen</div>
+<p style="margin:0 0 14px;font-size:15px;line-height:1.6">${esc(hi)}</p>
+<p style="margin:0 0 6px;font:400 40px/1.1 Georgia,'Times New Roman',serif">${credits} credit${credits === 1 ? '' : 's'} left</p>
+<p style="margin:0 0 22px;font-size:15px;line-height:1.6;color:#4b4840">Packs start at $10 for 1,000 credits: about 200 images, or 20 sprite sheets.${firstBonus ? ` <strong style="color:#c8421d">Your first pack comes with ${firstBonus}% more.</strong>` : ''}</p>
+<p style="margin:0"><a href="${site}/app#credits" style="display:inline-block;background:#1a1915;color:#f4f2ed;text-decoration:none;padding:11px 18px;border-radius:3px;font-size:15px;font-weight:600">Top up →</a></p>
+</div>
+<p style="max-width:520px;margin:14px auto 0;font-size:12px;color:#8b867b;text-align:center">You get this once when your balance runs low.</p>
+</body></html>`;
+  return { subject: `You have ${credits} Hawkes Gen credit${credits === 1 ? '' : 's'} left`, text, html };
+}
+
+export function sendLowBalance(email: string, name: string | null, credits: number, firstBonus: number) {
+  const m = lowBalanceEmail(name, credits, firstBonus);
+  void sendEmail(email, m.subject, m.text, m.html).catch((e) => console.warn(`[portal] low-balance email to ${email}: ${e.message}`));
+}

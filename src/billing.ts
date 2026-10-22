@@ -5,6 +5,7 @@ import { db, tx } from './db.ts';
 import { env, publicUrl } from './config.ts';
 import { getUser, REFERRAL_REWARD, type User } from './users.ts';
 import { id, PortalError } from './util.ts';
+import { sendLowBalance } from './mail.ts';
 
 export type Pack = { id: string; name: string; label: string; priceCents: number; priceUsd: number; credits: number; bonusPercent: number };
 
@@ -36,10 +37,27 @@ function add(userId: string, delta: number, kind: string, detail: string, extra:
   return db.prepare('SELECT * FROM credit_ledger WHERE id = ?').get(txId) as Entry;
 }
 
+/** A customer's first pack comes with this much more (percent of its credits), once. */
+export const FIRST_PURCHASE_BONUS = 25;
+/** Below this balance a customer is told once by email (again only after buying more). */
+export const LOW_BALANCE = 10;
+
+/** Whether this account has ever bought credits. */
+export const hasBought = (userId: string) => !!db.prepare("SELECT 1 FROM credit_ledger WHERE user_id = ? AND kind = 'stripe_purchase' LIMIT 1").get(userId);
+
+/** The low-balance email, once per drop: never again until they buy (the purchase clears low_emailed). */
+function lowBalance(userId: string) {
+  const u = db.prepare('SELECT email, name, credits, low_emailed FROM users WHERE id = ?').get(userId) as { email: string; name: string | null; credits: number; low_emailed: number | null } | undefined;
+  if (!u || u.credits >= LOW_BALANCE || u.low_emailed) return;
+  db.prepare('UPDATE users SET low_emailed = ? WHERE id = ?').run(Date.now(), userId);
+  sendLowBalance(u.email, u.name, u.credits, !hasBought(userId) ? FIRST_PURCHASE_BONUS : 0);
+}
+
 /** Takes credits for work about to be sent to Gen, under a hold id; `attach` moves it to the job Gen gives back. */
 export const hold = (userId: string, credits: number, detail: string) => {
   const holdId = id('hold_', 6);
   tx(() => add(userId, -Math.max(0, Math.round(credits)), 'job_reserve', detail, { jobId: holdId }));
+  lowBalance(userId);
   return holdId;
 };
 
@@ -143,8 +161,12 @@ export function stripeWebhook(rawBody: Buffer, header: string) {
     const dup = db.prepare('SELECT * FROM credit_ledger WHERE stripe_session_id = ?').get(sessionId) as Entry | undefined;
     if (dup) return { ok: true, type: event.type, duplicate: true, creditsAdded: 0, balance: getUser(dup.user_id)?.credits ?? dup.balance_after };
     if (typeof s.customer === 'string') db.prepare('UPDATE users SET stripe_customer_id = ? WHERE id = ?').run(s.customer, userId);
+    const first = !hasBought(userId);
     const e = add(userId, credits, 'stripe_purchase', pack ? `Purchased ${pack.label}` : `Credit purchase (+${credits})`, { stripeSessionId: sessionId });
+    const bonus = first ? Math.round((credits * FIRST_PURCHASE_BONUS) / 100) : 0;
+    const after = bonus ? add(userId, bonus, 'first_purchase_bonus', `First purchase bonus (+${FIRST_PURCHASE_BONUS}%)`) : e;
+    db.prepare('UPDATE users SET low_emailed = NULL WHERE id = ?').run(userId);
     rewardReferrer(userId);
-    return { ok: true, type: event.type, duplicate: false, creditsAdded: credits, balance: e.balance_after };
+    return { ok: true, type: event.type, duplicate: false, creditsAdded: credits + bonus, bonus, balance: after.balance_after };
   });
 }

@@ -77,7 +77,7 @@ const cols = (table: string) => (db.prepare(`PRAGMA table_info(${table})`).all()
 if (!cols('users').includes('role')) db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'customer'");
 // Referrals: a customer's own code, who invited them, whether that friend's first purchase has paid its reward, and
 // where a sign-up came from (?ref= or ?utm_source=, kept in a cookie by the landing page).
-for (const [c, t] of [['ref_code', 'TEXT'], ['referred_by', 'TEXT'], ['referral_paid', 'INTEGER NOT NULL DEFAULT 0'], ['source', 'TEXT']]) if (!cols('users').includes(c)) db.exec(`ALTER TABLE users ADD COLUMN ${c} ${t}`);
+for (const [c, t] of [['low_emailed', 'INTEGER'], ['ref_code', 'TEXT'], ['referred_by', 'TEXT'], ['referral_paid', 'INTEGER NOT NULL DEFAULT 0'], ['source', 'TEXT']]) if (!cols('users').includes(c)) db.exec(`ALTER TABLE users ADD COLUMN ${c} ${t}`);
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_ref_code ON users(ref_code) WHERE ref_code IS NOT NULL');
 if (!cols('users').includes('disabled')) db.exec('ALTER TABLE users ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0');
 // Which connection or API key started a job (spend limits per connection), and an API key's own daily limit.

@@ -7,7 +7,7 @@
   <meta name="description" content="Images, video, 3D models, rigs, motion, voice, music and sound for games. From the web or an API call; pay per generation.">
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/public.css">
-  <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-project="hawkesgen" defer></script>
+  <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
 </head>
 <body>
   <header class="hg-navbar">
@@ -362,7 +362,7 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
       document.getElementById('authPassword').autocomplete = m === 'signup' ? 'new-password' : 'current-password';
       err.hidden = true;
     }
-    document.querySelectorAll('[data-open-auth]').forEach((b) => b.addEventListener('click', () => { setMode(b.dataset.openAuth); modal.hidden = false; document.getElementById('authEmail').focus(); }));
+    document.querySelectorAll('[data-open-auth]').forEach((b) => b.addEventListener('click', () => { setMode(b.dataset.openAuth); modal.hidden = false; if (b.dataset.openAuth === 'signup') window.hawkesAnalytics?.track?.('signup_open', { from: b.closest('section')?.id || 'header' }); document.getElementById('authEmail').focus(); }));
     document.querySelectorAll('.segmented button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
     document.getElementById('authClose').addEventListener('click', () => { modal.hidden = true; });
     modal.addEventListener('click', (e) => { if (e.target === modal) modal.hidden = true; });
@@ -419,7 +419,7 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
           const url = URL.createObjectURL(await r.blob());
           $('tryOut').src = url; $('tryOut').hidden = false; $('tryStatus').hidden = true;
           $('tryDownload').href = url; $('tryCta').hidden = false;
-          window.hawkesAnalytics?.track?.('demo', { kind });
+          window.hawkesAnalytics?.track?.('demo_used', { kind });
         } catch (e) { $('tryStatus').textContent = e.message; }
       };
       $('tryFile').addEventListener('change', (e) => run(e.target.files[0]));

@@ -426,6 +426,25 @@ async function init() {
   await checkSession();
 }
 
+/** A Hawkes Analytics event (the page's SDK, data-product="hawkesgen"); never throws, nothing if it didn't load. */
+function track(name, props) {
+  try { window.hawkesAnalytics?.track(name, props); } catch {}
+}
+
+/** The funnel's server-side moments, told once from this page: a new account (email or Google, with where it came
+ *  from) and a finished purchase (after Stripe sends them back here). Remembered per account in localStorage. */
+async function funnelOnLoad() {
+  const u = state.user;
+  const once = (key) => { try { if (localStorage.getItem(key)) return false; localStorage.setItem(key, '1'); } catch {} return true; };
+  if (Date.now() - (u.created ?? 0) < 15 * 60_000 && once(`hg_signup_${u.id}`)) track('signup', { source: u.source || 'direct' });
+  if (new URLSearchParams(location.search).get('checkout') === 'success') {
+    const r = await fetch('/v1/billing/ledger?limit=10').catch(() => null);
+    const entries = r && r.ok ? (await r.json()).entries ?? [] : [];
+    const buy = entries.find((e) => e.kind === 'stripe_purchase');
+    if (buy && once(`hg_buy_${buy.id}`)) track('purchase', { credits: buy.delta, pack: buy.detail, first: !entries.some((e) => e.kind === 'stripe_purchase' && e.id !== buy.id) });
+  }
+}
+
 /** The invite card: the customer's link (GET /v1/referral), what a friend gets, what they've earned. */
 async function loadInvite() {
   const r = await fetch('/v1/referral').catch(() => null);
@@ -451,6 +470,7 @@ async function checkSession() {
     updateWalletUI(state.user.credits);
     document.getElementById('userEmailBadge').textContent = state.user.email || '';
     loadInvite();
+    funnelOnLoad();
 
     const savedKey = localStorage.getItem('hg_last_minted_key');
     if (savedKey) {
@@ -857,6 +877,7 @@ async function submitComposerJob() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(spec),
     });
+    if (res.ok) track('job_start', { tool: spec.tool });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       if (res.status === 402) {
@@ -1287,9 +1308,11 @@ async function openCreditsModal() {
   ]);
 
   if (packsRes && packsRes.ok) {
-    const { packs = [] } = await packsRes.json();
+    const { packs = [], firstPurchaseBonus = 0 } = await packsRes.json();
+    // A first pack comes with more credits (billing.ts FIRST_PURCHASE_BONUS) until the account has bought once.
+    const firstBonus = state.user && !state.user.bought ? firstPurchaseBonus : 0;
     const container = document.getElementById('modalPacksContainer');
-    container.innerHTML = packs.map((p) => `
+    container.innerHTML = (firstBonus ? `<div style="grid-column:1/-1;padding:10px 14px;border:1px solid var(--accent, #c8421d);border-radius:var(--radius-md);font-size:0.9rem;">Your first pack comes with <b>${firstBonus}% more credits</b>, on top of any pack bonus.</div>` : '') + packs.map((p) => `
       <div class="pricing-card ${p.id === 'creator_25' ? 'featured' : ''}" style="padding:18px;">
         <div>
           <span class="portfolio-genre">${escapeHtml(p.name)}</span>
@@ -1297,6 +1320,7 @@ async function openCreditsModal() {
           <div style="color:var(--cyan-400);font-weight:700;margin-bottom:12px;">
             ${Number(p.credits).toLocaleString()} Credits ${p.bonusPercent ? `(+${p.bonusPercent}% Bonus)` : ''}
           </div>
+          ${firstBonus ? `<div style="font-size:0.85rem;margin:-6px 0 12px;">+${Math.round((p.credits * firstBonus) / 100).toLocaleString()} first-pack bonus = <b>${Math.round(p.credits * (1 + firstBonus / 100)).toLocaleString()}</b></div>` : ''}
         </div>
         <button type="button" class="btn btn-primary btn-sm" data-checkout-pack="${escapeHtml(p.id)}">
           Buy with Stripe →
@@ -1307,6 +1331,7 @@ async function openCreditsModal() {
     container.querySelectorAll('[data-checkout-pack]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const packId = btn.getAttribute('data-checkout-pack');
+        track('checkout_start', { pack: packId, first: !state.user?.bought });
         const errBox = document.getElementById('checkoutErrorBox');
         errBox.style.display = 'none';
         btn.disabled = true;

@@ -169,7 +169,9 @@ export function mintApiKey(userId: string) {
 const currentKey = (userId: string) => (db.prepare('SELECT id, prefix, created, last_used FROM api_keys WHERE user_id = ? AND disabled = 0 ORDER BY created DESC LIMIT 1').get(userId) as any) ?? null;
 
 export function profile(user: User) {
-  return { user: toPublicUser(user), client: currentKey(user.id) };
+  const bought = !!db.prepare("SELECT 1 FROM credit_ledger WHERE user_id = ? AND kind = 'stripe_purchase' LIMIT 1").get(user.id);
+  const source = (db.prepare('SELECT source FROM users WHERE id = ?').get(user.id) as { source: string | null } | undefined)?.source ?? null;
+  return { user: { ...toPublicUser(user), bought, source }, client: currentKey(user.id) };
 }
 
 export function parseCookies(req: IncomingMessage): Record<string, string> {

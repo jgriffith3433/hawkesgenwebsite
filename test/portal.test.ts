@@ -200,9 +200,9 @@ test('Stripe: a signed, paid checkout adds the pack once; a bad signature adds n
   assert.equal(await credits(c.cookie), 50);
   const ok = await post(sig('whsec_test'));
   assert.equal(ok.status, 200);
-  assert.equal(ok.body.creditsAdded, 1000);
+  assert.equal(ok.body.creditsAdded, 1250, 'the pack and the first-purchase bonus');
   assert.equal((await post(sig('whsec_test'))).body.duplicate, true);
-  assert.equal(await credits(c.cookie), 1050);
+  assert.equal(await credits(c.cookie), 1300);
 });
 
 test('admins: made from the CLI path with a one-time link; customers never see the admin routes', async () => {
@@ -339,4 +339,37 @@ test('the free demo: only its two tools, images only, and a few tries a day', as
   for (let i = 0; i < 3; i++) db.prepare('INSERT INTO demo_runs (ip_hash, kind, created) VALUES (?, ?, ?)').run(crypto2.createHash('sha256').update('demo:2.2.2.2').digest('hex').slice(0, 24), 'pixel', Date.now());
   assert.equal(demoProblem('pixel', 10, 'image/png', '2.2.2.2')!.status, 429);
   assert.equal((await call('/v1/demo?kind=pixel', { raw: Buffer.from('x'), headers: { 'Content-Type': 'text/plain' } })).status, 400, 'refused before reaching Gen');
+});
+
+test('first purchase: +25% once; the low-balance email is sent once per drop and re-armed by a purchase', async () => {
+  const c = await newCustomer();
+  const { db } = await import('../src/db.ts');
+  assert.equal((await call('/v1/users/me', { cookie: c.cookie })).body.user.bought, false);
+  assert.equal((await call('/v1/billing/packs')).body.firstPurchaseBonus, 25);
+  const buy = (sid: string) => {
+    const payload = JSON.stringify({ type: 'checkout.session.completed', data: { object: { id: sid, payment_status: 'paid', metadata: { user_id: c.user.id, pack_id: 'starter_10', credits: '1000' } } } });
+    const t = Math.floor(Date.now() / 1000);
+    return call('/v1/billing/webhook', { raw: Buffer.from(payload), headers: { 'Content-Type': 'application/json', 'Stripe-Signature': `t=${t},v1=${crypto.createHmac('sha256', 'whsec_test').update(`${t}.${payload}`).digest('hex')}` } });
+  };
+  const first = (await buy('cs_first_1')).body;
+  assert.deepEqual([first.creditsAdded, first.bonus], [1250, 250]);
+  assert.equal(await credits(c.cookie), 1300);
+  assert.equal((await buy('cs_first_1')).body.duplicate, true, 'a replayed webhook adds no second bonus');
+  assert.equal((await buy('cs_first_2')).body.bonus, 0, 'only the first purchase');
+  assert.equal((await call('/v1/users/me', { cookie: c.cookie })).body.user.bought, true);
+
+  const { hold } = await import('../src/billing.ts');
+  const low = () => (db.prepare('SELECT low_emailed FROM users WHERE id = ?').get(c.user.id) as any).low_emailed;
+  hold(c.user.id, 2285, 'test'); // 2,300 - 2,285 = 15 left
+  assert.equal(low(), null, 'still above the line');
+  hold(c.user.id, 7, 'test');
+  assert.ok(low(), 'below 10: told once');
+  const at = low();
+  hold(c.user.id, 1, 'test');
+  assert.equal(low(), at, 'not again');
+  await buy('cs_first_3');
+  assert.equal(low(), null, 'a purchase re-arms it');
+  const { lowBalanceEmail } = await import('../src/mail.ts');
+  assert.match(lowBalanceEmail('Ada', 4, 25).text, /4 credits left[\s\S]*first pack comes with 25% more/);
+  assert.ok(!lowBalanceEmail(null, 1, 0).text.includes('first pack'));
 });

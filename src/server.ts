@@ -10,7 +10,7 @@ import { PORT, ROOT, genKey } from './config.ts';
 import { genFetch, gen } from './gen.ts';
 import { send, readJson, readBody, PortalError } from './util.ts';
 import * as users from './users.ts';
-import { PACKS, stripeStatus, checkout, ledger, stripeWebhook } from './billing.ts';
+import { PACKS, FIRST_PURCHASE_BONUS, stripeStatus, checkout, ledger, stripeWebhook } from './billing.ts';
 import { quote, submit, settle, watch } from './jobs.ts';
 import { getPortfolio } from './portfolio.ts';
 import * as admin from './admin.ts';
@@ -167,7 +167,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     }
     if (route === '/v1/billing/packs' && method === 'GET') {
       const s = stripeStatus();
-      return send(res, 200, { packs: PACKS, stripe: { configured: s.configured, publishableKey: s.publishableKey, mode: s.mode } });
+      return send(res, 200, { packs: PACKS, firstPurchaseBonus: FIRST_PURCHASE_BONUS, stripe: { configured: s.configured, publishableKey: s.publishableKey, mode: s.mode } });
     }
     if (route === '/v1/billing/webhook' && method === 'POST') return send(res, 200, stripeWebhook(await readBody(req), String(req.headers['stripe-signature'] ?? '')));
     if (route === '/v1/users/signup' && method === 'POST') {
