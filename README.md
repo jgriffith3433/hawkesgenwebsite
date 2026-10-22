@@ -53,7 +53,7 @@ npm test             # against a fake Gen, offline
 | `src/caller.ts` | Who is calling and through what (`via`: OAuth connection, API key, session) and the daily limit that applies |
 | `src/tasks.ts` | A request as a chain of Gen jobs, each paid; later steps take earlier outputs (`{ from, pick, kind }`); kept in `tasks`, resumed after a restart |
 | `src/files.ts`, `src/sign.ts` | Signed links: downloads `/dl/<token>/<name>` (a day), one-time uploads `/up/<token>` (`curl -T`, 30 min), https fetches (public addresses only) |
-| `public/connect.html` | `/connect`: Add to Cursor / Install in VS Code buttons, Add to Claude (copies the address, opens claude.ai connector settings), the Claude Code command, Windsurf, ChatGPT and API-key configs, things to try, the customer's connections; buttons turn to "✓ Connected" for editors already connected |
+| `public/connect.html` | `/connect`: Add to Cursor / Install in VS Code buttons, Add to Claude (shows the steps: a sentence to paste into Claude Code, or Customize → Connectors in Claude chat; Claude has no install link), the Claude Code command, Windsurf, ChatGPT and API-key configs, things to try, the customer's connections; buttons turn to "✓ Connected" for editors already connected |
 | `src/portfolio.ts` | "Built with Hawkes Gen": only claims we can show |
 | `public/` | The pages: `index.html` (landing, portfolio, pricing), `app.html` + `app.js` (Creator Studio), `public.css`, `hawkesgen.mjs` (the JS client, a copy of `hawkesgen/clients/js`) |
 | `deploy/` | The box: `setup.mjs` (one-time, from J's PC), `Caddyfile`, the systemd units, `pull.mjs` (self-deploy) |

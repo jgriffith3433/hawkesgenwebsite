@@ -81,8 +81,20 @@
           </div>
           <div class="client">
             <div class="label">Anthropic</div><h3>Claude app</h3>
-            <p>For Claude on the web and the desktop app, including Claude Code there. The button copies the address and opens Claude's connector settings: click <strong>Add custom connector</strong>, name it Hawkes Gen, paste, Add, then Connect.</p>
+            <p>The Claude desktop app (chat and Claude Code) and claude.ai. There's no one-click install for Claude yet; it takes a paste.</p>
             <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn btn-primary" data-add-claude data-client="claude">Add to Claude</button></div>
+            <div id="claudeSteps" hidden style="display:grid;gap:14px;margin-top:6px;padding:16px;border:1px solid var(--rule-strong);border-radius:var(--r);background:var(--paper-2)">
+              <div>
+                <div class="label" style="margin-bottom:6px">In Claude Code (the Code tab)</div>
+                <p style="margin:0 0 8px">Paste this into a Claude Code session. It adds the server to your settings; then run <code>/mcp</code> and choose hawkesgen to sign in.</p>
+                <div class="copy"><code id="ccAsk">Add an MCP server named hawkesgen, HTTP transport, URL https://hawkesgen.com/mcp, at user scope (claude mcp add --transport http --scope user hawkesgen https://hawkesgen.com/mcp).</code><button type="button" data-copy="ccAsk">Copy</button></div>
+              </div>
+              <div>
+                <div class="label" style="margin-bottom:6px">In Claude chat (app or claude.ai)</div>
+                <p style="margin:0 0 8px">Open <strong>Customize → Connectors</strong>, choose <strong>Add custom connector</strong>, name it Hawkes Gen and paste the address. Then click <strong>Connect</strong> and approve on hawkesgen.com.</p>
+                <div class="copy"><code id="clUrl">https://hawkesgen.com/mcp</code><button type="button" data-copy="clUrl">Copy</button></div>
+              </div>
+            </div>
           </div>
           <div class="client">
             <div class="label">Codeium</div><h3>Windsurf</h3>
@@ -147,13 +159,13 @@
     $('vscodeBtn').href = `vscode:mcp/install?${vs}`;
     $('insidersBtn').href = `vscode-insiders:mcp/install?${vs}`;
 
-    // The Claude app (chat and Claude Code) adds remote servers in its connector settings: copy the address, open them.
-    document.querySelectorAll('[data-add-claude]').forEach((b) => b.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText('https://hawkesgen.com/mcp'); } catch {}
-      window.open('https://claude.ai/settings/connectors', '_blank', 'noopener');
-      const t = document.getElementById('toast');
-      if (t) { t.textContent = 'Address copied. In Claude: Add custom connector, name it Hawkes Gen, paste, Add.'; t.hidden = false; setTimeout(() => { t.hidden = true; }, 9000); }
+    // Claude has no install link: the button shows the two ways in, each with something to copy.
+    document.querySelectorAll('[data-add-claude]').forEach((b) => b.addEventListener('click', () => {
+      const steps = $('claudeSteps');
+      steps.hidden = !steps.hidden;
+      if (!steps.hidden) steps.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }));
+    if (location.hash === '#claude') { $('claudeSteps').hidden = false; $('claudeSteps').scrollIntoView({ block: 'center' }); }
     const when = (t) => (t ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—');
     const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
     async function connections() {
