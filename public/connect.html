@@ -72,8 +72,12 @@
           </div>
           <div class="client">
             <div class="label">Anthropic</div><h3>Claude</h3>
-            <p>Copies the address and opens Connectors in the Claude desktop app (or on claude.ai in your browser); then Add, paste, Connect.</p>
-            <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-primary" data-add-claude data-client="claude" href="claude://claude.ai/customize/connectors">Add to Claude</a><a class="btn btn-secondary" data-add-claude href="https://claude.ai/customize/connectors" target="_blank" rel="noopener">claude.ai</a></div>
+            <p>Copies the address and opens Connectors in the Claude desktop app (or on claude.ai in your browser); then Add, paste, Connect. Or use the Claude Code CLI.</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-primary" data-add-claude data-client="claude" href="claude://claude.ai/customize/connectors">Add to Claude</a><a class="btn btn-secondary" data-add-claude href="https://claude.ai/customize/connectors" target="_blank" rel="noopener">claude.ai</a><button type="button" class="btn btn-secondary" id="cliBtn" aria-expanded="false" aria-controls="claudeCli">CLI</button></div>
+            <div id="claudeCli" hidden style="display:grid;gap:6px;min-width:0">
+              <div class="copy"><code id="cc">claude mcp add --transport http hawkesgen https://hawkesgen.com/mcp</code><button type="button" data-copy="cc">Copy</button></div>
+              <div class="fine" style="margin:0">Run it in a terminal, then run <code>/mcp</code> in Claude Code to sign in.</div>
+            </div>
           </div>
           <div class="client">
             <div class="label">Cursor</div><h3>Cursor</h3>
@@ -102,11 +106,6 @@
                 <div class="copy"><code id="ccAsk">Add an MCP server named hawkesgen, HTTP transport, URL https://hawkesgen.com/mcp, at user scope (claude mcp add --transport http --scope user hawkesgen https://hawkesgen.com/mcp).</code><button type="button" data-copy="ccAsk">Copy</button></div>
               </div>
             </div>
-          <div class="client">
-            <div class="label">Anthropic</div><h3>Claude CLI</h3>
-            <p>Run this in a terminal, then run <code>/mcp</code> in Claude Code to sign in.</p>
-            <div class="copy"><code id="cc">claude mcp add --transport http hawkesgen https://hawkesgen.com/mcp</code><button type="button" data-copy="cc">Copy</button></div>
-          </div>
           <div class="client">
             <div class="label">Codeium</div><h3>Windsurf</h3>
             <p>Add this to <code>~/.codeium/windsurf/mcp_config.json</code>, then refresh MCP servers.</p>
@@ -178,6 +177,12 @@
       try { await navigator.clipboard.writeText(URL_); toast('Address copied. Paste it in Claude.'); } catch {}
       steps.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }));
+    // CLI shows the Claude Code command in the Claude card.
+    $('cliBtn').addEventListener('click', () => {
+      const cli = $('claudeCli');
+      cli.hidden = !cli.hidden;
+      $('cliBtn').setAttribute('aria-expanded', String(!cli.hidden));
+    });
     if (location.hash === '#claude') { $('claudeSteps').hidden = false; $('claudeSteps').scrollIntoView({ block: 'center' }); }
     const when = (t) => (t ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—');
     const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
