@@ -82,20 +82,25 @@
           </div>
           <div class="client">
             <div class="label">Anthropic</div><h3>Claude app</h3>
-            <p>The Claude desktop app (chat and Claude Code) and claude.ai. There's no one-click install for Claude yet; it takes a paste.</p>
-            <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn btn-primary" data-add-claude data-client="claude">Add to Claude</button></div>
+            <p>The Claude desktop app and claude.ai. Copies the address and opens Claude's Connectors page; then Add, paste, Connect.</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-primary" data-add-claude data-client="claude" href="https://claude.ai/customize/connectors" target="_blank" rel="noopener">Add to Claude</a></div>
 
           </div>
           <div id="claudeSteps" hidden style="grid-column:1 / -1;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));margin:0 0 8px;gap:14px;padding:16px;border:1px solid var(--rule-strong);border-radius:var(--r);background:var(--paper-2)">
               <div>
+                <div class="label" style="margin-bottom:6px">On the Connectors page that just opened</div>
+                <ol style="margin:0 0 8px;padding-left:20px;display:grid;gap:4px">
+                  <li><strong>+ Add</strong> (top right) → <strong>Add custom connector</strong></li>
+                  <li>Name it <strong>Hawkes Gen</strong>, paste the address (it's on your clipboard), click <strong>Add</strong></li>
+                  <li><strong>Connect</strong>, then approve on hawkesgen.com</li>
+                </ol>
+                <div class="copy"><code id="clUrl">https://hawkesgen.com/mcp</code><button type="button" data-copy="clUrl">Copy</button></div>
+                <p class="fine" style="margin:8px 0 0">Didn't open? Go to <a href="https://claude.ai/customize/connectors" target="_blank" rel="noopener">claude.ai/customize/connectors</a>, or in the app: <strong>Customize → Connectors</strong>.</p>
+              </div>
+              <div>
                 <div class="label" style="margin-bottom:6px">In Claude Code (the Code tab)</div>
                 <p style="margin:0 0 8px">Paste this into a Claude Code session. It adds the server to your settings; then run <code>/mcp</code> and choose hawkesgen to sign in.</p>
                 <div class="copy"><code id="ccAsk">Add an MCP server named hawkesgen, HTTP transport, URL https://hawkesgen.com/mcp, at user scope (claude mcp add --transport http --scope user hawkesgen https://hawkesgen.com/mcp).</code><button type="button" data-copy="ccAsk">Copy</button></div>
-              </div>
-              <div>
-                <div class="label" style="margin-bottom:6px">In Claude chat (app or claude.ai)</div>
-                <p style="margin:0 0 8px">Open <strong>Customize → Connectors</strong>, choose <strong>Add custom connector</strong>, name it Hawkes Gen and paste the address. Then click <strong>Connect</strong> and approve on hawkesgen.com.</p>
-                <div class="copy"><code id="clUrl">https://hawkesgen.com/mcp</code><button type="button" data-copy="clUrl">Copy</button></div>
               </div>
             </div>
           <div class="client">
@@ -161,11 +166,13 @@
     $('vscodeBtn').href = `vscode:mcp/install?${vs}`;
     $('insidersBtn').href = `vscode-insiders:mcp/install?${vs}`;
 
-    // Claude has no install link: the button shows the two ways in, each with something to copy.
-    document.querySelectorAll('[data-add-claude]').forEach((b) => b.addEventListener('click', () => {
+    // Claude has no install link (only directory listings get one click). The closest: copy the address,
+    // open the Connectors page in a new tab (the link itself), and show the three steps left here.
+    document.querySelectorAll('[data-add-claude]').forEach((b) => b.addEventListener('click', async () => {
       const steps = $('claudeSteps');
-      steps.hidden = !steps.hidden;
-      if (!steps.hidden) steps.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      steps.hidden = false;
+      try { await navigator.clipboard.writeText(URL_); toast('Address copied. Paste it in Claude.'); } catch {}
+      steps.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }));
     if (location.hash === '#claude') { $('claudeSteps').hidden = false; $('claudeSteps').scrollIntoView({ block: 'center' }); }
     const when = (t) => (t ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—');
