@@ -237,3 +237,12 @@ test('editing and buying from the editor: variations, transforms, get_file, buy_
   assert.match(buy.body.result.structuredContent.checkout_url, /checkout\.stripe\.test\/pay\/creator_25/);
   assert.match(decodeURIComponent(buy.body.result.structuredContent.checkout_url), /\/thanks\?pack=creator_25/);
 });
+
+test('loopback return addresses match on any port (desktop apps like the Unity editor)', async () => {
+  const { sameRedirect } = await import('../src/oauth.ts');
+  assert.ok(sameRedirect('http://127.0.0.1/callback', 'http://127.0.0.1:53817/callback'));
+  assert.ok(sameRedirect('http://127.0.0.1:1/callback', 'http://127.0.0.1:2/callback'));
+  assert.ok(!sameRedirect('http://127.0.0.1/callback', 'http://127.0.0.1:2/other'));
+  assert.ok(!sameRedirect('http://127.0.0.1/callback', 'http://localhost:2/callback'));
+  assert.ok(!sameRedirect('https://example.com/cb', 'https://example.com:8443/cb'), 'only loopback http');
+});

@@ -94,6 +94,19 @@ export function registerClient(body: any) {
   return { client_id: clientId, client_id_issued_at: Math.floor(now / 1000), client_name: name, redirect_uris: uris, grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'], token_endpoint_auth_method: 'none', scope: 'generate' };
 }
 
+/** A registered return address matches exactly, or, for a loopback http one, on any port (RFC 8252 7.3: desktop apps
+ *  such as the Unity editor listen on whatever port is free). */
+export function sameRedirect(registered: string, asked: string) {
+  if (registered === asked) return true;
+  try {
+    const r = new URL(registered), a = new URL(asked);
+    const loop = (u: URL) => u.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(u.hostname);
+    return loop(r) && loop(a) && r.hostname === a.hostname && r.pathname === a.pathname && r.search === a.search;
+  } catch {
+    return false;
+  }
+}
+
 const getClient = (clientId: string) => db.prepare('SELECT * FROM oauth_clients WHERE id = ?').get(clientId) as { id: string; name: string; redirect_uris: string } | undefined;
 
 /** What the approve screen needs, after checking the request is one we would honor. */
@@ -101,7 +114,7 @@ export function authorizeRequest(q: URLSearchParams) {
   const client = getClient(q.get('client_id') ?? '');
   if (!client) throw new PortalError('This app is not registered with Hawkes Gen. Remove it from your editor and add it again.');
   const redirect = q.get('redirect_uri') ?? '';
-  if (!JSON.parse(client.redirect_uris).includes(redirect)) throw new PortalError("The app's return address doesn't match what it registered");
+  if (!JSON.parse(client.redirect_uris).some((u: string) => sameRedirect(u, redirect))) throw new PortalError("The app's return address doesn't match what it registered");
   if (q.get('response_type') !== 'code') throw new PortalError('Only response_type=code is supported');
   if (q.get('code_challenge_method') !== 'S256' || !/^[A-Za-z0-9_-]{43,128}$/.test(q.get('code_challenge') ?? '')) throw new PortalError('PKCE (S256) is required');
   const resource = q.get('resource');
