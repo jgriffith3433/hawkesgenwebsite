@@ -393,7 +393,11 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
       const p = new URLSearchParams(location.search);
       const keep = (name, v) => { if (v && /^[a-z0-9_.-]{1,60}$/i.test(v)) document.cookie = `${name}=${encodeURIComponent(v)}; Max-Age=${30 * 86400}; Path=/; SameSite=Lax; Secure`; };
       keep('hg_ref', p.get('ref'));
-      keep('hg_src', p.get('utm_source') || (p.get('ref') ? 'referral' : null));
+      let from = null;
+      try { from = document.referrer ? new URL(document.referrer).hostname.replace(/^www\./, '') : null; } catch {}
+      if (from === location.hostname) from = null;
+      // A product site's "Powered by Hawkes Gen" link (or any other site) counts as the source when nothing says otherwise.
+      if (p.get('utm_source') || p.get('ref') || (from && !document.cookie.includes('hg_src='))) keep('hg_src', p.get('utm_source') || (p.get('ref') ? 'referral' : from));
     }
 
     // The free demo (POST /v1/demo): pixel art or a cutout, no account.
