@@ -42,6 +42,7 @@
           <div class="label" style="margin-bottom:8px">The server</div>
           <div class="copy" style="max-width:520px"><code id="url">https://hawkesgen.com/mcp</code><button type="button" data-copy="url">Copy</button></div>
           <div class="fine">Sign in once from your editor and approve it, with a daily spending limit. No keys to paste.</div>
+          <div id="status" class="label" style="margin-top:22px;color:var(--ink-2)"></div>
         </div>
         <div class="sheet">
           <div class="sheet-head"><span class="label">In Claude Code</span><span class="label">sprite sheet · ~52 credits</span></div>
@@ -71,17 +72,17 @@
           <div class="client">
             <div class="label">Cursor</div><h3>Cursor</h3>
             <p>Opens Cursor's install dialog. Then click Connect next to hawkesgen in Cursor's MCP settings.</p>
-            <div><a class="btn btn-primary" id="cursorBtn" href="#">Add to Cursor</a></div>
+            <div><a class="btn btn-primary" id="cursorBtn" data-client="cursor" href="#">Add to Cursor</a></div>
           </div>
           <div class="client">
             <div class="label">Microsoft</div><h3>VS Code</h3>
             <p>For GitHub Copilot's agent mode. VS Code asks you to trust it, then signs you in.</p>
-            <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-primary" id="vscodeBtn" href="#">Install in VS Code</a><a class="btn btn-secondary" id="insidersBtn" href="#">VS Code Insiders</a></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-primary" id="vscodeBtn" data-client="vscode" href="#">Install in VS Code</a><a class="btn btn-secondary" id="insidersBtn" href="#">VS Code Insiders</a></div>
           </div>
           <div class="client">
-            <div class="label">Anthropic</div><h3>Claude (web &amp; desktop)</h3>
-            <p>Settings → Connectors → <strong>Add custom connector</strong>. Name it Hawkes Gen and paste the address.</p>
-            <div class="copy"><code id="cl">https://hawkesgen.com/mcp</code><button type="button" data-copy="cl">Copy</button></div>
+            <div class="label">Anthropic</div><h3>Claude app</h3>
+            <p>For Claude on the web and the desktop app, including Claude Code there. The button copies the address and opens Claude's connector settings: click <strong>Add custom connector</strong>, name it Hawkes Gen, paste, Add, then Connect.</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn btn-primary" data-add-claude data-client="claude">Add to Claude</button></div>
           </div>
           <div class="client">
             <div class="label">Codeium</div><h3>Windsurf</h3>
@@ -146,6 +147,13 @@
     $('vscodeBtn').href = `vscode:mcp/install?${vs}`;
     $('insidersBtn').href = `vscode-insiders:mcp/install?${vs}`;
 
+    // The Claude app (chat and Claude Code) adds remote servers in its connector settings: copy the address, open them.
+    document.querySelectorAll('[data-add-claude]').forEach((b) => b.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText('https://hawkesgen.com/mcp'); } catch {}
+      window.open('https://claude.ai/settings/connectors', '_blank', 'noopener');
+      const t = document.getElementById('toast');
+      if (t) { t.textContent = 'Address copied. In Claude: Add custom connector, name it Hawkes Gen, paste, Add.'; t.hidden = false; setTimeout(() => { t.hidden = true; }, 9000); }
+    }));
     const when = (t) => (t ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—');
     const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
     async function connections() {
@@ -153,6 +161,13 @@
       if (!r.ok) return;
       const { connections: list } = await r.json();
       $('connections').hidden = false;
+      // What's connected: the buttons say so, and the line under the address lists them.
+      const KIND = { cursor: /cursor/i, vscode: /visual studio code|vs ?code/i, claude: /claude/i };
+      for (const b of document.querySelectorAll('[data-client]')) {
+        const c = list.find((x) => KIND[b.dataset.client]?.test(x.name));
+        if (c) { b.textContent = `✓ Connected · used ${when(c.last_used)}`; b.classList.replace('btn-primary', 'btn-secondary'); }
+      }
+      $('status').textContent = list.length ? `Connected: ${list.map((c) => c.name).join(' · ')}` : 'Nothing connected yet';
       $('conns').querySelector('tbody').innerHTML = list.map((c) => `<tr>
         <td>${esc(c.name)}</td><td>${when(c.created)}</td><td>${when(c.last_used)}</td>
         <td class="num">${Number(c.spent_today).toLocaleString()}</td>

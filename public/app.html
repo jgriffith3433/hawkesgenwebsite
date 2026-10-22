@@ -79,7 +79,18 @@
           <span>Credits</span>
         </div>
         <button type="button" class="btn btn-primary btn-sm" id="openBuyCreditsBtn">Buy credits</button>
-        <a class="btn btn-secondary btn-sm" href="/connect">Connect your editor</a>
+        <a class="btn btn-secondary btn-sm" href="/connect" id="editorsPill">Connect your editor</a>
+        <script>
+          // The studio's top bar says which editors are connected (or offers to connect one).
+          fetch('/v1/connections').then((r) => (r.ok ? r.json() : null)).then((d) => {
+            const list = d?.connections ?? [];
+            if (!list.length) return;
+            const short = (n) => (/visual studio code/i.test(n) ? 'VS Code' : n);
+            const a = document.getElementById('editorsPill');
+            a.textContent = `✓ ${list.map((c) => short(c.name)).join(', ')}`;
+            a.title = `Connected editors: ${list.map((c) => c.name).join(', ')}`;
+          }).catch(() => {});
+        </script>
         <button type="button" class="btn btn-secondary btn-sm" id="openApiKeysBtn">API key</button>
         <span id="userEmailBadge" style="font-size:0.82rem;color:var(--text-secondary);"></span>
         <button type="button" class="btn btn-ghost btn-sm" id="logoutBtn">Sign out</button>

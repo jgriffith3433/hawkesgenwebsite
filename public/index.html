@@ -43,7 +43,7 @@
           <div style="display:flex;flex-wrap:wrap;gap:8px">
             <a class="btn btn-secondary btn-sm" id="heroCursor" href="#">Add to Cursor</a>
             <a class="btn btn-secondary btn-sm" id="heroVscode" href="#">Install in VS Code</a>
-            <button type="button" class="btn btn-secondary btn-sm" id="heroClaude" title="claude mcp add --transport http hawkesgen https://hawkesgen.com/mcp">Copy for Claude Code</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-add-claude>Add to Claude</button>
             <a class="btn btn-ghost btn-sm" href="/connect">More editors →</a>
           </div>
         </div>
@@ -293,9 +293,12 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
     const MCP = 'https://hawkesgen.com/mcp';
     document.getElementById('heroCursor').href = `cursor://anysphere.cursor-deeplink/mcp/install?name=hawkesgen&config=${btoa(JSON.stringify({ url: MCP }))}`;
     document.getElementById('heroVscode').href = `vscode:mcp/install?${encodeURIComponent(JSON.stringify({ name: 'hawkesgen', type: 'http', url: MCP }))}`;
-    document.getElementById('heroClaude').addEventListener('click', async (e) => {
-      try { await navigator.clipboard.writeText(e.currentTarget.title); e.currentTarget.textContent = 'Copied: paste in a terminal'; } catch {}
-    });
+    // The Claude app (chat and Claude Code) adds remote servers in its connector settings: copy the address, open them.
+    document.querySelectorAll('[data-add-claude]').forEach((b) => b.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText('https://hawkesgen.com/mcp'); } catch {}
+      window.open('https://claude.ai/settings/connectors', '_blank', 'noopener');
+      alert('Address copied. In Claude: Add custom connector, name it Hawkes Gen, paste the address, Add, then Connect.');
+    }));
     // Already signed in: the top-right goes straight to the app.
     fetch('/v1/users/me').then((r) => (r.ok ? r.json() : null)).then((d) => {
       if (!d?.user) return;
