@@ -66,9 +66,9 @@
         <div class="section-head"><div class="label">01 — Add it</div><div><h2>One click, or one line.</h2><p>Every option uses the same address. Your editor opens a hawkesgen.com sign-in the first time.</p></div></div>
         <div class="clients">
           <div class="client">
-            <div class="label">Anthropic</div><h3>Claude Code</h3>
-            <p>Add it, then run <code>/mcp</code> in Claude Code to sign in.</p>
-            <div class="copy"><code id="cc">claude mcp add --transport http hawkesgen https://hawkesgen.com/mcp</code><button type="button" data-copy="cc">Copy</button></div>
+            <div class="label">Anthropic</div><h3>Claude</h3>
+            <p>Copies the address and opens Connectors in the Claude desktop app (or on claude.ai in your browser); then Add, paste, Connect.</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-primary" data-add-claude data-client="claude" href="claude://claude.ai/customize/connectors">Add to Claude</a><a class="btn btn-secondary" data-add-claude href="https://claude.ai/customize/connectors" target="_blank" rel="noopener">claude.ai</a></div>
           </div>
           <div class="client">
             <div class="label">Cursor</div><h3>Cursor</h3>
@@ -79,12 +79,6 @@
             <div class="label">Microsoft</div><h3>VS Code</h3>
             <p>For GitHub Copilot's agent mode. VS Code asks you to trust it, then signs you in.</p>
             <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-primary" id="vscodeBtn" data-client="vscode" href="#">Install in VS Code</a><a class="btn btn-secondary" id="insidersBtn" href="#">VS Code Insiders</a></div>
-          </div>
-          <div class="client">
-            <div class="label">Anthropic</div><h3>Claude app</h3>
-            <p>Copies the address and opens Connectors in the Claude desktop app (or on claude.ai in your browser); then Add, paste, Connect.</p>
-            <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-primary" data-add-claude data-client="claude" href="claude://claude.ai/customize/connectors">Add to Claude</a><a class="btn btn-secondary" data-add-claude href="https://claude.ai/customize/connectors" target="_blank" rel="noopener">claude.ai</a></div>
-
           </div>
           <div id="claudeSteps" hidden style="grid-column:1 / -1;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));margin:0 0 8px;gap:14px;padding:16px;border:1px solid var(--rule-strong);border-radius:var(--r);background:var(--paper-2)">
               <div>
@@ -103,6 +97,11 @@
                 <div class="copy"><code id="ccAsk">Add an MCP server named hawkesgen, HTTP transport, URL https://hawkesgen.com/mcp, at user scope (claude mcp add --transport http --scope user hawkesgen https://hawkesgen.com/mcp).</code><button type="button" data-copy="ccAsk">Copy</button></div>
               </div>
             </div>
+          <div class="client">
+            <div class="label">Anthropic</div><h3>Claude CLI</h3>
+            <p>Run this in a terminal, then run <code>/mcp</code> in Claude Code to sign in.</p>
+            <div class="copy"><code id="cc">claude mcp add --transport http hawkesgen https://hawkesgen.com/mcp</code><button type="button" data-copy="cc">Copy</button></div>
+          </div>
           <div class="client">
             <div class="label">Codeium</div><h3>Windsurf</h3>
             <p>Add this to <code>~/.codeium/windsurf/mcp_config.json</code>, then refresh MCP servers.</p>
