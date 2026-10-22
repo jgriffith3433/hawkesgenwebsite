@@ -145,16 +145,26 @@ export function clearSessionCookie(res: ServerResponse, req: IncomingMessage) {
   res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${secure(req)}`);
 }
 
-/** The customer behind a request: their API key (Authorization: Bearer hg_... or X-Hawkesgen-Key), else their session. */
-export function authenticate(req: IncomingMessage): User | null {
+/** The bearer token a request carries (Authorization: Bearer ..., or X-Hawkesgen-Key). */
+export const bearer = (req: IncomingMessage) => {
   const header = String(req.headers.authorization ?? '');
-  const key = header.startsWith('Bearer ') ? header.slice(7).trim() : String(req.headers['x-hawkesgen-key'] ?? '').trim();
-  if (key) {
-    const row = db.prepare('SELECT id, user_id FROM api_keys WHERE key_hash = ? AND disabled = 0').get(sha256(key)) as { id: string; user_id: string } | undefined;
-    if (!row) return null;
-    db.prepare('UPDATE api_keys SET last_used = ? WHERE id = ?').run(Date.now(), row.id);
-    return active(getUser(row.user_id));
-  }
+  return header.startsWith('Bearer ') ? header.slice(7).trim() : String(req.headers['x-hawkesgen-key'] ?? '').trim();
+};
+
+/** A personal API key's account and its key row (id, daily limit). */
+export function fromApiKey(key: string) {
+  const row = db.prepare('SELECT id, user_id, prefix, daily_cap FROM api_keys WHERE key_hash = ? AND disabled = 0').get(sha256(key)) as { id: string; user_id: string; prefix: string; daily_cap: number | null } | undefined;
+  if (!row) return null;
+  const user = active(getUser(row.user_id));
+  if (!user) return null;
+  db.prepare('UPDATE api_keys SET last_used = ? WHERE id = ?').run(Date.now(), row.id);
+  return { user, key: row };
+}
+
+/** The customer behind a request: their API key, else their session. (OAuth tokens: see caller.ts.) */
+export function authenticate(req: IncomingMessage): User | null {
+  const key = bearer(req);
+  if (key) return fromApiKey(key)?.user ?? null;
   const token = sessionToken(req);
   if (!token) return null;
   const s = db.prepare('SELECT user_id, expires FROM sessions WHERE token_hash = ?').get(sha256(token)) as { user_id: string; expires: number } | undefined;

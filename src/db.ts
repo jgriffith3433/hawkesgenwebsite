@@ -76,6 +76,9 @@ CREATE TABLE IF NOT EXISTS password_tokens (
 const cols = (table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
 if (!cols('users').includes('role')) db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'customer'");
 if (!cols('users').includes('disabled')) db.exec('ALTER TABLE users ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0');
+// Which connection or API key started a job (spend limits per connection), and an API key's own daily limit.
+if (!cols('jobs').includes('via')) db.exec('ALTER TABLE jobs ADD COLUMN via TEXT');
+if (!cols('api_keys').includes('daily_cap')) db.exec('ALTER TABLE api_keys ADD COLUMN daily_cap INTEGER');
 
 /** Runs fn in one transaction. */
 export function tx<T>(fn: () => T): T {

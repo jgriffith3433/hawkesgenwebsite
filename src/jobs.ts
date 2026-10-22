@@ -5,6 +5,7 @@ import { db } from './db.ts';
 import { gen, genFetch } from './gen.ts';
 import { hold, attach, refund } from './billing.ts';
 import type { User } from './users.ts';
+import type { Via } from './oauth.ts';
 import { PortalError } from './util.ts';
 
 const TERMINAL = new Set(['done', 'failed', 'cancelled']);
@@ -19,13 +20,19 @@ export async function quote(user: User, spec: any) {
 type GenJob = { id: string; tool: string; status: string; error?: string; [k: string]: unknown };
 
 /** Submits each spec in turn. A spec Gen refuses gets its credits back and stops the batch with Gen's reason. */
-export async function submit(user: User, specs: any[]): Promise<GenJob[]> {
+/** What a connection or key has started in the last 24 hours (failed and cancelled jobs don't count). */
+export const spentToday = (viaId: string) => Number((db.prepare("SELECT COALESCE(SUM(credits), 0) AS n FROM jobs WHERE via = ? AND created >= ? AND status NOT IN ('failed', 'cancelled')").get(viaId, Date.now() - 24 * 3600_000) as { n: number }).n);
+
+export async function submit(user: User, specs: any[], via?: Via): Promise<GenJob[]> {
   if (!specs.length || specs.length > 20) throw new PortalError('Send 1 to 20 jobs');
   const out: GenJob[] = [];
   for (const raw of specs) {
     if (!raw || typeof raw !== 'object') throw new PortalError('Each job is { tool, params, inputs }');
     const spec = Object.fromEntries(SPEC_FIELDS.filter((k) => raw[k] !== undefined).map((k) => [k, raw[k]]));
     const q = await quote(user, raw);
+    if (via?.cap != null && spentToday(via.id) + q.credits > via.cap) {
+      throw new PortalError(`${via.name ?? 'This connection'} has a daily limit of ${via.cap} credits and has used ${spentToday(via.id)} today; this needs ${q.credits}. Raise the limit at hawkesgen.com/connect.`, { status: 402 });
+    }
     const holdId = hold(user.id, q.credits, `${q.credits} credits for ${q.tool}`);
     let job: GenJob;
     try {
@@ -39,7 +46,7 @@ export async function submit(user: User, specs: any[]): Promise<GenJob[]> {
       refund(holdId, 'Already made: no charge');
     } else {
       attach(holdId, job.id);
-      db.prepare('INSERT INTO jobs (id, user_id, tool, credits, status, created) VALUES (?, ?, ?, ?, ?, ?)').run(job.id, user.id, job.tool, q.credits, job.status, Date.now());
+      db.prepare('INSERT INTO jobs (id, user_id, tool, credits, status, created, via) VALUES (?, ?, ?, ?, ?, ?, ?)').run(job.id, user.id, job.tool, q.credits, job.status, Date.now(), via?.id ?? null);
       settle(job);
     }
     out.push(job);

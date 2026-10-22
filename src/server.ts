@@ -14,9 +14,15 @@ import { PACKS, stripeStatus, checkout, ledger, stripeWebhook } from './billing.
 import { quote, submit, settle, watch } from './jobs.ts';
 import { getPortfolio } from './portfolio.ts';
 import * as admin from './admin.ts';
+import * as oauth from './oauth.ts';
+import { caller } from './caller.ts';
+import { handleMcp } from './mcp.ts';
+import { serveDownload, receiveUpload, uploadLink } from './files.ts';
+import { resumeTasks, recentTasks, getTask, results } from './tasks.ts';
+import { publicUrl } from './config.ts';
 
 const PUBLIC = path.join(ROOT, 'public');
-const PAGES: Record<string, string> = { '/': 'index.html', '/home': 'index.html', '/app': 'app.html', '/admin': 'admin.html', '/reset': 'reset.html', '/legal': 'legal.html', '/terms': 'legal.html', '/privacy': 'legal.html', '/refunds': 'legal.html', '/client/hawkesgen.mjs': 'hawkesgen.mjs' };
+const PAGES: Record<string, string> = { '/': 'index.html', '/home': 'index.html', '/app': 'app.html', '/admin': 'admin.html', '/reset': 'reset.html', '/legal': 'legal.html', '/terms': 'legal.html', '/privacy': 'legal.html', '/refunds': 'legal.html', '/connect': 'connect.html', '/oauth/authorize': 'authorize.html', '/client/hawkesgen.mjs': 'hawkesgen.mjs' };
 const TYPES: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webp': 'image/webp' };
 
 // Gen routes a signed-in customer may use as they are (Gen scopes them to the customer's project).
@@ -53,6 +59,24 @@ async function relay(gr: Response, res: ServerResponse) {
   await pipeline(Readable.fromWeb(gr.body as any), res).catch(() => {});
 }
 
+// MCP clients and their OAuth run from other origins (editors, claude.ai, the MCP inspector): CORS for bearer-token routes
+// only. /mcp never takes the session cookie, so a page elsewhere can't act as a signed-in customer.
+const CORS_ROUTES = /^\/(mcp|oauth\/(register|token|revoke)|\.well-known\/.*)$/;
+function cors(res: ServerResponse) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Accept, Mcp-Session-Id, MCP-Protocol-Version, Last-Event-ID');
+  res.setHeader('Access-Control-Expose-Headers', 'WWW-Authenticate, Mcp-Session-Id');
+}
+
+const oauthFail = (res: ServerResponse, e: any) => send(res, e.status === 401 ? 401 : 400, { error: e.oauth ?? 'invalid_request', error_description: e.message });
+
+async function readForm(req: IncomingMessage) {
+  const raw = (await readBody(req)).toString('utf8');
+  if (String(req.headers['content-type'] ?? '').includes('application/json')) return JSON.parse(raw || '{}');
+  return Object.fromEntries(new URLSearchParams(raw));
+}
+
 async function serveStatic(route: string, res: ServerResponse) {
   const rel = PAGES[route] ?? route.slice(1);
   const file = path.join(PUBLIC, path.normalize(rel).replace(/^(\.\.[/\\])+/, ''));
@@ -67,6 +91,48 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
   const route = url.pathname.replace(/\/+$/, '') || '/';
   const method = req.method ?? 'GET';
   try {
+    if (CORS_ROUTES.test(route)) {
+      cors(res);
+      if (method === 'OPTIONS') return void res.writeHead(204).end();
+    }
+
+    // ------------------------------------------------------------ MCP and its OAuth
+    if (route === '/.well-known/oauth-protected-resource' || route === '/.well-known/oauth-protected-resource/mcp') return send(res, 200, oauth.protectedResourceMetadata());
+    if (route === '/.well-known/oauth-authorization-server' || route === '/.well-known/openid-configuration') return send(res, 200, oauth.authorizationServerMetadata());
+    if (route === '/oauth/register' && method === 'POST') {
+      try {
+        return send(res, 201, oauth.registerClient(await readJson(req)));
+      } catch (e: any) {
+        return send(res, 400, { error: e.oauth ?? 'invalid_client_metadata', error_description: e.message });
+      }
+    }
+    if (route === '/oauth/token' && method === 'POST') {
+      try {
+        return send(res, 200, oauth.token(await readForm(req)));
+      } catch (e: any) {
+        return oauthFail(res, e);
+      }
+    }
+    if (route === '/oauth/revoke' && method === 'POST') {
+      oauth.revokeToken(String((await readForm(req)).token ?? ''));
+      return send(res, 200, {});
+    }
+    if (route === '/mcp') {
+      if (method !== 'POST') return void res.writeHead(405, { Allow: 'POST', 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'This server answers POST (Streamable HTTP, stateless).' }));
+      const c = users.bearer(req) ? caller(req) : null;
+      if (!c) {
+        res.setHeader('WWW-Authenticate', `Bearer resource_metadata="${publicUrl()}/.well-known/oauth-protected-resource/mcp"${users.bearer(req) ? ', error="invalid_token"' : ''}`);
+        return send(res, 401, { error: 'Sign in: connect at https://hawkesgen.com/connect, or send an API key (Authorization: Bearer hg_...)' });
+      }
+      return await handleMcp(c, req, res);
+    }
+
+    // ------------------------------------------------------------ signed file links (no auth header: the link is the key)
+    let f = /^\/dl\/([\w-]+\.[\w-]+)(?:\/[^/]*)?$/.exec(route);
+    if (f && (method === 'GET' || method === 'HEAD')) return await serveDownload(f[1], res);
+    f = /^\/up\/([\w-]+\.[\w-]+)$/.exec(route);
+    if (f && (method === 'PUT' || method === 'POST')) return send(res, 200, await receiveUpload(f[1], req, users.getUser));
+
     if (!route.startsWith('/v1/')) {
       if ((method === 'GET' || method === 'HEAD') && (await serveStatic(route, res))) return;
       return send(res, 404, { error: 'Not found' });
@@ -109,6 +175,26 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (!user) return send(res, 401, { error: 'Sign in, or send your API key (Authorization: Bearer hg_...)' });
 
     if ((route === '/v1/users/me' || route === '/v1/me') && method === 'GET') return send(res, 200, users.profile(user));
+
+    // The approve screen (/oauth/authorize): what's asking, then yes or no. Session only: a token can't approve itself.
+    if (route === '/v1/oauth/request' && method === 'GET') return send(res, 200, oauth.authorizeRequest(url.searchParams));
+    if ((route === '/v1/oauth/approve' || route === '/v1/oauth/deny') && method === 'POST') {
+      if (users.bearer(req) || !String(req.headers['content-type'] ?? '').includes('application/json')) throw new PortalError('Approve from the browser', { status: 403 });
+      const b = await readJson(req);
+      const q = new URLSearchParams(String(b.query ?? ''));
+      return send(res, 200, { redirect: route.endsWith('approve') ? oauth.approve(user, q, b.daily_cap) : oauth.deny(q) });
+    }
+    if (route === '/v1/connections' && method === 'GET') return send(res, 200, { connections: oauth.listConnections(user.id), default_daily_cap: oauth.DEFAULT_DAILY_CAP });
+    const conn = /^\/v1\/connections\/(conn_[0-9a-f]+)$/.exec(route);
+    if (conn && method === 'POST') return send(res, 200, oauth.updateConnection(user.id, conn[1], await readJson(req)));
+    if (route === '/v1/uploads' && method === 'POST') return send(res, 200, uploadLink(user, String((await readJson(req)).filename ?? 'upload.bin')));
+    if (route === '/v1/tasks' && method === 'GET') return send(res, 200, { tasks: recentTasks(user.id, Number(url.searchParams.get('limit')) || 20).map((t) => ({ ...t, results: results(t) })) });
+    const task = /^\/v1\/tasks\/(task_[0-9a-f]+)$/.exec(route);
+    if (task && method === 'GET') {
+      const t = getTask(task[1], user.id);
+      if (!t) return send(res, 404, { error: 'No such task' });
+      return send(res, 200, { ...t, results: results(t) });
+    }
     if (route === '/v1/users/api-key' && method === 'POST') return send(res, 200, users.mintApiKey(user.id));
     if (route === '/v1/billing/quote' && method === 'POST') return send(res, 200, await quote(user, await readJson(req)));
     if (route === '/v1/billing/checkout' && method === 'POST') return send(res, 200, await checkout(user, await readJson(req)));
@@ -187,5 +273,6 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(ROOT, 'src', 'server.ts')) {
   if (!genKey()) console.warn('[portal] HAWKESGEN_KEY is not set: jobs will fail until it is');
   watch();
+  resumeTasks();
   http.createServer((req, res) => void handle(req, res)).listen(PORT, '127.0.0.1', () => console.log(`[portal] http://127.0.0.1:${PORT}`));
 }

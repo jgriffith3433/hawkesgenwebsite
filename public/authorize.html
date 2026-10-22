@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <title>Connect an app — Hawkes Gen</title>
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/public.css">
+</head>
+<body>
+  <header class="hg-navbar"><div class="wrap hg-navbar-inner"><a href="/" class="hg-brand"><span class="wordmark">Hawkes Gen</span></a></div></header>
+  <main class="wrap">
+    <div class="auth-inline-wrap" id="box" style="max-width:460px">
+      <div class="label" id="eyebrow">Connect an app</div>
+      <h3 style="font:400 32px/1.1 var(--serif);margin:10px 0 6px" id="title">Loading…</h3>
+      <p class="muted" id="lede" style="margin:0 0 20px"></p>
+
+      <form class="form-grid" id="signin" hidden>
+        <div class="segmented"><button type="button" data-mode="login" class="on">Sign in</button><button type="button" data-mode="signup">New account</button></div>
+        <div class="form-field"><label for="email">Email</label><input id="email" type="email" class="form-input" autocomplete="email" required></div>
+        <div class="form-field"><label for="password">Password</label><input id="password" type="password" class="form-input" minlength="8" autocomplete="current-password" required></div>
+        <p class="muted" id="terms" hidden style="margin:0;font-size:12.5px">New accounts get 50 credits and agree to the <a href="/legal#terms" target="_blank">terms</a>.</p>
+        <button class="btn btn-primary btn-lg" type="submit" id="signinBtn">Sign in</button>
+      </form>
+
+      <form class="form-grid" id="consent" hidden>
+        <dl class="kv" style="margin:0">
+          <dt>Account</dt><dd id="who"></dd>
+          <dt>Credits</dt><dd id="credits"></dd>
+          <dt>Returns to</dt><dd id="host"></dd>
+        </dl>
+        <p class="muted" style="margin:0;font-size:14px">It will be able to run Hawkes Gen tools for you, which spend your credits, and read the files you make. It can't see your password or buy credits.</p>
+        <div class="form-field">
+          <label for="cap">Daily spending limit for this app</label>
+          <select id="cap" class="form-select">
+            <option value="250">250 credits a day ($2.50)</option>
+            <option value="1000" selected>1,000 credits a day ($10)</option>
+            <option value="5000">5,000 credits a day ($50)</option>
+            <option value="">No limit</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-primary btn-lg" type="submit" style="flex:1">Allow</button>
+          <button class="btn btn-secondary btn-lg" type="button" id="deny">Cancel</button>
+        </div>
+        <p class="muted" style="margin:0;font-size:12.5px">Change the limit or disconnect any time at <a href="/connect">hawkesgen.com/connect</a>.</p>
+      </form>
+      <div class="form-error" id="err" hidden></div>
+    </div>
+  </main>
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const query = location.search.slice(1);
+    const fail = (m) => { $('err').textContent = m; $('err').hidden = false; };
+    const post = async (path, body) => {
+      const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'That did not work');
+      return d;
+    };
+    let mode = 'login';
+    document.querySelectorAll('.segmented button').forEach((b) => b.addEventListener('click', () => {
+      mode = b.dataset.mode;
+      document.querySelectorAll('.segmented button').forEach((x) => x.classList.toggle('on', x === b));
+      $('signinBtn').textContent = mode === 'login' ? 'Sign in' : 'Create account';
+      $('terms').hidden = mode !== 'signup';
+      $('password').autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+    }));
+
+    async function start() {
+      const r = await fetch(`/v1/oauth/request?${query}`);
+      const req = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        $('title').textContent = "This link didn't work";
+        return fail(req.error || 'Try connecting again from your editor.');
+      }
+      $('title').textContent = `Connect ${req.client.name}`;
+      $('lede').textContent = `${req.client.name} wants to use your Hawkes Gen account.`;
+      $('host').textContent = req.host;
+      const me = await fetch('/v1/users/me').then((x) => (x.ok ? x.json() : null)).catch(() => null);
+      if (!me?.user) { $('signin').hidden = false; $('email').focus(); return; }
+      $('signin').hidden = true;
+      $('who').textContent = me.user.email;
+      $('credits').textContent = `${Number(me.user.credits).toLocaleString()}`;
+      $('consent').hidden = false;
+    }
+
+    $('signin').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      $('err').hidden = true;
+      try {
+        await post(mode === 'login' ? '/v1/users/login' : '/v1/users/signup', { email: $('email').value.trim(), password: $('password').value });
+        start();
+      } catch (x) { fail(x.message); }
+    });
+    $('consent').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const cap = $('cap').value;
+        const d = await post('/v1/oauth/approve', { query, daily_cap: cap === '' ? null : Number(cap) });
+        $('consent').hidden = true;
+        $('title').textContent = 'Connected';
+        $('lede').textContent = 'You can go back to your editor now.';
+        location.href = d.redirect;
+      } catch (x) { fail(x.message); }
+    });
+    $('deny').addEventListener('click', async () => {
+      try { location.href = (await post('/v1/oauth/deny', { query })).redirect; } catch (x) { fail(x.message); }
+    });
+    start();
+  </script>
+</body>
+</html>
