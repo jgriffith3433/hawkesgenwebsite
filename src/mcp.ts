@@ -486,6 +486,26 @@ async function present(c: Caller, t: Task, opts: { previews?: boolean } = {}) {
 
 const json = (v: unknown) => ({ content: [{ type: 'text', text: JSON.stringify(v, null, 2) }], structuredContent: v });
 
+// Typical seconds per tool once a GPU is up (from live runs), for the progress bar and "about N min left".
+const TYPICAL: Record<string, number> = { 'image.generate': 40, 'image.edit': 60, 'image.cutout': 30, 'image.frame': 3, 'image.upscale': 40, 'image.angles': 90, 'image.panorama': 60, 'image.viewsheet': 150, 'image.transform': 3, 'texture.maps': 10, 'sprite.sheet': 5, 'video.i2v': 300, 'video.t2v': 240, 'mesh.views3d': 300, 'mesh.textured': 200, 'mesh.rig': 240, 'motion.from-text': 150, 'audio.sfx': 6, 'audio.voice': 6, 'audio.music': 90 };
+const typical = (tool: string) => TYPICAL[tool] ?? 60;
+const COLD = /no GPU server|waiting for ComfyUI|starting server|booting/i;
+
+/** Where a task is, as a progress bar: steps done plus the running step's share, of all steps, and a sentence. */
+export function progressOf(t: Task, now = Date.now()) {
+  const total = t.steps.length;
+  const step = Math.min(t.step, total - 1);
+  const into = (now - (t.stepStarted ?? t.updated)) / 1000;
+  const cold = COLD.test(t.detail ?? '');
+  const share = cold ? 0.02 : Math.min(0.95, into / typical(t.steps[step].tool));
+  const left = cold ? 60 + t.steps.slice(step).reduce((a, x) => a + typical(x.tool), 0) : Math.max(0, typical(t.steps[step].tool) - into) + t.steps.slice(step + 1).reduce((a, x) => a + typical(x.tool), 0);
+  const ahead = Number(/(\d+) jobs? ahead/.exec(t.detail ?? '')?.[1] ?? 0);
+  const total_left = left + ahead * typical(t.steps[step].tool);
+  const eta = total_left < 45 ? 'under a minute left' : `about ${Math.round(total_left / 60)} min left`;
+  const what = cold ? 'Starting a GPU server (about a minute)' : (t.detail ?? t.steps[step].title);
+  return { progress: Math.min(total, step + share), total, message: `Step ${step + 1}/${total} · ${what} · ${eta}` };
+}
+
 // ------------------------------------------------------------------ the protocol
 
 type Rpc = { jsonrpc: '2.0'; id?: string | number | null; method: string; params?: any };
@@ -522,11 +542,21 @@ async function callTool(c: Caller, p: any, stream: ((n: any) => void) | null, si
     }
   }
   const token = p?._meta?.progressToken;
-  let n = 0;
   const waitMs = 'direct' in built ? built.direct.wait * 1000 : stream && token !== undefined ? 9 * 60_000 : 50_000;
-  const t = await waitTask(taskId, waitMs, (u) => {
-    if (stream && token !== undefined && u.state === 'running') stream({ jsonrpc: '2.0', method: 'notifications/progress', params: { progressToken: token, progress: ++n, message: `Step ${Math.min(u.step + 1, u.steps.length)}/${u.steps.length} · ${u.detail ?? 'working'}` } });
-  }, signal);
+  // A progress bar the editor can draw: progress of total (steps), a sentence with the time left, every change and
+  // every 5 s so it never looks stuck. Progress only goes up, as the spec requires.
+  let last = -1;
+  const tick = () => {
+    const u = getTask(taskId);
+    if (!stream || token === undefined || !u || u.state !== 'running') return;
+    const pr = progressOf(u);
+    const value = Math.max(last + 0.001, pr.progress);
+    last = value;
+    stream({ jsonrpc: '2.0', method: 'notifications/progress', params: { progressToken: token, progress: Math.round(value * 1000) / 1000, total: pr.total, message: pr.message } });
+  };
+  tick();
+  const beat = setInterval(tick, 5000);
+  const t = await waitTask(taskId, waitMs, () => tick(), signal).finally(() => clearInterval(beat));
   return present(c, getTask(t.id) ?? t);
 }
 

@@ -15,7 +15,7 @@
       <a href="/" class="hg-brand"><span class="wordmark">Hawkes Gen</span></a>
       <nav class="hg-nav-links">
         <a href="#tools">Tools</a>
-        <a href="#work">Work</a>
+        <a href="/examples">Examples</a>
         <a href="#pricing">Pricing</a>
         <a href="#api">API</a>
         <a href="/connect">Connect your editor</a>
@@ -36,9 +36,16 @@
           <p class="lede">Images, video, 3D models, rigs, motion, voice, music and sound effects, from the web or from one API call. The same pipeline we use to build our own games. You pay per generation, and only for what finishes.</p>
           <div class="actions">
             <button type="button" class="btn btn-primary btn-lg" data-open-auth="signup">Create an account</button>
-            <a class="btn btn-secondary btn-lg" href="/connect">Use it from your editor</a>
+            <a class="btn btn-secondary btn-lg" href="/examples">See examples</a>
           </div>
           <div class="fine">50 credits to start. No card needed.</div>
+          <div class="label" style="margin:28px 0 10px">Works in your editor</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <a class="btn btn-secondary btn-sm" id="heroCursor" href="#">Add to Cursor</a>
+            <a class="btn btn-secondary btn-sm" id="heroVscode" href="#">Install in VS Code</a>
+            <button type="button" class="btn btn-secondary btn-sm" id="heroClaude" title="claude mcp add --transport http hawkesgen https://hawkesgen.com/mcp">Copy for Claude Code</button>
+            <a class="btn btn-ghost btn-sm" href="/connect">More editors →</a>
+          </div>
         </div>
         <div class="sheet" aria-label="An example request">
           <div class="sheet-head"><span class="label">Request</span><span class="label">5 credits · $0.05</span></div>
@@ -282,6 +289,13 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
       err.hidden = false;
       history.replaceState(null, '', '/');
     }
+    // One-click editor installs (the same links as /connect).
+    const MCP = 'https://hawkesgen.com/mcp';
+    document.getElementById('heroCursor').href = `cursor://anysphere.cursor-deeplink/mcp/install?name=hawkesgen&config=${btoa(JSON.stringify({ url: MCP }))}`;
+    document.getElementById('heroVscode').href = `vscode:mcp/install?${encodeURIComponent(JSON.stringify({ name: 'hawkesgen', type: 'http', url: MCP }))}`;
+    document.getElementById('heroClaude').addEventListener('click', async (e) => {
+      try { await navigator.clipboard.writeText(e.currentTarget.title); e.currentTarget.textContent = 'Copied: paste in a terminal'; } catch {}
+    });
     // Already signed in: the top-right goes straight to the app.
     fetch('/v1/users/me').then((r) => (r.ok ? r.json() : null)).then((d) => {
       if (!d?.user) return;

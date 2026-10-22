@@ -67,3 +67,17 @@ deploys a commit whose CI passed: fast-forward, restart, health check, rollback 
 The box: EC2 `hawkes-gen-public` (us-east-1, t3.large, Elastic IP 54.163.56.66, SSH key and state in
 `hawkesstudio/deploy/.keys/gen_public_ed25519` / `gen-public.json`). Its IAM role grants nothing it doesn't need: the
 portal never touches AWS.
+
+## Engine integrations (Unity next)
+
+An engine plugin talks to the same API as everything else; nothing engine-specific is needed on the server.
+- **Auth:** the user pastes a personal key from /app (`Authorization: Bearer hg_...`). (Later: sign in from the editor
+  with the same OAuth as MCP clients: `/.well-known/oauth-authorization-server`, PKCE with a loopback redirect.)
+- **Files in:** `POST /v1/uploads {filename}` gives a one-time URL; `PUT` the bytes to it; use the returned
+  `asset:a_...` as an input. Or `POST /v1/assets` with the bytes directly.
+- **Work:** `POST /v1/billing/quote` (show the price), `POST /v1/jobs` (one tool) or the MCP tools for chains;
+  `GET /v1/jobs/:id` (with `queue.ahead` while waiting) or `GET /v1/events` (SSE, the customer's jobs only).
+- **Files out:** `GET /v1/assets/:id/file`; outputs carry `mime` and `title` (a sprite sheet's `.json` is TexturePacker hash).
+- **Credits:** `GET /v1/users/me` (balance); 402 means out of credits: open `https://hawkesgen.com/app#credits`.
+- Gen's own Unity package (`hawkesgen/clients/unity/com.hawkes.gen`) is the starting point: point it at
+  `https://hawkesgen.com` with the customer's key; the routes it uses are in `PASS_GET`/`PASS_POST` (add any it needs).

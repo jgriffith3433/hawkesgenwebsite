@@ -33,12 +33,12 @@ CREATE INDEX IF NOT EXISTS tasks_user ON tasks (user_id, created);
 export type Ref = string | { from: number; pick?: 'first' | 'last' | 'all' | number; kind?: string };
 export type Step = { tool: string; title: string; params?: Record<string, unknown>; inputs?: Record<string, Ref | Ref[] | undefined>; keep?: boolean };
 export type Output = { asset: string; kind: string; mime: string; title?: string; step: number };
-export type Task = { id: string; user_id: string; via: Via | null; name: string; steps: Step[]; state: 'running' | 'done' | 'failed' | 'cancelled'; step: number; jobs: string[]; outputs: Output[][]; detail: string | null; error: string | null; credits: number; created: number; updated: number };
+export type Task = { id: string; user_id: string; via: Via | null; name: string; steps: Step[]; state: 'running' | 'done' | 'failed' | 'cancelled'; step: number; jobs: string[]; outputs: Output[][]; detail: string | null; error: string | null; credits: number; created: number; updated: number; stepStarted?: number };
 
 export const events = new EventEmitter();
 events.setMaxListeners(0);
 
-const row = (r: any): Task | null => (r ? { ...r, via: r.via ? JSON.parse(r.via) : null, steps: JSON.parse(r.steps), jobs: JSON.parse(r.jobs), outputs: JSON.parse(r.outputs) } : null);
+const row = (r: any): Task | null => (r ? { ...r, via: r.via ? JSON.parse(r.via) : null, steps: JSON.parse(r.steps), jobs: JSON.parse(r.jobs), outputs: JSON.parse(r.outputs), stepStarted: started.get(r.id) ?? r.created } : null);
 export const getTask = (taskId: string, userId?: string) => row(db.prepare(`SELECT * FROM tasks WHERE id = ?${userId ? ' AND user_id = ?' : ''}`).get(...(userId ? [taskId, userId] : [taskId])));
 
 function save(t: Task, patch: Partial<Task>) {
@@ -74,7 +74,9 @@ async function waitJob(user: User, jobId: string, t: Task) {
       settle(j);
       return j;
     }
-    const detail = `${t.steps[t.step].title}: ${j.detail ?? j.status}`;
+    // Waiting its turn: say where in line it is (Gen counts the jobs ahead in the same lane, from every customer).
+    const line = j.status === 'queued' && j.queue ? (j.queue.ahead ? `in line, ${j.queue.ahead} job${j.queue.ahead === 1 ? '' : 's'} ahead of yours` : 'next in line') : null;
+    const detail = `${t.steps[t.step].title}: ${line ?? j.detail ?? j.status}`;
     if (detail !== last) {
       last = detail;
       save(t, { detail });
@@ -86,6 +88,7 @@ async function waitJob(user: User, jobId: string, t: Task) {
 }
 
 const running = new Set<string>();
+const started = new Map<string, number>();
 
 async function run(t: Task) {
   if (running.has(t.id)) return;
@@ -112,6 +115,7 @@ async function run(t: Task) {
       }
       t.outputs[t.step] = (j.outputs ?? []).map((o: any) => ({ asset: o.asset, kind: o.kind, mime: o.mime, title: o.title, step: t.step }));
       const next = t.steps[t.step + 1];
+      started.set(t.id, Date.now());
       save(t, { outputs: t.outputs, step: t.step + 1, detail: next ? `${next.title}: starting` : null });
     }
     if (t.state === 'running') save(t, { state: 'done', detail: null });
@@ -125,7 +129,8 @@ async function run(t: Task) {
 export function startTask(user: User, via: Via | null, name: string, steps: Step[]) {
   if (!steps.length) throw new PortalError('Nothing to do');
   const now = Date.now();
-  const t: Task = { id: id('task_', 8), user_id: user.id, via, name, steps, state: 'running', step: 0, jobs: [], outputs: [], detail: 'starting', error: null, credits: 0, created: now, updated: now };
+  const t: Task = { id: id('task_', 8), user_id: user.id, via, name, steps, state: 'running', step: 0, jobs: [], outputs: [], detail: 'starting', error: null, credits: 0, created: now, updated: now, stepStarted: now };
+  started.set(t.id, now);
   db.prepare('INSERT INTO tasks (id, user_id, via, name, steps, state, created, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(t.id, user.id, via ? JSON.stringify(via) : null, name, JSON.stringify(steps), 'running', now, now);
   void run(t);
   return t;
