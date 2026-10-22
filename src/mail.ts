@@ -37,6 +37,9 @@ export function sigv4(url: string, body: string, c: { id: string; secret: string
 
 export async function sendEmail(to: string, subject: string, text: string, html: string) {
   if (env('PORTAL_MAIL') !== 'ses') return { skipped: true };
+  // hawkesgen.com has no mailboxes but support@: anything else there is a test account, and would bounce (SES counts those).
+  // Test signups that should get mail use success+<label>@simulator.amazonses.com (never counted).
+  if (/@hawkesgen\.com$/i.test(to.trim()) && to.trim().toLowerCase() !== 'support@hawkesgen.com') return { skipped: true };
   const url = `https://email.${REGION}.amazonaws.com/v2/email/outbound-emails`;
   const body = JSON.stringify({ FromEmailAddress: FROM, ReplyToAddresses: ['support@hawkesgen.com'], Destination: { ToAddresses: [to] }, Content: { Simple: { Subject: { Data: subject, Charset: 'UTF-8' }, Body: { Text: { Data: text, Charset: 'UTF-8' }, Html: { Data: html, Charset: 'UTF-8' } } } } });
   const r = await fetch(url, { method: 'POST', headers: sigv4(url, body, await creds(), 'ses', REGION), body, signal: AbortSignal.timeout(10_000) });
