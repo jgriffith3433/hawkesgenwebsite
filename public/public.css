@@ -259,6 +259,10 @@ img { max-width: 100%; }
 .asset-card { border: 1px solid var(--rule); border-radius: var(--r); overflow: hidden; background: var(--paper); display: flex; flex-direction: column; }
 .asset-preview { aspect-ratio: 1; background: var(--paper-3); display: grid; place-items: center; overflow: hidden; }
 .asset-preview img, .asset-preview video { width: 100%; height: 100%; object-fit: cover; }
+.input-preview { display: flex; gap: 12px; align-items: center; margin-top: 8px; font-size: 13px; min-width: 0; }
+.input-preview .asset-preview { width: 96px; flex: none; border: 1px solid var(--rule); border-radius: var(--r); }
+.input-preview .asset-preview img, .input-preview .asset-preview video { object-fit: contain; }
+.input-preview div:last-child { display: grid; gap: 4px; min-width: 0; }
 .asset-body { padding: 10px 12px; display: grid; gap: 6px; font-size: 13px; }
 .asset-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .code-snippet { margin: 0; padding: 12px; border: 1px solid var(--rule); border-radius: var(--r); background: var(--paper-2); font: 12px/1.6 var(--mono); white-space: pre-wrap; word-break: break-all; }

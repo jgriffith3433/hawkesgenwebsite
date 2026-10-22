@@ -35,7 +35,8 @@ const STUDIOS = {
         label: 'Edit Image',
         desc: 'Modify an existing image with natural language instructions (Flux Kontext / Qwen Edit).',
         defaultCredits: 5,
-        inputKey: 'image',
+        inputKey: 'images',
+        inputMultiple: true,
         inputLabel: 'Source Image to Edit',
         fields: [
           { name: 'prompt', label: 'Edit Instruction', type: 'textarea', placeholder: 'Turn the armor into brushed titanium with violet energy trim', required: true },
@@ -57,9 +58,7 @@ const STUDIOS = {
         defaultCredits: 5,
         inputKey: 'image',
         inputLabel: 'Front Reference Image',
-        fields: [
-          { name: 'prompt', label: 'Subject Description (Optional)', type: 'text', placeholder: 'Stylized cybernetic ranger, full body' },
-        ],
+        fields: [],
       },
       {
         id: 'image.panorama',
@@ -77,9 +76,7 @@ const STUDIOS = {
         defaultCredits: 5,
         inputKey: 'image',
         inputLabel: 'Base Color / Texture Image',
-        fields: [
-          { name: 'tile', label: 'Make Seamless Before Extracting Maps', type: 'checkbox', default: true },
-        ],
+        fields: [],
       },
     ],
   },
@@ -103,22 +100,24 @@ const STUDIOS = {
         label: 'Image to Video (video.i2v)',
         desc: 'Animate a character pose or environment still into a smooth video clip.',
         defaultCredits: 40,
-        inputKey: 'image',
+        inputKey: 'start',
         inputLabel: 'Start Frame Image',
         fields: [
           { name: 'prompt', label: 'Motion Prompt', type: 'textarea', placeholder: 'The fighter steps forward and unleashes a spinning flame uppercut', required: true },
           { name: 'seconds', label: 'Duration (Seconds)', type: 'range', min: 2, max: 8, step: 1, default: 4 },
         ],
+        // Gen takes frames (4n + 1) at fps, not seconds.
+        mapParams: (p) => { p.fps = 16; p.frames = Math.round((p.seconds * 16) / 4) * 4 + 1; delete p.seconds; },
       },
       {
         id: 'video.animate',
         label: 'Character Motion Transfer (video.animate)',
         desc: 'Transfer body movement and choreography from a driving video onto a character image.',
         defaultCredits: 40,
-        inputKey: 'image',
+        inputKey: 'reference',
         inputLabel: 'Character Reference Image',
         fields: [
-          { name: 'motion', label: 'Driving Motion Video (asset: or blob:)', type: 'text', placeholder: 'asset:a_motion_clip' },
+          { name: 'motion', label: 'Driving Motion Video (asset: or blob:)', type: 'text', placeholder: 'asset:a_motion_clip', asInput: true, required: true },
           { name: 'prompt', label: 'Character & Scene Prompt', type: 'textarea', placeholder: 'Smooth character animation preserving identity and costume details' },
         ],
       },
@@ -130,7 +129,7 @@ const STUDIOS = {
         inputKey: 'image',
         inputLabel: 'Character Portrait Image',
         fields: [
-          { name: 'audio', label: 'Voice Audio Asset (asset: or blob:)', type: 'text', placeholder: 'asset:a_voice_line' },
+          { name: 'audio', label: 'Voice Audio Asset (asset: or blob:)', type: 'text', placeholder: 'asset:a_voice_line', asInput: true, required: true },
           { name: 'prompt', label: 'Expression & Delivery Direction', type: 'text', placeholder: 'Speaking intensely with subtle head nods, cinematic lighting' },
         ],
       },
@@ -139,9 +138,10 @@ const STUDIOS = {
         label: 'Depth / Pose Controlled Video (video.control)',
         desc: 'Reskin a Blender pass or depth/pose control video with AI cinematography.',
         defaultCredits: 40,
-        inputKey: 'video',
+        inputKey: 'control',
         inputLabel: 'Control / Depth Pass Video',
         fields: [
+          { name: 'image', label: 'First Frame in the Finished Look (asset: or blob:)', type: 'text', placeholder: 'asset:a_styled_first_frame', asInput: true, required: true },
           { name: 'prompt', label: 'Visual Style Prompt', type: 'textarea', placeholder: 'Gritty cyberpunk alley, rain-wet asphalt, neon rim lighting', required: true },
         ],
       },
@@ -178,7 +178,7 @@ const STUDIOS = {
         inputKey: 'image',
         inputLabel: 'Front Character / Prop Image',
         fields: [
-          { name: 'prompt', label: 'Subject Description', type: 'text', placeholder: 'Stylized fantasy knight in silver armor, A-pose' },
+          { name: 'look', label: 'Subject Description', type: 'text', placeholder: 'Stylized fantasy knight in silver armor, A-pose' },
         ],
       },
       {
@@ -229,10 +229,24 @@ const STUDIOS = {
         desc: 'Clean, bake textures, attach props, and retarget Quaternius CC0 motion clips onto a rigged GLB.',
         defaultCredits: 20,
         inputKey: 'files',
+        inputMultiple: true,
         inputLabel: 'Rigged Character GLB',
         fields: [
-          { name: 'clips', label: 'CC0 Motion Library Clips (comma-separated)', type: 'text', placeholder: 'Walk_Loop, Run_Loop, Idle_Loop' },
+          { name: 'clips', label: 'CC0 Motion Library Clips (comma-separated)', type: 'text', placeholder: 'Walk_Loop, Run_Loop, Idle_Loop', required: true },
         ],
+        // Gen takes the clips as files (motion:<pack>/<clip>) and the steps as ops.
+        mapParams: (p, inputs) => {
+          const clips = String(p.clips || '').split(',').map((c) => c.trim()).filter(Boolean);
+          delete p.clips;
+          inputs.files = [...(inputs.files || []), ...clips.map((c) => (c.startsWith('motion:') ? c : `motion:${c.includes('/') ? c : `ual1/${c}`}`))];
+          p.ops = [
+            { op: 'import', file: 0 },
+            ...clips.map((c, i) => ({ op: 'retarget', file: i + 1, name: c.split('/').pop() })),
+            { op: 'export', format: 'fbx' },
+            { op: 'export', format: 'glb' },
+            { op: 'preview' },
+          ];
+        },
       },
     ],
   },
@@ -269,6 +283,7 @@ const STUDIOS = {
           { name: 'instrumental', label: 'Instrumental Only (No Vocals)', type: 'checkbox', default: true },
           { name: 'seconds', label: 'Duration (Seconds)', type: 'range', min: 15, max: 180, step: 15, default: 60 },
         ],
+        mapParams: (p) => { if (p.instrumental || !p.lyrics) p.lyrics = '[Instrumental]'; delete p.instrumental; },
       },
       {
         id: 'audio.voice',
@@ -307,8 +322,8 @@ const STUDIOS = {
         desc: 'Generate crisp combat impacts, UI chimes, creature vocals, or ambient foley.',
         defaultCredits: 8,
         fields: [
-          { name: 'prompt', label: 'Sound Effect Description', type: 'textarea', placeholder: 'Heavy plasma rifle charge-up followed by a crisp electromagnetic blast', required: true },
-          { name: 'seconds', label: 'Duration (Seconds)', type: 'range', min: 1, max: 15, step: 1, default: 3 },
+          { name: 'text', label: 'Sound Effect Description', type: 'textarea', placeholder: 'Heavy plasma rifle charge-up followed by a crisp electromagnetic blast', required: true },
+          { name: 'duration', label: 'Duration (Seconds)', type: 'range', min: 1, max: 15, step: 1, default: 3 },
         ],
       },
     ],
@@ -322,16 +337,17 @@ const STUDIOS = {
         id: 'pipeline.char3d',
         realTool: 'asset.make',
         label: 'Prompt → Concept → 4-View → 3D Mesh → Auto-Rigged GLB',
-        desc: 'Complete 3D character pipeline: generates concept art, verifies a 4-view turnaround sheet, extracts a textured GLB mesh, and auto-rigs with a humanoid skeleton.',
+        desc: 'Complete 3D character pipeline: generates concept art, cuts it out, verifies a 4-view turnaround sheet, extracts a textured GLB mesh, and auto-rigs with a humanoid skeleton.',
         defaultCredits: 90,
         fields: [
           { name: 'prompt', label: 'Character Concept Prompt', type: 'textarea', placeholder: 'Stylized low-poly cyber-samurai in A-pose, clean silhouette, studio light', required: true },
         ],
         buildSteps: (vals) => [
           { tool: 'image.generate', params: { prompt: `${vals.prompt || 'Stylized 3D character'}, full body front view, A-pose, clean background` } },
-          { tool: 'image.viewsheet', params: { prompt: vals.prompt || 'Stylized 3D character' } },
-          { tool: 'mesh.views3d', params: {} },
-          { tool: 'mesh.rig', params: { kind: 'auto' } },
+          { tool: 'image.remove-background', params: {}, inputs: { image: '$prev' } },
+          { tool: 'image.viewsheet', params: { look: vals.prompt || 'Stylized 3D character' }, inputs: { image: '$prev' } },
+          { tool: 'mesh.views3d', params: {}, inputs: { image: '$prev:sheet' } },
+          { tool: 'mesh.rig', params: { kind: 'auto' }, inputs: { mesh: '$prev' } },
         ],
       },
       {
@@ -345,7 +361,7 @@ const STUDIOS = {
         ],
         buildSteps: (vals) => [
           { tool: 'image.generate', params: { prompt: vals.prompt || 'Seamless material texture', seamless: true } },
-          { tool: 'texture.maps', params: { tile: true } },
+          { tool: 'texture.maps', params: {}, inputs: { image: '$prev' } },
         ],
       },
       {
@@ -359,7 +375,7 @@ const STUDIOS = {
         ],
         buildSteps: (vals) => [
           { tool: 'image.generate', params: { prompt: vals.prompt || 'Game sprite character' } },
-          { tool: 'image.remove-background', params: {} },
+          { tool: 'image.remove-background', params: {}, inputs: { image: '$prev' } },
         ],
       },
     ],
@@ -565,6 +581,8 @@ function bindSidebarAndComposer() {
     if (file) await uploadInputAsset(file);
   });
 
+  document.getElementById('composerInputAssetRef')?.addEventListener('input', () => showInputPreview());
+
   document.getElementById('openLibraryPickerBtn')?.addEventListener('click', () => {
     renderLibraryPicker();
     document.getElementById('libraryPickerModal').hidden = false;
@@ -598,8 +616,9 @@ async function uploadInputAsset(file) {
     if (!res.ok) throw new Error(data.error || 'Upload failed');
     const ref = data.id ? `asset:${data.id}` : data.blob;
     document.getElementById('composerInputAssetRef').value = ref;
-    statusEl.textContent = `Uploaded: ${file.name} (${ref})`;
+    statusEl.textContent = `Uploaded: ${file.name}`;
     await loadAssets();
+    showInputPreview();
     scheduleQuote();
   } catch (err) {
     statusEl.textContent = `Upload error: ${err.message || err}`;
@@ -696,6 +715,14 @@ function renderStudio() {
       el.addEventListener('input', () => scheduleQuote());
       el.addEventListener('change', () => scheduleQuote());
     });
+    if (field.asInput) {
+      const box = document.createElement('div');
+      box.className = 'input-preview';
+      box.hidden = true;
+      wrap.appendChild(box);
+      const el = wrap.querySelector('input');
+      el?.addEventListener('input', () => showInputPreview(box, el.value.trim()));
+    }
     fieldsContainer.appendChild(wrap);
   }
 
@@ -711,6 +738,7 @@ function renderStudio() {
   // Motion library browser visibility in Studio 4
   const motionBrowser = document.getElementById('motionLibraryBrowser');
   motionBrowser.hidden = state.studioKey !== 'motion';
+  showInputPreview();
 
   populatePresetDropdown(tool.realTool || tool.id);
   scheduleQuote();
@@ -750,17 +778,17 @@ function collectComposerSpec() {
   if (toolDef.inputKey) {
     const ref = document.getElementById('composerInputAssetRef')?.value.trim();
     if (ref) {
-      inputs[toolDef.inputKey] = toolDef.inputKey === 'files' ? [ref] : ref;
+      inputs[toolDef.inputKey] = toolDef.inputMultiple ? [ref] : ref;
     }
   }
-  if (rawValues.motion) {
-    inputs.motion = rawValues.motion;
-    delete rawValues.motion;
+  // Fields that name another asset (a driving video, a voice line) are inputs, not params.
+  for (const f of toolDef.fields || []) {
+    if (f.asInput && rawValues[f.name] !== undefined) {
+      inputs[f.name] = rawValues[f.name];
+      delete rawValues[f.name];
+    }
   }
-  if (rawValues.audio) {
-    inputs.audio = rawValues.audio;
-    delete rawValues.audio;
-  }
+  toolDef.mapParams?.(rawValues, inputs);
 
   if (toolDef.buildSteps) {
     return {
@@ -1121,6 +1149,27 @@ function renderGallery() {
   });
 }
 
+/** Shows what the composer's input box points at: the asset's picture (or player), title and tool, not just its id. */
+function showInputPreview(box = document.getElementById('composerInputPreview'), ref = document.getElementById('composerInputAssetRef')?.value.trim() || '') {
+  if (!box) return;
+  const id = /^asset:(a_[0-9a-f]+)$/.exec(ref)?.[1];
+  if (!id) {
+    box.hidden = true;
+    box.innerHTML = '';
+    return;
+  }
+  // An asset not in the loaded page of the library is still shown, as an image if it is one.
+  const asset = state.assets.find((a) => a.id === id) || { id, kind: 'image' };
+  box.innerHTML = `
+    <div class="asset-preview">${renderMediaPreview(asset)}</div>
+    <div>
+      <strong style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(asset.title || asset.id)}</strong>
+      ${asset.tool ? `<span class="tool-tag" style="justify-self:start;">${escapeHtml(asset.tool)}</span>` : ''}
+    </div>`;
+  box.querySelector('img')?.addEventListener('error', () => { box.querySelector('.asset-preview').innerHTML = `<div class="tool-tag">${escapeHtml(asset.kind || 'file')}</div>`; });
+  box.hidden = false;
+}
+
 function sendAssetToTool(action, assetRef) {
   if (action === 'animate') {
     state.studioKey = 'video';
@@ -1139,6 +1188,7 @@ function sendAssetToTool(action, assetRef) {
   renderStudio();
   const refInput = document.getElementById('composerInputAssetRef');
   if (refInput) refInput.value = assetRef;
+  showInputPreview();
   window.scrollTo({ top: 0, behavior: 'smooth' });
   scheduleQuote();
 }
@@ -1164,8 +1214,8 @@ function renderLibraryPicker() {
     card.addEventListener('click', () => {
       const ref = card.getAttribute('data-pick-asset');
       document.getElementById('composerInputAssetRef').value = ref;
-      document.getElementById('dropzoneStatusText').textContent = `Selected from Library: ${ref}`;
       document.getElementById('libraryPickerModal').hidden = true;
+      showInputPreview();
       scheduleQuote();
     });
   });
