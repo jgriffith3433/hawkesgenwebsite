@@ -14,7 +14,8 @@
     <div class="wrap hg-navbar-inner">
       <a href="/" class="hg-brand"><span class="wordmark">Hawkes Gen</span></a>
       <nav class="hg-nav-links">
-        <a href="#tools">Tools</a>
+        <a href="#gamedev">For game devs</a>
+        <a href="#unity">Unity</a>
         <a href="/examples">Examples</a>
         <a href="#pricing">Pricing</a>
         <a href="#api">API</a>
@@ -31,9 +32,9 @@
     <section class="hero">
       <div class="wrap hero-grid">
         <div>
-          <div class="label">Generation for game studios</div>
-          <h1 style="margin-top:18px;">Game assets,<br><em>made to order.</em></h1>
-          <p class="lede">Images, video, 3D models, rigs, motion, voice, music and sound effects, from the web or from one API call. The same pipeline we use to build our own games. You pay per generation, and only for what finishes.</p>
+          <div class="label">Built for game developers</div>
+          <h1 style="margin-top:18px;">Game assets,<br><em>straight into your game.</em></h1>
+          <p class="lede">Sprite sheets that arrive sliced, sprites with transparent backgrounds, PBR materials, 3D models, voices, music and sound. Ask from Unity, Claude Code, Cursor or VS Code, and the files land in your project, ready to use. The same pipeline we build our own games with. You pay only for what finishes.</p>
           <div class="actions">
             <button type="button" class="btn btn-primary btn-lg" data-open-auth="signup">Create an account</button>
             <a class="btn btn-secondary btn-lg" href="/examples">See examples</a>
@@ -48,21 +49,97 @@
             <a class="btn btn-ghost btn-sm" href="/connect">More editors →</a>
           </div>
         </div>
-        <div class="sheet" aria-label="An example request">
-          <div class="sheet-head"><span class="label">Request</span><span class="label">5 credits · $0.05</span></div>
-<pre><span class="c"># a tileable floor texture</span>
-curl https://hawkesgen.com/v1/run \
-  -H <span class="k">"Authorization: Bearer hg_…"</span> \
-  -d '{
-    "tool": "image.generate",
-    "params": {
-      "prompt": "worn temple floor tiles, top-down",
-      "seamless": true
-    }
-  }'
+        <div class="hero-demo" aria-label="A character becomes a walk cycle">
+          <div class="sheet">
+            <div class="sheet-head"><span class="label">make_sprite_sheet</span><span class="label">about 50 credits</span></div>
+            <div class="hero-demo-body">
+              <figure><img src="/examples/knight.webp" alt="A cartoon knight" width="150" height="150"><figcaption class="label">your character</figcaption></figure>
+              <span class="arrow">→</span>
+              <figure><img src="/examples/walk.gif" alt="The knight walking, animated" width="190" height="190"><figcaption class="label">walk cycle</figcaption></figure>
+            </div>
+            <div class="hero-demo-foot">
+              <span class="tool-tag">walk.png · 8 sprites</span><span class="tool-tag">walk.anim · loops</span><span class="tool-tag">transparent</span>
+            </div>
+          </div>
+          <div class="fine" style="margin-top:10px">"Make a looping walk cycle of this knight." A real run, nothing touched up.</div>
+        </div>
+      </div>
+    </section>
 
-<span class="c"># → { "status": "done",
-#     "outputs": [{ "id": "a_…", "kind": "image" }] }</span></pre>
+    <section class="section" id="gamedev">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="label">01 — For game developers</div>
+          <div>
+            <h2>Made for how games are built.</h2>
+            <p>Not pictures to download and fix up. Assets in the shapes engines want, with the boring parts done: slicing, transparency, tiling, palettes, maps, loops.</p>
+          </div>
+        </div>
+        <div class="features">
+          <div class="feature">
+            <img src="/examples/walk-sheet.webp" alt="A sliced walk-cycle sprite sheet" class="checker" loading="lazy">
+            <h3>Sprite sheets, already sliced</h3>
+            <p>A character and a motion become a transparent atlas, its frame data, and in Unity a looping AnimationClip.</p>
+          </div>
+          <div class="feature">
+            <img src="/examples/var2.webp" alt="A themed armor variant of the knight" loading="lazy">
+            <h3>On-model variations</h3>
+            <p>Fire, ice and poison versions. Palette swaps, outfits, weapons. The character stays the character.</p>
+          </div>
+          <div class="feature">
+            <img src="/examples/pixel.png" alt="The knight as 64 pixel art" class="checker pixelated" loading="lazy">
+            <h3>Pixel art in seconds</h3>
+            <p>Any image to a set size and palette with a 1 px outline. Trims, flips, power-of-two padding: 2 credits, no GPU.</p>
+          </div>
+          <div class="feature">
+            <img src="/examples/tex-albedo.webp" alt="A tileable cobblestone texture" loading="lazy">
+            <h3>Materials that drop in</h3>
+            <p>Seamless textures with normal and roughness maps, set up as a Material for URP, HDRP or Built-in.</p>
+          </div>
+          <div class="feature">
+            <div class="feature-audio"><span class="label">voice line</span><audio controls preload="none" src="/examples/voice.mp3"></audio></div>
+            <h3>Sound for every event</h3>
+            <p>Have your agent read the player controller and make every sound it needs: hits, steps, UI, voices, music loops.</p>
+          </div>
+          <div class="feature">
+            <div class="feature-list">
+              <span>Blender</span><span>ffmpeg</span><span>Python</span><span>a GPU</span><span>model downloads</span>
+            </div>
+            <h3>Nothing to install</h3>
+            <p>Rigging, retargeting, keying, video and 3D run on our servers. Your machine just gets the files.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section unity" id="unity">
+      <div class="wrap unity-grid">
+        <div>
+          <div class="label">02 — Unity</div>
+          <h2 style="font:400 52px/1.02 var(--serif);letter-spacing:-.02em;margin:14px 0 16px">Hawkes Gen for Unity.</h2>
+          <p class="muted" style="font-size:17px;max-width:34em;margin:0 0 20px">A window in the Unity Editor. Pick an image from your project, describe what you want, watch the progress bar. Results arrive as real Unity assets, selected in the Project window.</p>
+          <ul class="unity-list">
+            <li><b>Sprite sheets</b> sliced into Sprites, with a looping AnimationClip</li>
+            <li><b>Materials</b> for URP, HDRP or Built-in, with normal maps</li>
+            <li><b>Skyboxes</b> as Skybox Materials · <b>sounds</b> as AudioClips</li>
+            <li><b>Edits</b>, background removal and pixel art on your own textures</li>
+            <li>Sign in with your browser · a daily spending limit · Unity 2022.3+</li>
+          </ul>
+          <div class="actions" style="margin-top:24px">
+            <a class="btn btn-primary btn-lg" href="/downloads/HawkesGen.unitypackage" download>Download for Unity, free</a>
+            <a class="btn btn-secondary btn-lg" href="/connect#unity">How it works</a>
+          </div>
+          <div class="fine">Submitted to the Unity Asset Store and in review. Until it's listed, the download here is the same package.</div>
+        </div>
+        <div class="unity-window" aria-hidden="true">
+          <div class="unity-bar"><span></span><span></span><span></span><b>Hawkes Gen</b></div>
+          <div class="unity-body">
+            <div class="unity-row"><span>Make</span><div class="unity-field">Animated sprite sheet ▾</div></div>
+            <div class="unity-row"><span>Image</span><div class="unity-field unity-asset"><img src="/examples/knight.webp" alt="">Knight</div></div>
+            <div class="unity-row"><span>Motion</span><div class="unity-field">walking in place, a looping walk cycle</div></div>
+            <div class="unity-progress"><div style="width:72%"></div><span>Step 3/4 · Animating · about 1 min left</span></div>
+            <div class="unity-result"><img src="/examples/walk.gif" alt=""><div><b>walk.png</b> · 8 sprites<br><b>walk.anim</b> · loops</div></div>
+          </div>
         </div>
       </div>
     </section>
@@ -70,7 +147,7 @@ curl https://hawkesgen.com/v1/run \
     <section class="section" id="tools">
       <div class="wrap">
         <div class="section-head">
-          <div class="label">01 — Tools</div>
+          <div class="label">03 — Tools</div>
           <div>
             <h2>One account, every kind of asset.</h2>
             <p>Each tool is a tested pipeline: the right model on the right GPU, with the settings worked out. Prices are quoted before you run, in credits (1 credit = $0.01).</p>
@@ -95,7 +172,7 @@ curl https://hawkesgen.com/v1/run \
     <section class="section" id="how">
       <div class="wrap">
         <div class="section-head">
-          <div class="label">02 — Billing</div>
+          <div class="label">04 — Billing</div>
           <div><h2>You pay for results.</h2></div>
         </div>
         <div class="steps">
@@ -109,7 +186,7 @@ curl https://hawkesgen.com/v1/run \
     <section class="section" id="work">
       <div class="wrap">
         <div class="section-head">
-          <div class="label">03 — Work</div>
+          <div class="label">05 — Work</div>
           <div>
             <h2>Built with it.</h2>
             <p>We make games, and Hawkes Gen is how we make their art, animation and sound. These are live.</p>
@@ -147,7 +224,7 @@ curl https://hawkesgen.com/v1/run \
     <section class="section" id="pricing">
       <div class="wrap">
         <div class="section-head">
-          <div class="label">04 — Pricing</div>
+          <div class="label">06 — Pricing</div>
           <div>
             <h2>Credits, not subscriptions.</h2>
             <p>Buy a pack when you need one. Every account starts with 50 credits.</p>
@@ -185,7 +262,7 @@ curl https://hawkesgen.com/v1/run \
     <section class="section" id="api">
       <div class="wrap">
         <div class="section-head">
-          <div class="label">05 — API</div>
+          <div class="label">07 — API</div>
           <div>
             <h2>Your pipeline, not ours.</h2>
             <p>Everything in the app is an HTTP call, and an MCP server: connect Claude Code, Cursor, VS Code or Claude at <a href="/connect">hawkesgen.com/connect</a> and ask for assets in plain words. Or make a key and call it from build scripts, tools or your engine.</p>
