@@ -550,9 +550,10 @@ async function callTool(c: Caller, p: any, stream: ((n: any) => void) | null, si
     const u = getTask(taskId);
     if (!stream || token === undefined || !u || u.state !== 'running') return;
     const pr = progressOf(u);
-    const value = Math.max(last + 0.001, pr.progress);
+    // Rounded first, then compared, so what the editor sees always goes up.
+    const value = Math.max(Math.round((last + 0.001) * 1000) / 1000, Math.round(pr.progress * 1000) / 1000);
     last = value;
-    stream({ jsonrpc: '2.0', method: 'notifications/progress', params: { progressToken: token, progress: Math.round(value * 1000) / 1000, total: pr.total, message: pr.message } });
+    stream({ jsonrpc: '2.0', method: 'notifications/progress', params: { progressToken: token, progress: value, total: pr.total, message: pr.message } });
   };
   tick();
   const beat = setInterval(tick, 5000);
