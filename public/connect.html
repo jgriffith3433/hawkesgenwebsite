@@ -83,7 +83,9 @@
             <div class="label">Anthropic</div><h3>Claude app</h3>
             <p>The Claude desktop app (chat and Claude Code) and claude.ai. There's no one-click install for Claude yet; it takes a paste.</p>
             <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn btn-primary" data-add-claude data-client="claude">Add to Claude</button></div>
-            <div id="claudeSteps" hidden style="display:grid;gap:14px;margin-top:6px;padding:16px;border:1px solid var(--rule-strong);border-radius:var(--r);background:var(--paper-2)">
+
+          </div>
+          <div id="claudeSteps" hidden style="grid-column:1 / -1;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));margin:0 0 8px;gap:14px;padding:16px;border:1px solid var(--rule-strong);border-radius:var(--r);background:var(--paper-2)">
               <div>
                 <div class="label" style="margin-bottom:6px">In Claude Code (the Code tab)</div>
                 <p style="margin:0 0 8px">Paste this into a Claude Code session. It adds the server to your settings; then run <code>/mcp</code> and choose hawkesgen to sign in.</p>
@@ -95,7 +97,6 @@
                 <div class="copy"><code id="clUrl">https://hawkesgen.com/mcp</code><button type="button" data-copy="clUrl">Copy</button></div>
               </div>
             </div>
-          </div>
           <div class="client">
             <div class="label">Codeium</div><h3>Windsurf</h3>
             <p>Add this to <code>~/.codeium/windsurf/mcp_config.json</code>, then refresh MCP servers.</p>
