@@ -214,7 +214,7 @@ const TOOLS: ToolDef[] = [
     inputSchema: { type: 'object', properties: { image: fileArg('The character (any background).'), motion: { type: 'string', description: 'The animation, e.g. "idle breathing loop", "running cycle facing right".' }, video: fileArg('Or: an existing animation to slice (then no image or motion).'), frames: { type: 'integer', minimum: 2, maximum: 32, default: 8 }, columns: { type: 'integer', minimum: 0, maximum: 32, default: 0, description: '0 = square-ish grid.' }, frame_size: { type: 'integer', minimum: 32, maximum: 512, default: 256, description: 'Frame width in pixels.' }, loop: { type: 'boolean', default: true, description: 'End where it started (cycles, idles).' }, key: { type: 'string', description: 'With video: the flat background color to make transparent (hex, e.g. 00ff00).' } } },
     annotations: gpu,
     async build(a, { caller }) {
-      const sheet = { count: clamp(a.frames, 2, 32, 8), columns: clamp(a.columns, 0, 32, 0), cell: clamp(a.frame_size, 32, 512, 256), fps: 12 };
+      const sheet = { frames: clamp(a.frames, 2, 32, 8), columns: clamp(a.columns, 0, 32, 0), cell: clamp(a.frame_size, 32, 512, 256), fps: 12 };
       if (a.video) return { name: 'sprite sheet', steps: [{ tool: 'sprite.sheet', title: 'Making the sprite sheet', params: { ...sheet, key: String(a.key ?? ''), loop: a.loop !== false }, inputs: { video: await file(caller, a.video, 'video') } }] };
       if (!a.image || !a.motion) throw new PortalError('Give image and motion (or a video)');
       const loop = a.loop !== false;
