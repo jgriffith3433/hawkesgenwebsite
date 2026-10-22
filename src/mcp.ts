@@ -12,6 +12,7 @@ import { downloadUrl, assetBytes, putFile, uploadLink, fetchIntoLibrary, extFor 
 import type { Caller } from './caller.ts';
 import { spentToday } from './jobs.ts';
 import { publicUrl } from './config.ts';
+import { PACKS, checkout } from './billing.ts';
 import { PortalError, readBody } from './util.ts';
 
 const PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26'];
@@ -20,7 +21,8 @@ const VERSION = '1.0.0';
 const INSTRUCTIONS = `Hawkes Gen makes and processes game assets on its own GPUs and servers: images, transparent sprites, sprite sheets, textures and PBR maps, skyboxes, video, 3D models, rigging, animation, voice, sound effects and music. Nothing runs on the user's machine.
 - Files: pass an asset ref ("asset:a_..."), a public https URL, or upload a local file with upload_file (it gives a curl command to run; small files can go inline as base64).
 - Results include previews you can see and download URLs. Save files into the project with: curl -L -o <path> "<url>". Name and place them the way the project already organizes assets.
-- Every tool costs credits (1 credit = $0.01; images ~5, sounds ~8, video ~40, 3D ~50+). Use estimate_cost when unsure, and tell the user what a large batch will cost first. account shows the balance.
+- Every tool costs credits (1 credit = $0.01; images ~5, sounds ~8, video ~40, 3D ~50+; transform_image, remove_background and sprite sheets from a video ~2). Use estimate_cost when unsure, and tell the user what a large batch will cost first. account shows the balance; when it runs out, buy_credits gives the user a Stripe checkout link without leaving the editor.
+- Editing: edit_image (instructions, references), make_variations, transform_image (resize, crop, trim, pixel art, outlines, flips, power-of-two), remove_background, upscale_image.
 - Long work (video, 3D) can take minutes. If a result says it is still running, call get_task with its task_id.
 - For transparent sprites and sprite sheets, prefer make_sprite_sheet / generate_image with transparent: true over doing it by hand.`;
 
@@ -78,6 +80,33 @@ const TOOLS: ToolDef[] = [
     async build(_a, { caller }) {
       const u = getUser(caller.user.id)!;
       return { direct: { email: u.email, credits: u.credits, usd: u.credits / 100, connection: caller.via.name ?? caller.via.kind, daily_limit: caller.via.cap, spent_today: caller.via.cap != null ? spentToday(caller.via.id) : undefined, buy_credits: `${publicUrl()}/app#credits`, manage_limits: `${publicUrl()}/connect` } };
+    },
+  },
+  {
+    name: 'buy_credits',
+    title: 'Buy credits',
+    description: 'A secure Stripe checkout link for a credit pack, to show the user: they pay in the browser and the credits are on the account within seconds. Without a pack, lists the packs. Packs: starter_10 ($10, 1,000 credits), creator_25 ($25, 2,750), studio_100 ($100, 12,000). Credits never expire.',
+    inputSchema: { type: 'object', properties: { pack: { type: 'string', enum: PACKS.map((p) => p.id), description: 'Which pack.' } } },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+    async build(a, { caller }) {
+      const balance = getUser(caller.user.id)?.credits;
+      if (!a.pack) return { direct: { balance, packs: PACKS.map((p) => ({ pack: p.id, price: `$${p.priceUsd}`, credits: p.credits, bonus: p.bonusPercent ? `${p.bonusPercent}% more` : undefined })), next: 'Call buy_credits with the pack the user picks to get the checkout link.' } };
+      const c = await checkout(caller.user, { packId: a.pack, successUrl: `${publicUrl()}/thanks?pack=${a.pack}`, cancelUrl: `${publicUrl()}/thanks?cancelled=1` });
+      return { direct: { checkout_url: c.url, pack: c.pack.id, price: `$${c.pack.priceUsd}`, credits: c.pack.credits, balance_now: balance, tell_the_user: `Open this link to pay $${c.pack.priceUsd} for ${c.pack.credits.toLocaleString('en-US')} credits (Stripe): ${c.url} . The credits arrive within seconds; then carry on.` } };
+    },
+  },
+  {
+    name: 'get_file',
+    title: 'Get a file',
+    description: 'A fresh download link (and a preview for images) for any asset ref from earlier work: links in results expire after 24 hours, refs never do.',
+    inputSchema: { type: 'object', properties: { ref: { type: 'string', description: '"asset:a_..."' }, filename: { type: 'string', description: 'The name to save it as.' } }, required: ['ref'] },
+    annotations: read,
+    async build(a, { caller }) {
+      const m = /^(?:asset:)?(a_[0-9a-f]+)$/.exec(String(a.ref ?? '').trim());
+      if (!m) throw new PortalError('ref is "asset:a_..."');
+      const name = String(a.filename || m[1]).replace(/[^\w.-]+/g, '-');
+      const url = downloadUrl(caller.user, m[1], name);
+      return { direct: { file: { ref: `asset:${m[1]}`, filename: name, url, curl: `curl -L -o "${name}" "${url}"` }, previewAsset: m[1] } };
     },
   },
   {
@@ -149,6 +178,35 @@ const TOOLS: ToolDef[] = [
     async build(a, { caller }) {
       const images = [await file(caller, a.image, 'image'), ...(await Promise.all((a.references ?? []).slice(0, 2).map((r: unknown) => file(caller, r, 'reference'))))];
       return { name: String(a.instruction), steps: [{ tool: 'image.edit', title: 'Editing', params: { prompt: String(a.instruction), count: clamp(a.count, 1, 4, 1) }, inputs: { images } }] };
+    },
+  },
+  {
+    name: 'make_variations',
+    title: 'Variations of an image',
+    description: 'Several takes on an image that keep the subject and art style: alternate poses, outfits, colorways, item variants, enemy palette swaps. Say what should change, or leave it open. ~5 credits each.',
+    inputSchema: { type: 'object', properties: { image: fileArg('The image.'), change: { type: 'string', description: 'What should differ, e.g. "different weapons", "fire, ice and poison versions".' }, count: { type: 'integer', minimum: 2, maximum: 4, default: 3 } }, required: ['image'] },
+    annotations: gpu,
+    async build(a, { caller }) {
+      const prompt = `A variation of this image: the same subject, art style, framing and background. ${a.change ? `Change: ${a.change}.` : 'Change the pose and small details.'}`;
+      return { name: `variations ${a.change ?? ''}`.trim(), steps: [{ tool: 'image.edit', title: 'Making variations', params: { prompt, count: clamp(a.count, 2, 4, 3) }, inputs: { images: [await file(caller, a.image, 'image')] } }] };
+    },
+  },
+  {
+    name: 'transform_image',
+    title: 'Resize, crop, pixel art and more',
+    description: `Fast fixes on an image (2 credits, no GPU), as steps in order:
+- {"op":"resize","width":128,"height":128,"fit":"contain|cover|stretch","pixel":true} (pixel: nearest-neighbour)
+- {"op":"scale","factor":2,"pixel":true} · {"op":"crop","x":0,"y":0,"width":64,"height":64}
+- {"op":"trim","pad":2} (to the visible pixels) · {"op":"pad","width":256,"height":256,"color":"ffffff"} · {"op":"square"} · {"op":"pot"} (power-of-two sides)
+- {"op":"flip","axis":"h|v"} · {"op":"rotate","degrees":90}
+- {"op":"pixelate","size":64,"colors":16,"upscale":4} (pixel art) · {"op":"colors","count":8}
+- {"op":"outline","width":2,"color":"000000"} (sprite outline) · {"op":"tint","color":"ff0000","amount":0.4} · {"op":"grayscale"}
+For example a left-facing copy: [{"op":"flip"}]; a 64 px pixel-art icon: [{"op":"trim"},{"op":"pixelate","size":64,"colors":16},{"op":"outline","width":1}].`,
+    inputSchema: { type: 'object', properties: { image: fileArg('The image.'), steps: { type: 'array', items: { type: 'object' }, minItems: 1, maxItems: 20 }, format: { type: 'string', enum: ['png', 'webp', 'jpg'], default: 'png' } }, required: ['image', 'steps'] },
+    annotations: gpu,
+    async build(a, { caller }) {
+      if (!Array.isArray(a.steps) || !a.steps.length) throw new PortalError('steps: a list like [{"op":"trim"},{"op":"resize","width":128,"height":128}]');
+      return { name: a.steps.map((st: any) => st?.op).filter(Boolean).join('-') || 'transformed', steps: [{ tool: 'image.transform', title: 'Transforming', params: { ops: a.steps, format: ['png', 'webp', 'jpg'].includes(a.format) ? a.format : 'png' }, inputs: { image: await file(caller, a.image, 'image') } }] };
     },
   },
   {
@@ -397,7 +455,8 @@ async function present(c: Caller, t: Task, opts: { previews?: boolean } = {}) {
     return { content: [{ type: 'text', text: `Still working on "${t.name}" (step ${Math.min(t.step + 1, t.steps.length)} of ${t.steps.length}: ${t.detail ?? 'running'}). Credits so far: ${t.credits}. Call get_task with task_id "${t.id}" to wait for it.` }], structuredContent: { task_id: t.id, state: t.state, step: t.step + 1, steps: t.steps.length, detail: t.detail, credits: t.credits } };
   }
   if (t.state !== 'done') {
-    return { isError: true, content: [{ type: 'text', text: `"${t.name}" ${t.state === 'cancelled' ? 'was cancelled' : `failed: ${t.error}`}. The credits for the step that didn't finish were refunded; ${t.credits} credits were used by earlier steps.` }], structuredContent: { task_id: t.id, state: t.state, error: t.error, credits: t.credits } };
+    const broke = /Not enough credits/.test(t.error ?? '') ? ' Use buy_credits to get a checkout link for the user (it takes a minute), then try again.' : '';
+    return { isError: true, content: [{ type: 'text', text: `"${t.name}" ${t.state === 'cancelled' ? 'was cancelled' : `failed: ${t.error}`}. The credits for the step that didn't finish were refunded; ${t.credits} credits were used by earlier steps.${broke}` }], structuredContent: { task_id: t.id, state: t.state, error: t.error, credits: t.credits } };
   }
   const outs = results(t);
   // Short names: the first few words of what was asked ("walking-in-place", "mossy-cobblestone").
@@ -409,7 +468,8 @@ async function present(c: Caller, t: Task, opts: { previews?: boolean } = {}) {
   });
   const balance = getUser(c.user.id)?.credits;
   const lines = files.map((f) => `- ${f.filename} (${f.kind}, ${f.ref})\n  curl -L -o "${f.filename}" "${f.url}"`).join('\n');
-  const content: any[] = [{ type: 'text', text: `Done: "${t.name}" (${t.credits} credits; ${balance} left).\n${lines}\nLinks work for 24 hours. Use the refs as inputs to other tools.` }];
+  const low = balance !== undefined && balance < 60 ? `\nRunning low: ${balance} credits left. buy_credits gives the user a checkout link right here.` : '';
+  const content: any[] = [{ type: 'text', text: `Done: "${t.name}" (${t.credits} credits; ${balance} left).\n${lines}\nLinks work for 24 hours (get_file makes new ones). Use the refs as inputs to other tools.${low}` }];
   if (opts.previews !== false) {
     let shown = 0;
     for (const f of files) {
@@ -443,6 +503,15 @@ async function callTool(c: Caller, p: any, stream: ((n: any) => void) | null, si
   }
   let taskId: string;
   if ('direct' in built) {
+    if (built.direct?.previewAsset) {
+      // An image the model can look at, beside the link (PNG, JPEG, GIF or WebP, by their first bytes).
+      const { previewAsset, ...rest } = built.direct;
+      const bytes = await assetBytes(c.user, previewAsset).catch(() => null);
+      const mime = !bytes ? null : bytes[0] === 0x89 ? 'image/png' : bytes[0] === 0xff ? 'image/jpeg' : bytes.subarray(0, 3).toString('latin1') === 'GIF' ? 'image/gif' : bytes.subarray(8, 12).toString('latin1') === 'WEBP' ? 'image/webp' : null;
+      const out = json(rest) as any;
+      if (mime) out.content.push({ type: 'image', data: bytes!.toString('base64'), mimeType: mime });
+      return out;
+    }
     if (!built.direct?.task) return json(built.direct);
     taskId = built.direct.task;
   } else {

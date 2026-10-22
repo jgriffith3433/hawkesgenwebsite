@@ -55,6 +55,10 @@ const fakeGen = http.createServer(async (req, res) => {
     assets.set(a, { project: url.searchParams.get('project')!, data: raw });
     return json(200, { id: a, kind: 'image', mime: 'image/png' });
   }
+  if (url.pathname === '/v1/checkout/sessions') {
+    const f = new URLSearchParams(raw.toString());
+    return json(200, { id: 'cs_test_mcp', url: `https://checkout.stripe.test/pay/${f.get('metadata[pack_id]')}?success=${encodeURIComponent(f.get('success_url')!)}` });
+  }
   if (url.pathname === '/v1/events') { res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.write(': hi\n\n'); return; }
   return json(404, { error: 'not in the fake' });
 });
@@ -65,6 +69,9 @@ process.env.HAWKESGEN_URL = `http://127.0.0.1:${(fakeGen.address() as any).port}
 process.env.HAWKESGEN_KEY = 'hg_portal_test_key';
 process.env.STARTER_CREDITS = '50';
 process.env.PORTAL_TASK_POLL_MS = '30';
+process.env.STRIPE_SECRET_KEY = 'sk_test_x';
+process.env.STRIPE_WEBHOOK_SECRET = 'whsec_x';
+process.env.STRIPE_API_BASE = process.env.HAWKESGEN_URL;
 
 const { handle } = await import('../src/server.ts');
 const portal = http.createServer((req, res) => void handle(req, res));
@@ -207,4 +214,26 @@ test('a connection stops at its daily limit, before Gen hears of the job', async
   assert.ok(two.body.result.isError);
   assert.match(two.body.result.content[0].text, /daily limit of 6 credits/);
   assert.ok(!seen.slice(before).some((s) => s.url === '/v1/jobs'));
+});
+
+test('editing and buying from the editor: variations, transforms, get_file, buy_credits', async () => {
+  const { access } = await token();
+  const v = await rpc(access, 'tools/call', { name: 'make_variations', arguments: { image: 'https://example.invalid/x.png' } });
+  assert.ok(v.body.result.isError, 'a URL that cannot be fetched is an error, not a charge');
+  const img = (await rpc(access, 'tools/call', { name: 'generate_image', arguments: { prompt: 'a crate' } })).body.result.structuredContent.files[0];
+  const vars = await rpc(access, 'tools/call', { name: 'make_variations', arguments: { image: img.ref, change: 'fire and ice versions', count: 2 } });
+  assert.equal(vars.body.result.structuredContent.files.length, 2);
+  const sent = seen.filter((s) => s.url === '/v1/jobs').at(-1)!;
+  assert.match(sent.body.params.prompt, /fire and ice versions/);
+  const tr = await rpc(access, 'tools/call', { name: 'transform_image', arguments: { image: img.ref, steps: [{ op: 'trim' }, { op: 'pixelate', size: 64 }] } });
+  assert.equal(tr.body.result.structuredContent.state, 'done');
+  assert.deepEqual(seen.filter((s) => s.url === '/v1/jobs').at(-1)!.body.params.ops, [{ op: 'trim' }, { op: 'pixelate', size: 64 }]);
+  const gf = await rpc(access, 'tools/call', { name: 'get_file', arguments: { ref: img.ref, filename: 'crate.png' } });
+  assert.match(gf.body.result.structuredContent.file.curl, /curl -L -o "crate.png"/);
+  assert.ok(gf.body.result.content.some((c: any) => c.type === 'image'));
+  const packs = await rpc(access, 'tools/call', { name: 'buy_credits', arguments: {} });
+  assert.equal(packs.body.result.structuredContent.packs.length, 3);
+  const buy = await rpc(access, 'tools/call', { name: 'buy_credits', arguments: { pack: 'creator_25' } });
+  assert.match(buy.body.result.structuredContent.checkout_url, /checkout\.stripe\.test\/pay\/creator_25/);
+  assert.match(decodeURIComponent(buy.body.result.structuredContent.checkout_url), /\/thanks\?pack=creator_25/);
 });

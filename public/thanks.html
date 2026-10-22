@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Thank you — Hawkes Gen</title>
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/public.css">
+</head>
+<body>
+  <header class="hg-navbar"><div class="wrap hg-navbar-inner"><a href="/" class="hg-brand"><span class="wordmark">Hawkes Gen</span></a></div></header>
+  <main class="wrap">
+    <div class="auth-inline-wrap" style="max-width:460px">
+      <div class="label" id="eyebrow">Payment received</div>
+      <h3 style="font:400 34px/1.1 var(--serif);margin:10px 0 10px" id="title">Your credits are in.</h3>
+      <p class="muted" id="body" style="margin:0 0 20px">Go back to your editor and carry on; your agent can pick up where it stopped. You can close this tab.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn btn-primary" href="/app">Open the studio</a><a class="btn btn-secondary" href="/connect">Connected apps</a></div>
+    </div>
+  </main>
+  <script type="module">
+    const q = new URLSearchParams(location.search);
+    if (q.get('cancelled')) {
+      document.getElementById('eyebrow').textContent = 'No charge';
+      document.getElementById('title').textContent = 'Checkout cancelled.';
+      document.getElementById('body').textContent = 'Nothing was charged. Go back to your editor; your agent can make a new link any time.';
+    }
+  </script>
+</body>
+</html>

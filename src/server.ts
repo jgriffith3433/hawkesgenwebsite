@@ -23,7 +23,7 @@ import { publicUrl } from './config.ts';
 import * as google from './google.ts';
 
 const PUBLIC = path.join(ROOT, 'public');
-const PAGES: Record<string, string> = { '/': 'index.html', '/home': 'index.html', '/app': 'app.html', '/admin': 'admin.html', '/reset': 'reset.html', '/legal': 'legal.html', '/terms': 'legal.html', '/privacy': 'legal.html', '/refunds': 'legal.html', '/connect': 'connect.html', '/oauth/authorize': 'authorize.html', '/client/hawkesgen.mjs': 'hawkesgen.mjs' };
+const PAGES: Record<string, string> = { '/': 'index.html', '/home': 'index.html', '/app': 'app.html', '/admin': 'admin.html', '/reset': 'reset.html', '/legal': 'legal.html', '/terms': 'legal.html', '/privacy': 'legal.html', '/refunds': 'legal.html', '/connect': 'connect.html', '/thanks': 'thanks.html', '/oauth/authorize': 'authorize.html', '/client/hawkesgen.mjs': 'hawkesgen.mjs' };
 const TYPES: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webp': 'image/webp' };
 
 // Gen routes a signed-in customer may use as they are (Gen scopes them to the customer's project).
