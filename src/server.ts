@@ -24,7 +24,7 @@ import * as google from './google.ts';
 
 const PUBLIC = path.join(ROOT, 'public');
 const PAGES: Record<string, string> = { '/': 'index.html', '/home': 'index.html', '/app': 'app.html', '/admin': 'admin.html', '/reset': 'reset.html', '/legal': 'legal.html', '/terms': 'legal.html', '/privacy': 'legal.html', '/refunds': 'legal.html', '/connect': 'connect.html', '/thanks': 'thanks.html', '/examples': 'examples.html', '/oauth/authorize': 'authorize.html', '/client/hawkesgen.mjs': 'hawkesgen.mjs' };
-const TYPES: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webp': 'image/webp', '.gif': 'image/gif', '.mp3': 'audio/mpeg', '.jpg': 'image/jpeg' };
+const TYPES: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webp': 'image/webp', '.gif': 'image/gif', '.mp3': 'audio/mpeg', '.jpg': 'image/jpeg', '.unitypackage': 'application/octet-stream' };
 
 // Gen routes a signed-in customer may use as they are (Gen scopes them to the customer's project).
 const PASS_GET = [/^\/v1\/jobs$/, /^\/v1\/jobs\/j_[0-9a-f]+$/, /^\/v1\/assets$/, /^\/v1\/assets\/a_[0-9a-f]+(\/file)?$/, /^\/v1\/files\/a_[0-9a-f]+$/, /^\/v1\/presets$/, /^\/v1\/tools(\/[\w.-]+)?$/, /^\/v1\/motions$/, /^\/v1\/providers\/elevenlabs\/voices$/, /^\/v1\/entities$/];

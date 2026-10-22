@@ -80,5 +80,6 @@ An engine plugin talks to the same API as everything else; nothing engine-specif
   `GET /v1/jobs/:id` (with `queue.ahead` while waiting) or `GET /v1/events` (SSE, the customer's jobs only).
 - **Files out:** `GET /v1/assets/:id/file`; outputs carry `mime` and `title` (a sprite sheet's `.json` is TexturePacker hash).
 - **Credits:** `GET /v1/users/me` (balance); 402 means out of credits: open `https://hawkesgen.com/app#credits`.
-- Gen's own Unity package (`hawkesgen/clients/unity/com.hawkes.gen`) is the starting point: point it at
-  `https://hawkesgen.com` with the customer's key; the routes it uses are in `PASS_GET`/`PASS_POST` (add any it needs).
+- **Built:** `jgriffith3433/hawkesgen-unity` (C:\Projects\hawkesgen-unity), Window > Hawkes Gen, signs in with the same OAuth
+  (loopback, any port) and calls the MCP tools. `public/downloads/HawkesGen.unitypackage` is its export (re-export with
+  its `HawkesGenExport` dev method when the package changes); the Asset Store listing is pending review.
