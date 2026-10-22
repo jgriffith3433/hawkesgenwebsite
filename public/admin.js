@@ -111,6 +111,12 @@ async function detail(id) {
       <dt>API key</dt><dd>${d.key ? `${esc(d.key.prefix)}… · used ${when(d.key.last_used)}` : 'none'}</dd>
       <dt>Stripe</dt><dd>${esc(u.stripe_customer_id || '—')}</dd>
     </dl>
+    <form id="giftForm" class="form-grid" style="padding:16px 0;border-top:1px solid var(--rule)">
+      <div class="label">Gift credits</div>
+      <input id="gCredits" class="form-input" type="number" min="1" step="1" placeholder="Credits, e.g. 500" required style="max-width:200px">
+      <textarea id="gMessage" class="form-input" rows="2" maxlength="500" placeholder="A message for them (optional, goes in the email)"></textarea>
+      <button class="btn btn-primary btn-sm" type="submit" style="justify-self:start">Gift and email them</button>
+    </form>
     <form id="creditForm" class="form-grid" style="padding:16px 0;border-top:1px solid var(--rule)">
       <div class="label">Adjust credits</div>
       <div class="form-row-2"><input id="cDelta" class="form-input" type="number" step="1" placeholder="+100 or -50" required><input id="cNote" class="form-input" placeholder="Why (they see this)" required></div>
@@ -127,6 +133,17 @@ async function detail(id) {
     <div class="label" style="margin:20px 0 8px">Jobs</div>
     <table class="data-table"><tbody>${d.jobs.map((j) => `<tr><td style="font-size:12px">${when(j.created)}</td><td class="mono" style="font-size:12px">${esc(j.tool)}</td><td>${esc(j.status)}</td><td class="num">${n(j.credits)}</td></tr>`).join('') || '<tr><td class="muted">No jobs yet.</td></tr>'}</tbody></table>`;
 
+  $('giftForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const credits = Number($('gCredits').value);
+    if (!confirm(`Gift ${n(credits)} credits to ${u.email} and email them?`)) return;
+    try {
+      const r = await api(`/v1/admin/users/${id}/gift`, { credits, message: $('gMessage').value });
+      toast(`Gifted. Balance is now ${n(r.credits)} credits${r.emailed ? '. Email sent.' : ' (email is off here)'}`);
+      accounts();
+      detail(id);
+    } catch (x) { toast(x.message); }
+  });
   $('creditForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {

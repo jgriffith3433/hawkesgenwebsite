@@ -1,8 +1,9 @@
 // What an admin sees and does (/admin): the business at a glance, every account with its ledger and jobs, credit
-// adjustments, disabling an account, roles, password links. Every change is a ledger row or an audit line.
+// adjustments and gifts (with an email), disabling an account, roles, password links. Every change is a ledger row or an audit line.
 import { db, tx } from './db.ts';
 import { publicUrl } from './config.ts';
 import { PACKS } from './billing.ts';
+import { sendGift } from './mail.ts';
 import { getUser, passwordLink, toPublicUser, type User } from './users.ts';
 import { id, PortalError } from './util.ts';
 
@@ -69,6 +70,17 @@ export function adjustCredits(admin: User, userId: string, delta: unknown, note:
       .run(id('tx_', 6), userId, n, balance, n > 0 ? 'admin_grant' : 'admin_debit', `${why} (by ${admin.email})`, Date.now());
     return { credits: balance };
   });
+}
+
+/** A gift: credits added (in their ledger as a gift, with the admin's message) and an email telling them. */
+export function giftCredits(admin: User, userId: string, credits: unknown, message: unknown) {
+  const n = Math.round(Number(credits));
+  if (!Number.isFinite(n) || n <= 0 || n > 1_000_000) throw new PortalError('Gift: a whole number of credits, more than zero');
+  const note = String(message ?? '').trim().slice(0, 500);
+  const r = adjustCredits(admin, userId, n, note ? `Gift: ${note.slice(0, 180)}` : 'Gift');
+  const u = getUser(userId)!;
+  const emailed = sendGift(u.email, u.name, n, r.credits, note);
+  return { ...r, emailed };
 }
 
 export function setDisabled(admin: User, userId: string, disabled: boolean) {

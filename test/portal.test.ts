@@ -231,6 +231,12 @@ test('admins: made from the CLI path with a one-time link; customers never see t
   assert.equal((await call(`/v1/admin/users/${c.user.id}/credits`, { cookie: boss, body: { delta: 25, note: 'Launch thank-you' } })).body.credits, 75);
   const detail = (await call(`/v1/admin/users/${c.user.id}`, { cookie: boss })).body;
   assert.match(detail.ledger[0].detail, /Launch thank-you \(by boss@hawkesgen.com\)/);
+  assert.equal((await call(`/v1/admin/users/${c.user.id}/gift`, { cookie: boss, body: { credits: -5 } })).status, 400, 'gifts are positive');
+  assert.equal((await call(`/v1/admin/users/${c.user.id}/gift`, { cookie: c.cookie, body: { credits: 5 } })).status, 404, 'admins only');
+  const gift = (await call(`/v1/admin/users/${c.user.id}/gift`, { cookie: boss, body: { credits: 500, message: 'Thanks for the bug report' } })).body;
+  assert.equal(gift.credits, 575);
+  assert.equal(gift.emailed, false, 'mail is off in tests');
+  assert.match((await call(`/v1/admin/users/${c.user.id}`, { cookie: boss })).body.ledger[0].detail, /^Gift: Thanks for the bug report \(by boss@hawkesgen.com\)/);
 
   await call(`/v1/admin/users/${c.user.id}/disable`, { cookie: boss, body: {} });
   assert.equal((await call('/v1/users/me', { cookie: c.cookie })).status, 401);
@@ -290,5 +296,11 @@ test('welcome email: SigV4 matches the AWS test suite; the email names the credi
   assert.match(m.text, /50 free credits/);
   assert.match(m.text, /\/connect/);
   assert.ok(!m.html.includes('<script>'), 'names are escaped');
+  const { giftEmail } = await import('../src/mail.ts');
+  const g = giftEmail('Ada', 500, 550, 'Thanks <b>a lot</b>');
+  assert.match(g.subject, /500 Hawkes Gen credits/);
+  assert.match(g.text, /550 credits/);
+  assert.match(g.text, /Thanks <b>a lot<\/b>/);
+  assert.ok(g.html.includes('Thanks &lt;b&gt;a lot&lt;/b&gt;'), 'the message is escaped in html');
   assert.deepEqual(await sendEmail('x@example.com', 's', 't', 'h'), { skipped: true }, 'off without PORTAL_MAIL=ses');
 });

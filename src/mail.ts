@@ -83,3 +83,48 @@ export function sendWelcome(email: string, name: string | null, credits: number)
   const m = welcomeEmail(name, credits);
   void sendEmail(email, m.subject, m.text, m.html).catch((e) => console.warn(`[portal] welcome email to ${email}: ${e.message}`));
 }
+
+/** The email for an admin's gift: how many credits, what they're good for, the admin's message, the new balance. */
+export function giftEmail(name: string | null, credits: number, balance: number, message: string) {
+  const site = publicUrl();
+  const hi = name ? `Hi ${name},` : 'Hi,';
+  const n = (x: number) => x.toLocaleString('en-US');
+  const worth = `enough for about ${n(Math.floor(credits / 5))} images${credits >= 50 ? ` or ${n(Math.floor(credits / 50))} sprite sheet${credits >= 100 ? 's' : ''}` : ''}`;
+  const text = `${hi}
+
+We've added ${n(credits)} credits to your Hawkes Gen account, a gift from us: ${worth}.
+${message ? `
+"${message}"
+` : ''}
+Your balance is now ${n(balance)} credits.
+
+Use them: ${site}/app
+Or from your editor: ${site}/connect
+
+Questions? Reply to this email. It comes straight to us.
+
+Hawkes Gen
+${site}`;
+  const html = `<!doctype html><html><body style="margin:0;background:#f4f2ed;padding:32px 16px;font-family:'IBM Plex Sans',Helvetica,Arial,sans-serif;color:#1a1915">
+<div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #d6d1c6;border-radius:3px;padding:32px">
+<div style="font:400 26px Georgia,'Times New Roman',serif;margin-bottom:24px">Hawkes Gen</div>
+<p style="margin:0 0 14px;font-size:15px;line-height:1.6">${esc(hi)}</p>
+<p style="margin:0 0 6px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#8b867b">A gift from us</p>
+<p style="margin:0 0 6px;font:400 44px/1.05 Georgia,'Times New Roman',serif">${n(credits)} credits</p>
+<p style="margin:0 0 22px;font-size:15px;line-height:1.6;color:#4b4840">${worth[0].toUpperCase() + worth.slice(1)}. Your balance is now <strong style="color:#1a1915">${n(balance)}</strong>.</p>
+${message ? `<p style="margin:0 0 22px;padding:2px 0 2px 14px;border-left:2px solid #c8421d;font-size:15px;line-height:1.6">${esc(message).replace(/\n/g, '<br>')}</p>` : ''}
+<p style="margin:0 0 14px"><a href="${site}/app" style="display:inline-block;background:#1a1915;color:#f4f2ed;text-decoration:none;padding:11px 18px;border-radius:3px;font-size:15px;font-weight:600">Use them now →</a></p>
+<p style="margin:0 0 0;font-size:14px;line-height:1.6"><a href="${site}/connect" style="color:#1a1915">Or from Unity, Claude Code, Cursor or VS Code →</a></p>
+<p style="margin:22px 0 0;font-size:14px;line-height:1.6;color:#4b4840">Questions? Reply to this email. It comes straight to us.</p>
+</div>
+<p style="max-width:520px;margin:14px auto 0;font-size:12px;color:#8b867b;text-align:center">You're getting this because you have an account at hawkesgen.com.</p>
+</body></html>`;
+  return { subject: `A gift: ${n(credits)} Hawkes Gen credits`, text, html };
+}
+
+/** Sends the gift email in the background (a failure is logged). Returns whether mail is on at all. */
+export function sendGift(email: string, name: string | null, credits: number, balance: number, message: string) {
+  const m = giftEmail(name, credits, balance, message);
+  void sendEmail(email, m.subject, m.text, m.html).catch((e) => console.warn(`[portal] gift email to ${email}: ${e.message}`));
+  return env('PORTAL_MAIL') === 'ses';
+}

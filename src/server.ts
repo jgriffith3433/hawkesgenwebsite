@@ -215,7 +215,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     // ------------------------------------------------------------ admins (anyone else gets a 404)
     if (route.startsWith('/v1/admin/')) {
       admin.requireAdmin(user);
-      const m = /^\/v1\/admin\/users\/(usr_[0-9a-f]+)(?:\/(credits|disable|enable|role|password-link))?$/.exec(route);
+      const m = /^\/v1\/admin\/users\/(usr_[0-9a-f]+)(?:\/(credits|gift|disable|enable|role|password-link))?$/.exec(route);
       if (route === '/v1/admin/overview' && method === 'GET') return send(res, 200, admin.overview());
       if (route === '/v1/admin/users' && method === 'GET') return send(res, 200, admin.listUsers({ search: url.searchParams.get('q'), limit: Number(url.searchParams.get('limit')), offset: Number(url.searchParams.get('offset')) }));
       if (route === '/v1/admin/jobs' && method === 'GET') return send(res, 200, { jobs: admin.recentJobs(Number(url.searchParams.get('limit')) || 100) });
@@ -224,6 +224,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       if (m && method === 'POST') {
         const b = await readJson(req);
         if (m[2] === 'credits') return send(res, 200, admin.adjustCredits(user, m[1], b.delta, b.note));
+        if (m[2] === 'gift') return send(res, 200, admin.giftCredits(user, m[1], b.credits, b.message));
         if (m[2] === 'disable' || m[2] === 'enable') return send(res, 200, admin.setDisabled(user, m[1], m[2] === 'disable'));
         if (m[2] === 'role') return send(res, 200, admin.setRole(user, m[1], b.role));
         if (m[2] === 'password-link') return send(res, 200, admin.resetLink(m[1]));
