@@ -20,6 +20,7 @@ import { handleMcp } from './mcp.ts';
 import { serveDownload, receiveUpload, uploadLink } from './files.ts';
 import { resumeTasks, recentTasks, getTask, results } from './tasks.ts';
 import { publicUrl } from './config.ts';
+import * as google from './google.ts';
 
 const PUBLIC = path.join(ROOT, 'public');
 const PAGES: Record<string, string> = { '/': 'index.html', '/home': 'index.html', '/app': 'app.html', '/admin': 'admin.html', '/reset': 'reset.html', '/legal': 'legal.html', '/terms': 'legal.html', '/privacy': 'legal.html', '/refunds': 'legal.html', '/connect': 'connect.html', '/oauth/authorize': 'authorize.html', '/client/hawkesgen.mjs': 'hawkesgen.mjs' };
@@ -127,6 +128,17 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       return await handleMcp(c, req, res);
     }
 
+    // ------------------------------------------------------------ Continue with Google
+    if (route === '/auth/google' && method === 'GET') return google.start(req, res, url.searchParams.get('next'));
+    if (route === '/auth/google/callback' && method === 'GET') {
+      limitLogins(clientIp(req));
+      try {
+        return void (await google.callback(req, res, url.searchParams, clientIp(req)));
+      } catch (e: any) {
+        return void res.writeHead(302, { Location: `/?signin_error=${encodeURIComponent(e.message ?? 'Google sign-in failed')}` }).end();
+      }
+    }
+
     // ------------------------------------------------------------ signed file links (no auth header: the link is the key)
     let f = /^\/dl\/([\w-]+\.[\w-]+)(?:\/[^/]*)?$/.exec(route);
     if (f && (method === 'GET' || method === 'HEAD')) return await serveDownload(f[1], res);
@@ -139,7 +151,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     }
 
     // ------------------------------------------------------------ open to everyone
-    if (route === '/v1/health') return send(res, 200, { ok: true, service: 'hawkesgen-portal', gen: Boolean(genKey()), payments: stripeStatus().configured });
+    if (route === '/v1/health') return send(res, 200, { ok: true, service: 'hawkesgen-portal', gen: Boolean(genKey()), payments: stripeStatus().configured, google: google.googleEnabled() });
     if (route === '/v1/portfolio' && method === 'GET') return send(res, 200, getPortfolio());
     if (route === '/v1/billing/packs' && method === 'GET') {
       const s = stripeStatus();

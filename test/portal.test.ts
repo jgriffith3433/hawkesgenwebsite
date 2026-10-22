@@ -54,6 +54,8 @@ process.env.PUBLIC_URL = 'https://hawkesgen.test';
 process.env.STARTER_CREDITS = '50';
 process.env.STRIPE_SECRET_KEY = 'sk_test_x';
 process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test';
+process.env.GOOGLE_CLIENT_ID = 'cid';
+process.env.GOOGLE_CLIENT_SECRET = 'csecret';
 
 const { handle } = await import('../src/server.ts');
 const { watch, sweep } = await import('../src/jobs.ts');
@@ -241,4 +243,37 @@ test('admins: made from the CLI path with a one-time link; customers never see t
   assert.equal((await call(`/v1/admin/users/${a.id}/role`, { cookie: boss, body: { role: 'customer' } })).status, 400);
   const reset = await call(`/v1/admin/users/${c.user.id}/password-link`, { cookie: boss, body: {} });
   assert.match(reset.body.url, /\/reset\?token=/);
+});
+
+test('Google: claims are checked, a verified email links to the existing account, new ones get starter credits', async () => {
+  const { checkClaims, accountFor } = await import('../src/google.ts');
+  const tok = (c: object) => `x.${Buffer.from(JSON.stringify(c)).toString('base64url')}.y`;
+  const good = { aud: 'cid', iss: 'https://accounts.google.com', exp: Math.floor(Date.now() / 1000) + 600, sub: 'g-123', email: 'Linked@Example.com', email_verified: true, name: 'Linked' };
+  assert.equal(checkClaims(tok(good), 'cid').email, 'linked@example.com');
+  assert.throws(() => checkClaims(tok({ ...good, aud: 'other' }), 'cid'), /another app/);
+  assert.throws(() => checkClaims(tok({ ...good, iss: 'https://evil.example' }), 'cid'), /Google/);
+  assert.throws(() => checkClaims(tok({ ...good, email_verified: false }), 'cid'), /verified/);
+  assert.throws(() => checkClaims(tok({ ...good, exp: 1 }), 'cid'), /expired/);
+
+  const existing = await call('/v1/users/signup', { body: { email: 'linked@example.com', password: 'password123' }, headers: { 'X-Forwarded-For': '10.7.0.1' } });
+  const linked = accountFor({ sub: 'g-123', email: 'linked@example.com', name: 'Linked' });
+  assert.equal(linked.id, existing.body.user.id);
+  assert.equal(accountFor({ sub: 'g-123', email: 'changed@example.com', name: null }).id, existing.body.user.id, 'by Google id after linking');
+  const fresh = accountFor({ sub: 'g-456', email: 'new-google@example.com', name: 'New' });
+  assert.equal(fresh.credits, 50);
+  assert.notEqual(fresh.id, existing.body.user.id);
+});
+
+test('Google: only our own pages as the place to come back to', async () => {
+  const r = await fetch(`${base}/auth/google?next=https://evil.example`, { redirect: 'manual' });
+  assert.ok([302, 503].includes(r.status));
+  if (r.status === 302) {
+    const cookie = r.headers.get('set-cookie')!;
+    const { verify } = await import('../src/sign.ts');
+    const saved = verify<any>(decodeURIComponent(cookie.split(';')[0].split('=')[1]));
+    assert.equal(saved?.n, '/app');
+  }
+  const back = await fetch(`${base}/auth/google/callback?code=x&state=forged`, { redirect: 'manual' });
+  assert.equal(back.status, 302);
+  assert.match(back.headers.get('location')!, /signin_error=/);
 });

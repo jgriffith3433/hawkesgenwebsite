@@ -59,10 +59,17 @@ function limitSignups(ip: string) {
 }
 
 export function signup(input: { email?: unknown; password?: unknown; name?: unknown }, ip = '') {
-  const email = String(input.email ?? '').trim().toLowerCase();
-  if (!EMAIL_RE.test(email) || email.length > 200) throw new PortalError('Enter a valid email address');
   const password = typeof input.password === 'string' ? input.password : '';
   if (password.length < 8) throw new PortalError('Password must be at least 8 characters');
+  const user = createAccount({ email: input.email, name: input.name, password }, ip);
+  const key = mintApiKey(user.id);
+  return { user: toPublicUser(user), apiKey: key.apiKey, sessionToken: createSession(user.id) };
+}
+
+/** A new customer account with the starter credits. Without a password (Google sign-in) it gets a random one. */
+export function createAccount(input: { email?: unknown; name?: unknown; password?: string }, ip = '') {
+  const email = String(input.email ?? '').trim().toLowerCase();
+  if (!EMAIL_RE.test(email) || email.length > 200) throw new PortalError('Enter a valid email address');
   const name = typeof input.name === 'string' && input.name.trim() ? input.name.trim().slice(0, 120) : email.split('@')[0];
   if (getUserByEmail(email)) throw new PortalError('An account with that email already exists', { status: 409 });
   if (ip) limitSignups(ip);
@@ -72,14 +79,13 @@ export function signup(input: { email?: unknown; password?: unknown; name?: unkn
   const now = Date.now();
   tx(() => {
     db.prepare('INSERT INTO users (id, email, name, password_hash, project, credits, created, last_login) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(userId, email, name, hashPassword(password), userId, starter, now, now);
+      .run(userId, email, name, hashPassword(input.password ?? crypto.randomBytes(24).toString('base64url')), userId, starter, now, now);
     if (starter > 0) {
       db.prepare("INSERT INTO credit_ledger (id, user_id, delta, balance_after, kind, detail, created) VALUES (?, ?, ?, ?, 'signup_bonus', ?, ?)")
         .run(id('tx_', 6), userId, starter, starter, `Welcome bonus (${starter} credits)`, now);
     }
   });
-  const key = mintApiKey(userId);
-  return { user: toPublicUser(getUser(userId)!), apiKey: key.apiKey, sessionToken: createSession(userId) };
+  return getUser(userId)!;
 }
 
 export function login(input: { email?: unknown; password?: unknown }) {

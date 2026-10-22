@@ -316,3 +316,9 @@ img { max-width: 100%; }
 .pos { color: var(--ok); }
 .neg { color: var(--bad); }
 @media (max-width: 1000px) { .admin-split { grid-template-columns: 1fr; } .admin-detail { position: static; max-height: none; } }
+
+/* Continue with Google: Google's mark is the one colorful thing allowed on the page. */
+.google-btn { gap: 10px; }
+.google-btn:hover { background: var(--paper-2); color: var(--ink); }
+.or { display: flex; align-items: center; gap: 12px; color: var(--ink-3); font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; margin: 2px 0; }
+.or::before, .or::after { content: ''; flex: 1; border-top: 1px solid var(--rule); }
