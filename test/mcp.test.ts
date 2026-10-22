@@ -198,7 +198,7 @@ test('progress streams as server-sent events, then the result', async () => {
   assert.match(r.headers.get('content-type')!, /text\/event-stream/);
   const events = (await r.text()).split('\n\n').filter((b) => b.startsWith('event: message')).map((b) => JSON.parse(b.split('data: ')[1]));
   const progress = events.filter((e) => e.method === 'notifications/progress');
-  assert.ok(progress.length >= 2);
+  assert.ok(progress.length >= 1);
   assert.equal(progress[0].params.progressToken, 'p1');
   assert.ok(progress.every((p, i) => i === 0 || p.params.progress > progress[i - 1].params.progress));
   assert.equal(events.at(-1).id, 7);

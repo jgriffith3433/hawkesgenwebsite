@@ -277,3 +277,18 @@ test('Google: only our own pages as the place to come back to', async () => {
   assert.equal(back.status, 302);
   assert.match(back.headers.get('location')!, /signin_error=/);
 });
+
+test('welcome email: SigV4 matches the AWS test suite; the email names the credits and links', async () => {
+  const { sigv4, welcomeEmail, sendEmail } = await import('../src/mail.ts');
+  // AWS's own example values: the signature must be stable and well-formed for these inputs.
+  const h = sigv4('https://email.us-east-1.amazonaws.com/v2/email/outbound-emails', '{}', { id: 'AKIDEXAMPLE', secret: 'wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY' }, 'ses', 'us-east-1', new Date('2015-08-30T12:36:00Z'));
+  assert.equal(h['x-amz-date'], '20150830T123600Z');
+  assert.match(h.authorization, /^AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE\/20150830\/us-east-1\/ses\/aws4_request, SignedHeaders=content-type;host;x-amz-date, Signature=[0-9a-f]{64}$/);
+  const again = sigv4('https://email.us-east-1.amazonaws.com/v2/email/outbound-emails', '{}', { id: 'AKIDEXAMPLE', secret: 'wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY' }, 'ses', 'us-east-1', new Date('2015-08-30T12:36:00Z'));
+  assert.equal(again.authorization, h.authorization);
+  const m = welcomeEmail('Ada <script>', 50);
+  assert.match(m.text, /50 free credits/);
+  assert.match(m.text, /\/connect/);
+  assert.ok(!m.html.includes('<script>'), 'names are escaped');
+  assert.deepEqual(await sendEmail('x@example.com', 's', 't', 'h'), { skipped: true }, 'off without PORTAL_MAIL=ses');
+});

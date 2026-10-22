@@ -5,6 +5,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { db, tx } from './db.ts';
 import { env, PROJECT_PREFIX } from './config.ts';
 import { id, sha256, PortalError } from './util.ts';
+import { sendWelcome } from './mail.ts';
 
 export type User = {
   id: string;
@@ -85,6 +86,7 @@ export function createAccount(input: { email?: unknown; name?: unknown; password
         .run(id('tx_', 6), userId, starter, starter, `Welcome bonus (${starter} credits)`, now);
     }
   });
+  sendWelcome(email, typeof input.name === 'string' && input.name.trim() ? name : null, starter);
   return getUser(userId)!;
 }
 
