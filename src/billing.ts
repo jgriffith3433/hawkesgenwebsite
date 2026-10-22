@@ -3,7 +3,7 @@
 import crypto from 'node:crypto';
 import { db, tx } from './db.ts';
 import { env, publicUrl } from './config.ts';
-import { getUser, type User } from './users.ts';
+import { getUser, REFERRAL_REWARD, type User } from './users.ts';
 import { id, PortalError } from './util.ts';
 
 export type Pack = { id: string; name: string; label: string; priceCents: number; priceUsd: number; credits: number; bonusPercent: number };
@@ -115,6 +115,14 @@ export function verifyStripeSignature(rawBody: Buffer | string, header: string, 
   if (!ok) throw new PortalError('Invalid Stripe webhook signature');
 }
 
+/** A friend's first purchase pays the customer who invited them, once (inside the purchase's transaction). */
+function rewardReferrer(userId: string) {
+  const u = db.prepare('SELECT referred_by, referral_paid FROM users WHERE id = ?').get(userId) as { referred_by: string | null; referral_paid: number } | undefined;
+  if (!u?.referred_by || u.referral_paid) return;
+  db.prepare('UPDATE users SET referral_paid = 1 WHERE id = ?').run(userId);
+  if (getUser(u.referred_by)) add(u.referred_by, REFERRAL_REWARD, 'referral_reward', `A friend you invited bought credits (+${REFERRAL_REWARD})`);
+}
+
 /** checkout.session.completed and paid: the pack's credits, once per session. */
 export function stripeWebhook(rawBody: Buffer, header: string) {
   verifyStripeSignature(rawBody, header);
@@ -136,6 +144,7 @@ export function stripeWebhook(rawBody: Buffer, header: string) {
     if (dup) return { ok: true, type: event.type, duplicate: true, creditsAdded: 0, balance: getUser(dup.user_id)?.credits ?? dup.balance_after };
     if (typeof s.customer === 'string') db.prepare('UPDATE users SET stripe_customer_id = ? WHERE id = ?').run(s.customer, userId);
     const e = add(userId, credits, 'stripe_purchase', pack ? `Purchased ${pack.label}` : `Credit purchase (+${credits})`, { stripeSessionId: sessionId });
+    rewardReferrer(userId);
     return { ok: true, type: event.type, duplicate: false, creditsAdded: credits, balance: e.balance_after };
   });
 }

@@ -25,7 +25,7 @@ export function overview() {
     credits: {
       outstanding: one('SELECT COALESCE(SUM(credits), 0) FROM users'),
       spent30d: one("SELECT COALESCE(SUM(credits), 0) FROM jobs WHERE status = 'done' AND created >= ?", now - 30 * DAY),
-      granted30d: one("SELECT COALESCE(SUM(delta), 0) FROM credit_ledger WHERE kind IN ('signup_bonus', 'admin_grant') AND delta > 0 AND created >= ?", now - 30 * DAY),
+      granted30d: one("SELECT COALESCE(SUM(delta), 0) FROM credit_ledger WHERE kind IN ('signup_bonus', 'admin_grant', 'referral_bonus', 'referral_reward') AND delta > 0 AND created >= ?", now - 30 * DAY),
     },
     jobs24h: Object.fromEntries((db.prepare('SELECT status, COUNT(*) AS n FROM jobs WHERE created >= ? GROUP BY status').all(now - DAY) as { status: string; n: number }[]).map((r) => [r.status, r.n])),
   };

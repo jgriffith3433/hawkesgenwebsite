@@ -371,3 +371,21 @@ img { max-width: 100%; }
 }
 .unity .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .unity .fine { margin-top: 14px; font-size: 13px; color: var(--ink-3); }
+
+/* ------------------------------------------------------------ landing: the free demo */
+.try { background: var(--paper-2); border-top: 1px solid var(--rule); }
+.try-grid { display: grid; grid-template-columns: 1fr 1.1fr; gap: 48px; align-items: center; }
+.try-kinds { display: flex; gap: 18px; margin-bottom: 12px; font-size: 15px; }
+.try-kinds input { accent-color: var(--accent); }
+.try-drop { display: grid; place-items: center; text-align: center; min-height: 120px; padding: 18px; border: 1px dashed var(--rule-strong); border-radius: var(--r); background: var(--paper); cursor: pointer; }
+.try-drop:hover, .try-drop.over { border-color: var(--accent); }
+.try-result { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 16px; }
+.try-result figure { margin: 0; text-align: center; }
+.try-result figcaption { margin-top: 8px; }
+.try-out { width: 200px; height: 200px; object-fit: contain; border: 1px solid var(--rule); border-radius: var(--r); background-color: var(--paper); }
+.try-out { display: grid; place-items: center; padding: 10px; }
+.try-out img { max-width: 100%; max-height: 100%; }
+#tryOut { image-rendering: pixelated; }
+.try-result .arrow { font: 400 30px var(--serif); color: var(--ink-3); }
+.try-cta { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+@media (max-width: 900px) { .try-grid { grid-template-columns: 1fr; gap: 28px; } .try-out { width: 140px; height: 140px; } }

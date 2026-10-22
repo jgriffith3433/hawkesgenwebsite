@@ -426,6 +426,18 @@ async function init() {
   await checkSession();
 }
 
+/** The invite card: the customer's link (GET /v1/referral), what a friend gets, what they've earned. */
+async function loadInvite() {
+  const r = await fetch('/v1/referral').catch(() => null);
+  if (!r || !r.ok) return;
+  const d = await r.json();
+  document.getElementById('inviteText').textContent = `Friends who sign up with your link get ${d.bonus} extra credits. When one buys credits, you get ${d.reward}.`;
+  document.getElementById('inviteStats').textContent = d.invited ? `${d.invited} signed up · ${d.bought} bought · ${d.earned} credits earned` : '';
+  const btn = document.getElementById('inviteCopy');
+  btn.onclick = async () => { await navigator.clipboard.writeText(d.link); btn.textContent = 'Copied'; setTimeout(() => (btn.textContent = 'Copy invite link'), 1500); };
+  document.getElementById('inviteCard').hidden = false;
+}
+
 async function checkSession() {
   try {
     const res = await fetch('/v1/users/me', { headers: { Accept: 'application/json' } });
@@ -438,6 +450,7 @@ async function checkSession() {
     showStudioApp();
     updateWalletUI(state.user.credits);
     document.getElementById('userEmailBadge').textContent = state.user.email || '';
+    loadInvite();
 
     const savedKey = localStorage.getItem('hg_last_minted_key');
     if (savedKey) {

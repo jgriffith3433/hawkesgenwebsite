@@ -153,13 +153,25 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     // ------------------------------------------------------------ open to everyone
     if (route === '/v1/health') return send(res, 200, { ok: true, service: 'hawkesgen-portal', gen: Boolean(genKey()), payments: stripeStatus().configured, google: google.googleEnabled() });
     if (route === '/v1/portfolio' && method === 'GET') return send(res, 200, getPortfolio());
+    // The landing page's free demo (demo.ts): pixel art or a cutout, no account, a few a day.
+    if (route === '/v1/demo' && method === 'GET') return send(res, 200, (await import('./demo.ts')).demoAllowance(clientIp(req)));
+    if (route === '/v1/demo' && method === 'POST') {
+      const demo = await import('./demo.ts');
+      const kind = String(url.searchParams.get('kind') ?? '');
+      const type = String(req.headers['content-type'] ?? '').split(';')[0].trim();
+      const early = demo.demoProblem(kind, Number(req.headers['content-length'] ?? 1), type, clientIp(req));
+      if (early) throw early;
+      const r = await demo.runDemo(kind, await readBody(req, 6 * 1024 * 1024), type, clientIp(req));
+      res.writeHead(200, { 'Content-Type': r.mime, 'Cache-Control': 'no-store', 'X-Demo-Left': String(r.left) });
+      return void res.end(r.bytes);
+    }
     if (route === '/v1/billing/packs' && method === 'GET') {
       const s = stripeStatus();
       return send(res, 200, { packs: PACKS, stripe: { configured: s.configured, publishableKey: s.publishableKey, mode: s.mode } });
     }
     if (route === '/v1/billing/webhook' && method === 'POST') return send(res, 200, stripeWebhook(await readBody(req), String(req.headers['stripe-signature'] ?? '')));
     if (route === '/v1/users/signup' && method === 'POST') {
-      const r = users.signup(await readJson(req), clientIp(req));
+      const r = users.signup(await readJson(req), clientIp(req), users.originOf(req));
       users.setSessionCookie(res, req, r.sessionToken);
       return send(res, 200, { user: r.user, apiKey: r.apiKey });
     }
@@ -187,6 +199,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (!user) return send(res, 401, { error: 'Sign in, or send your API key (Authorization: Bearer hg_...)' });
 
     if ((route === '/v1/users/me' || route === '/v1/me') && method === 'GET') return send(res, 200, users.profile(user));
+    if (route === '/v1/referral' && method === 'GET') return send(res, 200, users.referral(user));
 
     // The approve screen (/oauth/authorize): what's asking, then yes or no. Session only: a token can't approve itself.
     if (route === '/v1/oauth/request' && method === 'GET') return send(res, 200, oauth.authorizeRequest(url.searchParams));

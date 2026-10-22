@@ -3,7 +3,7 @@
 import crypto from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { db, tx } from './db.ts';
-import { env, PROJECT_PREFIX } from './config.ts';
+import { env, PROJECT_PREFIX, publicUrl } from './config.ts';
 import { id, sha256, PortalError } from './util.ts';
 import { sendWelcome } from './mail.ts';
 
@@ -59,16 +59,53 @@ function limitSignups(ip: string) {
   signupsByIp.set(ip, recent);
 }
 
-export function signup(input: { email?: unknown; password?: unknown; name?: unknown }, ip = '') {
+export function signup(input: { email?: unknown; password?: unknown; name?: unknown }, ip = '', origin: Origin = {}) {
   const password = typeof input.password === 'string' ? input.password : '';
   if (password.length < 8) throw new PortalError('Password must be at least 8 characters');
-  const user = createAccount({ email: input.email, name: input.name, password }, ip);
+  const user = createAccount({ email: input.email, name: input.name, password }, ip, origin);
   const key = mintApiKey(user.id);
   return { user: toPublicUser(user), apiKey: key.apiKey, sessionToken: createSession(user.id) };
 }
 
-/** A new customer account with the starter credits. Without a password (Google sign-in) it gets a random one. */
-export function createAccount(input: { email?: unknown; name?: unknown; password?: string }, ip = '') {
+/** Where a sign-up came from: a friend's referral code and a source (?ref= / ?utm_source=), from the landing page's cookies. */
+export type Origin = { ref?: string | null; source?: string | null };
+export const REFERRAL_BONUS = 50; // the friend who signs up with a link
+export const REFERRAL_REWARD = 100; // the customer who invited them, when the friend first buys credits
+
+/** The sign-up origin from the request's cookies (hg_ref, hg_src), cleaned. */
+export function originOf(req: IncomingMessage): Origin {
+  const c = parseCookies(req);
+  const clean = (v: string | undefined, n: number) => (v && /^[a-z0-9_.-]{1,60}$/i.test(v) ? v.toLowerCase().slice(0, n) : null);
+  return { ref: clean(c.hg_ref, 16), source: clean(c.hg_src, 40) };
+}
+
+/** A customer's referral code (made the first time it's asked for): hawkesgen.com/?ref=<code>. */
+export function refCode(userId: string): string {
+  const u = db.prepare('SELECT ref_code FROM users WHERE id = ?').get(userId) as { ref_code: string | null } | undefined;
+  if (u?.ref_code) return u.ref_code;
+  for (;;) {
+    const code = crypto.randomBytes(5).toString('base64url').replace(/[-_]/g, '').toLowerCase().slice(0, 7);
+    if (code.length < 6 || db.prepare('SELECT 1 FROM users WHERE ref_code = ?').get(code)) continue;
+    db.prepare('UPDATE users SET ref_code = ? WHERE id = ?').run(code, userId);
+    return code;
+  }
+}
+
+/** The customer's invite link and how it's done: friends who signed up, who bought, credits earned. */
+export function referral(user: User) {
+  const code = refCode(user.id);
+  const n = (sql: string) => Number((db.prepare(sql).get(user.id) as { n: number }).n);
+  return {
+    code, link: `${publicUrl()}/?ref=${code}`, bonus: REFERRAL_BONUS, reward: REFERRAL_REWARD,
+    invited: n('SELECT COUNT(*) AS n FROM users WHERE referred_by = ?'),
+    bought: n('SELECT COUNT(*) AS n FROM users WHERE referred_by = ? AND referral_paid = 1'),
+    earned: n("SELECT COALESCE(SUM(delta), 0) AS n FROM credit_ledger WHERE user_id = ? AND kind = 'referral_reward'"),
+  };
+}
+
+/** A new customer account with the starter credits (and a friend's bonus with a referral code). Without a password
+ *  (Google sign-in) it gets a random one. */
+export function createAccount(input: { email?: unknown; name?: unknown; password?: string }, ip = '', origin: Origin = {}) {
   const email = String(input.email ?? '').trim().toLowerCase();
   if (!EMAIL_RE.test(email) || email.length > 200) throw new PortalError('Enter a valid email address');
   const name = typeof input.name === 'string' && input.name.trim() ? input.name.trim().slice(0, 120) : email.split('@')[0];
@@ -77,16 +114,22 @@ export function createAccount(input: { email?: unknown; name?: unknown; password
 
   const userId = id(PROJECT_PREFIX, 8);
   const starter = starterCredits();
+  const referrer = origin.ref ? (db.prepare('SELECT id FROM users WHERE ref_code = ? AND disabled = 0').get(origin.ref) as { id: string } | undefined) : undefined;
+  const bonus = referrer ? REFERRAL_BONUS : 0;
   const now = Date.now();
   tx(() => {
-    db.prepare('INSERT INTO users (id, email, name, password_hash, project, credits, created, last_login) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(userId, email, name, hashPassword(input.password ?? crypto.randomBytes(24).toString('base64url')), userId, starter, now, now);
+    db.prepare('INSERT INTO users (id, email, name, password_hash, project, credits, created, last_login, referred_by, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(userId, email, name, hashPassword(input.password ?? crypto.randomBytes(24).toString('base64url')), userId, starter + bonus, now, now, referrer?.id ?? null, origin.source ?? (referrer ? 'referral' : null));
     if (starter > 0) {
       db.prepare("INSERT INTO credit_ledger (id, user_id, delta, balance_after, kind, detail, created) VALUES (?, ?, ?, ?, 'signup_bonus', ?, ?)")
         .run(id('tx_', 6), userId, starter, starter, `Welcome bonus (${starter} credits)`, now);
     }
+    if (bonus) {
+      db.prepare("INSERT INTO credit_ledger (id, user_id, delta, balance_after, kind, detail, created) VALUES (?, ?, ?, ?, 'referral_bonus', ?, ?)")
+        .run(id('tx_', 6), userId, bonus, starter + bonus, `Invited by a friend (+${bonus} credits)`, now);
+    }
   });
-  sendWelcome(email, typeof input.name === 'string' && input.name.trim() ? name : null, starter);
+  sendWelcome(email, typeof input.name === 'string' && input.name.trim() ? name : null, starter + bonus);
   return getUser(userId)!;
 }
 

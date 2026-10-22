@@ -66,6 +66,34 @@
       </div>
     </section>
 
+    <section class="section try" id="try">
+      <div class="wrap try-grid">
+        <div>
+          <div class="label">Try it now · no account</div>
+          <h2 style="font:400 44px/1.05 var(--serif);letter-spacing:-.02em;margin:14px 0 12px">Drop in a sprite.</h2>
+          <p class="muted" style="font-size:16px;max-width:30em;margin:0 0 18px">Turn any character or item into pixel art, or cut it out of its background. Free, right here, a few times a day.</p>
+          <div class="try-kinds" role="radiogroup" aria-label="What to make">
+            <label><input type="radio" name="tryKind" value="pixel" checked> Pixel art</label>
+            <label><input type="radio" name="tryKind" value="cutout"> Remove background</label>
+          </div>
+          <label class="try-drop" id="tryDrop">
+            <input type="file" id="tryFile" accept="image/png,image/jpeg,image/webp" hidden>
+            <span id="tryDropText"><b>Choose an image</b> or drop it here<br><span class="fine">PNG, JPG or WebP, up to 6 MB</span></span>
+          </label>
+          <div class="fine" id="tryLeft" style="margin-top:10px"></div>
+        </div>
+        <div class="try-result" id="tryResult">
+          <figure><div class="try-out"><img id="tryIn" alt="" hidden><span class="fine" id="tryInHint">your image</span></div><figcaption class="label">yours</figcaption></figure>
+          <span class="arrow">→</span>
+          <figure><div class="try-out checker" id="tryOutBox"><img id="tryOut" alt="" hidden><span id="tryStatus" class="fine">the result shows here</span></div><figcaption class="label" id="tryOutLabel">result</figcaption></figure>
+          <div class="try-cta" id="tryCta" hidden>
+            <a class="btn btn-secondary btn-sm" id="tryDownload" download="hawkesgen.png">Download</a>
+            <a class="btn btn-primary btn-sm" href="#" data-open-auth="signup">Get 50 free credits for sprite sheets, 3D and sound</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="section" id="gamedev">
       <div class="wrap">
         <div class="section-head">
@@ -360,6 +388,43 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
       }
     });
     // Back from Google with a problem: say so in the sign-in dialog.
+    // Where a visitor came from: ?ref=<friend's code> and ?utm_source= are kept 30 days for the sign-up (users.ts originOf).
+    {
+      const p = new URLSearchParams(location.search);
+      const keep = (name, v) => { if (v && /^[a-z0-9_.-]{1,60}$/i.test(v)) document.cookie = `${name}=${encodeURIComponent(v)}; Max-Age=${30 * 86400}; Path=/; SameSite=Lax; Secure`; };
+      keep('hg_ref', p.get('ref'));
+      keep('hg_src', p.get('utm_source') || (p.get('ref') ? 'referral' : null));
+    }
+
+    // The free demo (POST /v1/demo): pixel art or a cutout, no account.
+    {
+      const $ = (id) => document.getElementById(id);
+      const left = (n) => { $('tryLeft').textContent = n > 0 ? `${n} free ${n === 1 ? 'try' : 'tries'} left today.` : 'No free tries left today. An account starts with 50 credits.'; };
+      fetch('/v1/demo').then((r) => r.json()).then((d) => left(d.left)).catch(() => {});
+      const run = async (file) => {
+        if (!file) return;
+        const kind = document.querySelector('input[name=tryKind]:checked').value;
+        $('tryIn').src = URL.createObjectURL(file); $('tryIn').hidden = false; $('tryInHint').hidden = true;
+        $('tryOut').hidden = true; $('tryCta').hidden = true;
+        $('tryStatus').hidden = false; $('tryStatus').textContent = kind === 'pixel' ? 'Making pixel art…' : 'Cutting it out…';
+        $('tryOutLabel').textContent = kind === 'pixel' ? 'pixel art · 64 px, 16 colours' : 'background removed';
+        try {
+          const r = await fetch(`/v1/demo?kind=${kind}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
+          if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'That did not work; try another image');
+          left(Number(r.headers.get('X-Demo-Left')));
+          const url = URL.createObjectURL(await r.blob());
+          $('tryOut').src = url; $('tryOut').hidden = false; $('tryStatus').hidden = true;
+          $('tryDownload').href = url; $('tryCta').hidden = false;
+          window.hawkesAnalytics?.track?.('demo', { kind });
+        } catch (e) { $('tryStatus').textContent = e.message; }
+      };
+      $('tryFile').addEventListener('change', (e) => run(e.target.files[0]));
+      const drop = $('tryDrop');
+      drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
+      drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+      drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); run(e.dataTransfer.files[0]); });
+    }
+
     const signinError = new URLSearchParams(location.search).get('signin_error');
     if (signinError) {
       setMode('login');

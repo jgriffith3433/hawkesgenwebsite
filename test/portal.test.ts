@@ -304,3 +304,39 @@ test('welcome email: SigV4 matches the AWS test suite; the email names the credi
   assert.ok(g.html.includes('Thanks &lt;b&gt;a lot&lt;/b&gt;'), 'the message is escaped in html');
   assert.deepEqual(await sendEmail('x@example.com', 's', 't', 'h'), { skipped: true }, 'off without PORTAL_MAIL=ses');
 });
+
+test('referrals: a friend with the link gets a bonus; their first purchase pays the inviter once', async () => {
+  const inviter = await newCustomer();
+  const link = (await call('/v1/referral', { cookie: inviter.cookie })).body;
+  assert.match(link.link, /\/\?ref=[a-z0-9]{6,7}$/);
+  assert.equal((await call('/v1/referral', { cookie: inviter.cookie })).body.code, link.code, 'the code stays the same');
+  const r = await call('/v1/users/signup', { body: { email: `friend${++n}@example.com`, password: 'password123' }, headers: { 'X-Forwarded-For': `10.0.1.${n}`, Cookie: `hg_ref=${link.code}; hg_src=tiktok` } });
+  assert.equal(r.body.user.credits, 100, '50 to start + 50 for the invite');
+  const stranger = await call('/v1/users/signup', { body: { email: `odd${++n}@example.com`, password: 'password123' }, headers: { 'X-Forwarded-For': `10.0.1.${n}`, Cookie: 'hg_ref=nosuch1' } });
+  assert.equal(stranger.body.user.credits, 50, 'an unknown code gives nothing');
+  const buy = (sid: string) => {
+    const payload = JSON.stringify({ type: 'checkout.session.completed', data: { object: { id: sid, payment_status: 'paid', metadata: { user_id: r.body.user.id, pack_id: 'starter_10', credits: '1000' } } } });
+    const t = Math.floor(Date.now() / 1000);
+    return call('/v1/billing/webhook', { raw: Buffer.from(payload), headers: { 'Content-Type': 'application/json', 'Stripe-Signature': `t=${t},v1=${crypto.createHmac('sha256', 'whsec_test').update(`${t}.${payload}`).digest('hex')}` } });
+  };
+  await buy('cs_ref_1');
+  assert.equal(await credits(inviter.cookie), 150, '+100 for the friend who bought');
+  await buy('cs_ref_2');
+  assert.equal(await credits(inviter.cookie), 150, 'only the first purchase pays');
+  const after = (await call('/v1/referral', { cookie: inviter.cookie })).body;
+  assert.deepEqual([after.invited, after.bought, after.earned], [1, 1, 100]);
+});
+
+test('the free demo: only its two tools, images only, and a few tries a day', async () => {
+  const { demoProblem, demoAllowance, DEMOS } = await import('../src/demo.ts');
+  assert.deepEqual(Object.keys(DEMOS).sort(), ['cutout', 'pixel']);
+  assert.match(demoProblem('upscale', 10, 'image/png', '1.1.1.1')!.message, /pixel or cutout/);
+  assert.match(demoProblem('pixel', 10, 'text/html', '1.1.1.1')!.message, /PNG/);
+  assert.equal(demoProblem('pixel', 7 * 1024 * 1024, 'image/png', '1.1.1.1')!.status, 413);
+  assert.equal(demoAllowance('1.1.1.1').left, 3);
+  const { db } = await import('../src/db.ts');
+  const crypto2 = await import('node:crypto');
+  for (let i = 0; i < 3; i++) db.prepare('INSERT INTO demo_runs (ip_hash, kind, created) VALUES (?, ?, ?)').run(crypto2.createHash('sha256').update('demo:2.2.2.2').digest('hex').slice(0, 24), 'pixel', Date.now());
+  assert.equal(demoProblem('pixel', 10, 'image/png', '2.2.2.2')!.status, 429);
+  assert.equal((await call('/v1/demo?kind=pixel', { raw: Buffer.from('x'), headers: { 'Content-Type': 'text/plain' } })).status, 400, 'refused before reaching Gen');
+});

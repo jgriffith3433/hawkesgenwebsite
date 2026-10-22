@@ -19,6 +19,9 @@ customer ──https──▶ hawkesgen.com (this repo, its own EC2 box, Caddy, 
 - **Never give a customer a way to start Gen work without paying.** Only the routes listed in `src/server.ts`
   (`PASS_GET`, `PASS_POST`, `UPLOADS`) reach Gen as they are; `POST /v1/jobs` and `/v1/run` go through `src/jobs.ts`
   (quote, take credits, submit, settle). Never pass through rerun, entity make/revise, or anything else that queues a job.
+  **The one exception is the landing page's free demo** (`src/demo.ts`, `/v1/demo`): only `image.transform` pixel art and
+  `image.cutout` (Gen's CPU, no GPU), images up to 6 MB, `DEMO_PER_IP` (3) a day per address and `DEMO_PER_DAY` (300) for
+  everyone, as the demo project `usr_0000000000000000`. Never add a GPU tool to it.
 - **MCP tools pay like everything else.** Every tool in `src/mcp.ts` either answers directly (account, lists) or starts a task (`src/tasks.ts`), whose steps go through `jobs.ts submit` with the caller's `via` (the daily limit). `/mcp` takes bearer tokens only (OAuth `hgo_` or an `hg_` key), never the session cookie: it has open CORS.
 - **Credits are money.** Every change of a balance is a row in `credit_ledger` in the same transaction (`billing.ts add`).
   A job is charged once (`jobs` table) and given back once (unique `job_id, kind`); a Stripe session pays once (unique
@@ -46,6 +49,7 @@ npm test             # against a fake Gen, offline
 | `src/billing.ts` | Packs, the ledger (hold, attach, refund), Stripe Checkout and the signed webhook |
 | `src/jobs.ts` | Quote, take credits, submit to Gen as the customer, settle from Gen's event stream (`watch`) and the sweep |
 | `src/gen.ts` | The Gen client (the portal's key, narrowed per call) |
+| `src/users.ts` referrals | `?ref=<code>` and `?utm_source=` are kept by the landing page as cookies (`hg_ref`, `hg_src`) and read at sign-up (`originOf`, email and Google): a friend gets `REFERRAL_BONUS` (50) more, the inviter `REFERRAL_REWARD` (100) on the friend's first paid checkout (`billing.ts rewardReferrer`, once: `referral_paid`); `users.source` records where a sign-up came from. `GET /v1/referral`, the invite card in /app |
 | `src/admin.ts`, `public/admin.html` + `admin.js` | `/admin`: overview (revenue, accounts, credits, jobs), accounts with ledger and jobs, credit adjustments (with a note, in their ledger), gifts (credits plus an email from support@: `giftCredits`, `mail.ts giftEmail`), disable, roles, password links. `/v1/admin/*` answers 404 to anyone but an admin |
 | `src/cli.ts` | On the box: `sudo -u hawkes node src/cli.ts admin <email>` makes an admin and prints a one-time link to set the password; `password-link <email>` for a locked-out customer; `grant <email> <credits> <why>` adjusts credits (in their ledger) |
 | `src/mcp.ts` | The MCP server at `/mcp` (Streamable HTTP, stateless, protocol 2025-11-25/06-18/03-26): ~29 curated game-dev tools (sprite sheets, transparent images, edits and variations, `transform_image` (Gen `image.transform`), textures + PBR maps, skyboxes, 3D, rigging, motion, voice, SFX, music, `buy_credits` (a Stripe checkout link in the chat; `/thanks` after paying), `get_file`, `run_tool` for the rest), slash-command prompts (`sprite_sheet`, `character_3d`, `tileable_material`, `sound_pack`, `ui_icons`), results with inline image previews, `resource_link`s and curl lines, progress as SSE `notifications/progress` when the client sends a progressToken |
