@@ -79,7 +79,7 @@
   }
   H.weapons = WEAPONS;
 
-  const gun = { spec: null, mesh: null, mag: 0, reloading: 0, cool: 0, kick: 0, bob: 0, key: null, hud: null };
+  const gun = { spec: null, mesh: null, mag: 0, reloading: 0, cool: 0, kick: 0, bob: 0, hud: null };
   /** The gun in your hands: a few shapes and a glowing strip, held in front of the camera. */
   function buildViewModel(w) {
     const sc = W().scene;
@@ -108,22 +108,15 @@
     gun.hud = el;
     return el;
   }
-  function syncWeapon() {
-    const w = W(), p = w && w.player;
-    const want = p && p.alive && H.mode === 'play' && p.weapon && p._view !== 'rts' && p.mode !== 'flight' ? weaponOf(p.weapon) : null;
-    const key = want ? JSON.stringify(want) : null;
-    if (key !== gun.key) {
-      gun.key = key;
-      if (gun.mesh) { gun.mesh.dispose(); gun.mesh = null; }
-      if (want) { buildViewModel(want); gun.mag = want.ammo; gun.reserve = want.ammo * 3; gun.reloading = 0; }
-      gun.spec = want;
-    }
+  /** The weapon HUD: ammo, reload, health. */
+  function drawHud() {
+    const w = gun.spec, p = W() && W().player;
     const el = hud();
-    el.hidden = !want;
-    if (!want) return;
+    el.hidden = !w;
+    if (!w || !p) return;
     el.querySelector('.wp-ammo b').textContent = gun.reloading > 0 ? '··' : gun.mag;
     el.querySelector('.wp-ammo span').textContent = `/ ${gun.reserve}`;
-    el.querySelector('.wp-ammo em').style.width = gun.reloading > 0 ? `${(1 - gun.reloading / want.reload) * 100}%` : '0';
+    el.querySelector('.wp-ammo em').style.width = gun.reloading > 0 ? `${(1 - gun.reloading / w.reload) * 100}%` : '0';
     el.querySelector('.wp-hp-bar i').style.width = `${Math.max(0, p.health)}%`;
     el.querySelector('.wp-hp span').textContent = Math.ceil(p.health);
     el.classList.toggle('low', p.health < 30);
@@ -209,47 +202,53 @@
     const p = g.player;
     if (p && B.Vector3.Distance(at, new B.Vector3(p.x, p.y, p.z)) < (w.radius || 4.5) + 3) g.camera.shake(0.35, 0.3);
     if (remote) return;
-    const R = w.radius || 4.5;
-    for (const e of [...W().entities]) {
-      if (!e.alive || e.kind === 'light') continue;
-      const d = B.Vector3.Distance(at, new B.Vector3(e.x, e.y, e.z));
-      if (d > R) continue;
-      const k = 1 - d / R;
-      if (e.physics === 'dynamic' && !e.isPlayer) { const dir = new B.Vector3(e.x - at.x, e.y - at.y + 0.6, e.z - at.z).normalize(); e.push([dir.x * 14 * k, dir.y * 10 * k, dir.z * 14 * k]); }
-      if (e.hp !== undefined || e.isPlayer) g.damage(e, w.damage * k, owner);
-    }
+    // Real pushes (mass-aware with Havok) and damage that falls off with distance: H.physics.explode.
+    H.physics.explode([at.x, at.y, at.z], { radius: w.radius || 4.5, force: 14, damage: w.damage, owner });
   }
 
-  // Firing, reloading and the gun's sway, every step / frame.
-  H.hooks.step.push((dt) => {
-    const w = gun.spec, input = H.input;
-    if (!w) return;
-    if (gun.cool > 0) gun.cool -= dt;
-    if (gun.reloading > 0) {
-      gun.reloading -= dt;
-      if (gun.reloading <= 0) { const take = Math.min(w.ammo - gun.mag, gun.reserve); gun.mag += take; gun.reserve -= take; gun.reloading = 0; }
-    }
-    if (input.held.has('r')) startReload();
-    const trigger = input.mouse.down && (input.mouse.locked || input.touchUi || (W().player && W().player.mouse === 'free'));
-    if (trigger && gun.cool <= 0 && !W().paused) fire();
+  // The guns are tools (H.tools): config.player.weapon / tool "rifle", or { "type": "rifle", ...changes }.
+  // Firing and reloading every step, the gun's sway and the HUD every frame.
+  const gunTool = (type) => ({
+    title: { blaster: 'Blaster', rifle: 'Rifle', shotgun: 'Shotgun', launcher: 'Rocket launcher' }[type] || type,
+    kind: 'weapon',
+    equip(ctx) {
+      const w = weaponOf({ ...ctx.opts, type });
+      buildViewModel(w);
+      gun.mag = w.ammo; gun.reserve = w.ammo * 3; gun.reloading = 0; gun.cool = 0; gun.kick = 0;
+      drawHud();
+    },
+    unequip() { if (gun.mesh) { gun.mesh.dispose(); gun.mesh = null; } gun.spec = null; gun.muzzle = null; if (gun.hud) gun.hud.hidden = true; },
+    step(dt) {
+      const w = gun.spec, input = H.input;
+      if (!w) return;
+      if (gun.cool > 0) gun.cool -= dt;
+      if (gun.reloading > 0) {
+        gun.reloading -= dt;
+        if (gun.reloading <= 0) { const take = Math.min(w.ammo - gun.mag, gun.reserve); gun.mag += take; gun.reserve -= take; gun.reloading = 0; }
+      }
+      if (input.held.has('r')) startReload();
+      const trigger = input.mouse.down && (input.mouse.locked || input.touchUi || (W().player && W().player.mouse === 'free'));
+      if (trigger && gun.cool <= 0 && !W().paused) fire();
+    },
+    frame(dt) {
+      drawHud();
+      const w = W();
+      if (!gun.mesh || !w) return;
+      const cam = w.scene.activeCamera;
+      gun.mesh.parent = cam;
+      gun.mesh.setEnabled(w.player && w.player._view === 'first');
+      const p = w.player;
+      const moving = p && Math.hypot(p.vx, p.vz) > 0.5 && p.grounded;
+      gun.bob += dt * (moving ? 9 : 2);
+      gun.kick = Math.max(0, gun.kick - dt * 9);
+      const sway = moving ? 0.012 : 0.003;
+      const rl = gun.reloading > 0 && gun.spec ? Math.sin(Math.PI * (1 - gun.reloading / gun.spec.reload)) : 0;
+      gun.mesh.scaling.setAll(0.62);
+      gun.mesh.position.set(0.21 + Math.cos(gun.bob) * sway, -0.19 + Math.abs(Math.sin(gun.bob)) * sway - rl * 0.14, 0.5 - gun.kick * 0.06);
+      gun.mesh.rotation.set(-gun.kick * 0.18 + rl * 0.6, -0.05, rl * 0.3);
+    },
   });
-  H.hooks.frame.push((dt) => {
-    syncWeapon();
-    const w = W();
-    if (!gun.mesh || !w) return;
-    const cam = w.scene.activeCamera;
-    gun.mesh.parent = cam;
-    gun.mesh.setEnabled(w.player && w.player._view === 'first');
-    const p = w.player;
-    const moving = p && Math.hypot(p.vx, p.vz) > 0.5 && p.grounded;
-    gun.bob += dt * (moving ? 9 : 2);
-    gun.kick = Math.max(0, gun.kick - dt * 9);
-    const sway = moving ? 0.012 : 0.003;
-    const rl = gun.reloading > 0 && gun.spec ? Math.sin(Math.PI * (1 - gun.reloading / gun.spec.reload)) : 0;
-    gun.mesh.scaling.setAll(0.62);
-    gun.mesh.position.set(0.21 + Math.cos(gun.bob) * sway, -0.19 + Math.abs(Math.sin(gun.bob)) * sway - rl * 0.14, 0.5 - gun.kick * 0.06);
-    gun.mesh.rotation.set(-gun.kick * 0.18 + rl * 0.6, -0.05, rl * 0.3);
-  });
+  for (const type of Object.keys(WEAPONS)) H.tools.register(type, gunTool(type));
 
   // ------------------------------------------------------------------ enemies that think
   /** The nearest player it can actually see (nothing solid in between), within sight. */
@@ -393,8 +392,6 @@
   // ------------------------------------------------------------------ playing together: shots, hits, deaths
   H.hooks.world.push({
     enter() {
-      gun.key = null;
-      if (gun.mesh) { gun.mesh.dispose(); gun.mesh = null; }
       const g = G();
       g.net.on('_shot', (d) => { if (d && d.a && d.b) tracer(new B.Vector3(...d.a), new B.Vector3(...d.b), d.c || '#ffffff'); });
       g.net.on('_rocket', (d) => { if (d && d.a) rocket(new B.Vector3(...d.a), new B.Vector3(...d.d), d.w || {}, null, true); });

@@ -1,0 +1,11 @@
+{
+  "about": "The engine's core files, in load order. Modules add themselves in public/play/modules/<name>/module.json (no edit here). src/engine.ts reads this; docs/engine-modules.md explains it.",
+  "babylon": [
+    "https://cdn.jsdelivr.net/npm/babylonjs@7.54.3/babylon.js",
+    "https://cdn.jsdelivr.net/npm/babylonjs-loaders@7.54.3/babylonjs.loaders.min.js"
+  ],
+  "havok": "https://cdn.jsdelivr.net/npm/@babylonjs/havok@1.3.10/lib/umd/HavokPhysics_umd.js",
+  "core": ["runtime.js", "physics.js", "kinds.js", "controllers.js", "behaviors.js", "net.js", "gameplay.js"],
+  "editor": ["build.js"],
+  "kinds": ["box", "sphere", "cylinder", "cone", "capsule", "torus", "plane", "model", "sprite", "text", "light", "video", "mirror", "spawn", "waypoint", "trigger"]
+}

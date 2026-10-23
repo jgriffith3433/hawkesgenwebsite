@@ -76,7 +76,7 @@
         H.setClockOffset(sorted[Math.floor(sorted.length / 2)]);
         return;
       }
-      case 'join': addPeer(m.c, m.name, m.color); dispatch('join', { id: m.c, name: m.name }); status('online'); return;
+      case 'join': addPeer(m.c, m.name, m.color); for (const st of states.values()) st.sent = null; dispatch('join', { id: m.c, name: m.name }); status('online'); return;
       case 'leave': dropPeer(m.c); for (const [k, v] of owners) if (v === m.c) owners.delete(k); flags(); dispatch('leave', { id: m.c }); status('online'); return;
       case 'host': host = m.c; flags(); return;
       case 'me': { const pr = peers.get(m.c); if (pr) { pr.state = m.s; pr.seen = performance.now(); if (!pr.avatar || !pr.avatar.alive) makeAvatar(pr); } return; }
@@ -85,6 +85,7 @@
       case 'ops': H.applyOps(m.ops || [], { fx: m.fx, by: m.by, remote: true }); flags(); return;
       case 'ev': {
         const from = m.c ? { id: m.c, name: peers.get(m.c)?.name ?? null } : null;
+        if (m.name === '_s' || m.name === '_a' || m.name === '_ar') return onSync(m.name, m.data || {}, from);
         if (m.c === null && H.hooks.onRoomEvent) H.hooks.onRoomEvent(m.name, m.data);
         dispatch(m.name, m.data, from);
         return;
@@ -224,7 +225,86 @@
   }
   function lerpAngle(a, b, k) { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return a + d * k; }
 
+  // ------------------------------------------------------------------ the sync registry: modules sync their own state
+  // H.sync.state(name, { get, set, rate, owner }): a module's state (a vehicle's seats and lights, terrain edits, the
+  //   water level) sent by its owner (the host unless owner says otherwise) up to `rate` times a second, only the keys
+  //   that changed (and everything every few seconds and when someone joins); everyone else gets set(state, changed, from).
+  // H.sync.action(name, run): something that must happen once for everyone, decided by the host (explosions, mass
+  //   physics, spawning): invoke(data) runs run(data, { authoritative: false }) at once where it was asked (effects),
+  //   and run(data, { authoritative: true }) on the host, which tells everyone else (authoritative: false there).
+  // docs/engine-modules.md has examples.
+  const states = new Map(); // name -> { def, sent, copy, t, full }
+  const actions = new Map(); // name -> run
+  const ownsState = (def) => (typeof def.owner === 'function' ? Boolean(def.owner()) : def.owner === 'everyone' ? true : isHost());
+  const json = (v) => { try { return JSON.stringify(v); } catch { return ''; } };
+  function syncStates(now) {
+    if (!online) return;
+    for (const [name, st] of states) {
+      const def = st.def;
+      if (!ownsState(def) || now - st.t < 1000 / Math.max(0.2, def.rate || 10)) continue;
+      st.t = now;
+      let snap;
+      try { snap = def.get(); } catch (err) { H.report(err, `sync ${name}`); continue; }
+      if (!snap || typeof snap !== 'object') continue;
+      const full = !st.sent || now - st.full > 3000;
+      const d = {};
+      let any = false;
+      for (const [k, v] of Object.entries(snap)) { const j = json(v); if (full || !st.sent || st.sent[k] !== j) { d[k] = v; any = true; } }
+      if (!any) continue;
+      st.sent = Object.fromEntries(Object.entries(snap).map(([k, v]) => [k, json(v)]));
+      if (full) st.full = now;
+      send({ t: 'ev', name: '_s', data: { n: name, d, f: full ? 1 : 0 } });
+    }
+  }
+  function onSync(kind, data, from) {
+    if (kind === '_s') {
+      const st = states.get(data.n);
+      if (!st || !data.d || ownsState(st.def)) return;
+      st.copy = { ...(data.f ? {} : st.copy), ...data.d };
+      try { st.def.set(st.copy, Object.keys(data.d), from); } catch (err) { H.report(err, `sync ${data.n}`); }
+      return;
+    }
+    const run = actions.get(data.n);
+    if (!run) return;
+    if (kind === '_ar') {
+      // Asked of the host: it decides, then tells everyone (the asker already showed the effect).
+      if (!isHost()) return;
+      try { run(data.d, { authoritative: true, from }); } catch (err) { H.report(err, `sync ${data.n}`); }
+      send({ t: 'ev', name: '_a', data: { n: data.n, d: data.d, by: from && from.id } });
+    } else if (data.by !== me) {
+      try { run(data.d, { authoritative: false, from }); } catch (err) { H.report(err, `sync ${data.n}`); }
+    }
+  }
+  H.sync = {
+    state(name, def) {
+      if (!def || typeof def.get !== 'function' || typeof def.set !== 'function') throw new Error('H.sync.state(name, { get, set })');
+      states.set(String(name), { def, sent: null, copy: {}, t: 0, full: 0 });
+      return { remove: () => states.delete(String(name)), resend: () => { const st = states.get(String(name)); if (st) st.sent = null; } };
+    },
+    action(name, run) {
+      const n = String(name);
+      actions.set(n, run);
+      return (data) => {
+        if (!online || isHost()) {
+          run(data, { authoritative: true, from: null });
+          if (online) send({ t: 'ev', name: '_a', data: { n, d: data, by: me } });
+        } else {
+          run(data, { authoritative: false, from: null });
+          send({ t: 'ev', name: '_ar', data: { n, d: data } });
+        }
+      };
+    },
+    /** True if this player simulates the entity (owns it, or nobody does and this is the host; always offline). */
+    mine: (e) => !online || !e || !e.sceneId || mine(e.sceneId),
+    claim: (e) => claim(e),
+    release: (e) => release(e),
+    get online() { return online; },
+    get isHost() { return isHost(); },
+    get me() { return me; },
+  };
+
   H.hooks.step.push(step);
+  H.hooks.step.push(() => syncStates(performance.now()));
   H.hooks.frame.push(frame);
   H.hooks.push.push((o) => claim(o));
   H.hooks.world.push({

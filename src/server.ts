@@ -27,6 +27,7 @@ import * as friends from './friends.ts';
 import { askAssistant, generateAsset, pendingGens, markSuggestion, resumeGens, KINDS, AI_CREDITS } from './gameai.ts';
 import { join as joinLive, setPresence } from './live.ts';
 import { templateBundle } from './templates.ts';
+import { loaderScript, engineDoc } from './engine.ts';
 import * as community from './community.ts';
 import { upgrade as joinRoom, broadcastOps, markHere, liveCounts } from './rooms.ts';
 import type { Duplex } from 'node:stream';
@@ -194,6 +195,9 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
 
     // ------------------------------------------------------------ games: playing, the editor's pages
     if (method === 'GET' || method === 'HEAD') {
+      // The engine: its manifest and loader (one script every engine page includes), and the assembled docs.
+      if (route === '/play/modules.js') return void res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-cache' }).end(loaderScript());
+      if (route === '/play/WORLD.md' || route === '/play/API.md') return void res.writeHead(200, { 'Content-Type': 'text/markdown; charset=utf-8', 'Cache-Control': 'no-cache' }).end(engineDoc(route === '/play/WORLD.md' ? 'world' : 'api'));
       if (/^\/play\/(_draft|t\/[a-z0-9-]+|[a-z0-9-]+(\/v\/\d+)?)$/.test(route) && route !== '/play/runtime.js') return servePlayPage(res, req);
       let pa = /^\/play-asset\/d\/([\w-]+\.[\w-]+)\/[^/]+$/.exec(route);
       if (pa) return await servePlayAsset({ token: pa[1] }, req, res);
@@ -210,6 +214,8 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
 
     // ------------------------------------------------------------ open to everyone
     if (route === '/v1/health') return send(res, 200, { ok: true, service: 'hawkesgen-portal', gen: Boolean(genKey()), payments: stripeStatus().configured, google: google.googleEnabled() });
+    // What Gen makes for a game, with its price (the codex reads it, so it never drifts from gameai.ts KINDS).
+    if (route === '/v1/asset-kinds' && method === 'GET') return send(res, 200, Object.fromEntries(Object.entries(KINDS).map(([k, v]) => [k, { title: v.title, credits: v.credits }])));
     if (route === '/v1/portfolio' && method === 'GET') return send(res, 200, getPortfolio());
     // The landing page's free demo (demo.ts): pixel art or a cutout, no account, a few a day.
     if (route === '/v1/demo' && method === 'GET') return send(res, 200, (await import('./demo.ts')).demoAllowance(clientIp(req)));

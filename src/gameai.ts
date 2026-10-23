@@ -13,6 +13,7 @@ import { getUser, type User } from './users.ts';
 import { PortalError } from './util.ts';
 import { memberGame, chatMessage, updateChatData, writeFile, deleteFile, listAssets, addAsset, freeName, sceneOps, LIMITS } from './games.ts';
 import { describeScene, parseScene } from './scene.ts';
+import { engineDoc } from './engine.ts';
 import { broadcastOps } from './rooms.ts';
 import { broadcast } from './live.ts';
 import { search as searchCommunity } from './community.ts';
@@ -154,8 +155,9 @@ export function resumeGens() {
 }
 
 // ------------------------------------------------------------------ the assistant
-let apiDoc = '';
-const api = () => (apiDoc ||= ['WORLD.md', 'API.md'].map((f) => fs.readFileSync(path.join(ROOT, 'public', 'play', f), 'utf8')).join('\n\n'));
+// The engine's docs, assembled from every module's sections and read fresh for each message (src/engine.ts), so a
+// module's new section reaches the assistant without a restart.
+const api = () => `${engineDoc('world')}\n\n${engineDoc('api')}`;
 
 const SCHEMA = {
   type: 'object',

@@ -1,9 +1,13 @@
-// A game's world is scene.json: settings plus a flat map of entities (public/play/WORLD.md is the format). The world is
+// A game's world is scene.json: settings plus a flat map of entities (public/play/docs/world is the format). The world is
 // changed by ops, from the editor (dragging, the popups, undo), from the assistant, and from nothing else: the server
 // applies them in order, keeps scene.json, and tells everyone in the game. Ops are small, so two people building at
 // once never overwrite each other's whole world.
 
-export const TYPES = ['waypoint', 'video', 'box', 'sphere', 'cylinder', 'cone', 'capsule', 'torus', 'plane', 'model', 'sprite', 'text', 'light', 'mirror', 'spawn', 'trigger'] as const;
+import { engineKinds } from './engine.ts';
+
+/** The kinds of things a world may hold: the engine core's (public/play/engine.json) and every module's
+ *  (public/play/modules/<name>/module.json "kinds"), read fresh so a new module needs no change here. */
+export const kindsOfThings = (): string[] => engineKinds();
 export const PHYSICS = ['static', 'dynamic', 'kinematic', 'trigger', 'none'] as const;
 export const SCENE_LIMITS = { entities: 500, bytes: 240 * 1024, opsPerCall: 200 };
 
@@ -53,7 +57,8 @@ function merge(target: Record<string, any>, patch: Record<string, any>) {
 const clone = (v: any) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
 
 function checkEntity(e: Entity) {
-  if (!TYPES.includes(e.type as any)) throw new SceneError(`"${e.type}" is not a kind of thing (one of ${TYPES.join(', ')})`);
+  const kinds = kindsOfThings();
+  if (!kinds.includes(e.type)) throw new SceneError(`"${e.type}" is not a kind of thing (one of ${kinds.join(', ')})`);
   if (e.physics != null && !PHYSICS.includes(e.physics)) throw new SceneError(`physics is one of ${PHYSICS.join(', ')}`);
   const t = e.transform;
   if (t) for (const k of ['position', 'rotation', 'scale'] as const) {

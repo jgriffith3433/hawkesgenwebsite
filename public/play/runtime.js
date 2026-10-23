@@ -46,12 +46,41 @@
   }
   function clearErrors() { reported = 0; const box = $('error'); if (box) { box.innerHTML = ''; box.hidden = true; } }
 
-  const engine = new B.Engine(canvas, true, { preserveDrawingBuffer: false, stencil: true, disableWebGL2Support: false }, true);
+  // (The engine tests run this file in Node with Babylon's NullEngine: window.HawkesEngineFactory makes it.)
+  const engine = window.HawkesEngineFactory ? window.HawkesEngineFactory(canvas) : new B.Engine(canvas, true, { preserveDrawingBuffer: false, stencil: true, disableWebGL2Support: false }, true);
   engine.enableOfflineSupport = false;
   window.addEventListener('resize', () => engine.resize());
 
   // Extension points for net.js and build.js (and anything else layered on the engine).
-  const hooks = { world: [], step: [], frame: [], push: [], quietErrors: false };
+  const hooks = { world: [], step: [], afterStep: [], frame: [], push: [], destroy: [], contact: [], quietErrors: false };
+
+  // ------------------------------------------------------------------ registries: how modules extend the engine
+  // Every module (its own file, listed in public/play/modules/<name>/module.json) adds to the engine through these, never
+  // by editing this file. docs/engine-modules.md is the guide.
+  const kindDefs = new Map(); // type -> { build, physics, maker, destroy, editor, codex }
+  const featureDefs = new Map(); // config key -> { apply, update, change, dispose }
+  const controllerDefs = new Map(); // player mode -> { enter, update, idle, exit, tools }
+  const toolDefs = new Map(); // tool name -> { title, equip, unequip, step, frame }
+  const registry = (map, what, check) => ({
+    register(name, def) {
+      const n = String(name);
+      if (!n || !def || typeof def !== 'object') throw new Error(`${what}.register(name, { ... })`);
+      if (check) check(n, def);
+      map.set(n, { name: n, ...def });
+      return map.get(n);
+    },
+    get: (name) => map.get(String(name)) || null,
+    has: (name) => map.has(String(name)),
+    list: () => [...map.values()],
+  });
+  const kinds = registry(kindDefs, 'H.kinds', (n, d) => { if (typeof d.build !== 'function') throw new Error(`H.kinds.register('${n}'): build(shape, opts, spec) is required`); });
+  const registerKind = kinds.register;
+  kinds.register = (name, def) => { const k = registerKind(name, def); if (game) addMaker(game, k); return k; };
+  const features = registry(featureDefs, 'H.features', (n, d) => { if (typeof d.apply !== 'function') throw new Error(`H.features.register('${n}'): apply(value, ctx) is required`); });
+  const controllers = registry(controllerDefs, 'H.controllers', (n, d) => { if (typeof d.update !== 'function') throw new Error(`H.controllers.register('${n}'): update(player, dt, ctx) is required`); });
+  const tools = registry(toolDefs, 'H.tools');
+  /** The tool in the player's hands now: { name, def, ctx } or null. */
+  Object.defineProperty(tools, 'held', { get: () => (heldTool.def ? { name: heldTool.def.name, def: heldTool.def, ctx: heldTool.ctx } : null) });
 
   // ------------------------------------------------------------------ input (kept across restarts)
   const held = new Set();
@@ -224,7 +253,7 @@
       this.tag = opts.tag || null;
       this.name = opts.name || null;
       this.data = opts.data || {};
-      this.physics = opts.physics || (kind === 'sprite' || kind === 'text' || kind === 'light' ? 'none' : 'static');
+      this.physics = opts.physics || (kindDefs.get(kind) && kindDefs.get(kind).physics) || 'static';
       const body = opts.body || {};
       this.bounce = Number(opts.bounce ?? body.bounce) || 0;
       this.friction = Number(opts.friction ?? body.friction ?? 0.6);
@@ -369,6 +398,7 @@
       o._touching.add(this);
       for (const h of this.handlers.hit) h(o);
       for (const h of o.handlers.hit) h(this);
+      for (const f of hooks.contact) f(this, o);
       runBehaviorHit(this, o);
       runBehaviorHit(o, this);
     }
@@ -385,6 +415,8 @@
     get flip() { return Boolean(this._flip); }
     set flip(v) { this._flip = Boolean(v); if (this._sheet) setFrame(this, this._sheet.frame); else if (this._tex) this._tex.uScale = this._flip ? -1 : 1; }
     say(text, seconds = 3) { showBubble(this, String(text), seconds); return this; }
+    /** Runs fn(entity) when it is destroyed (modules clean up their own parts this way). */
+    onDestroy(fn) { (this._onDestroy ||= []).push(fn); return this; }
     destroy() {
       if (!this.alive) return;
       this.alive = false;
@@ -396,11 +428,11 @@
       if (W.camera.target === this) W.camera.target = null;
       if (W.player === this) W.player = null;
       if (this._bubble) this._bubble.dispose();
-      if (this._light) this._light.dispose();
-      if (this._mirrorObs) W.scene.onBeforeRenderObservable.remove(this._mirrorObs);
-      if (this.waypoint && this.waypoint.route) for (const d of this.waypoint.route) d.dispose();
-      for (const o of W.entities) if (o.waypoint && o.waypoint.next === this.sceneId && o.waypoint.route) { for (const d of o.waypoint.route) d.dispose(); o.waypoint.route = null; }
-      if (this._video) { try { this._video.pause(); this._video.removeAttribute('src'); this._video.load(); } catch {} }
+      // What its kind (H.kinds) and anyone else (e.onDestroy) need to undo.
+      const k = kindDefs.get(this.kind);
+      if (k && k.destroy) try { k.destroy(this); } catch (err) { report(err, `kind ${this.kind}`); }
+      for (const f of this._onDestroy || []) try { f(this); } catch (err) { report(err); }
+      for (const f of hooks.destroy) try { f(this); } catch (err) { report(err); }
       this.node.dispose(false, true);
       for (const e of W.entities) e.wake();
     }
@@ -447,84 +479,6 @@
   }
   const size3 = (s, d) => (Array.isArray(s) ? [s[0] ?? d, s[1] ?? d, s[2] ?? d] : [Number(s) || d, Number(s) || d, Number(s) || d]);
 
-  function model(name, opts = {}) {
-    const root = new B.TransformNode(`model:${name}`, W.scene);
-    const e = new Entity(root, opts, 'model');
-    e._loaded = false;
-    const want = Number(opts.size) || 0;
-    e.half = [want / 2 || 0.5, want / 2 || 0.5, want / 2 || 0.5];
-    place(e, opts);
-    const world = W;
-    let url;
-    try { url = assetUrl(name); } catch (err) {
-      if (!opts.lenient) throw err;
-      // Not made yet: a wireframe stand-in until the asset arrives (setAssets rebuilds it).
-      e._waiting = name;
-      const box = B.MeshBuilder.CreateBox('waiting', { size: want || 1 }, W.scene);
-      const m = new B.StandardMaterial('waiting', W.scene);
-      m.wireframe = true; m.emissiveColor = new B.Color3(0.55, 0.7, 1); m.disableLighting = true; m.alpha = 0.8;
-      box.material = m;
-      box.parent = root;
-      box.metadata = { entity: e };
-      e._loaded = true;
-      e.measure();
-      return e;
-    }
-    // Level of detail: a low-detail copy (opts.low, or "<name>_low.glb" when the game has one) loads first and is
-    // shown far away; the full model takes over up close. lodDistance is where they swap (meters).
-    const lowName = opts.low !== undefined ? opts.low : (/\.glb$/i.test(name) && hasAsset(name.replace(/\.glb$/i, '_low.glb')) ? name.replace(/\.glb$/i, '_low.glb') : null);
-    const load = (assetName, isLow) => B.SceneLoader.ImportMeshAsync('', '', assetName === name ? url : assetUrl(assetName), W.scene, null, '.glb').then((r) => {
-      if (!e.alive || world !== W) { for (const m of r.meshes) m.dispose(); return null; }
-      const holder = new B.TransformNode(isLow ? 'lod-low' : 'holder', W.scene);
-      for (const m of r.meshes) if (!m.parent) m.parent = holder;
-      for (const t of r.transformNodes) if (!t.parent) t.parent = holder;
-      holder.computeWorldMatrix(true);
-      let { min, max } = holder.getHierarchyBoundingVectors(true);
-      const h = Math.max(1e-3, max.y - min.y);
-      const k = want ? want / h : 1;
-      holder.scaling.setAll(k);
-      holder.computeWorldMatrix(true);
-      ({ min, max } = holder.getHierarchyBoundingVectors(true));
-      holder.position.set(-(min.x + max.x) / 2, -(min.y + max.y) / 2, -(min.z + max.z) / 2);
-      holder.parent = root;
-      root.computeWorldMatrix(true);
-      if (opts.color) for (const m of r.meshes) if (m.material && m.material.albedoColor) m.material.albedoColor = hex(opts.color);
-      if (W.shadows && opts.shadow !== false) for (const m of r.meshes) if (m.getTotalVertices() > 0) { W.shadows.addShadowCaster(m); m.receiveShadows = true; }
-      for (const m of r.meshes) m.metadata = { entity: e };
-      return { holder, r };
-    });
-    const ready = () => { if (!e._loaded) { e._loaded = true; e.measure(); for (const f of hooks.world) if (f.loaded) f.loaded(e); } };
-    if (lowName) {
-      e._lod = { low: null, high: null, d: Number(opts.lodDistance) || 25 };
-      load(lowName, true).then((x) => { if (!x) return; e._lod.low = x.holder; if (!e._lod.high) ready(); }).catch(() => {});
-    }
-    e.ready = load(name, false).then((x) => {
-      if (!x) return e;
-      const { r, holder } = x;
-      if (e._lod) { e._lod.high = holder; }
-      e.animations = r.animationGroups || [];
-      for (const a of e.animations) a.stop();
-      if (opts.animation && !e.play(opts.animation)) { if (e.animations[0]) e.animations[0].start(true); } else if (!opts.animation && opts.autoplay !== false && e.animations[0]) e.animations[0].start(true);
-      ready();
-      e.measure();
-      return e;
-    }).catch((err) => { report(new Error(`Could not load ${name}: ${err.message || err}`)); return e; });
-    return e;
-  }
-  /** Each frame: models with a low-detail copy show the one that fits how far away they are. */
-  function updateLods() {
-    const cam = W.scene.activeCamera;
-    if (!cam) return;
-    for (const e of W.entities) {
-      const l = e._lod;
-      if (!l || !l.low) continue;
-      if (!l.high) { l.low.setEnabled(true); continue; }
-      const d = B.Vector3.Distance(cam.position, e.node.getAbsolutePosition());
-      // A little either way of the swap distance, so it doesn't flicker at the edge.
-      const far = l.far ? d > l.d * 0.9 : d > l.d * 1.1;
-      if (far !== l.far || l.far === undefined) { l.far = far; l.low.setEnabled(far); l.high.setEnabled(!far); }
-    }
-  }
 
   function setFrame(e, f) {
     const s = e._sheet;
@@ -537,33 +491,6 @@
     e._tex.vOffset = 1 - (r + 1) / rows;
   }
 
-  function sprite(name, opts = {}) {
-    const height = Number(opts.size) || 1;
-    const plane = B.MeshBuilder.CreatePlane(`sprite:${name}`, { width: 1, height: 1, sideOrientation: B.Mesh.DOUBLESIDE }, W.scene);
-    const e = new Entity(plane, { physics: 'none', ...opts }, 'sprite');
-    const m = new B.StandardMaterial('sprite', W.scene);
-    let t = null;
-    try { t = new B.Texture(assetUrl(name), W.scene, false, true, W.pixelated || opts.pixel ? B.Texture.NEAREST_SAMPLINGMODE : B.Texture.TRILINEAR_SAMPLINGMODE); } catch (err) { if (!opts.lenient) throw err; e._waiting = name; }
-    if (t) { t.hasAlpha = true; m.diffuseTexture = t; m.useAlphaFromDiffuseTexture = true; }
-    else { m.wireframe = true; }
-    m.emissiveColor = new B.Color3(1, 1, 1);
-    m.disableLighting = true;
-    m.backFaceCulling = false;
-    if (opts.color) m.emissiveColor = hex(opts.color);
-    plane.material = e._mat = m;
-    e._tex = t;
-    if (opts.billboard !== false) plane.billboardMode = B.Mesh.BILLBOARDMODE_Y;
-    const frames = opts.frames || null;
-    if (frames && t) { e._sheet = { cols: Math.max(1, frames.cols | 0), rows: Math.max(1, frames.rows | 0), from: 0, to: 0, fps: 0, loop: true, t: 0, frame: 0 }; setFrame(e, 0); }
-    plane.scaling.set(height, height, 1);
-    if (t) t.onLoadObservable.addOnce(() => {
-      const sz = t.getSize();
-      const cw = sz.width / (e._sheet ? e._sheet.cols : 1), ch = sz.height / (e._sheet ? e._sheet.rows : 1);
-      plane.scaling.x = height * (cw / ch || 1);
-      e.measure();
-    });
-    return place(e, opts);
-  }
 
   /** A plane with text drawn on it: signs, labels, name tags. */
   function textPlane(text, o = {}) {
@@ -592,13 +519,6 @@
     return plane;
   }
   function roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
-  function text(str, opts = {}) {
-    const plane = textPlane(str, opts);
-    const e = new Entity(plane, { physics: 'none', ...opts }, 'text');
-    e._mat = plane.material;
-    e._text = String(str);
-    return place(e, { shadow: false, ...opts });
-  }
   function showBubble(e, str, seconds) {
     if (e._bubble) e._bubble.dispose();
     const b = textPlane(str, { size: 0.32 });
@@ -611,47 +531,8 @@
     setTimeout(() => { if (world === W && e._bubble === b) { b.dispose(); e._bubble = null; } }, seconds * 1000);
   }
 
-  /** A light as an entity: it can be moved, found and edited like anything else. */
-  function lightEntity(o = {}) {
-    const node = new B.TransformNode('light', W.scene);
-    const e = new Entity(node, { physics: 'none', ...o }, 'light');
-    const p = vec(o.position, [0, 5, 0]);
-    node.position.set(p[0], p[1], p[2]);
-    makeLight(e, o.light || o);
-    e.measure();
-    return e;
-  }
-  function makeLight(e, l) {
-    if (e._light) e._light.dispose();
-    let light;
-    const type = l.type || 'point';
-    if (type === 'sun' || type === 'directional') { const d = vec(l.direction, [-0.4, -1, 0.3]); light = new B.DirectionalLight('sun', new B.Vector3(d[0], d[1], d[2]), W.scene); }
-    else if (type === 'spot') { const d = vec(l.direction, [0, -1, 0]); light = new B.SpotLight('spot', B.Vector3.Zero(), new B.Vector3(d[0], d[1], d[2]), (l.angle || 60) * RAD, 2, W.scene); }
-    else light = new B.PointLight('point', B.Vector3.Zero(), W.scene);
-    light.parent = e.node;
-    light.diffuse = hex(l.color, '#ffffff');
-    light.intensity = l.intensity ?? 1;
-    if (l.range) light.range = l.range;
-    e._light = light;
-    e.lightSpec = { type, color: l.color || '#ffffff', intensity: light.intensity, range: l.range || null };
-    if (mode === 'build') {
-      // In the editor a light is a small glowing ball you can grab.
-      if (!e._marker) {
-        const ball = B.MeshBuilder.CreateSphere('light-marker', { diameter: 0.35, segments: 12 }, W.scene);
-        const m = new B.StandardMaterial('light-marker', W.scene);
-        m.disableLighting = true;
-        ball.material = m;
-        ball.parent = e.node;
-        ball.metadata = { entity: e };
-        e._marker = ball;
-      }
-      e._marker.material.emissiveColor = hex(l.color, '#ffffff');
-    }
-    return light;
-  }
 
   // ------------------------------------------------------------------ scene.json: things from the world file
-  const DEFAULT_PHYSICS = { waypoint: 'none', video: 'static', box: 'static', sphere: 'static', cylinder: 'static', cone: 'static', capsule: 'static', torus: 'static', plane: 'static', model: 'static', mirror: 'static', sprite: 'none', text: 'none', light: 'none', spawn: 'none', trigger: 'trigger' };
 
   function optsFromSpec(spec) {
     const t = spec.transform || {};
@@ -659,7 +540,7 @@
     const body = spec.body || {};
     return {
       name: spec.name || null, tag: spec.tag || null, data: clone(spec.data) || {},
-      physics: spec.physics || DEFAULT_PHYSICS[spec.type] || 'static',
+      physics: spec.physics || (kindDefs.get(spec.type) && kindDefs.get(spec.type).physics) || 'static',
       position: t.position, rotation: t.rotation, scale: t.scale,
       color: m.color, emissive: m.emissive, opacity: m.opacity, texture: m.texture, tile: m.tile,
       bounce: body.bounce, friction: body.friction, mass: body.mass, grab: body.grab,
@@ -667,169 +548,19 @@
     };
   }
 
-  /** Builds one thing from its scene.json spec. */
+  /** Builds one thing from its scene.json spec: its kind (H.kinds) makes it, the engine gives it its id and behaviors. */
   function fromSpec(spec) {
     const o = optsFromSpec(spec);
-    const sh = spec.shape || {};
+    const def = kindDefs.get(spec.type);
     let e;
-    switch (spec.type) {
-      case 'box': { const s = size3(sh.size, 1); e = shape('box', () => B.MeshBuilder.CreateBox('box', { width: s[0], height: s[1], depth: s[2] }, W.scene), o); break; }
-      case 'sphere': e = shape('sphere', () => B.MeshBuilder.CreateSphere('sphere', { diameter: (Number(sh.radius) || 0.5) * 2, segments: Number(sh.segments) || 24 }, W.scene), o); break;
-      case 'cylinder': e = shape('cylinder', () => B.MeshBuilder.CreateCylinder('cylinder', { diameter: (Number(sh.radius) || 0.5) * 2, height: Number(sh.height) || 1, tessellation: Number(sh.segments) || 32 }, W.scene), o); break;
-      case 'cone': e = shape('cone', () => B.MeshBuilder.CreateCylinder('cone', { diameterTop: 0, diameterBottom: (Number(sh.radius) || 0.5) * 2, height: Number(sh.height) || 1, tessellation: 32 }, W.scene), o); break;
-      case 'capsule': { const r = Number(sh.radius) || 0.4; e = shape('capsule', () => B.MeshBuilder.CreateCapsule('capsule', { radius: r, height: Math.max(r * 2, Number(sh.height) || 1.8), tessellation: 16 }, W.scene), o); break; }
-      case 'torus': e = shape('torus', () => B.MeshBuilder.CreateTorus('torus', { diameter: (Number(sh.radius) || 1) * 2, thickness: Number(sh.thickness) || 0.3, tessellation: 40 }, W.scene), o); break;
-      case 'plane': { const w = Number(sh.width ?? sh.size?.[0]) || 10; const d = Number(sh.depth ?? sh.size?.[1]) || w; e = shape('plane', () => B.MeshBuilder.CreateBox('plane', { width: w, height: 0.02, depth: d }, W.scene), o); break; }
-      case 'model': e = model(sh.asset || spec.data?.asset || '', { ...o, size: Number(sh.size) || 0, animation: sh.animation, low: sh.lod && sh.lod.low !== undefined ? sh.lod.low : undefined, lodDistance: sh.lod && sh.lod.distance }); break;
-      case 'sprite': e = sprite(sh.image || sh.asset || '', { ...o, physics: spec.physics || 'none', size: Number(sh.size) || 1, frames: sh.frames, billboard: sh.billboard }); break;
-      case 'text': e = text(sh.text ?? spec.name ?? 'Text', { ...o, size: Number(sh.size) || 0.5, color: spec.material && spec.material.color, billboard: sh.billboard, background: sh.background }); break;
-      case 'light': e = lightEntity({ ...o, light: spec.light || {} }); break;
-      case 'video': e = screen(sh, o); break;
-      case 'waypoint': e = waypoint(spec, o); break;
-      case 'mirror': e = mirror(spec, o); break;
-      case 'spawn': case 'trigger': {
-        const isSpawn = spec.type === 'spawn';
-        const s = isSpawn ? [1.2, 0.15, 1.2] : size3(sh.size, 1);
-        e = shape(spec.type, () => B.MeshBuilder.CreateBox(spec.type, { width: s[0], height: s[1], depth: s[2] }, W.scene), { ...o, color: isSpawn ? '#34d399' : '#fbbf24', emissive: isSpawn ? '#0b3d2a' : '#3d2a05', opacity: 0.35, shadow: false, physics: isSpawn ? 'none' : (spec.physics || 'trigger') });
-        e.node.isPickable = mode === 'build';
-        if (mode !== 'build') e.node.visibility = 0;
-        break;
-      }
-      default: e = shape('box', () => B.MeshBuilder.CreateBox('box', { size: 0.5 }, W.scene), o);
-    }
+    if (def) e = def.build(spec.shape || {}, o, spec);
+    else e = shape('box', () => B.MeshBuilder.CreateBox('box', { size: 0.5 }, W.scene), o); // a kind no module knows (yet)
+    if (!e || !e.__entity) throw new Error(`the kind "${spec.type}" built nothing (its build must return an entity)`);
     e.sceneId = spec.id;
     e.spec = spec;
     e.home = { position: e.position, rotation: e.rotation3 };
     W.byId.set(spec.id, e);
     attachBehaviors(e, spec.behaviors);
-    return e;
-  }
-
-  /** A waypoint: a glowing orb over a ring on the ground (not a box). Players reach it by coming close. Its role
-   *  (data.role): 'waypoint' (a stop on a route), 'checkpoint' (you come back here), 'finish' (wins), 'start'.
-   *  shape.radius is how close counts; data.next is the next one's id, and a line of small orbs shows the way. */
-  const WAYPOINT_COLORS = { waypoint: '#22d3ee', checkpoint: '#34d399', finish: '#f4c430', start: '#a855f7' };
-  function waypoint(spec, o) {
-    const sh = spec.shape || {};
-    const role = (spec.data && spec.data.role) || 'waypoint';
-    const r = Number(sh.radius) || 1.6;
-    const color = hex((spec.material && spec.material.color) || WAYPOINT_COLORS[role] || '#22d3ee');
-    const root = new B.TransformNode('waypoint', W.scene);
-    const mk = (mesh, alpha, glow = 1) => { const m = new B.StandardMaterial('wp', W.scene); m.emissiveColor = color.scale(glow); m.diffuseColor = color; m.disableLighting = true; m.alpha = alpha; mesh.material = m; mesh.parent = root; return mesh; };
-    const orb = mk(B.MeshBuilder.CreateSphere('wp-orb', { diameter: 0.6, segments: 20 }, W.scene), 0.95);
-    orb.position.y = 1.2;
-    const ring = mk(B.MeshBuilder.CreateTorus('wp-ring', { diameter: r * 2, thickness: 0.06, tessellation: 48 }, W.scene), 0.85);
-    ring.position.y = 0.05;
-    const beam = mk(B.MeshBuilder.CreateCylinder('wp-beam', { diameterTop: 0.02, diameterBottom: 0.5, height: 6, tessellation: 12 }, W.scene), 0.12, 0.8);
-    beam.position.y = 3;
-    beam.isPickable = false;
-    beam.metadata = { decor: true };
-    const e = new Entity(root, { ...o, physics: 'none' }, 'waypoint');
-    for (const m of [orb, ring]) m.metadata = { entity: e };
-    e._mat = orb.material;
-    e.waypoint = { role, radius: r, next: spec.data && spec.data.next, reached: false, orb, ring, beam, color };
-    place(e, { ...o, shadow: false });
-    e.half = [r, 1.5, r]; e.offset = [0, 1.2, 0];
-    return e;
-  }
-  /** Each step: reaching a waypoint, its glow, and the dotted line to the next one. */
-  function runWaypoints(dt) {
-    const p = W.player;
-    for (const e of W.entities) {
-      const wp = e.waypoint;
-      if (!wp || !e.alive) continue;
-      const t = (Date.now() + clockOffset) / 1000;
-      wp.orb.position.y = 1.2 + Math.sin(t * 2 + e.x) * 0.12;
-      wp.ring.rotation.y += dt * 0.6;
-      if (!wp.route && wp.next) drawRoute(e);
-      if (!p || !p.alive || (mode === 'build' && wp.role !== 'checkpoint')) continue;
-      const d = Math.hypot(p.x - e.x, (p.bottom) - (e.y), p.z - e.z);
-      if (d > wp.radius + 0.4 || wp.reached && wp.role !== 'checkpoint') continue;
-      if (wp.role === 'checkpoint') { if (wp.reached && W.checkpoint && W.checkpoint[0] === e.x && W.checkpoint[2] === e.z) continue; W.checkpoint = [e.x, e.y + 0.05, e.z]; for (const o of W.entities) if (o.waypoint && o.waypoint.role === 'checkpoint') o.waypoint.reached = o === e; game.ui.message('Checkpoint', 1.1); }
-      wp.reached = true;
-      game.burst([e.x, e.y + 1.2, e.z], { color: wp.color.toHexString(), count: 26, speed: 4 });
-      W.state.waypoints = (W.state.waypoints || 0) + (wp.role === 'waypoint' ? 1 : 0);
-      game.emit(wp.role === 'finish' ? 'finish' : wp.role === 'checkpoint' ? 'checkpoint' : 'waypoint', { entity: e });
-      // A game that listens for 'finish' shows its own results; otherwise the engine says well done.
-      if (wp.role === 'finish') { if (mode === 'build') game.ui.message('Finish! (in the game this ends it)', 2); else if (!(W.events.get('finish') || []).length) game.over((e.data && e.data.message) || 'You made it!'); }
-      for (const h of e.handlers.hit) h(p);
-      runBehaviorHit(e, p);
-      wp.orb.material.alpha = 0.55;
-      wp.beam.material.alpha = 0.05;
-    }
-  }
-  function drawRoute(e) {
-    const next = W.byId.get(e.waypoint.next);
-    e.waypoint.route = [];
-    if (!next || !next.alive) return;
-    const a = new B.Vector3(e.x, e.y + 0.35, e.z), b = new B.Vector3(next.x, next.y + 0.35, next.z);
-    const n = Math.max(1, Math.floor(B.Vector3.Distance(a, b) / 1.2));
-    const m = new B.StandardMaterial('wp-dot', W.scene);
-    m.emissiveColor = e.waypoint.color.scale(0.9); m.disableLighting = true; m.alpha = 0.7;
-    for (let i = 1; i < n; i++) {
-      const dot = B.MeshBuilder.CreateSphere('wp-dot', { diameter: 0.14, segments: 6 }, W.scene);
-      dot.position = B.Vector3.Lerp(a, b, i / n);
-      dot.material = m; dot.isPickable = false; dot.metadata = { decor: true };
-      e.waypoint.route.push(dot);
-    }
-  }
-
-  /** A screen playing a video asset (muted until clicked: browsers only allow sound after a click). */
-  function screen(sh, o) {
-    const w = Number(sh.width) || 3.2, h = Number(sh.height) || w * 9 / 16;
-    const plane = B.MeshBuilder.CreatePlane('video', { width: w, height: h, sideOrientation: B.Mesh.DOUBLESIDE }, W.scene);
-    const mat = new B.StandardMaterial('video', W.scene);
-    mat.disableLighting = true;
-    mat.emissiveColor = new B.Color3(1, 1, 1);
-    plane.material = mat;
-    const e = new Entity(plane, o, 'video');
-    e._mat = mat;
-    let url = null;
-    try { url = assetUrl(sh.asset || ''); } catch { e._waiting = sh.asset || null; mat.wireframe = true; }
-    if (url) {
-      const vt = new B.VideoTexture('video', url, W.scene, true, false, B.Texture.TRILINEAR_SAMPLINGMODE, { autoPlay: true, loop: sh.loop !== false, muted: true, autoUpdateTexture: true });
-      mat.diffuseTexture = vt;
-      e._video = vt.video;
-      e._video.crossOrigin = 'anonymous';
-      e.on('click', () => { const v = e._video; v.muted = !v.muted; v.play().catch(() => {}); });
-    }
-    return place(e, { ...o, shadow: false });
-  }
-
-  function mirror(spec, o) {
-    const sh = spec.shape || {};
-    const w = Number(sh.width) || 2, h = Number(sh.height) || 3;
-    const frame = new B.TransformNode('mirror', W.scene);
-    const surface = B.MeshBuilder.CreatePlane('mirror-surface', { width: w, height: h }, W.scene);
-    surface.parent = frame;
-    const mat = new B.StandardMaterial('mirror', W.scene);
-    const tex = new B.MirrorTexture('mirror-tex', 512, W.scene, true);
-    tex.mirrorPlane = new B.Plane(0, 0, 1, 0);
-    tex.level = 0.85;
-    mat.reflectionTexture = tex;
-    mat.diffuseColor = new B.Color3(0.05, 0.05, 0.08);
-    surface.material = mat;
-    const bm = new B.StandardMaterial('mirror-frame', W.scene);
-    bm.diffuseColor = new B.Color3(0.6, 0.65, 0.7);
-    for (const [sx, sy, sw, sht] of [[0, h / 2 + 0.03, w + 0.12, 0.06], [0, -h / 2 - 0.03, w + 0.12, 0.06], [-w / 2 - 0.03, 0, 0.06, h], [w / 2 + 0.03, 0, 0.06, h]]) {
-      const seg = B.MeshBuilder.CreateBox('mirror-edge', { width: sw, height: sht, depth: 0.05 }, W.scene);
-      seg.parent = frame; seg.position.set(sx, sy, 0); seg.material = bm;
-    }
-    const e = new Entity(frame, o, 'mirror');
-    e._mat = bm;
-    for (const c of frame.getChildMeshes()) c.metadata = { entity: e };
-    place(e, { ...o, shadow: false });
-    // What it reflects: everything, kept up to date as the world changes.
-    let last = 0;
-    e._mirrorObs = W.scene.onBeforeRenderObservable.add(() => {
-      const now = performance.now();
-      if (now - last < 1000) return;
-      last = now;
-      surface.computeWorldMatrix(true);
-      const n = B.Vector3.TransformNormal(new B.Vector3(0, 0, -1), surface.getWorldMatrix()).normalize();
-      tex.mirrorPlane = B.Plane.FromPositionAndNormal(surface.getAbsolutePosition(), n.scale(-1));
-      tex.renderList = W.scene.meshes.filter((x) => x !== surface && x.isEnabled() && x.isVisible);
-    });
     return e;
   }
 
@@ -909,6 +640,7 @@
         } else if (op.op === 'config') {
           merge(W.graph.config, op.patch);
           applyLook(effectiveConfig());
+          changeFeatures(op.patch);
           if (op.patch && 'player' in op.patch && W.player && W.player.alive) applyPlayerSettings(W.player);
         }
       } catch (e) { report(e, 'scene.json'); }
@@ -1081,37 +813,32 @@
   }
   function applyPlayerSettings(p) {
     const s = playerSettings();
-    p.speed = Number(s.speed) || 6;
+    const want = controllerDefs.has(String(s.mode)) ? String(s.mode) : 'walk';
+    p.mode = want;
+    p.speed = Number(s.speed) || (controllerDefs.get(want) && controllerDefs.get(want).speed) || 6;
     p.jumpHeight = Number(s.jump) || 1.5;
     p.canFly = s.fly === true;
     p.doubleJump = s.doubleJump === true;
     p.baseGravity = s.gravity === undefined ? 1 : Math.max(0, Number(s.gravity));
-    p.mode = s.mode === 'flight' ? 'flight' : 'walk';
-    if (p.mode === 'flight') p.speed = Number(s.speed) || 20;
-    shipFor(p, p.mode === 'flight' && mode !== 'build');
+    useController(p, mode === 'build' ? 'walk' : want, {}, true);
     p.mouse = s.mouse === 'free' || s.view === 'rts' ? 'free' : 'locked';
-    if (s.weapon !== undefined) p.weapon = s.weapon || null;
+    if (s.tool !== undefined) p.tool = s.tool || null;
+    else if (s.weapon !== undefined) p.weapon = s.weapon || null;
     p.gravity = p.flying ? 0 : p.baseGravity;
     setView(p, s.view || p.view || 'first', s.distance);
   }
-  /** Flying: a small craft (a nose, wings, a glowing engine) instead of the walking body. */
-  function shipFor(p, on) {
-    if (p._ship) { p._ship.dispose(); p._ship = null; }
-    p._shipOn = on;
-    if (!on) return;
-    const sc = W.scene;
-    const root = new B.TransformNode('ship', sc);
-    root.parent = p.node;
-    const hull = new B.StandardMaterial('ship', sc); hull.diffuseColor = hex(hooks.myColor || '#4a9eff'); hull.specularColor = new B.Color3(0.5, 0.5, 0.6);
-    const glow = new B.StandardMaterial('ship-glow', sc); glow.emissiveColor = new B.Color3(0.4, 0.9, 1); glow.disableLighting = true;
-    const part = (m, mat, x, y, z) => { m.material = mat; m.parent = root; m.position.set(x, y, z); m.isPickable = false; m.metadata = { decor: true }; return m; };
-    part(B.MeshBuilder.CreateCylinder('ship-body', { diameterTop: 0.05, diameterBottom: 0.55, height: 2.2, tessellation: 16 }, sc), hull, 0, 0, 0.2).rotation.x = Math.PI / 2;
-    part(B.MeshBuilder.CreateBox('ship-wing', { width: 2.6, height: 0.06, depth: 0.7 }, sc), hull, 0, -0.05, -0.2);
-    part(B.MeshBuilder.CreateBox('ship-fin', { width: 0.06, height: 0.5, depth: 0.5 }, sc), hull, 0, 0.25, -0.6);
-    part(B.MeshBuilder.CreateBox('ship-tip-l', { width: 0.08, height: 0.08, depth: 0.5 }, sc), glow, -1.3, -0.05, -0.2);
-    part(B.MeshBuilder.CreateBox('ship-tip-r', { width: 0.08, height: 0.08, depth: 0.5 }, sc), glow, 1.3, -0.05, -0.2);
-    part(B.MeshBuilder.CreateCylinder('ship-engine', { diameter: 0.34, height: 0.12, tessellation: 16 }, sc), glow, 0, 0, -0.9).rotation.x = Math.PI / 2;
-    p._ship = root;
+
+  // ------------------------------------------------------------------ controllers: how the player moves (H.controllers)
+  const controlCtx = (p, c) => ({ game, H: window.HawkesPlay, state: c.state, opts: c.opts, mode, player: p });
+  /** Switches the player to a way of moving (a controller's name): its exit, then the new one's enter. */
+  function useController(p, name, opts = {}, quiet = false) {
+    const next = controllerDefs.get(String(name)) || controllerDefs.get('walk');
+    if (!next) return;
+    const cur = p._controller;
+    if (cur && cur.def.exit) try { cur.def.exit(p, controlCtx(p, cur)); } catch (err) { report(err, `controller ${cur.name}`); }
+    p._controller = { def: next, name: next.name, opts: opts || {}, state: {} };
+    if (next.enter) try { next.enter(p, controlCtx(p, p._controller)); } catch (err) { report(err, `controller ${next.name}`); }
+    if (!quiet && p === W.player) setView(p, p._view || 'first');
   }
 
   /** first (your eyes), third (behind you: you see your character), top (from above), rts (a commander's camera over
@@ -1152,6 +879,11 @@
     visor.material = vm; visor.parent = p.node; visor.position.set(0, 0.5, 0.32); visor.metadata = { decor: true }; visor.isPickable = false;
     p._visor = visor;
     Object.defineProperty(p, 'view', { get: () => p._view, set: (v) => setView(p, v), configurable: true });
+    // What it holds (H.tools: a gun, a shovel, a rod...) and how it moves (H.controllers).
+    p.tool = null;
+    Object.defineProperty(p, 'weapon', { get: () => p.tool, set: (v) => { p.tool = weaponTool(v); }, configurable: true });
+    Object.defineProperty(p, 'controller', { get: () => (p._controller ? p._controller.name : null), configurable: true });
+    p.control = (name, opts) => { useController(p, name, opts); return p; };
     const yaw = W.camera.yaw;
     applyPlayerSettings(p);
     if (W.keepPose) { p.position = W.keepPose.p; W.camera.yaw = W.keepPose.yaw; W.camera.pitch = W.keepPose.pitch; p.flying = W.keepPose.flying; W.keepPose = null; }
@@ -1161,57 +893,54 @@
   }
   function spawnYaw() { for (const e of W.entities) if (e.kind === 'spawn') return e.node.rotation.y; return null; }
 
+  // ------------------------------------------------------------------ tools: what the player holds (H.tools)
+  const heldTool = { key: null, def: null, ctx: null };
+  /** config.player.weapon / player.weapon: a tool by another name ("rifle"), an unknown gun is the first one. */
+  function weaponTool(v) {
+    if (!v) return null;
+    const t = typeof v === 'string' ? v : v.type;
+    if (toolDefs.has(t) || !toolDefs.has('blaster')) return v;
+    return typeof v === 'string' ? 'blaster' : { ...v, type: 'blaster' };
+  }
+  const toolName = (t) => (typeof t === 'string' ? t : t && (t.type || t.name)) || null;
+  /** Each frame: the tool in the player's hands is the one they should hold (none while building, in an RTS view, or
+   *  in a controller that says tools: false). */
+  function syncTool() {
+    const p = W && W.player;
+    const c = p && p._controller;
+    const t = p && p.alive && mode !== 'build' && p._view !== 'rts' && !(c && c.def.tools === false) ? p.tool : null;
+    const def = t ? toolDefs.get(toolName(t)) : null;
+    const key = def ? `${def.name}:${JSON.stringify(t)}` : null;
+    if (key === heldTool.key) return;
+    dropTool();
+    if (!def) return;
+    const opts = typeof t === 'object' ? { ...t } : {};
+    heldTool.key = key; heldTool.def = def;
+    heldTool.ctx = { game, H: window.HawkesPlay, player: p, opts, state: {}, name: def.name };
+    if (def.equip) try { def.equip(heldTool.ctx); } catch (err) { report(err, `tool ${def.name}`); }
+  }
+  function dropTool() {
+    const { def, ctx } = heldTool;
+    heldTool.key = null; heldTool.def = null; heldTool.ctx = null;
+    if (def && def.unequip) try { def.unequip(ctx); } catch (err) { report(err, `tool ${def.name}`); }
+  }
+  function toolTick(which, dt) {
+    const { def, ctx } = heldTool;
+    if (def && def[which]) try { def[which](dt, ctx); } catch (err) { report(err, `tool ${def.name}`); }
+  }
+
   function controlPlayer(dt) {
     const p = W.player;
     if (!p || !p.alive || !p.controls || W.camera.target !== p) return;
-    if (hooks.canMove && !hooks.canMove()) { if (!p.flying) p.walk({ x: 0, z: 0 }, 0); else { p.velocity = [0, 0, 0]; p._walked = true; } return; }
-    // Flying a plane (config.player.mode "flight"): always moving forward, steered by where you look.
-    if (p.mode === 'flight' && mode !== 'build') {
-      p.gravity = 0;
-      // The heading is the camera's yaw and pitch (0 is level, so you start flying straight ahead).
-      if (!p._flightReady) { p._flightReady = true; W.camera.pitch = 0; }
-      const ax = game.input.axis();
-      W.camera.yaw += ax.x * dt * 1.4;
-      W.camera.pitch = Math.max(-0.4, Math.min(0.9, W.camera.pitch - ax.y * dt * 1.1));
-      const cp = Math.cos(W.camera.pitch);
-      const f = { x: Math.sin(W.camera.yaw) * cp, y: -Math.sin(W.camera.pitch), z: Math.cos(W.camera.yaw) * cp };
-      const boost = held.has('space') ? 1.8 : 1;
-      const sp = (p.speed || 20) * boost;
-      p.velocity = [f.x * sp, f.y * sp, f.z * sp];
-      p._walked = true;
-      p.node.rotation.y = W.camera.yaw;
-      if (p._ship) { p._ship.rotation.z += (-ax.x * 0.6 - p._ship.rotation.z) * Math.min(1, dt * 6); p._ship.rotation.x = W.camera.pitch; }
-      return;
-    }
-    const a = game.input.direction();
-    const sprint = held.has('shift') && !p.flying;
-    if (pressedNow.has('f') && (mode === 'build' || p.canFly)) { p.flying = !p.flying; p.vy = 0; game.ui.message(p.flying ? 'Flying: E up, Q down' : 'Walking', 1.2); }
-    // Building: E goes up and Q goes down (and starts flying), like a builder's camera.
-    if (mode === 'build' && !p.flying && held.has('e') && !hooks.holding) { p.flying = true; }
-    if (p.flying) {
-      p.gravity = 0;
-      const sp = held.has('shift') ? 16 : 8;
-      p.vx = a.x * sp; p.vz = a.z * sp;
-      const up = held.has('space') || (mode === 'build' && held.has('e'));
-      const down = held.has('c') || held.has('control') || (mode === 'build' && held.has('q'));
-      p.vy = (up ? sp : 0) - (down ? sp : 0);
-      p._walked = true;
-      p.wake();
-    } else {
-      p.gravity = p.baseGravity ?? 1;
-      p.walk(a, (p.speed || 6) * (sprint ? 1.6 : 1));
-      // Facing where you walk when you can see yourself.
-      if (p._view !== 'first' && Math.hypot(a.x, a.z) > 0.1) { const want = Math.atan2(a.x, a.z); let d = want - p.node.rotation.y; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; p.node.rotation.y += d * Math.min(1, dt * 12); }
-      if (p.grounded) p._doubled = false;
-      if (pressedNow.has('space')) {
-        const g = Math.abs(W.config.gravity ?? 24) * (p.gravity || 1);
-        const speed = Math.sqrt(2 * g * (p.jumpHeight || 1.5)) || 8.5;
-        if (p.jump(speed)) { /* jumped */ }
-        else if (p.doubleJump && !p._doubled) { p._doubled = true; p.vy = speed; game.burst([p.x, p.bottom, p.z], { color: '#c8d8ff', count: 10, speed: 2 }); }
-        else if ((mode === 'build' || p.canFly) && performance.now() - (p._lastJump || 0) < 300) { p.flying = true; game.ui.message(mode === 'build' ? 'Flying: E up, Q down, F lands' : 'Flying: space up, C down, F lands', 1.4); }
-        p._lastJump = performance.now();
-      }
-    }
+    // Building is always walking (and flying around); playing, whatever the game or a module switched to.
+    if (!p._controller || (mode === 'build' && p._controller.name !== 'walk')) useController(p, mode === 'build' ? 'walk' : p.mode || 'walk', {}, true);
+    const c = p._controller;
+    if (!c) return;
+    const ctx = controlCtx(p, c);
+    try {
+      if (hooks.canMove && !hooks.canMove()) { if (c.def.idle) c.def.idle(p, ctx); else { p.velocity = [0, 0, 0]; p._walked = true; } return; }
+      c.def.update(p, dt, ctx);
+    } catch (err) { report(err, `controller ${c.name}`); }
   }
 
   /** Something fell out of the world: people go back to the start, things go back where they were. */
@@ -1487,16 +1216,7 @@
       save(k, v) { saved.set(String(k), JSON.stringify(v)); },
       load(k, fallback = null) { const v = saved.get(String(k)); return v === undefined ? fallback : JSON.parse(v); },
 
-      box: (o = {}) => { const s = size3(o.size, 1); return shape('box', () => B.MeshBuilder.CreateBox('box', { width: s[0], height: s[1], depth: s[2] }, W.scene), o); },
-      sphere: (o = {}) => shape('sphere', () => B.MeshBuilder.CreateSphere('sphere', { diameter: (Number(o.radius) || 0.5) * 2, segments: 24 }, W.scene), o),
-      capsule: (o = {}) => shape('capsule', () => B.MeshBuilder.CreateCapsule('capsule', { radius: Number(o.radius) || 0.4, height: Math.max((Number(o.radius) || 0.4) * 2, Number(o.height) || 1.8), tessellation: 16 }, W.scene), o),
-      cylinder: (o = {}) => shape('cylinder', () => B.MeshBuilder.CreateCylinder('cylinder', { diameter: (Number(o.radius) || 0.5) * 2, height: Number(o.height) || 1, tessellation: 32 }, W.scene), o),
-      cone: (o = {}) => shape('cone', () => B.MeshBuilder.CreateCylinder('cone', { diameterTop: 0, diameterBottom: (Number(o.radius) || 0.5) * 2, height: Number(o.height) || 1, tessellation: 32 }, W.scene), o),
-      torus: (o = {}) => shape('torus', () => B.MeshBuilder.CreateTorus('torus', { diameter: (Number(o.radius) || 1) * 2, thickness: Number(o.thickness) || 0.3, tessellation: 40 }, W.scene), o),
-      plane: (o = {}) => { const s = Array.isArray(o.size) ? o.size : [Number(o.size) || 10, Number(o.size) || 10]; return shape('plane', () => B.MeshBuilder.CreateBox('plane', { width: s[0], height: 0.02, depth: s[1] ?? s[0] }, W.scene), o); },
-      text: (str, o = {}) => text(str, o),
-      model,
-      sprite,
+      // game.box(), game.model(), ...: every kind's maker (H.kinds), added below.
 
       find: (name) => { for (const e of W.entities) if (e.name === name || (e.sceneId && e.sceneId === name)) return e; return null; },
       all: (tag) => [...W.entities].filter((e) => !tag || e.tag === tag || e.name === tag),
@@ -1541,6 +1261,8 @@
         get me() { return hooks.net ? hooks.net.me : null; },
         get players() { return hooks.net ? hooks.net.players() : []; },
       },
+      /** Physics for scripts: raycast, overlap, explode, joint, shapes, layers (H.physics; API.md "Physics"). */
+      get physics() { return window.HawkesPlay.physics; },
 
       sky(what) {
         if (W.skybox) { W.skybox.dispose(); W.skybox = null; }
@@ -1548,11 +1270,6 @@
         if (W.dome) { W.dome.dispose(); W.dome = null; }
         W.skybox = new B.PhotoDome('sky', assetUrl(what), { resolution: 32, size: 1000 }, W.scene);
         W.skybox.mesh.isPickable = false;
-      },
-      light(o = {}) {
-        const p = o.position ? vec(o.position) : [Number(o.x) || 0, o.y === undefined ? 5 : Number(o.y), Number(o.z) || 0];
-        const e = lightEntity({ ...o, position: p, light: o });
-        return Object.assign(e, { light: e._light, dispose: () => e.destroy() });
       },
       burst(at, o = {}) {
         const p = posOf(at);
@@ -1652,7 +1369,18 @@
       BABYLON: B,
     };
     void net;
+    for (const k of kindDefs.values()) addMaker(g, k);
     return g;
+  }
+
+  /** A kind's maker for scripts: maker: true is game.<type>(opts) (opts are the shape's fields too), a function is
+   *  game.<type>(...args) as it says, a string names it differently. */
+  function addMaker(g, k) {
+    if (!k.maker) return;
+    const name = typeof k.maker === 'string' ? k.maker : k.name;
+    if (Object.prototype.hasOwnProperty.call(g, name) && !(g[name] && g[name].__maker)) return; // never over the engine's own calls
+    g[name] = typeof k.maker === 'function' ? (...args) => k.maker(...args) : (o = {}) => k.build(o, o, null);
+    g[name].__maker = true;
   }
 
   function clickPick(e) {
@@ -1677,8 +1405,9 @@
     controlPlayer(dt);
     for (const f of W.updates) f(dt, W.time);
     runBehaviors(dt);
-    runWaypoints(dt);
     for (const f of hooks.step) f(dt);
+    toolTick('step', dt);
+    runFeatures(dt);
     const g = W.config.gravity ?? -24;
     // How far each non-falling thing moved this step: whatever stands on it rides along.
     for (const e of W.entities) {
@@ -1768,6 +1497,7 @@
         else if (a._touching.has(b)) { a._touching.delete(b); b._touching.delete(a); for (const h of a.handlers.leave) h(b); for (const h of b.handlers.leave) h(a); }
       }
     }
+    for (const f of hooks.afterStep) f(dt);
   }
 
   /** A falling thing ran into something sideways: bounce off it, or push it if it can move. */
@@ -1808,7 +1538,8 @@
     }
     W.camera.update(elapsed);
     if (W.motes && W.scene.activeCamera) W.motes.emitter = W.scene.activeCamera.position;
-    updateLods();
+    syncTool();
+    toolTick('frame', elapsed);
     for (const f of hooks.frame) f(elapsed, render, framePressed);
     pressedNow = new Set();
     releasedNow = new Set();
@@ -1928,11 +1659,52 @@
     } catch (e) { console.warn('look', e); }
   }
 
+  // ------------------------------------------------------------------ world features: one config key each (H.features)
+  // terrain, water, weather, time of day...: a module owns a key of the world's settings (scene.json config or game.json)
+  // and gets apply(value, ctx) when the world starts with it set, change(value, old, ctx) (or dispose + apply) when an
+  // edit changes it, update(dt, ctx) every step while it is on, and dispose(ctx) when it goes or the world ends.
+  const featureCtx = (key, f) => ({ game, H: window.HawkesPlay, world: W, scene: W.scene, key, state: f.state, value: f.value });
+  const featureOn = (v) => v !== undefined && v !== null && v !== false;
+  function applyFeatures(cfg) {
+    W.features = new Map();
+    for (const def of featureDefs.values()) if (featureOn(cfg[def.name])) startFeature(def, cfg[def.name]);
+  }
+  function startFeature(def, value) {
+    const f = { def, value: clone(value), state: {} };
+    W.features.set(def.name, f);
+    try { def.apply(f.value, featureCtx(def.name, f)); } catch (err) { report(err, `feature ${def.name}`); }
+  }
+  function stopFeature(key) {
+    const f = W.features && W.features.get(key);
+    if (!f) return;
+    W.features.delete(key);
+    if (f.def.dispose) try { f.def.dispose(featureCtx(key, f)); } catch (err) { report(err, `feature ${key}`); }
+  }
+  /** A config edit: the features whose keys it touched hear about it. */
+  function changeFeatures(patch) {
+    const cfg = effectiveConfig();
+    for (const key of Object.keys(patch || {})) {
+      const def = featureDefs.get(key);
+      if (!def) continue;
+      const f = W.features.get(key), value = cfg[key];
+      if (!featureOn(value)) { stopFeature(key); continue; }
+      if (f && def.change) { const old = f.value; f.value = clone(value); try { def.change(f.value, old, featureCtx(key, f)); } catch (err) { report(err, `feature ${key}`); } }
+      else { stopFeature(key); startFeature(def, value); }
+    }
+  }
+  function runFeatures(dt) {
+    if (!W.features) return;
+    for (const [key, f] of W.features) if (f.def.update) try { f.def.update(dt, featureCtx(key, f)); } catch (err) { report(err, `feature ${key}`); }
+  }
+  function disposeFeatures() { if (W && W.features) for (const key of [...W.features.keys()]) stopFeature(key); }
+
   function start(o = {}) {
     if (W) {
       // Keep where the player was, so a script change doesn't throw you back to the start.
       if (o.keep && W.player && W.player.alive) W.keepPose = { p: W.player.position, yaw: W.camera.yaw, pitch: W.camera.pitch, flying: W.player.flying };
       for (const f of hooks.world) if (f.leave) f.leave();
+      dropTool();
+      disposeFeatures();
       W.ui.clear();
       W.scene.dispose();
     }
@@ -1981,6 +1753,7 @@
     game = makeGame();
     window.game = game;
     applyLook(cfg);
+    applyFeatures(cfg);
     buildScene(graph);
     for (const path of scriptOrder(bundle.files, cfg)) {
       W.file = path;
@@ -2015,7 +1788,7 @@
     // Warm the sound cache so the first effect plays on time.
     for (const [, a] of Object.entries(b.assets || {})) if (/^audio\//.test(a.mime || '') && a.url) fetch(a.url).catch(() => {});
     try { start(); } catch (e) { report(e); }
-    if (!looping) {
+    if (!looping && o.loop !== false) {
       looping = true;
       engine.runRenderLoop(() => { try { advance(true); } catch (e) { report(e); if (W) W.paused = true; } });
       startTicker();
@@ -2065,6 +1838,24 @@
     get bundle() { return bundle; },
     get input() { return { held, pressed: framePressed, released: releasedNow, mouse, stick, touchUi }; },
     entityOf, fromSpec, textPlane, hurtPlayer, merge, report, post, touchUi,
+    // How modules extend the engine (docs/engine-modules.md).
+    kinds, features, controllers, tools,
+    /** Resolves when the engine can run a game (physics.js replaces it with its own readiness). */
+    ready: Promise.resolve(),
+    /** Steps the world by `seconds` (whole fixed steps) and runs one frame without drawing: for tests and tools. */
+    tick(seconds = STEP) {
+      if (!W) return;
+      const n = Math.max(1, Math.round(seconds / STEP));
+      for (let i = 0; i < n && W && !W.paused; i++) { step(STEP); if (i === 0) { pressedNow = new Set(); releasedNow = new Set(); mouse.pressed = false; } }
+      if (!W) return;
+      W.camera.update(n * STEP);
+      syncTool();
+      toolTick('frame', n * STEP);
+      for (const f of hooks.frame) f(n * STEP, false, framePressed);
+      mouse.dx = 0; mouse.dy = 0; mouse.wheel = 0;
+    },
+    /** The engine's building blocks, for modules that make kinds of things (kinds.js uses them). */
+    lib: { Entity, shape, place, material, size3, hex, vec, clone, assetUrl, hasAsset, setFrame, showBubble, roundRect, posOf, attachBehaviors, runBehaviorHit, applyPlayerSettings, useController, effectiveConfig, STEP, RAD, get clockOffset() { return clockOffset; } },
   };
   window.addEventListener('error', (e) => report(e.error || e.message));
   window.addEventListener('unhandledrejection', (e) => report(e.reason));

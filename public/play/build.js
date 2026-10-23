@@ -32,7 +32,9 @@
   let gizmos = null;
 
   // ------------------------------------------------------------------ words for things
-  const KIND = { waypoint: 'a waypoint', video: 'a screen', box: 'a block', sphere: 'a ball', cylinder: 'a pillar', cone: 'a cone', capsule: 'a capsule', torus: 'a ring', plane: 'a floor', model: 'a 3D model', sprite: 'a picture', text: 'a sign', light: 'a light', mirror: 'a mirror', spawn: 'where players start', trigger: 'an invisible zone' };
+  // Every kind's word, card and hotbar come from the kind registry (H.kinds, kinds.js and modules).
+  const editorOf = (kind) => { const k = H.kinds.get(kind); return (k && k.editor) || {}; };
+  const KIND = new Proxy({}, { get: (_, kind) => editorOf(String(kind)).word || null });
   const MOTION = { static: 'stays put', dynamic: 'falls · can be thrown', kinematic: 'moves by itself', trigger: 'walk-through zone', none: 'decoration · walk through' };
   function describe(e) {
     if (e.remotePlayer) return { name: e.name, bits: ['another player'] };
@@ -116,18 +118,13 @@
       <button class="tbtn" id="tFly" type="button">🕊<span>Fly</span></button>
     </div>`;
   document.body.appendChild(hud);
-  const HOTBAR = [
-    { k: '1', icon: '▣', label: 'Crate', make: () => ({ type: 'box', name: 'Crate', shape: { size: [1, 1, 1] }, material: { color: '#b07a45' }, physics: 'dynamic' }) },
-    { k: '2', icon: '●', label: 'Ball', make: () => ({ type: 'sphere', name: 'Ball', shape: { radius: 0.4 }, material: { color: '#e04f5f' }, physics: 'dynamic', body: { bounce: 0.6 } }) },
-    { k: '3', icon: '▬', label: 'Platform', make: () => ({ type: 'box', name: 'Platform', shape: { size: [4, 0.4, 4] }, material: { color: '#8a93a8' }, physics: 'static' }) },
-    { k: '4', icon: '▮', label: 'Wall', make: (yaw) => ({ type: 'box', name: 'Wall', shape: { size: [4, 3, 0.4] }, material: { color: '#cfc6b4' }, physics: 'static', transform: { rotation: [0, Math.round(yaw / RAD / 15) * 15, 0] } }) },
-    { k: '5', icon: '✦', label: 'Light', make: () => ({ type: 'light', name: 'Lamp', light: { type: 'point', color: '#ffd9a0', intensity: 1.2, range: 12 } }) },
-    { k: '6', icon: '◎', label: 'Coin', make: () => ({ type: 'cylinder', name: 'Coin', shape: { radius: 0.35, height: 0.08 }, material: { color: '#f4c430', emissive: '#5a4200' }, physics: 'static', transform: { rotation: [90, 0, 0] }, behaviors: [{ use: 'collectible' }, { use: 'spin', speed: 120, axis: 'z' }] }) },
-    { k: '7', icon: '⇑', label: 'Launch pad', make: () => ({ type: 'cylinder', name: 'Launch pad', shape: { radius: 0.8, height: 0.15 }, material: { color: '#22d3ee', emissive: '#063a44' }, physics: 'static', behaviors: [{ use: 'launch', power: 18 }] }) },
-    { k: '8', icon: 'T', label: 'Sign', make: () => ({ type: 'text', name: 'Sign', shape: { text: 'Hello!', size: 0.5 } }) },
-    { k: '9', icon: '⌂', label: 'Start', make: () => ({ type: 'spawn', name: 'Player start', data: { role: 'player' } }) },
-    { k: '0', icon: '◉', label: 'Checkpoint', make: () => ({ type: 'waypoint', name: 'Checkpoint', shape: { radius: 1.6 }, data: { role: 'checkpoint' } }) },
-  ];
+  /** The hotbar: every kind's editor.hotbar entries, by order; the first ten get the keys 1-9 and 0. */
+  function hotbarList() {
+    const all = [];
+    for (const k of H.kinds.list()) for (const h of (k.editor && k.editor.hotbar) || []) all.push(h);
+    all.sort((a, b) => (a.order ?? 500) - (b.order ?? 500));
+    return all.map((h, i) => ({ ...h, k: i < 10 ? String((i + 1) % 10) : `#${i}` }));
+  }
   $('hudMode').onclick = () => setMode(H.mode === 'build' ? 'play' : 'build');
   // Building: the mouse is a pointer until you take control (the click has to happen in this frame to capture it).
   // If the browser won't capture the mouse, control still works: the cursor hides and moving the mouse looks around.
@@ -367,7 +364,7 @@
   }
   function placeFromHotbar(k) {
     if (H.mode !== 'build') return;
-    const h = HOTBAR.find((x) => x.k === k);
+    const h = hotbarList().find((x) => x.k === k);
     if (!h) return;
     const w = W();
     const cam = w.scene.activeCamera;
@@ -375,7 +372,7 @@
     spec.id = newId(spec.name);
     let at;
     const r = pickAt(aimRay());
-    const lift = spec.type === 'waypoint' ? 0.02 : spec.type === 'light' ? 1.5 : spec.type === 'box' ? (spec.shape.size[1] / 2 + 0.02) : spec.type === 'sphere' ? spec.shape.radius + 0.02 : spec.type === 'text' ? 1.2 : spec.type === 'cylinder' ? (spec.transform && spec.transform.rotation ? 0.9 : spec.shape.height / 2 + 0.02) : 0.1;
+    const lift = H.kinds.lift(spec);
     if (r && r.distance > 1.2 && r.distance < 30) at = [r.pickedPoint.x, r.pickedPoint.y + lift, r.pickedPoint.z];
     else { const d = cam.getDirection(B.Axis.Z); at = [cam.position.x + d.x * 4, cam.position.y + d.y * 4, cam.position.z + d.z * 4]; }
     spec.transform = { ...(spec.transform || {}), position: at.map(r2) };
@@ -400,22 +397,19 @@
     if (a.as === 'sky') { edit([{ op: 'config', patch: { sky: a.name } }], { label: 'changing the sky' }); toast(`The sky is now ${title || a.name}`); return; }
     if (a.as === 'texture') {
       const sp = target && specOf(target);
-      if (sp && ['box', 'sphere', 'cylinder', 'cone', 'capsule', 'torus', 'plane'].includes(sp.type)) {
+      if (sp && editorOf(sp.type).textureable) {
         update(target, { material: { ...(sp.material || {}), texture: a.name, tile: (sp.material && sp.material.tile) || 2, color: '#ffffff' } }, `texturing ${sp.name || sp.id}`);
         toast(`${sp.name || 'It'} is now ${title || a.name}`);
         return;
       }
     }
-    const make = {
-      texture: () => ({ type: 'box', name: title || 'Tile', shape: { size: [4, 0.2, 4] }, material: { texture: a.name, tile: 2, color: '#ffffff' }, physics: 'static', lift: 0.1 }),
-      mesh: () => ({ type: 'model', name: title || 'Model', shape: { asset: a.name, size: 1.6 }, physics: 'static', lift: 0.8 }),
-      image: () => ({ type: 'sprite', name: title || 'Picture', shape: { image: a.name, size: 1.6, billboard: false }, transform: { rotation: [0, yaw, 0] }, lift: 1.2 }),
-      audio: () => ({ type: 'cylinder', name: title || 'Speaker', shape: { radius: 0.3, height: 0.6 }, material: { color: '#2b2f3a', emissive: '#2a1450' }, behaviors: [{ use: 'sound', asset: a.name }, { use: 'glow', color: '#a855f7' }], lift: 0.3 }),
-      video: () => ({ type: 'video', name: title || 'Screen', shape: { asset: a.name, width: 3.2 }, transform: { rotation: [0, yaw, 0] }, lift: 1.4 }),
-    }[a.as === 'texture' ? 'texture' : a.kind];
+    // The kind that takes this sort of asset (editor.asset in H.kinds: model takes meshes, sprite images...).
+    const want = a.as === 'texture' ? 'texture' : a.kind;
+    const taker = H.kinds.list().find((k) => k.editor && k.editor.asset && k.editor.asset.kind === want);
+    const make = taker && (() => taker.editor.asset.make(a, { title, yaw }));
     if (!make) return;
     const spec = make();
-    const lift = spec.lift; delete spec.lift;
+    const lift = spec.lift ?? H.kinds.lift(spec); delete spec.lift;
     spec.id = newId(spec.name);
     const r = pickAt(aimRay());
     let at;
@@ -527,7 +521,7 @@
     const { e, el } = popup;
     const spec = specOf(e) || {};
     const d = describe(e);
-    const motionChoices = e.kind === 'trigger' ? [['trigger', 'Zone'], ['none', 'Off']] : e.kind === 'light' || e.kind === 'spawn' || e.kind === 'waypoint' ? [] : [['static', 'Stays put'], ['dynamic', 'Falls & throws'], ['kinematic', 'Moves itself'], ['none', 'Walk-through']];
+    const motionChoices = editorOf(e.kind).motion || [['static', 'Stays put'], ['dynamic', 'Falls & throws'], ['kinematic', 'Moves itself'], ['none', 'Walk-through']];
     const isLight = e.kind === 'light';
     const color = isLight ? (spec.light && spec.light.color) || '#ffffff' : (spec.material && spec.material.color) || e.color || '#cccccc';
     const behaviors = (spec.behaviors || []).map((b, i) => { const name = typeof b === 'string' ? b : b.use || b.type; const def = H.behaviorDef(name); return `<span class="chip" title="${esc(def && def.says ? def.says({ ...(def.defaults || {}), ...b }) : name)}">${esc(def ? def.title : name)}<button type="button" data-unb="${i}" aria-label="Remove">×</button></span>`; }).join('');
@@ -884,7 +878,7 @@
       case 'toast': return toast(m.text);
       case 'place': return placeAsset(m.asset);
       case 'placeBasic': return placeFromHotbar(m.k);
-      case 'basics?': return toParent({ type: 'basics', list: HOTBAR.map((h) => ({ k: h.k, icon: h.icon, label: h.label })) });
+      case 'basics?': return toParent({ type: 'basics', list: hotbarList().map((h) => ({ k: h.k, icon: h.icon, label: h.label })) });
     }
   });
 

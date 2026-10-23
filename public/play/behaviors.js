@@ -96,7 +96,7 @@
 
   // Collected things are gone for everyone: the one who touched it tells the others.
   function hideCollected(game, id) { const e = game.entity(id); if (e && e.visible) { e.visible = false; e._collected = true; return e; } return null; }
-  def(['collectible', 'collect', 'pickup', 'coin'], {
+  def(['collectible', 'collect', 'coin'], { // ('pickup' is gameplay.js's: health, ammo, weapons)
     title: 'Can be collected', says: (o) => `can be collected (+${o.points})${o.respawn ? `, comes back after ${o.respawn} s` : ''}`,
     defaults: { points: 1, respawn: 0, sound: null },
     start(e, o, s, game) {
@@ -164,7 +164,7 @@
     },
   });
 
-  def(['opens', 'door', 'gate'], {
+  def(['opens', 'door'], { // ('gate' is gameplay.js's race ring)
     title: 'Opens when you come close', says: (o) => `opens (rises ${o.height} m) when someone comes within ${o.distance} m`,
     defaults: { height: 3, distance: 4, speed: 3 },
     start(e, o, s) { s.y = home(e)[1]; s.k = 0; },
