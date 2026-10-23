@@ -18,8 +18,23 @@
     <span id="who" hidden style="display:flex;gap:8px;align-items:center">
       <span class="plan-chip" id="planChip">Free</span>
       <a class="pill" href="#plans" title="Credits"><span class="num" id="credits">0</span><span class="k">credits</span></a>
-      <button class="btn btn-ghost btn-sm" id="logout">Sign out</button>
+      <button class="profile-btn" id="profileBtn" title="Profile">
+        <span class="profile-avatar" id="profileAvatar">?</span>
+      </button>
     </span>
+
+    <!-- Profile Dropdown -->
+    <div class="profile-dropdown" id="profileDropdown" hidden>
+      <div class="profile-info" id="profileInfo"></div>
+      <div class="profile-sep"></div>
+      <div class="profile-friends-mini" id="profileFriendsMini"></div>
+      <div class="profile-sep"></div>
+      <a class="profile-link" href="/app/studio">Asset Studio</a>
+      <a class="profile-link" href="/games">Public Games</a>
+      <a class="profile-link" href="/connect">For Developers</a>
+      <div class="profile-sep"></div>
+      <button class="profile-link" id="logout">Sign out</button>
+    </div>
   </header>
 
   <!-- Signed out -->
@@ -49,6 +64,14 @@
       <button class="btn btn-primary" id="joinBtn">Join game</button>
     </div>
 
+    <div class="section-row" style="margin-top:0;border:0;padding:0;margin-bottom:6px">
+      <div>
+        <h2 style="font-size:18px;color:var(--fg-2)">Games from the Overseer</h2>
+        <p class="muted" style="font-size:13px;margin:4px 0 0;max-width:50ch">Built by the developer. Play them, fork them, or take them apart to see how everything works.</p>
+      </div>
+    </div>
+    <div id="overseerGames" class="game-grid" style="margin-bottom:32px"></div>
+
     <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px">
       <h1>Your games</h1>
       <button class="btn btn-primary btn-sm" id="quickCreate">+ New game</button>
@@ -57,6 +80,13 @@
     <div id="gameGrid" class="game-grid"></div>
 
     <div class="form-error" id="newError" hidden style="margin-top:10px"></div>
+
+    <div class="section-row" style="margin-top:36px">
+      <h2>Friends</h2>
+      <span></span>
+    </div>
+    <div id="friendsList" class="friends-list"></div>
+    <div class="fine" id="friendsTip" style="margin-top:6px">Invite someone to a game and they'll be added as your friend automatically.</div>
 
     <div id="plansSection" hidden>
       <div class="section-row" id="plans">

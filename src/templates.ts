@@ -11,7 +11,213 @@ player faster", "add a double jump", "make enemies chase me"), or generate art, 
 and use them by name, like \`game.model('tree.glb')\` or \`game.sound('coin.mp3')\`.
 `;
 
+function sceneJson(config: object, entities: Record<string, object>): string {
+  return JSON.stringify({ version: 1, modules: { core: '1.0.0' }, config, entities, nextId: Object.keys(entities).length + 1 }, null, 2);
+}
+
 export const TEMPLATES: Template[] = [
+  {
+    id: 'fps-arena',
+    name: 'Bot Arena',
+    blurb: 'First-person shooter against AI bots. Walk up to anything and inspect its code.',
+    files: (title) => ({
+      'README.md': readme(title, 'A first-person arena. WASD to move, mouse to look, click to shoot. Walk up to any object and click it to see its code.'),
+      'game.json': JSON.stringify({ background: '#1a1c22', ambient: 0.4, sun: 0.6, gravity: -24 }, null, 2) + '\n',
+      'scene.json': sceneJson(
+        { background: '#1a1c22', ambient: 0.4, sun: 0.6, sunDirection: [-1, -2, -1], shadows: true, gravity: -24, physics: 'simple' },
+        {
+          ground: { id: 'ground', type: 'plane', name: 'Arena Floor', transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { width: 50, depth: 50 }, material: { color: '#2a2d35' }, physics: 'static', components: {}, behaviors: [], data: {} },
+          wall_n: { id: 'wall_n', type: 'box', name: 'North Wall', transform: { position: [0, 2, 25], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { size: [51, 4, 1] }, material: { color: '#4a4e58' }, physics: 'static', components: {}, behaviors: [], data: {} },
+          wall_s: { id: 'wall_s', type: 'box', name: 'South Wall', transform: { position: [0, 2, -25], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { size: [51, 4, 1] }, material: { color: '#4a4e58' }, physics: 'static', components: {}, behaviors: [], data: {} },
+          wall_e: { id: 'wall_e', type: 'box', name: 'East Wall', transform: { position: [25, 2, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { size: [1, 4, 51] }, material: { color: '#4a4e58' }, physics: 'static', components: {}, behaviors: [], data: {} },
+          wall_w: { id: 'wall_w', type: 'box', name: 'West Wall', transform: { position: [-25, 2, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { size: [1, 4, 51] }, material: { color: '#4a4e58' }, physics: 'static', components: {}, behaviors: [], data: {} },
+          pillar_1: { id: 'pillar_1', type: 'cylinder', name: 'Pillar', transform: { position: [8, 2, 8], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { radius: 1.2, height: 4 }, material: { color: '#5a5e6a' }, physics: 'static', components: {}, behaviors: [], data: {} },
+          pillar_2: { id: 'pillar_2', type: 'cylinder', name: 'Pillar', transform: { position: [-8, 2, -8], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { radius: 1.2, height: 4 }, material: { color: '#5a5e6a' }, physics: 'static', components: {}, behaviors: [], data: {} },
+          pillar_3: { id: 'pillar_3', type: 'cylinder', name: 'Pillar', transform: { position: [-10, 2, 10], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { radius: 1, height: 4 }, material: { color: '#5a5e6a' }, physics: 'static', components: {}, behaviors: [], data: {} },
+          pillar_4: { id: 'pillar_4', type: 'cylinder', name: 'Pillar', transform: { position: [12, 2, -6], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { radius: 1, height: 4 }, material: { color: '#5a5e6a' }, physics: 'static', components: {}, behaviors: [], data: {} },
+          crate_1: { id: 'crate_1', type: 'box', name: 'Crate', transform: { position: [4, 0.75, -4], rotation: [0, 15, 0], scale: [1, 1, 1] }, shape: { size: [1.5, 1.5, 1.5] }, material: { color: '#7a6a4a' }, physics: 'static', components: {}, behaviors: [], data: {} },
+          crate_2: { id: 'crate_2', type: 'box', name: 'Crate', transform: { position: [-5, 0.75, 3], rotation: [0, -30, 0], scale: [1, 1, 1] }, shape: { size: [1.5, 1.5, 1.5] }, material: { color: '#7a6a4a' }, physics: 'static', components: {}, behaviors: [], data: {} },
+          arena_light: { id: 'arena_light', type: 'light', name: 'Arena Light', transform: { position: [0, 8, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }, light: { type: 'point', color: '#ffb36b', intensity: 1.2, range: 40 }, components: {}, behaviors: [], data: {} },
+          blue_light: { id: 'blue_light', type: 'light', name: 'Blue Accent', transform: { position: [-15, 4, -15], rotation: [0, 0, 0], scale: [1, 1, 1] }, light: { type: 'point', color: '#4a9eff', intensity: 0.6, range: 20 }, components: {}, behaviors: [], data: {} },
+          spawn_1: { id: 'spawn_1', type: 'spawn', name: 'Player Spawn', transform: { position: [0, 1, -18], rotation: [0, 0, 0], scale: [1, 1, 1] }, components: {}, behaviors: [], data: { role: 'player' } },
+          mirror: { id: 'mirror', type: 'mirror', name: 'The Mirror', transform: { position: [0, 2, 24.4], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { width: 2.5, height: 3.5 }, components: {}, behaviors: [], data: {} },
+        },
+      ),
+      'scripts/arena.js': `// Walled arena with FPS controls
+game.camera.firstPerson(game.spawn('player'), { height: 1.7 });
+
+game.state.hp = 100;
+game.state.kills = 0;
+game.state.ammo = 30;
+
+function spawnBot() {
+  const spots = [[18, 1, 18], [-18, 1, -18], [18, 1, -18], [-18, 1, 18]];
+  const [x, y, z] = game.pick(spots);
+  const bot = game.capsule({ x, y, z, color: '#e04040', emissive: '#400808', physics: 'dynamic', tag: 'bot', name: 'Bot' });
+  bot.data.hp = 3;
+  bot.data.speed = game.random(3, 5) + game.state.kills * 0.1;
+  return bot;
+}
+
+for (let i = 0; i < 3; i++) spawnBot();
+
+game.every(4, () => { if (game.all('bot').length < 6) spawnBot(); });
+
+game.onUpdate((dt) => {
+  const p = game.player;
+  if (game.input.mouse.down && game.state.ammo > 0) {
+    game.state.ammo--;
+    const hit = game.raycast(p.position, p.forward, 50);
+    if (hit?.entity?.tag === 'bot') {
+      hit.entity.data.hp--;
+      game.burst(hit.point, { color: '#e04040', count: 10 });
+      if (hit.entity.data.hp <= 0) {
+        game.burst(hit.entity.position, { color: '#e04040', count: 30 });
+        hit.entity.destroy();
+        game.state.kills++;
+        game.state.ammo = Math.min(30, game.state.ammo + 5);
+      }
+    }
+  }
+
+  for (const bot of game.all('bot')) {
+    bot.walk({ x: p.x - bot.x, z: p.z - bot.z }, bot.data.speed);
+    if (bot.touching(p)) game.state.hp -= 15 * dt;
+  }
+
+  game.ui.bar('hp', game.state.hp / 100, { label: 'Health', color: '#5ec8e5' });
+  game.ui.text('ammo', \`Ammo \${game.state.ammo}\`, { x: 'right' });
+  game.ui.text('kills', \`Kills \${game.state.kills}\`, { x: 'center' });
+  if (game.state.hp <= 0) game.over(\`Defeated \${game.state.kills} bots\`);
+});
+`,
+    }),
+  },
+  {
+    id: 'sky-racer',
+    name: 'Sky Racer',
+    blurb: 'Fly through rings in a neon sky. Shows flight controls and dynamic skybox.',
+    files: (title) => ({
+      'README.md': readme(title, 'Fly through the rings. WASD to steer, space to boost. Miss 3 rings and it\'s over.'),
+      'game.json': JSON.stringify({ background: '#0a0820', ambient: 0.3, sun: 0.4, gravity: 0 }, null, 2) + '\n',
+      'scene.json': sceneJson(
+        { background: '#0a0820', ambient: 0.3, sun: 0.4, sunDirection: [0, -1, -0.5], shadows: false, gravity: 0, physics: 'none', fog: { color: '#0a0820', start: 80, end: 200 } },
+        {
+          ring_1: { id: 'ring_1', type: 'cylinder', name: 'Ring', transform: { position: [0, 10, 30], rotation: [90, 0, 0], scale: [1, 1, 1] }, shape: { radius: 4, height: 0.5 }, material: { color: '#00ff88', emissive: '#004422', opacity: 0.6 }, components: {}, behaviors: [], data: { ring: true } },
+          ring_2: { id: 'ring_2', type: 'cylinder', name: 'Ring', transform: { position: [15, 15, 80], rotation: [90, 0, 20], scale: [1, 1, 1] }, shape: { radius: 4, height: 0.5 }, material: { color: '#ff4488', emissive: '#440022', opacity: 0.6 }, components: {}, behaviors: [], data: { ring: true } },
+          ring_3: { id: 'ring_3', type: 'cylinder', name: 'Ring', transform: { position: [-10, 8, 140], rotation: [90, 0, -15], scale: [1, 1, 1] }, shape: { radius: 4, height: 0.5 }, material: { color: '#44aaff', emissive: '#002244', opacity: 0.6 }, components: {}, behaviors: [], data: { ring: true } },
+          platform_1: { id: 'platform_1', type: 'box', name: 'Floating Platform', transform: { position: [20, 0, 60], rotation: [0, 45, 0], scale: [1, 1, 1] }, shape: { size: [8, 0.4, 8] }, material: { color: '#2a1a3a', emissive: '#0a0520' }, components: {}, behaviors: [], data: {} },
+          platform_2: { id: 'platform_2', type: 'box', name: 'Floating Platform', transform: { position: [-15, 5, 110], rotation: [0, -20, 0], scale: [1, 1, 1] }, shape: { size: [6, 0.4, 12] }, material: { color: '#1a2a3a', emissive: '#050a20' }, components: {}, behaviors: [], data: {} },
+          neon_1: { id: 'neon_1', type: 'light', name: 'Neon Green', transform: { position: [0, 10, 30], rotation: [0, 0, 0], scale: [1, 1, 1] }, light: { type: 'point', color: '#00ff88', intensity: 0.8, range: 15 }, components: {}, behaviors: [], data: {} },
+          neon_2: { id: 'neon_2', type: 'light', name: 'Neon Pink', transform: { position: [15, 15, 80], rotation: [0, 0, 0], scale: [1, 1, 1] }, light: { type: 'point', color: '#ff4488', intensity: 0.8, range: 15 }, components: {}, behaviors: [], data: {} },
+          spawn: { id: 'spawn', type: 'spawn', name: 'Start', transform: { position: [0, 10, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }, components: {}, behaviors: [], data: { role: 'player' } },
+        },
+      ),
+      'scripts/flight.js': `// Neon sky racer
+game.camera.firstPerson(game.spawn('player'), { height: 0 });
+
+game.state.speed = 20;
+game.state.score = 0;
+game.state.missed = 0;
+game.state.boost = 0;
+
+const ringColors = ['#00ff88', '#ff4488', '#44aaff', '#ffaa22', '#aa44ff'];
+
+function spawnRing(z) {
+  const x = game.random(-25, 25);
+  const y = game.random(3, 25);
+  const color = game.pick(ringColors);
+  const ring = game.cylinder({ x, y, z, radius: 4, height: 0.5, rotation: [90, 0, game.random(-30, 30)], color, emissive: color, opacity: 0.6, physics: 'trigger', tag: 'ring', shadow: false });
+  game.light({ type: 'point', x, y, z, color, intensity: 0.5, range: 12, tag: 'ring-light' });
+  ring.on('hit', (other) => {
+    if (other !== game.player) return;
+    ring.destroy();
+    game.burst(ring.position, { color, count: 30 });
+    game.state.score += 100;
+    game.state.boost = Math.min(1, game.state.boost + 0.2);
+  });
+}
+
+for (let z = 30; z < 500; z += game.random(30, 60)) spawnRing(z);
+
+game.onUpdate((dt) => {
+  const p = game.player;
+  const input = game.input;
+  const pitch = input.axis().y * 15 * dt;
+  const roll = input.axis().x * 12 * dt;
+  p.move(0, pitch, game.state.speed * dt);
+  p.rotate(0, 0, -roll * 0.5);
+
+  if (input.key('space') && game.state.boost > 0) {
+    game.state.speed = 35;
+    game.state.boost -= dt * 0.4;
+  } else {
+    game.state.speed = game.lerp(game.state.speed, 20, dt * 2);
+  }
+
+  game.ui.text('score', \`\${game.state.score}\`, { x: 'center', size: 36 });
+  game.ui.bar('boost', game.state.boost, { label: 'Boost', color: '#ffaa22' });
+  game.ui.text('speed', \`\${Math.floor(game.state.speed)} m/s\`, { x: 'right' });
+  if (game.state.missed >= 3) game.over(\`Score \${game.state.score}\`);
+});
+`,
+    }),
+  },
+  {
+    id: 'platform-run',
+    name: 'Leap',
+    blurb: 'First-person platformer with a mirror. Shows physics, painting, level design.',
+    files: (title) => ({
+      'README.md': readme(title, 'Jump across platforms to reach the top. The mirror lets you change how you look. WASD to move, space to jump, mouse to look.'),
+      'game.json': JSON.stringify({ background: '#87CEEB', ambient: 0.5, sun: 1, gravity: -24 }, null, 2) + '\n',
+      'scene.json': sceneJson(
+        { background: '#87CEEB', ambient: 0.5, sun: 1.0, sunDirection: [-0.5, -1.5, -1], shadows: true, gravity: -24, physics: 'simple' },
+        {
+          ground: { id: 'ground', type: 'plane', name: 'Ground', transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { width: 30, depth: 30 }, material: { color: '#6a9f4b' }, physics: 'static', components: {}, behaviors: [], data: {} },
+          plat_1: { id: 'plat_1', type: 'box', name: 'Step 1', transform: { position: [4, 1.5, 4], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { size: [3, 0.4, 3] }, material: { color: '#b7a07a' }, physics: 'static', components: {}, behaviors: [], data: {} },
+          plat_2: { id: 'plat_2', type: 'box', name: 'Step 2', transform: { position: [8, 3, 8], rotation: [0, 15, 0], scale: [1, 1, 1] }, shape: { size: [3, 0.4, 3] }, material: { color: '#b7a07a' }, physics: 'static', components: {}, behaviors: [], data: {} },
+          plat_3: { id: 'plat_3', type: 'box', name: 'Step 3', transform: { position: [5, 5, 12], rotation: [0, -10, 0], scale: [1, 1, 1] }, shape: { size: [3, 0.4, 3] }, material: { color: '#c8b898' }, physics: 'static', components: {}, behaviors: [], data: {} },
+          plat_4: { id: 'plat_4', type: 'box', name: 'Moving Platform', transform: { position: [0, 7, 14], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { size: [4, 0.4, 2] }, material: { color: '#4a8aaa' }, physics: 'static', components: {}, behaviors: [{ type: 'oscillate', axis: 'x', range: 6, speed: 1.5 }], data: {} },
+          plat_5: { id: 'plat_5', type: 'box', name: 'Step 5', transform: { position: [-5, 9, 10], rotation: [0, 20, 0], scale: [1, 1, 1] }, shape: { size: [3, 0.4, 3] }, material: { color: '#c8b898' }, physics: 'static', components: {}, behaviors: [], data: {} },
+          summit: { id: 'summit', type: 'box', name: 'Summit', transform: { position: [-3, 12, 6], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { size: [5, 0.5, 5] }, material: { color: '#e8d8a8', emissive: '#302800' }, physics: 'static', components: {}, behaviors: [], data: { finish: true } },
+          mirror: { id: 'mirror', type: 'mirror', name: 'The Mirror', transform: { position: [0, 2, -5], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { width: 2, height: 3 }, components: {}, behaviors: [], data: {} },
+          tree_1: { id: 'tree_1', type: 'cylinder', name: 'Tree Trunk', transform: { position: [-8, 1.5, -3], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { radius: 0.3, height: 3 }, material: { color: '#6a4a2a' }, physics: 'static', components: {}, behaviors: [], data: {} },
+          tree_top_1: { id: 'tree_top_1', type: 'sphere', name: 'Tree Canopy', transform: { position: [-8, 4, -3], rotation: [0, 0, 0], scale: [2, 1.5, 2] }, shape: { radius: 1.2 }, material: { color: '#2a6a2a' }, components: {}, behaviors: [], data: {} },
+          spawn: { id: 'spawn', type: 'spawn', name: 'Player Start', transform: { position: [0, 1, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }, components: {}, behaviors: [], data: { role: 'player' } },
+          sun: { id: 'sun', type: 'light', name: 'Warm Light', transform: { position: [10, 15, -5], rotation: [0, 0, 0], scale: [1, 1, 1] }, light: { type: 'point', color: '#ffe4b0', intensity: 0.6, range: 35 }, components: {}, behaviors: [], data: {} },
+        },
+      ),
+      'scripts/platformer.js': `// FPS platformer
+game.camera.firstPerson(game.spawn('player'), { height: 1.7 });
+game.state.reached = false;
+
+game.onUpdate((dt) => {
+  const p = game.player;
+  p.walk(game.input.direction(), 7);
+  if (game.input.pressed('space')) p.jump(10);
+
+  // Moving platform
+  for (const m of game.all('Moving Platform')) {
+    m.x = m.data.originX + Math.sin(game.time * 1.5) * 6;
+    if (p.standing === m) p.x += Math.cos(game.time * 1.5) * 1.5 * 6 * dt;
+  }
+
+  // Finish
+  if (!game.state.reached) {
+    const summit = game.find('Summit');
+    if (summit && p.y > summit.y - 0.5 && Math.abs(p.x - summit.x) < 3 && Math.abs(p.z - summit.z) < 3) {
+      game.state.reached = true;
+      game.burst(summit.position, { color: '#f4c430', count: 50 });
+      game.ui.message('You made it!', 3);
+    }
+  }
+
+  game.ui.text('height', \`Height \${Math.max(0, p.y).toFixed(1)} m\`, { x: 'right' });
+  if (p.y < -10) game.restart();
+});
+`,
+    }),
+  },
   {
     id: 'collector',
     name: 'Coin collector',
@@ -207,6 +413,12 @@ game.ui.message('${title.replace(/'/g, "\\'")}', 1.5);
     files: (title) => ({
       'README.md': readme(title, 'A starting point: a ground and a player. WASD to move, space to jump.'),
       'game.json': JSON.stringify({ background: '#9fd3f0' }, null, 2) + '\n',
+      'scene.json': sceneJson(
+        { background: '#9fd3f0', ambient: 0.3, sun: 0.8, sunDirection: [-1, -2, -1], shadows: true, gravity: -9.81, physics: 'simple' },
+        {
+          ground: { id: 'ground', type: 'plane', name: 'Ground', transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { width: 30, depth: 30 }, material: { color: '#7aa35a' }, physics: 'static', components: {}, behaviors: [], data: {} },
+        },
+      ),
       'scripts/main.js': `game.box({ size: [30, 1, 30], y: -0.5, color: '#7aa35a' });
 
 const player = game.capsule({ y: 1, color: '#e07a2f', physics: 'dynamic', name: 'player' });

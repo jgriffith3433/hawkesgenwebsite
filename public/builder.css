@@ -44,6 +44,7 @@
 @media (max-width: 820px) { .plans { grid-template-columns: 1fr; } }
 
 .notice { border: 1px solid var(--accent); border-radius: var(--r); padding: 12px 14px; margin: 0 0 18px; display: flex; gap: 12px; align-items: center; justify-content: space-between; background: var(--accent-glow); }
+.notice[hidden] { display: none; }
 .empty { border: 1px dashed var(--border-strong); border-radius: var(--r); padding: 36px; text-align: center; color: var(--fg-2); }
 .auth-box { max-width: 420px; margin: 8vh auto; padding: 28px; border: 1px solid var(--border); border-radius: var(--r-lg); display: grid; gap: 14px; background: var(--surface); }
 .auth-box h1 { font: 600 36px/1.05 var(--sans); margin: 0; }
@@ -67,14 +68,14 @@ body.editor-page { height: 100vh; overflow: hidden; display: grid; grid-template
 .avatar { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: #fff; font: 600 11px var(--sans); border: 2px solid rgba(255,255,255,0.2); }
 .save-state { font: 12px var(--mono); color: var(--fg-3); }
 
-/* Full-screen game preview */
+/* Full-screen game canvas */
 .ed-game { position: fixed; inset: 0; z-index: 1; }
-.ed-game iframe { width: 100%; height: 100%; border: 0; display: block; }
+.ed-game canvas { width: 100%; height: 100%; display: block; outline: none; }
 
 /* Side panel (files, assets) - slides from left */
 .ed-panel {
   position: fixed; top: 48px; bottom: 0; left: 0; z-index: 40;
-  width: 280px; background: var(--glass); backdrop-filter: var(--glass-blur);
+  width: 280px; padding-left: 48px; background: var(--glass); backdrop-filter: var(--glass-blur);
   border-right: 1px solid var(--border);
   transform: translateX(-100%); transition: transform 0.25s ease;
   overflow: auto; display: grid; align-content: start;
@@ -84,11 +85,11 @@ body.editor-page { height: 100vh; overflow: hidden; display: grid; grid-template
 /* Code editor panel - slides from right */
 .ed-code-panel {
   position: fixed; top: 48px; bottom: 0; right: 0; z-index: 40;
-  width: 50%; min-width: 400px; max-width: 800px;
+  width: 50%; min-width: 400px; max-width: 800px; padding-right: 48px;
   background: var(--glass); backdrop-filter: var(--glass-blur);
   border-left: 1px solid var(--border);
   transform: translateX(100%); transition: transform 0.25s ease;
-  display: grid; grid-template-rows: 36px 1fr;
+  display: grid; grid-template-rows: auto auto auto 1fr;
 }
 .ed-code-panel.open { transform: translateX(0); }
 
@@ -107,7 +108,10 @@ body.editor-page { height: 100vh; overflow: hidden; display: grid; grid-template
 .gen-row { margin: 2px 8px; padding: 6px 8px; border: 1px dashed var(--border-strong); border-radius: var(--r); font: 12px/1.35 var(--sans); color: var(--fg-2); }
 .gen-row.failed { border-color: var(--bad); color: var(--bad); }
 
-.ed-code-head { display: flex; align-items: center; gap: 10px; padding: 0 14px; border-bottom: 1px solid var(--border); font: 12.5px var(--mono); color: var(--fg-2); }
+.ed-code-head { display: flex; align-items: center; gap: 10px; padding: 0 14px; min-height: 36px; border-bottom: 1px solid var(--border); font: 12.5px var(--mono); color: var(--fg-2); }
+.ed-code-head[hidden] { display: none; }
+.ed-code-head.entity-head { background: rgba(74,158,255,0.06); border-bottom-color: var(--accent); }
+.entity-tag { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; padding: 3px 7px; background: var(--accent); color: #fff; border-radius: 3px; }
 .ed-code-head .grow { flex: 1; }
 .ed-code-panel .CodeMirror { height: 100%; font: 13px/1.55 var(--mono); background: transparent; color: var(--fg); }
 .ed-code-panel .CodeMirror-gutters { background: transparent; border-right: 1px solid var(--border); }
@@ -312,6 +316,49 @@ body.editor-page { height: 100vh; overflow: hidden; display: grid; grid-template
   background: var(--accent); vertical-align: text-bottom; margin-left: 2px;
   animation: cursor-blink 0.5s step-end infinite;
 }
+
+/* ------------------------------------------------------------ profile dropdown */
+.profile-btn { background: none; border: 0; cursor: pointer; padding: 2px; border-radius: 50%; transition: all 0.15s; }
+.profile-btn:hover { background: var(--surface-2); }
+.profile-avatar { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; font: 600 12px var(--sans); }
+.profile-dropdown {
+  position: fixed; top: 58px; right: 16px; z-index: 200;
+  width: 260px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 8px 0;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+}
+.profile-dropdown[hidden] { display: none; }
+.profile-info { padding: 12px 16px; }
+.profile-info .name { font: 600 14px var(--sans); color: #fff; }
+.profile-info .email { font: 12px var(--sans); color: var(--fg-3); margin-top: 2px; }
+.profile-info .plan { font: 11px var(--mono); color: var(--accent); margin-top: 6px; }
+.profile-sep { height: 1px; background: var(--border); margin: 4px 0; }
+.profile-friends { padding: 8px 16px; }
+.profile-friends .profile-friends-head { font: 500 11px var(--sans); text-transform: uppercase; letter-spacing: .06em; color: var(--fg-3); margin-bottom: 6px; }
+.profile-friends .friend-mini { display: flex; align-items: center; gap: 8px; padding: 4px 0; font: 13px var(--sans); color: var(--fg-2); }
+.profile-friends .friend-mini .dot { width: 8px; height: 8px; border-radius: 50%; }
+.profile-friends .none { font: 12px var(--sans); color: var(--fg-3); }
+.profile-link {
+  display: block; width: 100%; padding: 8px 16px; font: 14px var(--sans); color: var(--fg-2);
+  text-decoration: none; text-align: left; border: 0; background: none; cursor: pointer;
+  transition: all 0.1s;
+}
+.profile-link:hover { background: var(--surface-2); color: #fff; }
+
+/* ------------------------------------------------------------ friends */
+.friends-list { display: grid; gap: 6px; }
+.friend-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface); }
+.friend-row .friend-avatar { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: #fff; font: 600 13px var(--sans); flex: none; }
+.friend-row .friend-name { flex: 1; font: 500 14px var(--sans); color: #fff; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.friend-row .friend-since { font: 12px var(--mono); color: var(--fg-3); }
+.friend-row .btn { opacity: 0; transition: opacity .15s; }
+.friend-row:hover .btn { opacity: 1; }
+.friends-empty { color: var(--fg-3); font-size: 14px; padding: 12px 0; }
+
+/* ------------------------------------------------------------ overseer games */
+.overseer-card { border-color: rgba(74,158,255,0.2); }
+.overseer-card:hover { border-color: var(--accent); box-shadow: 0 4px 20px rgba(74,158,255,0.1); }
+.overseer-card .cover { border-bottom-color: rgba(74,158,255,0.15); }
 
 /* ------------------------------------------------------------ public games */
 .gallery-head { display: flex; gap: 12px; align-items: end; justify-content: space-between; margin-bottom: 18px; }

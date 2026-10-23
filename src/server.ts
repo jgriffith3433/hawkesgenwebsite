@@ -23,6 +23,7 @@ import { publicUrl } from './config.ts';
 import * as google from './google.ts';
 import { PLANS, subscription, choosePlan, setCancel, billingPortal } from './plans.ts';
 import * as games from './games.ts';
+import * as friends from './friends.ts';
 import { askAssistant, generateAsset, pendingGens, markSuggestion, resumeGens, KINDS, AI_CREDITS } from './gameai.ts';
 import { join as joinLive, setPresence } from './live.ts';
 
@@ -278,6 +279,11 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (route === '/v1/billing/plan' && method === 'POST') return send(res, 200, await choosePlan(user, await readJson(req)));
     if (route === '/v1/billing/cancel' && method === 'POST') return send(res, 200, await setCancel(user, (await readJson(req)).cancel !== false));
     if (route === '/v1/billing/portal' && method === 'POST') return send(res, 200, await billingPortal(user));
+
+    // ------------------------------------------------------------ friends
+    if (route === '/v1/friends' && method === 'GET') return send(res, 200, { friends: friends.listFriends(user.id) });
+    const fr = /^\/v1\/friends\/(usr_[0-9a-f]+)$/.exec(route);
+    if (fr && method === 'DELETE') { friends.removeFriend(user.id, fr[1]); return send(res, 200, { ok: true }); }
 
     // ------------------------------------------------------------ games
     if (route === '/v1/games' && method === 'GET') return send(res, 200, games.listGames(user));

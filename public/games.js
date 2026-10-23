@@ -70,6 +70,7 @@ async function load() {
   $('who').hidden = false;
   $('studioLink').hidden = false;
   $('credits').textContent = Number(me.credits).toLocaleString('en-US');
+  $('profileAvatar').textContent = (me.name || me.email || '?')[0].toUpperCase();
 
   // Handle invite first
   if (inviteCode) {
@@ -91,7 +92,9 @@ async function load() {
   }
 
   renderGames(r);
+  renderOverseerGames();
   notices();
+  loadFriends().catch(() => {});
 
   // Plans load in background, shown only if user scrolls or clicks
   loadPlans().catch(() => {});
@@ -140,10 +143,32 @@ function renderGames(r) {
           <div class="meta"><span>${g.liveVersion ? `v${g.liveVersion} live` : 'not published'}</span><span>${g.members.length} ${g.members.length === 1 ? 'person' : 'people'}</span><span>${ago(g.updated)}</span></div>
           <div class="actions">
             <a class="btn btn-ghost btn-sm" href="/app/g/${g.id}">Open</a>
+            <button class="btn btn-ghost btn-sm" data-share="${g.id}" title="Get invite link">Share</button>
             ${g.role === 'owner' ? `<button class="btn btn-ghost btn-sm" style="color:var(--bad)" data-delete="${g.id}" data-title="${esc(g.title)}">Delete</button>` : ''}
           </div>
         </div>
       </div>`).join('');
+
+    for (const btn of grid.querySelectorAll('[data-share]')) {
+      btn.onclick = async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        try {
+          const data = await api(`/v1/games/${btn.dataset.share}/invites`, { body: {} });
+          const link = location.origin + data.path;
+          if (navigator.share) {
+            navigator.share({ title: 'Build a game with me', url: link }).catch(() => {});
+          } else if (navigator.clipboard) {
+            await navigator.clipboard.writeText(link);
+            btn.textContent = 'Copied!';
+            setTimeout(() => { btn.textContent = 'Share'; }, 2000);
+          } else {
+            prompt('Share this link:', link);
+          }
+          track('game_share', {});
+        } catch (err) { alert(err.message); }
+      };
+    }
 
     for (const btn of grid.querySelectorAll('[data-delete]')) {
       btn.onclick = async (e) => {
@@ -163,6 +188,73 @@ function renderGames(r) {
   }
 }
 
+// ------------------------------------------------------------------ overseer showcase
+const OVERSEER_GAMES = [
+  {
+    id: 'fps-arena', title: 'Bot Arena', emoji: '🎯',
+    desc: 'First-person shooter against AI bots. Shows: model generation, physics, skybox, FPS controls.',
+    template: 'fps-arena',
+  },
+  {
+    id: 'sky-racer', title: 'Sky Racer', emoji: '🛩️',
+    desc: 'Fly through rings in a neon sky. Shows: flight controls, procedural terrain, dynamic skybox, speed trails.',
+    template: 'sky-racer',
+  },
+  {
+    id: 'platform-run', title: 'Leap', emoji: '🏃',
+    desc: 'First-person platformer with moving platforms. Shows: physics, painting textures, the mirror, level design.',
+    template: 'platform-run',
+  },
+];
+
+function renderOverseerGames() {
+  const el = $('overseerGames');
+  el.innerHTML = OVERSEER_GAMES.map(g => `
+    <div class="game-card overseer-card" data-template="${g.template}">
+      <div class="cover" style="background:linear-gradient(135deg, var(--surface-2), var(--surface-3));font-size:48px">${g.emoji}</div>
+      <div class="body">
+        <div class="title">${esc(g.title)}</div>
+        <div class="meta" style="font-family:var(--sans);font-size:12.5px;color:var(--fg-2)">${esc(g.desc)}</div>
+        <div class="actions">
+          <button class="btn btn-primary btn-sm" data-play-overseer="${g.template}">Play</button>
+          <button class="btn btn-secondary btn-sm" data-fork-overseer="${g.template}" title="Create your own copy to edit">Fork</button>
+        </div>
+      </div>
+    </div>`).join('');
+
+  for (const btn of el.querySelectorAll('[data-play-overseer]')) {
+    btn.onclick = async (e) => {
+      e.stopPropagation();
+      btn.disabled = true;
+      try {
+        const g = await api('/v1/games', { body: { title: OVERSEER_GAMES.find(o => o.template === btn.dataset.playOverseer)?.title, template: btn.dataset.playOverseer } });
+        track('overseer_play', { template: btn.dataset.playOverseer });
+        location.href = `/app/g/${g.id}`;
+      } catch (err) {
+        alert(err.message);
+        btn.disabled = false;
+      }
+    };
+  }
+
+  for (const btn of el.querySelectorAll('[data-fork-overseer]')) {
+    btn.onclick = async (e) => {
+      e.stopPropagation();
+      btn.disabled = true;
+      try {
+        const tmpl = btn.dataset.forkOverseer;
+        const name = OVERSEER_GAMES.find(o => o.template === tmpl)?.title || 'Forked Game';
+        const g = await api('/v1/games', { body: { title: `${name} (fork)`, template: tmpl } });
+        track('overseer_fork', { template: tmpl });
+        location.href = `/app/g/${g.id}`;
+      } catch (err) {
+        alert(err.message);
+        btn.disabled = false;
+      }
+    };
+  }
+}
+
 // Quick create: blank game, go straight in
 $('quickCreate').onclick = async () => {
   $('quickCreate').disabled = true;
@@ -178,6 +270,44 @@ $('quickCreate').onclick = async () => {
     $('quickCreate').disabled = false;
   }
 };
+
+// ------------------------------------------------------------------ friends
+async function loadFriends() {
+  try {
+    const r = await api('/v1/friends');
+    renderFriends(r.friends || []);
+  } catch {}
+}
+
+function renderFriends(list) {
+  const el = $('friendsList');
+  if (!list.length) {
+    el.innerHTML = '<div class="friends-empty">No friends yet. Invite someone to a game to add them.</div>';
+    return;
+  }
+  const colors = ['#4a9eff', '#a855f7', '#34d399', '#fbbf24', '#ef4444', '#f97316'];
+  el.innerHTML = list.map((f) => {
+    const hash = (f.id || '').split('').reduce((a, c) => ((a << 5) - a) + c.charCodeAt(0), 0);
+    const color = colors[Math.abs(hash) % colors.length];
+    const initial = (f.name || 'A')[0].toUpperCase();
+    return `<div class="friend-row">
+      <div class="friend-avatar" style="background:${color}">${initial}</div>
+      <span class="friend-name">${esc(f.name || 'Someone')}</span>
+      <span class="friend-since">${ago(f.created)}</span>
+      <button class="btn btn-ghost btn-sm" data-unfriend="${f.id}" data-name="${esc(f.name || 'this friend')}">Remove</button>
+    </div>`;
+  }).join('');
+
+  for (const btn of el.querySelectorAll('[data-unfriend]')) {
+    btn.onclick = async () => {
+      if (!confirm(`Remove ${btn.dataset.name} from your friends?`)) return;
+      try {
+        await api(`/v1/friends/${btn.dataset.unfriend}`, { method: 'DELETE' });
+        await loadFriends();
+      } catch (err) { alert(err.message); }
+    };
+  }
+}
 
 // ------------------------------------------------------------------ plans and credits
 async function loadPlans() {
@@ -235,6 +365,42 @@ async function choose(plan, btn) {
 function billError(e) { $('billError').textContent = e.message; $('billError').hidden = false; }
 
 $('logout').onclick = async () => { await api('/v1/users/logout', { body: {} }).catch(() => {}); location.href = '/'; };
+
+// Profile dropdown
+$('profileBtn').onclick = () => {
+  const dd = $('profileDropdown');
+  dd.hidden = !dd.hidden;
+  if (!dd.hidden) renderProfileDropdown();
+};
+document.addEventListener('click', (e) => {
+  const dd = $('profileDropdown');
+  if (!dd.hidden && !dd.contains(e.target) && !$('profileBtn').contains(e.target)) dd.hidden = true;
+});
+
+function renderProfileDropdown() {
+  if (me) {
+    $('profileAvatar').textContent = (me.name || me.email || '?')[0].toUpperCase();
+    $('profileInfo').innerHTML = `
+      <div class="name">${esc(me.name || 'You')}</div>
+      <div class="email">${esc(me.email || '')}</div>
+      <div class="plan">${Number(me.credits || 0).toLocaleString()} credits</div>
+    `;
+  }
+  api('/v1/friends').then(r => {
+    const list = r.friends || [];
+    const el = $('profileFriendsMini');
+    const colors = ['#4a9eff', '#a855f7', '#34d399', '#fbbf24', '#ef4444', '#f97316'];
+    if (!list.length) {
+      el.innerHTML = '<div class="profile-friends-head" style="font:500 11px var(--sans);text-transform:uppercase;letter-spacing:.06em;color:var(--fg-3);padding:8px 16px">Friends</div><div style="font:12px var(--sans);color:var(--fg-3);padding:0 16px 8px">No friends yet</div>';
+    } else {
+      el.innerHTML = `<div style="font:500 11px var(--sans);text-transform:uppercase;letter-spacing:.06em;color:var(--fg-3);padding:8px 16px">Friends (${list.length})</div>` +
+        list.slice(0, 5).map(f => {
+          const hash = (f.id || '').split('').reduce((a, c) => ((a << 5) - a) + c.charCodeAt(0), 0);
+          return `<div style="display:flex;align-items:center;gap:8px;padding:4px 16px;font:13px var(--sans);color:var(--fg-2)"><span style="width:8px;height:8px;border-radius:50%;background:${colors[Math.abs(hash) % colors.length]}"></span>${esc(f.name || 'Someone')}</div>`;
+        }).join('') + (list.length > 5 ? `<div style="font:12px var(--sans);color:var(--fg-3);padding:4px 16px">and ${list.length - 5} more</div>` : '');
+    }
+  }).catch(() => {});
+}
 
 bindAuth();
 load();

@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="/public.css">
   <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
 </head>
-<body>
+<body class="landing">
   <header class="hg-navbar">
     <div class="wrap hg-navbar-inner">
       <a href="/" class="hg-brand"><span class="wordmark">Hawkes Gen</span></a>
@@ -38,7 +38,7 @@
             <button type="button" class="btn btn-primary btn-lg" data-open-auth="signup">Start building</button>
             <a class="btn btn-secondary btn-lg" href="/games">Play games</a>
           </div>
-          <div class="fine">Free plan includes 50 AI credits per month. No card needed.</div>
+          <div class="fine">Free to start. No card needed.</div>
           <div class="label" style="margin:28px 0 10px">How it works</div>
           <div style="display:flex;flex-direction:column;gap:8px;max-width:420px">
             <div style="display:flex;align-items:center;gap:12px">
@@ -268,12 +268,12 @@
       <div class="wrap">
         <div class="section-head">
           <div class="label">04 — Billing</div>
-          <div><h2>You pay for results.</h2></div>
+          <div><h2>Your credits work hard.</h2></div>
         </div>
         <div class="steps">
-          <div><div class="label">Quote</div><h3>See the price first.</h3><p>Every job is priced before it runs, in the app and through <code>/v1/billing/quote</code>.</p></div>
-          <div><div class="label">Run</div><h3>Credits are held.</h3><p>The quote is held while the job runs. Progress streams live to the app and to your code.</p></div>
-          <div><div class="label">Keep</div><h3>Failures cost nothing.</h3><p>A job that fails or that you cancel gives its credits back, automatically. Credits don't expire.</p></div>
+          <div><div class="label">Quote</div><h3>See the price first.</h3><p>Every AI job is priced before it runs — no surprises.</p></div>
+          <div><div class="label">Run</div><h3>Credits are held.</h3><p>The quoted amount is held while the job runs. Progress streams live.</p></div>
+          <div><div class="label">Keep</div><h3>Failures cost nothing.</h3><p>A job that fails or that you cancel gives its credits back, automatically.</p></div>
         </div>
       </div>
     </section>
@@ -321,35 +321,35 @@
         <div class="section-head">
           <div class="label">06 — Pricing</div>
           <div>
-            <h2>Credits, not subscriptions.</h2>
-            <p>Buy a pack when you need one. Every account starts with 50 credits.</p>
+            <h2>Plans for every creator.</h2>
+            <p>Start free, upgrade when you're ready. Every plan includes monthly AI credits for the assistant, art, models, sound and music. Unused credits roll over.</p>
           </div>
         </div>
         <div class="packs" id="packs">
-          <div class="pack" data-pack="starter_10">
-            <div class="label">Starter</div>
-            <div class="price">$10</div>
-            <div class="credits">1,000 credits</div>
-            <div class="per">about 200 images, or 25 video clips</div>
-            <button type="button" class="btn btn-secondary" data-open-auth="signup">Get started</button>
+          <div class="pack">
+            <div class="label">Free</div>
+            <div class="price">$0</div>
+            <div class="credits">Starter credits to try the AI</div>
+            <div class="per">Up to 3 games · 3 builders per game</div>
+            <button type="button" class="btn btn-secondary" data-open-auth="signup">Start for free</button>
           </div>
-          <div class="pack featured" data-pack="creator_25">
-            <div class="label">Creator · 10% more</div>
-            <div class="price">$25</div>
-            <div class="credits">2,750 credits</div>
-            <div class="per">about 55 textured 3D models</div>
-            <button type="button" class="btn btn-primary" data-open-auth="signup">Get started</button>
+          <div class="pack featured">
+            <div class="label">Maker</div>
+            <div class="price">$15<small>/mo</small></div>
+            <div class="credits">1,500 credits every month</div>
+            <div class="per">Up to 20 games · 8 builders per game</div>
+            <button type="button" class="btn btn-primary" data-open-auth="signup">Get Maker</button>
           </div>
-          <div class="pack" data-pack="studio_100">
-            <div class="label">Studio · 20% more</div>
-            <div class="price">$100</div>
-            <div class="credits">12,000 credits</div>
-            <div class="per">for a team in production</div>
-            <button type="button" class="btn btn-secondary" data-open-auth="signup">Get started</button>
+          <div class="pack">
+            <div class="label">Pro</div>
+            <div class="price">$40<small>/mo</small></div>
+            <div class="credits">4,500 credits every month</div>
+            <div class="per">Up to 100 games · 25 builders per game</div>
+            <button type="button" class="btn btn-secondary" data-open-auth="signup">Get Pro</button>
           </div>
         </div>
         <div class="pricing-notes">
-          <span>1 credit = $0.01</span><span>Credits never expire</span><span>Failed jobs are refunded</span><span>Payments by Stripe</span>
+          <span>1 credit = $0.01</span><span>Unused credits roll over</span><span>Cancel any time</span><span>Need more? Top up with credit packs</span><span>Payments by Stripe</span>
         </div>
       </div>
     </section>

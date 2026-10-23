@@ -31,7 +31,7 @@
 
   <!-- Full-screen game preview (the main view) -->
   <div class="ed-game">
-    <iframe id="preview" sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-popups allow-popups-to-escape-sandbox"></iframe>
+    <canvas id="gameCanvas" touch-action="none"></canvas>
   </div>
 
   <!-- HUD: Top bar -->
@@ -43,7 +43,9 @@
     <span class="save-state" id="saveState"></span>
     <button class="btn btn-primary btn-sm" id="playBtn">Play</button>
     <button class="btn btn-secondary btn-sm" id="inviteBtn">Invite</button>
-    <button class="btn btn-ghost btn-sm" id="menuBtn">Menu</button>
+    <button class="profile-btn" id="profileBtn" title="Profile">
+      <span class="profile-avatar" id="profileAvatar">?</span>
+    </button>
   </header>
 
   <!-- HUD: Left action buttons -->
@@ -144,10 +146,16 @@
       <button class="btn btn-secondary btn-sm" id="conflictKeep">Keep mine</button>
       <button class="btn btn-ghost btn-sm" id="conflictTake">Take theirs</button>
     </div>
-    <div class="ed-code-head">
+    <div class="ed-code-head" id="fileCodeHead">
       <span id="openFile" class="grow"></span>
       <button class="btn btn-ghost btn-sm" id="renameFileBtn" hidden>Rename</button>
       <button class="btn btn-ghost btn-sm" id="deleteFileBtn" hidden>Delete</button>
+    </div>
+    <div class="ed-code-head entity-head" id="entityCodeHead" hidden>
+      <span class="entity-tag" id="entityTag">box</span>
+      <span id="entityName" class="grow"></span>
+      <button class="btn btn-primary btn-sm" id="applyEntityBtn">Apply</button>
+      <button class="btn btn-ghost btn-sm" id="deleteEntityBtn">Delete</button>
     </div>
     <div id="editor"></div>
   </div>
@@ -208,18 +216,20 @@
     </div>
   </div>
 
-  <!-- Menu Modal -->
-  <div class="modal-backdrop" id="menuModal" hidden>
-    <div class="modal" style="max-width:280px">
-      <div style="display:grid;gap:6px">
-        <a class="btn btn-ghost btn-sm" href="/app" style="text-align:left">Your games</a>
-        <a class="btn btn-ghost btn-sm" href="/app/studio" style="text-align:left">Asset studio</a>
-        <a class="btn btn-ghost btn-sm" href="/games" style="text-align:left">Public games</a>
-        <button class="btn btn-ghost btn-sm" data-close="menuModal" style="text-align:left">Close</button>
-      </div>
-    </div>
+  <!-- Profile Dropdown -->
+  <div class="profile-dropdown" id="profileDropdown" hidden>
+    <div class="profile-info" id="profileInfo"></div>
+    <div class="profile-sep"></div>
+    <div class="profile-friends" id="profileFriends"></div>
+    <div class="profile-sep"></div>
+    <a class="profile-link" href="/app">My Games</a>
+    <a class="profile-link" href="/app/studio">Asset Studio</a>
+    <a class="profile-link" href="/games">Public Games</a>
+    <div class="profile-sep"></div>
+    <button class="profile-link" id="profileLogout">Sign out</button>
   </div>
 
+  <script src="/engine/engine.js"></script>
   <script type="module" src="/editor.js"></script>
 </body>
 </html>

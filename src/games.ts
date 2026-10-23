@@ -11,6 +11,7 @@ import { getUser, type User } from './users.ts';
 import { id, PortalError } from './util.ts';
 import { TEMPLATES } from './templates.ts';
 import { broadcast, kick } from './live.ts';
+import { addFriend } from './friends.ts';
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS games (
@@ -224,12 +225,13 @@ export function inviteInfo(code: string) {
 }
 
 export function acceptInvite(user: User, code: string) {
-  const { game } = liveInvite(code);
+  const { inv, game } = liveInvite(code);
   if (roleOf(game.id, user.id)) return summary(game, user.id);
   const plan = planOf(getUser(game.owner_id));
   const count = Number((db.prepare('SELECT COUNT(*) AS n FROM game_members WHERE game_id = ?').get(game.id) as { n: number }).n);
   if (count >= plan.members) throw new PortalError(`This game is full: the owner's ${plan.name} plan allows ${plan.members} people per game.`, { status: 402 });
   db.prepare("INSERT INTO game_members (game_id, user_id, role, added) VALUES (?, ?, 'editor', ?)").run(game.id, user.id, Date.now());
+  addFriend(inv.created_by, user.id);
   const out = summary(game, user.id);
   broadcast(game.id, 'game', summary(game));
   systemNote(game.id, `${nameOf(user.id)} joined the game.`);

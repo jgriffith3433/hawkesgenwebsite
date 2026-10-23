@@ -28,11 +28,16 @@ let voiceEnabled = localStorage.getItem('hg_voice') !== '0';
 let lastChatLen = 0;
 let typingMsgEl = null;
 
+let hawkesEngine = null;
+let inspectedEntity = null;
+let savedOpenPath = null;
+
 // ===================================================================== init
 (async () => {
   try {
-    me = await get('/v1/users/me');
+    me = (await get('/v1/users/me')).user;
     const data = await get(`${API}/games/${gameId}`);
+    document.getElementById('profileAvatar').textContent = (me.name || me.email || '?')[0].toUpperCase();
     game = data.game;
     files = Object.fromEntries(data.files.map(f => [f.path, f]));
     assets = Object.fromEntries(data.assets.map(a => [a.name, a]));
@@ -45,7 +50,7 @@ let typingMsgEl = null;
     loadDocs();
     loadSettings();
     loadChat();
-    updatePreview();
+    initEngine();
     initVoice();
 
     const paths = Object.keys(files).sort();
@@ -113,7 +118,7 @@ document.getElementById('panelToggle').onclick = () => togglePanel('files');
 document.getElementById('settingsToggle').onclick = () => togglePanel('settings');
 document.getElementById('docsToggle').onclick = () => togglePanel('docs');
 document.getElementById('codeToggle').onclick = toggleCode;
-document.getElementById('refreshBtn').onclick = updatePreview;
+document.getElementById('refreshBtn').onclick = () => { if (hawkesEngine) loadSceneFromFile(); };
 
 // ===================================================================== render
 function render() {
@@ -164,6 +169,7 @@ function avatarColor(userId) {
 
 // ===================================================================== code editor
 function openFile(path, showPanel = true) {
+  exitEntityInspection(false);
   if (!editor) {
     editor = CodeMirror(document.getElementById('editor'), {
       lineNumbers: true,
@@ -173,6 +179,7 @@ function openFile(path, showPanel = true) {
       lineWrapping: false,
     });
     editor.on('change', () => {
+      if (inspectedEntity) return;
       if (!dirty) dirty = true;
       scheduleSave();
     });
@@ -218,7 +225,7 @@ async function saveFile() {
     dirty = false;
     saving = false;
     setSaveState('');
-    if (openPath.endsWith('.js') || openPath === 'game.json') updatePreview();
+    if (openPath === 'scene.json' && hawkesEngine) loadSceneFromFile();
   } catch (err) {
     saving = false;
     setSaveState('Save failed');
@@ -257,7 +264,7 @@ function connect() {
       }
     }
     render();
-    if (data.path?.endsWith('.js') || data.path === 'game.json') updatePreview();
+    if (data.path === 'scene.json' && data.updated_by !== me?.id && hawkesEngine) loadSceneFromFile();
   });
 
   sse.addEventListener('file-deleted', (e) => {
@@ -400,15 +407,128 @@ document.getElementById('addAssetConfirmBtn').onclick = async () => {
   } catch (err) { alert(err.message); }
 };
 
-// ===================================================================== preview
-function updatePreview() {
-  document.getElementById('preview').src = `/play/_draft?gameId=${gameId}&t=${Date.now()}`;
+// ===================================================================== engine
+function initEngine() {
+  const canvas = document.getElementById('gameCanvas');
+  hawkesEngine = new HawkesEngine(canvas);
+
+  hawkesEngine.assetResolver = (name) => {
+    const a = assets[name];
+    if (a?.url) return a.url;
+    if (a?.asset) return `/v1/assets/${a.asset}/file`;
+    return null;
+  };
+
+  hawkesEngine.onSelect = (entityId, entity) => {
+    if (entityId && entity) {
+      if (!inspectedEntity && openPath) savedOpenPath = openPath;
+      inspectedEntity = entityId;
+      showEntityCode(entityId, entity);
+      if (!codeOpen) toggleCode();
+    } else {
+      exitEntityInspection(true);
+    }
+  };
+
+  hawkesEngine.onLocalChange = (commands) => {
+    saveSceneToFile();
+  };
+
+  loadSceneFromFile();
 }
 
-window.addEventListener('message', (e) => {
-  if (e.data?.source !== 'hawkes-play') return;
-  if (e.data.type === 'error') addError(e.data.message, e.data.file, e.data.line);
-});
+function loadSceneFromFile() {
+  const sceneFile = files['scene.json'];
+  if (sceneFile) {
+    try {
+      hawkesEngine.loadScene(JSON.parse(sceneFile.content));
+      return;
+    } catch (e) {
+      console.warn('Bad scene.json:', e.message);
+    }
+  }
+  const graph = HawkesEngine.defaultScene();
+  graph.entities.ground = {
+    id: 'ground', type: 'plane', name: 'Ground',
+    transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+    shape: { width: 40, depth: 40 },
+    material: { color: '#3a7d44' },
+    physics: 'static',
+    components: {}, behaviors: [], data: {},
+  };
+  hawkesEngine.loadScene(graph);
+  saveSceneToFile();
+}
+
+async function saveSceneToFile() {
+  if (!hawkesEngine) return;
+  const content = JSON.stringify(hawkesEngine.saveScene(), null, 2);
+  try {
+    const rev = files['scene.json']?.rev || 0;
+    const res = await post(`${API}/games/${gameId}/files`, { path: 'scene.json', content, baseRev: rev });
+    files['scene.json'] = { path: 'scene.json', content, rev: res.rev, updated: res.updated, updated_by: me?.id };
+    render();
+  } catch (err) {
+    console.error('Scene save failed:', err);
+  }
+}
+
+// ===================================================================== entity inspection
+function showEntityCode(entityId, entity) {
+  if (!editor) {
+    editor = CodeMirror(document.getElementById('editor'), {
+      lineNumbers: true, theme: 'default', tabSize: 2, indentWithTabs: false, lineWrapping: false,
+    });
+    editor.on('change', () => {
+      if (inspectedEntity) return;
+      if (!dirty) dirty = true;
+      scheduleSave();
+    });
+  }
+
+  const code = hawkesEngine.getEntityCode(entityId);
+  editor.setOption('mode', { name: 'javascript', json: true });
+  editor.setValue(code);
+  editor.clearHistory();
+
+  document.getElementById('fileCodeHead').hidden = true;
+  document.getElementById('entityCodeHead').hidden = false;
+  document.getElementById('entityTag').textContent = entity.type;
+  document.getElementById('entityName').textContent = entity.name || entityId;
+}
+
+function exitEntityInspection(restoreFile) {
+  if (!inspectedEntity) return;
+  inspectedEntity = null;
+  document.getElementById('entityCodeHead').hidden = true;
+  document.getElementById('fileCodeHead').hidden = false;
+  if (hawkesEngine) hawkesEngine.deselect();
+  if (restoreFile && savedOpenPath && files[savedOpenPath]) {
+    openFile(savedOpenPath, false);
+  }
+  savedOpenPath = null;
+}
+
+document.getElementById('applyEntityBtn').onclick = () => {
+  if (!inspectedEntity || !hawkesEngine) return;
+  const result = hawkesEngine.updateEntityFromCode(inspectedEntity, editor.getValue());
+  if (!result.ok) { addError('Entity: ' + result.error); return; }
+  saveSceneToFile();
+  const entity = hawkesEngine.graph.entities[inspectedEntity];
+  if (entity) {
+    document.getElementById('entityTag').textContent = entity.type;
+    document.getElementById('entityName').textContent = entity.name || inspectedEntity;
+  }
+};
+
+document.getElementById('deleteEntityBtn').onclick = () => {
+  if (!inspectedEntity || !hawkesEngine) return;
+  const name = hawkesEngine.graph.entities[inspectedEntity]?.name || inspectedEntity;
+  if (!confirm(`Delete ${name}?`)) return;
+  hawkesEngine.deleteEntity(inspectedEntity);
+  saveSceneToFile();
+  exitEntityInspection(true);
+};
 
 // ===================================================================== errors (red pill)
 function addError(text, file, line) {
@@ -564,11 +684,43 @@ function renderGens() {
   }
 }
 
+const activeBeams = new Map();
+
 function updateGen(data) {
   const idx = pendingGens.findIndex(p => p.task_id === data.task_id);
   if (idx >= 0) pendingGens[idx] = data;
   else pendingGens.push(data);
   renderGens();
+
+  // Download beam animation in the 3D scene
+  if (hawkesEngine && data.task_id) {
+    if (!activeBeams.has(data.task_id) && data.state !== 'done' && data.state !== 'failed') {
+      const cam = hawkesEngine.camera;
+      const pos = cam ? [cam.target?.x || 0, 0.5, cam.target?.z || 0] : [0, 0.5, 0];
+      const beam = hawkesEngine.startDownload(pos, { label: data.kind || 'Generating', size: 1 });
+      beam.addLog(`${data.kind || 'job'} starting...`);
+      activeBeams.set(data.task_id, beam);
+    }
+
+    const beam = activeBeams.get(data.task_id);
+    if (beam) {
+      if (data.progress != null) beam.setProgress(data.progress);
+      if (data.detail) beam.addLog(data.detail);
+
+      if (data.state === 'done') {
+        beam.setProgress(1);
+        beam.addLog('Complete.');
+        setTimeout(() => {
+          beam.complete(data.asset_name ? { type: 'model', name: data.asset_name, data: { asset: data.asset } } : null);
+          activeBeams.delete(data.task_id);
+        }, 600);
+      } else if (data.state === 'failed') {
+        beam.addLog('Failed.');
+        setTimeout(() => { beam.cancel(); activeBeams.delete(data.task_id); }, 1500);
+      }
+    }
+  }
+
   if (data.state === 'done' && data.asset_name) {
     assets[data.asset_name] = { name: data.asset_name, asset: data.asset, kind: data.kind };
     render();
@@ -719,9 +871,47 @@ document.getElementById('copyInviteBtn').onclick = () => {
   setTimeout(() => document.getElementById('copyInviteBtn').textContent = 'Copy', 2000);
 };
 
-document.getElementById('menuBtn').onclick = () => {
-  document.getElementById('menuModal').hidden = false;
+// Profile dropdown
+document.getElementById('profileBtn').onclick = () => {
+  const dd = document.getElementById('profileDropdown');
+  dd.hidden = !dd.hidden;
+  if (!dd.hidden) loadProfile();
 };
+document.addEventListener('click', (e) => {
+  const dd = document.getElementById('profileDropdown');
+  if (!dd.hidden && !dd.contains(e.target) && !document.getElementById('profileBtn').contains(e.target)) dd.hidden = true;
+});
+document.getElementById('profileLogout').onclick = async () => {
+  await post('/v1/users/logout', {}).catch(() => {});
+  location.href = '/';
+};
+
+async function loadProfile() {
+  if (me) {
+    const initial = (me.name || me.email || '?')[0].toUpperCase();
+    document.getElementById('profileAvatar').textContent = initial;
+    document.getElementById('profileInfo').innerHTML = `
+      <div class="name">${esc(me.name || 'You')}</div>
+      <div class="email">${esc(me.email || '')}</div>
+      <div class="plan">${esc(me.plan || 'Free')} · ${Number(me.credits || 0).toLocaleString()} credits</div>
+    `;
+  }
+  try {
+    const r = await get('/v1/friends');
+    const friends = r.friends || [];
+    const el = document.getElementById('profileFriends');
+    const colors = ['#4a9eff', '#a855f7', '#34d399', '#fbbf24', '#ef4444', '#f97316'];
+    if (!friends.length) {
+      el.innerHTML = '<div class="profile-friends-head">Friends</div><div class="none">No friends yet. Invite someone!</div>';
+    } else {
+      el.innerHTML = `<div class="profile-friends-head">Friends (${friends.length})</div>` +
+        friends.slice(0, 6).map(f => {
+          const hash = (f.id || '').split('').reduce((a, c) => ((a << 5) - a) + c.charCodeAt(0), 0);
+          return `<div class="friend-mini"><span class="dot" style="background:${colors[Math.abs(hash) % colors.length]}"></span>${esc(f.name || 'Someone')}</div>`;
+        }).join('') + (friends.length > 6 ? `<div class="none">and ${friends.length - 6} more</div>` : '');
+    }
+  } catch {}
+}
 
 // Modal close
 document.querySelectorAll('[data-close]').forEach(btn => {
@@ -734,12 +924,17 @@ document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
 // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
+    if (inspectedEntity) { exitEntityInspection(true); return; }
     if (panelOpen) togglePanel(panelOpen);
     if (codeOpen) toggleCode();
     document.querySelectorAll('.modal-backdrop').forEach(m => m.hidden = true);
   }
   if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); togglePanel('files'); }
   if ((e.ctrlKey || e.metaKey) && e.key === 'e') { e.preventDefault(); toggleCode(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && inspectedEntity) {
+    e.preventDefault();
+    document.getElementById('applyEntityBtn').click();
+  }
 });
 
 setInterval(reportPresence, 10000);
