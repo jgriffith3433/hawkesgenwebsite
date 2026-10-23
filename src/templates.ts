@@ -21,81 +21,143 @@ function sceneJson(config: object, entities: Record<string, object>): string {
   return JSON.stringify({ version: 1, modules: { core: '1.0.0' }, config, entities, nextId: Object.keys(entities).length + 1 }, null, 2);
 }
 
+// ------------------------------------------------------------------ pieces the Overseer worlds are laid out with
+type Things = Record<string, any>;
+const r1 = (n: number) => Math.round(n * 10) / 10;
+
+/** Four walls around a square arena, each with a glowing strip along the top. */
+function wallsWithTrim(half: number, color: string, trim: string): Things {
+  const out: Things = {};
+  const sides: [string, number[], number[]][] = [['n', [0, 2, half], [half * 2 + 1, 4, 1]], ['s', [0, 2, -half], [half * 2 + 1, 4, 1]], ['e', [half, 2, 0], [1, 4, half * 2 + 1]], ['w', [-half, 2, 0], [1, 4, half * 2 + 1]]];
+  for (const [k, pos, size] of sides) {
+    out[`wall_${k}`] = thing(`wall_${k}`, 'box', 'Wall', pos, { shape: { size }, material: { color } });
+    out[`trim_${k}`] = thing(`trim_${k}`, 'box', 'Wall light', [pos[0], 4.05, pos[2]], { shape: { size: [size[0] + 0.02, 0.1, size[2] + 0.02] }, material: { color: trim, emissive: trim }, physics: 'none' });
+  }
+  return out;
+}
+
+/** Cover to fight around: low barriers, pillars with lit rings, and crates you can knock over. */
+function cover(): Things {
+  const out: Things = {};
+  const barriers = [[-8, -8, 0], [8, -8, 0], [-10, 6, 90], [10, 6, 90], [0, -2, 0], [-18, 12, 45], [18, -12, 45]];
+  barriers.forEach(([x, z, r], i) => { out[`barrier_${i}`] = thing(`barrier_${i}`, 'box', 'Barrier', [x, 0.7, z], { shape: { size: [4, 1.4, 0.6] }, material: { color: '#39425c' }, transform: { position: [x, 0.7, z], rotation: [0, r, 0] } }); });
+  const pillars = [[-14, -14], [14, -14], [-14, 14], [14, 14]];
+  pillars.forEach(([x, z], i) => {
+    out[`pillar_${i}`] = thing(`pillar_${i}`, 'cylinder', 'Pillar', [x, 2.5, z], { shape: { radius: 1.1, height: 5 }, material: { color: '#2a3146' } });
+    out[`pillar_ring_${i}`] = thing(`pillar_ring_${i}`, 'torus', 'Pillar light', [x, 3.6, z], { shape: { radius: 1.18, thickness: 0.1 }, material: { color: '#22d3ee', emissive: '#22d3ee' }, physics: 'none' });
+  });
+  const crates = [[4, -12], [5, -11], [-5, 10], [-4.2, 11], [12, 0], [-12, -2]];
+  crates.forEach(([x, z], i) => { out[`crate_${i}`] = thing(`crate_${i}`, 'box', 'Crate', [x, 0.6, z], { shape: { size: [1.2, 1.2, 1.2] }, material: { color: '#6b5236' }, physics: 'dynamic', body: { mass: 2 } }); });
+  return out;
+}
+
+/** A glowing pad that sends a new bot (a copy of the thing called "bot") every few seconds. */
+function spawnPad(id: string, name: string, pos: number[]) {
+  return thing(id, 'cylinder', name, pos, { shape: { radius: 1.3, height: 0.16 }, material: { color: '#ff3b5c', emissive: '#5a0a1a' }, behaviors: [{ use: 'spawner', of: 'bot', every: 7, max: 2, spread: 0.6 }, { use: 'glow', color: '#ff3b5c', speed: 1.2 }] });
+}
+
+/** Sky Racer's course: gates along a winding path, each pointing at the next, islands around it, and the finish. */
+function raceCourse(): Things {
+  const out: Things = {};
+  const n = 16;
+  const at = (i: number) => [r1(Math.sin(i * 0.55) * 26), r1(18 + Math.sin(i * 0.9) * 9 + i * 0.6), r1(18 + i * 26)];
+  const colors = ['#22d3ee', '#a855f7', '#ff4ad8', '#f4c430'];
+  for (let i = 0; i < n; i++) {
+    const p = at(i), q = at(i + 1);
+    const yaw = Math.round((Math.atan2(q[0] - p[0], q[2] - p[2]) * 180) / Math.PI);
+    const c = colors[i % colors.length];
+    out[`gate_${i + 1}`] = thing(`gate_${i + 1}`, 'torus', `Gate ${i + 1}`, p, { shape: { radius: 4.2, thickness: 0.35 }, material: { color: c, emissive: c }, physics: 'none', transform: { position: p, rotation: [90, yaw, 0] }, behaviors: [{ use: 'gate', points: 100, next: i + 1 < n ? `gate_${i + 2}` : 'finish' }] });
+  }
+  const f = at(n);
+  out.finish = thing('finish', 'waypoint', 'Finish', [f[0], f[1] - 1.5, f[2]], { shape: { radius: 5 }, data: { role: 'finish', message: 'Race complete!' } });
+  for (let i = 0; i < 14; i++) {
+    const side = i % 2 ? 1 : -1;
+    const p = [r1(side * (40 + (i * 13) % 25)), r1(4 + (i * 7) % 18), r1(i * 30)];
+    const rr = 4 + (i % 4) * 2;
+    out[`island_${i}`] = thing(`island_${i}`, 'cylinder', 'Floating island', p, { shape: { radius: rr, height: 1.6 }, material: { color: '#3f2a6e', emissive: '#1a0c3a' }, behaviors: [{ use: 'bob', height: 0.6, speed: 0.25 + (i % 3) * 0.1 }] });
+    out[`island_rock_${i}`] = thing(`island_rock_${i}`, 'cone', 'Island rock', [p[0], p[1] - rr * 0.9, p[2]], { shape: { radius: rr * 0.9, height: rr * 1.6 }, material: { color: '#2a1b4d' }, transform: { position: [p[0], p[1] - rr * 0.9, p[2]], rotation: [180, 0, 0] }, behaviors: [{ use: 'bob', height: 0.6, speed: 0.25 + (i % 3) * 0.1 }] });
+    out[`island_crystal_${i}`] = thing(`island_crystal_${i}`, 'cone', 'Crystal', [p[0], p[1] + 2, p[2]], { shape: { radius: 0.6, height: 3 }, material: { color: '#ff7ad8', emissive: '#ff4ad8' }, physics: 'none', behaviors: [{ use: 'bob', height: 0.8, speed: 0.4 }, { use: 'spin', speed: 30 }] });
+  }
+  return out;
+}
+
+/** Leap's climb: steps, moving platforms, spikes, coins, a launch pad, checkpoints on a route, and the summit. */
+function climb(): Things {
+  const out: Things = {};
+  const steps: { p: number[]; size?: number[]; move?: any; color?: string }[] = [
+    { p: [0, 1, -6] }, { p: [4, 2.2, -2] }, { p: [8, 3.4, 2], size: [3, 0.5, 3] }, { p: [6, 4.6, 7], move: { use: 'patrol', axis: 'x', range: 4, speed: 0.7 } },
+    { p: [0, 5.8, 10] }, { p: [-5, 7, 8], size: [3, 0.5, 3] }, { p: [-9, 8.2, 3], move: { use: 'patrol', axis: 'z', range: 3.5, speed: 0.8 } },
+    { p: [-8, 9.4, -3] }, { p: [-3, 10.6, -6], size: [4, 0.5, 4] }, { p: [2, 11.8, -9], move: { use: 'patrol', axis: 'y', range: 1.6, speed: 0.6 } },
+    { p: [6, 13, -6] }, { p: [8, 14.2, -1], size: [3, 0.5, 3] },
+  ];
+  steps.forEach((s, i) => {
+    out[`step_${i}`] = thing(`step_${i}`, 'box', s.move ? 'Moving platform' : 'Step', s.p, { shape: { size: s.size ?? [2.6, 0.5, 2.6] }, material: { color: s.move ? '#4a9eff' : '#e8dcc0', emissive: s.move ? '#0a2a5a' : undefined }, physics: s.move ? 'kinematic' : 'static', behaviors: s.move ? [s.move] : [] });
+    if (i % 2 === 1) out[`coin_${i}`] = thing(`coin_${i}`, 'cylinder', 'Coin', [s.p[0], s.p[1] + 1.1, s.p[2]], { shape: { radius: 0.32, height: 0.08 }, material: { color: '#f4c430', emissive: '#6a4a00' }, transform: { position: [s.p[0], s.p[1] + 1.1, s.p[2]], rotation: [90, 0, 0] }, behaviors: [{ use: 'collectible' }, { use: 'spin', speed: 140, axis: 'z' }] });
+  });
+  // Spikes on two of the wide steps: jump over them.
+  for (const [i, dx] of [[2, 0.8], [8, -1]] as const) { const p = steps[i].p; out[`spike_${i}`] = thing(`spike_${i}`, 'cone', 'Spikes', [p[0] + dx, p[1] + 0.55, p[2]], { shape: { radius: 0.35, height: 0.6 }, material: { color: '#c0c6d4', emissive: '#3a0a0a' }, behaviors: [{ use: 'hurts', damage: 34 }] }); }
+  const cp = (id: string, i: number, next: string) => { const p = steps[i].p; return thing(id, 'waypoint', 'Checkpoint', [p[0], p[1] + 0.26, p[2]], { shape: { radius: 1.2 }, data: { role: 'checkpoint', next } }); };
+  out.check_1 = cp('check_1', 5, 'check_2');
+  out.check_2 = cp('check_2', 8, 'summit');
+  out.summit_floor = thing('summit_floor', 'cylinder', 'Summit', [12, 15.4, 4], { shape: { radius: 3.2, height: 0.6 }, material: { color: '#f4e6c0', emissive: '#3a2a00' } });
+  out.summit = thing('summit', 'waypoint', 'Summit', [12, 15.72, 4], { shape: { radius: 2.4 }, data: { role: 'finish', message: 'You reached the summit!' } });
+  out.pad = thing('pad', 'cylinder', 'Launch pad', [10, 14.5, 0.2], { shape: { radius: 0.8, height: 0.15 }, material: { color: '#22d3ee', emissive: '#063a44' }, behaviors: [{ use: 'launch', power: 14 }] });
+  out.tree_1 = thing('tree_1', 'cylinder', 'Tree', [-14, 1.5, -12], { shape: { radius: 0.35, height: 3 }, material: { color: '#6a4a2a' } });
+  out.tree_1_top = thing('tree_1_top', 'cone', 'Tree top', [-14, 4.2, -12], { shape: { radius: 1.8, height: 3.4 }, material: { color: '#2f7a3a' } });
+  out.tree_2 = thing('tree_2', 'cylinder', 'Tree', [15, 1.5, -15], { shape: { radius: 0.35, height: 3 }, material: { color: '#6a4a2a' } });
+  out.tree_2_top = thing('tree_2_top', 'cone', 'Tree top', [15, 4.2, -15], { shape: { radius: 1.8, height: 3.4 }, material: { color: '#2f7a3a' } });
+  out.sign = thing('sign', 'text', 'Sign', [0, 2.4, -11], { shape: { text: 'Reach the summit\nSpace twice: double jump', size: 0.3 } });
+  return out;
+}
+
 export const TEMPLATES: Template[] = [
   {
     id: 'fps-arena',
     name: 'Bot Arena',
     featured: { emoji: '🎯' },
-    blurb: 'First-person shooter against AI bots. Walk up to anything and inspect its code.',
+    blurb: 'A first-person arena against thinking bots. Grab the shotgun, ride the launch pad to the rocket launcher, clear 25.',
     files: (title) => ({
-      'README.md': readme(title, 'A first-person arena. WASD to move, mouse to look, click to shoot. Walk up to any object and click it to see its code.'),
-      'game.json': JSON.stringify({ background: '#1a1c22', ambient: 0.4, sun: 0.6, gravity: -24 }, null, 2) + '\n',
+      'README.md': readme(title, 'Bot Arena is built from parts anyone can use: bots are things with the "enemy" behavior, the corner pads have "spawner", the health, ammo and weapons are "pickup", and you carry a rifle from the world\'s player settings. The only script keeps score.'),
       'scene.json': sceneJson(
-        { background: '#1a1c22', ambient: 0.4, sun: 0.6, sunDirection: [-1, -2, -1], shadows: true, gravity: -24, physics: 'simple' },
+        { background: '#141c2e', ambient: 0.75, sun: 0.6, gravity: -24, fog: { color: '#0f1522', start: 30, end: 95 }, motes: '#8fc8ff', player: { view: 'first', weapon: 'rifle', speed: 7, jump: 1.4 } },
         {
-          ground: { id: 'ground', type: 'plane', name: 'Arena Floor', transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { width: 50, depth: 50 }, material: { color: '#2a2d35' }, physics: 'static', components: {}, behaviors: [], data: {} },
-          wall_n: { id: 'wall_n', type: 'box', name: 'North Wall', transform: { position: [0, 2, 25], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { size: [51, 4, 1] }, material: { color: '#4a4e58' }, physics: 'static', components: {}, behaviors: [], data: {} },
-          wall_s: { id: 'wall_s', type: 'box', name: 'South Wall', transform: { position: [0, 2, -25], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { size: [51, 4, 1] }, material: { color: '#4a4e58' }, physics: 'static', components: {}, behaviors: [], data: {} },
-          wall_e: { id: 'wall_e', type: 'box', name: 'East Wall', transform: { position: [25, 2, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { size: [1, 4, 51] }, material: { color: '#4a4e58' }, physics: 'static', components: {}, behaviors: [], data: {} },
-          wall_w: { id: 'wall_w', type: 'box', name: 'West Wall', transform: { position: [-25, 2, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { size: [1, 4, 51] }, material: { color: '#4a4e58' }, physics: 'static', components: {}, behaviors: [], data: {} },
-          pillar_1: { id: 'pillar_1', type: 'cylinder', name: 'Pillar', transform: { position: [8, 2, 8], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { radius: 1.2, height: 4 }, material: { color: '#5a5e6a' }, physics: 'static', components: {}, behaviors: [], data: {} },
-          pillar_2: { id: 'pillar_2', type: 'cylinder', name: 'Pillar', transform: { position: [-8, 2, -8], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { radius: 1.2, height: 4 }, material: { color: '#5a5e6a' }, physics: 'static', components: {}, behaviors: [], data: {} },
-          pillar_3: { id: 'pillar_3', type: 'cylinder', name: 'Pillar', transform: { position: [-10, 2, 10], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { radius: 1, height: 4 }, material: { color: '#5a5e6a' }, physics: 'static', components: {}, behaviors: [], data: {} },
-          pillar_4: { id: 'pillar_4', type: 'cylinder', name: 'Pillar', transform: { position: [12, 2, -6], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { radius: 1, height: 4 }, material: { color: '#5a5e6a' }, physics: 'static', components: {}, behaviors: [], data: {} },
-          crate_1: { id: 'crate_1', type: 'box', name: 'Crate', transform: { position: [4, 0.75, -4], rotation: [0, 15, 0], scale: [1, 1, 1] }, shape: { size: [1.5, 1.5, 1.5] }, material: { color: '#7a6a4a' }, physics: 'static', components: {}, behaviors: [], data: {} },
-          crate_2: { id: 'crate_2', type: 'box', name: 'Crate', transform: { position: [-5, 0.75, 3], rotation: [0, -30, 0], scale: [1, 1, 1] }, shape: { size: [1.5, 1.5, 1.5] }, material: { color: '#7a6a4a' }, physics: 'static', components: {}, behaviors: [], data: {} },
-          arena_light: { id: 'arena_light', type: 'light', name: 'Arena Light', transform: { position: [0, 8, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }, light: { type: 'point', color: '#ffb36b', intensity: 1.2, range: 40 }, components: {}, behaviors: [], data: {} },
-          blue_light: { id: 'blue_light', type: 'light', name: 'Blue Accent', transform: { position: [-15, 4, -15], rotation: [0, 0, 0], scale: [1, 1, 1] }, light: { type: 'point', color: '#4a9eff', intensity: 0.6, range: 20 }, components: {}, behaviors: [], data: {} },
-          spawn_1: { id: 'spawn_1', type: 'spawn', name: 'Player Spawn', transform: { position: [0, 1, -18], rotation: [0, 0, 0], scale: [1, 1, 1] }, components: {}, behaviors: [], data: { role: 'player' } },
-          mirror: { id: 'mirror', type: 'mirror', name: 'The Mirror', transform: { position: [0, 2, 24.4], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { width: 2.5, height: 3.5 }, components: {}, behaviors: [], data: {} },
+          floor: thing('floor', 'box', 'Arena floor', [0, -0.25, 0], { shape: { size: [56, 0.5, 56] }, material: { color: '#1b2232' } }),
+          ...wallsWithTrim(28, '#2a3146', '#22d3ee'),
+          start: thing('start', 'spawn', 'Player start', [0, 0.1, -20], { data: { role: 'player' } }),
+          ...cover(),
+          tower: thing('tower', 'box', 'Sniper tower', [0, 4, 18], { shape: { size: [6, 0.6, 6] }, material: { color: '#2a3146' } }),
+          tower_trim: thing('tower_trim', 'box', 'Tower light', [0, 4.32, 18], { shape: { size: [6.05, 0.06, 6.05] }, material: { color: '#a855f7', emissive: '#a855f7' }, physics: 'none' }),
+          pad: thing('pad', 'cylinder', 'Launch pad', [0, 0.08, 12], { shape: { radius: 1, height: 0.16 }, material: { color: '#22d3ee', emissive: '#0b5a6a' }, behaviors: [{ use: 'launch', power: 19 }] }),
+          launcher: thing('launcher', 'box', 'Rocket launcher', [0, 5, 18], { shape: { size: [0.9, 0.3, 0.3] }, material: { color: '#ff4ad8', emissive: '#7a1a66' }, physics: 'none', behaviors: [{ use: 'pickup', gives: 'weapon', weapon: 'launcher', respawn: 30 }] }),
+          shotgun: thing('shotgun', 'box', 'Shotgun', [-18, 1.2, -6], { shape: { size: [0.8, 0.25, 0.25] }, material: { color: '#ff8a3d', emissive: '#7a3a10' }, physics: 'none', behaviors: [{ use: 'pickup', gives: 'weapon', weapon: 'shotgun', respawn: 20 }] }),
+          shotgun_stand: thing('shotgun_stand', 'cylinder', 'Pedestal', [-18, 0.45, -6], { shape: { radius: 0.5, height: 0.9 }, material: { color: '#2a3146', emissive: '#3a1a08' } }),
+          health_a: thing('health_a', 'box', 'Health pack', [16, 0.6, -14], { shape: { size: [0.6, 0.6, 0.6] }, material: { color: '#34d399', emissive: '#0f5a3a' }, physics: 'none', behaviors: [{ use: 'pickup', gives: 'health', amount: 40, respawn: 18 }] }),
+          health_b: thing('health_b', 'box', 'Health pack', [-16, 0.6, 14], { shape: { size: [0.6, 0.6, 0.6] }, material: { color: '#34d399', emissive: '#0f5a3a' }, physics: 'none', behaviors: [{ use: 'pickup', gives: 'health', amount: 40, respawn: 18 }] }),
+          ammo_a: thing('ammo_a', 'box', 'Ammo', [18, 0.5, 8], { shape: { size: [0.7, 0.4, 0.5] }, material: { color: '#f4c430', emissive: '#5a4200' }, physics: 'none', behaviors: [{ use: 'pickup', gives: 'ammo', amount: 40, respawn: 12 }] }),
+          ammo_b: thing('ammo_b', 'box', 'Ammo', [-8, 0.5, -18], { shape: { size: [0.7, 0.4, 0.5] }, material: { color: '#f4c430', emissive: '#5a4200' }, physics: 'none', behaviors: [{ use: 'pickup', gives: 'ammo', amount: 40, respawn: 12 }] }),
+          bot: thing('bot', 'capsule', 'Bot', [0, 1, 6], { shape: { radius: 0.45, height: 1.9 }, material: { color: '#3a1d24', emissive: '#30060a' }, physics: 'dynamic', tag: 'bot', behaviors: [{ use: 'enemy', hp: 60, speed: 3.6, range: 13, damage: 7, rate: 1.4 }] }),
+          gate_a: spawnPad('gate_a', 'Bot gate', [22, 0.08, 22]),
+          gate_b: spawnPad('gate_b', 'Bot gate', [-22, 0.08, 22]),
+          gate_c: spawnPad('gate_c', 'Bot gate', [22, 0.08, -2]),
+          lamp_a: thing('lamp_a', 'light', 'Blue light', [-14, 6, -10], { light: { type: 'point', color: '#4a9eff', intensity: 0.9, range: 26 } }),
+          lamp_b: thing('lamp_b', 'light', 'Red light', [14, 6, 14], { light: { type: 'point', color: '#ff4060', intensity: 0.8, range: 24 } }),
+          lamp_c: thing('lamp_c', 'light', 'Violet light', [0, 7, 18], { light: { type: 'point', color: '#a855f7', intensity: 0.8, range: 20 } }),
+          sign: thing('sign', 'text', 'Sign', [0, 3.2, -26.5], { shape: { text: 'BOT ARENA\nClear 25 bots', size: 0.6, billboard: false } }),
         },
       ),
-      'scripts/arena.js': `// Walled arena with FPS controls
-game.camera.firstPerson(game.spawn('player'), { height: 1.7 });
-
-game.state.hp = 100;
+      'scripts/arena.js': `// Bot Arena's rules. Everything else is the world: bots ("enemy"), the pads that send more ("spawner"),
+// pickups, the launch pad, and the rifle in the player settings.
 game.state.kills = 0;
-game.state.ammo = 30;
+const goal = 25;
 
-function spawnBot() {
-  const spots = [[18, 1, 18], [-18, 1, -18], [18, 1, -18], [-18, 1, 18]];
-  const [x, y, z] = game.pick(spots);
-  const bot = game.capsule({ x, y, z, color: '#e04040', emissive: '#400808', physics: 'dynamic', tag: 'bot', name: 'Bot' });
-  bot.data.hp = 3;
-  bot.data.speed = game.random(3, 5) + game.state.kills * 0.1;
-  return bot;
-}
+game.on('kill', () => {
+  game.state.kills++;
+  if (game.state.kills % 5 === 0 && game.state.kills < goal) game.ui.message(\`Wave \${game.state.kills / 5 + 1}\`, 1.4);
+  if (game.state.kills >= goal) game.over(\`Arena cleared: \${goal} bots\`);
+});
 
-for (let i = 0; i < 3; i++) spawnBot();
-
-game.every(4, () => { if (game.all('bot').length < 6) spawnBot(); });
-
-game.onUpdate((dt) => {
-  const p = game.player;
-  if (game.input.mouse.down && game.state.ammo > 0) {
-    game.state.ammo--;
-    const hit = game.raycast(p.position, p.forward, 50);
-    if (hit?.entity?.tag === 'bot') {
-      hit.entity.data.hp--;
-      game.burst(hit.point, { color: '#e04040', count: 10 });
-      if (hit.entity.data.hp <= 0) {
-        game.burst(hit.entity.position, { color: '#e04040', count: 30 });
-        hit.entity.destroy();
-        game.state.kills++;
-        game.state.ammo = Math.min(30, game.state.ammo + 5);
-      }
-    }
-  }
-
-  for (const bot of game.all('bot')) {
-    bot.walk({ x: p.x - bot.x, z: p.z - bot.z }, bot.data.speed);
-    if (bot.touching(p)) game.state.hp -= 15 * dt;
-  }
-
-  game.ui.bar('hp', game.state.hp / 100, { label: 'Health', color: '#5ec8e5' });
-  game.ui.text('ammo', \`Ammo \${game.state.ammo}\`, { x: 'right' });
-  game.ui.text('kills', \`Kills \${game.state.kills}\`, { x: 'center' });
-  if (game.state.hp <= 0) game.over(\`Defeated \${game.state.kills} bots\`);
+game.onUpdate(() => {
+  game.ui.text('kills', \`BOTS \${game.state.kills} / \${goal}\`, { x: 'center', y: 'top', size: 22 });
 });
 `,
     }),
@@ -104,72 +166,28 @@ game.onUpdate((dt) => {
     id: 'sky-racer',
     name: 'Sky Racer',
     featured: { emoji: '🛩️' },
-    blurb: 'Fly through rings in a neon sky. Shows flight controls and dynamic skybox.',
+    blurb: 'Fly through the glowing gates past floating islands. Steer with the mouse, boost with space, beat your time.',
     files: (title) => ({
-      'README.md': readme(title, 'Fly through the rings. WASD to steer, space to boost. Miss 3 rings and it\'s over.'),
-      'game.json': JSON.stringify({ background: '#0a0820', ambient: 0.3, sun: 0.4, gravity: 0 }, null, 2) + '\n',
+      'README.md': readme(title, 'Sky Racer: the player flies (player settings: mode "flight"), the gates are rings with the "gate" behavior, each pointing at the next, and the finish is a waypoint. The script keeps time.'),
       'scene.json': sceneJson(
-        { background: '#0a0820', ambient: 0.3, sun: 0.4, sunDirection: [0, -1, -0.5], shadows: false, gravity: 0, physics: 'none', fog: { color: '#0a0820', start: 80, end: 200 } },
+        { background: '#160f36', ambient: 0.6, sun: 0.5, fog: { color: '#2a1a5a', start: 60, end: 260 }, motes: '#ffb0f0', player: { mode: 'flight', view: 'third', speed: 22, distance: 7 } },
         {
-          ring_1: { id: 'ring_1', type: 'cylinder', name: 'Ring', transform: { position: [0, 10, 30], rotation: [90, 0, 0], scale: [1, 1, 1] }, shape: { radius: 4, height: 0.5 }, material: { color: '#00ff88', emissive: '#004422', opacity: 0.6 }, components: {}, behaviors: [], data: { ring: true } },
-          ring_2: { id: 'ring_2', type: 'cylinder', name: 'Ring', transform: { position: [15, 15, 80], rotation: [90, 0, 20], scale: [1, 1, 1] }, shape: { radius: 4, height: 0.5 }, material: { color: '#ff4488', emissive: '#440022', opacity: 0.6 }, components: {}, behaviors: [], data: { ring: true } },
-          ring_3: { id: 'ring_3', type: 'cylinder', name: 'Ring', transform: { position: [-10, 8, 140], rotation: [90, 0, -15], scale: [1, 1, 1] }, shape: { radius: 4, height: 0.5 }, material: { color: '#44aaff', emissive: '#002244', opacity: 0.6 }, components: {}, behaviors: [], data: { ring: true } },
-          platform_1: { id: 'platform_1', type: 'box', name: 'Floating Platform', transform: { position: [20, 0, 60], rotation: [0, 45, 0], scale: [1, 1, 1] }, shape: { size: [8, 0.4, 8] }, material: { color: '#2a1a3a', emissive: '#0a0520' }, components: {}, behaviors: [], data: {} },
-          platform_2: { id: 'platform_2', type: 'box', name: 'Floating Platform', transform: { position: [-15, 5, 110], rotation: [0, -20, 0], scale: [1, 1, 1] }, shape: { size: [6, 0.4, 12] }, material: { color: '#1a2a3a', emissive: '#050a20' }, components: {}, behaviors: [], data: {} },
-          neon_1: { id: 'neon_1', type: 'light', name: 'Neon Green', transform: { position: [0, 10, 30], rotation: [0, 0, 0], scale: [1, 1, 1] }, light: { type: 'point', color: '#00ff88', intensity: 0.8, range: 15 }, components: {}, behaviors: [], data: {} },
-          neon_2: { id: 'neon_2', type: 'light', name: 'Neon Pink', transform: { position: [15, 15, 80], rotation: [0, 0, 0], scale: [1, 1, 1] }, light: { type: 'point', color: '#ff4488', intensity: 0.8, range: 15 }, components: {}, behaviors: [], data: {} },
-          spawn: { id: 'spawn', type: 'spawn', name: 'Start', transform: { position: [0, 10, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }, components: {}, behaviors: [], data: { role: 'player' } },
+          start_pad: thing('start_pad', 'cylinder', 'Start pad', [0, 18, -12], { shape: { radius: 4, height: 0.6 }, material: { color: '#2a1d5a', emissive: '#221050' } }),
+          start: thing('start', 'spawn', 'Start', [0, 18.4, -12], { data: { role: 'player' } }),
+          ...raceCourse(),
+          sun_light: thing('sun_light', 'light', 'Pink sun', [0, 80, 300], { light: { type: 'point', color: '#ff7ad8', intensity: 1.2, range: 600 } }),
         },
       ),
-      'scripts/flight.js': `// Neon sky racer
-game.camera.firstPerson(game.spawn('player'), { height: 0 });
-game.player.controls = false; // this game flies the player itself
-game.player.gravity = 0;
-
-game.state.speed = 20;
+      'scripts/race.js': `// Sky Racer's rules: a clock, the score from the gates, and the finish.
+game.state.time = 0;
 game.state.score = 0;
-game.state.missed = 0;
-game.state.boost = 0;
-
-const ringColors = ['#00ff88', '#ff4488', '#44aaff', '#ffaa22', '#aa44ff'];
-
-function spawnRing(z) {
-  const x = game.random(-25, 25);
-  const y = game.random(3, 25);
-  const color = game.pick(ringColors);
-  const ring = game.cylinder({ x, y, z, radius: 4, height: 0.5, rotation: [90, 0, game.random(-30, 30)], color, emissive: color, opacity: 0.6, physics: 'trigger', tag: 'ring', shadow: false });
-  game.light({ type: 'point', x, y, z, color, intensity: 0.5, range: 12, tag: 'ring-light' });
-  ring.on('hit', (other) => {
-    if (other !== game.player) return;
-    ring.destroy();
-    game.burst(ring.position, { color, count: 30 });
-    game.state.score += 100;
-    game.state.boost = Math.min(1, game.state.boost + 0.2);
-  });
-}
-
-for (let z = 30; z < 500; z += game.random(30, 60)) spawnRing(z);
-
+game.on('gate', () => game.ui.message('+100', 0.6));
 game.onUpdate((dt) => {
-  const p = game.player;
-  const input = game.input;
-  const pitch = input.axis().y * 15 * dt;
-  const roll = input.axis().x * 12 * dt;
-  p.move(0, pitch, game.state.speed * dt);
-  p.rotate(0, 0, -roll * 0.5);
-
-  if (input.key('space') && game.state.boost > 0) {
-    game.state.speed = 35;
-    game.state.boost -= dt * 0.4;
-  } else {
-    game.state.speed = game.lerp(game.state.speed, 20, dt * 2);
-  }
-
-  game.ui.text('score', \`\${game.state.score}\`, { x: 'center', size: 36 });
-  game.ui.bar('boost', game.state.boost, { label: 'Boost', color: '#ffaa22' });
-  game.ui.text('speed', \`\${Math.floor(game.state.speed)} m/s\`, { x: 'right' });
-  if (game.state.missed >= 3) game.over(\`Score \${game.state.score}\`);
+  if (!game.state.done) game.state.time += dt;
+  game.ui.text('time', \`\${game.state.time.toFixed(1)} s\`, { x: 'right', size: 26 });
+  game.ui.text('score', \`\${game.state.score || 0}\`, { x: 'center', size: 30 });
 });
+game.on('finish', () => { game.state.done = true; });
 `,
     }),
   },
@@ -177,54 +195,24 @@ game.onUpdate((dt) => {
     id: 'platform-run',
     name: 'Leap',
     featured: { emoji: '🏃' },
-    blurb: 'First-person platformer with a mirror. Shows physics, painting, level design.',
+    blurb: 'A third-person climb: moving platforms, spikes, coins, checkpoints, a launch pad and a summit to reach.',
     files: (title) => ({
-      'README.md': readme(title, 'Jump across platforms to reach the top. The mirror lets you change how you look. WASD to move, space to jump, mouse to look.'),
-      'game.json': JSON.stringify({ background: '#87CEEB', ambient: 0.5, sun: 1, gravity: -24 }, null, 2) + '\n',
+      'README.md': readme(title, 'Leap is made of parts: you play in third person with a double jump (player settings), platforms move with "patrol", spikes "hurt", coins are "collectible", checkpoints and the summit are waypoints joined by their route.'),
       'scene.json': sceneJson(
-        { background: '#87CEEB', ambient: 0.5, sun: 1.0, sunDirection: [-0.5, -1.5, -1], shadows: true, gravity: -24, physics: 'simple' },
+        { background: '#7cc4f0', ambient: 0.8, sun: 1, gravity: -24, fog: { color: '#a9d8f5', start: 50, end: 160 }, motes: '#ffffff', player: { view: 'third', jump: 2.2, doubleJump: true, speed: 7, distance: 6 } },
         {
-          ground: { id: 'ground', type: 'plane', name: 'Ground', transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { width: 30, depth: 30 }, material: { color: '#6a9f4b' }, physics: 'static', components: {}, behaviors: [], data: {} },
-          plat_1: { id: 'plat_1', type: 'box', name: 'Step 1', transform: { position: [4, 1.5, 4], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { size: [3, 0.4, 3] }, material: { color: '#b7a07a' }, physics: 'static', components: {}, behaviors: [], data: {} },
-          plat_2: { id: 'plat_2', type: 'box', name: 'Step 2', transform: { position: [8, 3, 8], rotation: [0, 15, 0], scale: [1, 1, 1] }, shape: { size: [3, 0.4, 3] }, material: { color: '#b7a07a' }, physics: 'static', components: {}, behaviors: [], data: {} },
-          plat_3: { id: 'plat_3', type: 'box', name: 'Step 3', transform: { position: [5, 5, 12], rotation: [0, -10, 0], scale: [1, 1, 1] }, shape: { size: [3, 0.4, 3] }, material: { color: '#c8b898' }, physics: 'static', components: {}, behaviors: [], data: {} },
-          plat_4: { id: 'plat_4', type: 'box', name: 'Moving Platform', transform: { position: [0, 7, 14], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { size: [4, 0.4, 2] }, material: { color: '#4a8aaa' }, physics: 'static', components: {}, behaviors: [{ type: 'oscillate', axis: 'x', range: 6, speed: 1.5 }], data: {} },
-          plat_5: { id: 'plat_5', type: 'box', name: 'Step 5', transform: { position: [-5, 9, 10], rotation: [0, 20, 0], scale: [1, 1, 1] }, shape: { size: [3, 0.4, 3] }, material: { color: '#c8b898' }, physics: 'static', components: {}, behaviors: [], data: {} },
-          summit: { id: 'summit', type: 'box', name: 'Summit', transform: { position: [-3, 12, 6], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { size: [5, 0.5, 5] }, material: { color: '#e8d8a8', emissive: '#302800' }, physics: 'static', components: {}, behaviors: [], data: { finish: true } },
-          mirror: { id: 'mirror', type: 'mirror', name: 'The Mirror', transform: { position: [0, 2, -5], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { width: 2, height: 3 }, components: {}, behaviors: [], data: {} },
-          tree_1: { id: 'tree_1', type: 'cylinder', name: 'Tree Trunk', transform: { position: [-8, 1.5, -3], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { radius: 0.3, height: 3 }, material: { color: '#6a4a2a' }, physics: 'static', components: {}, behaviors: [], data: {} },
-          tree_top_1: { id: 'tree_top_1', type: 'sphere', name: 'Tree Canopy', transform: { position: [-8, 4, -3], rotation: [0, 0, 0], scale: [2, 1.5, 2] }, shape: { radius: 1.2 }, material: { color: '#2a6a2a' }, components: {}, behaviors: [], data: {} },
-          spawn: { id: 'spawn', type: 'spawn', name: 'Player Start', transform: { position: [0, 1, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }, components: {}, behaviors: [], data: { role: 'player' } },
-          sun: { id: 'sun', type: 'light', name: 'Warm Light', transform: { position: [10, 15, -5], rotation: [0, 0, 0], scale: [1, 1, 1] }, light: { type: 'point', color: '#ffe4b0', intensity: 0.6, range: 35 }, components: {}, behaviors: [], data: {} },
+          ground: thing('ground', 'box', 'Meadow', [0, -0.5, 0], { shape: { size: [44, 1, 44] }, material: { color: '#5fae55' } }),
+          start: thing('start', 'spawn', 'Start', [0, 0.1, -14], { data: { role: 'player' } }),
+          ...climb(),
         },
       ),
-      'scripts/platformer.js': `// FPS platformer
-game.camera.firstPerson(game.spawn('player'), { height: 1.7 });
-game.state.reached = false;
-
+      'scripts/leap.js': `// Leap's rules: a clock and the coins; the summit waypoint ends the run.
+game.state.time = 0;
+game.on('finish', () => { game.state.done = true; });
 game.onUpdate((dt) => {
-  const p = game.player;
-  p.walk(game.input.direction(), 7);
-  if (game.input.pressed('space')) p.jump(10);
-
-  // Moving platform
-  for (const m of game.all('Moving Platform')) {
-    m.x = m.data.originX + Math.sin(game.time * 1.5) * 6;
-    if (p.standing === m) p.x += Math.cos(game.time * 1.5) * 1.5 * 6 * dt;
-  }
-
-  // Finish
-  if (!game.state.reached) {
-    const summit = game.find('Summit');
-    if (summit && p.y > summit.y - 0.5 && Math.abs(p.x - summit.x) < 3 && Math.abs(p.z - summit.z) < 3) {
-      game.state.reached = true;
-      game.burst(summit.position, { color: '#f4c430', count: 50 });
-      game.ui.message('You made it!', 3);
-    }
-  }
-
-  game.ui.text('height', \`Height \${Math.max(0, p.y).toFixed(1)} m\`, { x: 'right' });
-  if (p.y < -10) game.restart();
+  if (!game.state.done) game.state.time += dt;
+  game.ui.text('time', \`\${game.state.time.toFixed(1)} s\`, { x: 'right', size: 24 });
+  game.ui.text('coins', \`★ \${game.state.score || 0}\`, { x: 'left', size: 24 });
 });
 `,
     }),

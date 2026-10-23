@@ -95,7 +95,13 @@
     if (touchUi || document.pointerLockElement === canvas || !canvas.requestPointerLock) return;
     try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch {}
   }
-  canvas.addEventListener('click', () => { const al = hooks.autoLock; if (al === false || (typeof al === 'function' && !al())) return; if (W && W.camera && W.camera.mode === 'fps') lockPointer(); });
+  canvas.addEventListener('click', () => {
+    const al = hooks.autoLock;
+    if (al === false || (typeof al === 'function' && !al())) return;
+    // "mouse": "free" (or an RTS view): the pointer stays a pointer.
+    if (W && W.player && W.player.mouse === 'free') return;
+    if (W && W.camera && (W.camera.mode === 'fps' || W.camera.mode === 'third')) lockPointer();
+  });
 
   // A phone or tablet, not a laptop with a touchscreen (or a desktop window made small): the device says it's mobile
   // (Chromium), or its only pointer is a finger. ?touch=1 / ?touch=0 overrides, for testing.
@@ -701,6 +707,7 @@
       wp.reached = true;
       game.burst([e.x, e.y + 1.2, e.z], { color: wp.color.toHexString(), count: 26, speed: 4 });
       W.state.waypoints = (W.state.waypoints || 0) + (wp.role === 'waypoint' ? 1 : 0);
+      game.emit(wp.role === 'finish' ? 'finish' : wp.role === 'checkpoint' ? 'checkpoint' : 'waypoint', { entity: e });
       if (wp.role === 'finish') { if (mode === 'build') game.ui.message('Finish! (in the game this ends it)', 2); else game.over((e.data && e.data.message) || 'You made it!'); }
       for (const h of e.handlers.hit) h(p);
       runBehaviorHit(e, p);
@@ -920,6 +927,8 @@
       get mode() { return state.mode; },
       follow(t, o = {}) { claim(); use(); Object.assign(state, { mode: 'follow', target: t, opts: { distance: 10, height: 5, smooth: 0.1, behind: false, ...o } }); snap(); return api; },
       topDown(t, o = {}) { claim(); use(); Object.assign(state, { mode: 'top', target: t, opts: { height: 18, smooth: 0.15, ...o } }); snap(); return api; },
+      /** A commander's camera: WASD (or the screen edges) pans, the wheel zooms, the right mouse button turns. */
+      strategy(at = [0, 0, 0], o = {}) { claim(); use(); const p = vec(at); Object.assign(state, { mode: 'strategy', target: null, focus: new B.Vector3(p[0], p[1], p[2]), opts: { distance: 30, pitch: 0.95, ...o } }); state.zoom = state.opts.distance; return api; },
       /** Behind the target, looking where the mouse looks: you see your character. */
       thirdPerson(t, o = {}) { claim(); use(); if (state.mode !== 'third') state.pitch = 0.32; Object.assign(state, { mode: 'third', target: t, opts: { distance: 5, height: 1.4, sensitivity: 0.15, ...o } }); return api; },
       firstPerson(t, o = {}) { claim(); use(); Object.assign(state, { mode: 'fps', target: t, opts: { height: t === W.player ? 1.6 : 0.6, sensitivity: 0.15, ...o }, yaw: t ? t.node.rotation.y : state.yaw, pitch: 0 }); if (t && t !== W.player) t.visible = o.showBody === true ? true : t.visible; return api; },
@@ -966,6 +975,17 @@
           cam.position.set(t.x, state.eyeY, t.z);
         }
         cam.rotation.set(state.pitch, state.yaw, 0);
+      } else if (state.mode === 'strategy') {
+        const o = state.opts;
+        if (mouse.look) state.yaw += mouse.dx * 0.005;
+        state.zoom = Math.max(6, Math.min(120, (state.zoom || o.distance) * (1 + mouse.wheel * 0.1)));
+        const ax = game.input.axis();
+        const s = Math.sin(state.yaw), c = Math.cos(state.yaw);
+        const pan = state.zoom * 0.9 * dt;
+        state.focus.x += (ax.x * c + ax.y * s) * pan; state.focus.z += (-ax.x * s + ax.y * c) * pan;
+        const back = new B.Vector3(-Math.sin(state.yaw) * Math.cos(o.pitch), Math.sin(o.pitch), -Math.cos(state.yaw) * Math.cos(o.pitch));
+        cam.position.copyFrom(B.Vector3.Lerp(cam.position, state.focus.add(back.scale(state.zoom)), Math.min(1, dt * 10)));
+        cam.setTarget(state.focus);
       } else if (state.mode === 'third') {
         const t = state.target, o = state.opts;
         state.yaw += mouse.dx * o.sensitivity * RAD;
@@ -996,7 +1016,7 @@
         c.position.x += (Math.random() - 0.5) * s; c.position.y += (Math.random() - 0.5) * s;
       }
     };
-    state.yawNow = () => (state.mode === 'orbit' ? -state.arc.alpha - Math.PI / 2 : state.mode === 'fps' || state.mode === 'third' ? state.yaw : state.mode === 'top' ? 0 : Math.atan2(cam.getTarget().x - cam.position.x, cam.getTarget().z - cam.position.z));
+    state.yawNow = () => (state.mode === 'orbit' ? -state.arc.alpha - Math.PI / 2 : state.mode === 'fps' || state.mode === 'third' || state.mode === 'strategy' ? state.yaw : state.mode === 'top' ? 0 : Math.atan2(cam.getTarget().x - cam.position.x, cam.getTarget().z - cam.position.z));
     state.api = api;
     return state;
   }
@@ -1023,18 +1043,49 @@
     p.canFly = s.fly === true;
     p.doubleJump = s.doubleJump === true;
     p.baseGravity = s.gravity === undefined ? 1 : Math.max(0, Number(s.gravity));
+    p.mode = s.mode === 'flight' ? 'flight' : 'walk';
+    if (p.mode === 'flight') p.speed = Number(s.speed) || 20;
+    shipFor(p, p.mode === 'flight' && mode !== 'build');
+    p.mouse = s.mouse === 'free' || s.view === 'rts' ? 'free' : 'locked';
+    if (s.weapon !== undefined) p.weapon = s.weapon || null;
     p.gravity = p.flying ? 0 : p.baseGravity;
     setView(p, s.view || p.view || 'first', s.distance);
   }
-  /** first (your eyes), third (behind you: you see your character), top (from above). */
+  /** Flying: a small craft (a nose, wings, a glowing engine) instead of the walking body. */
+  function shipFor(p, on) {
+    if (p._ship) { p._ship.dispose(); p._ship = null; }
+    p._shipOn = on;
+    if (!on) return;
+    const sc = W.scene;
+    const root = new B.TransformNode('ship', sc);
+    root.parent = p.node;
+    const hull = new B.StandardMaterial('ship', sc); hull.diffuseColor = hex(hooks.myColor || '#4a9eff'); hull.specularColor = new B.Color3(0.5, 0.5, 0.6);
+    const glow = new B.StandardMaterial('ship-glow', sc); glow.emissiveColor = new B.Color3(0.4, 0.9, 1); glow.disableLighting = true;
+    const part = (m, mat, x, y, z) => { m.material = mat; m.parent = root; m.position.set(x, y, z); m.isPickable = false; m.metadata = { decor: true }; return m; };
+    part(B.MeshBuilder.CreateCylinder('ship-body', { diameterTop: 0.05, diameterBottom: 0.55, height: 2.2, tessellation: 16 }, sc), hull, 0, 0, 0.2).rotation.x = Math.PI / 2;
+    part(B.MeshBuilder.CreateBox('ship-wing', { width: 2.6, height: 0.06, depth: 0.7 }, sc), hull, 0, -0.05, -0.2);
+    part(B.MeshBuilder.CreateBox('ship-fin', { width: 0.06, height: 0.5, depth: 0.5 }, sc), hull, 0, 0.25, -0.6);
+    part(B.MeshBuilder.CreateBox('ship-tip-l', { width: 0.08, height: 0.08, depth: 0.5 }, sc), glow, -1.3, -0.05, -0.2);
+    part(B.MeshBuilder.CreateBox('ship-tip-r', { width: 0.08, height: 0.08, depth: 0.5 }, sc), glow, 1.3, -0.05, -0.2);
+    part(B.MeshBuilder.CreateCylinder('ship-engine', { diameter: 0.34, height: 0.12, tessellation: 16 }, sc), glow, 0, 0, -0.9).rotation.x = Math.PI / 2;
+    p._ship = root;
+  }
+
+  /** first (your eyes), third (behind you: you see your character), top (from above), rts (a commander's camera over
+   *  the map with the mouse free: you click things instead of walking). */
   function setView(p, view, distance) {
-    const v = ['first', 'third', 'top'].includes(view) ? view : 'first';
+    const v = ['first', 'third', 'top', 'rts'].includes(view) ? view : 'first';
     p._view = v;
-    p.node.visibility = v === 'first' ? 0 : 1;
-    if (p._visor) p._visor.setEnabled(v !== 'first');
+    const rts = v === 'rts' && mode !== 'build';
+    p.node.visibility = v === 'first' || rts || p._shipOn ? 0 : 1;
+    if (p._visor) p._visor.setEnabled(v !== 'first' && !rts);
+    p.ghost = rts;
+    if (rts) { p.controls = false; p.gravity = 0; p.velocity = [0, 0, 0]; }
+    if (rts && document.pointerLockElement) document.exitPointerLock();
     W.camera.internal(() => {
       if (W.camera.target !== p && W.camera.claimed && W.camera.mode !== 'fps' && W.camera.mode !== 'third' && W.camera.mode !== 'top') return;
-      if (v === 'third') W.camera.api.thirdPerson(p, { distance: Number(distance) || 5 });
+      if (rts) W.camera.api.strategy([p.x, 0, p.z], { distance: Number(distance) || 30 });
+      else if (v === 'third' || (v === 'rts' && mode === 'build')) W.camera.api.thirdPerson(p, { distance: Number(distance) || 5 });
       else if (v === 'top') W.camera.api.topDown(p, { height: Number(distance) || 18 });
       else W.camera.api.firstPerson(p, { height: 1.6 });
     });
@@ -1070,6 +1121,24 @@
   function controlPlayer(dt) {
     const p = W.player;
     if (!p || !p.alive || !p.controls || W.camera.target !== p) return;
+    // Flying a plane (config.player.mode "flight"): always moving forward, steered by where you look.
+    if (p.mode === 'flight' && mode !== 'build') {
+      p.gravity = 0;
+      // The heading is the camera's yaw and pitch (0 is level, so you start flying straight ahead).
+      if (!p._flightReady) { p._flightReady = true; W.camera.pitch = 0; }
+      const ax = game.input.axis();
+      W.camera.yaw += ax.x * dt * 1.4;
+      W.camera.pitch = Math.max(-0.4, Math.min(0.9, W.camera.pitch - ax.y * dt * 1.1));
+      const cp = Math.cos(W.camera.pitch);
+      const f = { x: Math.sin(W.camera.yaw) * cp, y: -Math.sin(W.camera.pitch), z: Math.cos(W.camera.yaw) * cp };
+      const boost = held.has('space') ? 1.8 : 1;
+      const sp = (p.speed || 20) * boost;
+      p.velocity = [f.x * sp, f.y * sp, f.z * sp];
+      p._walked = true;
+      p.node.rotation.y = W.camera.yaw;
+      if (p._ship) { p._ship.rotation.z += (-ax.x * 0.6 - p._ship.rotation.z) * Math.min(1, dt * 6); p._ship.rotation.x = W.camera.pitch; }
+      return;
+    }
     const a = game.input.direction();
     const sprint = held.has('shift') && !p.flying;
     if (pressedNow.has('f') && (mode === 'build' || p.canFly)) { p.flying = !p.flying; p.vy = 0; game.ui.message(p.flying ? 'Flying: E up, Q down' : 'Walking', 1.2); }
@@ -1143,10 +1212,19 @@
   function hurtPlayer(amount, from) {
     const p = W.player;
     if (!p || mode === 'build' && p.flying) return;
+    if (amount < 0) { p.health = Math.min(p.maxHealth || 100, p.health - amount); return; }
     p.health = Math.max(0, p.health - amount);
     W.camera.api.shake(0.15, 0.2);
-    if (p.health <= 0) { game.ui.message('Ouch! Back to the start', 1.6); respawn(false); }
+    game.emit('hurt', { entity: p, amount, from });
+    if (p.health <= 0) { game.emit('death', { entity: p, by: from }); game.ui.message('Down! Back to the start', 1.6); respawn(false); }
     for (const f of hooks.world) if (f.hurt) f.hurt(p, amount, from);
+  }
+  /** Damage to anything: you, another player (told over the network), or a thing with health (combat.js). */
+  function damage(target, amount, from) {
+    if (!target || !target.alive) return false;
+    if (target === W.player) { hurtPlayer(amount, from); return true; }
+    if (target.remotePlayer) { if (hooks.net) hooks.net.send('_hurt', { to: target.netId, amount }); return true; }
+    return hooks.damage ? hooks.damage(target, amount, from) : false;
   }
 
   // ------------------------------------------------------------------ screen ui
@@ -1389,6 +1467,11 @@
       respawn() { respawn(false); },
       checkpoint(at) { W.checkpoint = at ? posOf(at) : null; },
       hurt(amount = 10) { hurtPlayer(Number(amount) || 0, null); },
+      /** Your own events, and the engine's: 'death', 'kill', 'pickup', 'hurt', 'checkpoint', 'finish', 'gate'. */
+      on(name, fn) { const list = W.events.get(name) || []; list.push(safe(fn, W.file)); W.events.set(name, list); },
+      emit(name, data) { for (const f of W.events.get(name) || []) f(data); },
+      /** Hurts a thing (or a player) by amount; things with health (the "health" or "enemy" behavior) can die. */
+      damage(target, amount = 10, from = null) { return damage(target, Number(amount) || 0, from); },
       /** The first thing a ray hits: { entity, point, distance, normal } or null. */
       raycast(from, dir, dist = 100, o = {}) {
         const a = posOf(from);
@@ -1500,6 +1583,13 @@
           return { x: a.x * c + a.y * s, z: -a.x * s + a.y * c };
         },
         get mouse() { return mouse; },
+        /** What's under the mouse (or the crosshair when the mouse is captured): { entity, point } or null. */
+        pick() {
+          const sc = W.scene;
+          const r = mouse.locked ? sc.pickWithRay(sc.activeCamera.getForwardRay(500), (m) => !(m.metadata && m.metadata.decor) && m.isPickable) : sc.pick(mouse.x, mouse.y, (m) => !(m.metadata && m.metadata.decor) && m.isPickable);
+          if (!r || !r.hit) return null;
+          return { entity: entityOf(r.pickedMesh), point: [r.pickedPoint.x, r.pickedPoint.y, r.pickedPoint.z] };
+        },
         onKey(k, fn) { keyHandlers.push({ key: String(k).toLowerCase(), fn: safe(fn) }); },
       },
       ui: W.ui,
@@ -1664,6 +1754,7 @@
       if (n === 8) acc = 0;
     }
     W.camera.update(elapsed);
+    if (W.motes && W.scene.activeCamera) W.motes.emitter = W.scene.activeCamera.position;
     for (const f of hooks.frame) f(elapsed, render, framePressed);
     pressedNow = new Set();
     releasedNow = new Set();
@@ -1735,9 +1826,39 @@
     W.dome = dome;
   }
 
-  /** The game look: smoothing, a soft glow on bright things, filmic color and a vignette. ("look": false: plain.) */
+  /** The game look: smoothing, a glow on everything that shines, filmic color, a vignette, drifting motes in the
+   *  air, and (building) a faint grid on the ground. ("look": false: plain.) */
   function gameLook(cfg) {
     if (cfg.look === false) return;
+    try {
+      const glow = new B.GlowLayer('glow', W.scene, { blurKernelSize: touchUi ? 16 : 48, mainTextureRatio: touchUi ? 0.25 : 0.5 });
+      glow.intensity = 0.55;
+      glow.customEmissiveColorSelector = (mesh, sub, mat, color) => { const en = entityOf(mesh); if ((mesh.metadata && (mesh.metadata.noGlow || mesh.metadata.decor && mesh.name === 'text')) || (en && (en.kind === 'text' || en.kind === 'sprite' || en.kind === 'video'))) color.set(0, 0, 0, 0); else if (mat && mat.emissiveColor) color.set(mat.emissiveColor.r, mat.emissiveColor.g, mat.emissiveColor.b, 1); else color.set(0, 0, 0, 0); };
+      W.glow = glow;
+    } catch (e) { console.warn('glow', e); }
+    try {
+      // Motes: a few hundred specks of light drifting around wherever the camera is.
+      const ps = new B.ParticleSystem('motes', touchUi ? 120 : 320, W.scene);
+      ps.particleTexture = W.dot;
+      ps.emitter = W.scene.activeCamera ? W.scene.activeCamera.position : B.Vector3.Zero();
+      ps.minEmitBox = new B.Vector3(-18, -4, -18); ps.maxEmitBox = new B.Vector3(18, 8, 18);
+      const c = hex(cfg.motes || '#cfe3ff');
+      ps.color1 = new B.Color4(c.r, c.g, c.b, 0.55); ps.color2 = new B.Color4(c.r, c.g, c.b, 0.25); ps.colorDead = new B.Color4(c.r, c.g, c.b, 0);
+      ps.minSize = 0.02; ps.maxSize = 0.07; ps.minLifeTime = 4; ps.maxLifeTime = 9;
+      ps.emitRate = touchUi ? 14 : 36; ps.blendMode = B.ParticleSystem.BLENDMODE_ADD;
+      ps.direction1 = new B.Vector3(-0.15, 0.05, -0.15); ps.direction2 = new B.Vector3(0.15, 0.25, 0.15); ps.minEmitPower = 0.1; ps.maxEmitPower = 0.35;
+      ps.gravity = B.Vector3.Zero();
+      if (cfg.motes !== false) ps.start();
+      W.motes = ps;
+    } catch (e) { console.warn('motes', e); }
+    if (mode === 'build') {
+      // The builder's grid: a meter at a time, fading out with distance.
+      const lines = [];
+      for (let i = -40; i <= 40; i += 2) { lines.push([new B.Vector3(i, 0.012, -40), new B.Vector3(i, 0.012, 40)]); lines.push([new B.Vector3(-40, 0.012, i), new B.Vector3(40, 0.012, i)]); }
+      const grid = B.MeshBuilder.CreateLineSystem('grid', { lines }, W.scene);
+      grid.color = new B.Color3(0.45, 0.75, 1); grid.alpha = 0.14; grid.isPickable = false; grid.metadata = { decor: true, noGlow: true };
+      W.grid = grid;
+    }
     try {
       const p = new B.DefaultRenderingPipeline('look', true, W.scene, W.scene.cameras.slice());
       p.fxaaEnabled = true;
@@ -1771,7 +1892,7 @@
     if (!graph.entities || typeof graph.entities !== 'object') graph.entities = {};
     if (!graph.config || typeof graph.config !== 'object') graph.config = {};
     const scene = new B.Scene(engine);
-    W = { scene, config: { ...graph.config, ...gameJson }, gameJson, graph, entities: new Set(), byId: new Map(), starts: [], updates: [], timers: [], time: 0, dt: STEP, paused: false, restartAsked: false, state: {}, pixelated: Boolean(gameJson.pixelated), file: null, skybox: null, player: null, netHandlers: new Map(), catchY: -25, keepPose, started: false };
+    W = { scene, config: { ...graph.config, ...gameJson }, gameJson, graph, entities: new Set(), byId: new Map(), starts: [], updates: [], timers: [], time: 0, dt: STEP, paused: false, restartAsked: false, state: {}, pixelated: Boolean(gameJson.pixelated), file: null, skybox: null, player: null, netHandlers: new Map(), events: new Map(), catchY: -25, keepPose, started: false };
     W.ui = ui();
     uiLayer.removeAttribute('style');
     if (gameJson.ui && typeof gameJson.ui === 'object') W.ui.theme(gameJson.ui);
@@ -1779,14 +1900,19 @@
     const cfg = effectiveConfig();
     if (cfg.lights !== false) {
       W.hemi = new B.HemisphericLight('sky', new B.Vector3(0.2, 1, -0.3), scene);
-      W.hemi.groundColor = new B.Color3(0.35, 0.35, 0.4);
+      // Cool light from the sky, warm bounce from the ground: things look lit, not flat.
+      W.hemi.diffuse = new B.Color3(0.92, 0.96, 1.05);
+      W.hemi.groundColor = new B.Color3(0.42, 0.36, 0.34);
+      W.hemi.specular = new B.Color3(0.15, 0.15, 0.18);
       W.sun = new B.DirectionalLight('sun', new B.Vector3(-0.5, -1, 0.4), scene);
       W.sun.position = new B.Vector3(20, 40, -20);
+      W.sun.diffuse = new B.Color3(1, 0.96, 0.88);
       if (cfg.shadows !== false) {
         const sg = new B.ShadowGenerator(1024, W.sun);
         sg.useBlurExponentialShadowMap = true;
-        sg.blurKernel = 16;
+        sg.blurKernel = 24;
         sg.bias = 0.0005;
+        sg.darkness = 0.35;
         W.shadows = sg;
       }
     }

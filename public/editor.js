@@ -100,6 +100,11 @@ async function del(url) {
 
 // ===================================================================== the game frame
 let stage = $('stage');
+// A game, not a page: no pinch or double-tap zoom, no ctrl+wheel zoom, no selecting the screen's text.
+['gesturestart', 'gesturechange', 'gestureend'].forEach((t) => document.addEventListener(t, (e) => e.preventDefault(), { passive: false }));
+document.addEventListener('wheel', (e) => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
+document.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && ['+', '-', '=', '0'].includes(e.key)) e.preventDefault(); });
+document.addEventListener('dblclick', (e) => { if (!e.target.closest('input, textarea, .CodeMirror')) e.preventDefault(); });
 // Same test the game uses for its on-screen sticks: the chat moves out of their way.
 const coarseOnly = matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches;
 if (navigator.userAgentData && typeof navigator.userAgentData.mobile === 'boolean' ? navigator.userAgentData.mobile || coarseOnly : coarseOnly) document.body.classList.add('touch');
@@ -164,6 +169,7 @@ window.addEventListener('message', async (e) => {
     case 'menu': openMenu(); return;
     case 'card': $('ai').classList.toggle('dim', Boolean(m.open)); return;
     case 'library': toggleLibrary(); return;
+    case 'basics': basics = m.list || []; if (libKind === 'basics' && $('library').classList.contains('open')) loadLibrary(); return;
   }
 });
 /** What the player can see right now, for the assistant (asked from the game, quickly). */
@@ -185,7 +191,7 @@ async function sendAssets() {
 function connect() {
   if (sse) sse.close();
   sse = new EventSource(`${API}/games/${gameId}/live`, { withCredentials: true });
-  sse.addEventListener('hello', (e) => { const d = JSON.parse(e.data); connId = d.conn; updatePresence(d.presence || []); });
+  sse.addEventListener('hello', (e) => { const d = JSON.parse(e.data); connId = d.conn; updatePresence(d.presence || []); $('thinkingIndicator').hidden = true; });
   sse.addEventListener('file', (e) => {
     const d = JSON.parse(e.data);
     files[d.path] = d;
@@ -215,6 +221,7 @@ function connect() {
     if (i >= 0) chatHistory[i] = msg; else chatHistory.push(msg);
     renderChat(i < 0 ? msg : null);
     if (i < 0 && msg.role === 'ai' && msg.text) speak(msg.text);
+    if (i < 0 && msg.role === 'ai' && msg.data && msg.data.error) { $('thinkingIndicator').hidden = true; toStage({ type: 'toast', text: 'The assistant hit a problem (see chat)' }); }
   });
   sse.addEventListener('thinking', (e) => { const d = JSON.parse(e.data); $('thinkingIndicator').hidden = !d.on; if (d.on) $('thinkingIndicator').textContent = `${d.by && d.by !== me?.name ? `${d.by}'s request: ` : ''}working…`; });
   sse.addEventListener('gen', (e) => onGen(JSON.parse(e.data)));
@@ -257,6 +264,17 @@ function renderChat(fresh) {
     if (d.world && d.world.length) did.push(`${d.world.length} change${d.world.length === 1 ? '' : 's'} to the world`);
     if (d.changed && d.changed.length) did.push(`edited ${d.changed.join(', ')}`);
     if (did.length) { const c = document.createElement('span'); c.className = 'changed'; c.textContent = did.join(' · '); div.appendChild(c); }
+    // It didn't work out: one click asks again, the same way (only the last failed one, so old ones don't pile up).
+    if (d.error && d.retry && msg === chatHistory.filter((x) => x.data && x.data.error).at(-1) && msg === chatHistory.at(-1)) {
+      const again = document.createElement('span');
+      again.className = 'sugg';
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = 'Try again';
+      btn.onclick = () => { btn.disabled = true; btn.textContent = 'Asking…'; const said = String(d.retry); const tag = d.mention ? `@${d.mention.name || d.mention.id} ` : ''; sendChat(tag && said.startsWith(tag) ? said.slice(tag.length) : said, d.mention || null); };
+      again.appendChild(btn);
+      div.appendChild(again);
+    }
     for (const [i, sg] of (d.assets || []).entries()) {
       const sugg = document.createElement('span');
       sugg.className = 'sugg';
@@ -305,7 +323,9 @@ async function sendChat(text, about, ctx) {
     await post(`${API}/games/${gameId}/ai`, { message: target ? `@${target.name || target.id} ${message}` : message, mention: target || undefined, context: context || undefined, file: openPath, errors: errText || undefined });
     setMention(null);
   } catch (err) {
-    addSystem(err.status === 402 ? `${err.message} Get more credits at /app#credits.` : err.message);
+    addSystem(err.status === 402 ? `${err.message} Get more credits from the menu's profile, or at hawkesgen.com/app#credits.`
+      : err.status === 429 ? "I'm still working on the last request. Ask again when it's done."
+      : err.status >= 500 || !err.status ? "I couldn't reach the assistant just now. Nothing was charged; try again in a moment." : err.message);
     if (text === undefined) input.value = message;
   }
 }
@@ -614,7 +634,8 @@ $('menu').querySelector('.st-menu-list').onclick = async (e) => {
 };
 
 // ------------------------------------------------------------------ your library: anything you've made, into the world
-let libKind = '';
+let libKind = 'basics';
+let basics = [];
 let libItems = [];
 function openLibrary() { closeDrawer(); $('library').classList.add('open'); $('libraryBtn').classList.add('on'); loadLibrary(); }
 function closeLibrary() { $('library').classList.remove('open'); $('libraryBtn').classList.remove('on'); }
@@ -626,6 +647,20 @@ for (const b of $('libTabs').querySelectorAll('button')) b.onclick = () => { lib
 const GEN_KIND = { model: 'mesh', image: 'image', audio: 'audio', video: 'video' };
 async function loadLibrary() {
   const grid = $('libGrid');
+  $('libNote').textContent = libKind === 'basics' ? "Click one to put it where you're looking. Then double-click it to change it, or tell the assistant what it should do." : 'Everything you make with Hawkes Gen is yours, here and in the Asset studio.';
+  if (libKind === 'basics') {
+    if (!basics.length) { toStage({ type: 'basics?' }); grid.innerHTML = '<div class="st-lib-empty">Loading…</div>'; return; }
+    grid.innerHTML = '';
+    for (const b of basics) {
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.className = 'st-lib-item basic';
+      el.innerHTML = `<span class="glyph">${esc(b.icon)}</span><span class="t">${esc(b.label)}</span>`;
+      el.onclick = () => { toStage({ type: 'placeBasic', k: b.k }); stage.focus(); };
+      grid.appendChild(el);
+    }
+    return;
+  }
   grid.innerHTML = '<div class="st-lib-empty">Loading your library…</div>';
   const qs = new URLSearchParams({ limit: '60' });
   if (libKind) qs.set('kind', GEN_KIND[libKind]);
@@ -694,11 +729,17 @@ async function bootSequence() {
   try { seen = Boolean(localStorage.getItem(key)); } catch {}
   if (seen) { overlay.remove(); return; }
   const lines = $('bootLines');
+  // A click or a key skips it.
+  let skip = false;
+  const skipIt = () => { skip = true; };
+  overlay.addEventListener('pointerdown', skipIt);
+  document.addEventListener('keydown', skipIt, { once: true });
   const line = async (text, cls) => {
+    if (skip) return;
     const el = document.createElement('div');
     el.className = `boot-line${cls ? ` ${cls}` : ''}`;
     lines.appendChild(el);
-    for (let i = 0; i <= text.length; i++) { el.textContent = text.slice(0, i); await wait(14); }
+    for (let i = 0; i <= text.length && !skip; i++) { el.textContent = text.slice(0, i); await wait(14); }
   };
   await wait(200);
   $('bootLogo').classList.add('visible');
@@ -709,7 +750,7 @@ async function bootSequence() {
   await line(`${Object.keys(files).length} files · ${Object.keys(assets).length} assets · ${members.length} ${members.length === 1 ? 'builder' : 'builders'}`);
   await line('You are in the world. Click to look around.', 'bright');
   await line('Hold click to grab things. Double-click to change them. Enter talks to me. Esc twice for the menu.', 'intro');
-  await wait(1600);
+  if (!skip) await wait(1600);
   overlay.classList.add('fade-out');
   await wait(800);
   overlay.remove();

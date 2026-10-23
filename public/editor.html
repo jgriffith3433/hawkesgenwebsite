@@ -2,11 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
   <title>Hawkes Gen</title>
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/public.css">
-  <link rel="stylesheet" href="/studio.css?v=engine4">
+  <link rel="stylesheet" href="/studio.css?v=engine5">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
@@ -36,8 +38,8 @@
     <button class="st-hud-btn" id="menuBtn" type="button" title="Menu (Esc)" aria-label="Menu">
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 5h12M3 9h12M3 13h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
     </button>
-    <button class="st-hud-btn" id="libraryBtn" type="button" title="Your library (L)" aria-label="Your library">
-      <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="2.5" y="2.5" width="5.5" height="5.5" rx="1.2" stroke="currentColor" stroke-width="1.5"/><rect x="10" y="2.5" width="5.5" height="5.5" rx="1.2" stroke="currentColor" stroke-width="1.5"/><rect x="2.5" y="10" width="5.5" height="5.5" rx="1.2" stroke="currentColor" stroke-width="1.5"/><path d="M12.75 10.5v4.5M10.5 12.75h4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    <button class="st-hud-btn" id="libraryBtn" type="button" title="Create" aria-label="Create">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 3v12M3 9h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
     </button>
     <span class="st-presence" id="presence"></span>
   </div>
@@ -64,21 +66,22 @@
   </section>
   <button class="st-chat-fab" id="aiFab" type="button" aria-label="Talk to the assistant">💬</button>
 
-  <!-- Left: your library, to put anything you've made into the world -->
-  <aside class="st-panel left" id="library" aria-label="Your library">
+  <!-- Left: Create: the basics, and anything you've made, put where you're looking -->
+  <aside class="st-panel left" id="library" aria-label="Create">
     <div class="st-panel-head">
-      <span class="st-panel-title">Your library</span>
+      <span class="st-panel-title">Create</span>
       <span class="grow"></span>
       <button class="st-btn icon" id="libraryClose" type="button" aria-label="Close">×</button>
     </div>
     <div class="st-lib-tabs" id="libTabs">
-      <button type="button" class="on" data-k="">All</button>
+      <button type="button" class="on" data-k="basics">Basics</button>
+      <button type="button" data-k="">Yours</button>
       <button type="button" data-k="model">3D</button>
       <button type="button" data-k="image">Pictures</button>
       <button type="button" data-k="audio">Sounds</button>
       <button type="button" data-k="video">Videos</button>
     </div>
-    <p class="st-lib-note">Everything you make with Hawkes Gen is yours, here and in the Asset studio. Click one to put it where you're looking.</p>
+    <p class="st-lib-note" id="libNote">Click one to put it where you're looking. Then double-click it to change it, or tell the assistant what it should do.</p>
     <div class="st-lib-grid" id="libGrid"></div>
     <div class="st-lib-foot"><a href="/app/studio" target="_blank" class="st-btn small">Make something new in the Asset studio</a></div>
   </aside>
@@ -166,7 +169,7 @@
         <button type="button" class="st-menu-item primary" data-act="resume">Back to the game</button>
         <button type="button" class="st-menu-item" data-act="invite">Invite friends to build</button>
         <button type="button" class="st-menu-item" data-act="publish">Publish</button>
-        <button type="button" class="st-menu-item" data-act="library">Your library</button>
+        <button type="button" class="st-menu-item" data-act="library">Create</button>
         <button type="button" class="st-menu-item" data-act="advanced">Advanced (code, settings)</button>
         <button type="button" class="st-menu-item" data-act="codex">How things work</button>
         <label class="st-menu-item check"><input type="checkbox" id="voiceToggle"> Read the assistant's replies aloud</label>
@@ -191,6 +194,6 @@
     </div>
   </div>
 
-  <script type="module" src="/editor.js?v=engine4"></script>
+  <script type="module" src="/editor.js?v=engine5"></script>
 </body>
 </html>

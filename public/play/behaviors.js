@@ -217,7 +217,8 @@
       const at = [e.x + game.random(-o.spread, o.spread), e.y + e.size[1], e.z + game.random(-o.spread, o.spread)];
       spec.transform = { ...(spec.transform || {}), position: at };
       const c = H.fromSpec(spec);
-      c.sceneId = null; // copies live only while the game runs
+      c.temporary = true; // copies live only while the game runs (never saved), and everyone playing sees them
+      game.net.send('_spawn', { spec });
       s.made.push(c);
     },
     stop(e, o, s) { for (const x of s.made || []) x.destroy(); },

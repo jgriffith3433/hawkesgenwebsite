@@ -51,6 +51,15 @@ makes (below).
 | `game.state` | A plain object for your data. Empty after a restart. |
 | `game.save(key, value)`, `game.load(key, fallback)` | Kept across restarts while the page is open. |
 
+## Events
+
+`game.on(name, (data) => {})` hears the engine's events and your own (`game.emit(name, data)`):
+`'kill'` (you destroyed something: `{ entity }`), `'death'` (anything destroyed, the player too: `{ entity, by }`),
+`'hurt'`, `'pickup'`, `'checkpoint'`, `'finish'`, `'gate'` (`{ entity, points }`), `'waypoint'`.
+
+`game.damage(target, amount, from)` hurts anything: the player, another player (over the network), or a thing with
+health (the `health` or `enemy` behavior), which is destroyed at 0.
+
 ## The player
 
 `game.player` is you: a capsule, 1.8 m tall, that walks, jumps, flies while building and is caught if it falls.
@@ -173,6 +182,7 @@ The player's camera is first person. For other kinds of games:
 | `game.input.axis()` | `{x, y}` from WASD, the arrows or the touch stick, each -1 to 1. |
 | `game.input.direction()` | `{x, z}`: the same, turned to match the camera. Feed it to `walk`. |
 | `game.input.mouse` | `{x, y, down, pressed}` in pixels. |
+| `game.input.pick()` | What's under the mouse (or the crosshair): `{ entity, point }` or null. For clicking on things: strategy games, building, shops. |
 | `game.input.onKey(key, fn)` | Calls fn when the key goes down. |
 
 On phones there is a stick, dragging looks around, and two buttons: **⤒** is `space` and **B** is `e`.

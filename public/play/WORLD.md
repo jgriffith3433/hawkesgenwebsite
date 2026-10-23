@@ -56,7 +56,10 @@ Every game has a player. How it plays is in the world's settings, so the assista
 
 | setting | what | default |
 |---|---|---|
-| `view` | `"first"` (through your eyes), `"third"` (behind you: you see your character), `"top"` (from above) | first |
+| `view` | `"first"` (through your eyes), `"third"` (behind you: you see your character), `"top"` (from above), `"rts"` (a commander's camera over the map: WASD pans, wheel zooms, right-drag turns, the mouse stays free to click things) | first |
+| `mode` | `"walk"`, or `"flight"`: always moving forward, steered by the mouse (or WASD), space boosts | walk |
+| `mouse` | `"free"` never captures the mouse (point-and-click games, strategy, menus); `"locked"` captures it when you click | locked |
+| `weapon` | what you carry: `"blaster"`, `"rifle"`, `"shotgun"`, `"launcher"`, or `{ "type": "rifle", "damage": 20, "rate": 8, "ammo": 30, "reload": 1.5, "range": 100, "spread": 0.01, "pellets": 1, "color": "#ffd24a" }`. Click to fire, R reloads | none |
 | `distance` | how far the camera is in third person (or how high, top-down) | 5 / 18 |
 | `speed` | walking speed in m/s (shift runs 1.6x) | 6 |
 | `jump` | jump height in meters | 1.5 |
@@ -105,6 +108,16 @@ A list of `{ "use": name, ...options }`. A thing can have several.
 | `talks` | says something when you come close | `text`, `distance` 4 |
 | `spawner` | makes copies of itself (or of `of`, a thing's id) | `every` 3, `max` 8, `spread` 1.5 |
 | `sound` | plays a sound when touched | `asset` |
+| `health` | can be hurt and destroyed (and come back after `respawn` seconds) | `hp` 100, `respawn` 0 |
+| `enemy` | an enemy that thinks: wanders, notices players it can see, chases, keeps its distance, strafes, shoots (or hits up close), retreats when hurt, searches where it last saw you. Its eye shows its mood (green, amber, red). Needs nothing else; give it a body like a capsule | `hp` 60, `speed` 3.4, `sight` 30, `range` 14, `damage` 7, `rate` 1.4, `accuracy` 0.7, `melee` false |
+| `pickup` | players pick it up by walking into it | `gives` "health" / "ammo" / "weapon", `amount` 25, `weapon` "shotgun", `respawn` 15 |
+| `gate` | a ring to go through (for races): points, and lights up the next one | `points` 100, `next` (the next gate's id) |
+
+**Making a shooter:** give the player a `weapon` (config.player), give bodies the `enemy` behavior, put a `spawner`
+(`of`: the enemy's id) on a pad to send more, scatter `pickup`s, and keep score in a script with
+`game.on('kill', ...)`. That is how Bot Arena is made. **A race:** `mode: "flight"` (or walking), `gate` rings joined by
+`next`, and a `waypoint` with the role "finish". **A strategy game:** `view: "rts"` and `game.input.pick()` in a
+script to see what was clicked.
 
 A game can add its own: a file in `behaviors/` that calls `game.behavior('name', { start, update, hit, stop })`
 (each gets `(thing, ..., options, memory, game)`), then any thing can use `{ "use": "name" }`. Saving the file

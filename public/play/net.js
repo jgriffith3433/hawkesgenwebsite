@@ -138,7 +138,7 @@
   // ------------------------------------------------------------------ avatars
   function addPeer(c, name, color) {
     if (c === me || peers.has(c)) return;
-    peers.set(c, { name, color, state: null, avatar: null, seen: 0 });
+    peers.set(c, { id: c, name, color, state: null, avatar: null, seen: 0 });
   }
   function dropPeer(c) { const p = peers.get(c); if (p && p.avatar) p.avatar.destroy(); peers.delete(c); }
   function makeAvatar(pr) {
@@ -148,6 +148,7 @@
     const a = g.capsule({ x: s.p[0], y: s.p[1], z: s.p[2], radius: 0.35, height: 1.8, color: pr.color, physics: 'kinematic', tag: 'player', name: pr.name, shadow: true });
     a.remotePlayer = true;
     a.isPlayer = true;
+    a.netId = pr.id;
     const B = g.BABYLON;
     const visor = B.MeshBuilder.CreateBox('visor', { width: 0.5, height: 0.14, depth: 0.12 }, g.scene);
     const vm = new B.StandardMaterial('visor', g.scene);

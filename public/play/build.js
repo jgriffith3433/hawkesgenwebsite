@@ -47,7 +47,7 @@
     return { name: e.name || e.sceneId || KIND[e.kind] || e.kind, bits };
   }
   const canGrab = (e) => {
-    if (!e || !e.sceneId || e.remotePlayer || e.isPlayer) return false;
+    if (!e || !e.sceneId || e.remotePlayer || e.isPlayer || e.temporary) return false;
     if (e.grabbable === false) return false;
     const s = e.size;
     if (e.kind === 'plane' || Math.max(s[0], s[2]) > 14 || s[1] > 14) return false;
@@ -106,9 +106,7 @@
       <button class="hud-mode" id="hudMode" type="button" title="Tab"><span class="on">Building</span><span>Playing</span></button>
       <span class="hud-net" id="hudNet"></span>
     </div>
-    <div class="hud-bar" id="hudBar"></div>
     <div class="hud-toast" id="hudToast"></div>
-    <div class="hud-free" id="hudFree" hidden>Click to look around · <b>Esc</b> frees the mouse</div>
     <svg class="hud-leader" id="hudLeader"><line id="hudLine"/><circle id="hudDot" r="4"/></svg>
     <div class="hud-touch" id="hudTouch" hidden>
       <button class="tbtn" id="tGrab" type="button">✋<span>Grab</span></button>
@@ -128,8 +126,6 @@
     { k: '9', icon: '⌂', label: 'Start', make: () => ({ type: 'spawn', name: 'Player start', data: { role: 'player' } }) },
     { k: '0', icon: '◉', label: 'Checkpoint', make: () => ({ type: 'waypoint', name: 'Checkpoint', shape: { radius: 1.6 }, data: { role: 'checkpoint' } }) },
   ];
-  $('hudBar').innerHTML = HOTBAR.map((h) => `<button type="button" class="slot" data-k="${h.k}" title="${esc(h.label)} (${h.k})"><b>${h.icon}</b><span>${esc(h.label)}</span><i>${h.k}</i></button>`).join('');
-  $('hudBar').addEventListener('click', (e) => { const b = e.target.closest('.slot'); if (b) placeFromHotbar(b.dataset.k); });
   $('hudMode').onclick = () => setMode(H.mode === 'build' ? 'play' : 'build');
   let toastT = 0;
   function toast(text) { const t = $('hudToast'); t.textContent = text; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 1800); }
@@ -137,6 +133,7 @@
   function setMode(m) {
     closePopup();
     dropGrab(false);
+    if (m === 'build' && document.pointerLockElement) document.exitPointerLock();
     H.setMode(m);
     if (m === 'play') { H.respawn(); }
     syncMode();
@@ -150,7 +147,7 @@
     $('hudMode').children[1].classList.toggle('on', !building);
     // The editor's bar sits over the top of the game, and the hotbar over the bottom while building.
     H.hooks.uiTop = 64;
-    H.hooks.uiBottom = building ? 110 : 16;
+    H.hooks.uiBottom = 90;
   }
 
   // ------------------------------------------------------------------ what you're looking at
@@ -188,18 +185,17 @@
     const cross = $('hudCross');
     cross.classList.toggle('on', Boolean(target));
     cross.classList.toggle('grab', Boolean(grab));
-    cross.hidden = hoverMode() && !grab;
-    $('hudFree').hidden = !(H.mode === 'build' && !touchUi && !H.input.mouse.locked && !popup && w.camera.mode === 'fps' && !document.querySelector('.ui-menu-wrap, .ui-popup-wrap'));
+    cross.hidden = (hoverMode() && !grab) || H.mode !== 'build';
   }
   function hint() {
     const h = $('hudHint');
     if (H.mode !== 'build') { h.textContent = ''; return; }
-    if (popup) { h.textContent = 'Esc closes the card'; return; }
-    if (grab) { h.textContent = touchUi ? 'Drag to move it · let go to drop · flick to throw' : 'Move to carry · scroll: closer/farther · R turns · let go to drop · flick to throw · Del removes'; return; }
-    if (touchUi) { h.textContent = target ? 'Hold to grab · double-tap to edit' : 'Drag to look · tap the hotbar to add things'; return; }
+    if (popup) { h.textContent = 'ESC CLOSES THE CARD'; return; }
+    if (grab) { h.textContent = touchUi ? 'DRAG TO MOVE · LET GO TO DROP · FLICK TO THROW' : 'MOVE TO CARRY · SCROLL: CLOSER / FARTHER · LET GO TO DROP · FLICK TO THROW'; return; }
+    if (touchUi) { h.textContent = target ? 'HOLD TO GRAB · DOUBLE-TAP TO EDIT' : 'DRAG TO LOOK · + TO CREATE'; return; }
     h.textContent = target
-      ? (canGrab(target) ? 'Hold click: grab · double-click: edit · C copy · Del remove' : 'Double-click: edit · C copy · Del remove')
-      : 'WASD move · E/Q up and down · drag or click to look · 1-9 add things · Enter: the assistant · Tab: play';
+      ? (canGrab(target) ? 'HOLD TO GRAB · DOUBLE-CLICK TO EDIT' : 'DOUBLE-CLICK TO EDIT')
+      : 'WASD MOVE · E/Q UP & DOWN · DRAG TO LOOK · ENTER: ASSISTANT';
   }
   function highlight() {
     const w = W();
@@ -305,19 +301,14 @@
     if (ctrl && k.has('z')) { held.has('shift') ? redo() : undo(); return; }
     if (ctrl && k.has('y')) { redo(); return; }
     if (ctrl) return;
-    if (grab && k.has('r')) grab.e.turn(held.has('shift') ? -15 : 15);
-    for (const h of HOTBAR) if (k.has(h.k)) placeFromHotbar(h.k);
     const t = grab ? grab.e : target;
-    if ((k.has('delete') || k.has('backspace') || k.has('x')) && t && t.sceneId) removeThing(t);
-    if (k.has('c') && !held.has('control') && t && t.sceneId && !(W().player && W().player.flying)) copyThing(t);
-    if (k.has('enter') || k.has('t')) { if (document.pointerLockElement) document.exitPointerLock(); toParent({ type: 'focus-chat', mention: t && t.sceneId ? { id: t.sceneId, name: t.name || t.sceneId } : null }); }
-    if (k.has('g') && advanced && t) toggleGizmo(t);
+    if ((k.has('delete') || k.has('backspace')) && t && t.sceneId && !t.temporary) removeThing(t);
+    if (k.has('enter')) toParent({ type: 'focus-chat', mention: t && t.sceneId ? { id: t.sceneId, name: t.name || t.sceneId } : null });
   }
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Tab') { e.preventDefault(); setMode(H.mode === 'build' ? 'play' : 'build'); }
     // Esc: closes the card or the handles; otherwise (the mouse is already free) the menu, like a game.
     if (e.key === 'Escape') { if (popup) closePopup(); else if (gizmos && gizmos.target) toggleGizmo(null); else toParent({ type: 'menu' }); }
-    if ((e.key === 'l' || e.key === 'L') && !popup && !(e.target && /INPUT|TEXTAREA/.test(e.target.tagName))) toParent({ type: 'library' });
   });
 
   function removeThing(e) {
@@ -411,13 +402,10 @@
     if (d.started) { dropGrab(true); return; }
     // A click: two quick ones on the same thing open its card; one on its own captures the mouse to look around.
     const now = performance.now();
-    if (d.e && lastClick.e === d.e && now - lastClick.t < 380) { openPopup(d.e); lastClick = { t: 0, e: null }; clearTimeout(lockT); return; }
+    if (d.e && lastClick.e === d.e && now - lastClick.t < 380) { openPopup(d.e); lastClick = { t: 0, e: null }; return; }
     lastClick = { t: now, e: d.e };
     if (d.e) { selected = d.e; highlight(); }
-    clearTimeout(lockT);
-    if (!H.input.mouse.locked && W().camera.mode === 'fps' && d.moved < 6) lockT = setTimeout(() => { if (!popup && !grab) H.lockPointer(); }, 390);
   });
-  let lockT = 0;
 
   // On a phone: tap to point at something, hold it to grab it, double-tap to edit.
   let touchHold = null;
@@ -508,6 +496,7 @@
       ${motionChoices.length ? `<div class="card-row"><label>How it moves</label><div class="seg" id="cMotion">${motionChoices.map(([v, t]) => `<button type="button" data-v="${v}" class="${e.physics === v ? 'on' : ''}">${t}</button>`).join('')}</div></div>` : ''}
       ${e.waypoint ? `<div class="card-row"><label>What it is</label><div class="seg" id="cRole">${[['waypoint', 'Waypoint'], ['checkpoint', 'Checkpoint'], ['finish', 'Finish']].map(([v, t]) => `<button type="button" data-v="${v}" class="${e.waypoint.role === v ? 'on' : ''}">${t}</button>`).join('')}</div></div><div class="card-row"><label>Leads to</label><select id="cNext"><option value="">Nothing</option>${Object.values(W().graph.entities).filter((x) => x.type === 'waypoint' && x.id !== e.sceneId).map((x) => `<option value="${esc(x.id)}" ${e.waypoint.next === x.id ? 'selected' : ''}>${esc(x.name || x.id)}</option>`).join('')}</select></div>` : ''}
       ${e.physics === 'dynamic' ? `<div class="card-row"><label>Bounciness</label><input type="range" id="cBounce" min="0" max="0.95" step="0.05" value="${(spec.body && spec.body.bounce) || 0}"></div>` : ''}
+      ${!isLight && e.kind !== 'spawn' ? `<div class="card-row"><label>Turn</label><input type="range" id="cTurn" min="-180" max="180" step="5" value="${Math.round(((e.rotation % 360) + 540) % 360 - 180)}"></div>` : ''}
       ${e.kind === 'text' ? `<div class="card-row"><label>Words</label><input class="card-in" id="cText" value="${esc((spec.shape && spec.shape.text) || '')}"></div>` : ''}
       ${e.kind !== 'spawn' ? `<div class="card-row"><label>What it does</label><div class="chips">${behaviors || '<span class="muted">Nothing on its own yet</span>'}<select id="cAdd" aria-label="Add a behavior"><option value="">+ Add…</option>${menu}</select></div></div>` : ''}
       </div>` : ''}
@@ -540,6 +529,11 @@
     if (size) {
       size.oninput = () => { const live = W().byId.get(e.sceneId); if (live) { const k = Number(size.value); live.node.scaling.set(popup.scale0.x * k, popup.scale0.y * k, popup.scale0.z * k); live.measure(); } };
       size.onchange = () => { const live = W().byId.get(e.sceneId); if (live) update(live, { transform: { scale: [r2(live.node.scaling.x), r2(live.node.scaling.y), r2(live.node.scaling.z)] } }, 'size'); };
+    }
+    const turn = q('cTurn');
+    if (turn) {
+      turn.oninput = () => { const live = W().byId.get(e.sceneId); if (live) live.rotation = Number(turn.value); };
+      turn.onchange = () => { const live = W().byId.get(e.sceneId); if (live) update(live, { transform: transformOf(live) }, 'turning'); };
     }
     const bright = q('cBright');
     if (bright) bright.onchange = () => { update(e, { light: { intensity: Number(bright.value) } }, 'brightness'); refresh(); };
@@ -773,11 +767,13 @@
       case 'mode': return setMode(m.mode);
       case 'toast': return toast(m.text);
       case 'place': return placeAsset(m.asset);
+      case 'placeBasic': return placeFromHotbar(m.k);
+      case 'basics?': return toParent({ type: 'basics', list: HOTBAR.map((h) => ({ k: h.k, icon: h.icon, label: h.label })) });
     }
   });
 
   H.hooks.frame.push(() => { look(); placeCard(); });
-  H.hooks.autoLock = () => H.mode !== 'build'; // building: build.js decides (a double-click shouldn't capture the mouse)
+  H.hooks.autoLock = () => H.mode !== 'build'; // building never captures the mouse: you look by dragging
   H.hooks.quietErrors = true; // the editor shows errors itself
   window.HawkesBuild = { context, openPopup, edit, undo, redo, describe, get target() { return target; } };
 })();

@@ -202,6 +202,8 @@ Rules:
 - Keep changes focused on what was asked; keep the code short, readable and commented where it helps a beginner. Keep the existing style and structure.
 - Return the WHOLE content of each file you change. Never return a file unchanged. Never write scene.json as a file: change the world with "world" ops.
 - Every game already has a player (WASD, mouse look, jump) and catches players who fall. Change how it plays with a config op on "player" (view first/third/top, speed, jump, doubleJump, fly, gravity): "let me fly", "jump higher", "I want to see my character" are config changes, not scripts. Only write your own player or camera for a different kind of game (then set game.player.controls = false).
+- Combat is built in: config.player.weapon (blaster, rifle, shotgun, launcher, or tuned), the "enemy" behavior (enemies that see, chase, strafe, shoot, retreat), "health", "pickup", "spawner" (of: an enemy's id) and game.on('kill'). Use them for shooters instead of writing AI or guns in scripts.
+- Mouse control: config.player.mouse "free" keeps the mouse a pointer (strategy, point-and-click, menu games); view "rts" is a commander's camera; mode "flight" flies.
 - Checkpoints, routes, finish lines and goals are "waypoint" things (data.role checkpoint / waypoint / finish, data.next for a route), not invisible trigger boxes.
 - Menus, popups, shops, inventories, dialog and HUDs are game.ui (panel, menu, popup, ask, attach, theme, style) in scripts, styled to the game with game.ui.theme or game.json "ui".
 - Asset names: only use assets that are listed, or ones you list in "assets" so the people can generate them. Until an asset exists, scripts must not crash: prefer adding an asset in the same message and using a shape as a stand-in, or check with game.find / try.
@@ -263,6 +265,18 @@ function context(gameId: string, focus?: string) {
 
 const thinking = new Set<string>();
 
+/** What to tell the players when the assistant's job didn't finish: plain, and always that nothing broke. */
+function whyNot(job: { status: string; error?: string | null }) {
+  const err = String(job.error ?? '').toLowerCase();
+  const after = ' Nothing in your game changed, and the credits are back in your account.';
+  if (err === 'timeout') return `That was taking too long, so I stopped it.${after} Try again, or ask for a smaller piece first.`;
+  if (err === 'unreachable') return `I lost my connection to the AI service.${after} Give it a moment and try again.`;
+  if (job.status === 'cancelled') return `That request was cancelled before I finished.${after}`;
+  if (/overload|rate|busy|capacity|429|529/.test(err)) return `The AI is very busy right now.${after} Try again in a minute.`;
+  if (/json|schema|parse/.test(err)) return `My answer came back garbled, so I didn't use it.${after} Try again; rewording can help.`;
+  return `I couldn't finish that.${after} Try again, or say it a different way.`;
+}
+
 /** A message to the assistant: answered in the background; the reply and its file changes reach every editor live. */
 export async function askAssistant(user: User, gameId: string, body: { message?: unknown; file?: unknown; errors?: unknown; context?: unknown; mention?: unknown }) {
   const { game } = memberGame(user, gameId);
@@ -287,15 +301,25 @@ export async function askAssistant(user: User, gameId: string, body: { message?:
     throw e;
   }
   void (async () => {
+    // Nothing may leave the assistant "thinking" forever: a job that takes too long is cancelled (and refunded).
+    const deadline = Date.now() + Number(env('GAME_AI_TIMEOUT_MS') ?? 5 * 60_000);
+    let unreachable = 0;
     try {
       for (;;) {
         if (['done', 'failed', 'cancelled'].includes(job.status)) break;
+        if (Date.now() > deadline) {
+          job = await gen(`/v1/jobs/${job.id}/cancel`, { as: fresh.project, method: 'POST' }).catch(() => ({ ...job, status: 'cancelled' }));
+          if (!['done', 'failed', 'cancelled'].includes(job.status)) job = { ...job, status: 'cancelled' };
+          job.error = 'timeout';
+          break;
+        }
         await new Promise((r) => setTimeout(r, Number(process.env.PORTAL_TASK_POLL_MS ?? 1500)));
-        job = await gen(`/v1/jobs/${job.id}`, { as: fresh.project }).catch(() => job);
+        const next = await gen(`/v1/jobs/${job.id}`, { as: fresh.project }).catch(() => null);
+        if (next) { job = next; unreachable = 0; } else if (++unreachable > 40) { job = { ...job, status: 'failed', error: 'unreachable' }; break; }
       }
       settle(job);
       if (job.status !== 'done') {
-        chatMessage(game.id, null, 'ai', `I couldn't finish that (${job.error ?? job.status}). Your credits for it were given back.`, { error: true });
+        chatMessage(game.id, null, 'ai', whyNot(job), { error: true, retry: message, mention: body.mention ?? null, replyTo: asked.id });
         return;
       }
       const v = job.result?.value ?? {};
@@ -335,7 +359,9 @@ export async function askAssistant(user: User, gameId: string, body: { message?:
       const text = String(v.reply ?? '').trim() || (changed.length || world.length ? 'Done.' : 'I had nothing to change.');
       chatMessage(game.id, null, 'ai', problems.length ? `${text}\n\n(Some changes could not be saved: ${problems.join('; ')})` : text, { changed, deleted, world, assets: suggested, replyTo: asked.id, job: job.id });
     } catch (e: any) {
-      chatMessage(game.id, null, 'ai', `Something went wrong: ${e.message ?? e}`, { error: true });
+      console.error('[portal] assistant:', e);
+      chatMessage(game.id, null, 'ai', "Something went wrong on my side before I could finish. Nothing in your game changed, and you weren't charged for this one.", { error: true, retry: message, mention: body.mention ?? null, replyTo: asked.id });
+      if (job && !['done', 'failed', 'cancelled'].includes(job.status)) settle({ ...job, status: 'failed', error: String(e?.message ?? e) });
     } finally {
       thinking.delete(game.id);
       broadcast(game.id, 'thinking', { on: false });
