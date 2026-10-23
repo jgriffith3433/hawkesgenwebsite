@@ -3,11 +3,11 @@
 // tries per address a day and a cap for everyone a day. It runs as the demo project (DEMO_PROJECT), not a customer.
 import crypto from 'node:crypto';
 import { db } from './db.ts';
-import { env } from './config.ts';
+import { env, PROJECT_PREFIX } from './config.ts';
 import { gen, genFetch } from './gen.ts';
 import { PortalError } from './util.ts';
 
-export const DEMO_PROJECT = 'usr_0000000000000000';
+export const DEMO_PROJECT = `${PROJECT_PREFIX}0000000000000000`;
 const MAX_BYTES = 6 * 1024 * 1024;
 const DAY = 24 * 3600_000;
 

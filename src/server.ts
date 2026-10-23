@@ -6,7 +6,7 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { PORT, ROOT, genKey, env } from './config.ts';
+import { PORT, ROOT, USER_ID, genKey, env } from './config.ts';
 import { genFetch, gen } from './gen.ts';
 import { send, readJson, readBody, PortalError } from './util.ts';
 import * as users from './users.ts';
@@ -326,7 +326,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
 
     // ------------------------------------------------------------ friends
     if (route === '/v1/friends' && method === 'GET') return send(res, 200, { friends: friends.listFriends(user.id) });
-    const fr = /^\/v1\/friends\/(usr_[0-9a-f]+)$/.exec(route);
+    const fr = new RegExp(`^/v1/friends/(${USER_ID})$`).exec(route);
     if (fr && method === 'DELETE') { friends.removeFriend(user.id, fr[1]); return send(res, 200, { ok: true }); }
 
     // ------------------------------------------------------------ games
@@ -384,7 +384,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       const rr = /^releases\/(\d+)\/restore$/.exec(sub);
       if (rr && method === 'POST') return send(res, 200, games.restoreRelease(user, gid, Number(rr[1])));
       if (sub === 'invites' && method === 'POST') return send(res, 200, games.createInvite(user, gid));
-      const mem = /^members\/(usr_[0-9a-f]+)$/.exec(sub);
+      const mem = new RegExp(`^members/(${USER_ID})$`).exec(sub);
       if (mem && method === 'POST') return send(res, 200, games.setMemberRole(user, gid, mem[1], (await readJson(req)).role));
       if (mem && method === 'DELETE') return send(res, 200, games.removeMember(user, gid, mem[1]));
       if (sub === 'chat' && method === 'GET') return send(res, 200, games.chatHistory(user, gid, Number(url.searchParams.get('limit')) || 80));
@@ -404,7 +404,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     // ------------------------------------------------------------ admins (anyone else gets a 404)
     if (route.startsWith('/v1/admin/')) {
       admin.requireAdmin(user);
-      const m = /^\/v1\/admin\/users\/(usr_[0-9a-f]+)(?:\/(credits|gift|disable|enable|role|password-link))?$/.exec(route);
+      const m = new RegExp(`^/v1/admin/users/(${USER_ID})(?:/(credits|gift|disable|enable|role|password-link))?$`).exec(route);
       if (route === '/v1/admin/overview' && method === 'GET') return send(res, 200, admin.overview());
       if (route === '/v1/admin/community/sync' && method === 'POST') return send(res, 200, await community.syncStarter());
       if (route === '/v1/admin/users' && method === 'GET') return send(res, 200, admin.listUsers({ search: url.searchParams.get('q'), limit: Number(url.searchParams.get('limit')), offset: Number(url.searchParams.get('offset')) }));

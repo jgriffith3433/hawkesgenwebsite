@@ -97,7 +97,9 @@ test('pages and the open routes', async () => {
 
 test('sign up, sign in, keys, sign out', async () => {
   const c = await newCustomer();
-  assert.match(c.user.project, /^usr_[0-9a-f]{16}$/);
+  // usr_ on live; another copy of the portal (Studio's beta: PORTAL_PROJECT_PREFIX=ubeta_) has its own.
+  const { PROJECT_PREFIX } = await import('../src/config.ts');
+  assert.match(c.user.project, new RegExp(`^${PROJECT_PREFIX}[0-9a-f]{16}$`));
   assert.equal(c.user.credits, 50);
   assert.equal((await call('/v1/users/me', { key: c.key })).body.user.id, c.user.id);
   assert.equal((await call('/v1/users/signup', { body: { email: 'c1@example.com', password: 'password123' } })).status, 409);

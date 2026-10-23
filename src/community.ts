@@ -8,7 +8,10 @@ import { addAsset, freeName, memberGame } from './games.ts';
 import { getUser, type User } from './users.ts';
 import { PortalError } from './util.ts';
 
-/** The Gen project Hawkes' own starter pack lives in. */
+/**
+ * The Gen project Hawkes' own starter pack lives in. The same one for every copy of the portal (a beta portal with its
+ * own PORTAL_PROJECT_PREFIX reads it too: its Gen key lists this project as well).
+ */
 export const STARTER_PROJECT = 'usr_00000000000000c0';
 /** What a community thing can be (search filters, the assistant's kinds). */
 export const COMMUNITY_KINDS = ['model', 'texture', 'image', 'sprite', 'sky', 'music', 'ambience', 'sfx', 'voice', 'video'] as const;

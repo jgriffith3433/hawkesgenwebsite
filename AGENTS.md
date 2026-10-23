@@ -31,6 +31,7 @@ customer ──https──▶ hawkesgen.com (this repo, its own EC2 box, Caddy, 
   `STRIPE_WEBHOOK_SECRET`. Never commit, print or log them.
 - **Design:** the website is light (`body.landing` tokens in `public/public.css` + `public/site.css`, Inter headings, JetBrains Mono for code). Only the game is dark: the editor (`studio.css`) and `/play` (`play/play.html`), entered with a fade (`public/enter.js`). In the game everything reads like a game: no web header, a pause menu (Esc twice), game chat, cards in the world. Copy is plain and true: no claims we can't show.
 - No runtime dependencies (Node 24, `node:sqlite`, TypeScript by type stripping: erasable syntax only, `.ts` imports).
+- Customer ids are `${PROJECT_PREFIX}<16 hex>` (`config.ts`; `usr_` on live): match them with `USER_ID`, never a literal `usr_`.
 
 ## Run
 
@@ -74,11 +75,24 @@ Some test browsers (the Claude app's own) refuse scripts from a sandboxed page o
 in a local `.env` serves games unsandboxed, only to localhost / 127.0.0.1 requests (`server.ts devOpenPlay`). Never set it
 on the box. `?touch=1` / `?touch=0` on a play page forces the phone controls on or off.
 
+## Beta (Hawkes Studio)
+
+Work goes to the `beta` branch (agents open pull requests into it; `.github/workflows/hawkes-studio.yml` tells Studio
+about every push). **https://hawkesgenwebsite.hawkesgen.com/** (Studio's login) is the real portal running beta's
+commit on Studio's server, restarted on every push to beta (`hawkesstudio/src/apps.ts`, products.json `app`): its own
+database, Gen on the same server with its own key, customers as `ubeta_<16 hex>` (`PORTAL_PROJECT_PREFIX=ubeta_`, so it
+never touches a live customer's `usr_` project), `PUBLIC_URL` the beta host, and no Stripe, Google or mail. An agent
+change opens at `/c/<change id>/` on the same host (its own server and database); `/c/beta/` goes back. Studio
+playtests beta and live with read-only site crawls. Keep the server starting from `node src/server.ts` with only `PORT`,
+`PORTAL_DATA_DIR`, `PUBLIC_URL`, `HAWKESGEN_URL`, `HAWKESGEN_KEY` and `PORTAL_PROJECT_PREFIX` set, and `/v1/health`
+answering 200: that is how Studio runs it.
+
 ## Deploys
 
-Push to `main`. CI runs typecheck and tests; the box checks every 2 minutes (`hawkesgen-portal-pull.timer`), and
+Push to `main` (going live: Studio fast-forwards main to the playtested beta commit when J types
+`DEPLOY hawkesgenwebsite`). CI runs typecheck and tests; the box checks every 2 minutes (`hawkesgen-portal-pull.timer`), and
 deploys a commit whose CI passed: fast-forward, restart, health check, rollback if unhealthy. Logs:
-`journalctl -u hawkesgen-portal -u hawkesgen-portal-pull`. There is no beta lane yet. Push to main only with J's OK.
+`journalctl -u hawkesgen-portal -u hawkesgen-portal-pull`. Push to main only with J's OK.
 
 The box: EC2 `hawkes-gen-public` (us-east-1, t3.large, Elastic IP 54.163.56.66, SSH key and state in
 `hawkesstudio/deploy/.keys/gen_public_ed25519` / `gen-public.json`). Its IAM role (`/hawkes/hawkesgen-portal`) can only send

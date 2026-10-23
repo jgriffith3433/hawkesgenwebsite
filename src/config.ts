@@ -24,5 +24,15 @@ export const genUrl = () => (env('HAWKESGEN_URL') ?? 'https://gen.hawkesgen.com'
 export const genKey = () => env('HAWKESGEN_KEY') ?? '';
 /** This site's own address (Stripe's return links). */
 export const publicUrl = () => (env('PUBLIC_URL') ?? 'https://hawkesgen.com').replace(/\/+$/, '');
-/** Customers' projects in Gen are this prefix plus their id; the portal's Gen key is scoped to `${PROJECT_PREFIX}*`. */
-export const PROJECT_PREFIX = 'usr_';
+/**
+ * Customers' projects in Gen are this prefix plus their id; the portal's Gen key is scoped to `${PROJECT_PREFIX}*`.
+ * PORTAL_PROJECT_PREFIX gives another copy of the portal its own customers in the same Gen (the beta portal Hawkes
+ * Studio runs uses ubeta_, with a key scoped to ubeta_*), so it never reaches a live customer's project.
+ */
+export const PROJECT_PREFIX = (() => {
+  const p = env('PORTAL_PROJECT_PREFIX') ?? 'usr_';
+  if (!/^[a-z][a-z0-9]{0,15}_$/.test(p)) throw new Error(`PORTAL_PROJECT_PREFIX must be lowercase letters and digits ending in "_" (got "${p}")`);
+  return p;
+})();
+/** A customer's id (their Gen project), for routes: the prefix and 16 hex digits. */
+export const USER_ID = `${PROJECT_PREFIX}[0-9a-f]+`;
