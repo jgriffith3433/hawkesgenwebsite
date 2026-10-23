@@ -467,35 +467,6 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
       if (p.get('utm_source') || p.get('ref') || (from && !document.cookie.includes('hg_src='))) keep('hg_src', p.get('utm_source') || (p.get('ref') ? 'referral' : from));
     }
 
-    // The free demo (POST /v1/demo): pixel art or a cutout, no account.
-    {
-      const $ = (id) => document.getElementById(id);
-      const left = (n) => { $('tryLeft').textContent = n > 0 ? `${n} free ${n === 1 ? 'try' : 'tries'} left today.` : 'No free tries left today. An account starts with 50 credits.'; };
-      fetch('/v1/demo').then((r) => r.json()).then((d) => left(d.left)).catch(() => {});
-      const run = async (file) => {
-        if (!file) return;
-        const kind = document.querySelector('input[name=tryKind]:checked').value;
-        $('tryIn').src = URL.createObjectURL(file); $('tryIn').hidden = false; $('tryInHint').hidden = true;
-        $('tryOut').hidden = true; $('tryCta').hidden = true;
-        $('tryStatus').hidden = false; $('tryStatus').textContent = kind === 'pixel' ? 'Making pixel art…' : 'Cutting it out…';
-        $('tryOutLabel').textContent = kind === 'pixel' ? 'pixel art · 64 px, 16 colours' : 'background removed';
-        try {
-          const r = await fetch(`/v1/demo?kind=${kind}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
-          if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'That did not work; try another image');
-          left(Number(r.headers.get('X-Demo-Left')));
-          const url = URL.createObjectURL(await r.blob());
-          $('tryOut').src = url; $('tryOut').hidden = false; $('tryStatus').hidden = true;
-          $('tryDownload').href = url; $('tryCta').hidden = false;
-          window.hawkesAnalytics?.track?.('demo_used', { kind });
-        } catch (e) { $('tryStatus').textContent = e.message; }
-      };
-      $('tryFile').addEventListener('change', (e) => run(e.target.files[0]));
-      const drop = $('tryDrop');
-      drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
-      drop.addEventListener('dragleave', () => drop.classList.remove('over'));
-      drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); run(e.dataTransfer.files[0]); });
-    }
-
     const signinError = new URLSearchParams(location.search).get('signin_error');
     if (signinError) {
       setMode('login');
@@ -504,11 +475,19 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
       err.hidden = false;
       history.replaceState(null, '', '/');
     }
-    // Already signed in: the top-right goes straight to the app.
+    // Already signed in: swap nav buttons and hero CTA to go to the dashboard.
     fetch('/v1/users/me').then((r) => (r.ok ? r.json() : null)).then((d) => {
       if (!d?.user) return;
       const actions = document.querySelector('.hg-nav-actions');
-      actions.innerHTML = `${d.user.role === 'admin' ? '<a class="btn btn-ghost" href="/admin">Admin</a>' : ''}<a class="btn btn-primary" href="/app">Open the studio</a>`;
+      actions.innerHTML = `${d.user.role === 'admin' ? '<a class="btn btn-ghost" href="/admin">Admin</a>' : ''}<a class="btn btn-ghost" href="/app/studio">Asset Studio</a><a class="btn btn-primary" href="/app">My Games</a>`;
+      // Swap the hero's "Start building" signup button to go straight to /app
+      document.querySelectorAll('[data-open-auth="signup"]').forEach(btn => {
+        const a = document.createElement('a');
+        a.className = btn.className;
+        a.href = '/app';
+        a.textContent = 'Go to my games';
+        btn.replaceWith(a);
+      });
     }).catch(() => {});
   </script>
 </body>
