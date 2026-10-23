@@ -1645,16 +1645,22 @@
       W.grid = grid;
     }
     try {
-      const p = new B.DefaultRenderingPipeline('look', true, W.scene, W.scene.cameras.slice());
+      // Built once, after it's set up (building it as each setting changes re-attached its effects: Babylon's
+      // "reuse a post process not defined as reusable" errors).
+      const p = new B.DefaultRenderingPipeline('look', true, W.scene, W.scene.cameras.slice(), false);
       p.fxaaEnabled = true;
       p.bloomEnabled = !touchUi;
       p.bloomThreshold = 0.82; p.bloomWeight = 0.28; p.bloomKernel = 48; p.bloomScale = 0.5;
       p.imageProcessingEnabled = true;
+      p.prepare();
       const ip = p.imageProcessing;
       ip.toneMappingEnabled = true; ip.toneMappingType = B.ImageProcessingConfiguration.TONEMAPPING_ACES;
       ip.exposure = 1.1; ip.contrast = 1.12;
       ip.vignetteEnabled = true; ip.vignetteWeight = 1.6; ip.vignetteStretch = 0.25; ip.vignetteColor = new B.Color4(0, 0, 0, 0);
-      W.scene.onNewCameraAddedObservable.add((c) => { try { p.addCamera(c); } catch {} });
+      p.automaticBuild = true;
+      // Cameras made later get the look too. (Babylon announces a camera a moment after it's made, so the one the
+      // pipeline already has comes through here as well: adding it twice re-attached every effect, with an error each.)
+      W.scene.onNewCameraAddedObservable.add((c) => { try { if (!p.cameras.includes(c)) p.addCamera(c); } catch {} });
       W.look = p;
     } catch (e) { console.warn('look', e); }
   }
