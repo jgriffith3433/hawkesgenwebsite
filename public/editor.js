@@ -24,6 +24,9 @@ let errors = [];
 
 let panelOpen = null; // 'files' | 'settings' | 'docs' | null
 let codeOpen = false;
+let voiceEnabled = localStorage.getItem('hg_voice') !== '0';
+let lastChatLen = 0;
+let typingMsgEl = null;
 
 // ===================================================================== init
 (async () => {
@@ -43,12 +46,15 @@ let codeOpen = false;
     loadSettings();
     loadChat();
     updatePreview();
+    initVoice();
 
     const paths = Object.keys(files).sort();
     if (paths.length) {
       const first = paths.find(p => p.endsWith('.js')) || paths[0];
       openFile(first, false);
     }
+
+    await bootSequence();
   } catch (err) {
     console.error(err);
     alert(err.message || 'Failed to load game');
@@ -282,8 +288,10 @@ function connect() {
   });
 
   sse.addEventListener('chat', (e) => {
-    chatHistory.push(JSON.parse(e.data));
-    renderChat();
+    const msg = JSON.parse(e.data);
+    chatHistory.push(msg);
+    renderChat(msg.role === 'ai' ? msg : null);
+    if (msg.role === 'ai' && msg.text) speak(msg.text);
   });
 
   sse.addEventListener('thinking', (e) => {
@@ -446,14 +454,15 @@ async function loadChat() {
   } catch {}
 }
 
-function renderChat() {
+function renderChat(typeMsg) {
   const log = document.getElementById('chatLog');
   log.innerHTML = '';
 
   const recent = chatHistory.slice(-20);
   for (const msg of recent) {
     const div = document.createElement('div');
-    div.className = `msg ${msg.role === 'user' ? 'user' : msg.role === 'system' ? 'system' : 'ai'}`;
+    const isNew = msg === recent[recent.length - 1] && recent.length > lastChatLen;
+    div.className = `msg ${msg.role === 'user' ? 'user' : msg.role === 'system' ? 'system' : 'ai'}` + (isNew ? ' new' : '');
 
     const who = document.createElement('div');
     who.className = 'who';
@@ -462,7 +471,11 @@ function renderChat() {
 
     const text = document.createElement('div');
     text.className = 'text';
-    text.textContent = msg.text;
+    if (typeMsg && msg === typeMsg) {
+      text.textContent = '';
+    } else {
+      text.textContent = msg.text;
+    }
     div.appendChild(text);
 
     if (msg.data?.changed?.length) {
@@ -493,8 +506,13 @@ function renderChat() {
     }
 
     log.appendChild(div);
+
+    if (typeMsg && msg === typeMsg && msg.text) {
+      typeAIMessage(text, msg.text);
+    }
   }
 
+  lastChatLen = recent.length;
   log.scrollTop = log.scrollHeight;
 }
 
@@ -725,6 +743,126 @@ document.addEventListener('keydown', (e) => {
 });
 
 setInterval(reportPresence, 10000);
+
+// ===================================================================== boot sequence
+async function bootSequence() {
+  const overlay = document.getElementById('bootOverlay');
+  if (!overlay) return;
+
+  const key = `hg_boot_${gameId}`;
+  if (localStorage.getItem(key)) {
+    overlay.remove();
+    return;
+  }
+
+  const logo = document.getElementById('bootLogo');
+  const sub = document.getElementById('bootSub');
+  const lines = document.getElementById('bootLines');
+
+  await wait(400);
+  logo.classList.add('visible');
+  sub.classList.add('visible');
+  await wait(800);
+
+  await typeBootLine(lines, 'Initializing game engine...');
+  await wait(250);
+  await typeBootLine(lines, `Loading ${game.title}`, 'accent');
+  await wait(350);
+  await typeBootLine(lines, `${Object.keys(files).length} files · ${Object.keys(assets).length} assets · ${members.length} member${members.length !== 1 ? 's' : ''}`);
+  await wait(200);
+  await typeBootLine(lines, 'Systems online.', 'bright');
+  await wait(700);
+  await typeBootLine(lines, '');
+  await typeBootLine(lines, "I'm your AI assistant.", 'intro');
+  await wait(150);
+  await typeBootLine(lines, 'Tell me what you want to build.', 'intro');
+
+  speak("Welcome. I'm your AI assistant. Tell me what you want to build and I'll make it happen.");
+
+  await wait(2000);
+
+  overlay.classList.add('fade-out');
+  await wait(1000);
+  overlay.remove();
+
+  localStorage.setItem(key, '1');
+}
+
+async function typeBootLine(container, text, cls) {
+  const line = document.createElement('div');
+  line.className = 'boot-line' + (cls ? ` ${cls}` : '');
+  container.appendChild(line);
+
+  if (!text) return;
+
+  const cursor = document.createElement('span');
+  cursor.className = 'boot-cursor';
+
+  for (let i = 0; i < text.length; i++) {
+    line.textContent = text.slice(0, i + 1);
+    line.appendChild(cursor);
+    await wait(20 + Math.random() * 20);
+  }
+  line.textContent = text;
+}
+
+function wait(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+// ===================================================================== voice (Web Speech)
+function initVoice() {
+  const btn = document.getElementById('voiceToggle');
+  btn.classList.toggle('voice-on', voiceEnabled);
+  btn.classList.toggle('voice-off', !voiceEnabled);
+  btn.onclick = toggleVoice;
+
+  if (window.speechSynthesis) {
+    speechSynthesis.getVoices();
+    speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
+  }
+}
+
+function toggleVoice() {
+  voiceEnabled = !voiceEnabled;
+  localStorage.setItem('hg_voice', voiceEnabled ? '1' : '0');
+  const btn = document.getElementById('voiceToggle');
+  btn.classList.toggle('voice-on', voiceEnabled);
+  btn.classList.toggle('voice-off', !voiceEnabled);
+  if (!voiceEnabled && window.speechSynthesis) speechSynthesis.cancel();
+}
+
+function speak(text) {
+  if (!voiceEnabled || !window.speechSynthesis) return;
+  speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.rate = 0.95;
+  utter.pitch = 0.85;
+  const voices = speechSynthesis.getVoices();
+  const pick = voices.find(v => /Google UK English Female/i.test(v.name))
+    || voices.find(v => /Samantha/i.test(v.name))
+    || voices.find(v => v.lang.startsWith('en') && /female/i.test(v.name))
+    || voices.find(v => v.lang.startsWith('en'));
+  if (pick) utter.voice = pick;
+  speechSynthesis.speak(utter);
+}
+
+// ===================================================================== typing animation for AI chat
+async function typeAIMessage(textEl, text) {
+  if (typingMsgEl) return;
+  const parent = textEl.closest('.msg');
+  parent?.classList.add('typing');
+  typingMsgEl = textEl;
+
+  for (let i = 0; i < text.length; i++) {
+    if (typingMsgEl !== textEl) break;
+    textEl.textContent = text.slice(0, i + 1);
+    await wait(12 + Math.random() * 8);
+  }
+  textEl.textContent = text;
+  parent?.classList.remove('typing');
+  if (typingMsgEl === textEl) typingMsgEl = null;
+}
 
 function esc(text) {
   const div = document.createElement('div');

@@ -19,6 +19,16 @@
   <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
 </head>
 <body class="editor-page">
+  <!-- Boot sequence overlay -->
+  <div class="boot-overlay" id="bootOverlay">
+    <div class="boot-content">
+      <div class="boot-logo" id="bootLogo">HAWKES GEN</div>
+      <div class="boot-sub" id="bootSub">GAME BUILDER</div>
+      <div class="boot-lines" id="bootLines"></div>
+    </div>
+    <div class="boot-scanline"></div>
+  </div>
+
   <!-- Full-screen game preview (the main view) -->
   <div class="ed-game">
     <iframe id="preview" sandbox="allow-scripts allow-pointer-lock allow-popups allow-popups-to-escape-sandbox"></iframe>
@@ -51,6 +61,9 @@
 
   <!-- HUD: Right action buttons -->
   <div class="hud-actions right">
+    <button class="hud-btn voice-on" id="voiceToggle" title="Voice">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 6v4h2.5L9 13V3L5.5 6H3z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M11.5 5.5a3.5 3.5 0 0 1 0 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+    </button>
     <button class="hud-btn" id="codeToggle" title="Code">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M5.5 4L2 8l3.5 4M10.5 4L14 8l-3.5 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
