@@ -1154,6 +1154,7 @@ function renderGallery() {
         </div>
         <div class="asset-body" style="padding-top:0;">
           <div class="asset-actions">
+            ${['image', 'mesh', 'audio', 'video'].includes(a.kind) ? `<button type="button" class="btn btn-primary btn-sm" data-to-game="${escapeHtml(a.id)}">Use in a game</button>` : ''}
             ${quickActions.join('')}
             <button type="button" class="btn btn-ghost btn-sm" data-open-recipe="${escapeHtml(a.id)}">Recipe</button>
             <a href="${downloadUrl}" class="btn btn-ghost btn-sm" download>Download ↓</a>
@@ -1171,6 +1172,10 @@ function renderGallery() {
     });
   });
 
+  grid.querySelectorAll('[data-to-game]').forEach((btn) => {
+    btn.addEventListener('click', () => pickGameFor(state.assets.find((x) => x.id === btn.getAttribute('data-to-game'))));
+  });
+
   grid.querySelectorAll('[data-open-recipe]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const assetId = btn.getAttribute('data-open-recipe');
@@ -1181,6 +1186,30 @@ function renderGallery() {
       document.getElementById('recipeDrawerModal').hidden = false;
     });
   });
+}
+
+/** "Use in a game": pick one of your games; the asset joins it and you go in with it placed where you stand. */
+async function pickGameFor(asset) {
+  if (!asset) return;
+  const modal = document.getElementById('gamePickerModal');
+  const list = document.getElementById('gamePickerList');
+  list.innerHTML = '<p class="muted">Loading your games…</p>';
+  modal.hidden = false;
+  try {
+    const r = await fetch('/v1/games').then((x) => x.json());
+    const games = r.games || [];
+    if (!games.length) { list.innerHTML = '<p class="muted">No games yet. <a href="/app">Make one</a>, then come back.</p>'; return; }
+    list.innerHTML = games.map((g) => `<button type="button" class="game-pick" data-g="${escapeHtml(g.id)}"><b>${escapeHtml(g.title)}</b><span>${escapeHtml(g.role === 'owner' ? 'yours' : 'shared with you')}</span></button>`).join('');
+    list.querySelectorAll('[data-g]').forEach((b) => b.addEventListener('click', async () => {
+      b.disabled = true;
+      const want = String(asset.title || asset.recipe?.params?.prompt || asset.kind).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || asset.kind;
+      const res = await fetch(`/v1/games/${b.dataset.g}/assets`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asset: asset.id, name: want }) });
+      const row = await res.json().catch(() => ({}));
+      if (!res.ok) { b.disabled = false; b.querySelector('span').textContent = row.error || 'Could not add it'; return; }
+      const go = `/app/g/${b.dataset.g}?place=${encodeURIComponent(row.name)}`;
+      if (window.enterGame) window.enterGame(go); else location.href = go;
+    }));
+  } catch (e) { list.innerHTML = `<p class="muted">${escapeHtml(e.message)}</p>`; }
 }
 
 /** Shows what the composer's input box points at: the asset's picture (or player), title and tool, not just its id. */

@@ -29,7 +29,7 @@ customer ──https──▶ hawkesgen.com (this repo, its own EC2 box, Caddy, 
 - Prices come from Gen (`POST /v1/billing/quote`). Packs are in `billing.ts PACKS`.
 - Secrets live in `.env` on the box (gitignored): `HAWKESGEN_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`,
   `STRIPE_WEBHOOK_SECRET`. Never commit, print or log them.
-- **Design:** dark futuristic (`--bg: #0a0a0f`, glass morphism, `--accent: #4a9eff` + `--accent-2: #a855f7`), Inter headings, JetBrains Mono for code (`public/public.css`). The editor is immersive: full-screen game preview with slide-out panels and an AI HUD overlay. Copy is plain and true: no claims we can't show.
+- **Design:** the website is light (`body.landing` tokens in `public/public.css` + `public/site.css`, Inter headings, JetBrains Mono for code). Only the game is dark: the editor (`studio.css`) and `/play` (`play/play.html`), entered with a fade (`public/enter.js`). In the game everything reads like a game: no web header, a pause menu (Esc twice), game chat, cards in the world. Copy is plain and true: no claims we can't show.
 - No runtime dependencies (Node 24, `node:sqlite`, TypeScript by type stripping: erasable syntax only, `.ts` imports).
 
 ## Run
@@ -60,8 +60,17 @@ npm test             # against a fake Gen, offline
 | `public/connect.html` | `/connect`: Add to Cursor / Install in VS Code buttons, Add to Claude (copies the address, opens Connectors in the Claude desktop app via `claude://claude.ai/customize/connectors` (a second button opens claude.ai) and shows the three steps left; Claude has no install link), a sentence to paste into Claude Code, a CLI button on the Claude card that shows the `claude mcp add` command, the Unity package, Windsurf, ChatGPT and API-key configs, things to try, the customer's connections; buttons turn to "✓ Connected" for editors already connected |
 | `src/portfolio.ts` | "Built with Hawkes Gen": only claims we can show |
 | `public/` | The pages: `index.html` (landing, portfolio, pricing), `app.html` + `app.js` (Creator Studio), `public.css`, `hawkesgen.mjs` (the JS client, a copy of `hawkesgen/clients/js`) |
-| `public/entities.html` + `entities.js` | `/entities`, the entity codex: every type `engine/engine.js` builds, spawned live in a real `HawkesEngine` with its `scene.json` spec (edit and apply), the components, physics bodies, the asset kinds Gen makes (`gameai.ts KINDS`) and the script-only makers. Keep its catalog in step when the engine gains a type |
+| `public/play/` | **The game engine.** `runtime.js` (the world from `scene.json`, entities, box physics with bounce/push/carry, the built-in player: first/third/top view and `config.player` settings, fall catching, waypoints, behaviors, hot reload without a page reload, `game.ui` menus/popups/panels, the game look, a worker that keeps it running in a background tab), `behaviors.js` (built-in behaviors in plain words), `net.js` (multiplayer over `/v1/ws`), `build.js` (the editor's in-world tools: HUD, grab and throw, hotbar, cards, undo, the Gen beam), `play.html` (draft and published pages; `/play/t/<id>` plays an Overseer template). `WORLD.md` and `API.md` are the contract: the assistant reads both with every message, so document every engine feature there |
+| `src/scene.ts`, `src/rooms.ts`, `src/ws.ts` | The world as ops (create, update, replace, delete, config) applied to `scene.json` (`games.ts sceneOps`, `POST /v1/games/:id/scene`); realtime rooms over a dependency-free WebSocket (`edit:<game>` with a signed token from `/bundle`, `play:<slug>:<code>` for players): avatars, who simulates what (owner or host), script events. Nothing said in a room is saved |
+| `public/editor.html` + `editor.js` + `studio.css` | `/app/g/<id>`: the game full screen in a sandboxed frame; the page holds the account side (saving ops, the SSE feed, the assistant with what the player sees, the Library, Advanced: code, assets, settings, docs) |
+| `public/entities.html` + `entities.js` | `/entities`, the entity codex: every kind of thing `play/runtime.js` builds, live in the real runtime, with its `scene.json` spec (edit and apply), how things move, every behavior, the asset kinds Gen makes (`gameai.ts KINDS`). Keep it in step when the engine gains a kind |
 | `deploy/` | The box: `setup.mjs` (one-time, from J's PC), `Caddyfile`, the systemd units, `pull.mjs` (self-deploy) |
+
+## Testing the game locally
+
+Some test browsers (the Claude app's own) refuse scripts from a sandboxed page on a local address. `PORTAL_DEV_OPEN_PLAY=1`
+in a local `.env` serves games unsandboxed, only to localhost / 127.0.0.1 requests (`server.ts devOpenPlay`). Never set it
+on the box. `?touch=1` / `?touch=0` on a play page forces the phone controls on or off.
 
 ## Deploys
 

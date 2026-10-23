@@ -4,92 +4,68 @@ let games = [];
 let sort = 'popular';
 
 // ===================================================================== load
+let me = null;
 (async () => {
-  loadGames();
+  me = await get(`${API}/users/me`).then((r) => r.user).catch(() => null);
   setupAuth();
+  loadGames();
 })();
 
 async function loadGames() {
   try {
     const data = await get(`${API}/gallery?sort=${sort}`);
     games = data.games || [];
+    renderFeatured(data.featured || []);
     render();
   } catch (err) {
     console.error(err);
   }
 }
 
+function card({ title, sub, by, plays, cover, emoji, play, remix }) {
+  const el = document.createElement('div');
+  el.className = 'game-card';
+  el.innerHTML = `
+    <div class="cover">${cover ? `<img src="${escapeHtml(cover)}" alt="">` : escapeHtml(emoji || (title[0] || '?').toUpperCase())}</div>
+    <div class="body">
+      <div class="title">${escapeHtml(title)}</div>
+      ${sub ? `<div class="muted" style="font-size:13px;line-height:1.4">${escapeHtml(sub.slice(0, 110))}${sub.length > 110 ? '…' : ''}</div>` : ''}
+      ${by || plays !== undefined ? `<div class="meta">${by ? `<span>by ${escapeHtml(by)}</span>` : ''}${plays !== undefined ? `<span>▸ ${plays} plays</span>` : ''}</div>` : ''}
+      <div class="actions"><button type="button" class="btn btn-primary btn-sm" data-a="play">Play</button><button type="button" class="btn btn-secondary btn-sm" data-a="remix" title="Make your own copy to change">Remix</button></div>
+    </div>`;
+  el.querySelector('[data-a="play"]').onclick = play;
+  el.querySelector('.cover').onclick = play;
+  el.querySelector('[data-a="remix"]').onclick = remix;
+  return el;
+}
+
+function renderFeatured(list) {
+  const grid = document.getElementById('featuredGrid');
+  grid.innerHTML = '';
+  document.getElementById('featuredHead').hidden = !list.length;
+  for (const t of list) grid.appendChild(card({ title: t.name, sub: t.blurb, by: 'the Overseer', emoji: t.emoji, play: () => enterGame(t.url), remix: () => remixIt({ template: t.id, title: t.name }) }));
+  for (const c of grid.querySelectorAll('.game-card')) c.classList.add('overseer-card');
+}
+
 function render() {
   const grid = document.getElementById('gameGrid');
   const empty = document.getElementById('empty');
-
-  if (!games.length) {
-    grid.innerHTML = '';
-    empty.hidden = false;
-    return;
-  }
-
-  empty.hidden = true;
   grid.innerHTML = '';
-
-  for (const g of games) {
-    const card = document.createElement('a');
-    card.className = 'game-card';
-    card.href = '#';
-    card.onclick = (e) => {
-      e.preventDefault();
-      playGame(g);
-    };
-
-    const cover = document.createElement('div');
-    cover.className = 'cover';
-    if (g.cover) {
-      const img = document.createElement('img');
-      img.src = g.cover;
-      img.alt = g.title;
-      cover.appendChild(img);
-    } else {
-      cover.textContent = g.title[0].toUpperCase();
-    }
-    card.appendChild(cover);
-
-    const body = document.createElement('div');
-    body.className = 'body';
-
-    const title = document.createElement('div');
-    title.className = 'title';
-    title.textContent = g.title;
-    body.appendChild(title);
-
-    if (g.description) {
-      const desc = document.createElement('div');
-      desc.className = 'muted';
-      desc.style.fontSize = '13px';
-      desc.style.lineHeight = '1.4';
-      desc.textContent = g.description.slice(0, 100) + (g.description.length > 100 ? '...' : '');
-      body.appendChild(desc);
-    }
-
-    const meta = document.createElement('div');
-    meta.className = 'meta';
-    meta.innerHTML = `
-      <span>by ${escapeHtml(g.ownerName)}</span>
-      <span>▸ ${g.plays || 0}</span>
-    `;
-    body.appendChild(meta);
-
-    card.appendChild(body);
-    grid.appendChild(card);
-  }
+  empty.hidden = Boolean(games.length);
+  for (const g of games) grid.appendChild(card({ title: g.title, sub: g.description, by: g.by, plays: g.plays || 0, cover: g.cover, play: () => enterGame(g.url), remix: () => remixIt({ slug: g.slug }) }));
 }
 
-function playGame(g) {
-  document.getElementById('playTitle').textContent = g.title;
-  document.getElementById('playAuthor').textContent = `by ${g.ownerName}`;
-  document.getElementById('playAuthor').href = '#'; // Could link to profile later
-  document.getElementById('playFrame').src = `/play/${g.slug}`;
-  document.getElementById('playModal').hidden = false;
+/** A copy of a game, yours to change: then straight into it. */
+async function remixIt(what) {
+  if (!me) { pendingRemix = what; openAuth('signup'); return; }
+  try {
+    const g = what.template
+      ? await post(`${API}/games`, { title: `${what.title} remix`, template: what.template })
+      : await post(`${API}/remix`, { slug: what.slug });
+    enterGame(`/app/g/${g.id}`, { label: 'REMIXING' });
+  } catch (err) { alert(err.message); }
 }
+let pendingRemix = null;
 
 // ===================================================================== sort
 document.querySelectorAll('[data-sort]').forEach(btn => {
@@ -105,6 +81,8 @@ document.querySelectorAll('[data-sort]').forEach(btn => {
 function setupAuth() {
   document.querySelectorAll('[data-open-auth]').forEach(btn => {
     btn.onclick = (e) => {
+      // Signed in already: the link just goes to your games.
+      if (me) return;
       e.preventDefault();
       const mode = btn.dataset.openAuth || 'signup';
       openAuth(mode);
@@ -139,6 +117,7 @@ function setupAuth() {
         throw new Error(data.error || 'Authentication failed');
       }
 
+      if (pendingRemix) { me = (await get(`${API}/users/me`)).user; document.getElementById('authModal').hidden = true; return remixIt(pendingRemix); }
       location.href = '/app';
     } catch (err) {
       errorEl.textContent = err.message;
@@ -181,8 +160,15 @@ async function get(url) {
   return res.json();
 }
 
+async function post(url, body) {
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(out.error || res.statusText);
+  return out;
+}
+
 function escapeHtml(text) {
   const div = document.createElement('div');
-  div.textContent = text;
+  div.textContent = text ?? '';
   return div.innerHTML;
 }

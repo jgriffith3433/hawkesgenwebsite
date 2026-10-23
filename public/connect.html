@@ -8,6 +8,7 @@
   <meta name="description" content="Use Hawkes Gen from Claude Code, Cursor, VS Code, Claude, Windsurf or ChatGPT: sprite sheets, textures, 3D models, rigs, voices and sound, from a prompt in your editor.">
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/public.css">
+  <link rel="stylesheet" href="/site.css">
   <style>
     .clients { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); border-top: 1px solid var(--ink); }
     .client { padding: 22px 22px 22px 0; border-bottom: 1px solid var(--rule); display: grid; gap: 10px; align-content: start; min-width: 0; }
@@ -25,7 +26,7 @@
     .mcp-url { font: 400 clamp(26px, 4vw, 40px)/1.1 var(--mono); letter-spacing: -0.02em; }
   </style>
 </head>
-<body>
+<body class="landing">
   <header class="hg-navbar">
     <div class="wrap hg-navbar-inner">
       <a href="/" class="hg-brand"><span class="wordmark">Hawkes Gen</span></a>
@@ -216,5 +217,6 @@
     }
     connections();
   </script>
+  <script src="/enter.js"></script>
 </body>
 </html>

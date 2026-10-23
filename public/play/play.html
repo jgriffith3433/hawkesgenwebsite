@@ -2,65 +2,209 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Hawkes Play</title>
   <link rel="icon" href="/favicon.svg">
   <style>
-    :root { --ink: #1a1915; --paper: #f4f2ed; --accent: #c8421d; }
-    html, body { margin: 0; height: 100%; background: #111; overflow: hidden; font-family: 'IBM Plex Sans', system-ui, sans-serif; touch-action: none; }
+    :root { --accent: #4a9eff; --accent-2: #a855f7; --glass: rgba(10,12,20,.72); --line: rgba(255,255,255,.12); --fg: #e8ecf6; --fg-2: #a5acc2; --bad: #ef4444; --ok: #34d399; --mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', monospace; --sans: 'Inter', system-ui, -apple-system, sans-serif; }
+    html, body { margin: 0; height: 100%; background: #0a0a0f; overflow: hidden; font-family: var(--sans); touch-action: none; -webkit-user-select: none; user-select: none; }
     #stage { width: 100%; height: 100%; display: block; outline: none; }
-    #ui { position: fixed; inset: 0; pointer-events: none; }
-    .ui-text { position: absolute; color: #fff; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,.6); white-space: pre; }
+    #ui { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+    .ui-text { position: absolute; color: #fff; font-weight: 600; text-shadow: 0 1px 3px rgba(0,0,0,.7); white-space: pre; }
     .ui-bar { position: absolute; width: 200px; color: #fff; font-size: 13px; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
-    .ui-bar-track { height: 12px; background: rgba(0,0,0,.4); border: 1px solid rgba(255,255,255,.6); border-radius: 2px; overflow: hidden; margin-top: 3px; }
-    .ui-bar-fill { height: 100%; background: #e8e3d6; transition: width .12s; }
-    .ui-button { position: absolute; pointer-events: auto; font: 600 16px/1 inherit; font-family: inherit; padding: 12px 22px; background: var(--paper); color: var(--ink); border: 1px solid var(--ink); border-radius: 3px; cursor: pointer; }
-    .ui-button:hover { background: #fff; }
-    .ui-message { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); color: #fff; font: 400 48px/1.1 'Instrument Serif', Georgia, serif; text-shadow: 0 2px 8px rgba(0,0,0,.6); text-align: center; transition: opacity .4s; }
+    .ui-bar-track { height: 10px; background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.5); border-radius: 6px; overflow: hidden; margin-top: 3px; }
+    .ui-bar-fill { height: 100%; background: var(--accent); transition: width .12s; }
+    .ui-button { position: absolute; pointer-events: auto; font: 600 16px/1 var(--sans); padding: 12px 22px; background: var(--accent); color: #fff; border: 0; border-radius: 10px; cursor: pointer; box-shadow: 0 6px 24px rgba(74,158,255,.35); }
+    .ui-button:hover { filter: brightness(1.1); }
+    .ui-message { position: absolute; left: 50%; top: 34%; transform: translate(-50%, -50%); color: #fff; font: 700 40px/1.1 var(--sans); letter-spacing: -.02em; text-shadow: 0 2px 12px rgba(0,0,0,.6); text-align: center; transition: opacity .4s; padding: 0 16px; }
     .ui-message.out { opacity: 0; }
-    .ui-over { position: absolute; inset: 0; display: grid; place-content: center; gap: 22px; justify-items: center; background: rgba(10,10,8,.55); pointer-events: auto; }
-    .ui-over-text { color: #fff; font: 400 56px/1.05 'Instrument Serif', Georgia, serif; text-align: center; padding: 0 16px; }
+    .ui-over { position: absolute; inset: 0; display: grid; place-content: center; gap: 22px; justify-items: center; background: rgba(8,9,14,.6); backdrop-filter: blur(6px); pointer-events: auto; }
+    .ui-over-text { color: #fff; font: 700 52px/1.05 var(--sans); letter-spacing: -.02em; text-align: center; padding: 0 16px; }
     .ui-over .ui-button { position: static; }
-    #error { position: fixed; left: 12px; right: 12px; bottom: 12px; background: #2a0d07; color: #ffd9cf; border: 1px solid #c8421d; padding: 10px 12px; font: 12px/1.45 ui-monospace, 'IBM Plex Mono', monospace; max-height: 30%; overflow: auto; z-index: 5; white-space: pre-wrap; }
-    #loading { position: fixed; inset: 0; display: grid; place-content: center; color: #e8e3d6; font: 15px 'IBM Plex Sans', system-ui, sans-serif; letter-spacing: .02em; }
-    #badge { position: fixed; right: 10px; bottom: 10px; font: 500 11px/1 'IBM Plex Sans', system-ui, sans-serif; color: rgba(255,255,255,.85); background: rgba(0,0,0,.35); padding: 6px 8px; border-radius: 3px; text-decoration: none; z-index: 4; }
-    #badge:hover { background: rgba(0,0,0,.6); }
-    #touch .pad { position: fixed; left: 24px; bottom: 24px; width: 120px; height: 120px; border-radius: 50%; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.35); touch-action: none; }
-    #touch .knob { position: absolute; left: 35px; top: 35px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,.5); pointer-events: none; }
-    #touch .tb { position: fixed; bottom: 34px; width: 64px; height: 64px; border-radius: 50%; border: 1px solid rgba(255,255,255,.5); background: rgba(255,255,255,.18); color: #fff; font: 600 20px/1 system-ui, sans-serif; touch-action: none; }
-    #touch .a { right: 24px; }
-    #touch .b { right: 100px; bottom: 90px; }
+    /* Screens a game makes (game.ui.panel / menu / popup / ask / attach), themed with game.ui.theme or game.json "ui" */
+    #ui { --ui-font: var(--sans); --ui-fg: #fff; --ui-accent: #4a9eff; --ui-panel: rgba(12,14,24,.82); --ui-border: rgba(255,255,255,.14); --ui-radius: 14px; --ui-blur: 12px; font-family: var(--ui-font); }
+    .ui-panel { position: absolute; pointer-events: auto; min-width: 180px; max-width: min(420px, 90vw); padding: 12px 14px; color: var(--ui-fg); background: var(--ui-panel); border: 1px solid var(--ui-border); border-radius: var(--ui-radius); backdrop-filter: blur(var(--ui-blur)); box-shadow: 0 12px 40px rgba(0,0,0,.35); }
+    .ui-panel-title, .ui-menu-title { font-weight: 700; font-size: 17px; margin-bottom: 6px; letter-spacing: -.01em; }
+    .ui-panel-body { font-size: 14px; line-height: 1.45; }
+    .ui-panel-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .ui-x { position: absolute; top: 6px; right: 8px; border: 0; background: none; color: var(--ui-fg); font-size: 18px; cursor: pointer; opacity: .7; }
+    .ui-btn { font: 600 14px var(--ui-font); padding: 10px 16px; border-radius: calc(var(--ui-radius) * .7); border: 1px solid var(--ui-border); background: rgba(255,255,255,.06); color: var(--ui-fg); cursor: pointer; transition: all .12s; }
+    .ui-btn:hover, .ui-btn.on, .ui-btn:focus-visible { border-color: var(--ui-accent); background: color-mix(in srgb, var(--ui-accent) 25%, transparent); outline: none; }
+    .ui-btn.primary { background: var(--ui-accent); border-color: var(--ui-accent); }
+    .ui-menu-wrap, .ui-popup-wrap { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: auto; background: rgba(5,6,12,.55); backdrop-filter: blur(4px); color: var(--ui-fg); }
+    .ui-menu, .ui-popup { min-width: min(320px, 90vw); max-width: min(440px, 92vw); padding: 22px; border-radius: var(--ui-radius); background: var(--ui-panel); border: 1px solid var(--ui-border); box-shadow: 0 24px 70px rgba(0,0,0,.5); }
+    .ui-menu-text, .ui-popup-text { font-size: 15px; line-height: 1.5; margin-bottom: 12px; opacity: .9; }
+    .ui-menu-items { display: grid; gap: 8px; }
+    .ui-menu-items .ui-btn { width: 100%; text-align: left; padding: 13px 16px; font-size: 15px; }
+    .ui-input { width: 100%; box-sizing: border-box; font: 15px var(--ui-font); padding: 10px 12px; border-radius: calc(var(--ui-radius) * .6); border: 1px solid var(--ui-border); background: rgba(0,0,0,.25); color: var(--ui-fg); outline: none; }
+    .ui-input:focus { border-color: var(--ui-accent); }
+    .ui-attach { position: absolute; left: 0; top: 0; pointer-events: none; white-space: nowrap; font: 600 13px var(--ui-font); color: var(--ui-fg); padding: 4px 8px; border-radius: 8px; background: var(--ui-panel); border: 1px solid var(--ui-border); }
+    .ui-html { position: absolute; pointer-events: auto; }
+    #error { position: fixed; left: 12px; right: 12px; bottom: 12px; background: #2a0d0d; color: #ffd9d9; border: 1px solid var(--bad); padding: 10px 12px; font: 12px/1.45 var(--mono); max-height: 30%; overflow: auto; z-index: 9; white-space: pre-wrap; border-radius: 8px; }
+    #loading { position: fixed; inset: 0; display: grid; place-content: center; color: var(--fg-2); font: 14px var(--mono); letter-spacing: .08em; }
+    #loading[hidden], #error[hidden] { display: none; }
+    .corner { position: fixed; right: 10px; bottom: 10px; display: flex; gap: 6px; z-index: 6; }
+    .corner[hidden] { display: none; }
+    .corner a, .corner button { font: 500 12px/1 var(--sans); color: #fff; background: var(--glass); backdrop-filter: blur(10px); border: 1px solid var(--line); padding: 8px 10px; border-radius: 8px; text-decoration: none; cursor: pointer; }
+    .corner a:hover, .corner button:hover { border-color: var(--accent); }
+    #touch .pad { position: fixed; left: max(20px, env(safe-area-inset-left)); bottom: max(24px, env(safe-area-inset-bottom)); width: 124px; height: 124px; border-radius: 50%; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.3); touch-action: none; z-index: 5; }
+    #touch .knob { position: absolute; left: 37px; top: 37px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,.45); pointer-events: none; }
+    #touch .tb { position: fixed; bottom: max(30px, env(safe-area-inset-bottom)); width: 66px; height: 66px; border-radius: 50%; border: 1px solid rgba(255,255,255,.45); background: rgba(255,255,255,.14); color: #fff; font: 600 22px/1 system-ui, sans-serif; touch-action: none; z-index: 5; }
+    #touch .a { right: max(22px, env(safe-area-inset-right)); }
+    #touch .b { right: 100px; bottom: 96px; }
+    /* Building: the hotbar has the bottom strip, so the sticks and buttons sit above it */
+    body.building #touch .pad { bottom: calc(max(24px, env(safe-area-inset-bottom)) + 84px); }
+    body.building #touch .a { bottom: calc(max(30px, env(safe-area-inset-bottom)) + 84px); }
+    body.building #touch .b { bottom: 180px; }
+    body.building .hud-touch { bottom: 270px; }
+
+    /* ------------------------------------------------------------ the build HUD (build.js) */
+    #hud { position: fixed; inset: 0; pointer-events: none; z-index: 4; color: var(--fg); }
+    #hud.playing .hud-look, #hud.playing .hud-hint, #hud.playing .hud-bar, #hud.playing .hud-touch, #hud.playing .hud-free { display: none !important; }
+    .hud-cross { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; }
+    .hud-cross::before, .hud-cross::after { content: ''; position: absolute; background: rgba(255,255,255,.85); box-shadow: 0 0 3px rgba(0,0,0,.6); }
+    .hud-cross::before { left: 8px; top: 2px; width: 2px; height: 14px; }
+    .hud-cross::after { top: 8px; left: 2px; height: 2px; width: 14px; }
+    .hud-cross.on::before, .hud-cross.on::after { background: var(--accent); }
+    .hud-cross.grab { border: 2px solid var(--accent); border-radius: 50%; }
+    .hud-cross[hidden] { display: none; }
+    .hud-look { position: absolute; left: 50%; top: calc(50% + 22px); transform: translateX(-50%); text-align: center; padding: 6px 12px; border-radius: 10px; background: var(--glass); backdrop-filter: blur(10px); border: 1px solid var(--line); max-width: min(560px, 90vw); }
+    .hud-look[hidden] { display: none; }
+    .hud-look-name { font: 600 14px/1.2 var(--sans); color: #fff; }
+    .hud-look-bits { font: 11.5px/1.35 var(--mono); color: var(--fg-2); margin-top: 2px; }
+    .hud-hint { position: absolute; left: 50%; bottom: 84px; transform: translateX(-50%); font: 11.5px/1.3 var(--mono); color: rgba(255,255,255,.72); text-shadow: 0 1px 3px rgba(0,0,0,.8); white-space: nowrap; max-width: 96vw; overflow: hidden; text-overflow: ellipsis; }
+    .hud-top { position: absolute; left: 50%; top: max(12px, env(safe-area-inset-top)); transform: translateX(-50%); display: flex; gap: 8px; align-items: center; pointer-events: auto; }
+    .hud-mode { display: flex; padding: 3px; border-radius: 999px; background: var(--glass); backdrop-filter: blur(10px); border: 1px solid var(--line); cursor: pointer; }
+    .hud-mode span { font: 600 12px/1 var(--sans); padding: 7px 12px; border-radius: 999px; color: var(--fg-2); }
+    .hud-mode span.on { background: var(--accent); color: #fff; }
+    .hud-net { font: 11px/1 var(--mono); color: var(--fg-2); padding: 7px 9px; border-radius: 999px; background: var(--glass); border: 1px solid var(--line); }
+    .hud-net:empty { display: none; }
+    .hud-net.online { color: var(--ok); }
+    .hud-bar { position: absolute; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; gap: 4px; padding: 5px; border-radius: 14px; background: var(--glass); backdrop-filter: blur(10px); border: 1px solid var(--line); pointer-events: auto; max-width: calc(100vw - 24px); overflow-x: auto; scrollbar-width: none; }
+    .hud-bar .slot { position: relative; width: 58px; height: 54px; display: grid; place-items: center; align-content: center; gap: 2px; border: 1px solid transparent; border-radius: 10px; background: rgba(255,255,255,.04); color: #fff; cursor: pointer; flex: none; }
+    .hud-bar .slot:hover { border-color: var(--accent); background: rgba(74,158,255,.14); }
+    .hud-bar .slot b { font: 600 18px/1 var(--sans); }
+    .hud-bar .slot span { font: 500 9.5px/1 var(--sans); color: var(--fg-2); white-space: nowrap; }
+    .hud-bar .slot i { position: absolute; top: 3px; left: 5px; font: 9px/1 var(--mono); font-style: normal; color: rgba(255,255,255,.35); }
+    .hud-toast { position: absolute; left: 50%; top: 60px; transform: translate(-50%, -6px); font: 500 13px/1.3 var(--sans); padding: 8px 12px; border-radius: 10px; background: var(--glass); border: 1px solid var(--line); opacity: 0; transition: all .2s; }
+    .hud-toast.on { opacity: 1; transform: translate(-50%, 0); }
+    .hud-free { position: absolute; left: 50%; top: calc(50% - 46px); transform: translateX(-50%); font: 12px/1 var(--sans); color: rgba(255,255,255,.8); background: rgba(0,0,0,.4); padding: 7px 11px; border-radius: 999px; }
+    .hud-free[hidden] { display: none; }
+    .hud-leader { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity .15s; }
+    .hud-leader.on { opacity: 1; }
+    .hud-leader line { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 4 3; }
+    .hud-leader circle { fill: var(--accent); }
+    .hud-touch { position: absolute; right: max(14px, env(safe-area-inset-right)); bottom: 190px; display: grid; gap: 10px; pointer-events: auto; }
+    .hud-touch[hidden] { display: none; }
+    .tbtn { width: 60px; height: 60px; border-radius: 50%; border: 1px solid rgba(255,255,255,.4); background: rgba(10,12,20,.55); color: #fff; font: 20px/1 system-ui; display: grid; place-items: center; align-content: center; gap: 1px; touch-action: none; }
+    .tbtn span { font: 600 9.5px/1 var(--sans); }
+
+    /* The card: a thing's editor, next to it in the world */
+    .card { position: fixed; left: 0; top: 0; z-index: 7; width: 300px; max-width: calc(100vw - 24px); max-height: calc(100vh - 24px); overflow: auto; padding: 12px; border-radius: 14px; background: rgba(12,14,24,.86); backdrop-filter: blur(16px); border: 1px solid rgba(74,158,255,.45); box-shadow: 0 14px 50px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.04) inset, 0 0 30px rgba(74,158,255,.12); color: var(--fg); font: 13px/1.4 var(--sans); pointer-events: auto; user-select: text; -webkit-user-select: text; animation: card-in .18s ease-out; }
+    @keyframes card-in { from { scale: .96; } to { scale: 1; } }
+    .card-head { display: flex; gap: 6px; align-items: center; cursor: grab; }
+    .card.dragging { cursor: grabbing; scale: 1.01; box-shadow: 0 20px 60px rgba(0,0,0,.6), 0 0 0 1px rgba(74,158,255,.6); }
+    .card-more { border-top: 1px solid rgba(255,255,255,.08); margin-top: 6px; padding-top: 2px; }
+    .card select, .card option, .chips select, .chips option { background: #141826; color: #fff; }
+    .card select:focus { outline: 1px solid var(--accent); }
+    .card-name { flex: 1; min-width: 0; font: 600 16px/1.2 var(--sans); color: #fff; background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 3px 5px; outline: none; }
+    .card-name:hover, .card-name:focus { border-color: var(--line); background: rgba(255,255,255,.04); }
+    .card-x { width: 26px; height: 26px; border-radius: 50%; border: 0; background: rgba(255,255,255,.06); color: #fff; font-size: 16px; cursor: pointer; }
+    .card-kind { font: 11px/1.4 var(--mono); color: var(--fg-2); margin: 2px 5px 8px; }
+    .card-row { display: grid; gap: 5px; margin: 9px 0; }
+    .card-row > label { font: 600 10.5px/1 var(--sans); text-transform: uppercase; letter-spacing: .08em; color: rgba(255,255,255,.5); }
+    .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3px; padding: 3px; border-radius: 9px; background: rgba(255,255,255,.05); }
+    .seg button { font: 500 11.5px/1.15 var(--sans); padding: 7px 4px; border: 0; border-radius: 7px; background: transparent; color: var(--fg-2); cursor: pointer; }
+    .seg button.on { background: var(--accent); color: #fff; }
+    .swatches { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+    .swatches button { width: 20px; height: 20px; border-radius: 50%; border: 2px solid rgba(255,255,255,.15); cursor: pointer; padding: 0; }
+    .swatches button.on { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
+    .swatches input[type=color] { width: 26px; height: 22px; border: 0; background: none; padding: 0; cursor: pointer; }
+    .card input[type=range] { width: 100%; accent-color: var(--accent); }
+    .card-in { font: 13px var(--sans); color: #fff; background: rgba(255,255,255,.05); border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; outline: none; }
+    .chips { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+    .chip { display: inline-flex; align-items: center; gap: 4px; font: 500 11.5px/1 var(--sans); padding: 5px 4px 5px 9px; border-radius: 999px; background: rgba(168,85,247,.16); border: 1px solid rgba(168,85,247,.4); color: #e9d5ff; }
+    .chip button { border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 13px; padding: 0 3px; }
+    .chips select { font: 500 11.5px var(--sans); color: #fff; background: #141826; border: 1px dashed var(--line); border-radius: 999px; padding: 4px 8px; }
+    .chips .muted { color: var(--fg-2); font-size: 12px; }
+    .card-ask { display: flex; gap: 5px; margin: 10px 0 8px; padding: 4px; border-radius: 10px; background: rgba(74,158,255,.08); border: 1px solid rgba(74,158,255,.3); }
+    .card-ask input { flex: 1; min-width: 0; border: 0; background: transparent; color: #fff; font: 13px var(--sans); padding: 5px 6px; outline: none; }
+    .card-ask button { border: 0; border-radius: 7px; background: var(--accent); color: #fff; font: 600 12px var(--sans); padding: 6px 10px; cursor: pointer; }
+    .card-foot { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+    .card-foot .grow { flex: 1; }
+    .card-btn { font: 500 12px/1 var(--sans); padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: rgba(255,255,255,.04); color: #fff; cursor: pointer; }
+    .card-btn:hover { border-color: var(--accent); }
+    .card-btn.bad { color: #fca5a5; border-color: rgba(239,68,68,.4); }
+    .card-btn.hot { width: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border: 0; padding: 9px; font-weight: 600; }
+    @media (max-width: 640px) {
+      .hud-hint { bottom: 76px; font-size: 10.5px; }
+      .hud-bar .slot { width: 50px; height: 48px; }
+      .card { width: calc(100vw - 24px); }
+    }
   </style>
 </head>
 <body>
   <canvas id="stage" tabindex="0"></canvas>
   <div id="ui"></div>
-  <div id="loading">Loading…</div>
+  <div id="loading">LOADING…</div>
   <div id="error" hidden></div>
-  <a id="badge" href="https://hawkesgen.com/" target="_top" hidden>Made with Hawkes Gen</a>
+  <div class="corner" id="corner" hidden>
+    <button type="button" id="friendsBtn">Play with friends</button>
+    <a id="remixBtn" target="_top">Remix</a>
+    <a id="badge" href="https://hawkesgen.com/" target="_top">Made with Hawkes Gen</a>
+  </div>
   <script src="https://cdn.jsdelivr.net/npm/babylonjs@7.54.3/babylon.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/babylonjs-loaders@7.54.3/babylonjs.loaders.min.js"></script>
-  <script src="/play/runtime.js"></script>
+  <script src="/play/runtime.js?v=engine4"></script>
+  <script src="/play/behaviors.js?v=engine4"></script>
+  <script src="/play/net.js?v=engine4"></script>
   <script>
-    // /play/<slug> and /play/<slug>/v/<n> load a published version; /play/_draft waits for the editor to send its draft.
+    // /play/<slug> and /play/<slug>/v/<n> load a published version (?room=<code> plays it together);
+    // /play/_draft is the editor's: it waits for the editor to send the draft, and adds the building tools.
     (function () {
       var parts = location.pathname.replace(/\/+$/, '').split('/');
       var slug = parts[2];
       var loading = document.getElementById('loading');
       if (slug === '_draft') {
+        var s = document.createElement('script');
+        s.src = '/play/build.js?v=engine4';
+        s.onload = function () { window.parent.postMessage({ source: 'hawkes-play', type: 'ready' }, '*'); };
+        document.body.appendChild(s);
         window.addEventListener('message', function (e) {
+          if (e.source !== window.parent) return;
           var m = e.data || {};
-          if (m.type === 'bundle' && m.bundle) HawkesPlay.run(m.bundle);
+          if (m.type === 'bundle' && m.bundle) {
+            HawkesPlay.run(m.bundle, { mode: m.mode || 'build' });
+            if (m.bundle.net && m.bundle.net.token) HawkesNet.connect({ token: m.bundle.net.token });
+          }
+          if (m.type === 'files' && m.files) HawkesPlay.reload(m.files);
+          if (m.type === 'assets' && m.assets) HawkesPlay.setAssets(m.assets);
           if (m.type === 'restart') HawkesPlay.restart();
+          if (m.type === 'net' && m.token) HawkesNet.connect({ token: m.token });
         });
-        window.parent.postMessage({ source: 'hawkes-play', type: 'ready' }, '*');
         return;
       }
-      document.getElementById('badge').hidden = false;
+      var q = new URLSearchParams(location.search);
+      var corner = document.getElementById('corner');
+      corner.hidden = false;
+      var tpl = slug === 't' ? parts[3] : null;
+      if (tpl) slug = 't/' + tpl;
+      document.getElementById('remixBtn').href = tpl ? '/app?template=' + encodeURIComponent(tpl) : '/app?remix=' + encodeURIComponent(slug);
+      var friends = document.getElementById('friendsBtn');
+      friends.onclick = function () {
+        var room = q.get('room') || Math.random().toString(36).slice(2, 8);
+        var link = location.origin + '/play/' + slug + '?room=' + room;
+        if (!q.get('room')) { history.replaceState(null, '', '?room=' + room); q.set('room', room); HawkesNet.connect({ play: slug, room: room }); }
+        try { navigator.clipboard.writeText(link); friends.textContent = 'Link copied: send it'; } catch (err) { friends.textContent = link; }
+        setTimeout(function () { friends.textContent = 'Room ' + room; }, 2500);
+      };
       var v = parts[3] === 'v' ? '?v=' + encodeURIComponent(parts[4]) : '';
-      fetch('/v1/play/' + encodeURIComponent(slug) + v).then(function (r) {
+      fetch(tpl ? '/v1/play-template/' + encodeURIComponent(tpl) : '/v1/play/' + encodeURIComponent(slug) + v).then(function (r) {
         return r.json().then(function (b) { if (!r.ok) throw new Error(b.error || 'Could not load this game'); return b; });
-      }).then(HawkesPlay.run).catch(function (e) { loading.textContent = e.message; });
+      }).then(function (b) {
+        HawkesPlay.run(b, { mode: 'play' });
+        if (q.get('room')) { HawkesNet.connect({ play: slug, room: q.get('room') }); friends.textContent = 'Room ' + q.get('room'); }
+      }).catch(function (e) { loading.textContent = e.message; });
     })();
   </script>
 </body>

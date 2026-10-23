@@ -6,10 +6,11 @@
   <title>Your games · Hawkes Gen</title>
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/public.css">
+  <link rel="stylesheet" href="/site.css">
   <link rel="stylesheet" href="/builder.css">
   <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
 </head>
-<body>
+<body class="landing">
   <header class="bar">
     <a class="hg-brand" href="/"><img src="/favicon.svg" alt=""><span>Hawkes Gen</span></a>
     <span class="grow"></span>
@@ -67,7 +68,7 @@
     <div class="section-row" style="margin-top:0;border:0;padding:0;margin-bottom:6px">
       <div>
         <h2 style="font-size:18px;color:var(--fg-2)">Games from the Overseer</h2>
-        <p class="muted" style="font-size:13px;margin:4px 0 0;max-width:50ch">Built by the developer. Play them, fork them, or take them apart to see how everything works.</p>
+        <p class="muted" style="font-size:13px;margin:4px 0 0;max-width:50ch">Built by the developer. Play them, remix them into your own, or take them apart to see how everything works.</p>
       </div>
     </div>
     <div id="overseerGames" class="game-grid" style="margin-bottom:32px"></div>
@@ -104,5 +105,6 @@
   </main>
 
   <script src="/games.js"></script>
+  <script src="/enter.js"></script>
 </body>
 </html>

@@ -7,10 +7,10 @@
   <meta name="description" content="Every kind of thing a Hawkes game is built from, running live in the same engine the editor uses.">
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/public.css">
+  <link rel="stylesheet" href="/site.css">
   <link rel="stylesheet" href="/builder.css">
-  <script src="https://cdn.babylonjs.com/babylon.js"></script>
-  <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
-  <script src="https://cdn.babylonjs.com/cannon.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/babylonjs@7.54.3/babylon.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/babylonjs-loaders@7.54.3/babylonjs.loaders.min.js"></script>
   <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
   <style>
     /* The codex: a small engine window (type list, live viewport, inspector) and the reference under it. */
@@ -18,7 +18,7 @@
     .codex-head .label { font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .14em; color: var(--accent); }
     .budget { display: flex; gap: 10px; flex-wrap: wrap; }
     .budget div { border: 1px solid var(--border); border-radius: var(--r); padding: 8px 12px; background: var(--surface); min-width: 110px; }
-    .budget b { display: block; font: 600 20px/1.1 var(--mono); color: #fff; }
+    .budget b { display: block; font: 600 20px/1.1 var(--mono); color: var(--heading); }
     .budget span { font: 11px/1.3 var(--mono); color: var(--fg-3); text-transform: uppercase; letter-spacing: .06em; }
 
     .engine-win { display: grid; grid-template-columns: 210px minmax(0, 1fr) 340px; border: 1px solid var(--border-strong); border-radius: var(--r-lg); overflow: hidden; background: var(--surface); height: 560px; }
@@ -28,8 +28,8 @@
     .types { overflow: auto; border-right: 1px solid var(--border); flex: 1; }
     .types h4 { font: 500 10.5px/1 var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--fg-3); margin: 14px 12px 6px; }
     .types button { display: flex; align-items: center; gap: 9px; width: 100%; padding: 7px 12px; border: 0; background: transparent; color: var(--fg-2); font: 13px/1.2 var(--mono); text-align: left; cursor: pointer; border-left: 2px solid transparent; }
-    .types button:hover { color: #fff; background: var(--surface-2); }
-    .types button.on { color: #fff; background: var(--accent-glow); border-left-color: var(--accent); }
+    .types button:hover { color: var(--heading); background: var(--surface-2); }
+    .types button.on { color: var(--heading); background: var(--accent-glow); border-left-color: var(--accent); }
     .types .glyph { width: 14px; height: 14px; flex: none; border: 1.5px solid currentColor; opacity: .8; }
     .glyph.box { border-radius: 2px; }
     .glyph.sphere { border-radius: 50%; }
@@ -44,10 +44,14 @@
 
     .viewport { position: relative; min-width: 0; background: #000; }
     .viewport canvas { width: 100%; height: 100%; display: block; outline: none; touch-action: none; }
+    .vp-ui { position: absolute; inset: 0; pointer-events: none; }
+    .vp-ui .ui-message, .vp-ui .ui-text { display: none; }
+    .vp-err { position: absolute; left: 10px; right: 10px; bottom: 50px; font: 12px var(--mono); color: #fecaca; background: rgba(60,10,10,.85); padding: 8px; border-radius: 8px; }
+    .vp-err[hidden] { display: none; }
     .vp-hud { position: absolute; left: 12px; top: 12px; right: 12px; display: flex; gap: 8px; align-items: center; pointer-events: none; }
     .vp-hud .grow { flex: 1; }
     .vp-chip { pointer-events: auto; font: 500 11px/1 var(--mono); padding: 6px 8px; border-radius: 4px; background: var(--glass); backdrop-filter: var(--glass-blur); border: 1px solid var(--border); color: var(--fg-2); }
-    .vp-chip b { color: #fff; font-weight: 500; }
+    .vp-chip b { color: var(--heading); font-weight: 500; }
     .vp-actions { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 8px; }
     .vp-actions .btn { background: var(--glass); backdrop-filter: var(--glass-blur); }
     .vp-actions .btn[hidden], .vp-chip[hidden] { display: none; }
@@ -55,7 +59,7 @@
 
     .inspector { border-left: 1px solid var(--border); overflow: auto; flex: 1; }
     .insp-body { padding: 14px; display: grid; gap: 12px; }
-    .insp-body h3 { font: 600 20px/1.1 var(--mono); color: #fff; margin: 0; }
+    .insp-body h3 { font: 600 20px/1.1 var(--mono); color: var(--heading); margin: 0; }
     .insp-body .what { color: var(--fg-2); font-size: 13.5px; line-height: 1.5; margin: 0; }
     .insp-body .uses { font: 12px/1.5 var(--mono); color: var(--fg-3); margin: 0; }
     .insp-body .uses b { color: var(--fg-2); font-weight: 500; }
@@ -73,7 +77,7 @@
 
     .ref-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
     .ref { border: 1px solid var(--border); border-radius: var(--r-lg); padding: 16px; background: var(--surface); display: grid; gap: 8px; align-content: start; }
-    .ref h3 { font: 600 15px/1.2 var(--mono); color: #fff; margin: 0; }
+    .ref h3 { font: 600 15px/1.2 var(--mono); color: var(--heading); margin: 0; }
     .ref p { margin: 0; color: var(--fg-2); font-size: 13.5px; line-height: 1.5; }
     .ref code, .page p code { font: 12px var(--mono); color: #cfe3ff; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
     .ref ul { margin: 0; padding-left: 16px; color: var(--fg-2); font-size: 13px; line-height: 1.55; }
@@ -81,7 +85,7 @@
     .kinds { width: 100%; border-collapse: collapse; font-size: 13.5px; }
     .kinds th { text-align: left; font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--fg-3); padding: 0 12px 10px 0; }
     .kinds td { padding: 10px 12px 10px 0; border-top: 1px solid var(--border); color: var(--fg-2); vertical-align: top; }
-    .kinds td:first-child { font-family: var(--mono); color: #fff; white-space: nowrap; }
+    .kinds td:first-child { font-family: var(--mono); color: var(--heading); white-space: nowrap; }
     .kinds td.n { font-family: var(--mono); white-space: nowrap; }
     .table-wrap { overflow-x: auto; }
     .cta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
@@ -104,7 +108,7 @@
     }
   </style>
 </head>
-<body>
+<body class="landing">
   <header class="bar">
     <a class="hg-brand" href="/"><img src="/favicon.svg" alt=""><span>Hawkes Gen</span></a>
     <span class="grow"></span>
@@ -118,7 +122,7 @@
       <div>
         <span class="label">Hawkes engine · scene.json</span>
         <h1>Entity codex</h1>
-        <p class="lede" style="margin:0">Everything in a Hawkes game is an entity: one JSON object in the game's <code>scene.json</code>.
+        <p class="lede" style="margin:0">Everything in a Hawkes game is a thing in its world: one JSON object in the game's <code>scene.json</code>, with a shape, a look, a way of moving and things it does on its own.
           These are the types the engine builds. The window below is the same engine the editor runs, so edit a spec and apply it.</p>
       </div>
       <div class="budget" id="budget"></div>
@@ -130,7 +134,9 @@
         <nav class="types" id="types"></nav>
       </div>
       <div class="viewport" id="viewport">
-        <canvas id="canvas" aria-label="Live engine view"></canvas>
+        <canvas id="stage" aria-label="Live engine view"></canvas>
+        <div id="ui" class="vp-ui"></div>
+        <div id="error" class="vp-err" hidden></div>
         <div class="vp-hud">
           <span class="vp-chip">type <b id="hudType"></b></span>
           <span class="vp-chip" id="hudPhys" hidden>physics <b></b></span>
@@ -139,7 +145,6 @@
         </div>
         <div class="vp-actions">
           <button class="btn btn-secondary btn-sm" type="button" id="respawn">Spawn again</button>
-          <button class="btn btn-secondary btn-sm" type="button" id="beam" hidden>Show the arrival</button>
         </div>
       </div>
       <div class="win-col inspector-col">
@@ -164,8 +169,12 @@
     <div class="section-row"><h2>What every entity carries</h2></div>
     <div class="ref-grid" id="components"></div>
 
-    <div class="section-row"><h2>Physics bodies</h2></div>
+    <div class="section-row"><h2>How it moves</h2></div>
     <div class="ref-grid" id="physics"></div>
+
+    <div class="section-row"><h2>What it does on its own</h2></div>
+    <p class="lede">Behaviors, in the words people use. Give a thing any number of them; tell the assistant "make it spin" or "the door should open when I get close" and it picks them. Games can add their own in a <code>behaviors/</code> file.</p>
+    <div class="ref-grid" id="behaviors"></div>
 
     <div class="section-row"><h2>Made for you by Hawkes Gen</h2></div>
     <p class="lede">Ask the assistant (or press a button) and Hawkes Gen makes the file on its GPUs, pays for it from your credits,
@@ -188,7 +197,9 @@
     </div>
   </main>
 
-  <script src="/engine/engine.js"></script>
+  <script src="/play/runtime.js?v=engine4"></script>
+  <script src="/play/behaviors.js?v=engine4"></script>
   <script type="module" src="/entities.js"></script>
+  <script src="/enter.js"></script>
 </body>
 </html>

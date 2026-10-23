@@ -2,234 +2,195 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Editor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Hawkes Gen</title>
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/public.css">
-  <link rel="stylesheet" href="/builder.css">
+  <link rel="stylesheet" href="/studio.css?v=engine4">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
-  <script src="https://cdn.babylonjs.com/babylon.js"></script>
-  <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
-  <script src="https://cdn.babylonjs.com/cannon.js"></script>
   <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
 </head>
-<body class="editor-page">
-  <!-- Boot sequence overlay -->
+<body class="studio">
+  <!-- Coming in from the site: the light fades to the game -->
+  <div class="st-enter" id="enter"></div>
+
+  <!-- Boot sequence (once per game) -->
   <div class="boot-overlay" id="bootOverlay">
     <div class="boot-content">
       <div class="boot-logo" id="bootLogo">HAWKES GEN</div>
-      <div class="boot-sub" id="bootSub">GAME BUILDER</div>
+      <div class="boot-sub" id="bootSub">GAME ENGINE</div>
       <div class="boot-lines" id="bootLines"></div>
     </div>
-    <div class="boot-scanline"></div>
   </div>
 
-  <!-- Full-screen game preview (the main view) -->
-  <div class="ed-game">
-    <canvas id="gameCanvas" touch-action="none"></canvas>
+  <!-- The game itself: the world you build in, running in a sandbox (play/play.html + build.js) -->
+  <iframe id="stage" class="st-stage" title="Your game" src="/play/_draft" sandbox="allow-scripts allow-pointer-lock allow-popups" allow="fullscreen; autoplay"></iframe>
+
+  <!-- Corners of the screen, like a game: the menu and who's here; saving and errors -->
+  <div class="st-corner left">
+    <button class="st-hud-btn" id="menuBtn" type="button" title="Menu (Esc)" aria-label="Menu">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 5h12M3 9h12M3 13h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </button>
+    <button class="st-hud-btn" id="libraryBtn" type="button" title="Your library (L)" aria-label="Your library">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="2.5" y="2.5" width="5.5" height="5.5" rx="1.2" stroke="currentColor" stroke-width="1.5"/><rect x="10" y="2.5" width="5.5" height="5.5" rx="1.2" stroke="currentColor" stroke-width="1.5"/><rect x="2.5" y="10" width="5.5" height="5.5" rx="1.2" stroke="currentColor" stroke-width="1.5"/><path d="M12.75 10.5v4.5M10.5 12.75h4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </button>
+    <span class="st-presence" id="presence"></span>
   </div>
-
-  <!-- HUD: Top bar -->
-  <header class="ed-topbar">
-    <a class="hg-brand" href="/app"><img src="/favicon.svg" alt="">Hawkes Gen</a>
-    <input type="text" class="title-input" id="gameTitle" placeholder="Untitled game">
-    <span class="grow"></span>
-    <span class="presence" id="presence"></span>
-    <span class="save-state" id="saveState"></span>
-    <button class="btn btn-primary btn-sm" id="playBtn">Play</button>
-    <button class="btn btn-secondary btn-sm" id="inviteBtn">Invite</button>
-    <button class="profile-btn" id="profileBtn" title="Profile">
-      <span class="profile-avatar" id="profileAvatar">?</span>
-    </button>
-  </header>
-
-  <!-- HUD: Left action buttons -->
-  <div class="hud-actions left">
-    <button class="hud-btn" id="panelToggle" title="Files">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 3h12M2 8h8M2 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-    </button>
-    <button class="hud-btn" id="settingsToggle" title="Settings">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M8 2v2m0 8v2m-4.24-1.76 1.41-1.41m5.66-5.66 1.41-1.41M2 8h2m8 0h2M3.76 3.76l1.41 1.41m5.66 5.66 1.41 1.41" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-    </button>
-    <button class="hud-btn" id="docsToggle" title="Docs">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="2" width="10" height="12" rx="1" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 5h5M5.5 8h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-    </button>
-  </div>
-
-  <!-- HUD: Right action buttons -->
-  <div class="hud-actions right">
-    <button class="hud-btn voice-on" id="voiceToggle" title="Voice">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 6v4h2.5L9 13V3L5.5 6H3z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M11.5 5.5a3.5 3.5 0 0 1 0 5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-    </button>
-    <button class="hud-btn" id="codeToggle" title="Code">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M5.5 4L2 8l3.5 4M10.5 4L14 8l-3.5 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </button>
-    <button class="hud-btn" id="refreshBtn" title="Reload">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2v4h-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </button>
-  </div>
-
-  <!-- Left panel: Files + Assets -->
-  <div class="ed-panel" id="filesPanel">
-    <div class="ed-head">
-      <span class="label">Files</span>
-      <button class="btn btn-ghost btn-sm" id="newFileBtn" title="New file">+</button>
+  <div class="st-corner right">
+    <span class="st-save" id="saveState"></span>
+    <div class="st-errors" id="errorsContainer" hidden>
+      <button class="st-error-pill" id="errorPill" type="button"><span id="errorCount">0</span> errors</button>
+      <div class="st-error-panel" id="errorPanel" hidden><div id="errorList"></div><button class="st-btn" id="askFix" type="button">Ask the assistant to fix these</button></div>
     </div>
-    <div class="ed-list" id="filesList"></div>
-
-    <div class="ed-head" style="margin-top: 18px">
-      <span class="label">Assets</span>
-      <button class="btn btn-ghost btn-sm" id="newAssetBtn" title="Add asset">+</button>
-    </div>
-    <div class="ed-list" id="assetsList"></div>
-    <div id="gensList"></div>
+    <button class="st-hud-btn" id="advancedBtn" type="button" title="Advanced: code, assets, settings" aria-label="Advanced">
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M5.5 4L2 8l3.5 4M10.5 4L14 8l-3.5 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
   </div>
 
-  <!-- Left panel: Settings -->
-  <div class="ed-panel" id="settingsPanel">
-    <div class="ed-head"><span class="label">Settings</span></div>
-    <div class="settings" id="settingsPane">
+  <!-- The assistant, as game chat: the last lines fade out above the input -->
+  <section class="st-chat" id="ai">
+    <div class="st-chat-log" id="chatLog"></div>
+    <div class="st-chat-status" id="thinkingIndicator" hidden>working…</div>
+    <form class="st-chat-input" id="chatForm" autocomplete="off">
+      <span class="st-mention" id="mention" hidden><span id="mentionName"></span><button type="button" id="mentionX" aria-label="Remove">×</button></span>
+      <input id="chatInput" type="text" enterkeyhint="send" placeholder="Press Enter to talk to the assistant" aria-label="Message the assistant" maxlength="4000">
+      <span class="st-chat-cost" id="chatCost"></span>
+    </form>
+  </section>
+  <button class="st-chat-fab" id="aiFab" type="button" aria-label="Talk to the assistant">💬</button>
+
+  <!-- Left: your library, to put anything you've made into the world -->
+  <aside class="st-panel left" id="library" aria-label="Your library">
+    <div class="st-panel-head">
+      <span class="st-panel-title">Your library</span>
+      <span class="grow"></span>
+      <button class="st-btn icon" id="libraryClose" type="button" aria-label="Close">×</button>
+    </div>
+    <div class="st-lib-tabs" id="libTabs">
+      <button type="button" class="on" data-k="">All</button>
+      <button type="button" data-k="model">3D</button>
+      <button type="button" data-k="image">Pictures</button>
+      <button type="button" data-k="audio">Sounds</button>
+      <button type="button" data-k="video">Videos</button>
+    </div>
+    <p class="st-lib-note">Everything you make with Hawkes Gen is yours, here and in the Asset studio. Click one to put it where you're looking.</p>
+    <div class="st-lib-grid" id="libGrid"></div>
+    <div class="st-lib-foot"><a href="/app/studio" target="_blank" class="st-btn small">Make something new in the Asset studio</a></div>
+  </aside>
+
+  <!-- Right: Advanced (files and code, game assets, settings, the docs) -->
+  <aside class="st-panel right" id="drawer" aria-label="Advanced">
+    <div class="st-panel-head">
+      <div class="st-tabs" role="tablist">
+        <button type="button" class="on" data-tab="code">Code</button>
+        <button type="button" data-tab="assets">Assets</button>
+        <button type="button" data-tab="settings">Settings</button>
+        <button type="button" data-tab="docs">Docs</button>
+      </div>
+      <button class="st-btn icon" id="drawerClose" type="button" aria-label="Close">×</button>
+    </div>
+    <label class="st-switch"><input type="checkbox" id="advTools"> Advanced tools in the world (move handles, code buttons)</label>
+
+    <div class="st-pane" data-pane="code">
+      <div class="st-files">
+        <div class="st-files-head"><span class="label">Files</span><button class="st-btn small" id="newFileBtn" type="button">+ File</button></div>
+        <div id="filesList"></div>
+      </div>
+      <div class="st-code">
+        <div id="conflict" class="st-conflict" hidden>
+          <span class="grow">Someone else changed this file while you were typing.</span>
+          <button class="st-btn small" id="conflictKeep" type="button">Keep mine</button>
+          <button class="st-btn small" id="conflictTake" type="button">Take theirs</button>
+        </div>
+        <div class="st-code-head">
+          <span id="openFile" class="grow"></span>
+          <button class="st-btn small" id="renameFileBtn" type="button" hidden>Rename</button>
+          <button class="st-btn small" id="deleteFileBtn" type="button" hidden>Delete</button>
+        </div>
+        <div id="editor" class="st-cm"></div>
+      </div>
+    </div>
+
+    <div class="st-pane" data-pane="assets" hidden>
+      <div class="st-files-head"><span class="label">In this game</span><span><button class="st-btn small" id="newAssetBtn" type="button">By asset id</button> <button class="st-btn small" id="openLibrary2" type="button">+ From your library</button></span></div>
+      <div id="assetsList"></div>
+      <div id="gensList"></div>
+    </div>
+
+    <div class="st-pane" data-pane="settings" hidden>
       <section>
-        <label class="label">Game info</label>
-        <div class="form-field">
-          <label>Description</label>
-          <textarea class="form-input" id="descInput" placeholder="What's your game about?" maxlength="400" rows="3"></textarea>
+        <label class="label">Name</label>
+        <input type="text" class="form-input" id="gameTitle" maxlength="80">
+        <label class="label">About the game</label>
+        <textarea class="form-input" id="descInput" placeholder="What's your game about?" maxlength="400" rows="3"></textarea>
+        <div class="segmented">
+          <button type="button" class="on" data-vis="public">Public</button>
+          <button type="button" data-vis="unlisted">Unlisted</button>
         </div>
-        <div class="form-field">
-          <label>Visibility</label>
-          <div class="segmented">
-            <button type="button" class="on" data-vis="public">Public</button>
-            <button type="button" data-vis="unlisted">Unlisted</button>
-          </div>
-        </div>
-        <div class="form-field">
-          <label>Cover image</label>
-          <input type="text" class="form-input" id="coverInput" placeholder="Asset name or URL">
-        </div>
-        <button class="btn btn-secondary btn-sm" id="saveSettingsBtn">Save</button>
+        <input type="text" class="form-input" id="coverInput" placeholder="Cover image: an asset name">
+        <button class="st-btn" id="saveSettingsBtn" type="button">Save</button>
       </section>
       <section>
-        <label class="label">Members</label>
+        <label class="label">People</label>
         <div id="membersList"></div>
       </section>
       <section>
         <label class="label">Releases</label>
-        <p class="muted" style="font-size:12.5px;margin:0 0 10px">Publish a numbered release so the game stays frozen for players even as you keep editing.</p>
-        <div style="display:flex;gap:8px;margin-bottom:12px">
-          <input type="text" class="form-input" id="releaseNotes" placeholder="What changed?" style="flex:1">
-          <button class="btn btn-primary btn-sm" id="publishBtn">Publish</button>
-        </div>
         <div id="releasesList"></div>
       </section>
       <section>
-        <button class="btn btn-ghost btn-sm" id="leaveBtn">Leave game</button>
-        <button class="btn btn-ghost btn-sm" id="deleteGameBtn" hidden style="color:var(--bad)">Delete game</button>
+        <button class="st-btn" id="leaveBtn" type="button">Leave game</button>
+        <button class="st-btn bad" id="deleteGameBtn" type="button" hidden>Delete game</button>
       </section>
     </div>
-  </div>
 
-  <!-- Left panel: Docs -->
-  <div class="ed-panel" id="docsPanel">
-    <div class="ed-head"><span class="label">Scripting API</span></div>
-    <div class="docs" id="docsContent"></div>
-  </div>
+    <div class="st-pane" data-pane="docs" hidden>
+      <div class="docs" id="docsContent"></div>
+    </div>
+  </aside>
 
-  <!-- Right panel: Code editor -->
-  <div class="ed-code-panel" id="codePanel">
-    <div id="conflict" class="conflict" hidden>
-      <span class="grow">Someone else edited this file while you were typing.</span>
-      <button class="btn btn-secondary btn-sm" id="conflictKeep">Keep mine</button>
-      <button class="btn btn-ghost btn-sm" id="conflictTake">Take theirs</button>
-    </div>
-    <div class="ed-code-head" id="fileCodeHead">
-      <span id="openFile" class="grow"></span>
-      <button class="btn btn-ghost btn-sm" id="renameFileBtn" hidden>Rename</button>
-      <button class="btn btn-ghost btn-sm" id="deleteFileBtn" hidden>Delete</button>
-    </div>
-    <div class="ed-code-head entity-head" id="entityCodeHead" hidden>
-      <span class="entity-tag" id="entityTag">box</span>
-      <span id="entityName" class="grow"></span>
-      <button class="btn btn-primary btn-sm" id="applyEntityBtn">Apply</button>
-      <button class="btn btn-ghost btn-sm" id="deleteEntityBtn">Delete</button>
-    </div>
-    <div id="editor"></div>
-  </div>
-
-  <!-- AI HUD: Chat overlay at bottom center -->
-  <div class="ed-hud">
-    <div class="ed-hud-chat" id="hudChat">
-      <div class="chat-log" id="chatLog"></div>
-      <div class="thinking" id="thinkingIndicator" hidden>AI is thinking...</div>
-      <div class="chat-input">
-        <textarea id="chatInput" placeholder="Tell the AI what to build..." rows="1"></textarea>
-        <span class="chat-cost" id="chatCost"></span>
-        <button class="btn btn-primary btn-sm" id="sendChatBtn">Send</button>
+  <!-- The menu (Esc twice, or the ≡ button): a game's pause menu -->
+  <div class="st-menu" id="menu" hidden>
+    <div class="st-menu-card">
+      <div class="st-menu-who">
+        <span class="st-menu-avatar" id="profileAvatar">?</span>
+        <div><div class="st-menu-name" id="menuName"></div><div class="st-menu-sub" id="menuSub"></div></div>
       </div>
+      <div class="st-menu-game" id="menuGame"></div>
+      <nav class="st-menu-list">
+        <button type="button" class="st-menu-item primary" data-act="resume">Back to the game</button>
+        <button type="button" class="st-menu-item" data-act="invite">Invite friends to build</button>
+        <button type="button" class="st-menu-item" data-act="publish">Publish</button>
+        <button type="button" class="st-menu-item" data-act="library">Your library</button>
+        <button type="button" class="st-menu-item" data-act="advanced">Advanced (code, settings)</button>
+        <button type="button" class="st-menu-item" data-act="codex">How things work</button>
+        <label class="st-menu-item check"><input type="checkbox" id="voiceToggle"> Read the assistant's replies aloud</label>
+        <button type="button" class="st-menu-item" data-act="exit">Exit to my games</button>
+        <button type="button" class="st-menu-item dim" data-act="logout">Sign out</button>
+      </nav>
+      <div class="st-menu-friends" id="profileFriends"></div>
+      <div class="st-menu-sheet" id="menuSheet" hidden></div>
     </div>
   </div>
 
-  <!-- Error indicator: sleek red pill in bottom right -->
-  <div class="ed-errors" id="errorsContainer" hidden>
-    <div class="ed-error-pill" id="errorPill">
-      <span class="count" id="errorCount">0</span> errors
-    </div>
-    <div class="ed-error-panel" id="errorPanel" hidden>
-      <div id="errorList"></div>
-    </div>
-  </div>
-
-  <!-- Invite Modal -->
-  <div class="modal-backdrop" id="inviteModal" hidden>
-    <div class="modal" style="max-width:460px">
-      <h3 style="margin:0 0 14px">Invite friends</h3>
-      <p class="muted" style="margin:0 0 12px;font-size:13.5px">Share this link with your friends. Anyone with the link can join and edit.</p>
-      <div style="display:flex;gap:8px">
-        <input type="text" class="form-input" id="inviteLink" readonly style="flex:1;font:12px var(--mono)">
-        <button class="btn btn-secondary btn-sm" id="copyInviteBtn">Copy</button>
-      </div>
-      <button class="btn btn-ghost btn-sm" data-close="inviteModal" style="margin-top:12px">Close</button>
-    </div>
-  </div>
-
-  <!-- Add Asset Modal -->
+  <!-- Add an asset by its id -->
   <div class="modal-backdrop" id="assetModal" hidden>
-    <div class="modal" style="max-width:560px">
-      <h3 style="margin:0 0 14px">Add asset</h3>
-      <p class="muted" style="margin:0 0 12px;font-size:13.5px">Use an asset from your library, or generate a new one.</p>
-      <div class="form-field">
-        <label>Asset ID</label>
-        <input type="text" class="form-input" id="assetId" placeholder="a_abc123...">
-      </div>
-      <div class="form-field">
-        <label>Name in your game</label>
-        <input type="text" class="form-input" id="assetName" placeholder="hero.glb">
-      </div>
+    <div class="modal" style="max-width:520px">
+      <h3 style="margin:0 0 14px">Add by asset id</h3>
+      <div class="form-field"><label>Asset ID</label><input type="text" class="form-input" id="assetId" placeholder="a_abc123..."></div>
+      <div class="form-field"><label>Name in your game</label><input type="text" class="form-input" id="assetName" placeholder="hero.glb"></div>
       <div style="display:flex;gap:8px">
-        <button class="btn btn-primary btn-sm" id="addAssetConfirmBtn">Add</button>
-        <button class="btn btn-ghost btn-sm" data-close="assetModal">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="addAssetConfirmBtn" type="button">Add</button>
+        <button class="btn btn-ghost btn-sm" data-close="assetModal" type="button">Cancel</button>
       </div>
     </div>
   </div>
 
-  <!-- Profile Dropdown -->
-  <div class="profile-dropdown" id="profileDropdown" hidden>
-    <div class="profile-info" id="profileInfo"></div>
-    <div class="profile-sep"></div>
-    <div class="profile-friends" id="profileFriends"></div>
-    <div class="profile-sep"></div>
-    <a class="profile-link" href="/app">My Games</a>
-    <a class="profile-link" href="/app/studio">Asset Studio</a>
-    <a class="profile-link" href="/games">Public Games</a>
-    <div class="profile-sep"></div>
-    <button class="profile-link" id="profileLogout">Sign out</button>
-  </div>
-
-  <script src="/engine/engine.js"></script>
-  <script type="module" src="/editor.js"></script>
+  <script type="module" src="/editor.js?v=engine4"></script>
 </body>
 </html>

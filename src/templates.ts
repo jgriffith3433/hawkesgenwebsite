@@ -1,6 +1,7 @@
 // Starter games: what a new game begins as. Each is a few files written against the Hawkes Play API
 // (public/play/API.md). Keep them short and playable: they are the first thing a new customer sees run.
-export type Template = { id: string; name: string; blurb: string; files: (title: string) => Record<string, string> };
+// featured: an Overseer game, shown first on /games and /app and playable by anyone at /play/t/<id>.
+export type Template = { id: string; name: string; blurb: string; featured?: { emoji: string }; files: (title: string) => Record<string, string> };
 
 const readme = (title: string, how: string) => `# ${title}
 
@@ -11,6 +12,11 @@ player faster", "add a double jump", "make enemies chase me"), or generate art, 
 and use them by name, like \`game.model('tree.glb')\` or \`game.sound('coin.mp3')\`.
 `;
 
+/** One thing in a starter world (scene.json format, public/play/WORLD.md). */
+function thing(id: string, type: string, name: string, position: number[], more: Record<string, any> = {}) {
+  return { id, type, name, physics: type === 'light' || type === 'spawn' || type === 'text' ? undefined : 'static', ...more, transform: { position, ...(more.transform ?? {}) } };
+}
+
 function sceneJson(config: object, entities: Record<string, object>): string {
   return JSON.stringify({ version: 1, modules: { core: '1.0.0' }, config, entities, nextId: Object.keys(entities).length + 1 }, null, 2);
 }
@@ -19,6 +25,7 @@ export const TEMPLATES: Template[] = [
   {
     id: 'fps-arena',
     name: 'Bot Arena',
+    featured: { emoji: '🎯' },
     blurb: 'First-person shooter against AI bots. Walk up to anything and inspect its code.',
     files: (title) => ({
       'README.md': readme(title, 'A first-person arena. WASD to move, mouse to look, click to shoot. Walk up to any object and click it to see its code.'),
@@ -96,6 +103,7 @@ game.onUpdate((dt) => {
   {
     id: 'sky-racer',
     name: 'Sky Racer',
+    featured: { emoji: '🛩️' },
     blurb: 'Fly through rings in a neon sky. Shows flight controls and dynamic skybox.',
     files: (title) => ({
       'README.md': readme(title, 'Fly through the rings. WASD to steer, space to boost. Miss 3 rings and it\'s over.'),
@@ -115,6 +123,8 @@ game.onUpdate((dt) => {
       ),
       'scripts/flight.js': `// Neon sky racer
 game.camera.firstPerson(game.spawn('player'), { height: 0 });
+game.player.controls = false; // this game flies the player itself
+game.player.gravity = 0;
 
 game.state.speed = 20;
 game.state.score = 0;
@@ -166,6 +176,7 @@ game.onUpdate((dt) => {
   {
     id: 'platform-run',
     name: 'Leap',
+    featured: { emoji: '🏃' },
     blurb: 'First-person platformer with a mirror. Shows physics, painting, level design.',
     files: (title) => ({
       'README.md': readme(title, 'Jump across platforms to reach the top. The mirror lets you change how you look. WASD to move, space to jump, mouse to look.'),
@@ -408,28 +419,50 @@ game.ui.message('${title.replace(/'/g, "\\'")}', 1.5);
   },
   {
     id: 'blank',
-    name: 'Blank',
-    blurb: 'A ground, a light and a player you can move. Build anything from here.',
+    name: 'Playground',
+    blurb: 'A little world to start from: grab the crates, throw the ball, collect the coins, then make it yours.',
     files: (title) => ({
-      'README.md': readme(title, 'A starting point: a ground and a player. WASD to move, space to jump.'),
-      'game.json': JSON.stringify({ background: '#9fd3f0' }, null, 2) + '\n',
+      'README.md': readme(title, 'A playground to build from. Walk with WASD, jump with space (twice to fly), hold click to grab things, double-click anything to change it, Enter to ask the assistant.'),
       'scene.json': sceneJson(
-        { background: '#9fd3f0', ambient: 0.3, sun: 0.8, sunDirection: [-1, -2, -1], shadows: true, gravity: -9.81, physics: 'simple' },
+        { background: '#9fd3f0', ambient: 0.75, sun: 0.9, gravity: -24, fog: { color: '#9fd3f0', start: 60, end: 160 } },
         {
-          ground: { id: 'ground', type: 'plane', name: 'Ground', transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }, shape: { width: 30, depth: 30 }, material: { color: '#7aa35a' }, physics: 'static', components: {}, behaviors: [], data: {} },
+          ground: thing('ground', 'plane', 'Ground', [0, 0, 0], { shape: { width: 60, depth: 60 }, material: { color: '#7aa35a' } }),
+          start: thing('start', 'spawn', 'Player start', [0, 0.1, 8], { data: { role: 'player' }, transform: { position: [0, 0.1, 8], rotation: [0, 180, 0] } }),
+          welcome: thing('welcome', 'text', 'Welcome sign', [0, 2.2, 2], { shape: { text: 'Hold click: grab and throw\nDouble-click: change anything\nEnter: ask the assistant', size: 0.16 } }),
+          crate_1: thing('crate_1', 'box', 'Crate', [-3, 0.5, 0], { shape: { size: [1, 1, 1] }, material: { color: '#b07a45' }, physics: 'dynamic' }),
+          crate_2: thing('crate_2', 'box', 'Crate', [-2.8, 1.5, 0.1], { shape: { size: [1, 1, 1] }, material: { color: '#b07a45' }, physics: 'dynamic' }),
+          crate_3: thing('crate_3', 'box', 'Crate', [-1.7, 0.5, -0.2], { shape: { size: [1, 1, 1] }, material: { color: '#9c6a3c' }, physics: 'dynamic' }),
+          ball: thing('ball', 'sphere', 'Bouncy ball', [2.5, 0.5, 1], { shape: { radius: 0.5 }, material: { color: '#e04f5f' }, physics: 'dynamic', body: { bounce: 0.75 } }),
+          step_1: thing('step_1', 'box', 'Step', [6, 0.5, -4], { shape: { size: [3, 1, 3] }, material: { color: '#cfc6b4' } }),
+          step_2: thing('step_2', 'box', 'Step', [8.5, 1.5, -7], { shape: { size: [3, 1, 3] }, material: { color: '#cfc6b4' } }),
+          lift: thing('lift', 'box', 'Moving platform', [5, 3, -10], { shape: { size: [3, 0.4, 3] }, material: { color: '#4a9eff' }, physics: 'kinematic', behaviors: [{ use: 'patrol', axis: 'x', range: 4, speed: 0.6 }] }),
+          tower: thing('tower', 'box', 'Lookout', [-1, 3, -12], { shape: { size: [4, 0.5, 4] }, material: { color: '#cfc6b4' } }),
+          pillar: thing('pillar', 'cylinder', 'Pillar', [-1, 1.4, -12], { shape: { radius: 0.4, height: 2.8 }, material: { color: '#8a93a8' } }),
+          pad: thing('pad', 'cylinder', 'Launch pad', [-6, 0.08, -6], { shape: { radius: 0.9, height: 0.15 }, material: { color: '#22d3ee', emissive: '#063a44' }, behaviors: [{ use: 'launch', power: 16 }] }),
+          coin_1: thing('coin_1', 'cylinder', 'Coin', [-1, 4, -12], { shape: { radius: 0.35, height: 0.08 }, material: { color: '#f4c430', emissive: '#5a4200' }, transform: { position: [-1, 4, -12], rotation: [90, 0, 0] }, behaviors: [{ use: 'collectible' }, { use: 'spin', speed: 120, axis: 'z' }] }),
+          coin_2: thing('coin_2', 'cylinder', 'Coin', [8.5, 2.7, -7], { shape: { radius: 0.35, height: 0.08 }, material: { color: '#f4c430', emissive: '#5a4200' }, transform: { position: [8.5, 2.7, -7], rotation: [90, 0, 0] }, behaviors: [{ use: 'collectible' }, { use: 'spin', speed: 120, axis: 'z' }] }),
+          coin_3: thing('coin_3', 'cylinder', 'Coin', [-6, 5, -6], { shape: { radius: 0.35, height: 0.08 }, material: { color: '#f4c430', emissive: '#5a4200' }, transform: { position: [-6, 5, -6], rotation: [90, 0, 0] }, behaviors: [{ use: 'collectible' }, { use: 'spin', speed: 120, axis: 'z' }] }),
+          gem: thing('gem', 'cone', 'Floating gem', [4, 1.6, 4], { shape: { radius: 0.3, height: 0.7 }, material: { color: '#a855f7', emissive: '#3b1466' }, physics: 'none', behaviors: [{ use: 'bob', height: 0.3 }, { use: 'spin', speed: 60 }] }),
+          lookout_checkpoint: thing('lookout_checkpoint', 'waypoint', 'Checkpoint', [-2, 3.27, -12.5], { shape: { radius: 1.4 }, data: { role: 'checkpoint' } }),
+          lamp: thing('lamp', 'light', 'Warm lamp', [0, 4, -2], { light: { type: 'point', color: '#ffd9a0', intensity: 0.8, range: 18 } }),
         },
       ),
-      'scripts/main.js': `game.box({ size: [30, 1, 30], y: -0.5, color: '#7aa35a' });
-
-const player = game.capsule({ y: 1, color: '#e07a2f', physics: 'dynamic', name: 'player' });
-game.camera.follow(player);
-
-game.onUpdate(() => {
-  player.walk(game.input.direction(), 6);
-  if (game.input.pressed('space')) player.jump(8);
-  if (player.y < -10) game.restart();
+      'scripts/main.js': `// Game rules go here. The world itself is scene.json (build it by walking around in it).
+// You already have a first-person player; game.player is you.
+game.onStart(() => {
+  game.ui.message(game.title, 1.5);
 });
 `,
     }),
   },
 ];
+
+/** The Overseer games, for /games and /app. */
+export const featured = () => TEMPLATES.filter((t) => t.featured).map((t) => ({ id: t.id, name: t.name, blurb: t.blurb, emoji: t.featured!.emoji, url: `/play/t/${t.id}` }));
+
+/** A template as the runtime plays it (no account: /play/t/<id>). */
+export function templateBundle(id: string) {
+  const t = TEMPLATES.find((x) => x.id === id);
+  if (!t) return null;
+  return { id: `t:${t.id}`, slug: `t/${t.id}`, title: t.name, description: t.blurb, by: 'Hawkes Gen', version: null, template: t.id, files: t.files(t.name), assets: {} };
+}

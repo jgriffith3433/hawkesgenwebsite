@@ -1,7 +1,10 @@
-// Hawkes Play: the runtime games built on hawkesgen.com run in. A thin, friendly layer over Babylon.js: scripts get one
-// global, `game` (the API is public/play/API.md), and the runtime handles the scene, lights, a simple box physics,
-// cameras, input (keyboard, mouse, touch), screen text, sound and errors. It runs inside a sandboxed page (no cookies,
-// no storage), loaded with a bundle: { title, files: { path: text }, assets: { name: { url, mime } } }.
+// Hawkes Play: the engine every game on hawkesgen.com runs in, in the editor and when published. A friendly layer over
+// Babylon.js. A game is a world (scene.json: things with a shape, a look, a way of moving and behaviors, see WORLD.md)
+// plus scripts (one global, `game`, see API.md). The engine gives every game a first-person player, box physics
+// (falling, bouncing, pushing, carrying on platforms), fall catching, behaviors, screen text, sound and errors, and
+// keeps running when the tab is in the background. It runs inside a sandboxed page (no cookies, no storage), loaded with
+// a bundle: { title, files: { path: text }, assets: { name: { url, mime } } }. net.js (multiplayer) and build.js (the
+// editor's tools) plug into the hooks at the bottom.
 /* global BABYLON */
 (function () {
   'use strict';
@@ -9,6 +12,7 @@
   const RAD = Math.PI / 180;
   const EPS = 0.001;
   const TOUCH = 0.02;
+  const STEP = 1 / 60;
 
   // ------------------------------------------------------------------ reporting to the editor (when inside one)
   const post = (msg) => { try { if (window.parent !== window) window.parent.postMessage({ source: 'hawkes-play', ...msg }, '*'); } catch {} };
@@ -17,9 +21,11 @@
     const m = /hawkes-script:\/\/([^\s:)]+):(\d+)(?::(\d+))?/.exec(String(err && err.stack || ''));
     return m ? { file: m[1], line: Math.max(1, Number(m[2]) - 2) } : {};
   }
+  let reported = 0;
   function report(err, file) {
     const w = where(err);
     const message = String(err && err.message || err);
+    if (++reported > 200) return;
     post({ type: 'error', message, file: w.file || file || null, line: w.line || null });
     showError(`${w.file || file || 'script'}${w.line ? `:${w.line}` : ''}: ${message}`);
   }
@@ -31,47 +37,81 @@
   const uiLayer = $('ui');
   function showError(text) {
     const box = $('error');
-    if (!box) return;
+    if (!box || hooks.quietErrors) return;
     box.hidden = false;
     const line = document.createElement('div');
     line.textContent = text;
     box.appendChild(line);
     while (box.children.length > 6) box.firstChild.remove();
   }
-  function clearErrors() { const box = $('error'); if (box) { box.innerHTML = ''; box.hidden = true; } }
+  function clearErrors() { reported = 0; const box = $('error'); if (box) { box.innerHTML = ''; box.hidden = true; } }
 
   const engine = new B.Engine(canvas, true, { preserveDrawingBuffer: false, stencil: true, disableWebGL2Support: false }, true);
   engine.enableOfflineSupport = false;
   window.addEventListener('resize', () => engine.resize());
 
+  // Extension points for net.js and build.js (and anything else layered on the engine).
+  const hooks = { world: [], step: [], frame: [], push: [], quietErrors: false };
+
   // ------------------------------------------------------------------ input (kept across restarts)
   const held = new Set();
   let pressedNow = new Set();
   let releasedNow = new Set();
-  const keyName = (e) => { const k = e.key === ' ' ? 'space' : String(e.key || '').toLowerCase(); return k; };
-  const mouse = { x: 0, y: 0, down: false, pressed: false, dx: 0, dy: 0 };
+  const keyName = (e) => (e.key === ' ' ? 'space' : String(e.key || '').toLowerCase());
+  const mouse = { x: 0, y: 0, down: false, pressed: false, dx: 0, dy: 0, wheel: 0, locked: false, look: false };
   let keyHandlers = [];
   const stick = { x: 0, y: 0 };
+  const typing = (e) => { const t = e.target; return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable); };
   window.addEventListener('keydown', (e) => {
+    if (typing(e)) return;
     const k = keyName(e);
-    if (['space', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) e.preventDefault();
+    if (['space', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'tab'].includes(k)) e.preventDefault();
     if (!held.has(k)) { pressedNow.add(k); for (const h of keyHandlers) if (h.key === k) h.fn(); }
     held.add(k);
     unlockAudio();
   });
   window.addEventListener('keyup', (e) => { const k = keyName(e); held.delete(k); releasedNow.add(k); });
   window.addEventListener('blur', () => held.clear());
-  canvas.addEventListener('pointermove', (e) => { const r = canvas.getBoundingClientRect(); mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top; mouse.dx += e.movementX || 0; mouse.dy += e.movementY || 0; });
-  canvas.addEventListener('pointerdown', (e) => { mouse.down = true; mouse.pressed = true; unlockAudio(); canvas.focus(); clickPick(e); });
-  window.addEventListener('pointerup', () => { mouse.down = false; });
-  canvas.addEventListener('click', () => { if (W && W.camera && W.camera.mode === 'fps' && !document.pointerLockElement && canvas.requestPointerLock) { try { canvas.requestPointerLock(); } catch {} } });
+  canvas.addEventListener('pointermove', (e) => {
+    const r = canvas.getBoundingClientRect();
+    mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top;
+    // Looking around: with the pointer locked (click the game), or by dragging with the right button.
+    // Looking around: with the pointer captured (click the game), or by dragging (right button, or left on nothing).
+    if (mouse.locked || (e.pointerType === 'mouse' && (mouse.look || (mouse.dragLook && (e.buttons & 1))))) { mouse.dx += e.movementX || 0; mouse.dy += e.movementY || 0; }
+  });
+  canvas.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button === 2) { mouse.look = true; return; }
+    if (e.pointerType !== 'mouse') return;
+    mouse.down = true; mouse.pressed = true; unlockAudio(); canvas.focus(); clickPick(e);
+    mouse.dragLook = e.button === 0 && !mouse.locked && (!hooks.dragLook || hooks.dragLook(e));
+  });
+  window.addEventListener('pointerup', (e) => { if (e.button === 2) mouse.look = false; else if (e.pointerType === 'mouse') { mouse.down = false; mouse.dragLook = false; } });
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  canvas.addEventListener('wheel', (e) => { mouse.wheel += Math.sign(e.deltaY); e.preventDefault(); }, { passive: false });
+  document.addEventListener('pointerlockchange', () => { mouse.locked = document.pointerLockElement === canvas; for (const f of lockWatchers) f(mouse.locked); });
+  const lockWatchers = [];
+  /** Captures the mouse for first-person looking (the browser needs a click first). */
+  function lockPointer() {
+    if (touchUi || document.pointerLockElement === canvas || !canvas.requestPointerLock) return;
+    try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch {}
+  }
+  canvas.addEventListener('click', () => { const al = hooks.autoLock; if (al === false || (typeof al === 'function' && !al())) return; if (W && W.camera && W.camera.mode === 'fps') lockPointer(); });
 
-  const touchUi = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  // A phone or tablet, not a laptop with a touchscreen (or a desktop window made small): the device says it's mobile
+  // (Chromium), or its only pointer is a finger. ?touch=1 / ?touch=0 overrides, for testing.
+  const touchUi = (() => {
+    const force = new URLSearchParams(location.search).get('touch');
+    if (force === '1' || force === '0') return force === '1';
+    const coarseOnly = matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches;
+    const ua = navigator.userAgentData;
+    return ua && typeof ua.mobile === 'boolean' ? ua.mobile || coarseOnly : coarseOnly;
+  })();
+  const touch = { look: null, lx: 0, ly: 0, taps: [] };
   function buildTouch() {
     if (!touchUi || $('touch')) return;
     const wrap = document.createElement('div');
     wrap.id = 'touch';
-    wrap.innerHTML = '<div class="pad"><div class="knob"></div></div><button class="tb a" data-key="space">A</button><button class="tb b" data-key="e">B</button>';
+    wrap.innerHTML = '<div class="pad"><div class="knob"></div></div><button class="tb a" data-key="space" aria-label="Jump">⤒</button><button class="tb b" data-key="e" aria-label="Action">B</button>';
     document.body.appendChild(wrap);
     const pad = wrap.querySelector('.pad');
     const knob = wrap.querySelector('.knob');
@@ -89,13 +129,36 @@
     pad.addEventListener('pointermove', (e) => { if (e.pointerId === pid) moveKnob(e); });
     const end = () => { pid = null; stick.x = 0; stick.y = 0; knob.style.transform = ''; };
     pad.addEventListener('pointerup', end); pad.addEventListener('pointercancel', end);
-    for (const b of wrap.querySelectorAll('.tb')) {
-      const k = b.dataset.key;
-      b.addEventListener('pointerdown', (e) => { e.preventDefault(); if (!held.has(k)) { pressedNow.add(k); for (const h of keyHandlers) if (h.key === k) h.fn(); } held.add(k); unlockAudio(); });
-      const up = () => { held.delete(k); releasedNow.add(k); };
-      b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('pointerleave', up);
-    }
+    for (const b of wrap.querySelectorAll('.tb')) bindTouchKey(b, b.dataset.key);
   }
+  /** A screen button that holds a key while pressed (jump, action, fly...). */
+  function bindTouchKey(b, k) {
+    b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); if (!held.has(k)) { pressedNow.add(k); for (const h of keyHandlers) if (h.key === k) h.fn(); } held.add(k); unlockAudio(); });
+    const up = () => { if (held.has(k)) { held.delete(k); releasedNow.add(k); } };
+    b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('pointerleave', up);
+  }
+  // On a phone: drag anywhere on the game to look around; a quick tap is a click.
+  canvas.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse') return;
+    if (touch.look !== null) return;
+    touch.look = e.pointerId; touch.lx = e.clientX; touch.ly = e.clientY; touch.t0 = performance.now(); touch.moved = 0;
+    const r = canvas.getBoundingClientRect();
+    mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top;
+    mouse.down = true; mouse.pressed = true; unlockAudio();
+    try { canvas.setPointerCapture(e.pointerId); } catch {}
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (e.pointerId !== touch.look) return;
+    const dx = e.clientX - touch.lx, dy = e.clientY - touch.ly;
+    touch.lx = e.clientX; touch.ly = e.clientY; touch.moved += Math.abs(dx) + Math.abs(dy);
+    if (!hooks.touchDrag || !hooks.touchDrag(e, dx, dy)) { mouse.dx += dx * 1.6; mouse.dy += dy * 1.6; }
+  });
+  const touchEnd = (e) => {
+    if (e.pointerId !== touch.look) return;
+    touch.look = null; mouse.down = false;
+    if (touch.moved < 12 && performance.now() - touch.t0 < 350) clickPick(e);
+  };
+  canvas.addEventListener('pointerup', touchEnd); canvas.addEventListener('pointercancel', touchEnd);
 
   // ------------------------------------------------------------------ sound
   let audio = null;
@@ -116,8 +179,12 @@
   let bundle = null;
   let W = null; // the current world: scene, entities, callbacks, timers, camera, ui
   const saved = new Map();
+  let mode = 'play'; // 'play' (as players see it) or 'build' (the editor: markers, grabbing, popups)
+  let clockOffset = 0; // shared time across players (net.js sets it), for behaviors that must line up
 
+  const hasAsset = (name) => Boolean(bundle && bundle.assets && bundle.assets[name]);
   function assetUrl(name) {
+    if (/^https:\/\//.test(String(name))) return name;
     const a = bundle && bundle.assets && bundle.assets[name];
     if (!a) throw new Error(`No asset named "${name}". Add it in the Assets panel, or check the spelling.`);
     return a.url;
@@ -125,6 +192,7 @@
   const hex = (c, fallback = '#cccccc') => { try { return B.Color3.FromHexString(/^#[0-9a-f]{6}$/i.test(String(c)) ? c : fallback); } catch { return B.Color3.FromHexString(fallback); } };
   const vec = (v, d = [0, 0, 0]) => (Array.isArray(v) ? [Number(v[0]) || 0, Number(v[1]) || 0, Number(v[2]) || 0] : v && typeof v === 'object' && 'x' in v ? [Number(v.x) || 0, Number(v.y) || 0, Number(v.z) || 0] : d);
   const posOf = (t) => (t && t.__entity ? [t.x, t.y, t.z] : vec(t));
+  const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
 
   // ------------------------------------------------------------------ entities
   class Entity {
@@ -135,53 +203,74 @@
       this.tag = opts.tag || null;
       this.name = opts.name || null;
       this.data = opts.data || {};
-      this.physics = opts.physics || (kind === 'sprite' ? 'none' : 'static');
+      this.physics = opts.physics || (kind === 'sprite' || kind === 'text' || kind === 'light' ? 'none' : 'static');
+      const body = opts.body || {};
+      this.bounce = Number(opts.bounce ?? body.bounce) || 0;
+      this.friction = Number(opts.friction ?? body.friction ?? 0.6);
+      this.mass = Math.max(0.05, Number(opts.mass ?? body.mass) || 1);
+      this.grabbable = opts.grab ?? body.grab;
       this.vx = 0; this.vy = 0; this.vz = 0;
       this.grounded = false;
+      this.standing = null;
       this.alive = true;
-      this.handlers = { hit: [], click: [] };
+      this.handlers = { hit: [], click: [], leave: [] };
       this.half = [0.5, 0.5, 0.5];
       this.offset = [0, 0, 0];
       this.ready = Promise.resolve(this);
       this.animations = [];
+      this.sceneId = null; // set for things from scene.json
+      this.remote = false; // simulated by another player (net.js): it moves where they say
+      this.held = false; // being carried (build.js): no gravity
+      this.sleeping = false;
+      this.gravity = 1;
+      this.behaviors = [];
       this._mat = null;
       this._touching = new Set();
+      this._still = 0;
       W.entities.add(this);
       node.metadata = { entity: this };
     }
     get mesh() { return this.node; }
-    get x() { return this.node.position.x; } set x(v) { this.node.position.x = Number(v) || 0; }
-    get y() { return this.node.position.y; } set y(v) { this.node.position.y = Number(v) || 0; }
-    get z() { return this.node.position.z; } set z(v) { this.node.position.z = Number(v) || 0; }
+    get x() { return this.node.position.x; } set x(v) { this.node.position.x = Number(v) || 0; this.wake(); }
+    get y() { return this.node.position.y; } set y(v) { this.node.position.y = Number(v) || 0; this.wake(); }
+    get z() { return this.node.position.z; } set z(v) { this.node.position.z = Number(v) || 0; this.wake(); }
     get position() { return [this.x, this.y, this.z]; }
-    set position(v) { const p = vec(v); this.node.position.set(p[0], p[1], p[2]); }
+    set position(v) { const p = vec(v); this.node.position.set(p[0], p[1], p[2]); this.wake(); }
     get velocity() { return [this.vx, this.vy, this.vz]; }
-    set velocity(v) { const p = vec(v); this.vx = p[0]; this.vy = p[1]; this.vz = p[2]; }
+    set velocity(v) { const p = vec(v); this.vx = p[0]; this.vy = p[1]; this.vz = p[2]; this.wake(); }
     get rotation() { return this.node.rotation.y / RAD; }
     set rotation(deg) {
       if (Array.isArray(deg)) this.node.rotation.set((deg[0] || 0) * RAD, (deg[1] || 0) * RAD, (deg[2] || 0) * RAD);
       else this.node.rotation.y = (Number(deg) || 0) * RAD;
       this.measure();
     }
+    get rotation3() { const r = this.node.rotation; return [r.x / RAD, r.y / RAD, r.z / RAD]; }
     turn(deg) { this.node.rotation.y += (Number(deg) || 0) * RAD; this.measure(); return this; }
+    rotate(x = 0, y = 0, z = 0) { if (Array.isArray(x)) [x, y, z] = x; const r = this.node.rotation; r.x += (Number(x) || 0) * RAD; r.y += (Number(y) || 0) * RAD; r.z += (Number(z) || 0) * RAD; this.measure(); return this; }
     get scale() { const s = this.node.scaling; return s.x === s.y && s.y === s.z ? s.x : [s.x, s.y, s.z]; }
     set scale(v) { if (typeof v === 'number') this.node.scaling.setAll(v); else { const p = vec(v, [1, 1, 1]); this.node.scaling.set(p[0], p[1], p[2]); } this.measure(); }
     get forward() { const a = this.node.rotation.y; return { x: Math.sin(a), z: Math.cos(a) }; }
-    get color() { return this._mat ? this._mat.diffuseColor.toHexString() : null; }
-    set color(c) { if (this._mat) this._mat.diffuseColor = hex(c); }
+    get color() { return this._mat && this._mat.diffuseColor ? this._mat.diffuseColor.toHexString() : null; }
+    set color(c) { if (this._mat && this._mat.diffuseColor) this._mat.diffuseColor = hex(c); }
+    get emissive() { return this._mat && this._mat.emissiveColor ? this._mat.emissiveColor.toHexString() : null; }
+    set emissive(c) { if (this._mat) this._mat.emissiveColor = hex(c, '#000000'); }
     get opacity() { return this._mat ? this._mat.alpha : 1; }
     set opacity(v) { if (this._mat) this._mat.alpha = Math.max(0, Math.min(1, Number(v))); }
     get visible() { return this.node.isEnabled(); }
     set visible(v) { this.node.setEnabled(Boolean(v)); }
-    get solid() { return this.alive && (this.physics === 'static' || this.physics === 'dynamic' || this.physics === 'kinematic') && this.node.isEnabled(); }
+    get solid() { return this.alive && (this.physics === 'static' || this.physics === 'dynamic' || this.physics === 'kinematic') && this.node.isEnabled() && !this.ghost; }
+    get size() { return [this.half[0] * 2, this.half[1] * 2, this.half[2] * 2]; }
+    get bottom() { return this.y + this.offset[1] - this.half[1]; }
+    wake() { this.sleeping = false; this._still = 0; }
 
     /** The collider: a box (half extents and center offset) around the node as it is now. */
     measure() {
       if (this.kind === 'model' && !this._loaded) return;
+      if (this.kind === 'light') { this.half = [0.2, 0.2, 0.2]; this.offset = [0, 0, 0]; return; }
       const n = this.node;
       n.computeWorldMatrix(true);
       let min, max;
-      if (n.getHierarchyBoundingVectors) ({ min, max } = n.getHierarchyBoundingVectors(true));
+      if (n.getHierarchyBoundingVectors) ({ min, max } = n.getHierarchyBoundingVectors(true, (m) => !(m.metadata && m.metadata.decor)));
       if (!min || !isFinite(min.x) || max.x - min.x < 1e-6 && max.y - min.y < 1e-6) return;
       this.half = [Math.max(0.01, (max.x - min.x) / 2), Math.max(0.01, (max.y - min.y) / 2), Math.max(0.01, (max.z - min.z) / 2)];
       this.offset = [(max.x + min.x) / 2 - n.position.x, (max.y + min.y) / 2 - n.position.y, (max.z + min.z) / 2 - n.position.z];
@@ -194,9 +283,9 @@
       const a = this.box(pad), b = o.box();
       return a.min[0] < b.max[0] && a.max[0] > b.min[0] && a.min[1] < b.max[1] && a.max[1] > b.min[1] && a.min[2] < b.max[2] && a.max[2] > b.min[2];
     }
-    /** Moves along one axis, stopping at solid things. Returns true if something stopped it. */
+    /** Moves along one axis, stopping at solid things. Returns what stopped it, or null. */
     sweep(axis, d) {
-      if (!d) return false;
+      if (!d) return null;
       const steps = Math.max(1, Math.ceil(Math.abs(d) / Math.max(0.05, Math.min(...this.half))));
       const step = d / steps;
       const key = ['x', 'y', 'z'][axis];
@@ -204,15 +293,16 @@
         this.node.position[key] += step;
         let hit = null;
         for (const o of W.entities) {
-          if (o === this || !o.solid || !this.overlaps(o)) continue;
+          if (o === this || !o.solid || o.held || !this.overlaps(o)) continue;
+          if (o === this.carrier || o.carrier === this) continue;
           const ob = o.box();
           const edge = step > 0 ? ob.min[axis] - this.half[axis] - this.offset[axis] - EPS : ob.max[axis] + this.half[axis] - this.offset[axis] + EPS;
           if (step > 0 ? edge < this.node.position[key] : edge > this.node.position[key]) this.node.position[key] = edge;
           hit = o;
         }
-        if (hit) { this._contact(hit); return true; }
+        if (hit) { this._contact(hit); return hit; }
       }
-      return false;
+      return null;
     }
     move(dx = 0, dy = 0, dz = 0) {
       if (Array.isArray(dx) || (dx && typeof dx === 'object')) [dx, dy, dz] = vec(dx);
@@ -223,6 +313,7 @@
       } else {
         this.node.position.addInPlaceFromFloats(Number(dx) || 0, Number(dy) || 0, Number(dz) || 0);
       }
+      this.wake();
       return this;
     }
     moveTo(x, y, z) { this.position = Array.isArray(x) ? x : [x, y, z]; return this; }
@@ -232,11 +323,14 @@
       const k = len > 1 ? 1 / len : 1;
       this.vx = (d.x || 0) * k * speed;
       this.vz = (d.z || 0) * k * speed;
-      if (len > 0.05) this.node.rotation.y = Math.atan2(d.x, d.z);
+      this._walked = true;
+      if (len > 0.05 && this !== W.player) this.node.rotation.y = Math.atan2(d.x, d.z);
       if (this.physics !== 'dynamic') this.move(this.vx * W.dt, 0, this.vz * W.dt);
+      else if (len > 0.01) this.wake();
       return this;
     }
-    jump(speed = 7) { if (!this.grounded) return false; this.vy = speed; this.grounded = false; return true; }
+    jump(speed = 7) { if (!this.grounded) return false; this.vy = speed; this.grounded = false; this.standing = null; this.wake(); return true; }
+    push(v) { const p = vec(v); this.vx += p[0]; this.vy += p[1]; this.vz += p[2]; this.grounded = false; this.wake(); return this; }
     lookAt(t) { const p = posOf(t); this.node.rotation.y = Math.atan2(p[0] - this.x, p[2] - this.z); return this; }
     distanceTo(t) { const p = posOf(t); return Math.hypot(p[0] - this.x, p[1] - this.y, p[2] - this.z); }
     touching(what) {
@@ -247,13 +341,15 @@
       }
       return false;
     }
-    on(event, fn) { if (this.handlers[event]) this.handlers[event].push(safe(fn)); return this; }
+    on(event, fn) { if (this.handlers[event]) this.handlers[event].push(safe(fn, W.file)); return this; }
     _contact(o) {
       if (this._touching.has(o)) return;
       this._touching.add(o);
       o._touching.add(this);
       for (const h of this.handlers.hit) h(o);
       for (const h of o.handlers.hit) h(this);
+      runBehaviorHit(this, o);
+      runBehaviorHit(o, this);
     }
     play(name, loop = true) {
       const g = this.animations.find((a) => a.name === name) || this.animations.find((a) => a.name.toLowerCase().includes(String(name).toLowerCase()));
@@ -267,13 +363,25 @@
     set frame(f) { if (this._sheet) { this._sheet.fps = 0; this._sheet.frame = f; setFrame(this, f); } }
     get flip() { return Boolean(this._flip); }
     set flip(v) { this._flip = Boolean(v); if (this._sheet) setFrame(this, this._sheet.frame); else if (this._tex) this._tex.uScale = this._flip ? -1 : 1; }
+    say(text, seconds = 3) { showBubble(this, String(text), seconds); return this; }
     destroy() {
       if (!this.alive) return;
       this.alive = false;
+      for (const b of this.behaviors) stopBehavior(this, b);
+      this.behaviors = [];
       W.entities.delete(this);
+      if (this.sceneId && W.byId.get(this.sceneId) === this) W.byId.delete(this.sceneId);
       for (const o of this._touching) o._touching.delete(this);
       if (W.camera.target === this) W.camera.target = null;
+      if (W.player === this) W.player = null;
+      if (this._bubble) this._bubble.dispose();
+      if (this._light) this._light.dispose();
+      if (this._mirrorObs) W.scene.onBeforeRenderObservable.remove(this._mirrorObs);
+      if (this.waypoint && this.waypoint.route) for (const d of this.waypoint.route) d.dispose();
+      for (const o of W.entities) if (o.waypoint && o.waypoint.next === this.sceneId && o.waypoint.route) { for (const d of o.waypoint.route) d.dispose(); o.waypoint.route = null; }
+      if (this._video) { try { this._video.pause(); this._video.removeAttribute('src'); this._video.load(); } catch {} }
       this.node.dispose(false, true);
+      for (const e of W.entities) e.wake();
     }
   }
 
@@ -283,26 +391,28 @@
     m.specularColor = new B.Color3(0.08, 0.08, 0.08);
     if (opts.emissive) m.emissiveColor = hex(opts.emissive);
     if (opts.texture) {
-      const t = new B.Texture(assetUrl(opts.texture), W.scene, false, true, W.pixelated ? B.Texture.NEAREST_SAMPLINGMODE : B.Texture.TRILINEAR_SAMPLINGMODE);
-      const tile = vec(opts.tile, [1, 1, 0]);
-      t.uScale = tile[0] || 1; t.vScale = tile[1] || 1;
-      t.hasAlpha = /png|webp|gif/.test(String(bundle.assets[opts.texture]?.mime || opts.texture));
-      m.diffuseTexture = t;
-      m.useAlphaFromDiffuseTexture = t.hasAlpha;
-      if (!opts.color) m.diffuseColor = new B.Color3(1, 1, 1);
+      try {
+        const t = new B.Texture(assetUrl(opts.texture), W.scene, false, true, W.pixelated ? B.Texture.NEAREST_SAMPLINGMODE : B.Texture.TRILINEAR_SAMPLINGMODE);
+        const tile = vec(opts.tile, [1, 1, 0]);
+        t.uScale = tile[0] || 1; t.vScale = tile[1] || 1;
+        t.hasAlpha = /png|webp|gif/.test(String(bundle.assets[opts.texture]?.mime || opts.texture));
+        m.diffuseTexture = t;
+        m.useAlphaFromDiffuseTexture = t.hasAlpha;
+        if (!opts.color) m.diffuseColor = new B.Color3(1, 1, 1);
+      } catch (e) { if (!opts.lenient) throw e; }
     }
-    if (opts.opacity !== undefined) m.alpha = Number(opts.opacity);
+    if (opts.opacity !== undefined && opts.opacity !== null) m.alpha = Number(opts.opacity);
     return m;
   }
 
   function place(e, opts) {
     const p = opts.position ? vec(opts.position) : [Number(opts.x) || 0, Number(opts.y) || 0, Number(opts.z) || 0];
     e.node.position.set(p[0], p[1], p[2]);
-    if (opts.rotation !== undefined) { if (Array.isArray(opts.rotation)) e.node.rotation.set(opts.rotation[0] * RAD, opts.rotation[1] * RAD, opts.rotation[2] * RAD); else e.node.rotation.y = Number(opts.rotation) * RAD; }
-    if (opts.scale !== undefined) { if (typeof opts.scale === 'number') e.node.scaling.setAll(opts.scale); else { const s = vec(opts.scale, [1, 1, 1]); e.node.scaling.set(s[0], s[1], s[2]); } }
+    if (opts.rotation !== undefined && opts.rotation !== null) { if (Array.isArray(opts.rotation)) e.node.rotation.set((opts.rotation[0] || 0) * RAD, (opts.rotation[1] || 0) * RAD, (opts.rotation[2] || 0) * RAD); else e.node.rotation.y = Number(opts.rotation) * RAD; }
+    if (opts.scale !== undefined && opts.scale !== null) { if (typeof opts.scale === 'number') e.node.scaling.setAll(opts.scale); else { const s = vec(opts.scale, [1, 1, 1]); e.node.scaling.set(s[0] || 1, s[1] || 1, s[2] || 1); } }
     if (opts.visible === false) e.node.setEnabled(false);
     if (opts.velocity) e.velocity = opts.velocity;
-    if (W.shadows && opts.shadow !== false && e.kind !== 'sprite') { for (const m of [e.node, ...e.node.getChildMeshes()]) if (m.getTotalVertices && m.getTotalVertices() > 0) { W.shadows.addShadowCaster(m); m.receiveShadows = true; } }
+    if (W.shadows && opts.shadow !== false && e.kind !== 'sprite' && e.kind !== 'text') { for (const m of [e.node, ...e.node.getChildMeshes()]) if (m.getTotalVertices && m.getTotalVertices() > 0 && !(m.metadata && m.metadata.decor)) { W.shadows.addShadowCaster(m); m.receiveShadows = true; } }
     e.measure();
     return e;
   }
@@ -324,7 +434,22 @@
     e.half = [want / 2 || 0.5, want / 2 || 0.5, want / 2 || 0.5];
     place(e, opts);
     const world = W;
-    e.ready = B.SceneLoader.ImportMeshAsync('', '', assetUrl(name), W.scene, null, '.glb').then((r) => {
+    let url;
+    try { url = assetUrl(name); } catch (err) {
+      if (!opts.lenient) throw err;
+      // Not made yet: a wireframe stand-in until the asset arrives (setAssets rebuilds it).
+      e._waiting = name;
+      const box = B.MeshBuilder.CreateBox('waiting', { size: want || 1 }, W.scene);
+      const m = new B.StandardMaterial('waiting', W.scene);
+      m.wireframe = true; m.emissiveColor = new B.Color3(0.55, 0.7, 1); m.disableLighting = true; m.alpha = 0.8;
+      box.material = m;
+      box.parent = root;
+      box.metadata = { entity: e };
+      e._loaded = true;
+      e.measure();
+      return e;
+    }
+    e.ready = B.SceneLoader.ImportMeshAsync('', '', url, W.scene, null, '.glb').then((r) => {
       if (!e.alive || world !== W) { for (const m of r.meshes) m.dispose(); return e; }
       const holder = new B.TransformNode('holder', W.scene);
       for (const m of r.meshes) if (!m.parent) m.parent = holder;
@@ -347,6 +472,7 @@
       for (const m of r.meshes) m.metadata = { entity: e };
       e._loaded = true;
       e.measure();
+      for (const f of hooks.world) if (f.loaded) f.loaded(e);
       return e;
     }).catch((err) => { report(new Error(`Could not load ${name}: ${err.message || err}`)); return e; });
     return e;
@@ -368,10 +494,10 @@
     const plane = B.MeshBuilder.CreatePlane(`sprite:${name}`, { width: 1, height: 1, sideOrientation: B.Mesh.DOUBLESIDE }, W.scene);
     const e = new Entity(plane, { physics: 'none', ...opts }, 'sprite');
     const m = new B.StandardMaterial('sprite', W.scene);
-    const t = new B.Texture(assetUrl(name), W.scene, false, true, W.pixelated || opts.pixel ? B.Texture.NEAREST_SAMPLINGMODE : B.Texture.TRILINEAR_SAMPLINGMODE);
-    t.hasAlpha = true;
-    m.diffuseTexture = t;
-    m.useAlphaFromDiffuseTexture = true;
+    let t = null;
+    try { t = new B.Texture(assetUrl(name), W.scene, false, true, W.pixelated || opts.pixel ? B.Texture.NEAREST_SAMPLINGMODE : B.Texture.TRILINEAR_SAMPLINGMODE); } catch (err) { if (!opts.lenient) throw err; e._waiting = name; }
+    if (t) { t.hasAlpha = true; m.diffuseTexture = t; m.useAlphaFromDiffuseTexture = true; }
+    else { m.wireframe = true; }
     m.emissiveColor = new B.Color3(1, 1, 1);
     m.disableLighting = true;
     m.backFaceCulling = false;
@@ -380,9 +506,9 @@
     e._tex = t;
     if (opts.billboard !== false) plane.billboardMode = B.Mesh.BILLBOARDMODE_Y;
     const frames = opts.frames || null;
-    if (frames) { e._sheet = { cols: Math.max(1, frames.cols | 0), rows: Math.max(1, frames.rows | 0), from: 0, to: 0, fps: 0, loop: true, t: 0, frame: 0 }; setFrame(e, 0); }
+    if (frames && t) { e._sheet = { cols: Math.max(1, frames.cols | 0), rows: Math.max(1, frames.rows | 0), from: 0, to: 0, fps: 0, loop: true, t: 0, frame: 0 }; setFrame(e, 0); }
     plane.scaling.set(height, height, 1);
-    t.onLoadObservable.addOnce(() => {
+    if (t) t.onLoadObservable.addOnce(() => {
       const sz = t.getSize();
       const cw = sz.width / (e._sheet ? e._sheet.cols : 1), ch = sz.height / (e._sheet ? e._sheet.rows : 1);
       plane.scaling.x = height * (cw / ch || 1);
@@ -391,21 +517,415 @@
     return place(e, opts);
   }
 
+  /** A plane with text drawn on it: signs, labels, name tags. */
+  function textPlane(text, o = {}) {
+    const size = Number(o.size) || 0.5;
+    const lines = String(text).split('\n').slice(0, 8);
+    const px = 64;
+    const ctxProbe = document.createElement('canvas').getContext('2d');
+    ctxProbe.font = `600 ${px}px system-ui, sans-serif`;
+    const w = Math.min(2048, Math.max(64, ...lines.map((l) => ctxProbe.measureText(l).width)) + px * 0.8);
+    const h = lines.length * px * 1.25 + px * 0.5;
+    const tex = new B.DynamicTexture('text', { width: Math.ceil(w), height: Math.ceil(h) }, W.scene, true);
+    tex.hasAlpha = true;
+    const ctx = tex.getContext();
+    ctx.clearRect(0, 0, w, h);
+    if (o.background !== false) { ctx.fillStyle = o.background || 'rgba(10,12,20,0.72)'; roundRect(ctx, 0, 0, w, h, px * 0.3); ctx.fill(); }
+    ctx.font = `600 ${px}px system-ui, sans-serif`;
+    ctx.fillStyle = o.color || '#ffffff';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    lines.forEach((l, i) => ctx.fillText(l, w / 2, px * 0.25 + px * 1.25 * (i + 0.5) + px * 0.1));
+    tex.update();
+    const plane = B.MeshBuilder.CreatePlane('text', { width: (w / px) * size, height: (h / px) * size, sideOrientation: B.Mesh.DOUBLESIDE }, W.scene);
+    const m = new B.StandardMaterial('text', W.scene);
+    m.diffuseTexture = tex; m.useAlphaFromDiffuseTexture = true; m.emissiveColor = new B.Color3(1, 1, 1); m.disableLighting = true; m.backFaceCulling = false;
+    plane.material = m;
+    if (o.billboard !== false) plane.billboardMode = B.Mesh.BILLBOARDMODE_ALL;
+    return plane;
+  }
+  function roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  function text(str, opts = {}) {
+    const plane = textPlane(str, opts);
+    const e = new Entity(plane, { physics: 'none', ...opts }, 'text');
+    e._mat = plane.material;
+    e._text = String(str);
+    return place(e, { shadow: false, ...opts });
+  }
+  function showBubble(e, str, seconds) {
+    if (e._bubble) e._bubble.dispose();
+    const b = textPlane(str, { size: 0.32 });
+    b.isPickable = false;
+    b.metadata = { decor: true };
+    b.parent = e.node;
+    b.position.set(0, e.half[1] + 0.5, 0);
+    e._bubble = b;
+    const world = W;
+    setTimeout(() => { if (world === W && e._bubble === b) { b.dispose(); e._bubble = null; } }, seconds * 1000);
+  }
+
+  /** A light as an entity: it can be moved, found and edited like anything else. */
+  function lightEntity(o = {}) {
+    const node = new B.TransformNode('light', W.scene);
+    const e = new Entity(node, { physics: 'none', ...o }, 'light');
+    const p = vec(o.position, [0, 5, 0]);
+    node.position.set(p[0], p[1], p[2]);
+    makeLight(e, o.light || o);
+    e.measure();
+    return e;
+  }
+  function makeLight(e, l) {
+    if (e._light) e._light.dispose();
+    let light;
+    const type = l.type || 'point';
+    if (type === 'sun' || type === 'directional') { const d = vec(l.direction, [-0.4, -1, 0.3]); light = new B.DirectionalLight('sun', new B.Vector3(d[0], d[1], d[2]), W.scene); }
+    else if (type === 'spot') { const d = vec(l.direction, [0, -1, 0]); light = new B.SpotLight('spot', B.Vector3.Zero(), new B.Vector3(d[0], d[1], d[2]), (l.angle || 60) * RAD, 2, W.scene); }
+    else light = new B.PointLight('point', B.Vector3.Zero(), W.scene);
+    light.parent = e.node;
+    light.diffuse = hex(l.color, '#ffffff');
+    light.intensity = l.intensity ?? 1;
+    if (l.range) light.range = l.range;
+    e._light = light;
+    e.lightSpec = { type, color: l.color || '#ffffff', intensity: light.intensity, range: l.range || null };
+    if (mode === 'build') {
+      // In the editor a light is a small glowing ball you can grab.
+      if (!e._marker) {
+        const ball = B.MeshBuilder.CreateSphere('light-marker', { diameter: 0.35, segments: 12 }, W.scene);
+        const m = new B.StandardMaterial('light-marker', W.scene);
+        m.disableLighting = true;
+        ball.material = m;
+        ball.parent = e.node;
+        ball.metadata = { entity: e };
+        e._marker = ball;
+      }
+      e._marker.material.emissiveColor = hex(l.color, '#ffffff');
+    }
+    return light;
+  }
+
+  // ------------------------------------------------------------------ scene.json: things from the world file
+  const DEFAULT_PHYSICS = { waypoint: 'none', video: 'static', box: 'static', sphere: 'static', cylinder: 'static', cone: 'static', capsule: 'static', torus: 'static', plane: 'static', model: 'static', mirror: 'static', sprite: 'none', text: 'none', light: 'none', spawn: 'none', trigger: 'trigger' };
+
+  function optsFromSpec(spec) {
+    const t = spec.transform || {};
+    const m = spec.material || {};
+    const body = spec.body || {};
+    return {
+      name: spec.name || null, tag: spec.tag || null, data: clone(spec.data) || {},
+      physics: spec.physics || DEFAULT_PHYSICS[spec.type] || 'static',
+      position: t.position, rotation: t.rotation, scale: t.scale,
+      color: m.color, emissive: m.emissive, opacity: m.opacity, texture: m.texture, tile: m.tile,
+      bounce: body.bounce, friction: body.friction, mass: body.mass, grab: body.grab,
+      shadow: spec.shadow, visible: spec.visible, lenient: true,
+    };
+  }
+
+  /** Builds one thing from its scene.json spec. */
+  function fromSpec(spec) {
+    const o = optsFromSpec(spec);
+    const sh = spec.shape || {};
+    let e;
+    switch (spec.type) {
+      case 'box': { const s = size3(sh.size, 1); e = shape('box', () => B.MeshBuilder.CreateBox('box', { width: s[0], height: s[1], depth: s[2] }, W.scene), o); break; }
+      case 'sphere': e = shape('sphere', () => B.MeshBuilder.CreateSphere('sphere', { diameter: (Number(sh.radius) || 0.5) * 2, segments: Number(sh.segments) || 24 }, W.scene), o); break;
+      case 'cylinder': e = shape('cylinder', () => B.MeshBuilder.CreateCylinder('cylinder', { diameter: (Number(sh.radius) || 0.5) * 2, height: Number(sh.height) || 1, tessellation: Number(sh.segments) || 32 }, W.scene), o); break;
+      case 'cone': e = shape('cone', () => B.MeshBuilder.CreateCylinder('cone', { diameterTop: 0, diameterBottom: (Number(sh.radius) || 0.5) * 2, height: Number(sh.height) || 1, tessellation: 32 }, W.scene), o); break;
+      case 'capsule': { const r = Number(sh.radius) || 0.4; e = shape('capsule', () => B.MeshBuilder.CreateCapsule('capsule', { radius: r, height: Math.max(r * 2, Number(sh.height) || 1.8), tessellation: 16 }, W.scene), o); break; }
+      case 'torus': e = shape('torus', () => B.MeshBuilder.CreateTorus('torus', { diameter: (Number(sh.radius) || 1) * 2, thickness: Number(sh.thickness) || 0.3, tessellation: 40 }, W.scene), o); break;
+      case 'plane': { const w = Number(sh.width ?? sh.size?.[0]) || 10; const d = Number(sh.depth ?? sh.size?.[1]) || w; e = shape('plane', () => B.MeshBuilder.CreateBox('plane', { width: w, height: 0.02, depth: d }, W.scene), o); break; }
+      case 'model': e = model(sh.asset || spec.data?.asset || '', { ...o, size: Number(sh.size) || 0, animation: sh.animation }); break;
+      case 'sprite': e = sprite(sh.image || sh.asset || '', { ...o, physics: spec.physics || 'none', size: Number(sh.size) || 1, frames: sh.frames, billboard: sh.billboard }); break;
+      case 'text': e = text(sh.text ?? spec.name ?? 'Text', { ...o, size: Number(sh.size) || 0.5, color: spec.material && spec.material.color, billboard: sh.billboard, background: sh.background }); break;
+      case 'light': e = lightEntity({ ...o, light: spec.light || {} }); break;
+      case 'video': e = screen(sh, o); break;
+      case 'waypoint': e = waypoint(spec, o); break;
+      case 'mirror': e = mirror(spec, o); break;
+      case 'spawn': case 'trigger': {
+        const isSpawn = spec.type === 'spawn';
+        const s = isSpawn ? [1.2, 0.15, 1.2] : size3(sh.size, 1);
+        e = shape(spec.type, () => B.MeshBuilder.CreateBox(spec.type, { width: s[0], height: s[1], depth: s[2] }, W.scene), { ...o, color: isSpawn ? '#34d399' : '#fbbf24', emissive: isSpawn ? '#0b3d2a' : '#3d2a05', opacity: 0.35, shadow: false, physics: isSpawn ? 'none' : (spec.physics || 'trigger') });
+        e.node.isPickable = mode === 'build';
+        if (mode !== 'build') e.node.visibility = 0;
+        break;
+      }
+      default: e = shape('box', () => B.MeshBuilder.CreateBox('box', { size: 0.5 }, W.scene), o);
+    }
+    e.sceneId = spec.id;
+    e.spec = spec;
+    e.home = { position: e.position, rotation: e.rotation3 };
+    W.byId.set(spec.id, e);
+    attachBehaviors(e, spec.behaviors);
+    return e;
+  }
+
+  /** A waypoint: a glowing orb over a ring on the ground (not a box). Players reach it by coming close. Its role
+   *  (data.role): 'waypoint' (a stop on a route), 'checkpoint' (you come back here), 'finish' (wins), 'start'.
+   *  shape.radius is how close counts; data.next is the next one's id, and a line of small orbs shows the way. */
+  const WAYPOINT_COLORS = { waypoint: '#22d3ee', checkpoint: '#34d399', finish: '#f4c430', start: '#a855f7' };
+  function waypoint(spec, o) {
+    const sh = spec.shape || {};
+    const role = (spec.data && spec.data.role) || 'waypoint';
+    const r = Number(sh.radius) || 1.6;
+    const color = hex((spec.material && spec.material.color) || WAYPOINT_COLORS[role] || '#22d3ee');
+    const root = new B.TransformNode('waypoint', W.scene);
+    const mk = (mesh, alpha, glow = 1) => { const m = new B.StandardMaterial('wp', W.scene); m.emissiveColor = color.scale(glow); m.diffuseColor = color; m.disableLighting = true; m.alpha = alpha; mesh.material = m; mesh.parent = root; return mesh; };
+    const orb = mk(B.MeshBuilder.CreateSphere('wp-orb', { diameter: 0.6, segments: 20 }, W.scene), 0.95);
+    orb.position.y = 1.2;
+    const ring = mk(B.MeshBuilder.CreateTorus('wp-ring', { diameter: r * 2, thickness: 0.06, tessellation: 48 }, W.scene), 0.85);
+    ring.position.y = 0.05;
+    const beam = mk(B.MeshBuilder.CreateCylinder('wp-beam', { diameterTop: 0.02, diameterBottom: 0.5, height: 6, tessellation: 12 }, W.scene), 0.12, 0.8);
+    beam.position.y = 3;
+    beam.isPickable = false;
+    beam.metadata = { decor: true };
+    const e = new Entity(root, { ...o, physics: 'none' }, 'waypoint');
+    for (const m of [orb, ring]) m.metadata = { entity: e };
+    e._mat = orb.material;
+    e.waypoint = { role, radius: r, next: spec.data && spec.data.next, reached: false, orb, ring, beam, color };
+    place(e, { ...o, shadow: false });
+    e.half = [r, 1.5, r]; e.offset = [0, 1.2, 0];
+    return e;
+  }
+  /** Each step: reaching a waypoint, its glow, and the dotted line to the next one. */
+  function runWaypoints(dt) {
+    const p = W.player;
+    for (const e of W.entities) {
+      const wp = e.waypoint;
+      if (!wp || !e.alive) continue;
+      const t = (Date.now() + clockOffset) / 1000;
+      wp.orb.position.y = 1.2 + Math.sin(t * 2 + e.x) * 0.12;
+      wp.ring.rotation.y += dt * 0.6;
+      if (!wp.route && wp.next) drawRoute(e);
+      if (!p || !p.alive || (mode === 'build' && wp.role !== 'checkpoint')) continue;
+      const d = Math.hypot(p.x - e.x, (p.bottom) - (e.y), p.z - e.z);
+      if (d > wp.radius + 0.4 || wp.reached && wp.role !== 'checkpoint') continue;
+      if (wp.role === 'checkpoint') { if (wp.reached && W.checkpoint && W.checkpoint[0] === e.x && W.checkpoint[2] === e.z) continue; W.checkpoint = [e.x, e.y + 0.05, e.z]; for (const o of W.entities) if (o.waypoint && o.waypoint.role === 'checkpoint') o.waypoint.reached = o === e; game.ui.message('Checkpoint', 1.1); }
+      wp.reached = true;
+      game.burst([e.x, e.y + 1.2, e.z], { color: wp.color.toHexString(), count: 26, speed: 4 });
+      W.state.waypoints = (W.state.waypoints || 0) + (wp.role === 'waypoint' ? 1 : 0);
+      if (wp.role === 'finish') { if (mode === 'build') game.ui.message('Finish! (in the game this ends it)', 2); else game.over((e.data && e.data.message) || 'You made it!'); }
+      for (const h of e.handlers.hit) h(p);
+      runBehaviorHit(e, p);
+      wp.orb.material.alpha = 0.55;
+      wp.beam.material.alpha = 0.05;
+    }
+  }
+  function drawRoute(e) {
+    const next = W.byId.get(e.waypoint.next);
+    e.waypoint.route = [];
+    if (!next || !next.alive) return;
+    const a = new B.Vector3(e.x, e.y + 0.35, e.z), b = new B.Vector3(next.x, next.y + 0.35, next.z);
+    const n = Math.max(1, Math.floor(B.Vector3.Distance(a, b) / 1.2));
+    const m = new B.StandardMaterial('wp-dot', W.scene);
+    m.emissiveColor = e.waypoint.color.scale(0.9); m.disableLighting = true; m.alpha = 0.7;
+    for (let i = 1; i < n; i++) {
+      const dot = B.MeshBuilder.CreateSphere('wp-dot', { diameter: 0.14, segments: 6 }, W.scene);
+      dot.position = B.Vector3.Lerp(a, b, i / n);
+      dot.material = m; dot.isPickable = false; dot.metadata = { decor: true };
+      e.waypoint.route.push(dot);
+    }
+  }
+
+  /** A screen playing a video asset (muted until clicked: browsers only allow sound after a click). */
+  function screen(sh, o) {
+    const w = Number(sh.width) || 3.2, h = Number(sh.height) || w * 9 / 16;
+    const plane = B.MeshBuilder.CreatePlane('video', { width: w, height: h, sideOrientation: B.Mesh.DOUBLESIDE }, W.scene);
+    const mat = new B.StandardMaterial('video', W.scene);
+    mat.disableLighting = true;
+    mat.emissiveColor = new B.Color3(1, 1, 1);
+    plane.material = mat;
+    const e = new Entity(plane, o, 'video');
+    e._mat = mat;
+    let url = null;
+    try { url = assetUrl(sh.asset || ''); } catch { e._waiting = sh.asset || null; mat.wireframe = true; }
+    if (url) {
+      const vt = new B.VideoTexture('video', url, W.scene, true, false, B.Texture.TRILINEAR_SAMPLINGMODE, { autoPlay: true, loop: sh.loop !== false, muted: true, autoUpdateTexture: true });
+      mat.diffuseTexture = vt;
+      e._video = vt.video;
+      e._video.crossOrigin = 'anonymous';
+      e.on('click', () => { const v = e._video; v.muted = !v.muted; v.play().catch(() => {}); });
+    }
+    return place(e, { ...o, shadow: false });
+  }
+
+  function mirror(spec, o) {
+    const sh = spec.shape || {};
+    const w = Number(sh.width) || 2, h = Number(sh.height) || 3;
+    const frame = new B.TransformNode('mirror', W.scene);
+    const surface = B.MeshBuilder.CreatePlane('mirror-surface', { width: w, height: h }, W.scene);
+    surface.parent = frame;
+    const mat = new B.StandardMaterial('mirror', W.scene);
+    const tex = new B.MirrorTexture('mirror-tex', 512, W.scene, true);
+    tex.mirrorPlane = new B.Plane(0, 0, 1, 0);
+    tex.level = 0.85;
+    mat.reflectionTexture = tex;
+    mat.diffuseColor = new B.Color3(0.05, 0.05, 0.08);
+    surface.material = mat;
+    const bm = new B.StandardMaterial('mirror-frame', W.scene);
+    bm.diffuseColor = new B.Color3(0.6, 0.65, 0.7);
+    for (const [sx, sy, sw, sht] of [[0, h / 2 + 0.03, w + 0.12, 0.06], [0, -h / 2 - 0.03, w + 0.12, 0.06], [-w / 2 - 0.03, 0, 0.06, h], [w / 2 + 0.03, 0, 0.06, h]]) {
+      const seg = B.MeshBuilder.CreateBox('mirror-edge', { width: sw, height: sht, depth: 0.05 }, W.scene);
+      seg.parent = frame; seg.position.set(sx, sy, 0); seg.material = bm;
+    }
+    const e = new Entity(frame, o, 'mirror');
+    e._mat = bm;
+    for (const c of frame.getChildMeshes()) c.metadata = { entity: e };
+    place(e, { ...o, shadow: false });
+    // What it reflects: everything, kept up to date as the world changes.
+    let last = 0;
+    e._mirrorObs = W.scene.onBeforeRenderObservable.add(() => {
+      const now = performance.now();
+      if (now - last < 1000) return;
+      last = now;
+      surface.computeWorldMatrix(true);
+      const n = B.Vector3.TransformNormal(new B.Vector3(0, 0, -1), surface.getWorldMatrix()).normalize();
+      tex.mirrorPlane = B.Plane.FromPositionAndNormal(surface.getAbsolutePosition(), n.scale(-1));
+      tex.renderList = W.scene.meshes.filter((x) => x !== surface && x.isEnabled() && x.isVisible);
+    });
+    return e;
+  }
+
+  /** Builds the whole world from scene.json. */
+  function buildScene(graph) {
+    W.graph = graph;
+    for (const spec of Object.values(graph.entities || {})) {
+      try { fromSpec(spec); } catch (e) { report(new Error(`${spec.name || spec.id}: ${e.message || e}`), 'scene.json'); }
+    }
+    // Parents after everything exists.
+    for (const spec of Object.values(graph.entities || {})) if (spec.parent) setParent(spec.id, spec.parent);
+    measureWorld();
+  }
+  function setParent(id, parentId) {
+    const e = W.byId.get(id), p = W.byId.get(parentId);
+    if (e && p) { e.node.setParent(p.node); e.carrier = p; }
+  }
+  /** Where the floor of the world is, so falling things are caught well below it. */
+  function measureWorld() {
+    let lowest = Infinity;
+    for (const e of W.entities) if ((e.physics === 'static' || e.physics === 'kinematic') && e.sceneId) lowest = Math.min(lowest, e.bottom);
+    W.catchY = Math.min(-25, (isFinite(lowest) ? lowest : 0) - 25);
+  }
+
+  /** Same rules as the server (src/scene.ts merge): arrays and values replace, null removes. */
+  function merge(target, patch) {
+    for (const [k, v] of Object.entries(patch || {})) {
+      if (k === '__proto__' || k === 'constructor') continue;
+      if (v === null) delete target[k];
+      else if (v && typeof v === 'object' && !Array.isArray(v) && target[k] && typeof target[k] === 'object' && !Array.isArray(target[k])) merge(target[k], v);
+      else target[k] = clone(v);
+    }
+    return target;
+  }
+  const onlyTransform = (patch) => Object.keys(patch).every((k) => k === 'transform');
+
+  /** World edits (from the editor, a friend, or the assistant), applied live. Returns the things they touched. */
+  function applyOps(ops, o = {}) {
+    if (!W) return [];
+    const touched = [];
+    for (const op of ops || []) {
+      try {
+        if (op.op === 'create' || op.op === 'replace') {
+          const spec = clone(op.entity);
+          if (!spec || !spec.id) continue;
+          const old = W.byId.get(spec.id);
+          if (old) old.destroy();
+          W.graph.entities[spec.id] = spec;
+          const e = fromSpec(spec);
+          if (spec.parent) setParent(spec.id, spec.parent);
+          touched.push(e);
+        } else if (op.op === 'update') {
+          const spec = W.graph.entities[op.id];
+          if (!spec) continue;
+          merge(spec, op.patch);
+          const e = W.byId.get(op.id);
+          if (e && onlyTransform(op.patch)) {
+            const t = spec.transform || {};
+            if (!e.remote || o.force) {
+              place(e, { position: t.position || e.position, rotation: t.rotation, scale: t.scale, shadow: false });
+              e.velocity = [0, 0, 0];
+            }
+            e.home = { position: vec(t.position, e.home.position), rotation: t.rotation || e.home.rotation };
+            touched.push(e);
+          } else {
+            const keep = e ? { v: e.velocity, remote: e.remote } : null;
+            if (e) e.destroy();
+            const n = fromSpec(spec);
+            if (spec.parent) setParent(spec.id, spec.parent);
+            if (keep) n.remote = keep.remote;
+            touched.push(n);
+          }
+        } else if (op.op === 'delete') {
+          const gone = new Set([op.id]);
+          for (let grew = true; grew;) { grew = false; for (const s of Object.values(W.graph.entities)) if (s.parent && gone.has(s.parent) && !gone.has(s.id)) { gone.add(s.id); grew = true; } }
+          for (const id of gone) { delete W.graph.entities[id]; const e = W.byId.get(id); if (e) e.destroy(); }
+        } else if (op.op === 'config') {
+          merge(W.graph.config, op.patch);
+          applyLook(effectiveConfig());
+          if (op.patch && 'player' in op.patch && W.player && W.player.alive) applyPlayerSettings(W.player);
+        }
+      } catch (e) { report(e, 'scene.json'); }
+    }
+    measureWorld();
+    for (const e of W.entities) e.wake();
+    for (const f of hooks.world) if (f.ops) f.ops(ops, touched, o);
+    return touched;
+  }
+
+  // ------------------------------------------------------------------ behaviors: what things do on their own
+  const behaviorDefs = new Map(); // built-ins (behaviors.js) and ones scripts define with game.behavior
+  const builtinDefs = new Map();
+  function defineBehavior(name, def, builtin = false) {
+    const n = String(name).toLowerCase();
+    (builtin ? builtinDefs : behaviorDefs).set(n, def);
+  }
+  const findDef = (name) => behaviorDefs.get(String(name).toLowerCase()) || builtinDefs.get(String(name).toLowerCase()) || null;
+  function attachBehaviors(e, list) {
+    for (const raw of list || []) {
+      if (!raw) continue;
+      const b = typeof raw === 'string' ? { use: raw } : raw;
+      const name = b.use || b.type;
+      const def = findDef(name);
+      const inst = { name, def, o: { ...(def && def.defaults || {}), ...b }, s: {} };
+      e.behaviors.push(inst);
+      if (!def) { if (W.started) report(new Error(`${e.name || e.sceneId}: no behavior called "${name}"`), 'scene.json'); continue; }
+      if (W.started) startBehavior(e, inst);
+    }
+  }
+  function startBehavior(e, b) { if (b.def && b.def.start && !b.started) { b.started = true; try { b.def.start(e, b.o, b.s, game); } catch (err) { report(err, `behavior ${b.name}`); } } else b.started = true; }
+  function stopBehavior(e, b) { if (b.def && b.def.stop) try { b.def.stop(e, b.o, b.s, game); } catch (err) { report(err, `behavior ${b.name}`); } }
+  function runBehaviorHit(e, other) {
+    for (const b of e.behaviors) if (b.def && b.def.hit) try { b.def.hit(e, other, b.o, b.s, game); } catch (err) { report(err, `behavior ${b.name}`); }
+  }
+  function runBehaviors(dt) {
+    for (const e of [...W.entities]) {
+      if (!e.alive || !e.behaviors.length) continue;
+      for (const b of e.behaviors) {
+        if (!b.started) startBehavior(e, b);
+        if (b.def && b.def.update && e.alive) try { b.def.update(e, dt, b.o, b.s, game); } catch (err) { report(err, `behavior ${b.name}`); b.def = null; }
+      }
+    }
+  }
+
   // ------------------------------------------------------------------ camera
   function makeCamera() {
     const cam = new B.UniversalCamera('cam', new B.Vector3(0, 8, -14), W.scene);
     cam.setTarget(B.Vector3.Zero());
     cam.minZ = 0.05;
+    cam.maxZ = 2000;
+    cam.fov = 1.0;
     cam.inputs.clear();
-    const state = { mode: 'fixed', target: null, opts: {}, cam, arc: null, shake: 0, shakeTime: 0, yaw: 0, pitch: 0 };
+    const state = { mode: 'fixed', target: null, opts: {}, cam, arc: null, shake: 0, shakeTime: 0, yaw: 0, pitch: 0, claimed: false };
+    const claim = () => { if (!internal) state.claimed = true; };
     const api = {
       get target() { return state.target; },
       set target(v) { state.target = v; },
-      follow(t, o = {}) { use(); Object.assign(state, { mode: 'follow', target: t, opts: { distance: 10, height: 5, smooth: 0.1, behind: false, ...o } }); snap(); return api; },
-      topDown(t, o = {}) { use(); Object.assign(state, { mode: 'top', target: t, opts: { height: 18, smooth: 0.15, ...o } }); snap(); return api; },
-      firstPerson(t, o = {}) { use(); Object.assign(state, { mode: 'fps', target: t, opts: { height: 0.6, sensitivity: 0.15, ...o }, yaw: t ? t.node.rotation.y : 0, pitch: 0 }); if (t) t.visible = o.showBody === true ? true : t.visible; return api; },
-      fixed(p, look = [0, 0, 0]) { use(); const a = vec(p), b = vec(look); cam.position.set(a[0], a[1], a[2]); cam.setTarget(new B.Vector3(b[0], b[1], b[2])); state.mode = 'fixed'; state.target = null; return api; },
+      get mode() { return state.mode; },
+      follow(t, o = {}) { claim(); use(); Object.assign(state, { mode: 'follow', target: t, opts: { distance: 10, height: 5, smooth: 0.1, behind: false, ...o } }); snap(); return api; },
+      topDown(t, o = {}) { claim(); use(); Object.assign(state, { mode: 'top', target: t, opts: { height: 18, smooth: 0.15, ...o } }); snap(); return api; },
+      /** Behind the target, looking where the mouse looks: you see your character. */
+      thirdPerson(t, o = {}) { claim(); use(); if (state.mode !== 'third') state.pitch = 0.32; Object.assign(state, { mode: 'third', target: t, opts: { distance: 5, height: 1.4, sensitivity: 0.15, ...o } }); return api; },
+      firstPerson(t, o = {}) { claim(); use(); Object.assign(state, { mode: 'fps', target: t, opts: { height: t === W.player ? 1.6 : 0.6, sensitivity: 0.15, ...o }, yaw: t ? t.node.rotation.y : state.yaw, pitch: 0 }); if (t && t !== W.player) t.visible = o.showBody === true ? true : t.visible; return api; },
+      fixed(p, look = [0, 0, 0]) { claim(); use(); const a = vec(p), b = vec(look); cam.position.set(a[0], a[1], a[2]); cam.setTarget(new B.Vector3(b[0], b[1], b[2])); state.mode = 'fixed'; state.target = null; return api; },
       orbit(t, o = {}) {
+        claim();
         const p = t && t.__entity ? t.position : vec(t);
         if (!state.arc) { state.arc = new B.ArcRotateCamera('orbit', -Math.PI / 2, 1.1, o.distance || 12, new B.Vector3(p[0], p[1], p[2]), W.scene); state.arc.minZ = 0.05; state.arc.wheelPrecision = 20; state.arc.lowerRadiusLimit = 1; }
         state.arc.radius = o.distance || state.arc.radius;
@@ -415,9 +935,13 @@
         return api;
       },
       shake(strength = 0.3, seconds = 0.3) { state.shake = strength; state.shakeTime = seconds; return api; },
+      get forward() { const c = W.scene.activeCamera; const d = c.getDirection(B.Axis.Z); return [d.x, d.y, d.z]; },
+      get position() { const c = W.scene.activeCamera; return [c.position.x, c.position.y, c.position.z]; },
       get babylon() { return W.scene.activeCamera; },
     };
-    function use() { if (state.arc) { state.arc.detachControl(); } W.scene.activeCamera = cam; if (document.pointerLockElement) document.exitPointerLock(); }
+    let internal = false;
+    state.internal = (fn) => { internal = true; try { return fn(); } finally { internal = false; } };
+    function use() { if (state.arc) { state.arc.detachControl(); } W.scene.activeCamera = cam; }
     function want() {
       const t = state.target, o = state.opts;
       if (!t || !t.alive) return null;
@@ -432,9 +956,32 @@
       else if (state.mode === 'fps') {
         const t = state.target;
         state.yaw += mouse.dx * state.opts.sensitivity * RAD;
-        state.pitch = Math.max(-1.45, Math.min(1.45, state.pitch + mouse.dy * state.opts.sensitivity * RAD));
-        if (t && t.alive) { t.node.rotation.y = state.yaw; cam.position.set(t.x, t.y + state.opts.height, t.z); }
+        state.pitch = Math.max(-1.5, Math.min(1.5, state.pitch + mouse.dy * state.opts.sensitivity * RAD));
+        if (t && t.alive) {
+          t.node.rotation.y = state.yaw;
+          const eye = t === W.player ? t.bottom + state.opts.height : t.y + state.opts.height;
+          // Smooth the eye a little so steps and landings don't jolt the view.
+          const k = state.eyeY === undefined ? 1 : Math.min(1, dt * 18);
+          state.eyeY = state.eyeY === undefined ? eye : state.eyeY + (eye - state.eyeY) * k;
+          cam.position.set(t.x, state.eyeY, t.z);
+        }
         cam.rotation.set(state.pitch, state.yaw, 0);
+      } else if (state.mode === 'third') {
+        const t = state.target, o = state.opts;
+        state.yaw += mouse.dx * o.sensitivity * RAD;
+        state.pitch = Math.max(-0.4, Math.min(1.2, state.pitch + mouse.dy * o.sensitivity * RAD));
+        if (t && t.alive) {
+          const head = new B.Vector3(t.x, (t === W.player ? t.bottom + 1.5 : t.y + o.height), t.z);
+          const back = new B.Vector3(-Math.sin(state.yaw) * Math.cos(state.pitch), Math.sin(state.pitch), -Math.cos(state.yaw) * Math.cos(state.pitch));
+          // Walls between you and the camera pull it in, so it never looks through them.
+          let dist = o.distance;
+          const hit = W.scene.pickWithRay(new B.Ray(head, back, o.distance), (m) => { const en = entityOf(m); return Boolean(en && en !== t && en.solid && !(m.metadata && m.metadata.decor)); });
+          if (hit && hit.hit) dist = Math.max(0.8, hit.distance - 0.3);
+          const want = head.add(back.scale(dist));
+          const k = Math.min(1, dt * 14);
+          cam.position.copyFrom(B.Vector3.Lerp(cam.position, want, k));
+          cam.setTarget(head);
+        }
       } else if (state.mode === 'follow' || state.mode === 'top') {
         const w = want();
         if (w) {
@@ -449,9 +996,157 @@
         c.position.x += (Math.random() - 0.5) * s; c.position.y += (Math.random() - 0.5) * s;
       }
     };
-    state.yawNow = () => (state.mode === 'orbit' ? -state.arc.alpha - Math.PI / 2 : state.mode === 'fps' ? state.yaw : Math.atan2(cam.getTarget().x - cam.position.x, cam.getTarget().z - cam.position.z));
+    state.yawNow = () => (state.mode === 'orbit' ? -state.arc.alpha - Math.PI / 2 : state.mode === 'fps' || state.mode === 'third' ? state.yaw : state.mode === 'top' ? 0 : Math.atan2(cam.getTarget().x - cam.position.x, cam.getTarget().z - cam.position.z));
     state.api = api;
     return state;
+  }
+
+  // ------------------------------------------------------------------ the player: first person, caught when falling
+  function spawnPoint(role = 'player') {
+    const r = String(role || 'player');
+    let best = null;
+    for (const e of W.entities) if (e.kind === 'spawn' && (e.data.role === r || e.tag === r || (!best && (!e.data.role || e.data.role === 'player')))) best = e;
+    if (W.checkpoint && r === 'player') return W.checkpoint.slice();
+    return best ? [best.x, best.bottom + 0.05, best.z] : [0, 0.05, 6];
+  }
+  /** The player everyone gets unless the game makes its own: a body to walk, jump, fly and build with. */
+  /** How the player plays, from scene.json / game.json "player": { view, speed, jump, fly, doubleJump, gravity, distance }.
+   *  The assistant changes these when someone says "let me fly", "jump higher", "I want to see my character". */
+  function playerSettings() {
+    const c = effectiveConfig().player;
+    return c && typeof c === 'object' ? c : {};
+  }
+  function applyPlayerSettings(p) {
+    const s = playerSettings();
+    p.speed = Number(s.speed) || 6;
+    p.jumpHeight = Number(s.jump) || 1.5;
+    p.canFly = s.fly === true;
+    p.doubleJump = s.doubleJump === true;
+    p.baseGravity = s.gravity === undefined ? 1 : Math.max(0, Number(s.gravity));
+    p.gravity = p.flying ? 0 : p.baseGravity;
+    setView(p, s.view || p.view || 'first', s.distance);
+  }
+  /** first (your eyes), third (behind you: you see your character), top (from above). */
+  function setView(p, view, distance) {
+    const v = ['first', 'third', 'top'].includes(view) ? view : 'first';
+    p._view = v;
+    p.node.visibility = v === 'first' ? 0 : 1;
+    if (p._visor) p._visor.setEnabled(v !== 'first');
+    W.camera.internal(() => {
+      if (W.camera.target !== p && W.camera.claimed && W.camera.mode !== 'fps' && W.camera.mode !== 'third' && W.camera.mode !== 'top') return;
+      if (v === 'third') W.camera.api.thirdPerson(p, { distance: Number(distance) || 5 });
+      else if (v === 'top') W.camera.api.topDown(p, { height: Number(distance) || 18 });
+      else W.camera.api.firstPerson(p, { height: 1.6 });
+    });
+  }
+
+  function ensurePlayer() {
+    if (W.player && W.player.alive) return W.player;
+    const feet = spawnPoint();
+    const p = shape('capsule', () => B.MeshBuilder.CreateCapsule('player', { radius: 0.35, height: 1.8, tessellation: 12 }, W.scene), { y: feet[1] + 0.9, x: feet[0], z: feet[2], color: hooks.myColor || '#4a9eff', physics: 'dynamic', tag: 'player', name: hooks.myName || 'You', shadow: true });
+    p.node.isPickable = false;
+    p.node.visibility = 0; // you don't see your own body; your friends do (net.js)
+    p.health = 100;
+    p.controls = W.config.controls !== false;
+    p.flying = false;
+    p.isPlayer = true;
+    W.player = p;
+    // A visor, so you can tell which way your character faces (shown when you can see yourself).
+    const visor = B.MeshBuilder.CreateBox('visor', { width: 0.5, height: 0.14, depth: 0.12 }, W.scene);
+    const vm = new B.StandardMaterial('visor', W.scene);
+    vm.emissiveColor = new B.Color3(0.85, 0.95, 1); vm.disableLighting = true;
+    visor.material = vm; visor.parent = p.node; visor.position.set(0, 0.5, 0.32); visor.metadata = { decor: true }; visor.isPickable = false;
+    p._visor = visor;
+    Object.defineProperty(p, 'view', { get: () => p._view, set: (v) => setView(p, v), configurable: true });
+    const yaw = W.camera.yaw;
+    applyPlayerSettings(p);
+    if (W.keepPose) { p.position = W.keepPose.p; W.camera.yaw = W.keepPose.yaw; W.camera.pitch = W.keepPose.pitch; p.flying = W.keepPose.flying; W.keepPose = null; }
+    else W.camera.yaw = yaw || (spawnYaw() ?? 0);
+    buildTouch();
+    return p;
+  }
+  function spawnYaw() { for (const e of W.entities) if (e.kind === 'spawn') return e.node.rotation.y; return null; }
+
+  function controlPlayer(dt) {
+    const p = W.player;
+    if (!p || !p.alive || !p.controls || W.camera.target !== p) return;
+    const a = game.input.direction();
+    const sprint = held.has('shift') && !p.flying;
+    if (pressedNow.has('f') && (mode === 'build' || p.canFly)) { p.flying = !p.flying; p.vy = 0; game.ui.message(p.flying ? 'Flying: E up, Q down' : 'Walking', 1.2); }
+    // Building: E goes up and Q goes down (and starts flying), like a builder's camera.
+    if (mode === 'build' && !p.flying && held.has('e') && !hooks.holding) { p.flying = true; }
+    if (p.flying) {
+      p.gravity = 0;
+      const sp = held.has('shift') ? 16 : 8;
+      p.vx = a.x * sp; p.vz = a.z * sp;
+      const up = held.has('space') || (mode === 'build' && held.has('e'));
+      const down = held.has('c') || held.has('control') || (mode === 'build' && held.has('q'));
+      p.vy = (up ? sp : 0) - (down ? sp : 0);
+      p._walked = true;
+      p.wake();
+    } else {
+      p.gravity = p.baseGravity ?? 1;
+      p.walk(a, (p.speed || 6) * (sprint ? 1.6 : 1));
+      // Facing where you walk when you can see yourself.
+      if (p._view !== 'first' && Math.hypot(a.x, a.z) > 0.1) { const want = Math.atan2(a.x, a.z); let d = want - p.node.rotation.y; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; p.node.rotation.y += d * Math.min(1, dt * 12); }
+      if (p.grounded) p._doubled = false;
+      if (pressedNow.has('space')) {
+        const g = Math.abs(W.config.gravity ?? 24) * (p.gravity || 1);
+        const speed = Math.sqrt(2 * g * (p.jumpHeight || 1.5)) || 8.5;
+        if (p.jump(speed)) { /* jumped */ }
+        else if (p.doubleJump && !p._doubled) { p._doubled = true; p.vy = speed; game.burst([p.x, p.bottom, p.z], { color: '#c8d8ff', count: 10, speed: 2 }); }
+        else if ((mode === 'build' || p.canFly) && performance.now() - (p._lastJump || 0) < 300) { p.flying = true; game.ui.message(mode === 'build' ? 'Flying: E up, Q down, F lands' : 'Flying: space up, C down, F lands', 1.4); }
+        p._lastJump = performance.now();
+      }
+    }
+  }
+
+  /** Something fell out of the world: people go back to the start, things go back where they were. */
+  function caught(e) {
+    if (e === W.player) {
+      respawn(true);
+      return;
+    }
+    if (e.remotePlayer) return;
+    if (e.sceneId && e.home) {
+      e.position = e.home.position; e.velocity = [0, 0, 0];
+      for (const f of hooks.world) if (f.reset) f.reset(e);
+    } else e.destroy();
+  }
+  function respawn(fell) {
+    const p = W.player;
+    if (!p) return;
+    const at = spawnPoint();
+    p.position = [at[0], at[1] + 0.95, at[2]];
+    p.velocity = [0, 0, 0];
+    p.health = 100;
+    p.flying = false;
+    if (fell) game.ui.message('Caught you', 1.2);
+    // Nothing to stand on (the floor was deleted?): a temporary pad so nobody falls forever.
+    const below = rayDown([at[0], at[1] + 1, at[2]], 80);
+    if (!below) {
+      const old = game.find('_safety');
+      if (old) old.destroy();
+      const pad = game.cylinder({ x: at[0], y: at[1] - 0.15, z: at[2], radius: 2.5, height: 0.3, color: '#4a9eff', emissive: '#12305a', opacity: 0.8, name: '_safety', tag: '_safety' });
+      pad.temporary = true;
+      game.after(20, () => pad.destroy());
+    }
+    for (const f of hooks.world) if (f.respawn) f.respawn(p);
+  }
+  function rayDown(from, dist) {
+    const ray = new B.Ray(new B.Vector3(from[0], from[1], from[2]), new B.Vector3(0, -1, 0), dist);
+    const hit = W.scene.pickWithRay(ray, (m) => { const en = entityOf(m); return en && en !== W.player && en.solid; });
+    return hit && hit.hit ? hit : null;
+  }
+  const entityOf = (m) => { let n = m; while (n && !(n.metadata && n.metadata.entity)) n = n.parent; return n ? n.metadata.entity : null; };
+
+  function hurtPlayer(amount, from) {
+    const p = W.player;
+    if (!p || mode === 'build' && p.flying) return;
+    p.health = Math.max(0, p.health - amount);
+    W.camera.api.shake(0.15, 0.2);
+    if (p.health <= 0) { game.ui.message('Ouch! Back to the start', 1.6); respawn(false); }
+    for (const f of hooks.world) if (f.hurt) f.hurt(p, amount, from);
   }
 
   // ------------------------------------------------------------------ screen ui
@@ -462,7 +1157,7 @@
       el.style.left = el.style.right = el.style.top = el.style.bottom = el.style.transform = '';
       const tx = x === 'center' ? '-50%' : '0', ty = y === 'middle' ? '-50%' : '0';
       if (x === 'left') el.style.left = '16px'; else if (x === 'right') el.style.right = '16px'; else el.style.left = '50%';
-      if (y === 'top') el.style.top = `${16 + stackIndex(el, x, y) * 34}px`; else if (y === 'bottom') el.style.bottom = `${16 + stackIndex(el, x, y) * 34}px`; else el.style.top = '50%';
+      if (y === 'top') el.style.top = `${(hooks.uiTop || 16) + stackIndex(el, x, y) * 34}px`; else if (y === 'bottom') el.style.bottom = `${(hooks.uiBottom || 16) + stackIndex(el, x, y) * 34}px`; else el.style.top = '50%';
       el.style.transform = `translate(${tx}, ${ty})`;
     };
     const stackIndex = (el, x, y) => { let i = 0; for (const [, it] of items) { if (it.el === el) break; if ((it.o.x || 'left') === x && (it.o.y || 'top') === y) i++; } return i; };
@@ -492,6 +1187,7 @@
         return api;
       },
       message(text, seconds = 2) {
+        uiLayer.querySelectorAll('.ui-message').forEach((e) => e.remove());
         const el = document.createElement('div');
         el.className = 'ui-message';
         el.textContent = String(text);
@@ -500,19 +1196,152 @@
         setTimeout(() => el.remove(), Math.max(0.2, seconds) * 1000 + 400);
         return api;
       },
-      remove(id) { const it = items.get(String(id)); if (it) { it.el.remove(); items.delete(String(id)); } return api; },
-      clear() { for (const [, it] of items) it.el.remove(); items.clear(); uiLayer.querySelectorAll('.ui-message, .ui-over').forEach((e) => e.remove()); return api; },
+      remove(id) { const it = items.get(String(id)); if (it) { if (it.close) it.close(); else it.el.remove(); items.delete(String(id)); } return api; },
+      clear() { for (const [, it] of items) it.el.remove(); items.clear(); attached.clear(); uiLayer.querySelectorAll('.ui-message, .ui-over, .ui-menu-wrap, .ui-popup-wrap').forEach((e) => e.remove()); if (W) W.paused = false; return api; },
+
+      /** The game's look for all of this: { font, color, accent, panel, border, radius, blur } (also game.json "ui"). */
+      theme(t = {}) {
+        const set = (k, v) => { if (v !== undefined && v !== null) uiLayer.style.setProperty(k, String(v)); };
+        set('--ui-font', t.font); set('--ui-fg', t.color); set('--ui-accent', t.accent); set('--ui-panel', t.panel);
+        set('--ui-border', t.border); set('--ui-radius', t.radius !== undefined ? `${Number(t.radius) || 0}px` : undefined); set('--ui-blur', t.blur !== undefined ? `${Number(t.blur) || 0}px` : undefined);
+        return api;
+      },
+      /** Your own CSS for the game's screens (classes you give panels and menus with class:). */
+      style(css) { let el = document.getElementById('ui-style'); if (!el) { el = document.createElement('style'); el.id = 'ui-style'; document.head.appendChild(el); } el.textContent = String(css); return api; },
+      /** A box on screen: { title, text or html, x, y, width, buttons: [{ label, onClick }], class, closable }. */
+      panel(id, o = {}) {
+        const it = get(String(id), 'div', 'ui-panel', o);
+        it.el.className = `ui-panel ${o.class || ''}`;
+        it.el.innerHTML = `${o.title ? '<div class="ui-panel-title"></div>' : ''}<div class="ui-panel-body"></div>${o.buttons && o.buttons.length ? '<div class="ui-panel-buttons"></div>' : ''}${o.closable ? '<button class="ui-x" aria-label="Close">×</button>' : ''}`;
+        if (o.title) it.el.querySelector('.ui-panel-title').textContent = String(o.title);
+        const body = it.el.querySelector('.ui-panel-body');
+        if (o.html !== undefined) body.innerHTML = String(o.html); else body.textContent = String(o.text ?? '');
+        buttons(it.el.querySelector('.ui-panel-buttons'), o.buttons, () => api.remove(id));
+        if (o.closable) it.el.querySelector('.ui-x').onclick = () => api.remove(id);
+        if (o.width) it.el.style.width = `${Number(o.width)}px`;
+        place(it.el, { x: 'left', y: 'top', ...o });
+        return { el: it.el, close: () => api.remove(id), update: (more) => api.panel(id, { ...o, ...more }) };
+      },
+      /** A menu over the game (it pauses while open): { title, items: [{ label, onClick }], pause, closable, class }. */
+      menu(id, o = {}) {
+        api.remove(id);
+        const wrap = document.createElement('div');
+        wrap.className = `ui-menu-wrap ${o.class || ''}`;
+        wrap.innerHTML = `<div class="ui-menu">${o.title ? '<div class="ui-menu-title"></div>' : ''}${o.text ? '<div class="ui-menu-text"></div>' : ''}<div class="ui-menu-items"></div></div>`;
+        if (o.title) wrap.querySelector('.ui-menu-title').textContent = String(o.title);
+        if (o.text) wrap.querySelector('.ui-menu-text').textContent = String(o.text);
+        const pause = o.pause !== false;
+        const close = () => { wrap.remove(); items.delete(String(id)); document.removeEventListener('keydown', keys, true); if (pause && W) W.paused = false; };
+        const list = buttons(wrap.querySelector('.ui-menu-items'), o.items, close);
+        let at = 0;
+        const focus = () => { list.forEach((b, i) => b.classList.toggle('on', i === at)); if (list[at]) list[at].focus(); };
+        const keys = (e) => {
+          const k = e.key;
+          if (k === 'ArrowDown' || k === 's') { at = (at + 1) % list.length; focus(); e.preventDefault(); e.stopPropagation(); }
+          else if (k === 'ArrowUp' || k === 'w') { at = (at - 1 + list.length) % list.length; focus(); e.preventDefault(); e.stopPropagation(); }
+          else if (k === 'Escape' && o.closable !== false) { close(); e.stopPropagation(); }
+        };
+        document.addEventListener('keydown', keys, true);
+        uiLayer.appendChild(wrap);
+        items.set(String(id), { el: wrap, o, close });
+        if (pause && W) W.paused = true;
+        if (document.pointerLockElement) document.exitPointerLock();
+        setTimeout(focus, 0);
+        return { el: wrap, close };
+      },
+      /** A question with buttons; resolves to the label picked: await game.ui.popup('Open the door?', { buttons: ['Yes', 'No'] }). */
+      popup(text, o = {}) {
+        return new Promise((resolve) => {
+          const labels = (o.buttons || ['OK']).map((b) => (typeof b === 'string' ? { label: b } : b));
+          const wrap = document.createElement('div');
+          wrap.className = `ui-popup-wrap ${o.class || ''}`;
+          wrap.innerHTML = `<div class="ui-popup">${o.title ? '<div class="ui-menu-title"></div>' : ''}<div class="ui-popup-text"></div><div class="ui-panel-buttons"></div></div>`;
+          if (o.title) wrap.querySelector('.ui-menu-title').textContent = String(o.title);
+          wrap.querySelector('.ui-popup-text').textContent = String(text);
+          const done = (label) => { wrap.remove(); if (o.pause !== false && W) W.paused = false; resolve(label); };
+          buttons(wrap.querySelector('.ui-panel-buttons'), labels.map((b) => ({ ...b, onClick: () => { if (b.onClick) b.onClick(); done(b.label); } })), null);
+          uiLayer.appendChild(wrap);
+          if (o.pause !== false && W) W.paused = true;
+          if (document.pointerLockElement) document.exitPointerLock();
+          if (o.seconds) setTimeout(() => { if (wrap.isConnected) done(null); }, o.seconds * 1000);
+        });
+      },
+      /** Asks for words; resolves to what they typed (or null). */
+      ask(question, o = {}) {
+        return new Promise((resolve) => {
+          const wrap = document.createElement('div');
+          wrap.className = `ui-popup-wrap ${o.class || ''}`;
+          wrap.innerHTML = '<form class="ui-popup"><div class="ui-popup-text"></div><input class="ui-input" maxlength="200"><div class="ui-panel-buttons"><button class="ui-btn primary" type="submit">OK</button><button class="ui-btn" type="button">Cancel</button></div></form>';
+          wrap.querySelector('.ui-popup-text').textContent = String(question);
+          const input = wrap.querySelector('input');
+          input.placeholder = o.placeholder || '';
+          input.value = o.value || '';
+          const done = (v) => { wrap.remove(); if (W) W.paused = false; resolve(v); };
+          wrap.querySelector('form').onsubmit = (e) => { e.preventDefault(); done(input.value); };
+          wrap.querySelector('button[type=button]').onclick = () => done(null);
+          uiLayer.appendChild(wrap);
+          if (W) W.paused = true;
+          if (document.pointerLockElement) document.exitPointerLock();
+          setTimeout(() => input.focus(), 0);
+        });
+      },
+      /** A label or panel that stays on a thing in the world: game.ui.attach('hp_bob', bob, { text: 'Bob' }). */
+      attach(id, entity, o = {}) {
+        const it = get(String(id), 'div', 'ui-attach', o);
+        it.el.className = `ui-attach ${o.class || ''}`;
+        if (o.html !== undefined) it.el.innerHTML = String(o.html); else it.el.textContent = String(o.text ?? '');
+        attached.set(String(id), { el: it.el, entity, offset: o.offset ?? 0.4 });
+        return { el: it.el, close: () => { attached.delete(String(id)); api.remove(id); } };
+      },
+      /** Your own HTML on screen (anything the other helpers don't cover). */
+      html(id, html, o = {}) { const it = get(String(id), 'div', `ui-html ${o.class || ''}`, o); it.el.innerHTML = String(html); if (o.x || o.y) place(it.el, o); return it.el; },
+      el(id) { const it = items.get(String(id)); return it ? it.el : null; },
     };
+    function buttons(box, list, close) {
+      if (!box || !list) return [];
+      return list.map((b) => {
+        const el = document.createElement('button');
+        el.type = 'button';
+        el.className = `ui-btn${b.primary ? ' primary' : ''}${b.class ? ` ${b.class}` : ''}`;
+        el.textContent = String(b.label ?? '');
+        el.onclick = safe(() => { unlockAudio(); if (b.onClick) b.onClick(); if (b.close !== false && close) close(); });
+        box.appendChild(el);
+        return el;
+      });
+    }
+    // Labels on things follow them on screen (one frame hook for every world; this world's labels).
+    const attached = new Map();
+    ui.attached = attached;
+    if (!ui.hooked) ui.hooked = hooks.frame.push(() => {
+      const attached = ui.attached;
+      if (!W || !attached || !attached.size) return;
+      const cam = W.scene.activeCamera;
+      const eng = W.scene.getEngine();
+      const vw = eng.getRenderWidth(true) / (window.devicePixelRatio || 1), vh = eng.getRenderHeight(true) / (window.devicePixelRatio || 1);
+      for (const [id, a] of attached) {
+        if (!a.entity || !a.entity.alive) { a.el.remove(); attached.delete(id); continue; }
+        const e = a.entity;
+        const p = B.Vector3.Project(new B.Vector3(e.x, e.y + e.half[1] + a.offset, e.z), B.Matrix.Identity(), W.scene.getTransformMatrix(), cam.viewport.toGlobal(vw, vh));
+        const show = p.z > 0 && p.z < 1 && e.visible;
+        a.el.style.display = show ? '' : 'none';
+        if (show) a.el.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px) translate(-50%, -100%)`;
+      }
+    });
     return api;
   }
 
   // ------------------------------------------------------------------ the game object scripts see
+  let game = null;
   function makeGame() {
     const cfg = W.config;
-    const game = {
+    const net = hooks.net || null;
+    const g = {
       get time() { return W.time; },
+      /** Seconds on a clock every player shares (use it for things that must line up between players). */
+      get now() { return (Date.now() + clockOffset) / 1000; },
       get paused() { return W.paused; },
       get dt() { return W.dt; },
+      get mode() { return mode; },
       state: W.state,
       config: cfg,
       title: bundle.title,
@@ -525,6 +1354,7 @@
       restart() { W.restartAsked = true; },
       over(text = 'Game over') {
         W.paused = true;
+        if (document.pointerLockElement) document.exitPointerLock();
         const el = document.createElement('div');
         el.className = 'ui-over';
         el.innerHTML = '<div class="ui-over-text"></div><button class="ui-button">Play again</button>';
@@ -539,29 +1369,63 @@
       sphere: (o = {}) => shape('sphere', () => B.MeshBuilder.CreateSphere('sphere', { diameter: (Number(o.radius) || 0.5) * 2, segments: 24 }, W.scene), o),
       capsule: (o = {}) => shape('capsule', () => B.MeshBuilder.CreateCapsule('capsule', { radius: Number(o.radius) || 0.4, height: Math.max((Number(o.radius) || 0.4) * 2, Number(o.height) || 1.8), tessellation: 16 }, W.scene), o),
       cylinder: (o = {}) => shape('cylinder', () => B.MeshBuilder.CreateCylinder('cylinder', { diameter: (Number(o.radius) || 0.5) * 2, height: Number(o.height) || 1, tessellation: 32 }, W.scene), o),
-      plane: (o = {}) => { const s = Array.isArray(o.size) ? o.size : [Number(o.size) || 10, Number(o.size) || 10]; return shape('plane', () => B.MeshBuilder.CreateGround('plane', { width: s[0], height: s[1] ?? s[0] }, W.scene), o); },
+      cone: (o = {}) => shape('cone', () => B.MeshBuilder.CreateCylinder('cone', { diameterTop: 0, diameterBottom: (Number(o.radius) || 0.5) * 2, height: Number(o.height) || 1, tessellation: 32 }, W.scene), o),
+      torus: (o = {}) => shape('torus', () => B.MeshBuilder.CreateTorus('torus', { diameter: (Number(o.radius) || 1) * 2, thickness: Number(o.thickness) || 0.3, tessellation: 40 }, W.scene), o),
+      plane: (o = {}) => { const s = Array.isArray(o.size) ? o.size : [Number(o.size) || 10, Number(o.size) || 10]; return shape('plane', () => B.MeshBuilder.CreateBox('plane', { width: s[0], height: 0.02, depth: s[1] ?? s[0] }, W.scene), o); },
+      text: (str, o = {}) => text(str, o),
       model,
       sprite,
 
-      find: (name) => { for (const e of W.entities) if (e.name === name) return e; return null; },
-      all: (tag) => [...W.entities].filter((e) => !tag || e.tag === tag),
+      find: (name) => { for (const e of W.entities) if (e.name === name || (e.sceneId && e.sceneId === name)) return e; return null; },
+      all: (tag) => [...W.entities].filter((e) => !tag || e.tag === tag || e.name === tag),
       nearest(tag, from) { const p = posOf(from); let best = null, bd = Infinity; for (const e of W.entities) { if (tag && e.tag !== tag) continue; if (from && from.__entity && e === from) continue; const d = Math.hypot(e.x - p[0], e.y - p[1], e.z - p[2]); if (d < bd) { bd = d; best = e; } } return best; },
+      /** A thing from scene.json by its id. */
+      entity: (id) => W.byId.get(String(id)) || null,
+
+      /** The player: a first-person body made for you (unless your scripts make their own camera). */
+      get player() { return ensurePlayer(); },
+      /** Puts the player at a spawn point (one with that role or tag) and returns them. */
+      spawn(role = 'player') { const p = ensurePlayer(); const at = spawnPoint(role); p.position = [at[0], at[1] + 0.95, at[2]]; p.velocity = [0, 0, 0]; return p; },
+      respawn() { respawn(false); },
+      checkpoint(at) { W.checkpoint = at ? posOf(at) : null; },
+      hurt(amount = 10) { hurtPlayer(Number(amount) || 0, null); },
+      /** The first thing a ray hits: { entity, point, distance, normal } or null. */
+      raycast(from, dir, dist = 100, o = {}) {
+        const a = posOf(from);
+        const d = Array.isArray(dir) ? vec(dir) : dir && 'y' in dir ? vec(dir) : [dir?.x || 0, 0, dir?.z || 0];
+        const len = Math.hypot(...d) || 1;
+        const ray = new B.Ray(new B.Vector3(a[0], a[1], a[2]), new B.Vector3(d[0] / len, d[1] / len, d[2] / len), Number(dist) || 100);
+        const skip = o.ignore || (from && from.__entity ? from : W.player);
+        const hit = W.scene.pickWithRay(ray, (m) => { const en = entityOf(m); return Boolean(en && en.alive && en !== skip && m.isPickable !== false && m.isEnabled() && !(m.metadata && m.metadata.decor) && (o.all || en.physics !== 'none' || en.kind === 'light')); });
+        if (!hit || !hit.hit) return null;
+        const n = hit.getNormal(true);
+        return { entity: entityOf(hit.pickedMesh), point: [hit.pickedPoint.x, hit.pickedPoint.y, hit.pickedPoint.z], distance: hit.distance, normal: n ? [n.x, n.y, n.z] : [0, 1, 0] };
+      },
+      /** What the camera is looking at (the crosshair). */
+      aim(dist = 100) { const c = W.scene.activeCamera; const d = c.getDirection(B.Axis.Z); return g.raycast([c.position.x, c.position.y, c.position.z], [d.x, d.y, d.z], dist, { ignore: W.player, all: true }); },
+      /** A behavior anything can use: game.behavior('wobble', { update(thing, dt, options, memory, game) {} }). */
+      behavior(name, def) { defineBehavior(name, def || {}); for (const e of W.entities) for (const b of e.behaviors) if (String(b.name).toLowerCase() === String(name).toLowerCase()) { b.def = def; b.o = { ...(def.defaults || {}), ...b.o }; b.started = false; } },
+      net: {
+        send: (name, data) => { if (hooks.net) hooks.net.send(name, data); },
+        everyone: (name, data) => { if (hooks.net) hooks.net.send(name, data, true); else for (const f of W.netHandlers.get(name) || []) f(data, null); },
+        on: (name, fn) => { const list = W.netHandlers.get(name) || []; list.push(safe(fn, W.file)); W.netHandlers.set(name, list); },
+        get online() { return Boolean(hooks.net && hooks.net.online); },
+        get isHost() { return !hooks.net || hooks.net.isHost; },
+        get me() { return hooks.net ? hooks.net.me : null; },
+        get players() { return hooks.net ? hooks.net.players() : []; },
+      },
 
       sky(what) {
         if (W.skybox) { W.skybox.dispose(); W.skybox = null; }
-        if (/^#/.test(String(what))) { const c = hex(what); W.scene.clearColor = new B.Color4(c.r, c.g, c.b, 1); if (W.scene.fogMode) W.scene.fogColor = c; return; }
+        if (/^#/.test(String(what))) { const c = hex(what); W.scene.clearColor = new B.Color4(c.r, c.g, c.b, 1); if (W.scene.fogMode) W.scene.fogColor = c; gradientSky({ ...effectiveConfig(), background: what }); return; }
+        if (W.dome) { W.dome.dispose(); W.dome = null; }
         W.skybox = new B.PhotoDome('sky', assetUrl(what), { resolution: 32, size: 1000 }, W.scene);
+        W.skybox.mesh.isPickable = false;
       },
       light(o = {}) {
-        const p = vec(o.position, [0, 5, 0]);
-        let l;
-        if (o.type === 'sun') { const d = vec(o.direction, [-0.4, -1, 0.3]); l = new B.DirectionalLight('sun', new B.Vector3(d[0], d[1], d[2]), W.scene); }
-        else if (o.type === 'spot') { const d = vec(o.direction, [0, -1, 0]); l = new B.SpotLight('spot', new B.Vector3(...p), new B.Vector3(d[0], d[1], d[2]), (o.angle || 45) * RAD, 2, W.scene); }
-        else { l = new B.PointLight('point', new B.Vector3(...p), W.scene); }
-        l.diffuse = hex(o.color, '#ffffff');
-        l.intensity = o.intensity ?? 1;
-        if (o.range) l.range = o.range;
-        return { light: l, set position(v) { const q = vec(v); l.position = new B.Vector3(...q); }, dispose: () => l.dispose() };
+        const p = o.position ? vec(o.position) : [Number(o.x) || 0, o.y === undefined ? 5 : Number(o.y), Number(o.z) || 0];
+        const e = lightEntity({ ...o, position: p, light: o });
+        return Object.assign(e, { light: e._light, dispose: () => e.destroy() });
       },
       burst(at, o = {}) {
         const p = posOf(at);
@@ -584,14 +1448,14 @@
       },
       sound(name, o = {}) {
         unlockAudio();
-        if (!audio) return;
+        if (!audio || !hasAsset(name)) return;
         loadBuffer(assetUrl(name)).then((buf) => {
           const src = audio.createBufferSource();
           src.buffer = buf;
           if (o.rate) src.playbackRate.value = o.rate;
-          const g = audio.createGain();
-          g.gain.value = o.volume ?? 1;
-          src.connect(g).connect(audio.destination);
+          const gn = audio.createGain();
+          gn.gain.value = o.volume ?? 1;
+          src.connect(gn).connect(audio.destination);
           src.start();
         }).catch((e) => report(new Error(`Could not play ${name}: ${e.message || e}`)));
       },
@@ -614,6 +1478,7 @@
       clamp: (v, a, b) => Math.max(a, Math.min(b, v)),
       lerp: (a, b, t) => a + (b - a) * t,
       asset: assetUrl,
+      hasAsset,
       log: (...args) => { post({ type: 'log', level: 'log', text: args.map(fmt).join(' '), file: W.file }); console.log(...args); },
 
       input: {
@@ -629,7 +1494,7 @@
           return l > 1 ? { x: x / l, y: y / l } : { x, y };
         },
         direction() {
-          const a = game.input.axis();
+          const a = g.input.axis();
           const yaw = W.camera.yawNow();
           const s = Math.sin(yaw), c = Math.cos(yaw);
           return { x: a.x * c + a.y * s, z: -a.x * s + a.y * c };
@@ -643,45 +1508,99 @@
       engine,
       BABYLON: B,
     };
-    return game;
+    void net;
+    return g;
   }
 
   function clickPick(e) {
-    if (!W || !W.scene) return;
+    if (!W || !W.scene || hooks.clicks === false) return;
     const r = canvas.getBoundingClientRect();
-    const pick = W.scene.pick(e.clientX - r.left, e.clientY - r.top);
-    let n = pick && pick.hit ? pick.pickedMesh : null;
-    while (n && !(n.metadata && n.metadata.entity)) n = n.parent;
-    const ent = n && n.metadata.entity;
+    const pick = mouse.locked ? W.scene.pickWithRay(W.scene.activeCamera.getForwardRay(200)) : W.scene.pick(e.clientX - r.left, e.clientY - r.top);
+    const ent = pick && pick.hit ? entityOf(pick.pickedMesh) : null;
     if (ent && ent.alive) for (const h of ent.handlers.click) h(pick.pickedPoint ? [pick.pickedPoint.x, pick.pickedPoint.y, pick.pickedPoint.z] : null);
   }
 
   // ------------------------------------------------------------------ physics, timers, the frame
   function step(dt) {
     W.time += dt;
+    W.dt = dt;
     for (const t of W.timers) {
       if (t.dead || t.at > W.time) continue;
       t.fn();
       if (t.every) t.at += t.every; else t.dead = true;
     }
     W.timers = W.timers.filter((t) => !t.dead);
+    for (const e of W.entities) { e._walked = false; e._px = e.x; e._py = e.y; e._pz = e.z; }
+    controlPlayer(dt);
     for (const f of W.updates) f(dt, W.time);
+    runBehaviors(dt);
+    runWaypoints(dt);
+    for (const f of hooks.step) f(dt);
     const g = W.config.gravity ?? -24;
+    // How far each non-falling thing moved this step: whatever stands on it rides along.
     for (const e of W.entities) {
+      if (e.physics === 'dynamic' || !e.alive) { e._delta = null; continue; }
+      const dx = e.x - e._px, dy = e.y - e._py, dz = e.z - e._pz;
+      e._delta = dx || dy || dz ? [dx, dy, dz] : null;
+    }
+    W.probe = (W.probe || 0) + dt;
+    const probing = W.probe > 0.5;
+    if (probing) W.probe = 0;
+    for (const e of [...W.entities]) {
       if (!e.alive) continue;
-      if (e.physics === 'dynamic') {
-        e.vy = Math.max(-60, e.vy + g * dt);
+      if (e.physics === 'dynamic' && !e.remote && !e.held) {
+        if (e.sleeping) {
+          // Still held up? (Its floor might have been moved or deleted, or started moving.)
+          if (e.standing && e.standing._delta) e.wake();
+          else {
+            if (!probing) continue;
+            e.node.position.y -= 0.05;
+            let supported = false;
+            for (const o of W.entities) if (o !== e && o.solid && e.overlaps(o)) { supported = true; break; }
+            e.node.position.y += 0.05;
+            if (supported) continue;
+            e.wake();
+          }
+        }
+        const st = e.standing;
+        if (st && st.alive && st._delta && e.grounded) { e.node.position.x += st._delta[0]; e.node.position.y += st._delta[1]; e.node.position.z += st._delta[2]; }
+        e.vy = Math.max(-60, e.vy + g * dt * e.gravity);
         const was = e.grounded;
         e.grounded = false;
-        e.sweep(0, e.vx * dt);
-        e.sweep(2, e.vz * dt);
-        if (e.sweep(1, e.vy * dt)) { if (e.vy < 0) e.grounded = true; e.vy = 0; }
-        else if (was && e.vy <= 0) {
+        const hx = e.sweep(0, e.vx * dt);
+        if (hx) collide(e, hx, 0);
+        const hz = e.sweep(2, e.vz * dt);
+        if (hz) collide(e, hz, 2);
+        const hy = e.sweep(1, e.vy * dt);
+        if (hy) {
+          if (e.vy < 0) {
+            if (e.bounce > 0 && -e.vy > 2.5) { e.vy = -e.vy * e.bounce; e.standing = null; }
+            else { e.grounded = true; e.standing = hy; e.vy = 0; }
+          } else e.vy = 0;
+        } else if (was && e.vy <= 0 && e.gravity > 0) {
           // Stay on the ground over small steps and slopes instead of bouncing off them.
           const y = e.y;
-          if (e.sweep(1, -0.06)) { e.grounded = true; e.vy = 0; } else e.y = y;
+          const under = e.sweep(1, -0.06);
+          if (under) { e.grounded = true; e.standing = under; e.vy = 0; } else { e.node.position.y = y; e.standing = null; }
+        } else if (!e.grounded) e.standing = null;
+        // Friction on the ground, a little air drag otherwise.
+        if (!e._walked) {
+          const k = e.grounded ? Math.max(0, 1 - e.friction * 10 * dt) : Math.max(0, 1 - 0.15 * dt);
+          e.vx *= k; e.vz *= k;
+          if (Math.abs(e.vx) < 0.01) e.vx = 0;
+          if (Math.abs(e.vz) < 0.01) e.vz = 0;
         }
-      } else if (e.physics === 'kinematic' && (e.vx || e.vy || e.vz)) {
+        if (e.kind === 'sphere' && e.grounded) {
+          // Balls roll.
+          const sp = Math.hypot(e.vx, e.vz);
+          if (sp > 0.05) { const r = e.half[0] || 0.5; e.node.rotation.x += (e.vz / r) * dt; e.node.rotation.z -= (e.vx / r) * dt; }
+        }
+        if (e.grounded && !e._walked && e !== W.player && Math.abs(e.vx) + Math.abs(e.vz) < 0.03 && (!st || !st._delta)) {
+          e._still += dt;
+          if (e._still > 0.6) e.sleeping = true;
+        } else e._still = 0;
+        if (e.y < W.catchY) caught(e);
+      } else if (e.physics === 'kinematic' && (e.vx || e.vy || e.vz) && !e.remote) {
         e.move(e.vx * dt, e.vy * dt, e.vz * dt);
       }
       if (e._sheet && e._sheet.fps > 0) {
@@ -699,62 +1618,172 @@
       for (let j = i + 1; j < list.length; j++) {
         const b = list[j];
         if (a.physics === 'static' && b.physics === 'static') continue;
-        if (!a.handlers.hit.length && !b.handlers.hit.length && !a._touching.has(b)) continue;
+        if (a.sleeping && b.sleeping) continue;
+        const watch = a.handlers.hit.length || b.handlers.hit.length || a.behaviors.length || b.behaviors.length || a === W.player || b === W.player;
+        if (!watch && !a._touching.has(b)) continue;
         if (a.overlaps(b, TOUCH)) a._contact(b);
-        else if (a._touching.has(b)) { a._touching.delete(b); b._touching.delete(a); }
+        else if (a._touching.has(b)) { a._touching.delete(b); b._touching.delete(a); for (const h of a.handlers.leave) h(b); for (const h of b.handlers.leave) h(a); }
       }
     }
   }
 
-  function frame() {
+  /** A falling thing ran into something sideways: bounce off it, or push it if it can move. */
+  function collide(e, o, axis) {
+    const key = axis === 0 ? 'vx' : 'vz';
+    const v = e[key];
+    if (o.physics === 'dynamic' && !o.held) {
+      if (o.remote) { for (const f of hooks.push) f(o, e); }
+      const share = e.mass / (e.mass + o.mass);
+      o[key] = v * share * 1.1;
+      o.wake();
+      if (!e._walked) e[key] = v * (1 - share);
+    } else if (e.bounce > 0 && Math.abs(v) > 1) e[key] = -v * e.bounce;
+    else if (!e._walked) e[key] = 0;
+  }
+
+  // The frame: drawn when the tab is visible; when it's hidden the world keeps going (a worker keeps time, since
+  // hidden tabs get no animation frames and slow timers), so a host keeps simulating for everyone else.
+  let last = performance.now();
+  let acc = 0;
+  let framePressed = new Set();
+  function advance(render) {
     if (!W) return;
     if (W.restartAsked) { start(); return; }
-    const dt = Math.min(0.05, engine.getDeltaTime() / 1000 || 0.016);
-    W.dt = dt;
-    if (!W.paused) step(dt);
-    W.camera.update(dt);
+    framePressed = pressedNow;
+    const now = performance.now();
+    let elapsed = Math.min(0.25, (now - last) / 1000);
+    last = now;
+    if (!W.paused) {
+      acc += elapsed;
+      let n = 0;
+      while (acc >= STEP && n < 8) {
+        step(STEP); acc -= STEP; n++;
+        // "Went down this frame" means once, however many steps the frame takes.
+        if (n === 1) { pressedNow = new Set(); releasedNow = new Set(); mouse.pressed = false; }
+      }
+      if (n === 8) acc = 0;
+    }
+    W.camera.update(elapsed);
+    for (const f of hooks.frame) f(elapsed, render, framePressed);
     pressedNow = new Set();
     releasedNow = new Set();
     mouse.pressed = false;
-    mouse.dx = 0; mouse.dy = 0;
-    W.scene.render();
+    mouse.dx = 0; mouse.dy = 0; mouse.wheel = 0;
+    if (render) W.scene.render();
+  }
+  let ticker = null;
+  function startTicker() {
+    if (ticker) return;
+    try {
+      const src = 'let t=null;onmessage=(e)=>{clearInterval(t);if(e.data>0)t=setInterval(()=>postMessage(0),e.data)}';
+      ticker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+      ticker.onmessage = () => { if (document.hidden) { try { advance(false); } catch (e) { report(e); } } };
+    } catch {
+      ticker = { postMessage: (ms) => { clearInterval(ticker.t); if (ms > 0) ticker.t = setInterval(() => { if (document.hidden) advance(false); }, ms); }, t: null };
+    }
+    const sync = () => ticker.postMessage(document.hidden ? 50 : 0);
+    document.addEventListener('visibilitychange', () => { last = performance.now(); sync(); });
+    sync();
   }
 
   // ------------------------------------------------------------------ running a bundle
-  function parseConfig(files) {
-    try { return files['game.json'] ? JSON.parse(files['game.json']) : {}; } catch (e) { report(new Error(`game.json is not valid JSON: ${e.message}`), 'game.json'); return {}; }
+  function parseJson(files, path) {
+    try { return files[path] ? JSON.parse(files[path]) : null; } catch (e) { report(new Error(`${path} is not valid JSON: ${e.message}`), path); return null; }
   }
 
   function scriptOrder(files, cfg) {
-    const all = Object.keys(files).filter((p) => /\.js$/i.test(p) && (p.startsWith('scripts/') || !p.includes('/')));
+    const all = Object.keys(files).filter((p) => /\.js$/i.test(p) && (p.startsWith('scripts/') || p.startsWith('behaviors/') || !p.includes('/')));
     const first = Array.isArray(cfg.scripts) ? cfg.scripts.filter((p) => all.includes(p)) : [];
-    return [...first, ...all.filter((p) => !first.includes(p)).sort()];
+    // Behavior files first, so the world's things can use them from the start.
+    const rest = all.filter((p) => !first.includes(p)).sort((a, b) => (a.startsWith('behaviors/') === b.startsWith('behaviors/') ? a.localeCompare(b) : a.startsWith('behaviors/') ? -1 : 1));
+    return [...first, ...rest];
   }
 
-  function start() {
+  function effectiveConfig() {
+    // game.json is the scripts' settings; scene.json's are the world's. game.json wins where both say something.
+    return { ...((W.graph && W.graph.config) || {}), ...(W.gameJson || {}) };
+  }
+  function applyLook(cfg) {
+    const scene = W.scene;
+    const bg = hex(cfg.background, '#9fd3f0');
+    scene.clearColor = new B.Color4(bg.r, bg.g, bg.b, 1);
+    if (cfg.fog) { scene.fogMode = B.Scene.FOGMODE_LINEAR; scene.fogColor = hex(cfg.fog.color || cfg.background, '#9fd3f0'); scene.fogStart = cfg.fog.start ?? 40; scene.fogEnd = cfg.fog.end ?? 120; }
+    else scene.fogMode = B.Scene.FOGMODE_NONE;
+    if (W.hemi) W.hemi.intensity = cfg.ambient ?? 0.7;
+    if (W.sun) W.sun.intensity = cfg.sun ?? 0.9;
+    W.config.gravity = cfg.gravity ?? -24;
+    if (cfg.sky && hasAsset(cfg.sky)) { try { game.sky(cfg.sky); } catch {} }
+    else gradientSky(cfg);
+  }
+
+  /** A sky that fades from the horizon up, in the background's color, instead of a flat fill. ("sky": false: none.) */
+  function gradientSky(cfg) {
+    if (W.dome) { W.dome.dispose(); W.dome = null; }
+    if (cfg.sky === false || W.skybox) return;
+    const base = hex(cfg.background, '#9fd3f0');
+    const top = base.scale(0.55), horizon = B.Color3.Lerp(base, new B.Color3(1, 1, 1), 0.35), below = base.scale(0.7);
+    const tex = new B.DynamicTexture('sky', { width: 4, height: 256 }, W.scene, false);
+    const ctx = tex.getContext();
+    const g = ctx.createLinearGradient(0, 0, 0, 256);
+    g.addColorStop(0, top.toHexString()); g.addColorStop(0.48, base.toHexString()); g.addColorStop(0.5, horizon.toHexString()); g.addColorStop(0.56, base.toHexString()); g.addColorStop(1, below.toHexString());
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 4, 256); tex.update();
+    const dome = B.MeshBuilder.CreateSphere('sky', { diameter: 1800, segments: 16, sideOrientation: B.Mesh.BACKSIDE }, W.scene);
+    const m = new B.StandardMaterial('sky', W.scene);
+    m.emissiveTexture = tex; m.disableLighting = true; m.backFaceCulling = false; m.fogEnabled = false;
+    dome.material = m; dome.isPickable = false; dome.infiniteDistance = true; dome.applyFog = false;
+    dome.metadata = { decor: true };
+    W.dome = dome;
+  }
+
+  /** The game look: smoothing, a soft glow on bright things, filmic color and a vignette. ("look": false: plain.) */
+  function gameLook(cfg) {
+    if (cfg.look === false) return;
+    try {
+      const p = new B.DefaultRenderingPipeline('look', true, W.scene, W.scene.cameras.slice());
+      p.fxaaEnabled = true;
+      p.bloomEnabled = !touchUi;
+      p.bloomThreshold = 0.82; p.bloomWeight = 0.28; p.bloomKernel = 48; p.bloomScale = 0.5;
+      p.imageProcessingEnabled = true;
+      const ip = p.imageProcessing;
+      ip.toneMappingEnabled = true; ip.toneMappingType = B.ImageProcessingConfiguration.TONEMAPPING_ACES;
+      ip.exposure = 1.1; ip.contrast = 1.12;
+      ip.vignetteEnabled = true; ip.vignetteWeight = 1.6; ip.vignetteStretch = 0.25; ip.vignetteColor = new B.Color4(0, 0, 0, 0);
+      W.scene.onNewCameraAddedObservable.add((c) => { try { p.addCamera(c); } catch {} });
+      W.look = p;
+    } catch (e) { console.warn('look', e); }
+  }
+
+  function start(o = {}) {
     if (W) {
+      // Keep where the player was, so a script change doesn't throw you back to the start.
+      if (o.keep && W.player && W.player.alive) W.keepPose = { p: W.player.position, yaw: W.camera.yaw, pitch: W.camera.pitch, flying: W.player.flying };
+      for (const f of hooks.world) if (f.leave) f.leave();
       W.ui.clear();
       W.scene.dispose();
     }
+    const keepPose = W && W.keepPose;
     clearErrors();
     keyHandlers = [];
-    const cfg = parseConfig(bundle.files);
+    behaviorDefs.clear();
+    const gameJson = parseJson(bundle.files, 'game.json') || {};
+    // The world as it is now (with every edit since loading), unless a new scene.json just arrived.
+    const graph = (W && W.graph && !o.newScene ? W.graph : parseJson(bundle.files, 'scene.json')) || { config: {}, entities: {} };
+    if (!graph.entities || typeof graph.entities !== 'object') graph.entities = {};
+    if (!graph.config || typeof graph.config !== 'object') graph.config = {};
     const scene = new B.Scene(engine);
-    W = { scene, config: cfg, entities: new Set(), starts: [], updates: [], timers: [], time: 0, dt: 0.016, paused: false, restartAsked: false, state: {}, pixelated: Boolean(cfg.pixelated), file: null, skybox: null };
+    W = { scene, config: { ...graph.config, ...gameJson }, gameJson, graph, entities: new Set(), byId: new Map(), starts: [], updates: [], timers: [], time: 0, dt: STEP, paused: false, restartAsked: false, state: {}, pixelated: Boolean(gameJson.pixelated), file: null, skybox: null, player: null, netHandlers: new Map(), catchY: -25, keepPose, started: false };
     W.ui = ui();
-    const bg = hex(cfg.background, '#9fd3f0');
-    scene.clearColor = new B.Color4(bg.r, bg.g, bg.b, 1);
+    uiLayer.removeAttribute('style');
+    if (gameJson.ui && typeof gameJson.ui === 'object') W.ui.theme(gameJson.ui);
     scene.ambientColor = new B.Color3(1, 1, 1);
-    if (cfg.fog) { scene.fogMode = B.Scene.FOGMODE_LINEAR; scene.fogColor = hex(cfg.fog.color || cfg.background, '#9fd3f0'); scene.fogStart = cfg.fog.start ?? 40; scene.fogEnd = cfg.fog.end ?? 120; }
+    const cfg = effectiveConfig();
     if (cfg.lights !== false) {
-      const hemi = new B.HemisphericLight('sky', new B.Vector3(0.2, 1, -0.3), scene);
-      hemi.intensity = cfg.ambient ?? 0.7;
-      hemi.groundColor = new B.Color3(0.35, 0.35, 0.4);
-      const sun = new B.DirectionalLight('sun', new B.Vector3(-0.5, -1, 0.4), scene);
-      sun.position = new B.Vector3(20, 40, -20);
-      sun.intensity = cfg.sun ?? 0.9;
+      W.hemi = new B.HemisphericLight('sky', new B.Vector3(0.2, 1, -0.3), scene);
+      W.hemi.groundColor = new B.Color3(0.35, 0.35, 0.4);
+      W.sun = new B.DirectionalLight('sun', new B.Vector3(-0.5, -1, 0.4), scene);
+      W.sun.position = new B.Vector3(20, 40, -20);
       if (cfg.shadows !== false) {
-        const sg = new B.ShadowGenerator(1024, sun);
+        const sg = new B.ShadowGenerator(1024, W.sun);
         sg.useBlurExponentialShadowMap = true;
         sg.blurKernel = 16;
         sg.bias = 0.0005;
@@ -768,8 +1797,11 @@
     ctx.fillStyle = grad; ctx.fillRect(0, 0, 64, 64); dot.update(); dot.hasAlpha = true;
     W.dot = dot;
     W.camera = makeCamera();
-    const game = makeGame();
+    gameLook(cfg);
+    game = makeGame();
     window.game = game;
+    applyLook(cfg);
+    buildScene(graph);
     for (const path of scriptOrder(bundle.files, cfg)) {
       W.file = path;
       try {
@@ -779,23 +1811,78 @@
       }
     }
     W.file = null;
+    W.started = true;
+    // Things whose behaviors come from scripts get them now that every script has run.
+    for (const e of W.entities) for (const b of e.behaviors) if (!b.def) { b.def = findDef(b.name); b.o = { ...(b.def && b.def.defaults || {}), ...b.o }; if (!b.def) report(new Error(`${e.name || e.sceneId}: no behavior called "${b.name}"`), 'scene.json'); }
     for (const f of W.starts) f();
+    // Nobody set up a camera: you get the first-person player. Building, you are always that player.
+    if ((mode === 'build' && cfg.player !== false) || (!W.camera.claimed && cfg.player !== false)) {
+      const p = ensurePlayer();
+      if (mode === 'build') { p.controls = true; p.gravity = p.baseGravity ?? 1; }
+      if (W.camera.target !== p || !['fps', 'third', 'top'].includes(W.camera.mode)) setView(p, p._view || 'first');
+    } else if (W.player) W.camera.internal(() => { if (W.camera.mode === 'fixed') W.camera.api.firstPerson(W.player, { height: 1.6 }); });
+    for (const f of hooks.world) if (f.enter) f.enter(W);
     post({ type: 'started', entities: W.entities.size });
   }
 
   let looping = false;
-  function run(b) {
+  function run(b, o = {}) {
     bundle = b;
+    if (o.mode) mode = o.mode;
     document.title = b.title ? `${b.title} · Hawkes Play` : 'Hawkes Play';
     const loading = $('loading');
     if (loading) loading.hidden = true;
     // Warm the sound cache so the first effect plays on time.
     for (const [, a] of Object.entries(b.assets || {})) if (/^audio\//.test(a.mime || '') && a.url) fetch(a.url).catch(() => {});
     try { start(); } catch (e) { report(e); }
-    if (!looping) { looping = true; engine.runRenderLoop(() => { try { frame(); } catch (e) { report(e); W && (W.paused = true); } }); }
+    if (!looping) {
+      looping = true;
+      engine.runRenderLoop(() => { try { advance(true); } catch (e) { report(e); if (W) W.paused = true; } });
+      startTicker();
+    }
   }
 
-  window.HawkesPlay = { run, restart: () => { if (W) W.restartAsked = true; } };
+  /** New files (a script or game.json was saved): the world is rebuilt and the scripts run again, keeping the
+   *  player where they are. No page reload. A new scene.json (from outside the ops) is picked up the same way. */
+  function reload(files) {
+    if (!bundle) return;
+    bundle = { ...bundle, files: { ...bundle.files, ...files } };
+    for (const [p, v] of Object.entries(files)) if (v === null) delete bundle.files[p];
+    try { start({ keep: true, newScene: 'scene.json' in files }); } catch (e) { report(e); }
+  }
+  /** The asset list changed (something was generated or added): things waiting for it appear. */
+  function setAssets(assets) {
+    if (!bundle) return;
+    const before = bundle.assets || {};
+    bundle = { ...bundle, assets };
+    if (!W) return;
+    for (const e of [...W.entities]) {
+      const want = e._waiting || (e.spec && e.spec.material && e.spec.material.texture);
+      if (e.sceneId && want && assets[want] && (!before[want] || before[want].url !== assets[want].url)) applyOps([{ op: 'replace', entity: W.graph.entities[e.sceneId] }], { fx: 'arrive' });
+    }
+  }
+  function setMode(m) {
+    if (m === mode) return;
+    mode = m;
+    if (W) start({ keep: true });
+  }
+
+  window.HawkesPlay = {
+    run, reload, setAssets, setMode, applyOps, respawn: () => respawn(false),
+    restart: () => { if (W) W.restartAsked = true; },
+    behavior: (name, def) => defineBehavior(name, def, true),
+    behaviorDef: (name) => findDef(name),
+    hooks,
+    lockPointer,
+    bindTouchKey,
+    setClockOffset: (ms) => { clockOffset = ms; },
+    get world() { return W; },
+    get game() { return game; },
+    get mode() { return mode; },
+    get bundle() { return bundle; },
+    get input() { return { held, pressed: framePressed, released: releasedNow, mouse, stick, touchUi }; },
+    entityOf, fromSpec, textPlane, hurtPlayer, merge, report, post, touchUi,
+  };
   window.addEventListener('error', (e) => report(e.error || e.message));
   window.addEventListener('unhandledrejection', (e) => report(e.reason));
 })();

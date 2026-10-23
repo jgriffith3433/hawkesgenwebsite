@@ -6,16 +6,17 @@
   <title>Play games · Hawkes Gen</title>
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/public.css">
+  <link rel="stylesheet" href="/site.css">
   <link rel="stylesheet" href="/builder.css">
   <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
 </head>
-<body>
+<body class="landing">
   <header class="bar">
     <a class="hg-brand" href="/"><img src="/favicon.svg" alt=""><span>Hawkes Gen</span></a>
     <span class="grow"></span>
     <a class="btn btn-ghost btn-sm" href="/app">Your games</a>
     <a class="btn btn-ghost btn-sm" href="/app/studio">Asset studio</a>
-    <a class="btn btn-secondary btn-sm" href="#" data-open-auth="signup">Start building</a>
+    <a class="btn btn-primary btn-sm" href="/app" id="startBuilding" data-open-auth="signup">Start building</a>
   </header>
 
   <main class="page">
@@ -30,24 +31,16 @@
       </div>
     </div>
 
+    <div class="section-row" id="featuredHead"><div><h2>Featured</h2><p class="muted" style="margin:4px 0 0">Games from the Overseer. Play them now, no account needed, or remix one into your own.</p></div></div>
+    <div class="game-grid" id="featuredGrid"></div>
+
+    <div class="section-row"><h2>Made by players</h2></div>
     <div class="game-grid" id="gameGrid"></div>
 
     <div id="empty" class="empty" hidden>
       No games yet. <a href="/app">Be the first to build one!</a>
     </div>
   </main>
-
-  <!-- Play Modal -->
-  <div class="modal-backdrop" id="playModal" hidden>
-    <div class="modal" style="max-width:90vw;max-height:90vh;padding:0;background:#111">
-      <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--paper);border-bottom:1px solid var(--rule)">
-        <span class="grow" id="playTitle" style="font-weight:600"></span>
-        <a class="btn btn-ghost btn-sm" id="playAuthor" style="text-decoration:none"></a>
-        <button class="btn btn-ghost btn-sm" data-close="playModal">✕</button>
-      </div>
-      <iframe id="playFrame" style="width:90vw;height:80vh;border:0;display:block" sandbox="allow-scripts allow-pointer-lock allow-popups allow-popups-to-escape-sandbox"></iframe>
-    </div>
-  </div>
 
   <!-- Auth Modal -->
   <div class="modal-backdrop" id="authModal" hidden>
@@ -81,5 +74,6 @@
   </div>
 
   <script type="module" src="/gallery.js"></script>
+  <script src="/enter.js"></script>
 </body>
 </html>

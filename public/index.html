@@ -7,6 +7,7 @@
   <meta name="description" content="Create browser games collaboratively in real-time with your friends and an AI assistant. No downloads, no setup. Start building in seconds.">
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/public.css">
+  <link rel="stylesheet" href="/site.css">
   <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
 </head>
 <body class="landing">
@@ -92,40 +93,6 @@
       </div>
     </section>
 
-    <section class="section" style="background:var(--surface);padding:80px 0">
-      <div class="wrap" style="text-align:center">
-        <div class="label">See what people are building</div>
-        <h2 style="font:600 44px/1.05 var(--sans);letter-spacing:-.02em;margin:14px 0 24px;max-width:600px;margin-left:auto;margin-right:auto">From idea to playable game<br>in minutes.</h2>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;margin:40px 0">
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:24px;text-align:left">
-            <div style="aspect-ratio:16/9;background:var(--bg);border-radius:8px;margin-bottom:16px;display:flex;align-items:center;justify-content:center">
-              <span style="font:14px var(--sans);color:var(--fg-3)">Runner Game</span>
-            </div>
-            <h3 style="font:600 18px var(--sans);margin:0 0 8px">Endless Runner</h3>
-            <p style="font:14px var(--sans);color:var(--fg-2);margin:0 0 16px">Dodge obstacles, collect coins. Built in 10 minutes.</p>
-            <a href="/games" class="btn btn-ghost btn-sm">Play games</a>
-          </div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:24px;text-align:left">
-            <div style="aspect-ratio:16/9;background:var(--bg);border-radius:8px;margin-bottom:16px;display:flex;align-items:center;justify-content:center">
-              <span style="font:14px var(--sans);color:var(--fg-3)">Shooter Game</span>
-            </div>
-            <h3 style="font:600 18px var(--sans);margin:0 0 8px">Space Shooter</h3>
-            <p style="font:14px var(--sans);color:var(--fg-2);margin:0 0 16px">Waves of enemies, power-ups. Created by asking AI.</p>
-            <a href="/games" class="btn btn-ghost btn-sm">Play games</a>
-          </div>
-          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:24px;text-align:left">
-            <div style="aspect-ratio:16/9;background:var(--bg);border-radius:8px;margin-bottom:16px;display:flex;align-items:center;justify-content:center">
-              <span style="font:14px var(--sans);color:var(--fg-3)">Collector Game</span>
-            </div>
-            <h3 style="font:600 18px var(--sans);margin:0 0 8px">Gem Collector</h3>
-            <p style="font:14px var(--sans);color:var(--fg-2);margin:0 0 16px">Collect gems, beat the timer. Built collaboratively.</p>
-            <a href="/games" class="btn btn-ghost btn-sm">Play games</a>
-          </div>
-        </div>
-        <a href="/games" class="btn btn-primary btn-lg" style="margin-top:24px">Browse all games</a>
-      </div>
-    </section>
-
     <section class="section" id="features">
       <div class="wrap">
         <div class="section-head">
@@ -164,45 +131,11 @@
           </div>
           <div class="feature">
             <div style="background:var(--surface-2);border-radius:8px;padding:30px;text-align:center">
-              <div style="font:12px var(--sans);color:var(--fg-2);margin-bottom:8px">▶ Preview</div>
-              <div style="width:100%;aspect-ratio:16/9;background:linear-gradient(135deg,#1a1a1a 0%,#2a2a2a 100%);border-radius:2px;display:flex;align-items:center;justify-content:center">
-                <div style="font:11px var(--mono);color:var(--fg-2)">Your game running</div>
-              </div>
+              <div style="font:28px var(--sans);margin-bottom:6px">✋</div>
+              <div style="font:12px var(--sans);color:var(--fg-2)">Hold to grab · double-click to change</div>
             </div>
-            <h3>Live preview</h3>
-            <p>See your changes immediately in the preview pane. Test as you build, no refresh needed.</p>
-          </div>
-          <div class="feature">
-            <div style="background:var(--surface-2);border-radius:8px;padding:30px">
-              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-                <div style="aspect-ratio:1;background:var(--surface-3);border-radius:2px"></div>
-                <div style="aspect-ratio:1;background:var(--surface-3);border-radius:2px"></div>
-                <div style="aspect-ratio:1;background:var(--surface-3);border-radius:2px"></div>
-              </div>
-              <div style="font:11px var(--sans);color:var(--fg-2);margin-top:8px;text-align:center">hero.png, bg.png, sfx.mp3</div>
-            </div>
-            <h3>Asset library</h3>
-            <p>Generate sprites, sounds, and music with AI. All your assets organized and ready to use in your game.</p>
-          </div>
-          <div class="feature">
-            <div style="background:var(--surface-2);border-radius:8px;padding:30px">
-              <div style="font:12px var(--sans);color:var(--fg-2);margin-bottom:12px">Templates</div>
-              <div style="display:flex;flex-direction:column;gap:6px;font:11px var(--sans)">
-                <div style="padding:8px;background:var(--surface-3);border-radius:2px">Runner Game</div>
-                <div style="padding:8px;background:var(--surface-3);border-radius:2px">Shooter Game</div>
-                <div style="padding:8px;background:var(--surface-3);border-radius:2px">Collector Game</div>
-              </div>
-            </div>
-            <h3>Starter templates</h3>
-            <p>Begin with a working game and customize it. Physics, controls, and collision already set up.</p>
-          </div>
-          <div class="feature">
-            <div style="background:var(--surface-2);border-radius:8px;padding:30px;text-align:center">
-              <div style="font:14px var(--sans);color:var(--accent);margin-bottom:8px">🌐 Published</div>
-              <div style="font:11px var(--mono);color:var(--fg-2);word-break:break-all">hawkesgen.com/play/my-game</div>
-            </div>
-            <h3>One-click publishing</h3>
-            <p>Publish your game to the web with one click. Share the link and anyone can play instantly, no downloads.</p>
+            <h3>Build inside your game</h3>
+            <p>You walk around in your world while you make it: grab things and throw them, double-click anything to change it, and tell the assistant what you want right there.</p>
           </div>
         </div>
       </div>
@@ -491,5 +424,6 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
       });
     }).catch(() => {});
   </script>
+  <script src="/enter.js"></script>
 </body>
 </html>

@@ -6,10 +6,11 @@
   <title>Hawkes Gen — Creator Studio</title>
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/public.css">
+  <link rel="stylesheet" href="/site.css">
   <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
   <script type="module" src="https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
 </head>
-<body>
+<body class="landing">
   <!-- Inline Auth View (shown when GET /v1/users/me returns 401) -->
   <div id="studioAuthScreen" hidden>
     <header class="hg-navbar">
@@ -358,6 +359,18 @@ const job = await gen.run('image.generate', { prompt: 'Seamless sci-fi hull plat
     </div>
   </div>
 
+  <!-- Use in a game: which one -->
+  <div class="hg-modal-backdrop" id="gamePickerModal" hidden>
+    <div class="hg-modal" style="width:min(460px,100%)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <h3 style="margin:0;font-size:1.2rem;">Put it in a game</h3>
+        <button type="button" class="btn btn-ghost btn-sm" data-close-modal="gamePickerModal">✕</button>
+      </div>
+      <p class="muted" style="margin:0 0 12px;font-size:.9rem">It stays in your library too. You'll go into the game with it in front of you.</p>
+      <div id="gamePickerList" style="display:grid;gap:8px"></div>
+    </div>
+  </div>
+
   <!-- Recipe / Prompt Drawer Modal -->
   <div class="hg-modal-backdrop" id="recipeDrawerModal" hidden>
     <div class="hg-modal">
@@ -370,5 +383,6 @@ const job = await gen.run('image.generate', { prompt: 'Seamless sci-fi hull plat
   </div>
 
   <script type="module" src="/app.js"></script>
+  <script src="/enter.js"></script>
 </body>
 </html>

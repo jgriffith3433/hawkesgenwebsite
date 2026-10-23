@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning src/server.ts",
-    "typecheck": "tsc -p . && node --check public/app.js && node --check public/admin.js",
+    "typecheck": "tsc -p . && node --check public/app.js && node --check public/admin.js && node --check public/editor.js && node --check public/play/runtime.js && node --check public/play/behaviors.js && node --check public/play/net.js && node --check public/play/build.js && node --check public/entities.js",
     "test": "node --disable-warning=ExperimentalWarning --test \"test/**/*.test.ts\""
   },
   "devDependencies": {

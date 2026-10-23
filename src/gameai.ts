@@ -11,7 +11,9 @@ import { submit, settle } from './jobs.ts';
 import { startTask, events, getTask, results, type Step, type Task } from './tasks.ts';
 import { getUser, type User } from './users.ts';
 import { PortalError } from './util.ts';
-import { memberGame, chatMessage, updateChatData, writeFile, deleteFile, listAssets, addAsset, freeName, LIMITS } from './games.ts';
+import { memberGame, chatMessage, updateChatData, writeFile, deleteFile, listAssets, addAsset, freeName, sceneOps, LIMITS } from './games.ts';
+import { describeScene, parseScene } from './scene.ts';
+import { broadcastOps } from './rooms.ts';
 import { broadcast } from './live.ts';
 
 export const AI_CREDITS = () => Math.max(1, Number(env('GAME_AI_CREDITS') ?? 8));
@@ -144,14 +146,26 @@ export function resumeGens() {
 
 // ------------------------------------------------------------------ the assistant
 let apiDoc = '';
-const api = () => (apiDoc ||= fs.readFileSync(path.join(ROOT, 'public', 'play', 'API.md'), 'utf8'));
+const api = () => (apiDoc ||= ['WORLD.md', 'API.md'].map((f) => fs.readFileSync(path.join(ROOT, 'public', 'play', f), 'utf8')).join('\n\n'));
 
 const SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['reply', 'files', 'delete', 'assets'],
+  required: ['reply', 'world', 'files', 'delete', 'assets'],
   properties: {
     reply: { type: 'string', description: 'What you did or what you suggest, in a few plain sentences for the people building the game.' },
+    world: {
+      type: 'array',
+      description: 'Changes to the world (scene.json), as ops: create, update, replace, delete, config (see "Changes (ops)"). They appear live for everyone. Prefer these over scripts for anything that is a thing in the world.',
+      items: {
+        type: 'object', additionalProperties: false, required: ['op', 'id', 'json'],
+        properties: {
+          op: { type: 'string', enum: ['create', 'update', 'replace', 'delete', 'config'] },
+          id: { type: 'string', description: 'The id of the thing ("" for config).' },
+          json: { type: 'string', description: 'JSON text. create/replace: the whole thing ({"type":"box","name":...,"transform":...}). update/config: the patch ({"physics":"dynamic"}). delete: "{}".' },
+        },
+      },
+    },
     files: {
       type: 'array',
       description: 'Files to create or replace, each with its WHOLE new content. Leave out files you do not change.',
@@ -173,20 +187,66 @@ const SCHEMA = {
   },
 };
 
-const SYSTEM = () => `You are the assistant inside Hawkes Gen's game builder. People (often beginners, often friends building together) make browser games here with short scripts that run on the Hawkes Play runtime, a friendly layer over Babylon.js. You change the game by returning whole files.
+const SYSTEM = () => `You are the assistant inside Hawkes Gen's game engine. People (often beginners, often friends building together) build 3D browser games here by walking around inside them as a first-person player. A game is a world (scene.json: things with a shape, a look, a way of moving and behaviors) plus scripts that run on the Hawkes Play runtime. You change the game two ways: "world" ops for the things in it (they appear live, in front of the player), and whole files for scripts and custom behaviors.
+
+How to think about requests:
+- People describe things the way they see them: "make that ball bounce", "put a tower over there", "the door should open when I get close". Work out what that means in the engine: which thing ("that" is what they are looking at or mentioned with @), which physics, which behaviors, and whether it needs a custom behavior file.
+- "That", "this", "it" and "here" mean the thing they are looking at (lookingAt), the @mentioned thing, or the point they are looking at (lookPoint). Put new things near the player, in front of them, resting on what's under them (center y = surface y + half the height), unless they say where.
+- Prefer the built-in behaviors. When something needs logic they don't cover, write a behaviors/<name>.js file with game.behavior(...) and give the thing { "use": "<name>" }. Use scripts/ files for game rules (scores, timers, win conditions, waves).
+- Keep sizes human: a person is 1.8 m, a door 2 m, a crate 1 m. Things that should be thrown around are "dynamic"; floors, walls and buildings are "static".
+- Build bigger things from several pieces (a house: floor, walls, roof) with clear names, so people can grab and change each one.
+- Ids are lowercase words with underscores. Reuse an existing id to change a thing; never make a duplicate.
 
 Rules:
 - Use only the API below (plus plain JavaScript). Do not use import/export, fetch, localStorage, or DOM access except through game.ui.
 - Keep changes focused on what was asked; keep the code short, readable and commented where it helps a beginner. Keep the existing style and structure.
-- Return the WHOLE content of each file you change. Never return a file unchanged.
+- Return the WHOLE content of each file you change. Never return a file unchanged. Never write scene.json as a file: change the world with "world" ops.
+- Every game already has a player (WASD, mouse look, jump) and catches players who fall. Change how it plays with a config op on "player" (view first/third/top, speed, jump, doubleJump, fly, gravity): "let me fly", "jump higher", "I want to see my character" are config changes, not scripts. Only write your own player or camera for a different kind of game (then set game.player.controls = false).
+- Checkpoints, routes, finish lines and goals are "waypoint" things (data.role checkpoint / waypoint / finish, data.next for a route), not invisible trigger boxes.
+- Menus, popups, shops, inventories, dialog and HUDs are game.ui (panel, menu, popup, ask, attach, theme, style) in scripts, styled to the game with game.ui.theme or game.json "ui".
 - Asset names: only use assets that are listed, or ones you list in "assets" so the people can generate them. Until an asset exists, scripts must not crash: prefer adding an asset in the same message and using a shape as a stand-in, or check with game.find / try.
 - If the request is unclear or impossible, change nothing and say what you need.
 - Reply in a few plain sentences: what changed and how to try it (which keys). No markdown headings.
 
 ${api()}`;
 
+/** The assistant's world ops ({ op, id, json }) as scene ops. One that doesn't parse is skipped and reported. */
+function worldOps(list: any[], problems: string[]) {
+  const ops: unknown[] = [];
+  for (const w of list.slice(0, 200)) {
+    let body: any = {};
+    try { body = w?.json ? JSON.parse(String(w.json)) : {}; } catch { problems.push(`world: ${w?.op} ${w?.id}: not valid JSON`); continue; }
+    const id = String(w?.id ?? '');
+    if (w?.op === 'create' || w?.op === 'replace') ops.push({ op: w.op, entity: { ...body, ...(id ? { id } : {}) } });
+    else if (w?.op === 'update') ops.push({ op: 'update', id, patch: body });
+    else if (w?.op === 'delete') ops.push({ op: 'delete', id });
+    else if (w?.op === 'config') ops.push({ op: 'config', patch: body });
+  }
+  return ops;
+}
+
+/** Where the player is and what they see, from the editor (build.js context()), for "that", "here" and "it". */
+function playerView(raw: unknown, mention: unknown) {
+  const c = raw && typeof raw === 'object' ? (raw as any) : null;
+  const m = mention && typeof mention === 'object' ? (mention as any) : null;
+  const j = (x: unknown) => JSON.stringify(x ?? null).slice(0, 600);
+  const lines: string[] = [];
+  if (m?.id) lines.push(`They mention @${String(m.name ?? m.id).slice(0, 60)}: the thing with id "${String(m.id).slice(0, 64)}".`);
+  if (c) {
+    if (c.player) lines.push(`The player is at ${j(c.player.at)}, facing ${j(c.player.facing)}${c.player.flying ? ', flying' : ''}${c.player.standingOn ? `, standing on ${String(c.player.standingOn).slice(0, 64)}` : ''}.`);
+    lines.push(c.lookingAt ? `They are looking at: ${j(c.lookingAt)}.` : 'They are not looking at any thing.');
+    if (c.lookPoint) lines.push(`The point they are looking at (on a surface): ${j(c.lookPoint)}.`);
+    if (Array.isArray(c.nearby) && c.nearby.length) lines.push(`Nearby, closest first: ${c.nearby.slice(0, 14).map((n: any) => `${String(n?.id ?? '').slice(0, 64)}${n?.name ? ` "${String(n.name).slice(0, 60)}"` : ''} (${String(n?.what ?? '').slice(0, 80)}, ${Number(n?.distance) || 0} m)`).join('; ')}.`);
+    if (Array.isArray(c.players) && c.players.length) lines.push(`Other players here: ${c.players.slice(0, 8).map((p: any) => `${String(p?.name ?? '').slice(0, 30)} at ${j(p?.at)}`).join('; ')}.`);
+    if (c.mode) lines.push(`They are ${c.mode === 'build' ? 'building' : 'playing'}.`);
+  }
+  return lines.length ? `What the player sees right now:\n${lines.join('\n')}\n` : '';
+}
+
 function context(gameId: string, focus?: string) {
-  const files = db.prepare('SELECT path, content FROM game_files WHERE game_id = ? ORDER BY path').all(gameId) as { path: string; content: string }[];
+  const all = db.prepare('SELECT path, content FROM game_files WHERE game_id = ? ORDER BY path').all(gameId) as { path: string; content: string }[];
+  const scene = all.find((f) => f.path === 'scene.json');
+  const files = all.filter((f) => f.path !== 'scene.json');
   let budget = 150_000;
   const parts: string[] = [];
   // The open file first, then the rest while they fit.
@@ -198,13 +258,13 @@ function context(gameId: string, focus?: string) {
   }
   const assets = listAssets(gameId).map((a) => `${a.name} (${a.mime ?? a.kind ?? 'file'})`);
   const chat = (db.prepare("SELECT role, text, user_id FROM game_chat WHERE game_id = ? AND role != 'system' ORDER BY created DESC LIMIT 12").all(gameId) as { role: string; text: string; user_id: string | null }[]).reverse();
-  return { files: parts.join('\n'), assets, chat: chat.map((m) => `${m.role === 'ai' ? 'Assistant' : getUser(m.user_id ?? '')?.name ?? 'Someone'}: ${m.text.slice(0, 1500)}`).join('\n') };
+  return { files: parts.join('\n'), assets, world: describeScene(parseScene(scene?.content)), chat: chat.map((m) => `${m.role === 'ai' ? 'Assistant' : getUser(m.user_id ?? '')?.name ?? 'Someone'}: ${m.text.slice(0, 1500)}`).join('\n') };
 }
 
 const thinking = new Set<string>();
 
 /** A message to the assistant: answered in the background; the reply and its file changes reach every editor live. */
-export async function askAssistant(user: User, gameId: string, body: { message?: unknown; file?: unknown; errors?: unknown }) {
+export async function askAssistant(user: User, gameId: string, body: { message?: unknown; file?: unknown; errors?: unknown; context?: unknown; mention?: unknown }) {
   const { game } = memberGame(user, gameId);
   const message = String(body.message ?? '').trim().slice(0, 4000);
   if (!message) throw new PortalError('Ask for something');
@@ -214,7 +274,8 @@ export async function askAssistant(user: User, gameId: string, body: { message?:
   const asked = chatMessage(game.id, user.id, 'user', message, { toAi: true });
   const ctx = context(game.id, typeof body.file === 'string' ? body.file : undefined);
   const errors = typeof body.errors === 'string' && body.errors.trim() ? `\nErrors the game is showing right now:\n${body.errors.slice(0, 3000)}\n` : '';
-  const prompt = `Game: ${game.title}\n${game.description ? `About: ${game.description}\n` : ''}\nAssets in the game: ${ctx.assets.length ? ctx.assets.join(', ') : '(none yet)'}\n\nFiles:\n${ctx.files}\n\nRecent conversation:\n${ctx.chat || '(none)'}\n${errors}\n${user.name ?? 'Someone'}${typeof body.file === 'string' ? ` (looking at ${body.file})` : ''} asks: ${message}`;
+  const view = playerView(body.context, body.mention);
+  const prompt = `Game: ${game.title}\n${game.description ? `About: ${game.description}\n` : ''}\nAssets in the game: ${ctx.assets.length ? ctx.assets.join(', ') : '(none yet)'}\n\nThe world (scene.json), one line per thing:\n${ctx.world || '(empty)'}\n\nFiles (scripts and behaviors):\n${ctx.files}\n\nRecent conversation:\n${ctx.chat || '(none)'}\n${errors}\n${view}\n${user.name ?? 'Someone'} asks: ${message}`;
   thinking.add(game.id);
   broadcast(game.id, 'thinking', { on: true, by: user.name });
   let job: any;
@@ -242,11 +303,23 @@ export async function askAssistant(user: User, gameId: string, body: { message?:
       const problems: string[] = [];
       for (const f of Array.isArray(v.files) ? v.files : []) {
         try {
+          if (f.path === 'scene.json') throw new PortalError('the world changes as "world" ops, not as a file');
           if (String(f.content ?? '').length > LIMITS.fileBytes) throw new PortalError('too long');
           writeFile(user, game.id, { path: f.path, content: String(f.content ?? '') }, { by: 'Assistant' });
           changed.push(String(f.path));
         } catch (e: any) {
           problems.push(`${f.path}: ${e.message}`);
+        }
+      }
+      let world: unknown[] = [];
+      if (Array.isArray(v.world) && v.world.length) {
+        try {
+          const r = sceneOps(null, game.id, worldOps(v.world, problems), { by: 'Assistant' });
+          world = r.applied;
+          if (r.applied.length) broadcastOps(game.id, r.applied, 'Assistant', 'materialize');
+          for (const e of r.errors) problems.push(`world: ${e}`);
+        } catch (e: any) {
+          problems.push(`world: ${e.message}`);
         }
       }
       const deleted: string[] = [];
@@ -259,8 +332,8 @@ export async function askAssistant(user: User, gameId: string, body: { message?:
       const have = new Set(listAssets(game.id).map((a) => a.name));
       const suggested = (Array.isArray(v.assets) ? v.assets : []).filter((a: any) => KINDS[a?.kind] && a?.prompt && !have.has(a.name)).slice(0, 8)
         .map((a: any) => ({ kind: a.kind, name: String(a.name), prompt: String(a.prompt), credits: KINDS[a.kind].credits }));
-      const text = String(v.reply ?? '').trim() || (changed.length ? 'Done.' : 'I had nothing to change.');
-      chatMessage(game.id, null, 'ai', problems.length ? `${text}\n\n(Some changes could not be saved: ${problems.join('; ')})` : text, { changed, deleted, assets: suggested, replyTo: asked.id, job: job.id });
+      const text = String(v.reply ?? '').trim() || (changed.length || world.length ? 'Done.' : 'I had nothing to change.');
+      chatMessage(game.id, null, 'ai', problems.length ? `${text}\n\n(Some changes could not be saved: ${problems.join('; ')})` : text, { changed, deleted, world, assets: suggested, replyTo: asked.id, job: job.id });
     } catch (e: any) {
       chatMessage(game.id, null, 'ai', `Something went wrong: ${e.message ?? e}`, { error: true });
     } finally {

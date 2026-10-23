@@ -83,7 +83,7 @@ async function load() {
     try {
       const g = await api('/v1/games', { body: { title: 'My Game', template: 'blank' } });
       track('game_create', { template: 'blank', auto: true });
-      location.href = `/app/g/${g.id}`;
+      enterGame(`/app/g/${g.id}`);
       return;
     } catch (err) {
       $('newError').textContent = err.message;
@@ -94,10 +94,26 @@ async function load() {
   renderGames(r);
   renderOverseerGames();
   notices();
+  remixFromLink();
   loadFriends().catch(() => {});
 
   // Plans load in background, shown only if user scrolls or clicks
   loadPlans().catch(() => {});
+}
+
+/** Came from a game's Remix button (?remix=<slug>, or ?template=<id> for an Overseer game): make the copy and go in. */
+async function remixFromLink() {
+  const q = new URLSearchParams(location.search);
+  const slug = q.get('remix'), tpl = q.get('template');
+  if (!slug && !tpl) return;
+  history.replaceState(null, '', location.pathname);
+  try {
+    const g = tpl
+      ? await api('/v1/games', { body: { title: `${OVERSEER_GAMES.find((o) => o.template === tpl)?.title || 'My'} remix`, template: tpl } })
+      : await api('/v1/remix', { body: { slug } });
+    track('game_remix', { from: tpl ? 'overseer' : 'player' });
+    enterGame(`/app/g/${g.id}`, { label: 'REMIXING' });
+  } catch (e) { alert(e.message); }
 }
 
 function notices() {
@@ -118,7 +134,7 @@ async function loadInvite() {
       try {
         const g = await api(`/v1/invites/${inviteCode}/accept`, { body: {} });
         track('game_join', {});
-        location.href = `/app/g/${g.id}`;
+        enterGame(`/app/g/${g.id}`);
       } catch (e) {
         $('joinText').textContent = e.message;
       }
@@ -217,23 +233,16 @@ function renderOverseerGames() {
         <div class="meta" style="font-family:var(--sans);font-size:12.5px;color:var(--fg-2)">${esc(g.desc)}</div>
         <div class="actions">
           <button class="btn btn-primary btn-sm" data-play-overseer="${g.template}">Play</button>
-          <button class="btn btn-secondary btn-sm" data-fork-overseer="${g.template}" title="Create your own copy to edit">Fork</button>
+          <button class="btn btn-secondary btn-sm" data-fork-overseer="${g.template}" title="Make your own copy to change">Remix</button>
         </div>
       </div>
     </div>`).join('');
 
   for (const btn of el.querySelectorAll('[data-play-overseer]')) {
-    btn.onclick = async (e) => {
+    btn.onclick = (e) => {
       e.stopPropagation();
-      btn.disabled = true;
-      try {
-        const g = await api('/v1/games', { body: { title: OVERSEER_GAMES.find(o => o.template === btn.dataset.playOverseer)?.title, template: btn.dataset.playOverseer } });
-        track('overseer_play', { template: btn.dataset.playOverseer });
-        location.href = `/app/g/${g.id}`;
-      } catch (err) {
-        alert(err.message);
-        btn.disabled = false;
-      }
+      track('overseer_play', { template: btn.dataset.playOverseer });
+      enterGame(`/play/t/${btn.dataset.playOverseer}`);
     };
   }
 
@@ -244,9 +253,9 @@ function renderOverseerGames() {
       try {
         const tmpl = btn.dataset.forkOverseer;
         const name = OVERSEER_GAMES.find(o => o.template === tmpl)?.title || 'Forked Game';
-        const g = await api('/v1/games', { body: { title: `${name} (fork)`, template: tmpl } });
+        const g = await api('/v1/games', { body: { title: `${name} remix`, template: tmpl } });
         track('overseer_fork', { template: tmpl });
-        location.href = `/app/g/${g.id}`;
+        enterGame(`/app/g/${g.id}`);
       } catch (err) {
         alert(err.message);
         btn.disabled = false;
@@ -262,7 +271,7 @@ $('quickCreate').onclick = async () => {
   try {
     const g = await api('/v1/games', { body: { title: 'Untitled Game', template: 'blank' } });
     track('game_create', { template: 'blank' });
-    location.href = `/app/g/${g.id}`;
+    enterGame(`/app/g/${g.id}`);
   } catch (err) {
     $('newError').textContent = err.message + (err.status === 402 ? ' You need more credits.' : '');
     $('newError').hidden = false;

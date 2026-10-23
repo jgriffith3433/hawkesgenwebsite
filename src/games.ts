@@ -9,9 +9,11 @@ import { sign, verify } from './sign.ts';
 import { planOf } from './plans.ts';
 import { getUser, type User } from './users.ts';
 import { id, PortalError } from './util.ts';
-import { TEMPLATES } from './templates.ts';
+import { TEMPLATES, featured } from './templates.ts';
 import { broadcast, kick } from './live.ts';
 import { addFriend } from './friends.ts';
+import { applyOps, parseScene, sceneText } from './scene.ts';
+import { editToken, kickFromRooms } from './rooms.ts';
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS games (
@@ -247,6 +249,7 @@ export function removeMember(user: User, gameId: string, memberId: string) {
   broadcast(game.id, 'game', summary(game));
   broadcast(game.id, 'removed', { user: memberId });
   kick(game.id, memberId);
+  kickFromRooms(game.id, memberId);
   return { ok: true };
 }
 
@@ -259,7 +262,7 @@ function checkPath(p: unknown) {
 
 /** Saves a file. `baseRev` is the revision the editor started from: if someone saved since, the save is refused with
  *  the current file (409) so the editor can merge. Without it (new file, or the assistant) it overwrites. */
-export function writeFile(user: User | null, gameId: string, body: { path?: unknown; content?: unknown; baseRev?: unknown }, o: { by?: string; conn?: string } = {}) {
+export function writeFile(user: User | null, gameId: string, body: { path?: unknown; content?: unknown; baseRev?: unknown }, o: { by?: string; conn?: string; ops?: boolean } = {}) {
   const path = checkPath(body.path);
   const content = typeof body.content === 'string' ? body.content : '';
   if (Buffer.byteLength(content) > LIMITS.fileBytes) throw new PortalError(`Files up to ${LIMITS.fileBytes / 1024} KB`, { status: 413 });
@@ -281,7 +284,8 @@ export function writeFile(user: User | null, gameId: string, body: { path?: unkn
       .run(gameId, path, content, rev, now, by);
     touch(gameId);
     const file: FileRow = { path, content, rev, updated: now, updated_by: by };
-    broadcast(gameId, 'file', { ...file, by: o.by ?? (user ? nameOf(user.id) : 'assistant'), conn: o.conn ?? null });
+    // ops: true marks a scene.json saved from world edits, which the engines already have (rooms.ts sent them the ops).
+    broadcast(gameId, 'file', { ...file, by: o.by ?? (user ? nameOf(user.id) : 'assistant'), conn: o.conn ?? null, ops: o.ops ?? false });
     return file;
   });
 }
@@ -372,7 +376,44 @@ const assetMap = (rows: AssetRow[], url: (a: AssetRow) => string) => Object.from
 export function draftBundle(user: User, gameId: string) {
   const { game } = memberGame(user, gameId);
   const files = Object.fromEntries((db.prepare('SELECT path, content FROM game_files WHERE game_id = ?').all(game.id) as { path: string; content: string }[]).map((f) => [f.path, f.content]));
-  return { id: game.id, title: game.title, version: null, files, assets: assetMap(listAssets(game.id), (a) => draftAssetUrl(game.id, a)) };
+  return { id: game.id, title: game.title, version: null, files, assets: assetMap(listAssets(game.id), (a) => draftAssetUrl(game.id, a)), net: { token: editToken(sign, game.id, user) }, me: { id: user.id, name: user.name } };
+}
+
+// ------------------------------------------------------------------ the world (scene.json), changed by ops
+/** Applies world edits (scene.ts ops) to the game's scene.json, in one transaction, and saves it. */
+export function sceneOps(user: User | null, gameId: string, ops: unknown, o: { by?: string } = {}) {
+  if (user) memberGame(user, gameId);
+  return tx(() => {
+    const cur = db.prepare("SELECT content, rev FROM game_files WHERE game_id = ? AND path = 'scene.json'").get(gameId) as { content: string; rev: number } | undefined;
+    const r = applyOps(parseScene(cur?.content), ops);
+    let rev = cur?.rev ?? 0;
+    if (r.applied.length) rev = writeFile(user, gameId, { path: 'scene.json', content: sceneText(r.scene) }, { by: o.by ?? (user ? nameOf(user.id) : 'Assistant'), ops: true }).rev;
+    return { ...r, rev };
+  });
+}
+
+/** A copy of a published game (its live version: files and assets) as a new game of this customer's. */
+export function remix(user: User, body: { slug?: unknown }) {
+  const g = gameBySlug(String(body.slug ?? ''));
+  if (!g || !g.live_version) throw new PortalError('Only published games can be remixed', { status: 404 });
+  const plan = planOf(getUser(user.id));
+  const owned = Number((db.prepare('SELECT COUNT(*) AS n FROM games WHERE owner_id = ?').get(user.id) as { n: number }).n);
+  if (owned >= plan.games) throw new PortalError(`Your ${plan.name} plan has room for ${plan.games} games. Upgrade for more, or delete one.`, { status: 402 });
+  const r = db.prepare('SELECT files, assets FROM game_releases WHERE game_id = ? AND version = ?').get(g.id, g.live_version) as { files: string; assets: string };
+  const files = JSON.parse(r.files) as Record<string, string>;
+  const assets = JSON.parse(r.assets) as AssetRow[];
+  const now = Date.now();
+  const gameId = id('g_', 8);
+  const title = `${g.title} remix`.slice(0, 80);
+  tx(() => {
+    db.prepare('INSERT INTO games (id, slug, title, description, owner_id, created, updated) VALUES (?, ?, ?, ?, ?, ?, ?)').run(gameId, slugFor(title), title, g.description, user.id, now, now);
+    db.prepare("INSERT INTO game_members (game_id, user_id, role, added) VALUES (?, ?, 'owner', ?)").run(gameId, user.id, now);
+    for (const [path, content] of Object.entries(files)) db.prepare('INSERT INTO game_files (game_id, path, content, rev, updated, updated_by) VALUES (?, ?, ?, 1, ?, ?)').run(gameId, path, content, now, user.id);
+    // The assets stay the original maker's files in Gen; the remix points at them, the way a release does.
+    for (const a of assets) db.prepare('INSERT OR IGNORE INTO game_assets (game_id, name, asset, project, kind, mime, added_by, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(gameId, a.name, a.asset, a.project, a.kind ?? null, a.mime ?? null, user.id, now);
+  });
+  systemNote(gameId, `Remixed from "${g.title}" by ${nameOf(g.owner_id)}.`);
+  return summary(getGame(gameId)!, user.id);
 }
 
 export function publish(user: User, gameId: string, body: { notes?: unknown }) {
@@ -453,8 +494,10 @@ export function resolvePlayAsset(parts: { token?: string; slug?: string; version
 
 /** The public games: published, listed, most played first (or newest). */
 export function gallery(sort: 'popular' | 'new' = 'popular', limit = 60) {
+  const overseer = featured();
   const rows = db.prepare(`SELECT g.*, u.name AS owner_name FROM games g JOIN users u ON u.id = g.owner_id WHERE g.visibility = 'public' AND g.live_version IS NOT NULL ORDER BY ${sort === 'new' ? 'g.updated' : 'g.plays'} DESC LIMIT ?`).all(Math.max(1, Math.min(200, limit))) as (Game & { owner_name: string })[];
   return {
+    featured: overseer,
     games: rows.map((g) => {
       const r = db.prepare('SELECT assets FROM game_releases WHERE game_id = ? AND version = ?').get(g.id, g.live_version) as { assets: string } | undefined;
       const hasCover = g.cover && r && (JSON.parse(r.assets) as AssetRow[]).some((a) => a.name === g.cover);

@@ -1,7 +1,7 @@
-// /entities: the entity codex. Every type the scene engine (engine/engine.js) builds, spawned live in a real
-// HawkesEngine, with the spec as it is written in scene.json. Keep this in step with engine.js buildNode and the
-// shape defaults (boxOpts, sphereOpts...), with KINDS in src/gameai.ts, and with play/API.md: only what the engine does.
-/* global HawkesEngine, BABYLON */
+// /entities: the entity codex. Every kind of thing the game engine (play/runtime.js) builds, spawned live in the real
+// runtime, with the spec as it is written in scene.json. Keep this in step with runtime.js fromSpec, the behaviors in
+// play/behaviors.js, KINDS in src/gameai.ts and play/WORLD.md: only what the engine does.
+/* global HawkesPlay, BABYLON */
 
 const SAMPLE_GLB = 'https://models.babylonjs.com/boombox.glb';
 
@@ -25,6 +25,18 @@ const TYPES = [
     fields: [['shape.radius', 'meters', '0.5'], ['shape.height', 'meters', '1'], ['shape.segments', 'smoothness', '16']],
   },
   {
+    group: 'Shapes', type: 'cone',
+    what: 'A cone. Spikes, tree tops, roofs on round towers, traffic cones.',
+    spec: { type: 'cone', name: 'Spike', transform: { position: [0, 0.75, 0] }, shape: { radius: 0.6, height: 1.5 }, material: { color: '#f97316' }, physics: 'static', behaviors: [{ use: 'hurts', damage: 20 }] },
+    fields: [['shape.radius', 'meters at the base', '0.5'], ['shape.height', 'meters', '1']],
+  },
+  {
+    group: 'Shapes', type: 'torus',
+    what: 'A ring. Hoops to fly through, wheels, halos.',
+    spec: { type: 'torus', name: 'Hoop', transform: { position: [0, 1.4, 0], rotation: [90, 0, 0] }, shape: { radius: 1, thickness: 0.2 }, material: { color: '#22d3ee', emissive: '#063a44' }, physics: 'trigger', behaviors: [{ use: 'spin', speed: 45, axis: 'z' }] },
+    fields: [['shape.radius', 'meters to the middle of the ring', '1'], ['shape.thickness', 'meters', '0.3']],
+  },
+  {
     group: 'Shapes', type: 'capsule',
     what: 'A pill. The usual body for players and enemies: round ends slide over edges.',
     spec: { type: 'capsule', name: 'Player', tag: 'player', transform: { position: [0, 1, 0] }, shape: { radius: 0.4, height: 1.8 }, material: { color: '#4a9eff', emissive: '#0a1830' }, physics: 'dynamic' },
@@ -38,6 +50,12 @@ const TYPES = [
     noFloor: true,
   },
   {
+    group: 'World', type: 'text',
+    what: 'A floating sign. Instructions, names, scores, jokes.',
+    spec: { type: 'text', name: 'Sign', transform: { position: [0, 1.5, 0] }, shape: { text: 'Welcome!\nGrab anything.', size: 0.35 } },
+    fields: [['shape.text', 'the words (\\n for a new line)', ''], ['shape.size', 'letter height in meters', '0.5'], ['shape.billboard', 'false keeps it flat', 'true']],
+  },
+  {
     group: 'World', type: 'light',
     what: 'A light: point (a bulb), spot (a cone) or directional (sunlight). Every scene already has a sky light and a sun.',
     spec: { type: 'light', name: 'Lamp', transform: { position: [0, 2.2, 0] }, light: { type: 'point', color: '#ffaa55', intensity: 1.6, range: 9 } },
@@ -49,9 +67,20 @@ const TYPES = [
     group: 'World', type: 'model',
     what: 'A 3D model: a .glb file. Ask for one and Hawkes Gen draws it, builds the mesh and adds it to your assets; until the file arrives you see a wireframe.',
     uses: 'The model shown is a Babylon.js sample, so the page works without an account. In your game, shape.asset is the name of an asset in it.',
-    spec: { type: 'model', name: 'Boombox', transform: { position: [0, 1.1, 0], scale: [110, 110, 110] }, shape: { asset: SAMPLE_GLB } },
-    fields: [['shape.asset', 'an asset name in the game (tree.glb) or an https URL', ''], ['transform.scale', 'models come in at their own size', '[1, 1, 1]']],
-    beam: true,
+    spec: { type: 'model', name: 'Boombox', transform: { position: [0, 0.8, 0] }, shape: { asset: SAMPLE_GLB, size: 1.6 } },
+    fields: [['shape.asset', 'an asset name in the game (tree.glb) or an https URL', ''], ['shape.size', 'its height in meters', 'its own size']],
+  },
+  {
+    group: 'World', type: 'sprite',
+    what: 'A picture: an image from your library, facing you (or flat, like a poster). Shows as a wireframe until its picture exists.',
+    spec: { type: 'sprite', name: 'Poster', transform: { position: [0, 1.2, 0] }, shape: { image: 'poster.png', size: 1.6, billboard: false } },
+    fields: [['shape.image', 'an image asset in the game', ''], ['shape.size', 'height in meters', '1'], ['shape.frames', '{ cols, rows } for a sprite sheet', '']],
+  },
+  {
+    group: 'World', type: 'video',
+    what: 'A screen playing a video from your library, muted until someone clicks it. Shows as a wireframe until its video exists.',
+    spec: { type: 'video', name: 'Screen', transform: { position: [0, 1.5, 0] }, shape: { asset: 'trailer.mp4', width: 3.2 } },
+    fields: [['shape.asset', 'a video asset in the game', ''], ['shape.width', 'meters', '3.2'], ['shape.height', 'meters', '16:9 of the width']],
   },
   {
     group: 'World', type: 'mirror',
@@ -65,13 +94,13 @@ const TYPES = [
     group: 'Logic', type: 'spawn',
     what: 'Where players start. A green box in the editor, invisible when the game plays.',
     spec: { type: 'spawn', name: 'Start', tag: 'player-start', transform: { position: [0, 0.5, 0] } },
-    fields: [['tag', 'scripts find it by tag', '']],
+    fields: [['data.role', 'who starts here', 'player']],
   },
   {
     group: 'Logic', type: 'trigger',
-    what: 'An invisible zone: checkpoints, goals, danger. Amber in the editor; nothing collides with it.',
-    spec: { type: 'trigger', name: 'Goal', tag: 'goal', transform: { position: [0, 1, 0], scale: [3, 2, 3] }, physics: 'trigger' },
-    fields: [['transform.scale', 'the zone\'s size', '[1, 1, 1]'], ['tag', 'what scripts look for', '']],
+    what: 'An invisible zone: checkpoints, goals, danger. Amber in the editor; you walk through it, and it notices.',
+    spec: { type: 'trigger', name: 'Goal', transform: { position: [0, 1, 0] }, shape: { size: [3, 2, 3] }, physics: 'trigger', behaviors: [{ use: 'goal', message: 'You made it!' }] },
+    fields: [['shape.size', 'the zone, [w, h, d]', '1'], ['behaviors', 'what happens inside: goal, checkpoint, hurts...', '']],
   },
 ];
 
@@ -80,17 +109,18 @@ const COMPONENTS = [
   { name: 'transform', tag: 'where', text: '<code>position</code> [x, y, z] in meters, <code>rotation</code> [x, y, z] in degrees, <code>scale</code> a number or [x, y, z]. +y is up, +z is forward.' },
   { name: 'shape', tag: 'size', text: 'The numbers for its type: <code>size</code>, <code>radius</code>, <code>height</code>, <code>width</code>, <code>depth</code>, <code>asset</code>. Pick a type above to see its fields.' },
   { name: 'material', tag: 'look', text: '<code>color</code>, <code>emissive</code> (glows without light), <code>opacity</code>, <code>texture</code> with <code>tile</code> [u, v], and <code>maps.normal</code> for surface detail.' },
-  { name: 'physics', tag: 'body', text: 'How it collides: <code>static</code>, <code>dynamic</code>, <code>kinematic</code>, <code>trigger</code> or none. See the bodies below.' },
+  { name: 'physics, body', tag: 'how it moves', text: '<code>static</code>, <code>dynamic</code>, <code>kinematic</code>, <code>trigger</code> or <code>none</code> (below), and <code>body</code>: <code>bounce</code>, <code>friction</code>, <code>mass</code>, <code>grab: false</code>.' },
+  { name: 'behaviors', tag: 'what it does', text: 'A list of <code>{ "use": name, ...options }</code>: spins, floats, follows you, can be collected, hurts... (below).' },
   { name: 'parent', tag: 'hierarchy', text: 'Another entity\'s id. A child moves with its parent, and deleting the parent deletes its children.' },
   { name: 'data', tag: 'yours', text: 'Any fields your game wants: hit points, a door\'s key, a level number. The engine keeps them and leaves them alone.' },
 ];
 
 const PHYSICS = [
-  { name: 'static', text: 'Solid and never moves by itself. Floors, walls, platforms. The default for shapes and models.' },
-  { name: 'dynamic', text: 'Falls with gravity, gets pushed out of solid things, has velocity. Players, enemies, crates.' },
-  { name: 'kinematic', text: 'Solid, but moves only when a script moves it. Moving platforms, doors, elevators.' },
-  { name: 'trigger', text: 'Not solid, but scripts hear when something enters. Coins, checkpoints, danger zones.' },
-  { name: 'none', text: 'Decoration: no collisions at all. The default for sprites.' },
+  { name: 'static', text: 'Stays put. Solid: you stand on it and bump into it. Floors, walls, platforms. In the editor you can still pick it up and move it.' },
+  { name: 'dynamic', text: 'Falls, bounces, gets pushed, and players can pick it up and throw it. Crates, balls, loose things. Caught and put back if it falls out of the world.' },
+  { name: 'kinematic', text: 'Solid, and moves by itself (a behavior or a script). Players standing on it ride along. Moving platforms, lifts, doors.' },
+  { name: 'trigger', text: 'You go through it, and it notices. Coins, goals, checkpoints, danger zones.' },
+  { name: 'none', text: 'Decoration: nothing bumps into it. Signs, lights, pictures.' },
 ];
 
 // From src/gameai.ts KINDS (titles, credits and the tools behind them).
@@ -106,51 +136,42 @@ const KINDS = [
 ];
 
 const SCRIPT_ONLY = [
+  { name: 'game.player', text: 'You: a first-person body every game gets (walk, jump, fly while building). <code>controls = false</code> for games that move it themselves.' },
+  { name: 'game.raycast / game.aim', text: 'What a line from a point (or the crosshair) hits first: for shooting, picking up, looking at.' },
+  { name: 'game.net', text: 'Playing together: <code>send</code> and <code>on</code> messages, <code>isHost</code>, <code>players</code>.' },
   { name: 'game.sprite(name, opts)', text: 'A 2D image that faces the camera. <code>frames: { cols, rows }</code> plays a sprite sheet; <code>flip</code> mirrors it.' },
   { name: 'game.burst(position, opts)', text: 'Sparks thrown out from a point: pickups, hits, explosions.' },
   { name: 'game.ui.text / bar / button', text: 'Screen text, bars from 0 to 1 (health, time) and buttons, drawn over the world.' },
   { name: 'game.camera.*', text: 'follow, firstPerson, orbit, topDown, fixed and shake: how the player sees the world.' },
 ];
 
-// ------------------------------------------------------------------ the live engine
+// ------------------------------------------------------------------ the live engine (the real runtime)
 
 const $ = (id) => document.getElementById(id);
 const clone = (o) => JSON.parse(JSON.stringify(o));
-let engine = null;
+let running = false;
 let current = TYPES[0];
-let spawned = 0;
 
-function scene(t, spec) {
-  const graph = HawkesEngine.defaultScene();
-  Object.assign(graph.config, { background: '#0d0f18', ambient: 0.55, fog: null, shadows: false }, t.config || {});
-  const add = (id, e) => { graph.entities[id] = { id, ...e }; };
+/** A tiny world: a floor, maybe some props, and the thing; a script orbits the camera around it. */
+function world(t, spec) {
+  const entities = {};
+  const add = (id, e) => { entities[id] = { id, ...e }; };
   if (!t.noFloor) add('floor', { type: 'plane', name: 'Floor', shape: { width: 14, depth: 14 }, material: { color: '#39415e' }, physics: 'static' });
   if (t.props) {
-    // Something for a light to fall on, or for a mirror to reflect (built before it: a mirror sees what exists).
-    add('prop_a', { type: 'box', name: 'Prop', transform: { position: [-2.2, 0.5, 1.8] }, shape: { size: 1 }, material: { color: '#a855f7' }, physics: 'static' });
-    add('prop_b', { type: 'sphere', name: 'Prop', transform: { position: [2.2, 0.6, 1.6] }, shape: { radius: 0.6 }, material: { color: '#34d399' }, physics: 'static' });
-    add('prop_c', { type: 'cylinder', name: 'Prop', transform: { position: [0, 0.4, 3] }, shape: { radius: 0.4, height: 0.8 }, material: { color: '#fbbf24' }, physics: 'static' });
+    add('prop_a', { type: 'box', name: 'Prop', transform: { position: [-2.2, 0.5, 1.8] }, shape: { size: 1 }, material: { color: '#a855f7' } });
+    add('prop_b', { type: 'sphere', name: 'Prop', transform: { position: [2.2, 0.6, 1.6] }, shape: { radius: 0.6 }, material: { color: '#34d399' } });
+    add('prop_c', { type: 'cylinder', name: 'Prop', transform: { position: [0, 0.4, 3] }, shape: { radius: 0.4, height: 0.8 }, material: { color: '#fbbf24' } });
   }
-  const id = `${t.type}_${++spawned}`;
-  add(id, clone(spec));
-  return { graph, id };
+  add('thing', clone(spec));
+  const config = { background: '#0d0f18', ambient: t.config ? 0.15 : 0.7, sun: t.config ? 0.15 : 0.8, shadows: false, player: false };
+  const cam = `game.camera.orbit([0, ${t.type === 'plane' ? 0 : 1}, 0], { distance: ${t.type === 'plane' ? 17 : 8} });\nconst c = game.camera.babylon; c.beta = 1.05; c.useAutoRotationBehavior = true;\n`;
+  return { 'scene.json': JSON.stringify({ config, entities }), 'scripts/view.js': cam };
 }
 
 function spawn(spec) {
-  const t = current;
-  const { graph, id } = scene(t, spec);
-  engine.loadScene(graph);
-  const cam = engine.camera;
-  if (cam) {
-    cam.radius = t.type === 'plane' ? 17 : 8;
-    cam.beta = Math.PI / 3.2;
-    cam.setTarget(new BABYLON.Vector3(0, t.type === 'plane' ? 0 : 1, 0));
-    cam.useAutoRotationBehavior = true;
-    if (cam.autoRotationBehavior) { cam.autoRotationBehavior.idleRotationSpeed = 0.25; cam.autoRotationBehavior.idleRotationWaitTime = 2500; }
-  }
-  engine.select(id);
-  $('inspId').textContent = id;
-  return id;
+  if (!running) return;
+  HawkesPlay.reload(world(current, spec));
+  $('inspId').textContent = 'thing';
 }
 
 function show(t) {
@@ -166,9 +187,8 @@ function show(t) {
   $('inspUses').hidden = !t.uses;
   $('spec').value = pretty(t.spec);
   $('fields').innerHTML = t.fields.map(([k, v, d]) => `<tr><td>${k}</td><td>${v}${d ? ` <span class="def">· default ${d}</span>` : ''}</td></tr>`).join('');
-  $('beam').hidden = !t.beam;
   msg('Ctrl+Enter applies');
-  if (engine) spawn(t.spec);
+  spawn(t.spec);
 }
 
 // JSON with short arrays on one line, the way scene.json reads best.
@@ -191,41 +211,20 @@ function apply() {
     for (const b of document.querySelectorAll('.types button')) b.classList.toggle('on', b.dataset.type === t.type);
     $('hudType').textContent = t.type;
   }
-  if (!engine) return msg('The engine is not running', 'bad');
+  if (!running) return msg('The engine is not running', 'bad');
   spawn(spec);
   msg('Applied', 'ok');
 }
 
-// The effect the editor plays while Gen makes a model: a beam into the sky, the job's log, then the model arrives.
-function arrival() {
-  if (!engine) return;
-  const t = current;
-  const { graph } = scene(t, t.spec);
-  for (const id of Object.keys(graph.entities)) if (graph.entities[id].type === 'model') delete graph.entities[id];
-  engine.loadScene(graph);
-  const cam = engine.camera;
-  if (cam) { cam.radius = 13; cam.setTarget(new BABYLON.Vector3(0, 2, 0)); }
-  const beam = engine.startDownload([0, 0.9, 0], { label: 'model', size: 1.6 });
-  const steps = ['model starting...', 'Drawing it', 'Drawing it: 60%', 'Building the 3D model', 'Texturing', 'Complete.'];
-  $('beam').disabled = true;
-  steps.forEach((s, i) => setTimeout(() => {
-    beam.addLog(s);
-    beam.setProgress((i + 1) / steps.length);
-    if (i === steps.length - 1) setTimeout(() => {
-      beam.complete(clone(t.spec));
-      $('beam').disabled = false;
-    }, 600);
-  }, 450 + i * 700));
-}
-
 function start() {
   try {
-    if (!window.BABYLON || !window.HawkesEngine) throw new Error('Babylon.js did not load');
-    engine = new HawkesEngine($('canvas'));
-    engine.assetResolver = () => null;
-    engine.onSelect = (id) => { if (id) $('inspId').textContent = id; };
+    if (!window.BABYLON || !window.HawkesPlay) throw new Error('Babylon.js did not load');
+    HawkesPlay.hooks.autoLock = false;
+    HawkesPlay.run({ title: 'Entity codex', files: world(current, current.spec), assets: {} }, { mode: 'build' });
+    document.title = 'Entity codex · Hawkes Gen';
+    running = true;
   } catch (e) {
-    engine = null;
+    running = false;
     $('viewport').insertAdjacentHTML('beforeend', `<div class="vp-fail">The live view needs WebGL, and it didn't start here (${e.message}). The reference still works.</div>`);
   }
 }
@@ -233,8 +232,8 @@ function start() {
 // ------------------------------------------------------------------ the page
 
 function renderPage() {
-  const B = window.HawkesEngine?.BUDGET ?? { maxEntities: 500, maxLights: 8, maxPhysicsBodies: 200 };
-  $('budget').innerHTML = [[TYPES.length, 'entity types'], [B.maxEntities, 'entities a scene'], [B.maxLights, 'extra lights'], [B.maxPhysicsBodies, 'physics bodies']]
+  const behaviors = (window.HawkesPlay && HawkesPlay.behaviorMenu) || [];
+  $('budget').innerHTML = [[TYPES.length, 'kinds of things'], [behaviors.length, 'behaviors'], [500, 'things a world'], [32, 'players a room']]
     .map(([n, l]) => `<div><b>${n}</b><span>${l}</span></div>`).join('');
   $('typeCount').textContent = TYPES.length;
 
@@ -253,17 +252,19 @@ function renderPage() {
   $('components').innerHTML = COMPONENTS.map((c) => `<div class="ref"><span class="tagline">${c.tag}</span><h3>${c.name}</h3><p>${c.text}</p></div>`).join('');
   $('physics').innerHTML = PHYSICS.map((p) => `<div class="ref"><h3>'${p.name}'</h3><p>${p.text}</p></div>`).join('');
   $('kinds').innerHTML = KINDS.map(([k, title, how, use, cr]) => `<tr><td>${k}</td><td>${title}<br><span style="color:var(--fg-3);font-size:12.5px">${how}</span></td><td>${use}</td><td class="n">${cr}</td></tr>`).join('');
+  $('behaviors').innerHTML = behaviors.map(([k, title]) => { const d = HawkesPlay.behaviorDef(k); const o = { ...(d && d.defaults || {}) }; return `<div class="ref"><span class="tagline">${k}</span><h3>${title}</h3><p>${d && d.says ? d.says(o).replace(/</g, '&lt;') : ''}</p></div>`; }).join('');
   $('scriptOnly').innerHTML = SCRIPT_ONLY.map((s) => `<div class="ref"><h3>${s.name}</h3><p>${s.text}</p></div>`).join('');
 
   $('apply').onclick = apply;
   $('reset').onclick = () => show(current);
   $('respawn').onclick = apply;
-  $('beam').onclick = arrival;
   $('spec').addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); apply(); }
   });
 }
 
+const first = TYPES.find((t) => t.type === location.hash.slice(1)) ?? TYPES[0];
+current = first;
 renderPage();
 start();
-show(TYPES.find((t) => t.type === location.hash.slice(1)) ?? TYPES[0]);
+show(first);

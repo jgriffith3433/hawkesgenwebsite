@@ -89,8 +89,15 @@ db.exec('CREATE UNIQUE INDEX IF NOT EXISTS credit_ledger_invoice ON credit_ledge
 if (!cols('api_keys').includes('daily_cap')) db.exec('ALTER TABLE api_keys ADD COLUMN daily_cap INTEGER');
 
 /** Runs fn in one transaction. */
+// Re-entrant: a tx inside a tx joins the outer one (sqlite has no nested BEGIN).
+let txDepth = 0;
 export function tx<T>(fn: () => T): T {
+  if (txDepth > 0) {
+    txDepth++;
+    try { return fn(); } finally { txDepth--; }
+  }
   db.exec('BEGIN IMMEDIATE');
+  txDepth = 1;
   try {
     const out = fn();
     db.exec('COMMIT');
@@ -98,5 +105,7 @@ export function tx<T>(fn: () => T): T {
   } catch (e) {
     db.exec('ROLLBACK');
     throw e;
+  } finally {
+    txDepth = 0;
   }
 }

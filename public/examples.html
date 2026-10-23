@@ -8,6 +8,7 @@
   <meta name="description" content="Real prompts and what Hawkes Gen made from them: sprite sheets, edits, pixel art, character views, PBR textures, voices. With the time and credits each took.">
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/public.css">
+  <link rel="stylesheet" href="/site.css">
   <style>
     .ex { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 40px; padding: 36px 0; border-bottom: 1px solid var(--rule); }
     .ex:first-of-type { border-top: 1px solid var(--ink); }
@@ -25,7 +26,7 @@
     @media (max-width: 860px) { .ex { grid-template-columns: 1fr; gap: 18px; } }
   </style>
 </head>
-<body>
+<body class="landing">
   <header class="hg-navbar">
     <div class="wrap hg-navbar-inner">
       <a href="/" class="hg-brand"><span class="wordmark">Hawkes Gen</span></a>
@@ -137,5 +138,6 @@
     </div>
   </main>
   <footer class="footer"><div class="wrap"><span>© 2026 Hawkes Gen</span><span><a href="/legal#terms">Terms</a> · <a href="/legal#privacy">Privacy</a> · <a href="/legal#refunds">Refunds</a></span></div></footer>
+  <script src="/enter.js"></script>
 </body>
 </html>

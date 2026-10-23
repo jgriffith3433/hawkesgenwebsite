@@ -8,6 +8,7 @@
   <meta name="description" content="The terms of service, privacy policy and refund policy for Hawkes Gen.">
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/public.css">
+  <link rel="stylesheet" href="/site.css">
   <style>
     .legal { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 48px; padding: 56px 0 96px; }
     .legal nav { position: sticky; top: 84px; align-self: start; display: grid; gap: 10px; }
@@ -24,7 +25,7 @@
     @media (max-width: 800px) { .legal { grid-template-columns: 1fr; gap: 24px; } .legal nav { position: static; grid-auto-flow: column; justify-content: start; gap: 18px; } }
   </style>
 </head>
-<body>
+<body class="landing">
   <header class="hg-navbar">
     <div class="wrap hg-navbar-inner">
       <a href="/" class="hg-brand"><span class="wordmark">Hawkes Gen</span></a>
@@ -131,5 +132,6 @@
   </main>
 
   <footer class="footer"><div class="wrap"><span>© 2026 Hawkes Gen</span><span><a href="/legal#terms">Terms</a> · <a href="/legal#privacy">Privacy</a> · <a href="/legal#refunds">Refunds</a></span></div></footer>
+  <script src="/enter.js"></script>
 </body>
 </html>

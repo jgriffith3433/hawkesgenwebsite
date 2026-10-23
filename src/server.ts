@@ -6,7 +6,7 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { PORT, ROOT, genKey } from './config.ts';
+import { PORT, ROOT, genKey, env } from './config.ts';
 import { genFetch, gen } from './gen.ts';
 import { send, readJson, readBody, PortalError } from './util.ts';
 import * as users from './users.ts';
@@ -26,6 +26,9 @@ import * as games from './games.ts';
 import * as friends from './friends.ts';
 import { askAssistant, generateAsset, pendingGens, markSuggestion, resumeGens, KINDS, AI_CREDITS } from './gameai.ts';
 import { join as joinLive, setPresence } from './live.ts';
+import { templateBundle } from './templates.ts';
+import { upgrade as joinRoom, broadcastOps } from './rooms.ts';
+import type { Duplex } from 'node:stream';
 
 const PUBLIC = path.join(ROOT, 'public');
 const PAGES: Record<string, string> = { '/': 'index.html', '/home': 'index.html', '/app': 'games.html', '/app/studio': 'app.html', '/games': 'gallery.html', '/admin': 'admin.html', '/reset': 'reset.html', '/legal': 'legal.html', '/terms': 'legal.html', '/privacy': 'legal.html', '/refunds': 'legal.html', '/connect': 'connect.html', '/thanks': 'thanks.html', '/examples': 'examples.html', '/entities': 'entities.html', '/oauth/authorize': 'authorize.html', '/client/hawkesgen.mjs': 'hawkesgen.mjs' };
@@ -85,9 +88,13 @@ async function readForm(req: IncomingMessage) {
 
 // A game runs in a sandbox: its own opaque origin, so its scripts can't read this site's cookies or call its API as the
 // player. Set on the page itself (not only on the editor's iframe) so a game opened directly is sandboxed too.
-const PLAY_SANDBOX = 'sandbox allow-scripts allow-pointer-lock allow-popups allow-popups-to-escape-sandbox';
-function servePlayPage(res: ServerResponse) {
-  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', 'Content-Security-Policy': PLAY_SANDBOX, 'X-Content-Type-Options': 'nosniff' });
+const PLAY_SANDBOX = 'sandbox allow-scripts allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation';
+/** Local testing only: some test browsers refuse scripts from a sandboxed page on a local address. PORTAL_DEV_OPEN_PLAY=1
+ *  serves games unsandboxed, and only to requests for localhost / 127.0.0.1. Never set it on the box. */
+export const devOpenPlay = (req: IncomingMessage) => env('PORTAL_DEV_OPEN_PLAY') === '1' && /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(String(req.headers.host ?? ''));
+function servePlayPage(res: ServerResponse, req: IncomingMessage) {
+  const open = devOpenPlay(req);
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', ...(open ? {} : { 'Content-Security-Policy': PLAY_SANDBOX }), 'X-Content-Type-Options': 'nosniff' });
   fs.createReadStream(path.join(PUBLIC, 'play', 'play.html')).pipe(res);
 }
 
@@ -117,6 +124,13 @@ async function serveStatic(route: string, res: ServerResponse) {
   res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] ?? 'application/octet-stream', 'Cache-Control': path.extname(file) === '.html' ? 'no-cache' : 'public, max-age=300' });
   fs.createReadStream(file).pipe(res);
   return true;
+}
+
+/** WebSocket upgrades: only the game rooms (/v1/ws). */
+export function onUpgrade(req: IncomingMessage, socket: Duplex) {
+  socket.on('error', () => {});
+  if (new URL(req.url ?? '/', 'http://x').pathname !== '/v1/ws') return void socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
+  try { joinRoom(req, socket); } catch (e) { console.error('[portal] ws:', e); socket.destroy(); }
 }
 
 export async function handle(req: IncomingMessage, res: ServerResponse) {
@@ -179,7 +193,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
 
     // ------------------------------------------------------------ games: playing, the editor's pages
     if (method === 'GET' || method === 'HEAD') {
-      if (/^\/play\/(_draft|[a-z0-9-]+(\/v\/\d+)?)$/.test(route) && route !== '/play/runtime.js') return servePlayPage(res);
+      if (/^\/play\/(_draft|t\/[a-z0-9-]+|[a-z0-9-]+(\/v\/\d+)?)$/.test(route) && route !== '/play/runtime.js') return servePlayPage(res, req);
       let pa = /^\/play-asset\/d\/([\w-]+\.[\w-]+)\/[^/]+$/.exec(route);
       if (pa) return await servePlayAsset({ token: pa[1] }, req, res);
       pa = /^\/play-asset\/([a-z0-9-]+)\/(\d+)\/([^/]+)$/.exec(route);
@@ -213,6 +227,13 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       return send(res, 200, { packs: PACKS, firstPurchaseBonus: FIRST_PURCHASE_BONUS, stripe: { configured: s.configured, publishableKey: s.publishableKey, mode: s.mode } });
     }
     if (route === '/v1/plans' && method === 'GET') return send(res, 200, { plans: PLANS, aiCredits: AI_CREDITS() });
+    const tb = /^\/v1\/play-template\/([a-z0-9-]+)$/.exec(route);
+    if (tb && method === 'GET') {
+      const b = templateBundle(tb[1]);
+      if (!b) return send(res, 404, { error: 'No such game' });
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      return send(res, 200, b);
+    }
     if (route === '/v1/gallery' && method === 'GET') return send(res, 200, games.gallery(url.searchParams.get('sort') === 'new' ? 'new' : 'popular', Number(url.searchParams.get('limit')) || 60));
     let pb = /^\/v1\/play\/([a-z0-9-]+)$/.exec(route);
     if (pb && method === 'GET') {
@@ -288,13 +309,14 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     // ------------------------------------------------------------ games
     if (route === '/v1/games' && method === 'GET') return send(res, 200, games.listGames(user));
     if (route === '/v1/games' && method === 'POST') return send(res, 200, games.createGame(user, await readJson(req)));
+    if (route === '/v1/remix' && method === 'POST') return send(res, 200, games.remix(user, await readJson(req)));
     const inv = /^\/v1\/invites\/([\w-]+)\/accept$/.exec(route);
     if (inv && method === 'POST') return send(res, 200, games.acceptInvite(user, inv[1]));
     const gm = /^\/v1\/games\/(g_[0-9a-f]+)(?:\/(.+))?$/.exec(route);
     if (gm) {
       const [, gid, sub = ''] = gm;
       const conn = String(req.headers['x-conn'] ?? '') || undefined;
-      if (!sub && method === 'GET') return send(res, 200, { ...games.openGame(user, gid), kinds: Object.fromEntries(Object.entries(KINDS).map(([k, v]) => [k, { title: v.title, credits: v.credits }])), aiCredits: AI_CREDITS() });
+      if (!sub && method === 'GET') return send(res, 200, { ...games.openGame(user, gid), ...(devOpenPlay(req) ? { devOpenPlay: true } : {}), kinds: Object.fromEntries(Object.entries(KINDS).map(([k, v]) => [k, { title: v.title, credits: v.credits }])), aiCredits: AI_CREDITS() });
       if (!sub && (method === 'PATCH' || method === 'POST')) return send(res, 200, games.updateGame(user, gid, await readJson(req)));
       if (!sub && method === 'DELETE') return send(res, 200, games.deleteGame(user, gid));
       if (sub === 'live' && method === 'GET') {
@@ -318,6 +340,13 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       if (an && method === 'DELETE' && !an[2]) return send(res, 200, games.removeAsset(user, gid, decodeURIComponent(an[1])));
       if (an && method === 'POST' && an[2]) return send(res, 200, games.renameAsset(user, gid, decodeURIComponent(an[1]), (await readJson(req)).name));
       if (sub === 'bundle' && method === 'GET') return send(res, 200, games.draftBundle(user, gid));
+      if (sub === 'scene' && method === 'POST') {
+        const b = await readJson(req);
+        const r = games.sceneOps(user, gid, b.ops, { by: user.name ?? undefined });
+        // X-Room-Conn: the sender's own engine already shows the change.
+        if (r.applied.length) broadcastOps(gid, r.applied, user.name ?? 'Someone', typeof b.fx === 'string' ? b.fx.slice(0, 20) : null, String(req.headers['x-room-conn'] ?? '') || undefined);
+        return send(res, 200, { errors: r.errors, created: r.created, rev: r.rev });
+      }
       if (sub === 'publish' && method === 'POST') return send(res, 200, games.publish(user, gid, await readJson(req)));
       if (sub === 'live-version' && method === 'POST') return send(res, 200, games.setLive(user, gid, (await readJson(req)).version));
       const rr = /^releases\/(\d+)\/restore$/.exec(sub);
@@ -415,5 +444,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(ROOT, 'src
   watch();
   resumeTasks();
   resumeGens();
-  http.createServer((req, res) => void handle(req, res)).listen(PORT, '127.0.0.1', () => console.log(`[portal] http://127.0.0.1:${PORT}`));
+  const server = http.createServer((req, res) => void handle(req, res));
+  server.on('upgrade', onUpgrade);
+  server.listen(PORT, '127.0.0.1', () => console.log(`[portal] http://127.0.0.1:${PORT}`));
 }
