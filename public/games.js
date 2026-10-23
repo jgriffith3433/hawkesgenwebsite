@@ -1,5 +1,5 @@
-// /app: the game builder's home. Sign in, your games (and the ones friends invited you to), start a new one from a
-// template, accept an invite (/app/join/<code>), and the plan and credits that pay for the AI work.
+// /app: the game builder's home. Sign in, your games, start a new one, accept an invite (/app/join/<code>).
+// Plans and credits are shown only when the user scrolls down or needs them.
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ago = (t) => { const s = (Date.now() - t) / 1000; return s < 60 ? 'just now' : s < 3600 ? `${Math.floor(s / 60)} min ago` : s < 86400 ? `${Math.floor(s / 3600)} h ago` : `${Math.floor(s / 86400)} d ago`; };
@@ -14,7 +14,6 @@ function track(name, props) { try { window.hawkesAnalytics?.track?.(name, props)
 
 const inviteCode = (/^\/app\/join\/([\w-]+)$/.exec(location.pathname) || [])[1] || null;
 let me = null;
-let template = 'collector';
 
 // ------------------------------------------------------------------ signing in
 function bindAuth() {
@@ -71,15 +70,38 @@ async function load() {
   $('who').hidden = false;
   $('studioLink').hidden = false;
   $('credits').textContent = Number(me.credits).toLocaleString('en-US');
-  await Promise.all([loadGames(), loadPlans(), loadInvite()]);
+
+  // Handle invite first
+  if (inviteCode) {
+    await loadInvite();
+  }
+
+  // Load games — if none, auto-create and jump in
+  const r = await api('/v1/games');
+  if (!r.games.length && !inviteCode) {
+    try {
+      const g = await api('/v1/games', { body: { title: 'My Game', template: 'blank' } });
+      track('game_create', { template: 'blank', auto: true });
+      location.href = `/app/g/${g.id}`;
+      return;
+    } catch (err) {
+      $('newError').textContent = err.message;
+      $('newError').hidden = false;
+    }
+  }
+
+  renderGames(r);
   notices();
+
+  // Plans load in background, shown only if user scrolls or clicks
+  loadPlans().catch(() => {});
 }
 
 function notices() {
   const q = new URLSearchParams(location.search);
   const say = (html) => { const d = document.createElement('div'); d.className = 'notice'; d.innerHTML = `<div>${html}</div><button class="btn btn-ghost btn-sm">Dismiss</button>`; d.querySelector('button').onclick = () => d.remove(); $('notices').appendChild(d); };
-  if (q.get('plan') === 'success') say('<b>Welcome aboard.</b> Your plan is active; this month\'s credits arrive as soon as Stripe confirms the payment (usually seconds).');
-  if (q.get('billing') === 'success') say('<b>Thanks.</b> Your credits are on their way.');
+  if (q.get('plan') === 'success') { say('<b>Welcome aboard.</b> Your plan is active; this month\'s credits arrive as soon as Stripe confirms the payment (usually seconds).'); $('plansSection').hidden = false; }
+  if (q.get('billing') === 'success') { say('<b>Thanks.</b> Your credits are on their way.'); $('plansSection').hidden = false; }
   if (q.get('plan') || q.get('billing')) history.replaceState(null, '', location.pathname);
 }
 
@@ -105,37 +127,55 @@ async function loadInvite() {
   }
 }
 
-async function loadGames() {
-  const r = await api('/v1/games');
-  $('gameCount').textContent = `${r.owned} of ${r.limit} games on your plan`;
+function renderGames(r) {
   const grid = $('gameGrid');
   if (!r.games.length) {
-    grid.innerHTML = '<div class="empty" style="grid-column:1/-1">No games yet. Pick a starting point below; you can change everything about it.</div>';
+    grid.innerHTML = '<div class="empty" style="grid-column:1/-1">No games yet. Click <b>+ New game</b> to start.</div>';
   } else {
     grid.innerHTML = r.games.map((g) => `
-      <a class="game-card" href="/app/g/${g.id}">
-        <div class="cover">${esc(g.title.slice(0, 1).toUpperCase())}</div>
+      <div class="game-card" data-id="${g.id}">
+        <a href="/app/g/${g.id}" class="cover">${esc(g.title.slice(0, 1).toUpperCase())}</a>
         <div class="body">
-          <div class="title">${esc(g.title)}</div>
+          <a href="/app/g/${g.id}" class="title" style="text-decoration:none;color:#fff">${esc(g.title)}</a>
           <div class="meta"><span>${g.liveVersion ? `v${g.liveVersion} live` : 'not published'}</span><span>${g.members.length} ${g.members.length === 1 ? 'person' : 'people'}</span><span>${ago(g.updated)}</span></div>
-          <div class="meta">${g.role === 'owner' ? 'yours' : `with ${esc(g.members.find((m) => m.role === 'owner')?.name ?? '')}`}${g.plays ? ` · ${g.plays} plays` : ''}</div>
+          <div class="actions">
+            <a class="btn btn-ghost btn-sm" href="/app/g/${g.id}">Open</a>
+            ${g.role === 'owner' ? `<button class="btn btn-ghost btn-sm" style="color:var(--bad)" data-delete="${g.id}" data-title="${esc(g.title)}">Delete</button>` : ''}
+          </div>
         </div>
-      </a>`).join('');
+      </div>`).join('');
+
+    for (const btn of grid.querySelectorAll('[data-delete]')) {
+      btn.onclick = async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const title = btn.dataset.title;
+        if (!confirm(`Delete "${title}" permanently?`)) return;
+        if (!confirm('Are you sure? This cannot be undone.')) return;
+        try {
+          await api(`/v1/games/${btn.dataset.delete}`, { method: 'DELETE' });
+          track('game_delete', {});
+          const fresh = await api('/v1/games');
+          renderGames(fresh);
+        } catch (err) { alert(err.message); }
+      };
+    }
   }
-  $('templates').innerHTML = r.templates.map((t) => `<button type="button" class="template${t.id === template ? ' on' : ''}" data-id="${t.id}"><b>${esc(t.name)}</b><span>${esc(t.blurb)}</span></button>`).join('');
-  for (const b of $('templates').querySelectorAll('.template')) b.onclick = () => { template = b.dataset.id; for (const x of $('templates').children) x.classList.toggle('on', x === b); };
 }
 
-$('newForm').onsubmit = async (e) => {
-  e.preventDefault();
+// Quick create: blank game, go straight in
+$('quickCreate').onclick = async () => {
+  $('quickCreate').disabled = true;
   $('newError').hidden = true;
   try {
-    const g = await api('/v1/games', { body: { title: $('newTitle').value, template } });
-    track('game_create', { template });
+    const g = await api('/v1/games', { body: { title: 'Untitled Game', template: 'blank' } });
+    track('game_create', { template: 'blank' });
     location.href = `/app/g/${g.id}`;
   } catch (err) {
-    $('newError').innerHTML = esc(err.message) + (err.status === 402 ? ' <a href="#plans">See plans</a>' : '');
+    $('newError').textContent = err.message + (err.status === 402 ? ' You need more credits.' : '');
     $('newError').hidden = false;
+    if (err.status === 402) $('plansSection').hidden = false;
+    $('quickCreate').disabled = false;
   }
 };
 
