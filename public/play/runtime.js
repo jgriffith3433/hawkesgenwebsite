@@ -77,7 +77,8 @@
     mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top;
     // Looking around: with the pointer locked (click the game), or by dragging with the right button.
     // Looking around: with the pointer captured (click the game), or by dragging (right button, or left on nothing).
-    if (mouse.locked || (e.pointerType === 'mouse' && (mouse.look || (mouse.dragLook && (e.buttons & 1))))) { mouse.dx += e.movementX || 0; mouse.dy += e.movementY || 0; }
+    // (hooks.lookAlways: control without capture, where the browser won't capture the mouse.)
+    if (mouse.locked || (e.pointerType === 'mouse' && (mouse.look || (mouse.dragLook && (e.buttons & 1)) || (hooks.lookAlways && hooks.lookAlways()) || (softLook && mode !== 'build')))) { mouse.dx += e.movementX || 0; mouse.dy += e.movementY || 0; }
   });
   canvas.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'mouse' && e.button === 2) { mouse.look = !hooks.dragLook || hooks.dragLook(e); return; }
@@ -91,17 +92,31 @@
   document.addEventListener('pointerlockchange', () => { mouse.locked = document.pointerLockElement === canvas; for (const f of lockWatchers) f(mouse.locked); });
   const lockWatchers = [];
   /** Captures the mouse for first-person looking (the browser needs a click first). */
+  /** Resolves true once the mouse is captured, false if the browser refuses (some embedded browsers always do). */
   function lockPointer() {
-    if (touchUi || document.pointerLockElement === canvas || !canvas.requestPointerLock) return;
-    try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch {}
+    if (touchUi || !canvas.requestPointerLock) return Promise.resolve(false);
+    if (document.pointerLockElement === canvas) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      let settled = false;
+      const done = (v) => { if (!settled) { settled = true; document.removeEventListener('pointerlockchange', on); document.removeEventListener('pointerlockerror', off); resolve(v); } };
+      const on = () => done(document.pointerLockElement === canvas);
+      const off = () => done(false);
+      document.addEventListener('pointerlockchange', on);
+      document.addEventListener('pointerlockerror', off);
+      try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(off); } catch { off(); }
+      setTimeout(() => done(document.pointerLockElement === canvas), 400);
+    });
   }
   canvas.addEventListener('click', () => {
     const al = hooks.autoLock;
     if (al === false || (typeof al === 'function' && !al())) return;
     // "mouse": "free" (or an RTS view): the pointer stays a pointer.
     if (W && W.player && W.player.mouse === 'free') return;
-    if (W && W.camera && (W.camera.mode === 'fps' || W.camera.mode === 'third')) lockPointer();
+    if (W && W.camera && (W.camera.mode === 'fps' || W.camera.mode === 'third')) lockPointer().then((ok) => { if (!ok) { softLook = true; document.body.classList.add('soft-control'); } });
   });
+  // Where the browser refuses to capture the mouse: moving it over the game looks around until Esc.
+  let softLook = false;
+  window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && softLook) { softLook = false; document.body.classList.remove('soft-control'); } });
 
   // A phone or tablet, not a laptop with a touchscreen (or a desktop window made small): the device says it's mobile
   // (Chromium), or its only pointer is a finger. ?touch=1 / ?touch=0 overrides, for testing.

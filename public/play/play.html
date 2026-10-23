@@ -195,6 +195,7 @@
     .hud-controlling b { color: #6cf0ff; font-family: var(--display); text-shadow: 0 0 10px rgba(108,240,255,.8); }
     .hud-controlling kbd { font: 700 10px var(--display); padding: 1px 5px; border: 1px solid rgba(160,220,255,.5); color: #fff; }
     .hud-controlling[hidden] { display: none; }
+    body.soft-control #stage { cursor: none; }
     #hud.playing .hud-control, #hud.playing .hud-controlling { display: none !important; }
     /* The weapon HUD (gameplay.js) */
     .wp-hud[hidden] { display: none; }
@@ -234,10 +235,10 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/babylonjs@7.54.3/babylon.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/babylonjs-loaders@7.54.3/babylonjs.loaders.min.js"></script>
-  <script src="/play/runtime.js?v=engine7"></script>
-  <script src="/play/behaviors.js?v=engine7"></script>
-  <script src="/play/net.js?v=engine7"></script>
-  <script src="/play/gameplay.js?v=engine7"></script>
+  <script src="/play/runtime.js?v=engine8"></script>
+  <script src="/play/behaviors.js?v=engine8"></script>
+  <script src="/play/net.js?v=engine8"></script>
+  <script src="/play/gameplay.js?v=engine8"></script>
   <script>
     // A game, not a page: no pinch or double-tap zoom, no ctrl+wheel zoom, no text selection or long-press menus.
     ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (t) { document.addEventListener(t, function (e) { e.preventDefault(); }, { passive: false }); });
@@ -257,7 +258,7 @@
       var loading = document.getElementById('loading');
       if (slug === '_draft') {
         var s = document.createElement('script');
-        s.src = '/play/build.js?v=engine7';
+        s.src = '/play/build.js?v=engine8';
         s.onload = function () { window.parent.postMessage({ source: 'hawkes-play', type: 'ready' }, '*'); };
         document.body.appendChild(s);
         window.addEventListener('message', function (e) {

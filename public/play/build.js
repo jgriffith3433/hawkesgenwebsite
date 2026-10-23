@@ -130,12 +130,22 @@
   ];
   $('hudMode').onclick = () => setMode(H.mode === 'build' ? 'play' : 'build');
   // Building: the mouse is a pointer until you take control (the click has to happen in this frame to capture it).
-  $('hudControl').onclick = (e) => { e.stopPropagation(); if (popup) closePopup(); H.lockPointer(); };
-  const controlling = () => H.mode !== 'build' || touchUi || H.input.mouse.locked;
+  // If the browser won't capture the mouse, control still works: the cursor hides and moving the mouse looks around.
+  let soft = false;
+  $('hudControl').onclick = async (e) => {
+    e.stopPropagation();
+    if (popup) closePopup();
+    const locked = await H.lockPointer();
+    if (!locked) { soft = true; document.body.classList.add('soft-control'); }
+    syncControl();
+  };
+  function release() { if (soft) { soft = false; document.body.classList.remove('soft-control'); } if (document.pointerLockElement) document.exitPointerLock(); if (grab && !grab.touch) dropGrab(false); syncControl(); }
+  const controlling = () => H.mode !== 'build' || touchUi || H.input.mouse.locked || soft;
   H.hooks.canMove = controlling;
+  H.hooks.lookAlways = () => soft && H.mode === 'build';
   document.addEventListener('pointerlockchange', () => { syncControl(); if (!document.pointerLockElement && grab && !grab.touch) dropGrab(false); });
   function syncControl() {
-    const on = H.mode === 'build' && !touchUi && H.input.mouse.locked;
+    const on = H.mode === 'build' && !touchUi && (H.input.mouse.locked || soft);
     $('hudControl').hidden = H.mode !== 'build' || touchUi || on;
     $('hudControlling').hidden = !on;
   }
@@ -143,6 +153,7 @@
   function toast(text) { const t = $('hudToast'); t.textContent = text; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 1800); }
 
   function setMode(m) {
+    if (soft) release();
     closePopup();
     dropGrab(false);
     if (m === 'build' && document.pointerLockElement) document.exitPointerLock();
@@ -169,11 +180,11 @@
     const cam = scene.activeCamera;
     const input = H.input;
     if (grab && grab.touch) return scene.createPickingRay(grab.sx, grab.sy, B.Matrix.Identity(), cam);
-    if (input.mouse.locked || touchUi || W().camera.mode === 'fps' && !hoverMode()) return cam.getForwardRay(200);
+    if (input.mouse.locked || soft || touchUi || W().camera.mode === 'fps' && !hoverMode()) return cam.getForwardRay(200);
     return scene.createPickingRay(input.mouse.x, input.mouse.y, B.Matrix.Identity(), cam);
   }
   // Desktop without the mouse captured: point at things with the mouse, like an editor.
-  const hoverMode = () => !touchUi && !H.input.mouse.locked;
+  const hoverMode = () => !touchUi && !H.input.mouse.locked && !soft;
   function pickAt(ray) {
     const w = W();
     const r = w.scene.pickWithRay(ray, (m) => { const en = H.entityOf(m); return Boolean(en && en.alive && en !== w.player && m.isEnabled() && m.isPickable !== false && !(m.metadata && m.metadata.decor) && !(grab && en === grab.e)); });
@@ -208,7 +219,7 @@
     if (touchUi) { h.textContent = target ? 'HOLD TO GRAB · DOUBLE-TAP TO EDIT' : 'DRAG TO LOOK · + TO CREATE'; return; }
     h.textContent = target
       ? (canGrab(target) ? 'HOLD TO GRAB · DOUBLE-CLICK TO EDIT' : 'DOUBLE-CLICK TO EDIT')
-      : (H.input.mouse.locked ? '' : 'TAKE CONTROL TO MOVE · POINT AT SOMETHING TO GRAB OR EDIT · ENTER: ASSISTANT');
+      : (H.input.mouse.locked || soft ? '' : 'TAKE CONTROL TO MOVE · POINT AT SOMETHING TO GRAB OR EDIT · ENTER: ASSISTANT');
   }
   function highlight() {
     const w = W();
@@ -321,7 +332,7 @@
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Tab') { e.preventDefault(); setMode(H.mode === 'build' ? 'play' : 'build'); }
     // Esc: closes the card or the handles; otherwise (the mouse is already free) the menu, like a game.
-    if (e.key === 'Escape') { if (popup) closePopup(); else if (gizmos && gizmos.target) toggleGizmo(null); else toParent({ type: 'menu' }); }
+    if (e.key === 'Escape') { if (soft) release(); else if (popup) closePopup(); else if (gizmos && gizmos.target) toggleGizmo(null); else toParent({ type: 'menu' }); }
   });
 
   function removeThing(e) {
