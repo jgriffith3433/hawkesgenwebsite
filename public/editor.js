@@ -165,7 +165,7 @@ window.addEventListener('message', async (e) => {
     }
     case 'context': { const w = contextWaits.get(m.id); if (w) { contextWaits.delete(m.id); w(m.context); } return; }
     case 'ask': await sendChat(m.text, m.mention, m.context); return;
-    case 'focus-chat': setMention(m.mention); openAssistant(); $('chatInput').focus(); return;
+    case 'focus-chat': setMention(m.mention); $('chatInput').focus(); return;
     case 'generate': try { await post(`${API}/games/${gameId}/generate`, { kind: m.kind, prompt: m.prompt, name: m.name }); } catch (err) { addSystem(err.message); } return;
     case 'open-code': openDrawer('code'); openFile('scene.json'); if (m.entity) revealEntity(m.entity); return;
     case 'net': if (m.conn) roomConn = m.conn; return;
@@ -325,7 +325,7 @@ function renderChat(fresh) {
     renderChat.t = setTimeout(() => $('ai').classList.remove('recent'), 6000);
   }
 }
-function addSystem(text) { chatHistory.push({ id: `local_${Date.now()}`, role: 'system', text }); renderChat(); openAssistant(); }
+function addSystem(text) { chatHistory.push({ id: `local_${Date.now()}`, role: 'system', text }); renderChat(); }
 function setMention(m) {
   mention = m && m.id ? m : null;
   $('mention').hidden = !mention;
@@ -339,7 +339,7 @@ $('chatInput').addEventListener('keydown', (e) => {
   if (e.key === 'Backspace' && !$('chatInput').value && mention) setMention(null);
 });
 /** Done typing: back into the game (Enter sends, Esc just goes back). */
-function backToGame() { $('chatInput').blur(); $('ai').classList.remove('sheet'); stage.focus(); }
+function backToGame() { $('chatInput').blur(); stage.focus(); }
 
 async function sendChat(text, about, ctx) {
   const input = $('chatInput');
@@ -359,8 +359,6 @@ async function sendChat(text, about, ctx) {
     if (text === undefined) input.value = message;
   }
 }
-function openAssistant() { $('ai').classList.add('sheet'); }
-$('aiFab').onclick = () => { openAssistant(); $('chatInput').focus(); };
 
 // ===================================================================== generation (Hawkes Gen making assets)
 function onGen(row) {
