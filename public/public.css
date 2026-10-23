@@ -111,6 +111,7 @@ textarea.form-input { resize: vertical; }
   background: rgba(0,0,0,0.7);
   display: grid; place-items: center; padding: 24px;
 }
+.hg-modal-backdrop[hidden] { display: none; }
 .hg-modal {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--r-lg); padding: 28px; width: 100%; max-width: 480px;
@@ -121,6 +122,7 @@ textarea.form-input { resize: vertical; }
   background: rgba(0,0,0,0.7);
   display: grid; place-items: center; padding: 24px;
 }
+.modal-backdrop[hidden] { display: none; }
 .modal {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--r-lg); padding: 24px; width: 100%;
