@@ -80,7 +80,7 @@
     if (mouse.locked || (e.pointerType === 'mouse' && (mouse.look || (mouse.dragLook && (e.buttons & 1))))) { mouse.dx += e.movementX || 0; mouse.dy += e.movementY || 0; }
   });
   canvas.addEventListener('pointerdown', (e) => {
-    if (e.pointerType === 'mouse' && e.button === 2) { mouse.look = true; return; }
+    if (e.pointerType === 'mouse' && e.button === 2) { mouse.look = !hooks.dragLook || hooks.dragLook(e); return; }
     if (e.pointerType !== 'mouse') return;
     mouse.down = true; mouse.pressed = true; unlockAudio(); canvas.focus(); clickPick(e);
     mouse.dragLook = e.button === 0 && !mouse.locked && (!hooks.dragLook || hooks.dragLook(e));
@@ -1121,6 +1121,7 @@
   function controlPlayer(dt) {
     const p = W.player;
     if (!p || !p.alive || !p.controls || W.camera.target !== p) return;
+    if (hooks.canMove && !hooks.canMove()) { if (!p.flying) p.walk({ x: 0, z: 0 }, 0); else { p.velocity = [0, 0, 0]; p._walked = true; } return; }
     // Flying a plane (config.player.mode "flight"): always moving forward, steered by where you look.
     if (p.mode === 'flight' && mode !== 'build') {
       p.gravity = 0;

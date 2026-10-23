@@ -167,7 +167,12 @@ window.addEventListener('message', async (e) => {
     case 'net': if (m.conn) roomConn = m.conn; return;
     case 'mode': return;
     case 'menu': openMenu(); return;
-    case 'card': $('ai').classList.toggle('dim', Boolean(m.open)); return;
+    case 'card': return;
+    case 'selected':
+      // What you opened is what you're talking about: it shows in the assistant's line as @name.
+      if (m.entity && m.entity.id) setMention({ id: m.entity.id, name: m.entity.name || m.entity.id, fromCard: true });
+      else if (mention && mention.fromCard && !$('chatInput').value.trim()) setMention(null);
+      return;
     case 'library': toggleLibrary(); return;
     case 'basics': basics = m.list || []; if (libKind === 'basics' && $('library').classList.contains('open')) loadLibrary(); return;
   }
@@ -301,6 +306,7 @@ function setMention(m) {
   mention = m && m.id ? m : null;
   $('mention').hidden = !mention;
   if (mention) $('mentionName').textContent = `@${mention.name || mention.id}`;
+  $('chatInput').placeholder = mention ? `Tell the assistant what ${mention.name || 'it'} should do…` : 'Press Enter to talk to the assistant';
 }
 $('mentionX').onclick = () => setMention(null);
 $('chatForm').onsubmit = (e) => { e.preventDefault(); sendChat(); };

@@ -107,6 +107,8 @@
       <span class="hud-net" id="hudNet"></span>
     </div>
     <div class="hud-toast" id="hudToast"></div>
+    <button class="hud-control" id="hudControl" type="button" title="Take control: move and look around (Esc to stop)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.2" stroke="currentColor" stroke-width="1.4"/><path d="M8 1v3M8 12v3M1 8h3M12 8h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span>Take control</span></button>
+    <div class="hud-controlling" id="hudControlling" hidden><b>CONTROLLING</b> · WASD MOVE · E/Q UP & DOWN · <kbd>ESC</kbd> TO RELEASE</div>
     <svg class="hud-leader" id="hudLeader"><line id="hudLine"/><circle id="hudDot" r="4"/></svg>
     <div class="hud-touch" id="hudTouch" hidden>
       <button class="tbtn" id="tGrab" type="button">✋<span>Grab</span></button>
@@ -127,6 +129,16 @@
     { k: '0', icon: '◉', label: 'Checkpoint', make: () => ({ type: 'waypoint', name: 'Checkpoint', shape: { radius: 1.6 }, data: { role: 'checkpoint' } }) },
   ];
   $('hudMode').onclick = () => setMode(H.mode === 'build' ? 'play' : 'build');
+  // Building: the mouse is a pointer until you take control (the click has to happen in this frame to capture it).
+  $('hudControl').onclick = (e) => { e.stopPropagation(); if (popup) closePopup(); H.lockPointer(); };
+  const controlling = () => H.mode !== 'build' || touchUi || H.input.mouse.locked;
+  H.hooks.canMove = controlling;
+  document.addEventListener('pointerlockchange', () => { syncControl(); if (!document.pointerLockElement && grab && !grab.touch) dropGrab(false); });
+  function syncControl() {
+    const on = H.mode === 'build' && !touchUi && H.input.mouse.locked;
+    $('hudControl').hidden = H.mode !== 'build' || touchUi || on;
+    $('hudControlling').hidden = !on;
+  }
   let toastT = 0;
   function toast(text) { const t = $('hudToast'); t.textContent = text; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 1800); }
 
@@ -147,6 +159,7 @@
     $('hudMode').children[1].classList.toggle('on', !building);
     // The editor's bar sits over the top of the game, and the hotbar over the bottom while building.
     H.hooks.uiTop = 64;
+    syncControl();
     H.hooks.uiBottom = 90;
   }
 
@@ -195,7 +208,7 @@
     if (touchUi) { h.textContent = target ? 'HOLD TO GRAB · DOUBLE-TAP TO EDIT' : 'DRAG TO LOOK · + TO CREATE'; return; }
     h.textContent = target
       ? (canGrab(target) ? 'HOLD TO GRAB · DOUBLE-CLICK TO EDIT' : 'DOUBLE-CLICK TO EDIT')
-      : 'WASD MOVE · E/Q UP & DOWN · DRAG TO LOOK · ENTER: ASSISTANT';
+      : (H.input.mouse.locked ? '' : 'TAKE CONTROL TO MOVE · POINT AT SOMETHING TO GRAB OR EDIT · ENTER: ASSISTANT');
   }
   function highlight() {
     const w = W();
@@ -385,11 +398,11 @@
     if (popup) { closePopup(); return; }
     down = { t: performance.now(), x: ev.clientX, y: ev.clientY, e: target, started: false, moved: 0 };
   }, true);
-  H.hooks.dragLook = () => H.mode !== 'build' || !target || !canGrab(target);
+  H.hooks.dragLook = () => H.mode !== 'build' ? !target || !canGrab(target) : touchUi;
   canvas.addEventListener('pointermove', (ev) => {
     if (!down || down.started || ev.pointerType !== 'mouse') return;
     down.moved = Math.abs(ev.clientX - down.x) + Math.abs(ev.clientY - down.y);
-    if (!down.e || !canGrab(down.e)) return; // dragging on nothing (or the floor) looks around
+    if (!down.e || !canGrab(down.e)) return; // dragging on nothing does nothing while building
     if (down.moved > 6 || (ev.movementX || ev.movementY) && H.input.mouse.locked) beginHold();
   });
   function beginHold() { if (down && !down.started && down.e) { down.started = startGrab(down.e); } }
@@ -470,6 +483,7 @@
     popup.el.remove();
     popup = null;
     toParent({ type: 'card', open: false });
+    toParent({ type: 'selected', entity: null });
     $('hudLeader').classList.remove('on');
   }
   function renderCard() {
@@ -481,6 +495,8 @@
     const color = isLight ? (spec.light && spec.light.color) || '#ffffff' : (spec.material && spec.material.color) || e.color || '#cccccc';
     const behaviors = (spec.behaviors || []).map((b, i) => { const name = typeof b === 'string' ? b : b.use || b.type; const def = H.behaviorDef(name); return `<span class="chip" title="${esc(def && def.says ? def.says({ ...(def.defaults || {}), ...b }) : name)}">${esc(def ? def.title : name)}<button type="button" data-unb="${i}" aria-label="Remove">×</button></span>`; }).join('');
     const menu = (H.behaviorMenu || []).map(([k, t]) => `<option value="${k}">${esc(t)}</option>`).join('');
+    if (!popup.full) return renderSimple(e, el, spec, isLight, color);
+    el.className = 'card';
     const scaleNow = e.node.scaling.x / (popup.scale0.x || 1);
     el.innerHTML = `
       <div class="card-head">
@@ -564,11 +580,74 @@
     if (gz) gz.onclick = () => toggleGizmo(W().byId.get(e.sceneId) || e);
     function refresh() { setTimeout(() => { if (popup) { popup.e = W().byId.get(e.sceneId) || popup.e; renderCard(); } }, 0); }
   }
+  /** The first card: just the name, a color wheel, a size slider and a round More button, floating with no box. */
+  function renderSimple(e, el, spec, isLight, color) {
+    el.className = 'card simple';
+    const scaleNow = e.node.scaling.x / (popup.scale0.x || 1);
+    const bright = (spec.light && spec.light.intensity) ?? 1;
+    el.innerHTML = `
+      <div class="card-head"><span class="sc-name">${esc(e.name || describe(e).name)}</span><button type="button" class="sc-x" id="cClose" aria-label="Close">×</button></div>
+      <div class="sc-body">
+        <div class="sc-wheel" id="cWheel" title="Color: around for the hue, toward the middle for paler"><i class="sc-dot" id="cDot" style="background:${esc(color)}"></i></div>
+        <div class="sc-side">
+          <div class="sc-neutrals">${['#ffffff', '#b8bfcc', '#6b7280', '#2b2f3a', '#0b0d12', '#b07a45'].map((c) => `<button type="button" data-c="${c}" style="background:${c}" aria-label="${c}"></button>`).join('')}</div>
+          <label class="sc-label">${isLight ? 'Brightness' : 'Size'}</label>
+          <input type="range" class="sc-range" id="${isLight ? 'cBright' : 'cSize'}" min="${isLight ? 0 : 0.2}" max="4" step="${isLight ? 0.1 : 0.05}" value="${isLight ? bright : scaleNow.toFixed(2)}">
+        </div>
+        <button type="button" class="sc-more" id="cMore" title="More: how it moves, what it does, copy, remove…" aria-label="More"><span></span><span></span><span></span></button>
+      </div>`;
+    const q = (id) => el.querySelector(`#${id}`);
+    q('cClose').onclick = closePopup;
+    q('cMore').onclick = () => { popup.full = true; renderCard(); };
+    const live = () => W().byId.get(e.sceneId);
+    const setColor = (c, save) => {
+      q('cDot').style.background = c;
+      const x = live();
+      if (x && !isLight) x.color = c;
+      if (x && isLight && x._light) x._light.diffuse = BABYLON.Color3.FromHexString(c);
+      if (save) update(x || e, isLight ? { light: { color: c } } : { material: { color: c } }, 'color');
+    };
+    for (const b of el.querySelectorAll('[data-c]')) b.onclick = () => setColor(b.dataset.c, true);
+    // The wheel: the angle is the hue, the distance from the middle the strength.
+    const wheel = q('cWheel');
+    let picking = false, last = null;
+    const pick = (ev) => {
+      const r = wheel.getBoundingClientRect();
+      const x = ev.clientX - (r.left + r.width / 2), y = ev.clientY - (r.top + r.height / 2);
+      const sat = Math.min(1, Math.hypot(x, y) / (r.width / 2));
+      const hue = ((Math.atan2(x, -y) * 180 / Math.PI) + 360) % 360;
+      last = hsl(hue, sat * 100, 55 - sat * 5);
+      setColor(last, false);
+    };
+    wheel.addEventListener('pointerdown', (ev) => { picking = true; wheel.setPointerCapture(ev.pointerId); pick(ev); });
+    wheel.addEventListener('pointermove', (ev) => { if (picking) pick(ev); });
+    const done = () => { if (picking && last) setColor(last, true); picking = false; };
+    wheel.addEventListener('pointerup', done);
+    wheel.addEventListener('pointercancel', done);
+    const size = q('cSize');
+    if (size) {
+      size.oninput = () => { const x = live(); if (x) { const k = Number(size.value); x.node.scaling.set(popup.scale0.x * k, popup.scale0.y * k, popup.scale0.z * k); x.measure(); } };
+      size.onchange = () => { const x = live(); if (x) update(x, { transform: { scale: [r2(x.node.scaling.x), r2(x.node.scaling.y), r2(x.node.scaling.z)] } }, 'size'); };
+    }
+    const br = q('cBright');
+    if (br) {
+      br.oninput = () => { const x = live(); if (x && x._light) x._light.intensity = Number(br.value); };
+      br.onchange = () => update(live() || e, { light: { intensity: Number(br.value) } }, 'brightness');
+    }
+  }
+  function hsl(h, s, l) {
+    s /= 100; l /= 100;
+    const k = (n) => (n + h / 30) % 12;
+    const a = s * Math.min(l, 1 - l);
+    const f = (n) => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))))).toString(16).padStart(2, '0');
+    return `#${f(0)}${f(8)}${f(4)}`;
+  }
+
   /** Cards can be dragged by their top out of the way; then they stay where they were put. */
   function dragCard(el) {
     let start = null;
     el.addEventListener('pointerdown', (ev) => {
-      const head = ev.target.closest('.card-head, .card-kind');
+      const head = ev.target.closest('.card-head, .card-kind, .sc-name');
       if (!head || ev.target.closest('input, button')) return;
       const m = /translate\((-?[\d.]+)px, (-?[\d.]+)px\)/.exec(el.style.transform) || [0, 0, 0];
       start = { x: ev.clientX, y: ev.clientY, ox: Number(m[1]), oy: Number(m[2]) };

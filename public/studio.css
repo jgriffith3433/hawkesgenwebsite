@@ -237,3 +237,8 @@ body.studio.touch .st-chat { bottom: calc(max(12px, env(safe-area-inset-bottom))
 .st-menu-sheet h3 { font: 700 15px var(--display); letter-spacing: .14em; text-transform: uppercase; }
 .st-error-pill { border-radius: 0; clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); font: 700 11px var(--display); letter-spacing: .1em; padding: 9px 16px; }
 .boot-logo { font-family: var(--display); }
+
+/* The game's Take control button sits left of the code button: saving and errors go under it */
+.st-corner.right { flex-direction: column; align-items: flex-end; gap: 6px; }
+.st-corner.right #advancedBtn { order: -1; }
+.st-corner.right .st-error-panel { top: auto; bottom: auto; right: 0; margin-top: 8px; position: absolute; }
