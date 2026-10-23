@@ -104,9 +104,14 @@ async function load() {
 /** Came from a game's Remix button (?remix=<slug>, or ?template=<id> for an Overseer game): make the copy and go in. */
 async function remixFromLink() {
   const q = new URLSearchParams(location.search);
-  const slug = q.get('remix'), tpl = q.get('template');
-  if (!slug && !tpl) return;
+  const slug = q.get('remix'), tpl = q.get('template'), build = q.get('build');
+  if (!slug && !tpl && !build) return;
   history.replaceState(null, '', location.pathname);
+  // ?build=<slug>: "Help build" on a live game the owner opened to visitors.
+  if (build) {
+    try { const g = await api(`/v1/play/${encodeURIComponent(build)}/join`, { body: {} }); enterGame(`/app/g/${g.id}`, { label: 'JOINING' }); } catch (e) { alert(e.message); }
+    return;
+  }
   try {
     const g = tpl
       ? await api('/v1/games', { body: { title: `${OVERSEER_GAMES.find((o) => o.template === tpl)?.title || 'My'} remix`, template: tpl } })
