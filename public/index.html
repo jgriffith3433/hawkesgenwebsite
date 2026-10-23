@@ -9,19 +9,13 @@
   <link rel="stylesheet" href="/public.css">
   <link rel="stylesheet" href="/site.css">
   <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
+  <script src="/sitenav.js" defer></script>
 </head>
 <body class="landing">
   <header class="hg-navbar">
     <div class="wrap hg-navbar-inner">
       <a href="/" class="hg-brand"><span class="wordmark">Hawkes Gen</span></a>
-      <nav class="hg-nav-links">
-        <a href="/games">Play games</a>
-        <a href="/entities">Engine</a>
-        <a href="#features">Features</a>
-        <a href="#pricing">Pricing</a>
-        <a href="#assets">Asset Studio</a>
-        <a href="/connect">For developers</a>
-      </nav>
+      <nav class="hg-nav-links" data-site-nav><a href="/games">Games</a><a href="/community">Community library</a><a href="/entities">Engine codex</a><a href="/app/studio">Asset Studio</a><a href="/#pricing">Pricing</a><a href="/connect">For developers</a></nav>
       <div class="hg-nav-actions">
         <button type="button" class="btn btn-ghost" data-open-auth="login">Sign in</button>
         <button type="button" class="btn btn-primary" data-open-auth="signup">Create account</button>
@@ -53,7 +47,7 @@
             </div>
             <div style="display:flex;align-items:center;gap:12px">
               <span style="font:600 14px var(--sans);color:var(--accent)">3</span>
-              <span style="font:14px var(--sans)">Ask for art: "Generate a forest background" or music</span>
+              <span style="font:14px var(--sans)">Ask for art and music, or grab free models, textures and sounds from the <a href="/community">community library</a></span>
             </div>
             <div style="display:flex;align-items:center;gap:12px">
               <span style="font:600 14px var(--sans);color:var(--accent)">4</span>
@@ -141,10 +135,37 @@
       </div>
     </section>
 
+    <section class="section" id="community">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="label">02 — Community library</div>
+          <div>
+            <h2>Start with a whole library. Free.</h2>
+            <p>3D models, textures, skies, sprites, music, ambience and sound effects, made by Hawkes and shared by builders, sorted into shelves you can browse and search.
+              Every one is free to use in your game: pick it in the editor, or ask the assistant for "a wooden crate" or "rain sounds" and it offers what fits before making anything new.</p>
+          </div>
+        </div>
+        <div class="lib-kinds" id="libKinds">
+          <a class="lib-kind" href="/community?kind=model"><b>3D models</b><span>props · nature · rocks · buildings · furniture · sci-fi · fantasy · vehicles · food · weapons · toys</span><em data-n="model"></em></a>
+          <a class="lib-kind" href="/community?kind=texture"><b>Textures</b><span>stone · wood · ground · metal · sci-fi · fabric, all seamless</span><em data-n="texture"></em></a>
+          <a class="lib-kind" href="/community?kind=sky"><b>Skies</b><span>day and night, 360° panoramas</span><em data-n="sky"></em></a>
+          <a class="lib-kind" href="/community?kind=sprite"><b>Sprites &amp; icons</b><span>icons · effects, transparent</span><em data-n="sprite"></em></a>
+          <a class="lib-kind" href="/community?kind=music"><b>Music</b><span>action · calm · spooky · retro · menu</span><em data-n="music"></em></a>
+          <a class="lib-kind" href="/community?kind=ambience"><b>Ambience</b><span>nature · places, seamless loops</span><em data-n="ambience"></em></a>
+          <a class="lib-kind" href="/community?kind=sfx"><b>Sound effects</b><span>weapons · impacts · pickups · UI · movement · world · creatures</span><em data-n="sfx"></em></a>
+        </div>
+        <div class="lib-peek" id="libPeek" hidden></div>
+        <div class="actions" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:24px">
+          <a class="btn btn-primary btn-lg" href="/community">Browse the library</a>
+          <button type="button" class="btn btn-secondary btn-lg" data-open-auth="signup">Build with it</button>
+        </div>
+      </div>
+    </section>
+
     <section class="section unity" id="assets">
       <div class="wrap unity-grid">
         <div>
-          <div class="label">02 — Asset Studio</div>
+          <div class="label">03 — Asset Studio</div>
           <h2 style="font:600 48px/1.02 var(--sans);letter-spacing:-.02em;margin:14px 0 16px">Need custom game assets?</h2>
           <p class="muted" style="font-size:17px;max-width:34em;margin:0 0 20px">Generate sprites, 3D models, sounds, and music with AI. Available in the game builder, or use our Unity plugin, CLI, or connect to your code editor.</p>
           <ul class="unity-list">
@@ -176,7 +197,7 @@
     <section class="section" id="tools">
       <div class="wrap">
         <div class="section-head">
-          <div class="label">03 — Tools</div>
+          <div class="label">04 — Tools</div>
           <div>
             <h2>One account, every kind of asset.</h2>
             <p>Each tool is a tested pipeline: the right model on the right GPU, with the settings worked out. Prices are quoted before you run, in credits (1 credit = $0.01).</p>
@@ -201,7 +222,7 @@
     <section class="section" id="how">
       <div class="wrap">
         <div class="section-head">
-          <div class="label">04 — Billing</div>
+          <div class="label">05 — Billing</div>
           <div><h2>Your credits work hard.</h2></div>
         </div>
         <div class="steps">
@@ -215,7 +236,7 @@
     <section class="section" id="work">
       <div class="wrap">
         <div class="section-head">
-          <div class="label">05 — Work</div>
+          <div class="label">06 — Work</div>
           <div>
             <h2>Built with it.</h2>
             <p>We make games, and Hawkes Gen is how we make their art, animation and sound. These are live.</p>
@@ -253,7 +274,7 @@
     <section class="section" id="pricing">
       <div class="wrap">
         <div class="section-head">
-          <div class="label">06 — Pricing</div>
+          <div class="label">07 — Pricing</div>
           <div>
             <h2>Plans for every creator.</h2>
             <p>Start free, upgrade when you're ready. Every plan includes monthly AI credits for the assistant, art, models, sound and music. Unused credits roll over.</p>
@@ -291,7 +312,7 @@
     <section class="section" id="api">
       <div class="wrap">
         <div class="section-head">
-          <div class="label">07 — API</div>
+          <div class="label">08 — API</div>
           <div>
             <h2>Your pipeline, not ours.</h2>
             <p>Everything in the app is an HTTP call, and an MCP server: connect Claude Code, Cursor, VS Code or Claude at <a href="/connect">hawkesgen.com/connect</a> and ask for assets in plain words. Or make a key and call it from build scripts, tools or your engine.</p>
@@ -425,5 +446,23 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
     }).catch(() => {});
   </script>
   <script src="/enter.js"></script>
+  <script>
+    // The community library section: real counts per kind and a few real things (nothing shown that isn't there).
+    (async () => {
+      try {
+        const c = await (await fetch('/v1/community/categories')).json();
+        for (const k of c.kinds ?? []) { const el = document.querySelector('[data-n="' + k.kind + '"]'); if (el) el.textContent = k.count + (k.count === 1 ? ' thing' : ' things'); }
+        for (const el of document.querySelectorAll('#libKinds em:empty')) el.textContent = 'being stocked';
+        if (!c.total) return;
+        const r = await (await fetch('/v1/community?limit=8&sort=liked')).json();
+        const pics = (r.items ?? []).filter((x) => x.thumb).slice(0, 6);
+        if (!pics.length) return;
+        const esc = (s) => String(s).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+        const peek = document.getElementById('libPeek');
+        peek.innerHTML = pics.map((x) => '<a href="/community?open=' + encodeURIComponent(x.id) + '"><img src="' + esc(x.thumb) + '" alt="" loading="lazy"><span>' + esc(x.title) + '</span></a>').join('');
+        peek.hidden = false;
+      } catch {}
+    })();
+  </script>
 </body>
 </html>

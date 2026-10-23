@@ -24,12 +24,14 @@
     .legal .updated { margin: 14px 0 0; font: 12px var(--mono); color: var(--ink-3); }
     @media (max-width: 800px) { .legal { grid-template-columns: 1fr; gap: 24px; } .legal nav { position: static; grid-auto-flow: column; justify-content: start; gap: 18px; } }
   </style>
+  <script src="/sitenav.js" defer></script>
 </head>
 <body class="landing">
   <header class="hg-navbar">
     <div class="wrap hg-navbar-inner">
       <a href="/" class="hg-brand"><span class="wordmark">Hawkes Gen</span></a>
-      <div class="hg-nav-actions"><a class="btn btn-ghost" href="/">Home</a><a class="btn btn-primary" href="/app">Open the studio</a></div>
+      <nav class="hg-nav-links" data-site-nav><a href="/games">Games</a><a href="/community">Community library</a><a href="/entities">Engine codex</a><a href="/app/studio">Asset Studio</a><a href="/#pricing">Pricing</a><a href="/connect">For developers</a></nav>
+      <div class="hg-nav-actions"><a class="btn btn-primary" href="/app">Open the studio</a></div>
     </div>
   </header>
 

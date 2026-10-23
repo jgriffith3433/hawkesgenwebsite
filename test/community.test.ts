@@ -12,14 +12,14 @@ const seen: { url: string; as?: string }[] = [];
 // Assets by id: the project that owns each one.
 const assets: Record<string, any> = {};
 const put = (a: any) => (assets[a.id] = a);
-const starterLabels = (kind: string, name: string, tags: string) => ({ pack: 'starter', community: true, kind, name, tags });
-put({ id: 'a_b0', project: STARTER, job: 'j_ball', title: 'front', kind: 'image', mime: 'image/png', labels: starterLabels('model', 'Ball', 'toys ball sphere bouncy') });
-put({ id: 'a_b1', project: STARTER, job: 'j_ball', title: 'cutout', kind: 'image', mime: 'image/png', labels: starterLabels('model', 'Ball', 'toys ball sphere bouncy') });
-put({ id: 'a_b2', project: STARTER, job: 'j_ball', title: 'model', kind: 'mesh', mime: 'model/gltf-binary', bytes: 900_000, labels: starterLabels('model', 'Ball', 'toys ball sphere bouncy') });
-put({ id: 'a_b3', project: STARTER, job: 'j_ball', title: 'model 2', kind: 'mesh', mime: 'model/gltf-binary', bytes: 90_000, labels: starterLabels('model', 'Ball', 'toys ball sphere bouncy') });
-put({ id: 'a_c1', project: STARTER, job: 'j_child', title: 'high', kind: 'mesh', mime: 'model/gltf-binary', labels: starterLabels('model', 'Ball', 'toys') });
-put({ id: 'a_r1', project: STARTER, job: 'j_rain', title: 'ambience', kind: 'audio', mime: 'audio/mpeg', labels: starterLabels('ambience', 'Rain', 'ambience rain weather storm') });
-put({ id: 'a_g1', project: STARTER, job: 'j_grass', title: 'texture', kind: 'image', mime: 'image/png', labels: starterLabels('texture', 'Grass', 'ground grass lawn') });
+const starterLabels = (kind: string, name: string, tags: string) => ({ pack: 'starter', community: true, kind, tag: tags.split(' ')[0], name, tags });
+put({ id: 'a_b0', project: STARTER, tool: 'asset.make', job: 'j_ball', title: 'front', kind: 'image', mime: 'image/png', labels: starterLabels('model', 'Ball', 'toys ball sphere bouncy') });
+put({ id: 'a_b1', project: STARTER, tool: 'asset.make', job: 'j_ball', title: 'cutout', kind: 'image', mime: 'image/png', labels: starterLabels('model', 'Ball', 'toys ball sphere bouncy') });
+put({ id: 'a_b2', project: STARTER, tool: 'asset.make', job: 'j_ball', title: 'model.high', kind: 'mesh', mime: 'model/gltf-binary', bytes: 900_000, labels: starterLabels('model', 'Ball', 'toys ball sphere bouncy') });
+put({ id: 'a_b3', project: STARTER, tool: 'asset.make', job: 'j_ball', title: 'model.lod1', kind: 'mesh', mime: 'model/gltf-binary', bytes: 90_000, labels: starterLabels('model', 'Ball', 'toys ball sphere bouncy') });
+put({ id: 'a_c1', project: STARTER, tool: 'blender.character', job: 'j_child', title: 'high', kind: 'mesh', mime: 'model/gltf-binary', labels: starterLabels('model', 'Ball', 'toys') });
+put({ id: 'a_r1', project: STARTER, tool: 'asset.make', job: 'j_rain', title: 'ambience', kind: 'audio', mime: 'audio/mpeg', labels: starterLabels('ambience', 'Rain', 'ambience rain weather storm') });
+put({ id: 'a_g1', project: STARTER, tool: 'asset.make', job: 'j_grass', title: 'texture', kind: 'image', mime: 'image/png', labels: starterLabels('texture', 'Grass', 'ground grass lawn') });
 
 const fakeGen = http.createServer((req, res) => {
   const as = req.headers['x-hawkesgen-project'] as string | undefined;
@@ -27,7 +27,14 @@ const fakeGen = http.createServer((req, res) => {
   const url = new URL(req.url!, 'http://gen');
   const json = (status: number, b: unknown) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(b)); };
   if (url.pathname === '/v1/events') { res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.write(': hi\n\n'); return; }
-  if (url.pathname === '/v1/assets') return json(200, { items: Object.values(assets).filter((a) => a.project === as) });
+  if (url.pathname === '/v1/assets') {
+    // Like Gen: the caller's project, a tool and words filter, newest first, a page at a time.
+    const tool = url.searchParams.get('tool');
+    const q = url.searchParams.get('q');
+    const all = Object.values(assets).filter((a) => a.project === as && (!tool || a.tool === tool) && (!q || JSON.stringify(a).includes(q)));
+    const off = Number(url.searchParams.get('offset') ?? 0);
+    return json(200, { items: all.slice(off, off + Math.min(500, Number(url.searchParams.get('limit') ?? 60))) });
+  }
   let m = /^\/v1\/assets\/(a_[0-9a-f]+)$/.exec(url.pathname);
   if (m) return assets[m[1]] && assets[m[1]].project === as ? json(200, assets[m[1]]) : json(404, { error: 'no asset' });
   m = /^\/v1\/assets\/(a_[0-9a-f]+)\/file$/.exec(url.pathname);
@@ -68,7 +75,8 @@ async function account(name: string) {
 
 test('the starter pack is picked up from Gen: one row per finished job, a model with its low copy and thumb', async () => {
   const r = await community.syncStarter();
-  assert.equal(r.jobs, 4);
+  assert.equal(r.jobs, 3, "a step's own files (another tool) are not the pack's");
+  assert.equal(r.things, 3);
   const ball = (await call('/v1/community?q=ball')).body.items;
   assert.equal(ball.length, 1);
   assert.equal(ball[0].id, 'a_b2', 'the bigger GLB is the model');
