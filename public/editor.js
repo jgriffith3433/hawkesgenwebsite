@@ -30,9 +30,9 @@ let pendingGens = [];
     game = data.game;
     files = Object.fromEntries(data.files.map(f => [f.path, f]));
     assets = Object.fromEntries(data.assets.map(a => [a.name, a]));
-    members = data.members;
+    members = data.game.members || [];
     chatHistory = data.chat || [];
-    connId = data.connId;
+    connId = data.connId || `conn_${Date.now()}`;
 
     document.getElementById('gameTitle').value = game.title;
     render();
