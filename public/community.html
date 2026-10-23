@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Community library · Hawkes Gen</title>
+  <meta name="description" content="Every model, texture, sky, sprite, song and sound shared with the Hawkes Gen community: browse, search, preview, and use any of them in your game for free.">
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/public.css">
+  <link rel="stylesheet" href="/site.css">
+  <link rel="stylesheet" href="/builder.css">
+  <script src="https://cdn.jsdelivr.net/npm/babylonjs@7.54.3/babylon.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/babylonjs-loaders@7.54.3/babylonjs.loaders.min.js" defer></script>
+  <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
+  <script src="/sitenav.js" defer></script>
+  <style>
+    /* The community library: shelves (kinds and their categories) on the left, things on the right, one opened in a panel. */
+    .lib-head { display: flex; align-items: end; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin-bottom: 22px; }
+    .lib-head .label { font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .14em; color: var(--accent); }
+    .stats { display: flex; gap: 10px; flex-wrap: wrap; }
+    .stats div { border: 1px solid var(--border); border-radius: var(--r); padding: 8px 12px; background: var(--surface); min-width: 96px; }
+    .stats b { display: block; font: 600 20px/1.1 var(--mono); color: var(--heading); }
+    .stats span { font: 11px/1.3 var(--mono); color: var(--fg-3); text-transform: uppercase; letter-spacing: .06em; }
+
+    .lib { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 22px; align-items: start; }
+    .shelves { position: sticky; top: 72px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); padding: 8px 0; max-height: calc(100vh - 96px); overflow: auto; }
+    .shelves button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 14px; border: 0; background: transparent; color: var(--fg-2); font: 13.5px/1.2 var(--sans); text-align: left; cursor: pointer; border-left: 2px solid transparent; }
+    .shelves button .n { margin-left: auto; font: 11.5px var(--mono); color: var(--fg-3); }
+    .shelves button:hover { color: var(--heading); background: var(--surface-2); }
+    .shelves button.on { color: var(--heading); background: var(--accent-glow); border-left-color: var(--accent); }
+    .shelves .kind { font-weight: 600; color: var(--heading); margin-top: 6px; }
+    .shelves .cat { padding-left: 28px; font-size: 13px; }
+
+    .tools { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+    .tools input[type=search] { flex: 1; min-width: 200px; font: 15px var(--sans); padding: 10px 14px; border: 1px solid var(--border-strong); border-radius: var(--r); background: var(--surface); color: var(--heading); }
+    .tools input[type=search]:focus { outline: none; border-color: var(--accent); }
+    .tools select { font: 14px var(--sans); padding: 9px 10px; border: 1px solid var(--border-strong); border-radius: var(--r); background: var(--surface); color: var(--heading); }
+    .where { font: 12.5px/1.4 var(--mono); color: var(--fg-3); margin: 0 0 12px; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 12px; }
+    .card { display: grid; grid-template-rows: auto auto; border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; background: var(--surface); cursor: pointer; text-align: left; padding: 0; color: inherit; font: inherit; transition: border-color .15s, transform .15s; }
+    .card:hover, .card:focus-visible { border-color: var(--accent); transform: translateY(-1px); outline: none; }
+    .thumb { aspect-ratio: 1; display: grid; place-items: center; background: var(--surface-2); overflow: hidden; position: relative; }
+    .thumb img { width: 100%; height: 100%; object-fit: contain; }
+    .thumb.tile img { object-fit: cover; }
+    .thumb .glyph { font: 600 13px var(--mono); color: var(--fg-3); text-transform: uppercase; letter-spacing: .1em; }
+    .thumb .play { position: absolute; right: 8px; bottom: 8px; width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--accent); color: #fff; font-size: 13px; cursor: pointer; display: grid; place-items: center; }
+    .card .meta { padding: 10px 12px 12px; display: grid; gap: 4px; }
+    .card .title { font: 600 14px/1.25 var(--sans); color: var(--heading); }
+    .card .sub { font: 11.5px/1.3 var(--mono); color: var(--fg-3); }
+    .more { display: flex; justify-content: center; margin-top: 18px; }
+    .more .btn[hidden] { display: none; }
+    .empty { border: 1px dashed var(--border-strong); border-radius: var(--r-lg); padding: 36px 24px; text-align: center; color: var(--fg-2); }
+    .empty h3 { color: var(--heading); margin: 0 0 8px; font: 600 18px var(--sans); }
+
+    .sheet { position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; background: rgba(10, 12, 20, .55); padding: 16px; }
+    .sheet[hidden] { display: none; }
+    .panel { width: min(920px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-lg); display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
+    .panel .view { background: #0b0d14; min-height: 360px; position: relative; display: grid; place-items: center; }
+    .panel .view canvas { width: 100%; height: 100%; min-height: 360px; display: block; touch-action: none; outline: none; }
+    .panel .view img { max-width: 100%; max-height: 520px; object-fit: contain; }
+    .panel .view .hint { position: absolute; left: 10px; bottom: 10px; font: 11px var(--mono); color: #9aa3b8; }
+    .panel .info { padding: 20px; display: grid; gap: 12px; align-content: start; }
+    .panel h3 { margin: 0; font: 600 22px/1.15 var(--sans); color: var(--heading); }
+    .panel .kv { font: 12.5px/1.6 var(--mono); color: var(--fg-2); }
+    .panel .kv b { color: var(--heading); font-weight: 500; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chips a { font: 12px var(--mono); padding: 4px 8px; border-radius: 999px; background: var(--surface-2); color: var(--fg-2); text-decoration: none; }
+    .chips a:hover { color: var(--heading); }
+    .panel .how { font-size: 13.5px; color: var(--fg-2); line-height: 1.55; margin: 0; }
+    .panel .how code { font: 12px var(--mono); background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+    .panel .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .panel .close { position: absolute; top: 10px; right: 10px; z-index: 2; }
+    .panel audio { width: 100%; }
+
+    @media (max-width: 900px) {
+      .lib { grid-template-columns: 1fr; }
+      .shelves { position: static; max-height: none; display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; }
+      .shelves button, .shelves .cat { width: auto; padding: 6px 10px; border-left: 0; border-radius: var(--r); }
+      .shelves .cat { display: none; }
+      .shelves .cat.show { display: flex; }
+      .panel { grid-template-columns: 1fr; }
+      .panel .view, .panel .view canvas { min-height: 280px; }
+    }
+    @media (max-width: 640px) {
+      .bar { padding: 0 16px; }
+      .page { padding: 24px 16px 64px; }
+      .page h1 { font-size: 32px; }
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body class="landing">
+  <header class="bar">
+    <a class="hg-brand" href="/"><img src="/favicon.svg" alt=""><span>Hawkes Gen</span></a>
+    <nav class="hg-nav-links" data-site-nav><a href="/games">Games</a><a href="/community">Community library</a><a href="/entities">Engine codex</a><a href="/app/studio">Asset Studio</a><a href="/#pricing">Pricing</a><a href="/connect">For developers</a></nav>
+    <a class="btn btn-secondary btn-sm" href="/app">Start building</a>
+  </header>
+
+  <main class="page">
+    <div class="lib-head">
+      <div>
+        <span class="label">Free for every game</span>
+        <h1>Community library</h1>
+        <p class="lede" style="margin:0">Models, textures, skies, sprites, music, ambience and sound effects, made by Hawkes and shared by builders.
+          Preview anything here, then use it in your game for free: pick it under Create &gt; Community in the editor, or just ask the assistant for it.</p>
+      </div>
+      <div class="stats" id="stats"></div>
+    </div>
+
+    <div class="lib">
+      <nav class="shelves" id="shelves" aria-label="Kinds and categories"></nav>
+      <section>
+        <div class="tools">
+          <input type="search" id="q" placeholder="Search: crate, rain, neon, coin…" aria-label="Search the library">
+          <select id="sort" aria-label="Order">
+            <option value="liked">Most used</option>
+            <option value="new">Newest</option>
+            <option value="fresh">Hidden gems</option>
+            <option value="name">A to Z</option>
+          </select>
+        </div>
+        <p class="where" id="where"></p>
+        <div class="grid" id="grid"></div>
+        <div class="more"><button class="btn btn-secondary" type="button" id="more" hidden>Show more</button></div>
+      </section>
+    </div>
+  </main>
+
+  <div class="sheet" id="sheet" hidden>
+    <div class="panel" role="dialog" aria-modal="true" aria-labelledby="pTitle">
+      <div class="view" id="pView"></div>
+      <div class="info">
+        <button class="btn btn-ghost btn-sm close" type="button" id="pClose" aria-label="Close">✕</button>
+        <h3 id="pTitle"></h3>
+        <div class="kv" id="pKv"></div>
+        <div class="chips" id="pTags"></div>
+        <p class="how" id="pHow"></p>
+        <div class="row">
+          <a class="btn btn-primary" href="/app" id="pUse">Use it in a game</a>
+          <a class="btn btn-secondary" id="pFile" download>Download</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/community.js"></script>
+  <script src="/enter.js"></script>
+</body>
+</html>

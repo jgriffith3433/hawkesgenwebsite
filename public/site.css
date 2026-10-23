@@ -127,3 +127,15 @@ model-viewer { --poster-color: transparent; }
 .game-card .live-now { position: absolute; left: 8px; bottom: 8px; display: inline-flex; align-items: center; gap: 6px; font: 600 11.5px Inter, sans-serif; padding: 4px 8px; border-radius: 999px; background: rgba(255,255,255,.92); color: #0f5132; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
 .game-card .live-now i { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,.25); }
 .game-card .open-build { position: absolute; right: 8px; top: 8px; font: 600 11px Inter, sans-serif; padding: 3px 8px; border-radius: 999px; background: rgba(79,70,229,.92); color: #fff; }
+
+/* ------------------------------------------------------------ the community library section (index.html #community) */
+.lib-kinds { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.lib-kind { display: grid; gap: 6px; padding: 18px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); text-decoration: none; color: var(--fg-2); transition: border-color .15s, transform .15s; }
+.lib-kind:hover { border-color: var(--accent); transform: translateY(-1px); }
+.lib-kind b { font: 600 17px/1.2 var(--sans); color: var(--heading); }
+.lib-kind span { font-size: 13.5px; line-height: 1.5; }
+.lib-kind em { font: normal 500 11.5px/1 var(--mono); color: var(--accent); text-transform: uppercase; letter-spacing: .08em; min-height: 12px; }
+.lib-peek { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+.lib-peek a { display: grid; gap: 6px; text-decoration: none; color: var(--fg-2); font-size: 12.5px; }
+.lib-peek img { width: 100%; aspect-ratio: 1; object-fit: contain; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r); }
+@media (max-width: 760px) { .lib-peek { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

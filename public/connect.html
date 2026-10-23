@@ -25,12 +25,13 @@
     #claudeSteps, #claudeSteps > div { min-width: 0; }
     .mcp-url { font: 400 clamp(26px, 4vw, 40px)/1.1 var(--mono); letter-spacing: -0.02em; }
   </style>
+  <script src="/sitenav.js" defer></script>
 </head>
 <body class="landing">
   <header class="hg-navbar">
     <div class="wrap hg-navbar-inner">
       <a href="/" class="hg-brand"><span class="wordmark">Hawkes Gen</span></a>
-      <nav class="hg-nav-links"><a href="/#tools">Tools</a><a href="/#pricing">Pricing</a><a href="/connect">Connect</a></nav>
+      <nav class="hg-nav-links" data-site-nav><a href="/games">Games</a><a href="/community">Community library</a><a href="/entities">Engine codex</a><a href="/app/studio">Asset Studio</a><a href="/#pricing">Pricing</a><a href="/connect">For developers</a></nav>
       <div class="hg-nav-actions" id="nav"><a class="btn btn-primary" href="/app">Open the studio</a></div>
     </div>
   </header>

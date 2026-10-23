@@ -25,12 +25,13 @@
     .pixel img { image-rendering: pixelated; }
     @media (max-width: 860px) { .ex { grid-template-columns: 1fr; gap: 18px; } }
   </style>
+  <script src="/sitenav.js" defer></script>
 </head>
 <body class="landing">
   <header class="hg-navbar">
     <div class="wrap hg-navbar-inner">
       <a href="/" class="hg-brand"><span class="wordmark">Hawkes Gen</span></a>
-      <nav class="hg-nav-links"><a href="/#tools">Tools</a><a href="/examples">Examples</a><a href="/#pricing">Pricing</a><a href="/connect">Connect your editor</a></nav>
+      <nav class="hg-nav-links" data-site-nav><a href="/games">Games</a><a href="/community">Community library</a><a href="/entities">Engine codex</a><a href="/app/studio">Asset Studio</a><a href="/#pricing">Pricing</a><a href="/connect">For developers</a></nav>
       <div class="hg-nav-actions"><a class="btn btn-primary" href="/app">Open the studio</a></div>
     </div>
   </header>

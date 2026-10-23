@@ -42,17 +42,27 @@ CREATE TABLE IF NOT EXISTS community_uses (
   PRIMARY KEY (asset, user_id)
 );
 `);
-if (!(db.prepare('PRAGMA table_info(community_assets)').all() as { name: string }[]).some((c) => c.name === 'likes')) db.exec('ALTER TABLE community_assets ADD COLUMN likes INTEGER NOT NULL DEFAULT 0');
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(community_assets)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('likes')) db.exec('ALTER TABLE community_assets ADD COLUMN likes INTEGER NOT NULL DEFAULT 0');
+  // category: one browsing shelf per kind (props, nature, ui...), kept apart from the search words in tags.
+  if (!cols.has('category')) db.exec("ALTER TABLE community_assets ADD COLUMN category TEXT NOT NULL DEFAULT ''");
+  // item: a starter pack thing's stable name (kind/slug): a remade one replaces the row it had, never a second copy.
+  if (!cols.has('item')) db.exec('ALTER TABLE community_assets ADD COLUMN item TEXT');
+  db.exec('CREATE INDEX IF NOT EXISTS community_item ON community_assets (item)');
+}
 
-type Row = { id: string; project: string; kind: string; mime: string | null; title: string; tags: string; low: string | null; thumb: string | null; by_user: string | null; source: string; uses: number; likes: number; created: number; hidden: number };
+type Row = { id: string; project: string; kind: string; mime: string | null; title: string; tags: string; category: string; item: string | null; low: string | null; thumb: string | null; by_user: string | null; source: string; uses: number; likes: number; created: number; hidden: number };
 
 const words = (s: unknown) => String(s ?? '').toLowerCase().replace(/[^a-z0-9\s-]+/g, ' ').split(/[\s-]+/).filter((w) => w.length > 1);
+/** A category is one lowercase word or two (letters, digits, dashes). */
+const cleanCategory = (c: unknown) => String(c ?? '').toLowerCase().trim().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24);
 const cleanTags = (t: unknown) => [...new Set((Array.isArray(t) ? t.join(' ') : String(t ?? '')).toLowerCase().split(/[\s,]+/).map((w) => w.replace(/[^a-z0-9-]/g, '')).filter(Boolean))].slice(0, 16).join(' ');
 
 /** What the client sees of a row. Files come through /v1/community/<id>/file (and the thumb's own id). */
 export function view(r: Row) {
   const file = (id: string | null) => (id ? `/v1/community/${id}/file` : null);
-  return { id: r.id, kind: r.kind, mime: r.mime, title: r.title, tags: r.tags ? r.tags.split(' ') : [], file: file(r.id), thumb: file(r.thumb ?? (['texture', 'image', 'sprite', 'sky'].includes(r.kind) ? r.id : null)), low: Boolean(r.low), by: r.by_user ? getUser(r.by_user)?.name ?? 'A player' : 'Hawkes', source: r.source, uses: r.uses, likes: r.likes ?? 0, created: r.created };
+  return { id: r.id, kind: r.kind, mime: r.mime, title: r.title, category: r.category || null, tags: r.tags ? r.tags.split(' ') : [], file: file(r.id), thumb: file(r.thumb ?? (['texture', 'image', 'sprite', 'sky'].includes(r.kind) ? r.id : null)), low: Boolean(r.low), by: r.by_user ? getUser(r.by_user)?.name ?? 'A player' : 'Hawkes', source: r.source, uses: r.uses, likes: r.likes ?? 0, created: r.created };
 }
 
 /** Kinds that answer for a kind (a sound effect could be an ambience loop, an image could be a sprite). */
@@ -63,20 +73,23 @@ const RELATED: Record<string, string[]> = { image: ['image', 'sprite', 'texture'
  * other people used it, the default), 'new', or 'fresh' (the least used first, for a game that doesn't look like
  * every other one).
  */
-export function search(o: { q?: unknown; kind?: unknown; tag?: unknown; limit?: unknown; sort?: unknown } = {}) {
-  const sort = ['new', 'fresh'].includes(String(o.sort)) ? String(o.sort) : 'liked';
+export function search(o: { q?: unknown; kind?: unknown; tag?: unknown; category?: unknown; limit?: unknown; offset?: unknown; sort?: unknown; exact?: unknown } = {}) {
+  const sort = ['new', 'fresh', 'name'].includes(String(o.sort)) ? String(o.sort) : 'liked';
   const kind = String(o.kind ?? '');
-  const kinds = kind ? RELATED[kind] ?? [kind] : null;
+  // exact: only this kind (the library page's filter); otherwise kinds that answer for it too (the assistant's search).
+  const kinds = kind ? (o.exact ? [kind] : RELATED[kind] ?? [kind]) : null;
   const tag = String(o.tag ?? '').toLowerCase();
+  const category = cleanCategory(o.category);
   const q = words(o.q);
   const limit = Math.max(1, Math.min(120, Number(o.limit) || 40));
+  const offset = Math.max(0, Number(o.offset) || 0);
   const rows = (kinds
     ? db.prepare(`SELECT * FROM community_assets WHERE hidden = 0 AND kind IN (${kinds.map(() => '?').join(',')})`).all(...kinds)
     : db.prepare('SELECT * FROM community_assets WHERE hidden = 0').all()) as Row[];
   const scored = rows
-    .filter((r) => !tag || r.tags.split(' ').includes(tag))
+    .filter((r) => (!category || r.category === category) && (!tag || r.category === tag || r.tags.split(' ').includes(tag)))
     .map((r) => {
-      const tags = r.tags.split(' ');
+      const tags = [...r.tags.split(' '), ...(r.category ? [r.category] : [])];
       const title = words(r.title);
       let s = 0;
       for (const w of q) {
@@ -87,8 +100,20 @@ export function search(o: { q?: unknown; kind?: unknown; tag?: unknown; limit?: 
       return { r, s };
     })
     .filter((x) => !q.length || x.s >= 1)
-    .sort((a, b) => Math.round(b.s) - Math.round(a.s) || (sort === 'new' ? b.r.created - a.r.created : sort === 'fresh' ? a.r.likes - b.r.likes || b.r.created - a.r.created : b.r.likes - a.r.likes || b.r.uses - a.r.uses) || b.s - a.s);
-  return { items: scored.slice(0, limit).map((x) => view(x.r)), total: scored.length };
+    .sort((a, b) => Math.round(b.s) - Math.round(a.s) || (sort === 'new' ? b.r.created - a.r.created : sort === 'fresh' ? a.r.likes - b.r.likes || b.r.created - a.r.created : sort === 'name' ? a.r.title.localeCompare(b.r.title) : b.r.likes - a.r.likes || b.r.uses - a.r.uses) || b.s - a.s);
+  return { items: scored.slice(offset, offset + limit).map((x) => view(x.r)), total: scored.length };
+}
+
+/** The shelves: every kind with its categories and how many things each has (the library page's browsing). */
+export function categories() {
+  const rows = db.prepare("SELECT kind, category, COUNT(*) AS n FROM community_assets WHERE hidden = 0 GROUP BY kind, category ORDER BY kind, n DESC, category").all() as { kind: string; category: string; n: number }[];
+  const kinds: Record<string, { count: number; categories: { category: string; count: number }[] }> = {};
+  for (const r of rows) {
+    const k = (kinds[r.kind] ??= { count: 0, categories: [] });
+    k.count += r.n;
+    if (r.category) k.categories.push({ category: r.category, count: r.n });
+  }
+  return { kinds: COMMUNITY_KINDS.filter((k) => kinds[k]).map((k) => ({ kind: k, ...kinds[k] })), total: rows.reduce((s, r) => s + r.n, 0) };
 }
 
 /** The tags in use, with how many things each has (for browsing). */
@@ -102,7 +127,7 @@ export function tagCounts(kind?: string) {
 const KIND_OF_GEN: Record<string, string> = { mesh: 'model', image: 'image', audio: 'sfx', video: 'video' };
 
 /** A player shares one of their own things with everyone (or updates its title and tags). */
-export async function share(user: User, body: { asset?: unknown; title?: unknown; tags?: unknown; kind?: unknown; low?: unknown; thumb?: unknown }) {
+export async function share(user: User, body: { asset?: unknown; title?: unknown; tags?: unknown; category?: unknown; kind?: unknown; low?: unknown; thumb?: unknown }) {
   const id = String(body.asset ?? '').replace(/^asset:/, '');
   if (!/^a_[0-9a-f]+$/.test(id)) throw new PortalError('asset is "asset:a_..." from your library');
   const a: any = await gen(`/v1/assets/${id}`, { as: user.project }).catch(() => null);
@@ -117,9 +142,9 @@ export async function share(user: User, body: { asset?: unknown; title?: unknown
   const tags = cleanTags(body.tags) || words(title).join(' ');
   const was = db.prepare('SELECT * FROM community_assets WHERE id = ?').get(id) as Row | undefined;
   if (was && was.by_user !== user.id) throw new PortalError('Someone else shared that one', { status: 403 });
-  db.prepare(`INSERT INTO community_assets (id, project, kind, mime, title, tags, low, thumb, by_user, source, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'player', ?)
-              ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, title = excluded.title, tags = excluded.tags, low = excluded.low, thumb = excluded.thumb, hidden = 0`)
-    .run(id, user.project, kind, a.mime ?? null, title, tags, await own(body.low), await own(body.thumb), user.id, Date.now());
+  db.prepare(`INSERT INTO community_assets (id, project, kind, mime, title, tags, category, low, thumb, by_user, source, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'player', ?)
+              ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, title = excluded.title, tags = excluded.tags, category = excluded.category, low = excluded.low, thumb = excluded.thumb, hidden = 0`)
+    .run(id, user.project, kind, a.mime ?? null, title, tags, cleanCategory(body.category), await own(body.low), await own(body.thumb), user.id, Date.now());
   return view(db.prepare('SELECT * FROM community_assets WHERE id = ?').get(id) as Row);
 }
 
@@ -160,40 +185,71 @@ export async function file(id: string) {
   return genFetch(`/v1/assets/${id}/file`, { as: r.project, signal: AbortSignal.timeout(120_000) });
 }
 
+/** The files a starter job saved under `name` (a step's one output is `name`, several are `name.<title>`). */
+const saved = (outs: any[], name: string) => outs.filter((o) => { const t = String(o.title ?? ''); return t === name || t.startsWith(`${name}.`); });
+const MIME_OF: Record<string, RegExp> = { model: /^model\/gltf-binary$/, texture: /^image\//, image: /^image\//, sprite: /^image\//, sky: /^image\//, music: /^audio\//, ambience: /^audio\//, sfx: /^audio\//, voice: /^audio\//, video: /^video\// };
+
+/** One finished starter job's files as a library row: the main file, a model's low copy, a picture of it. Null: not usable. */
+export function starterRow(outs: any[]) {
+  const l = outs[0]?.labels ?? {};
+  const kind = String(l.kind ?? '');
+  if (!COMMUNITY_KINDS.includes(kind as any)) return null;
+  let main: any = null;
+  let low: any = null;
+  let thumb: any = null;
+  if (kind === 'model') {
+    // The last step exports the model (model.high) and its lower-detail copy (model.lod1): the biggest GLB is the model.
+    const glbs = saved(outs, 'model').filter((o) => MIME_OF.model.test(o.mime ?? '')).sort((a, b) => (b.bytes ?? 0) - (a.bytes ?? 0));
+    [main, low] = [glbs[0] ?? null, glbs.length > 1 ? glbs[glbs.length - 1] : null];
+    thumb = saved(outs, 'cutout')[0] ?? saved(outs, 'front')[0] ?? null;
+  } else {
+    main = saved(outs, kind).find((o) => MIME_OF[kind].test(o.mime ?? '')) ?? null;
+  }
+  if (!main) return null;
+  const name = String(l.name ?? main.title ?? kind).trim().slice(0, 80) || kind;
+  return { main, low, thumb, kind, name, category: cleanCategory(l.tag), tags: cleanTags(l.tags ?? l.tag), item: `${kind}/${String(l.item ?? name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}` };
+}
+
 /**
- * Picks up the starter pack: every finished asset.make job in the starter project labelled pack=starter, community
- * true. A job's outputs are named by step (front, cutout, model...): the main file is the last step's, a model's
- * smaller GLB is its low-detail copy, and the cut-out picture is its thumb.
+ * Picks up the starter pack: every file a finished asset.make job in the starter project saved with the labels
+ * pack=starter (tools/starter.mjs), page by page so none is missed however big the pack gets. One row per thing
+ * (kind and name): a remade one replaces the old row, which is hidden (games that use it keep their copy).
  */
 export async function syncStarter() {
-  const r: any = await gen(`/v1/assets?project=${STARTER_PROJECT}&q=starter&limit=500`, { as: STARTER_PROJECT });
+  const PAGE = 500;
+  const all: any[] = [];
+  for (let offset = 0; offset < 100_000; offset += PAGE) {
+    const r: any = await gen(`/v1/assets?project=${STARTER_PROJECT}&tool=asset.make&q=starter&limit=${PAGE}&offset=${offset}`, { as: STARTER_PROJECT });
+    const page = r.items ?? [];
+    all.push(...page);
+    if (page.length < PAGE) break;
+  }
   const byJob = new Map<string, any[]>();
-  for (const a of r.items ?? []) {
+  for (const a of all) {
     if (a.labels?.pack !== 'starter' || a.labels?.community === false || !a.job) continue;
     byJob.set(a.job, [...(byJob.get(a.job) ?? []), a]);
   }
-  let added = 0;
+  // The newest finished job wins for each thing.
+  const best = new Map<string, NonNullable<ReturnType<typeof starterRow>> & { at: number }>();
+  let unusable = 0;
   for (const outs of byJob.values()) {
-    const l = outs[0].labels;
-    const kind = String(l.kind ?? '');
-    if (!COMMUNITY_KINDS.includes(kind as any)) continue;
-    let main: any;
-    let low: any = null;
-    let thumb: any = null;
-    if (kind === 'model') {
-      const glbs = outs.filter((o) => o.mime === 'model/gltf-binary' && /^model/.test(String(o.title ?? ''))).sort((a, b) => (b.bytes ?? 0) - (a.bytes ?? 0));
-      [main, low] = [glbs[0], glbs.length > 1 ? glbs[glbs.length - 1] : null];
-      thumb = outs.find((o) => o.title === 'cutout') ?? outs.find((o) => o.title === 'front');
-    } else {
-      main = outs.find((o) => o.title === kind) ?? null;
-    }
-    if (!main) continue;
-    const res = db.prepare(`INSERT INTO community_assets (id, project, kind, mime, title, tags, low, thumb, by_user, source, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 'starter', ?)
-                ON CONFLICT(id) DO UPDATE SET title = excluded.title, tags = excluded.tags, low = excluded.low, thumb = excluded.thumb`)
-      .run(main.id, STARTER_PROJECT, kind, main.mime ?? null, String(l.name ?? main.title ?? kind).slice(0, 80), cleanTags(l.tags ?? l.tag), low?.id ?? null, thumb?.id ?? null, Date.now());
-    if (res.changes) added++;
+    const row = starterRow(outs);
+    if (!row) { unusable++; continue; }
+    const at = Math.max(...outs.map((o) => Number(o.created) || 0));
+    if ((best.get(row.item)?.at ?? -1) < at) best.set(row.item, { ...row, at });
   }
-  return { jobs: byJob.size, rows: added };
+  let added = 0;
+  const put = db.prepare(`INSERT INTO community_assets (id, project, kind, mime, title, tags, category, item, low, thumb, by_user, source, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'starter', ?)
+              ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, title = excluded.title, tags = excluded.tags, category = excluded.category, item = excluded.item, low = excluded.low, thumb = excluded.thumb`);
+  // (A row an admin hid stays hidden: the sync never brings it back.)
+  const retire = db.prepare("UPDATE community_assets SET hidden = 1 WHERE source = 'starter' AND item = ? AND id != ? AND hidden = 0");
+  for (const r of best.values()) {
+    const before = db.prepare('SELECT 1 FROM community_assets WHERE id = ?').get(r.main.id);
+    put.run(r.main.id, STARTER_PROJECT, r.kind, r.main.mime ?? null, r.name, r.tags, r.category, r.item, r.low?.id ?? null, r.thumb?.id ?? null, Date.now());
+    retire.run(r.item, r.main.id);
+    if (!before) added++;
+  }
+  return { jobs: byJob.size, things: best.size, added, unusable };
 }
 
 /** Keeps the starter pack current (at start, then every few minutes); a Gen hiccup just waits for the next round. */
