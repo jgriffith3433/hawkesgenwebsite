@@ -26,7 +26,7 @@ let pendingGens = [];
 (async () => {
   try {
     me = await get('/v1/users/me');
-    const data = await get(`${API}/games/${gameId}/open`);
+    const data = await get(`${API}/games/${gameId}`);
     game = data.game;
     files = Object.fromEntries(data.files.map(f => [f.path, f]));
     assets = Object.fromEntries(data.assets.map(a => [a.name, a]));

@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Hawkes Gen — game assets from a prompt</title>
-  <meta name="description" content="Images, video, 3D models, rigs, motion, voice, music and sound for games. From the web or an API call; pay per generation.">
+  <title>Hawkes Gen — Build games with friends and AI</title>
+  <meta name="description" content="Create browser games collaboratively in real-time with your friends and an AI assistant. No downloads, no setup. Start building in seconds.">
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/public.css">
   <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
@@ -14,12 +14,11 @@
     <div class="wrap hg-navbar-inner">
       <a href="/" class="hg-brand"><span class="wordmark">Hawkes Gen</span></a>
       <nav class="hg-nav-links">
-        <a href="#gamedev">For game devs</a>
-        <a href="#unity">Unity</a>
-        <a href="/examples">Examples</a>
+        <a href="/games">Play games</a>
+        <a href="#features">Features</a>
         <a href="#pricing">Pricing</a>
-        <a href="#api">API</a>
-        <a href="/connect">Connect your editor</a>
+        <a href="#assets">Asset Studio</a>
+        <a href="/connect">For developers</a>
       </nav>
       <div class="hg-nav-actions">
         <button type="button" class="btn btn-ghost" data-open-auth="login">Sign in</button>
@@ -32,36 +31,58 @@
     <section class="hero">
       <div class="wrap hero-grid">
         <div>
-          <div class="label">Built for game developers</div>
-          <h1 style="margin-top:18px;">Game assets,<br><em>straight into your game.</em></h1>
-          <p class="lede">Sprite sheets that arrive sliced, sprites with transparent backgrounds, PBR materials, 3D models, voices, music and sound. Ask from Unity, Claude Code, Cursor or VS Code, and the files land in your project, ready to use. The same pipeline we build our own games with. You pay only for what finishes.</p>
+          <div class="label">Build web games with AI</div>
+          <h1 style="margin-top:18px;">Create games<br><em>with friends in real-time.</em></h1>
+          <p class="lede">A collaborative game builder where you and your friends code together, see each other's changes live, and an AI assistant helps you build. Write your game in JavaScript with Babylon.js, generate art and audio, and publish to the web. All in your browser, no setup required.</p>
           <div class="actions">
-            <button type="button" class="btn btn-primary btn-lg" data-open-auth="signup">Create an account</button>
-            <a class="btn btn-secondary btn-lg" href="/examples">See examples</a>
+            <button type="button" class="btn btn-primary btn-lg" data-open-auth="signup">Start building</button>
+            <a class="btn btn-secondary btn-lg" href="/games">Play games</a>
           </div>
-          <div class="fine">50 credits to start. No card needed.</div>
-          <div class="label" style="margin:28px 0 10px">Works in your editor</div>
-          <div style="display:flex;flex-wrap:wrap;gap:8px">
-            <a class="btn btn-secondary btn-sm" id="heroCursor" href="#">Add to Cursor</a>
-            <a class="btn btn-secondary btn-sm" id="heroVscode" href="#">Install in VS Code</a>
-            <a class="btn btn-secondary btn-sm" href="/connect#claude">Add to Claude</a>
-            <a class="btn btn-secondary btn-sm" href="/connect#unity">Unity</a>
-            <a class="btn btn-ghost btn-sm" href="/connect">More editors →</a>
+          <div class="fine">Free plan includes 50 AI credits per month. No card needed.</div>
+          <div class="label" style="margin:28px 0 10px">How it works</div>
+          <div style="display:flex;flex-direction:column;gap:8px;max-width:400px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <span style="font:600 14px var(--sans);color:var(--accent)">1</span>
+              <span style="font:14px var(--sans)">Choose a template (runner, shooter, collector)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px">
+              <span style="font:600 14px var(--sans);color:var(--accent)">2</span>
+              <span style="font:14px var(--sans)">Invite friends to collaborate live</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px">
+              <span style="font:600 14px var(--sans);color:var(--accent)">3</span>
+              <span style="font:14px var(--sans)">Ask the AI to help build features</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px">
+              <span style="font:600 14px var(--sans);color:var(--accent)">4</span>
+              <span style="font:14px var(--sans)">Publish and share your game</span>
+            </div>
           </div>
         </div>
-        <div class="hero-demo" aria-label="A character becomes a walk cycle">
+        <div class="hero-demo" aria-label="Game builder screenshot">
           <div class="sheet">
-            <div class="sheet-head"><span class="label">make_sprite_sheet</span><span class="label">about 50 credits</span></div>
-            <div class="hero-demo-body">
-              <figure><img src="/examples/knight.webp" alt="A cartoon knight" width="150" height="150"><figcaption class="label">your character</figcaption></figure>
-              <span class="arrow">→</span>
-              <figure><img src="/examples/walk.gif" alt="The knight walking, animated" width="190" height="190"><figcaption class="label">walk cycle</figcaption></figure>
-            </div>
-            <div class="hero-demo-foot">
-              <span class="tool-tag">walk.png · 8 sprites</span><span class="tool-tag">walk.anim · loops</span><span class="tool-tag">transparent</span>
+            <div class="sheet-head"><span class="label">Collaborative Editor</span><span class="label">Live Preview</span></div>
+            <div style="padding:20px;text-align:center">
+              <div style="background:var(--ink);border-radius:4px;padding:40px 20px;margin-bottom:12px">
+                <div style="font:13px var(--mono);color:var(--muted);text-align:left;max-width:300px;margin:0 auto">
+                  <div style="color:var(--fg)">// Your code here</div>
+                  <div style="color:#4a9eff">game.spawn</div><div>({</div>
+                  <div style="padding-left:20px">type: 'player',</div>
+                  <div style="padding-left:20px">x: 0, y: 0</div>
+                  <div>});</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;justify-content:center;font-size:12px">
+                <span style="width:8px;height:8px;background:#4a9eff;border-radius:50%"></span>
+                <span style="color:var(--muted)">You</span>
+                <span style="width:8px;height:8px;background:#f59e42;border-radius:50%;margin-left:8px"></span>
+                <span style="color:var(--muted)">Friend</span>
+                <span style="width:8px;height:8px;background:#a855f7;border-radius:50%;margin-left:8px"></span>
+                <span style="color:var(--muted)">AI Assistant</span>
+              </div>
             </div>
           </div>
-          <div class="fine" style="margin-top:10px">"Make a looping walk cycle of this knight." A real run, nothing touched up.</div>
+          <div class="fine" style="margin-top:10px">See each other's cursors, chat with AI, preview your game live.</div>
         </div>
       </div>
     </section>
@@ -94,58 +115,94 @@
       </div>
     </section>
 
-    <section class="section" id="gamedev">
+    <section class="section" id="features">
       <div class="wrap">
         <div class="section-head">
-          <div class="label">01 — For game developers</div>
+          <div class="label">01 — Features</div>
           <div>
-            <h2>Made for how games are built.</h2>
-            <p>Not pictures to download and fix up. Assets in the shapes engines want, with the boring parts done: slicing, transparency, tiling, palettes, maps, loops.</p>
+            <h2>Everything you need to build games together.</h2>
+            <p>Real-time collaboration, AI assistance, and powerful tools in one place. No downloads, no configuration.</p>
           </div>
         </div>
         <div class="features">
           <div class="feature">
-            <img src="/examples/walk-sheet.webp" alt="A sliced walk-cycle sprite sheet" class="checker" loading="lazy">
-            <h3>Sprite sheets, already sliced</h3>
-            <p>A character and a motion become a transparent atlas, its frame data, and in Unity a looping AnimationClip.</p>
-          </div>
-          <div class="feature">
-            <img src="/examples/var2.webp" alt="A themed armor variant of the knight" loading="lazy">
-            <h3>On-model variations</h3>
-            <p>Fire, ice and poison versions. Palette swaps, outfits, weapons. The character stays the character.</p>
-          </div>
-          <div class="feature">
-            <img src="/examples/pixel.png" alt="The knight as 64 pixel art" class="checker pixelated" loading="lazy">
-            <h3>Pixel art in seconds</h3>
-            <p>Any image to a set size and palette with a 1 px outline. Trims, flips, power-of-two padding: 2 credits, no GPU.</p>
-          </div>
-          <div class="feature">
-            <img src="/examples/tex-albedo.webp" alt="A tileable cobblestone texture" loading="lazy">
-            <h3>Materials that drop in</h3>
-            <p>Seamless textures with normal and roughness maps, set up as a Material for URP, HDRP or Built-in.</p>
-          </div>
-          <div class="feature">
-            <div class="feature-audio"><span class="label">voice line</span><audio controls preload="none" src="/examples/voice.mp3"></audio></div>
-            <h3>Sound for every event</h3>
-            <p>Have your agent read the player controller and make every sound it needs: hits, steps, UI, voices, music loops.</p>
-          </div>
-          <div class="feature">
-            <div class="feature-list">
-              <span>Blender</span><span>ffmpeg</span><span>Python</span><span>a GPU</span><span>model downloads</span>
+            <div style="background:var(--ink);border-radius:4px;padding:30px;text-align:center">
+              <div style="display:flex;gap:8px;justify-content:center;margin-bottom:8px">
+                <span style="width:32px;height:32px;background:#4a9eff;border-radius:50%;display:inline-block"></span>
+                <span style="width:32px;height:32px;background:#f59e42;border-radius:50%;display:inline-block"></span>
+                <span style="width:32px;height:32px;background:#a855f7;border-radius:50%;display:inline-block"></span>
+              </div>
+              <div style="font:12px var(--sans);color:var(--muted)">3 people editing</div>
             </div>
-            <h3>Nothing to install</h3>
-            <p>Rigging, retargeting, keying, video and 3D run on our servers. Your machine just gets the files.</p>
+            <h3>Real-time collaboration</h3>
+            <p>See each other's cursors, edits appear instantly, and chat together while you build. Perfect for game jams.</p>
+          </div>
+          <div class="feature">
+            <div style="background:var(--ink);border-radius:4px;padding:30px">
+              <div style="font:13px var(--mono);color:var(--muted)">
+                <div style="color:#a855f7">💬 AI Assistant</div>
+                <div style="margin-top:8px;color:var(--fg)">"Add a jump mechanic"</div>
+                <div style="margin-top:12px;padding:12px;background:rgba(74,158,255,0.1);border-radius:4px;font-size:11px">
+                  ✓ Added jump to game.js<br>
+                  ✓ Updated controls
+                </div>
+              </div>
+            </div>
+            <h3>AI assistant</h3>
+            <p>Ask the AI to add features, fix bugs, or generate game assets. It understands your code and helps you build faster.</p>
+          </div>
+          <div class="feature">
+            <div style="background:var(--ink);border-radius:4px;padding:30px;text-align:center">
+              <div style="font:12px var(--sans);color:var(--fg);margin-bottom:8px">▶ Preview</div>
+              <div style="width:100%;aspect-ratio:16/9;background:linear-gradient(135deg,#1a1a1a 0%,#2a2a2a 100%);border-radius:2px;display:flex;align-items:center;justify-content:center">
+                <div style="font:11px var(--mono);color:var(--muted)">Your game running</div>
+              </div>
+            </div>
+            <h3>Live preview</h3>
+            <p>See your changes immediately in the preview pane. Test as you build, no refresh needed.</p>
+          </div>
+          <div class="feature">
+            <div style="background:var(--ink);border-radius:4px;padding:30px">
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+                <div style="aspect-ratio:1;background:#2a2a2a;border-radius:2px"></div>
+                <div style="aspect-ratio:1;background:#2a2a2a;border-radius:2px"></div>
+                <div style="aspect-ratio:1;background:#2a2a2a;border-radius:2px"></div>
+              </div>
+              <div style="font:11px var(--sans);color:var(--muted);margin-top:8px;text-align:center">hero.png, bg.png, sfx.mp3</div>
+            </div>
+            <h3>Asset library</h3>
+            <p>Generate sprites, sounds, and music with AI. All your assets organized and ready to use in your game.</p>
+          </div>
+          <div class="feature">
+            <div style="background:var(--ink);border-radius:4px;padding:30px">
+              <div style="font:12px var(--sans);color:var(--fg);margin-bottom:12px">Templates</div>
+              <div style="display:flex;flex-direction:column;gap:6px;font:11px var(--sans)">
+                <div style="padding:8px;background:#2a2a2a;border-radius:2px">Runner Game</div>
+                <div style="padding:8px;background:#2a2a2a;border-radius:2px">Shooter Game</div>
+                <div style="padding:8px;background:#2a2a2a;border-radius:2px">Collector Game</div>
+              </div>
+            </div>
+            <h3>Starter templates</h3>
+            <p>Begin with a working game and customize it. Physics, controls, and collision already set up.</p>
+          </div>
+          <div class="feature">
+            <div style="background:var(--ink);border-radius:4px;padding:30px;text-align:center">
+              <div style="font:14px var(--sans);color:var(--accent);margin-bottom:8px">🌐 Published</div>
+              <div style="font:11px var(--mono);color:var(--muted);word-break:break-all">hawkesgen.com/play/my-game</div>
+            </div>
+            <h3>One-click publishing</h3>
+            <p>Publish your game to the web with one click. Share the link and anyone can play instantly, no downloads.</p>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="section unity" id="unity">
+    <section class="section unity" id="assets">
       <div class="wrap unity-grid">
         <div>
-          <div class="label">02 — Unity</div>
-          <h2 style="font:400 52px/1.02 var(--serif);letter-spacing:-.02em;margin:14px 0 16px">Hawkes Gen for Unity.</h2>
-          <p class="muted" style="font-size:17px;max-width:34em;margin:0 0 20px">A window in the Unity Editor. Pick an image from your project, describe what you want, watch the progress bar. Results arrive as real Unity assets, selected in the Project window.</p>
+          <div class="label">02 — Asset Studio</div>
+          <h2 style="font:400 52px/1.02 var(--serif);letter-spacing:-.02em;margin:14px 0 16px">Need custom game assets?</h2>
+          <p class="muted" style="font-size:17px;max-width:34em;margin:0 0 20px">Generate sprites, 3D models, sounds, and music with AI. Available in the game builder, or use our Unity plugin, CLI, or connect to your code editor.</p>
           <ul class="unity-list">
             <li><b>Sprite sheets</b> sliced into Sprites, with a looping AnimationClip</li>
             <li><b>Materials</b> for URP, HDRP or Built-in, with normal maps</li>
