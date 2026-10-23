@@ -470,9 +470,12 @@
       e.measure();
       return e;
     }
-    e.ready = B.SceneLoader.ImportMeshAsync('', '', url, W.scene, null, '.glb').then((r) => {
-      if (!e.alive || world !== W) { for (const m of r.meshes) m.dispose(); return e; }
-      const holder = new B.TransformNode('holder', W.scene);
+    // Level of detail: a low-detail copy (opts.low, or "<name>_low.glb" when the game has one) loads first and is
+    // shown far away; the full model takes over up close. lodDistance is where they swap (meters).
+    const lowName = opts.low !== undefined ? opts.low : (/\.glb$/i.test(name) && hasAsset(name.replace(/\.glb$/i, '_low.glb')) ? name.replace(/\.glb$/i, '_low.glb') : null);
+    const load = (assetName, isLow) => B.SceneLoader.ImportMeshAsync('', '', assetName === name ? url : assetUrl(assetName), W.scene, null, '.glb').then((r) => {
+      if (!e.alive || world !== W) { for (const m of r.meshes) m.dispose(); return null; }
+      const holder = new B.TransformNode(isLow ? 'lod-low' : 'holder', W.scene);
       for (const m of r.meshes) if (!m.parent) m.parent = holder;
       for (const t of r.transformNodes) if (!t.parent) t.parent = holder;
       holder.computeWorldMatrix(true);
@@ -485,18 +488,42 @@
       holder.position.set(-(min.x + max.x) / 2, -(min.y + max.y) / 2, -(min.z + max.z) / 2);
       holder.parent = root;
       root.computeWorldMatrix(true);
-      e.animations = r.animationGroups || [];
-      for (const a of e.animations) a.stop();
-      if (opts.animation && !e.play(opts.animation)) { if (e.animations[0]) e.animations[0].start(true); } else if (!opts.animation && opts.autoplay !== false && e.animations[0]) e.animations[0].start(true);
       if (opts.color) for (const m of r.meshes) if (m.material && m.material.albedoColor) m.material.albedoColor = hex(opts.color);
       if (W.shadows && opts.shadow !== false) for (const m of r.meshes) if (m.getTotalVertices() > 0) { W.shadows.addShadowCaster(m); m.receiveShadows = true; }
       for (const m of r.meshes) m.metadata = { entity: e };
-      e._loaded = true;
+      return { holder, r };
+    });
+    const ready = () => { if (!e._loaded) { e._loaded = true; e.measure(); for (const f of hooks.world) if (f.loaded) f.loaded(e); } };
+    if (lowName) {
+      e._lod = { low: null, high: null, d: Number(opts.lodDistance) || 25 };
+      load(lowName, true).then((x) => { if (!x) return; e._lod.low = x.holder; if (!e._lod.high) ready(); }).catch(() => {});
+    }
+    e.ready = load(name, false).then((x) => {
+      if (!x) return e;
+      const { r, holder } = x;
+      if (e._lod) { e._lod.high = holder; }
+      e.animations = r.animationGroups || [];
+      for (const a of e.animations) a.stop();
+      if (opts.animation && !e.play(opts.animation)) { if (e.animations[0]) e.animations[0].start(true); } else if (!opts.animation && opts.autoplay !== false && e.animations[0]) e.animations[0].start(true);
+      ready();
       e.measure();
-      for (const f of hooks.world) if (f.loaded) f.loaded(e);
       return e;
     }).catch((err) => { report(new Error(`Could not load ${name}: ${err.message || err}`)); return e; });
     return e;
+  }
+  /** Each frame: models with a low-detail copy show the one that fits how far away they are. */
+  function updateLods() {
+    const cam = W.scene.activeCamera;
+    if (!cam) return;
+    for (const e of W.entities) {
+      const l = e._lod;
+      if (!l || !l.low) continue;
+      if (!l.high) { l.low.setEnabled(true); continue; }
+      const d = B.Vector3.Distance(cam.position, e.node.getAbsolutePosition());
+      // A little either way of the swap distance, so it doesn't flicker at the edge.
+      const far = l.far ? d > l.d * 0.9 : d > l.d * 1.1;
+      if (far !== l.far || l.far === undefined) { l.far = far; l.low.setEnabled(far); l.high.setEnabled(!far); }
+    }
   }
 
   function setFrame(e, f) {
@@ -653,7 +680,7 @@
       case 'capsule': { const r = Number(sh.radius) || 0.4; e = shape('capsule', () => B.MeshBuilder.CreateCapsule('capsule', { radius: r, height: Math.max(r * 2, Number(sh.height) || 1.8), tessellation: 16 }, W.scene), o); break; }
       case 'torus': e = shape('torus', () => B.MeshBuilder.CreateTorus('torus', { diameter: (Number(sh.radius) || 1) * 2, thickness: Number(sh.thickness) || 0.3, tessellation: 40 }, W.scene), o); break;
       case 'plane': { const w = Number(sh.width ?? sh.size?.[0]) || 10; const d = Number(sh.depth ?? sh.size?.[1]) || w; e = shape('plane', () => B.MeshBuilder.CreateBox('plane', { width: w, height: 0.02, depth: d }, W.scene), o); break; }
-      case 'model': e = model(sh.asset || spec.data?.asset || '', { ...o, size: Number(sh.size) || 0, animation: sh.animation }); break;
+      case 'model': e = model(sh.asset || spec.data?.asset || '', { ...o, size: Number(sh.size) || 0, animation: sh.animation, low: sh.lod && sh.lod.low !== undefined ? sh.lod.low : undefined, lodDistance: sh.lod && sh.lod.distance }); break;
       case 'sprite': e = sprite(sh.image || sh.asset || '', { ...o, physics: spec.physics || 'none', size: Number(sh.size) || 1, frames: sh.frames, billboard: sh.billboard }); break;
       case 'text': e = text(sh.text ?? spec.name ?? 'Text', { ...o, size: Number(sh.size) || 0.5, color: spec.material && spec.material.color, billboard: sh.billboard, background: sh.background }); break;
       case 'light': e = lightEntity({ ...o, light: spec.light || {} }); break;
@@ -1781,6 +1808,7 @@
     }
     W.camera.update(elapsed);
     if (W.motes && W.scene.activeCamera) W.motes.emitter = W.scene.activeCamera.position;
+    updateLods();
     for (const f of hooks.frame) f(elapsed, render, framePressed);
     pressedNow = new Set();
     releasedNow = new Set();

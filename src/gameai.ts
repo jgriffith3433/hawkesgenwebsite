@@ -50,10 +50,14 @@ export const KINDS: Record<string, { title: string; credits: string; build: (pro
   },
   sky: { title: 'Sky panorama', credits: '~10', build: (p) => [{ tool: 'image.panorama', title: 'Painting the sky', params: { prompt: p } }] },
   model: {
-    title: '3D model', credits: '~55',
+    // Always from four views (Hawkes Gen's rule: one picture guesses the back), cleaned, with a low-detail copy.
+    title: '3D model', credits: '~90',
     build: (p) => [
-      { tool: 'image.generate', title: 'Drawing it', params: { prompt: `${p}, single object, three-quarter view, centered, whole object in frame, plain white background, clean game asset`, width: 1024, height: 1024, count: 1 } },
-      { tool: 'mesh.textured', title: 'Building the 3D model', params: { allowSingleView: true }, inputs: { image: { from: 0 } }, keep: true },
+      { tool: 'image.generate', title: 'Drawing it', params: { prompt: `${p}, single object, straight front view, centered, whole object in frame, plain flat light grey background, even light, no shadow, clean game asset`, width: 1024, height: 1024, count: 1 } },
+      { tool: 'image.remove-background', title: 'Cutting it out', inputs: { image: { from: 0 } } },
+      { tool: 'image.viewsheet', title: 'Drawing its back and sides', params: { form: 'prop', cell: 1024, retries: 2 }, inputs: { image: { from: 1 } } },
+      { tool: 'mesh.views3d', title: 'Building the 3D model from four views', inputs: { image: { from: 2, kind: 'image' } } },
+      { tool: 'blender.character', title: 'Cleaning it up', params: { ops: [{ op: 'import', file: 0, clips: false }, { op: 'fix', shards: 0.02, holes: 24 }, { op: 'retopo', faces: 12000 }, { op: 'bake', size: 2048 }, { op: 'lod', levels: [0.15], compress: 'draco', textures: 'webp' }, { op: 'export', format: 'glb', title: 'high', compress: 'draco', textures: 'webp' }] }, inputs: { files: [{ from: 3, kind: 'mesh' }] }, keep: true },
     ],
   },
   sfx: { title: 'Sound effect', credits: '~8', build: (p, o) => [{ tool: 'audio.sfx', title: 'Recording', params: { text: p, ...(o.seconds ? { duration: Number(o.seconds) } : {}), loop: false, count: 1 } }] },
@@ -124,12 +128,16 @@ async function finish(row: GenRow, t: Task) {
   if (row.state !== 'running') return;
   const user = getUser(row.user_id);
   const out = results(t);
-  const pick = out.find((o) => /^(image|audio|model)\//.test(o.mime) || o.mime === 'model/gltf-binary') ?? out[0];
+  // A model comes as the full GLB and its low-detail copy (title "…LOD1"): the copy joins as "<name>_low.glb".
+  const glbs = out.filter((o) => o.mime === 'model/gltf-binary');
+  const low = glbs.find((o) => /lod/i.test(o.title ?? ''));
+  const pick = glbs.find((o) => !/lod/i.test(o.title ?? '')) ?? out.find((o) => /^(image|audio|model)\//.test(o.mime) || o.mime === 'model/gltf-binary') ?? out[0];
   let assetName: string | null = null;
   let state = t.state === 'done' ? 'done' : t.state;
   if (t.state === 'done' && pick && user) {
     try {
       assetName = (await addAsset(user, row.game_id, { asset: pick.asset, name: freeName(row.game_id, row.name, pick.mime) }, { project: user.project })).name;
+      if (low && assetName.endsWith('.glb')) await addAsset(user, row.game_id, { asset: low.asset, name: assetName.replace(/\.glb$/, '_low.glb') }, { project: user.project }).catch(() => null);
     } catch (e: any) {
       state = 'failed';
       db.prepare('UPDATE tasks SET error = ? WHERE id = ?').run(`Made, but not added to the game: ${e.message}`, t.id);

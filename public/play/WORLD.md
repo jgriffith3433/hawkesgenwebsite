@@ -33,7 +33,7 @@ Units are meters, seconds and degrees. +y is up. A thing's position is its cente
 | `capsule` | a pill: bodies for characters | `radius`, `height` |
 | `torus` | a ring | `radius`, `thickness` |
 | `plane` | flat ground | `width`, `depth` |
-| `model` | a 3D model (.glb) | `asset` (its name in the game's assets), `size` (height in meters) |
+| `model` | a 3D model (.glb) | `asset` (its name in the game's assets), `size` (height in meters), `lod`: `{ low, distance }` (a low-detail copy shown farther than `distance` m, 25 by default; a `<name>_low.glb` asset is used by itself) |
 | `sprite` | a picture that faces you | `image` (asset name), `size`, `frames: { cols, rows }` |
 | `text` | a floating sign | `text`, `size` (letter height) |
 | `light` | a light (also: `light: { type: point / spot / sun, color, intensity, range }`) | |
