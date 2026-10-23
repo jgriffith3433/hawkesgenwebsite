@@ -156,11 +156,20 @@
     if (soft) release();
     closePopup();
     dropGrab(false);
-    if (m === 'build' && document.pointerLockElement) document.exitPointerLock();
+    if (m === 'build') H.game.input.release();
     H.setMode(m);
-    if (m === 'play') { H.respawn(); }
     syncMode();
     toParent({ type: 'mode', mode: m });
+    if (m === 'play') {
+      // The building UI stays a moment, then fades: you're playing now.
+      hud.classList.add('intro');
+      clearTimeout(setMode.t);
+      setMode.t = setTimeout(() => hud.classList.remove('intro'), 2600);
+      // No menu of its own at the start: the game takes the mouse (this runs inside the click, which browsers need).
+      const p = W().player;
+      const menu = document.querySelector('.ui-menu-wrap, .ui-popup-wrap, .ui-over');
+      if (!menu && p && p.mouse !== 'free') H.game.input.capture();
+    }
   }
   function syncMode() {
     const building = H.mode === 'build';

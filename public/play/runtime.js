@@ -723,7 +723,8 @@
       game.burst([e.x, e.y + 1.2, e.z], { color: wp.color.toHexString(), count: 26, speed: 4 });
       W.state.waypoints = (W.state.waypoints || 0) + (wp.role === 'waypoint' ? 1 : 0);
       game.emit(wp.role === 'finish' ? 'finish' : wp.role === 'checkpoint' ? 'checkpoint' : 'waypoint', { entity: e });
-      if (wp.role === 'finish') { if (mode === 'build') game.ui.message('Finish! (in the game this ends it)', 2); else game.over((e.data && e.data.message) || 'You made it!'); }
+      // A game that listens for 'finish' shows its own results; otherwise the engine says well done.
+      if (wp.role === 'finish') { if (mode === 'build') game.ui.message('Finish! (in the game this ends it)', 2); else if (!(W.events.get('finish') || []).length) game.over((e.data && e.data.message) || 'You made it!'); }
       for (const h of e.handlers.hit) h(p);
       runBehaviorHit(e, p);
       wp.orb.material.alpha = 0.55;
@@ -1599,6 +1600,15 @@
           return { x: a.x * c + a.y * s, z: -a.x * s + a.y * c };
         },
         get mouse() { return mouse; },
+        /** Takes the mouse for looking around (call it from a button, like a menu's Start: browsers need a click).
+         *  Where a browser won't capture it, moving the mouse looks around until Esc. */
+        capture() {
+          if (touchUi || (W.player && W.player.mouse === 'free')) return Promise.resolve(false);
+          return lockPointer().then((ok) => { if (!ok) { softLook = true; document.body.classList.add('soft-control'); } return ok; });
+        },
+        /** Gives the mouse back (for menus, shops, maps). */
+        release() { softLook = false; document.body.classList.remove('soft-control'); if (document.pointerLockElement) document.exitPointerLock(); },
+        get captured() { return mouse.locked || softLook; },
         /** What's under the mouse (or the crosshair when the mouse is captured): { entity, point } or null. */
         pick() {
           const sc = W.scene;
@@ -2003,10 +2013,13 @@
       if (e.sceneId && want && assets[want] && (!before[want] || before[want].url !== assets[want].url)) applyOps([{ op: 'replace', entity: W.graph.entities[e.sceneId] }], { fx: 'arrive' });
     }
   }
+  /** Building or playing. Playing starts the game over from the top, as a player would: the world as built, every
+   *  script again, the player at the start (and whatever the game does first: a title menu, a countdown...).
+   *  Back to building keeps you where you were. */
   function setMode(m) {
     if (m === mode) return;
     mode = m;
-    if (W) start({ keep: true });
+    if (W) start({ keep: m === 'build' });
   }
 
   window.HawkesPlay = {

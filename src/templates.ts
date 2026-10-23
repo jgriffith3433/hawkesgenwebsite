@@ -145,19 +145,70 @@ export const TEMPLATES: Template[] = [
           sign: thing('sign', 'text', 'Sign', [0, 3.2, -26.5], { shape: { text: 'BOT ARENA\nClear 25 bots', size: 0.6, billboard: false } }),
         },
       ),
-      'scripts/arena.js': `// Bot Arena's rules. Everything else is the world: bots ("enemy"), the pads that send more ("spawner"),
-// pickups, the launch pad, and the rifle in the player settings.
+      'scripts/arena.js': `// Bot Arena's rules and screens. The world does the fighting: bots ("enemy"), the pads that send more
+// ("spawner"), pickups, the launch pad and the rifle in the player settings. This file is what a game adds on top:
+// its look, a title screen, a pause menu, a HUD and the end.
+
+game.ui.theme({ font: '"Rajdhani", "Inter", sans-serif', color: '#e6fbff', accent: '#22d3ee', panel: 'rgba(6,14,26,.86)', border: 'rgba(34,211,238,.45)', radius: 2 });
+game.ui.style(\`
+  .arena-title .ui-menu { text-align: center; min-width: 340px; }
+  .arena-title .ui-menu-title { font: 700 40px/1 Orbitron, sans-serif; letter-spacing: .22em; text-shadow: 0 0 24px #22d3ee; margin-bottom: 12px; }
+  .arena-title .ui-menu-items .ui-btn { text-align: center; letter-spacing: .2em; text-transform: uppercase; }
+  .arena-hud { font-weight: 700; letter-spacing: .14em; text-transform: uppercase; min-width: 0; padding: 10px 16px; }
+  .arena-hud b { color: #22d3ee; font-size: 22px; }
+  .arena-end .ui-menu-title { font: 700 30px Orbitron, sans-serif; letter-spacing: .16em; color: #22d3ee; }
+\`);
+
+const GOAL = 25;
 game.state.kills = 0;
-const goal = 25;
+game.state.downs = 0;
+game.state.time = 0;
+
+// The title screen, the first time only (game.save remembers it across "Play again").
+function title() {
+  game.ui.menu('title', {
+    title: 'BOT ARENA', text: \`Clear \${GOAL} bots. Grab the shotgun, ride the launch pad to the rocket launcher on the tower.\`,
+    class: 'arena-title', closable: false,
+    items: [
+      { label: 'Start', primary: true, onClick: () => { game.save('arena.seen', true); game.input.capture(); } },
+      { label: 'How to play', close: false, onClick: () => game.ui.popup('WASD to move, mouse to aim, click to shoot, R to reload. Health and ammo come back after a while. P pauses.', { title: 'How to play' }) },
+    ],
+  });
+}
+if (game.mode === 'play' && !game.load('arena.seen', false)) game.onStart(title);
+
+game.input.onKey('p', () => {
+  if (game.paused || game.mode !== 'play') return;
+  game.input.release();
+  game.ui.menu('pause', {
+    title: 'Paused',
+    items: [
+      { label: 'Resume', primary: true, onClick: () => game.input.capture() },
+      { label: 'Restart', onClick: () => { game.restart(); game.input.capture(); } },
+    ],
+  });
+});
 
 game.on('kill', () => {
   game.state.kills++;
-  if (game.state.kills % 5 === 0 && game.state.kills < goal) game.ui.message(\`Wave \${game.state.kills / 5 + 1}\`, 1.4);
-  if (game.state.kills >= goal) game.over(\`Arena cleared: \${goal} bots\`);
+  if (game.state.kills % 5 === 0 && game.state.kills < GOAL) game.ui.message(\`Wave \${game.state.kills / 5 + 1}\`, 1.4);
+  if (game.state.kills >= GOAL) won();
 });
+game.on('death', (d) => { if (d.entity === game.player) game.state.downs++; });
 
-game.onUpdate(() => {
-  game.ui.text('kills', \`BOTS \${game.state.kills} / \${goal}\`, { x: 'center', y: 'top', size: 22 });
+function won() {
+  game.input.release();
+  game.ui.menu('end', {
+    title: 'ARENA CLEARED', class: 'arena-end', closable: false,
+    text: \`\${GOAL} bots in \${Math.round(game.state.time)} s · down \${game.state.downs} time\${game.state.downs === 1 ? '' : 's'}\`,
+    items: [{ label: 'Play again', primary: true, onClick: () => { game.restart(); game.input.capture(); } }],
+  });
+}
+
+// The HUD: a panel in the corner, kept up to date.
+game.onUpdate((dt) => { if (!game.paused) game.state.time += dt; });
+game.every(0.2, () => {
+  game.ui.panel('stats', { html: \`BOTS <b>\${game.state.kills}</b> / \${GOAL} &nbsp; · &nbsp; \${Math.floor(game.state.time / 60)}:\${String(Math.floor(game.state.time % 60)).padStart(2, '0')}\`, x: 'center', y: 'top', class: 'arena-hud' });
 });
 `,
     }),
@@ -178,16 +229,60 @@ game.onUpdate(() => {
           sun_light: thing('sun_light', 'light', 'Pink sun', [0, 80, 300], { light: { type: 'point', color: '#ff7ad8', intensity: 1.2, range: 600 } }),
         },
       ),
-      'scripts/race.js': `// Sky Racer's rules: a clock, the score from the gates, and the finish.
+      'scripts/race.js': `// Sky Racer's rules and screens: a title, a countdown, the clock and the score from the gates, and the results
+// with your best time. The course itself is the world: "gate" rings joined by next, and a finish waypoint.
+
+game.ui.theme({ font: '"Rajdhani", "Inter", sans-serif', color: '#fff0fb', accent: '#ff4ad8', panel: 'rgba(22,10,40,.84)', border: 'rgba(255,122,216,.5)', radius: 18 });
+game.ui.style(\`
+  .race-title .ui-menu { text-align: center; background: linear-gradient(160deg, rgba(60,20,90,.9), rgba(16,8,36,.92)); }
+  .race-title .ui-menu-title { font: 700 42px/1 Orbitron, sans-serif; letter-spacing: .18em; background: linear-gradient(90deg, #ff7ad8, #7ad8ff); -webkit-background-clip: text; color: transparent; margin-bottom: 10px; }
+  .race-title .ui-btn { text-align: center; text-transform: uppercase; letter-spacing: .2em; }
+  .race-hud { text-align: center; padding: 8px 20px; font-weight: 700; letter-spacing: .1em; }
+  .race-hud big { display: block; font: 700 30px Orbitron, sans-serif; color: #ff7ad8; text-shadow: 0 0 16px #ff4ad8; }
+\`);
+
 game.state.time = 0;
 game.state.score = 0;
-game.on('gate', () => game.ui.message('+100', 0.6));
-game.onUpdate((dt) => {
-  if (!game.state.done) game.state.time += dt;
-  game.ui.text('time', \`\${game.state.time.toFixed(1)} s\`, { x: 'right', size: 26 });
-  game.ui.text('score', \`\${game.state.score || 0}\`, { x: 'center', size: 30 });
+game.state.racing = false;
+
+function countdown() {
+  game.player.controls = false;
+  let n = 3;
+  game.ui.message(String(n), 0.8);
+  const stop = game.every(1, () => {
+    n--;
+    if (n > 0) game.ui.message(String(n), 0.8);
+    else { stop(); game.ui.message('GO!', 0.8); game.player.controls = true; game.state.racing = true; }
+  });
+}
+
+if (game.mode === 'play') {
+  game.onStart(() => game.ui.menu('title', {
+    title: 'SKY RACER', text: 'Fly through every gate. Steer with the mouse (or WASD), hold space to boost.', class: 'race-title', closable: false,
+    items: [{ label: 'Race', primary: true, onClick: () => { game.input.capture(); countdown(); } }],
+  }));
+} else game.state.racing = true;
+
+game.on('gate', () => game.ui.message('+100', 0.5));
+game.on('finish', () => {
+  if (!game.state.racing) return;
+  game.state.racing = false;
+  game.player.controls = false;
+  const t = game.state.time;
+  const best = game.load('race.best', null);
+  if (best === null || t < best) game.save('race.best', t);
+  game.input.release();
+  game.ui.menu('results', {
+    title: best === null || t < best ? 'NEW BEST!' : 'FINISHED', class: 'race-title', closable: false,
+    text: \`\${t.toFixed(2)} s · \${game.state.score} points\${best !== null ? \` · best \${Math.min(best, t).toFixed(2)} s\` : ''}\`,
+    items: [{ label: 'Race again', primary: true, onClick: () => { game.restart(); game.input.capture(); } }],
+  });
 });
-game.on('finish', () => { game.state.done = true; });
+
+game.onUpdate((dt) => {
+  if (game.state.racing) game.state.time += dt;
+  game.ui.panel('hud', { html: \`<big>\${game.state.time.toFixed(1)}</big>\${game.state.score} pts\`, x: 'center', y: 'top', class: 'race-hud' });
+});
 `,
     }),
   },
@@ -206,13 +301,48 @@ game.on('finish', () => { game.state.done = true; });
           ...climb(),
         },
       ),
-      'scripts/leap.js': `// Leap's rules: a clock and the coins; the summit waypoint ends the run.
+      'scripts/leap.js': `// Leap's rules and screens: a title, the clock and coins, and the results at the summit (with your best).
+// The climb is the world: moving platforms ("patrol"), spikes ("hurts"), coins ("collectible") and waypoints.
+
+game.ui.theme({ font: '"Rajdhani", "Inter", sans-serif', color: '#1e2a3a', accent: '#ff9f1a', panel: 'rgba(255,250,240,.92)', border: 'rgba(30,42,58,.15)', radius: 16 });
+game.ui.style(\`
+  .leap-title .ui-menu { text-align: center; }
+  .leap-title .ui-menu-title { font: 700 44px/1 Orbitron, sans-serif; letter-spacing: .12em; color: #ff9f1a; text-shadow: 0 3px 0 #b35f00; margin-bottom: 10px; }
+  .leap-title .ui-btn { text-align: center; text-transform: uppercase; letter-spacing: .16em; color: #1e2a3a; }
+  .leap-title .ui-btn.primary { color: #fff; }
+  .leap-hud { padding: 8px 16px; font-weight: 700; letter-spacing: .08em; box-shadow: 0 6px 20px rgba(0,0,0,.15); }
+  .leap-hud b { color: #ff9f1a; }
+\`);
+
+const coins = game.all('Coin').length;
 game.state.time = 0;
-game.on('finish', () => { game.state.done = true; });
+game.state.climbing = game.mode !== 'play';
+
+if (game.mode === 'play') {
+  game.onStart(() => game.ui.menu('title', {
+    title: 'LEAP', text: \`Climb to the summit. Space jumps, space again in the air jumps higher. \${coins} coins on the way.\`, class: 'leap-title', closable: false,
+    items: [{ label: 'Climb', primary: true, onClick: () => { game.state.climbing = true; game.input.capture(); } }],
+  }));
+}
+
+game.on('checkpoint', () => game.ui.message('Checkpoint', 1));
+game.on('finish', () => {
+  if (!game.state.climbing) return;
+  game.state.climbing = false;
+  const t = game.state.time;
+  const best = game.load('leap.best', null);
+  if (best === null || t < best) game.save('leap.best', t);
+  game.input.release();
+  game.ui.menu('results', {
+    title: 'SUMMIT!', class: 'leap-title', closable: false,
+    text: \`\${t.toFixed(1)} s · \${game.state.score || 0} of \${coins} coins\${best !== null ? \` · best \${Math.min(best, t).toFixed(1)} s\` : ''}\`,
+    items: [{ label: 'Climb again', primary: true, onClick: () => { game.restart(); game.input.capture(); } }],
+  });
+});
+
 game.onUpdate((dt) => {
-  if (!game.state.done) game.state.time += dt;
-  game.ui.text('time', \`\${game.state.time.toFixed(1)} s\`, { x: 'right', size: 24 });
-  game.ui.text('coins', \`★ \${game.state.score || 0}\`, { x: 'left', size: 24 });
+  if (game.state.climbing) game.state.time += dt;
+  game.ui.panel('hud', { html: \`<b>\${game.state.time.toFixed(1)} s</b> &nbsp; ★ \${game.state.score || 0} / \${coins}\`, x: 'left', y: 'top', class: 'leap-hud' });
 });
 `,
     }),

@@ -205,7 +205,7 @@ Rules:
 - Combat is built in: config.player.weapon (blaster, rifle, shotgun, launcher, or tuned), the "enemy" behavior (enemies that see, chase, strafe, shoot, retreat), "health", "pickup", "spawner" (of: an enemy's id) and game.on('kill'). Use them for shooters instead of writing AI or guns in scripts.
 - Mouse control: config.player.mouse "free" keeps the mouse a pointer (strategy, point-and-click, menu games); view "rts" is a commander's camera; mode "flight" flies.
 - Checkpoints, routes, finish lines and goals are "waypoint" things (data.role checkpoint / waypoint / finish, data.next for a route), not invisible trigger boxes.
-- Menus, popups, shops, inventories, dialog and HUDs are game.ui (panel, menu, popup, ask, attach, theme, style) in scripts, styled to the game with game.ui.theme or game.json "ui".
+- Menus, popups, shops, inventories, dialog and HUDs are game.ui (panel, menu, popup, ask, attach, theme, style) in scripts, styled to the game with game.ui.theme or game.json "ui". Title screens only when game.mode === 'play'; a Start button calls game.input.capture(); see "A game's own screens".
 - Asset names: only use assets that are listed, or ones you list in "assets" so the people can generate them. Until an asset exists, scripts must not crash: prefer adding an asset in the same message and using a shape as a stand-in, or check with game.find / try.
 - If the request is unclear or impossible, change nothing and say what you need.
 - Reply in a few plain sentences: what changed and how to try it (which keys). No markdown headings.

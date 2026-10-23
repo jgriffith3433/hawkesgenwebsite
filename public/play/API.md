@@ -226,6 +226,23 @@ shop.on('click', async () => {
 });
 ```
 
+### A game's own screens: how they fit together
+
+- **Pressing Play starts the game from the top**: the world as built, every script again, the player at the start.
+  Show a title screen only when `game.mode === 'play'` (building shouldn't stop at it), from `game.onStart`.
+- **The mouse:** a game with no menu at the start gets the mouse captured when Play is pressed. A menu's Start
+  button calls `game.input.capture()` (browsers only capture on a click); open menus with `game.input.release()` first
+  if the player was looking around. `game.input.captured` says which.
+- **Once only:** `game.save('seen', true)` / `game.load('seen')` remember across "Play again" (`game.restart()`).
+- **Endings:** a game that listens for `'finish'` shows its own results instead of the engine's "You made it!".
+- **Pausing:** menus pause the game while open; bind a key that isn't Esc for a pause menu (`P`): in the editor Esc
+  opens the editor's menu.
+- **Style:** `game.ui.theme(...)` once, then `game.ui.style(css)` with classes you pass as `class`. Fonts that are
+  always there: Orbitron (display), Rajdhani, Inter.
+
+The three Overseer games (Bot Arena, Sky Racer, Leap) are complete examples: a title menu, a pause menu or countdown,
+a HUD panel and a results screen, each a short script on top of the world.
+
 ## Sound
 
 `game.sound('jump.mp3', { volume: 1 })` plays once. `game.music('theme.mp3', { volume: 0.5 })` loops;

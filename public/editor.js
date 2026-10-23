@@ -165,7 +165,7 @@ window.addEventListener('message', async (e) => {
     case 'generate': try { await post(`${API}/games/${gameId}/generate`, { kind: m.kind, prompt: m.prompt, name: m.name }); } catch (err) { addSystem(err.message); } return;
     case 'open-code': openDrawer('code'); openFile('scene.json'); if (m.entity) revealEntity(m.entity); return;
     case 'net': if (m.conn) roomConn = m.conn; return;
-    case 'mode': return;
+    case 'mode': setPlaying(m.mode === 'play'); return;
     case 'menu': openMenu(); return;
     case 'card': return;
     case 'selected':
@@ -583,6 +583,22 @@ $('deleteGameBtn').onclick = async () => {
   if (!confirm(`Delete "${game.title}" for everyone? This cannot be undone.`)) return;
   try { await del(`${API}/games/${gameId}`); location.href = '/app'; } catch (err) { alert(err.message); }
 };
+// ------------------------------------------------------------------ playing: the building UI steps away
+let playing = false;
+function setPlaying(on) {
+  playing = on;
+  document.body.classList.toggle('playing', on);
+  const item = $('menu').querySelector('[data-act="mode"]');
+  if (item) item.textContent = on ? 'Back to building' : 'Play the game';
+  if (on) {
+    closeLibrary(); closeDrawer();
+    $('chatInput').blur();
+    document.body.classList.add('intro');
+    clearTimeout(setPlaying.t);
+    setPlaying.t = setTimeout(() => document.body.classList.remove('intro'), 2600);
+  } else document.body.classList.remove('intro');
+}
+
 // ------------------------------------------------------------------ the menu (a game's pause menu)
 function openMenu() {
   closeLibrary(); closeDrawer();
@@ -607,6 +623,7 @@ $('menu').querySelector('.st-menu-list').onclick = async (e) => {
   if (!b) return;
   const act = b.dataset.act;
   if (act === 'resume') closeMenu();
+  if (act === 'mode') { closeMenu(); toStage({ type: 'mode', mode: playing ? 'build' : 'play' }); }
   if (act === 'library') { closeMenu(); openLibrary(); }
   if (act === 'advanced') { closeMenu(); openDrawer('code'); }
   if (act === 'codex') window.open('/entities', '_blank');

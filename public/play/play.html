@@ -64,6 +64,9 @@
     /* ------------------------------------------------------------ the build HUD (build.js) */
     #hud { position: fixed; inset: 0; pointer-events: none; z-index: 4; color: var(--fg); }
     #hud.playing .hud-look, #hud.playing .hud-hint, #hud.playing .hud-bar, #hud.playing .hud-touch, #hud.playing .hud-free { display: none !important; }
+    /* Playing: the building switch shows for a moment, then fades away (Tab or the menu brings building back) */
+    .hud-top { transition: opacity .8s ease; }
+    #hud.playing:not(.intro) .hud-top { opacity: 0; pointer-events: none; }
     .hud-cross { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; }
     .hud-cross::before, .hud-cross::after { content: ''; position: absolute; background: rgba(255,255,255,.85); box-shadow: 0 0 3px rgba(0,0,0,.6); }
     .hud-cross::before { left: 8px; top: 2px; width: 2px; height: 14px; }
@@ -235,10 +238,10 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/babylonjs@7.54.3/babylon.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/babylonjs-loaders@7.54.3/babylonjs.loaders.min.js"></script>
-  <script src="/play/runtime.js?v=engine8"></script>
-  <script src="/play/behaviors.js?v=engine8"></script>
-  <script src="/play/net.js?v=engine8"></script>
-  <script src="/play/gameplay.js?v=engine8"></script>
+  <script src="/play/runtime.js?v=engine9"></script>
+  <script src="/play/behaviors.js?v=engine9"></script>
+  <script src="/play/net.js?v=engine9"></script>
+  <script src="/play/gameplay.js?v=engine9"></script>
   <script>
     // A game, not a page: no pinch or double-tap zoom, no ctrl+wheel zoom, no text selection or long-press menus.
     ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (t) { document.addEventListener(t, function (e) { e.preventDefault(); }, { passive: false }); });
@@ -258,7 +261,7 @@
       var loading = document.getElementById('loading');
       if (slug === '_draft') {
         var s = document.createElement('script');
-        s.src = '/play/build.js?v=engine8';
+        s.src = '/play/build.js?v=engine9';
         s.onload = function () { window.parent.postMessage({ source: 'hawkes-play', type: 'ready' }, '*'); };
         document.body.appendChild(s);
         window.addEventListener('message', function (e) {
