@@ -15,6 +15,7 @@ import { memberGame, chatMessage, updateChatData, writeFile, deleteFile, listAss
 import { describeScene, parseScene } from './scene.ts';
 import { broadcastOps } from './rooms.ts';
 import { broadcast } from './live.ts';
+import { search as searchCommunity } from './community.ts';
 
 export const AI_CREDITS = () => Math.max(1, Number(env('GAME_AI_CREDITS') ?? 8));
 
@@ -184,11 +185,12 @@ const SCHEMA = {
       type: 'array',
       description: 'Assets the game needs that do not exist yet, for the people to generate with one click. Your scripts may already use them by name.',
       items: {
-        type: 'object', additionalProperties: false, required: ['kind', 'name', 'prompt'],
+        type: 'object', additionalProperties: false, required: ['kind', 'name', 'prompt', 'community'],
         properties: {
           kind: { type: 'string', enum: Object.keys(KINDS) },
           name: { type: 'string', description: 'File name the scripts use, with extension: sprite/image/texture .png, sky .jpg, model .glb, sfx/voice/music .mp3' },
           prompt: { type: 'string', description: 'What to generate: subject, style, mood. For voice: the exact line.' },
+          community: { type: 'string', description: 'The id (a_...) of the community library thing that fits best, from the list you were given, or "". The people choose: that one, another match, or making their own.' },
         },
       },
     },
@@ -214,6 +216,7 @@ Rules:
 - Mouse control: config.player.mouse "free" keeps the mouse a pointer (strategy, point-and-click, menu games); view "rts" is a commander's camera; mode "flight" flies.
 - Checkpoints, routes, finish lines and goals are "waypoint" things (data.role checkpoint / waypoint / finish, data.next for a route), not invisible trigger boxes.
 - Menus, popups, shops, inventories, dialog and HUDs are game.ui (panel, menu, popup, ask, attach, theme, style) in scripts, styled to the game with game.ui.theme or game.json "ui". Title screens only when game.mode === 'play'; a Start button calls game.input.capture(); see "A game's own screens".
+- The community library is everything other builders and Hawkes have shared (models, textures, skies, sprites, music, ambience, sound effects). When they ask for a thing ("a ball", "rain sounds", "a grass floor"), list it in "assets" as usual and set "community" to the best match from the community list if there is one: they are shown the community matches next to "make our own", and pick. Meanwhile put it in the world already, using the asset name (a "model" with that asset, a material texture, the config sky): the engine shows a waiting stand-in until the asset arrives, then the real thing.
 - Asset names: only use assets that are listed, or ones you list in "assets" so the people can generate them. Until an asset exists, scripts must not crash: prefer adding an asset in the same message and using a shape as a stand-in, or check with game.find / try.
 - If the request is unclear or impossible, change nothing and say what you need.
 - Reply in a few plain sentences: what changed and how to try it (which keys). No markdown headings.
@@ -297,7 +300,9 @@ export async function askAssistant(user: User, gameId: string, body: { message?:
   const ctx = context(game.id, typeof body.file === 'string' ? body.file : undefined);
   const errors = typeof body.errors === 'string' && body.errors.trim() ? `\nErrors the game is showing right now:\n${body.errors.slice(0, 3000)}\n` : '';
   const view = playerView(body.context, body.mention);
-  const prompt = `Game: ${game.title}\n${game.description ? `About: ${game.description}\n` : ''}\nAssets in the game: ${ctx.assets.length ? ctx.assets.join(', ') : '(none yet)'}\n\nThe world (scene.json), one line per thing:\n${ctx.world || '(empty)'}\n\nFiles (scripts and behaviors):\n${ctx.files}\n\nRecent conversation:\n${ctx.chat || '(none)'}\n${errors}\n${view}\n${user.name ?? 'Someone'} asks: ${message}`;
+  const shared = searchCommunity({ q: message, limit: 16 }).items;
+  const communityList = shared.length ? `\nCommunity library things that match what they said (id, kind, title, tags):\n${shared.map((c) => `${c.id} ${c.kind} "${c.title}" [${c.tags.join(' ')}]`).join('\n')}\n` : '';
+  const prompt = `Game: ${game.title}\n${game.description ? `About: ${game.description}\n` : ''}\nAssets in the game: ${ctx.assets.length ? ctx.assets.join(', ') : '(none yet)'}\n\nThe world (scene.json), one line per thing:\n${ctx.world || '(empty)'}\n\nFiles (scripts and behaviors):\n${ctx.files}\n\nRecent conversation:\n${ctx.chat || '(none)'}\n${errors}${communityList}\n${view}\n${user.name ?? 'Someone'} asks: ${message}`;
   thinking.add(game.id);
   broadcast(game.id, 'thinking', { on: true, by: user.name });
   let job: any;
@@ -363,7 +368,7 @@ export async function askAssistant(user: User, gameId: string, body: { message?:
       }
       const have = new Set(listAssets(game.id).map((a) => a.name));
       const suggested = (Array.isArray(v.assets) ? v.assets : []).filter((a: any) => KINDS[a?.kind] && a?.prompt && !have.has(a.name)).slice(0, 8)
-        .map((a: any) => ({ kind: a.kind, name: String(a.name), prompt: String(a.prompt), credits: KINDS[a.kind].credits }));
+        .map((a: any) => ({ kind: a.kind, name: String(a.name), prompt: String(a.prompt), credits: KINDS[a.kind].credits, community: communityFor(a) }));
       const text = String(v.reply ?? '').trim() || (changed.length || world.length ? 'Done.' : 'I had nothing to change.');
       chatMessage(game.id, null, 'ai', problems.length ? `${text}\n\n(Some changes could not be saved: ${problems.join('; ')})` : text, { changed, deleted, world, assets: suggested, replyTo: asked.id, job: job.id });
     } catch (e: any) {
@@ -378,13 +383,25 @@ export async function askAssistant(user: User, gameId: string, body: { message?:
   return { ok: true, message: asked, credits: AI_CREDITS() };
 }
 
-/** Marks an assistant suggestion as being made (so others see it was clicked). */
-export function markSuggestion(messageId: string, index: number, taskId: string) {
+/** Community things that could be this suggestion: the assistant's pick first, then the best matches of that kind. */
+const COMMUNITY_KIND: Record<string, string> = { model: 'model', texture: 'texture', sky: 'sky', sprite: 'sprite', image: 'image', sfx: 'sfx', music: 'music' };
+function communityFor(a: { kind: string; name: string; prompt: string; community?: string }) {
+  const kind = COMMUNITY_KIND[a.kind];
+  if (!kind) return [];
+  const q = `${String(a.name).replace(/\.[a-z0-9]+$/i, '').replace(/[-_]/g, ' ')} ${a.prompt}`;
+  const found = searchCommunity({ q, kind, limit: 6 }).items;
+  const picked = a.community ? searchCommunity({ kind, limit: 120 }).items.find((c) => c.id === a.community) : null;
+  return (picked ? [picked, ...found.filter((c) => c.id !== picked.id)] : found).slice(0, 6).map((c) => ({ id: c.id, title: c.title, thumb: c.thumb, kind: c.kind, by: c.by }));
+}
+
+/** Marks an assistant suggestion as being made, or as answered by a community thing (so others see it was chosen). */
+export function markSuggestion(messageId: string, index: number, taskId: string | null, used?: { id: string; title: string } | null) {
   const r = db.prepare('SELECT data FROM game_chat WHERE id = ?').get(messageId) as { data: string | null } | undefined;
   if (!r?.data) return;
   const data = JSON.parse(r.data);
   if (data.assets?.[index]) {
-    data.assets[index].task = taskId;
+    if (taskId) data.assets[index].task = taskId;
+    if (used) data.assets[index].used = { id: used.id, title: used.title };
     updateChatData(messageId, data);
   }
 }

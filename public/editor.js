@@ -283,13 +283,31 @@ function renderChat(fresh) {
     for (const [i, sg] of (d.assets || []).entries()) {
       const sugg = document.createElement('span');
       sugg.className = 'sugg';
-      sugg.innerHTML = `<span>${esc(sg.kind)}: ${esc(String(sg.prompt).slice(0, 40))}</span>`;
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.textContent = sg.task ? 'Making…' : `Make it · ${sg.credits || ''}`;
-      btn.disabled = Boolean(sg.task);
-      btn.onclick = async () => { btn.disabled = true; btn.textContent = 'Making…'; try { await post(`${API}/games/${gameId}/generate`, { kind: sg.kind, prompt: sg.prompt, name: sg.name, messageId: msg.id, suggestion: i }); } catch (err) { btn.disabled = false; addSystem(err.message); } };
-      sugg.appendChild(btn);
+      const picks = sg.used || sg.task ? [] : (sg.community || []);
+      sugg.innerHTML = `<span>${esc(sg.kind)}: ${esc(String(sg.prompt).slice(0, 40))}${sg.used ? ` · using ${esc(sg.used.title)} from the community` : picks.length ? ' · from the community, or' : ''}</span>`;
+      // Community things that fit first (one click, free), then making our own.
+      if (picks.length) {
+        const row = document.createElement('span');
+        row.className = 'sugg-picks';
+        for (const c of picks) {
+          const p = document.createElement('button');
+          p.type = 'button';
+          p.className = 'sugg-pick';
+          p.title = `${c.title} · by ${c.by}`;
+          p.innerHTML = c.thumb ? `<img src="${c.thumb}" alt="">` : `<span>${GLYPH[c.kind] || '◆'}</span>`;
+          p.onclick = () => { for (const x of row.querySelectorAll('button')) x.disabled = true; useCommunity(c, null, { name: sg.name, messageId: msg.id, suggestion: i, ifUnused: true }); };
+          row.appendChild(p);
+        }
+        sugg.appendChild(row);
+      }
+      if (!sg.used) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = sg.task ? 'Making…' : `${picks.length ? 'Make our own' : 'Make it'} · ${sg.credits || ''}`;
+        btn.disabled = Boolean(sg.task);
+        btn.onclick = async () => { btn.disabled = true; btn.textContent = 'Making…'; try { await post(`${API}/games/${gameId}/generate`, { kind: sg.kind, prompt: sg.prompt, name: sg.name, messageId: msg.id, suggestion: i }); } catch (err) { btn.disabled = false; addSystem(err.message); } };
+        sugg.appendChild(btn);
+      }
       div.appendChild(sugg);
     }
     log.appendChild(div);
@@ -668,9 +686,102 @@ $('libraryClose').onclick = closeLibrary;
 $('openLibrary2').onclick = openLibrary;
 for (const b of $('libTabs').querySelectorAll('button')) b.onclick = () => { libKind = b.dataset.k; for (const x of $('libTabs').querySelectorAll('button')) x.classList.toggle('on', x === b); loadLibrary(); };
 const GEN_KIND = { model: 'mesh', image: 'image', audio: 'audio', video: 'video' };
+// Community things by what they become in the world: a model, a picture, a sound, a texture on what you point at, the sky.
+const PLACE_AS = { model: 'mesh', image: 'image', sprite: 'image', texture: 'image', sky: 'image', music: 'audio', ambience: 'audio', sfx: 'audio', voice: 'audio', video: 'video' };
+const GLYPH = { model: '◆', music: '♫', ambience: '≈', sfx: '♪', voice: '❝', video: '▶' };
+const KIND_LABEL = { model: '3D', texture: 'TEX', sky: 'SKY', sprite: 'PIC', image: 'PIC', music: 'MUSIC', ambience: 'AMB', sfx: 'SFX', voice: 'VOICE', video: 'VID' };
+function communityTile(c, onClick) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'st-lib-item community';
+  b.title = `${c.title}${c.tags && c.tags.length ? ` · ${c.tags.join(' ')}` : ''} · by ${c.by}`;
+  b.innerHTML = `${c.thumb ? `<img src="${c.thumb}" alt="" loading="lazy">` : `<span>${GLYPH[c.kind] || '◆'}</span>`}<span class="kind">${KIND_LABEL[c.kind] || c.kind}</span><span class="t">${esc(c.title)}<small>${esc(c.by)}</small></span>`;
+  if (['music', 'ambience', 'sfx', 'voice'].includes(c.kind)) {
+    // Hover to hear it.
+    let au = null;
+    b.onmouseenter = () => { au = au || new Audio(c.file); au.currentTime = 0; au.volume = 0.6; au.play().catch(() => {}); };
+    b.onmouseleave = () => { if (au) au.pause(); };
+  }
+  b.onclick = () => onClick(c, b);
+  return b;
+}
+/** Puts a community thing in the game (under `name`, when the assistant already uses one) and where you're looking. */
+async function useCommunity(c, el, o = {}) {
+  if (el) el.classList.add('busy');
+  try {
+    const r = await post(`${API}/games/${gameId}/community`, { id: c.id, name: o.name, messageId: o.messageId, suggestion: o.suggestion });
+    assets[r.asset.name] = r.asset;
+    await sendAssets();
+    const as = c.kind === 'texture' ? 'texture' : c.kind === 'sky' ? 'sky' : null;
+    // ifUnused: the assistant may already have a stand-in that uses this name; then that one turns into it.
+    toStage({ type: 'place', asset: { name: r.asset.name, kind: PLACE_AS[c.kind] || 'image', as, title: c.title, ifUnused: Boolean(o.ifUnused) } });
+    closeLibrary();
+    stage.focus();
+  } catch (err) { addSystem(err.message); } finally { if (el) el.classList.remove('busy'); }
+}
+let communityTags = null;
+let searchTimer = 0;
+$('libSearch').oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadLibrary, 250); };
+async function loadCommunity(grid) {
+  if (!communityTags) {
+    communityTags = [];
+    get('/v1/community/tags').then((r) => {
+      communityTags = r.tags || [];
+      $('libChips').innerHTML = '';
+      for (const t of communityTags.slice(0, 18)) {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.textContent = t.tag;
+        chip.onclick = () => { $('libSearch').value = t.tag; loadLibrary(); };
+        $('libChips').appendChild(chip);
+      }
+    }).catch(() => {});
+  }
+  grid.innerHTML = '<div class="st-lib-empty">Searching the community…</div>';
+  let items = [];
+  try { items = (await get(`/v1/community?${new URLSearchParams({ q: $('libSearch').value.trim(), limit: '80' })}`)).items || []; } catch { grid.innerHTML = '<div class="st-lib-empty">The community library isn\'t reachable right now. Try again in a moment.</div>'; return; }
+  grid.innerHTML = '';
+  if (!items.length) {
+    grid.innerHTML = `<div class="st-lib-empty">${$('libSearch').value.trim() ? 'Nothing shared matches that yet. Ask the assistant to make one, and share it for everyone.' : 'Nothing shared yet.'}</div>`;
+    return;
+  }
+  for (const c of items) grid.appendChild(communityTile(c, (x, el) => useCommunity(x, el)));
+}
+/** Shares one of your things with the community: a title and a few search words. */
+function shareSheet(a, tile) {
+  const old = $('libGrid').querySelector('.st-share');
+  if (old) old.remove();
+  const f = document.createElement('form');
+  f.className = 'st-share';
+  const kind = a.kind === 'mesh' ? 'model' : a.kind === 'audio' ? 'sfx' : a.kind;
+  f.innerHTML = `<b>Share with the community</b><span class="muted small">Everyone building games can find and use it. It stays yours.</span>
+    <input name="title" maxlength="80" placeholder="Name" value="${esc(a.title || '')}">
+    <input name="tags" maxlength="200" placeholder="Search words: ball bouncy toy">
+    ${a.kind === 'image' ? '<select name="kind"><option value="image">Picture</option><option value="sprite">Sprite</option><option value="texture">Tiling texture</option><option value="sky">Sky</option></select>' : a.kind === 'audio' ? '<select name="kind"><option value="sfx">Sound effect</option><option value="music">Music</option><option value="ambience">Ambience</option><option value="voice">Voice</option></select>' : ''}
+    <span class="row"><button type="submit" class="st-btn primary small">Share</button><button type="button" class="st-btn small" data-x>Cancel</button></span>`;
+  f.querySelector('[data-x]').onclick = () => f.remove();
+  f.onsubmit = async (e) => {
+    e.preventDefault();
+    const btn = f.querySelector('[type=submit]');
+    btn.disabled = true;
+    try {
+      const r = await post('/v1/community', { asset: a.id, title: f.title.value.trim(), tags: f.tags.value, kind: f.kind ? f.kind.value : kind });
+      f.innerHTML = `<b>Shared: ${esc(r.title)}</b><span class="muted small">Find it in Community${r.tags.length ? ` under ${esc(r.tags.slice(0, 4).join(', '))}` : ''}.</span>`;
+      if (tile) tile.classList.add('shared');
+      communityTags = null;
+      setTimeout(() => f.remove(), 3000);
+    } catch (err) { btn.disabled = false; btn.textContent = err.message; }
+  };
+  $('libGrid').prepend(f);
+  f.title.focus();
+}
 async function loadLibrary() {
   const grid = $('libGrid');
-  $('libNote').textContent = libKind === 'basics' ? "Click one to put it where you're looking. Then double-click it to change it, or tell the assistant what it should do." : 'Everything you make with Hawkes Gen is yours, here and in the Asset studio.';
+  $('libSearchRow').hidden = libKind !== 'community';
+  $('libNote').textContent = libKind === 'basics' ? "Click one to put it where you're looking. Then double-click it to change it, or tell the assistant what it should do."
+    : libKind === 'community' ? 'Things other builders shared, and the Hawkes starter pack. Free to use in your game. Textures go on what you point at.'
+    : 'Everything you make with Hawkes Gen is yours, here and in the Asset studio. ⇪ shares one with the community.';
+  if (libKind === 'community') return loadCommunity(grid);
   if (libKind === 'basics') {
     if (!basics.length) { toStage({ type: 'basics?' }); grid.innerHTML = '<div class="st-lib-empty">Loading…</div>'; return; }
     grid.innerHTML = '';
@@ -705,6 +816,14 @@ async function loadLibrary() {
     const v = b.querySelector('video');
     if (v) { b.onmouseenter = () => v.play().catch(() => {}); b.onmouseleave = () => v.pause(); }
     b.onclick = () => placeFromLibrary(a, b);
+    if (a.kind !== 'video') {
+      const sh = document.createElement('span');
+      sh.className = 'share';
+      sh.title = 'Share with the community';
+      sh.textContent = '⇪';
+      sh.onclick = (e) => { e.stopPropagation(); shareSheet(a, b); };
+      b.appendChild(sh);
+    }
     grid.appendChild(b);
   }
 }

@@ -8,7 +8,7 @@
   <title>Hawkes Gen</title>
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/public.css">
-  <link rel="stylesheet" href="/studio.css?v=engine10">
+  <link rel="stylesheet" href="/studio.css?v=engine11">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
@@ -75,11 +75,16 @@
     </div>
     <div class="st-lib-tabs" id="libTabs">
       <button type="button" class="on" data-k="basics">Basics</button>
+      <button type="button" data-k="community">Community</button>
       <button type="button" data-k="">Yours</button>
       <button type="button" data-k="model">3D</button>
       <button type="button" data-k="image">Pictures</button>
       <button type="button" data-k="audio">Sounds</button>
       <button type="button" data-k="video">Videos</button>
+    </div>
+    <div class="st-lib-search" id="libSearchRow" hidden>
+      <input id="libSearch" type="search" placeholder="Search: ball, grass, rain, laser…" autocomplete="off" spellcheck="false">
+      <div class="st-lib-chips" id="libChips"></div>
     </div>
     <p class="st-lib-note" id="libNote">Click one to put it where you're looking. Then double-click it to change it, or tell the assistant what it should do.</p>
     <div class="st-lib-grid" id="libGrid"></div>
@@ -195,6 +200,6 @@
     </div>
   </div>
 
-  <script type="module" src="/editor.js?v=engine10"></script>
+  <script type="module" src="/editor.js?v=engine11"></script>
 </body>
 </html>

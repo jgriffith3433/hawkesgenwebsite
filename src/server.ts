@@ -27,6 +27,7 @@ import * as friends from './friends.ts';
 import { askAssistant, generateAsset, pendingGens, markSuggestion, resumeGens, KINDS, AI_CREDITS } from './gameai.ts';
 import { join as joinLive, setPresence } from './live.ts';
 import { templateBundle } from './templates.ts';
+import * as community from './community.ts';
 import { upgrade as joinRoom, broadcastOps } from './rooms.ts';
 import type { Duplex } from 'node:stream';
 
@@ -234,6 +235,11 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       res.setHeader('Access-Control-Allow-Origin', '*');
       return send(res, 200, b);
     }
+    // The community library is public: what's shared is for everyone (searching, browsing, its files).
+    if (route === '/v1/community' && method === 'GET') return send(res, 200, community.search({ q: url.searchParams.get('q'), kind: url.searchParams.get('kind'), tag: url.searchParams.get('tag'), limit: url.searchParams.get('limit') }));
+    if (route === '/v1/community/tags' && method === 'GET') return send(res, 200, { tags: community.tagCounts(url.searchParams.get('kind') ?? undefined) });
+    const cf = /^\/v1\/community\/(a_[0-9a-f]+)\/file$/.exec(route);
+    if (cf && method === 'GET') return relay(await community.file(cf[1]), res);
     if (route === '/v1/gallery' && method === 'GET') return send(res, 200, games.gallery(url.searchParams.get('sort') === 'new' ? 'new' : 'popular', Number(url.searchParams.get('limit')) || 60));
     let pb = /^\/v1\/play\/([a-z0-9-]+)$/.exec(route);
     if (pb && method === 'GET') {
@@ -301,6 +307,12 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (route === '/v1/billing/cancel' && method === 'POST') return send(res, 200, await setCancel(user, (await readJson(req)).cancel !== false));
     if (route === '/v1/billing/portal' && method === 'POST') return send(res, 200, await billingPortal(user));
 
+    // ------------------------------------------------------------ sharing with the community
+    if (route === '/v1/community' && method === 'POST') return send(res, 200, await community.share(user, await readJson(req)));
+    if (route === '/v1/community/mine' && method === 'GET') return send(res, 200, community.mine(user));
+    const cs = /^\/v1\/community\/(a_[0-9a-f]+)$/.exec(route);
+    if (cs && method === 'DELETE') return send(res, 200, community.unshare(user, cs[1]));
+
     // ------------------------------------------------------------ friends
     if (route === '/v1/friends' && method === 'GET') return send(res, 200, { friends: friends.listFriends(user.id) });
     const fr = /^\/v1\/friends\/(usr_[0-9a-f]+)$/.exec(route);
@@ -336,6 +348,12 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       if (sub === 'files' && method === 'DELETE') return send(res, 200, games.deleteFile(user, gid, url.searchParams.get('path'), conn));
       if (sub === 'files/rename' && method === 'POST') return send(res, 200, games.renameFile(user, gid, await readJson(req), conn));
       if (sub === 'assets' && method === 'POST') return send(res, 200, await games.addAsset(user, gid, await readJson(req)));
+      if (sub === 'community' && method === 'POST') {
+        const b = await readJson(req);
+        const r = await community.useInGame(user, gid, b);
+        if (b.messageId && Number.isInteger(b.suggestion)) markSuggestion(String(b.messageId), b.suggestion, null, r.item);
+        return send(res, 200, r);
+      }
       const an = /^assets\/([^/]+)(\/rename)?$/.exec(sub);
       if (an && method === 'DELETE' && !an[2]) return send(res, 200, games.removeAsset(user, gid, decodeURIComponent(an[1])));
       if (an && method === 'POST' && an[2]) return send(res, 200, games.renameAsset(user, gid, decodeURIComponent(an[1]), (await readJson(req)).name));
@@ -373,6 +391,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       admin.requireAdmin(user);
       const m = /^\/v1\/admin\/users\/(usr_[0-9a-f]+)(?:\/(credits|gift|disable|enable|role|password-link))?$/.exec(route);
       if (route === '/v1/admin/overview' && method === 'GET') return send(res, 200, admin.overview());
+      if (route === '/v1/admin/community/sync' && method === 'POST') return send(res, 200, await community.syncStarter());
       if (route === '/v1/admin/users' && method === 'GET') return send(res, 200, admin.listUsers({ search: url.searchParams.get('q'), limit: Number(url.searchParams.get('limit')), offset: Number(url.searchParams.get('offset')) }));
       if (route === '/v1/admin/jobs' && method === 'GET') return send(res, 200, { jobs: admin.recentJobs(Number(url.searchParams.get('limit')) || 100) });
       if (route === '/v1/admin/purchases' && method === 'GET') return send(res, 200, { purchases: admin.purchases(Number(url.searchParams.get('limit')) || 100) });
@@ -444,6 +463,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(ROOT, 'src
   watch();
   resumeTasks();
   resumeGens();
+  community.watchStarter();
   const server = http.createServer((req, res) => void handle(req, res));
   server.on('upgrade', onUpgrade);
   server.listen(PORT, '127.0.0.1', () => console.log(`[portal] http://127.0.0.1:${PORT}`));

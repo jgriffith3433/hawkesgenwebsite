@@ -249,3 +249,26 @@ body.playing:not(.intro) #libraryBtn, body.playing:not(.intro) #advancedBtn, bod
 body.playing:not(.intro) .st-chat-fab, body.playing:not(.intro) .st-presence, body.playing:not(.intro) #saveState { opacity: 0; pointer-events: none; }
 body.playing #menuBtn { opacity: .55; }
 body.playing #menuBtn:hover { opacity: 1; }
+
+/* ------------------------------------------------------------ the community library */
+.st-lib-search { padding: 8px 10px 0; flex: none; display: grid; gap: 6px; }
+.st-lib-search[hidden] { display: none; }
+.st-lib-search input { width: 100%; box-sizing: border-box; font: 600 13px var(--hud); letter-spacing: .03em; padding: 8px 10px; border: 0; color: #e6f4ff; background: rgba(10,18,34,.75); box-shadow: inset 0 0 0 1px rgba(110,190,255,.35); outline: none; clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); }
+.st-lib-search input:focus { box-shadow: inset 0 0 0 1px rgba(160,220,255,.9), 0 0 14px rgba(74,158,255,.35); }
+.st-lib-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.st-lib-chips button { font: 600 10.5px var(--hud); letter-spacing: .08em; text-transform: uppercase; padding: 3px 8px; border: 0; color: #bfe6ff; background: rgba(74,158,255,.12); cursor: pointer; }
+.st-lib-chips button:hover { background: rgba(74,158,255,.32); }
+.st-lib-item .t small { display: block; font-size: 9.5px; opacity: .7; letter-spacing: .06em; text-transform: uppercase; }
+.st-lib-item.community::after { content: ''; position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: 50%; background: #22d3ee; box-shadow: 0 0 8px #22d3ee; }
+.st-lib-item .share { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; display: grid; place-items: center; font: 700 13px var(--sans); color: #fff; background: rgba(0,0,0,.55); border-radius: 50%; opacity: 0; transition: opacity .15s; }
+.st-lib-item:hover .share { opacity: 1; }
+.st-lib-item .share:hover { background: linear-gradient(135deg, #4a9eff, #a855f7); }
+.st-lib-item.shared .share { opacity: 1; background: #22d3ee; }
+.st-share { grid-column: 1 / -1; display: grid; gap: 6px; padding: 10px; background: rgba(10,18,34,.85); box-shadow: inset 0 0 0 1px rgba(110,190,255,.45); font: 600 12.5px var(--hud); color: #e6f4ff; }
+.st-share input, .st-share select { font: 600 12.5px var(--hud); padding: 6px 8px; border: 0; color: #e6f4ff; background: rgba(255,255,255,.06); box-shadow: inset 0 0 0 1px rgba(110,190,255,.25); }
+.st-share .row { display: flex; gap: 6px; }
+.msg .sugg { flex-wrap: wrap; }
+.msg .sugg-picks { display: inline-flex; gap: 4px; }
+.msg .sugg-pick { width: 34px; height: 34px; padding: 0 !important; display: grid; place-items: center; overflow: hidden; background: rgba(20,30,54,.9) !important; box-shadow: inset 0 0 0 1px rgba(110,190,255,.4); font: 700 15px var(--sans) !important; color: #bfe6ff; }
+.msg .sugg-pick img { width: 100%; height: 100%; object-fit: contain; }
+.msg .sugg-pick:hover { box-shadow: inset 0 0 0 1px #22d3ee, 0 0 12px rgba(34,211,238,.5); }

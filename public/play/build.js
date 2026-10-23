@@ -390,12 +390,28 @@
     const cam = w.scene.activeCamera;
     const yaw = Math.round(((w.camera.yaw || 0) / RAD + 180) / 15) * 15;
     const title = a.title ? String(a.title).slice(0, 40) : null;
+    if (a.ifUnused) {
+      const g = W().graph;
+      const uses = Object.values(g.entities || {}).some((sp) => JSON.stringify(sp).includes(`"${a.name}"`)) || (g.config && g.config.sky === a.name);
+      if (uses) { toast(`${title || a.name} is in the game`); return; }
+    }
+    // A sky becomes the sky; a texture covers what you're pointing at (or a floor tile when that's nothing plain).
+    if (a.as === 'sky') { edit([{ op: 'config', patch: { sky: a.name } }], { label: 'changing the sky' }); toast(`The sky is now ${title || a.name}`); return; }
+    if (a.as === 'texture') {
+      const sp = target && specOf(target);
+      if (sp && ['box', 'sphere', 'cylinder', 'cone', 'capsule', 'torus', 'plane'].includes(sp.type)) {
+        update(target, { material: { ...(sp.material || {}), texture: a.name, tile: (sp.material && sp.material.tile) || 2, color: '#ffffff' } }, `texturing ${sp.name || sp.id}`);
+        toast(`${sp.name || 'It'} is now ${title || a.name}`);
+        return;
+      }
+    }
     const make = {
+      texture: () => ({ type: 'box', name: title || 'Tile', shape: { size: [4, 0.2, 4] }, material: { texture: a.name, tile: 2, color: '#ffffff' }, physics: 'static', lift: 0.1 }),
       mesh: () => ({ type: 'model', name: title || 'Model', shape: { asset: a.name, size: 1.6 }, physics: 'static', lift: 0.8 }),
       image: () => ({ type: 'sprite', name: title || 'Picture', shape: { image: a.name, size: 1.6, billboard: false }, transform: { rotation: [0, yaw, 0] }, lift: 1.2 }),
       audio: () => ({ type: 'cylinder', name: title || 'Speaker', shape: { radius: 0.3, height: 0.6 }, material: { color: '#2b2f3a', emissive: '#2a1450' }, behaviors: [{ use: 'sound', asset: a.name }, { use: 'glow', color: '#a855f7' }], lift: 0.3 }),
       video: () => ({ type: 'video', name: title || 'Screen', shape: { asset: a.name, width: 3.2 }, transform: { rotation: [0, yaw, 0] }, lift: 1.4 }),
-    }[a.kind];
+    }[a.as === 'texture' ? 'texture' : a.kind];
     if (!make) return;
     const spec = make();
     const lift = spec.lift; delete spec.lift;
