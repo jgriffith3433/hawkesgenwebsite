@@ -19,13 +19,18 @@ export type User = {
   last_login: number | null;
   role: 'customer' | 'admin';
   disabled: number;
+  plan: 'free' | 'maker' | 'pro';
+  sub_status: string | null;
+  stripe_subscription_id: string | null;
+  period_end: number | null;
+  cancel_at_period_end: number;
 };
 
 export const SESSION_COOKIE = 'hg_session';
 export const SESSION_TTL_MS = 30 * 24 * 3600 * 1000;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export const toPublicUser = (u: User) => ({ id: u.id, email: u.email, name: u.name, project: u.project, credits: u.credits, role: u.role, created: u.created, last_login: u.last_login });
+export const toPublicUser = (u: User) => ({ id: u.id, email: u.email, name: u.name, project: u.project, credits: u.credits, role: u.role, created: u.created, last_login: u.last_login, plan: ['active', 'trialing', 'past_due'].includes(String(u.sub_status)) ? u.plan : 'free' });
 
 export function hashPassword(password: string) {
   const salt = crypto.randomBytes(16);

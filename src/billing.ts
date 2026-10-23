@@ -6,6 +6,7 @@ import { env, publicUrl } from './config.ts';
 import { getUser, REFERRAL_REWARD, type User } from './users.ts';
 import { id, PortalError } from './util.ts';
 import { sendLowBalance } from './mail.ts';
+import { isSubscriptionEvent, subscriptionEvent } from './plans.ts';
 
 export type Pack = { id: string; name: string; label: string; priceCents: number; priceUsd: number; credits: number; bonusPercent: number };
 
@@ -15,7 +16,7 @@ export const PACKS: Pack[] = [
   { id: 'studio_100', name: 'Studio Pack', label: 'Studio Pack — 12,000 Credits · 20% Bonus', priceCents: 10000, priceUsd: 100, credits: 12000, bonusPercent: 20 },
 ];
 
-const stripeKeys = () => ({ secretKey: env('STRIPE_SECRET_KEY'), publishableKey: env('STRIPE_PUBLISHABLE_KEY'), webhookSecret: env('STRIPE_WEBHOOK_SECRET') });
+export const stripeKeys = () => ({ secretKey: env('STRIPE_SECRET_KEY'), publishableKey: env('STRIPE_PUBLISHABLE_KEY'), webhookSecret: env('STRIPE_WEBHOOK_SECRET') });
 
 export function stripeStatus() {
   const k = stripeKeys();
@@ -23,17 +24,17 @@ export function stripeStatus() {
   return { configured: Boolean(k.secretKey && k.webhookSecret), publishableKey: k.publishableKey ?? null, mode };
 }
 
-type Entry = { id: string; user_id: string; delta: number; balance_after: number; kind: string; detail: string | null; job_id: string | null; stripe_session_id: string | null; created: number };
+export type Entry = { id: string; user_id: string; delta: number; balance_after: number; kind: string; detail: string | null; job_id: string | null; stripe_session_id: string | null; created: number };
 
-function add(userId: string, delta: number, kind: string, detail: string, extra: { jobId?: string | null; stripeSessionId?: string | null } = {}) {
+export function add(userId: string, delta: number, kind: string, detail: string, extra: { jobId?: string | null; stripeSessionId?: string | null; stripeInvoiceId?: string | null } = {}) {
   const user = getUser(userId);
   if (!user) throw new PortalError('Account not found', { status: 404 });
   const balance = user.credits + delta;
   if (balance < 0) throw new PortalError(`Not enough credits (this needs ${-delta}, you have ${user.credits}). Buy credits to run it.`, { status: 402 });
   db.prepare('UPDATE users SET credits = ? WHERE id = ?').run(balance, userId);
   const txId = id('tx_', 6);
-  db.prepare('INSERT INTO credit_ledger (id, user_id, delta, balance_after, kind, detail, job_id, stripe_session_id, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .run(txId, userId, delta, balance, kind, detail, extra.jobId ?? null, extra.stripeSessionId ?? null, Date.now());
+  db.prepare('INSERT INTO credit_ledger (id, user_id, delta, balance_after, kind, detail, job_id, stripe_session_id, stripe_invoice_id, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(txId, userId, delta, balance, kind, detail, extra.jobId ?? null, extra.stripeSessionId ?? null, extra.stripeInvoiceId ?? null, Date.now());
   return db.prepare('SELECT * FROM credit_ledger WHERE id = ?').get(txId) as Entry;
 }
 
@@ -134,7 +135,7 @@ export function verifyStripeSignature(rawBody: Buffer | string, header: string, 
 }
 
 /** A friend's first purchase pays the customer who invited them, once (inside the purchase's transaction). */
-function rewardReferrer(userId: string) {
+export function rewardReferrer(userId: string) {
   const u = db.prepare('SELECT referred_by, referral_paid FROM users WHERE id = ?').get(userId) as { referred_by: string | null; referral_paid: number } | undefined;
   if (!u?.referred_by || u.referral_paid) return;
   db.prepare('UPDATE users SET referral_paid = 1 WHERE id = ?').run(userId);
@@ -150,6 +151,7 @@ export function stripeWebhook(rawBody: Buffer, header: string) {
   } catch {
     throw new PortalError('Webhook body is not valid JSON');
   }
+  if (isSubscriptionEvent(event)) return subscriptionEvent(event);
   const s = event?.data?.object ?? {};
   if (!['checkout.session.completed', 'checkout.session.async_payment_succeeded'].includes(event?.type) || s.payment_status !== 'paid') return { ok: true, type: event?.type ?? 'unknown', ignored: true };
   const userId = String(s.metadata?.user_id ?? s.client_reference_id ?? '');

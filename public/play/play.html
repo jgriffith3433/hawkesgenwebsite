@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Hawkes Play</title>
+  <link rel="icon" href="/favicon.svg">
+  <style>
+    :root { --ink: #1a1915; --paper: #f4f2ed; --accent: #c8421d; }
+    html, body { margin: 0; height: 100%; background: #111; overflow: hidden; font-family: 'IBM Plex Sans', system-ui, sans-serif; touch-action: none; }
+    #stage { width: 100%; height: 100%; display: block; outline: none; }
+    #ui { position: fixed; inset: 0; pointer-events: none; }
+    .ui-text { position: absolute; color: #fff; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,.6); white-space: pre; }
+    .ui-bar { position: absolute; width: 200px; color: #fff; font-size: 13px; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+    .ui-bar-track { height: 12px; background: rgba(0,0,0,.4); border: 1px solid rgba(255,255,255,.6); border-radius: 2px; overflow: hidden; margin-top: 3px; }
+    .ui-bar-fill { height: 100%; background: #e8e3d6; transition: width .12s; }
+    .ui-button { position: absolute; pointer-events: auto; font: 600 16px/1 inherit; font-family: inherit; padding: 12px 22px; background: var(--paper); color: var(--ink); border: 1px solid var(--ink); border-radius: 3px; cursor: pointer; }
+    .ui-button:hover { background: #fff; }
+    .ui-message { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); color: #fff; font: 400 48px/1.1 'Instrument Serif', Georgia, serif; text-shadow: 0 2px 8px rgba(0,0,0,.6); text-align: center; transition: opacity .4s; }
+    .ui-message.out { opacity: 0; }
+    .ui-over { position: absolute; inset: 0; display: grid; place-content: center; gap: 22px; justify-items: center; background: rgba(10,10,8,.55); pointer-events: auto; }
+    .ui-over-text { color: #fff; font: 400 56px/1.05 'Instrument Serif', Georgia, serif; text-align: center; padding: 0 16px; }
+    .ui-over .ui-button { position: static; }
+    #error { position: fixed; left: 12px; right: 12px; bottom: 12px; background: #2a0d07; color: #ffd9cf; border: 1px solid #c8421d; padding: 10px 12px; font: 12px/1.45 ui-monospace, 'IBM Plex Mono', monospace; max-height: 30%; overflow: auto; z-index: 5; white-space: pre-wrap; }
+    #loading { position: fixed; inset: 0; display: grid; place-content: center; color: #e8e3d6; font: 15px 'IBM Plex Sans', system-ui, sans-serif; letter-spacing: .02em; }
+    #badge { position: fixed; right: 10px; bottom: 10px; font: 500 11px/1 'IBM Plex Sans', system-ui, sans-serif; color: rgba(255,255,255,.85); background: rgba(0,0,0,.35); padding: 6px 8px; border-radius: 3px; text-decoration: none; z-index: 4; }
+    #badge:hover { background: rgba(0,0,0,.6); }
+    #touch .pad { position: fixed; left: 24px; bottom: 24px; width: 120px; height: 120px; border-radius: 50%; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.35); touch-action: none; }
+    #touch .knob { position: absolute; left: 35px; top: 35px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,.5); pointer-events: none; }
+    #touch .tb { position: fixed; bottom: 34px; width: 64px; height: 64px; border-radius: 50%; border: 1px solid rgba(255,255,255,.5); background: rgba(255,255,255,.18); color: #fff; font: 600 20px/1 system-ui, sans-serif; touch-action: none; }
+    #touch .a { right: 24px; }
+    #touch .b { right: 100px; bottom: 90px; }
+  </style>
+</head>
+<body>
+  <canvas id="stage" tabindex="0"></canvas>
+  <div id="ui"></div>
+  <div id="loading">Loading…</div>
+  <div id="error" hidden></div>
+  <a id="badge" href="https://hawkesgen.com/" target="_top" hidden>Made with Hawkes Gen</a>
+  <script src="https://cdn.jsdelivr.net/npm/babylonjs@7.54.3/babylon.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/babylonjs-loaders@7.54.3/babylonjs.loaders.min.js"></script>
+  <script src="/play/runtime.js"></script>
+  <script>
+    // /play/<slug> and /play/<slug>/v/<n> load a published version; /play/_draft waits for the editor to send its draft.
+    (function () {
+      var parts = location.pathname.replace(/\/+$/, '').split('/');
+      var slug = parts[2];
+      var loading = document.getElementById('loading');
+      if (slug === '_draft') {
+        window.addEventListener('message', function (e) {
+          var m = e.data || {};
+          if (m.type === 'bundle' && m.bundle) HawkesPlay.run(m.bundle);
+          if (m.type === 'restart') HawkesPlay.restart();
+        });
+        window.parent.postMessage({ source: 'hawkes-play', type: 'ready' }, '*');
+        return;
+      }
+      document.getElementById('badge').hidden = false;
+      var v = parts[3] === 'v' ? '?v=' + encodeURIComponent(parts[4]) : '';
+      fetch('/v1/play/' + encodeURIComponent(slug) + v).then(function (r) {
+        return r.json().then(function (b) { if (!r.ok) throw new Error(b.error || 'Could not load this game'); return b; });
+      }).then(HawkesPlay.run).catch(function (e) { loading.textContent = e.message; });
+    })();
+  </script>
+</body>
+</html>

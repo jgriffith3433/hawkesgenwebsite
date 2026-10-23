@@ -23,13 +23,15 @@ type GenJob = { id: string; tool: string; status: string; error?: string; [k: st
 /** What a connection or key has started in the last 24 hours (failed and cancelled jobs don't count). */
 export const spentToday = (viaId: string) => Number((db.prepare("SELECT COALESCE(SUM(credits), 0) AS n FROM jobs WHERE via = ? AND created >= ? AND status NOT IN ('failed', 'cancelled')").get(viaId, Date.now() - 24 * 3600_000) as { n: number }).n);
 
-export async function submit(user: User, specs: any[], via?: Via): Promise<GenJob[]> {
+/** `minCredits`: a floor on the price (the game assistant's messages cost at least this, whatever Gen quotes). */
+export async function submit(user: User, specs: any[], via?: Via, opts: { minCredits?: number } = {}): Promise<GenJob[]> {
   if (!specs.length || specs.length > 20) throw new PortalError('Send 1 to 20 jobs');
   const out: GenJob[] = [];
   for (const raw of specs) {
     if (!raw || typeof raw !== 'object') throw new PortalError('Each job is { tool, params, inputs }');
     const spec = Object.fromEntries(SPEC_FIELDS.filter((k) => raw[k] !== undefined).map((k) => [k, raw[k]]));
     const q = await quote(user, raw);
+    if (opts.minCredits && q.credits < opts.minCredits) q.credits = opts.minCredits;
     if (via?.cap != null && spentToday(via.id) + q.credits > via.cap) {
       throw new PortalError(`${via.name ?? 'This connection'} has a daily limit of ${via.cap} credits and has used ${spentToday(via.id)} today; this needs ${q.credits}. Raise the limit at hawkesgen.com/connect.`, { status: 402 });
     }

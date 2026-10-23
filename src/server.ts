@@ -21,10 +21,14 @@ import { serveDownload, receiveUpload, uploadLink } from './files.ts';
 import { resumeTasks, recentTasks, getTask, results } from './tasks.ts';
 import { publicUrl } from './config.ts';
 import * as google from './google.ts';
+import { PLANS, subscription, choosePlan, setCancel, billingPortal } from './plans.ts';
+import * as games from './games.ts';
+import { askAssistant, generateAsset, pendingGens, markSuggestion, resumeGens, KINDS, AI_CREDITS } from './gameai.ts';
+import { join as joinLive, setPresence } from './live.ts';
 
 const PUBLIC = path.join(ROOT, 'public');
-const PAGES: Record<string, string> = { '/': 'index.html', '/home': 'index.html', '/app': 'app.html', '/admin': 'admin.html', '/reset': 'reset.html', '/legal': 'legal.html', '/terms': 'legal.html', '/privacy': 'legal.html', '/refunds': 'legal.html', '/connect': 'connect.html', '/thanks': 'thanks.html', '/examples': 'examples.html', '/oauth/authorize': 'authorize.html', '/client/hawkesgen.mjs': 'hawkesgen.mjs' };
-const TYPES: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webp': 'image/webp', '.gif': 'image/gif', '.mp3': 'audio/mpeg', '.jpg': 'image/jpeg', '.unitypackage': 'application/octet-stream', '.pdf': 'application/pdf' };
+const PAGES: Record<string, string> = { '/': 'index.html', '/home': 'index.html', '/app': 'games.html', '/app/studio': 'app.html', '/games': 'gallery.html', '/admin': 'admin.html', '/reset': 'reset.html', '/legal': 'legal.html', '/terms': 'legal.html', '/privacy': 'legal.html', '/refunds': 'legal.html', '/connect': 'connect.html', '/thanks': 'thanks.html', '/examples': 'examples.html', '/oauth/authorize': 'authorize.html', '/client/hawkesgen.mjs': 'hawkesgen.mjs' };
+const TYPES: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webp': 'image/webp', '.gif': 'image/gif', '.mp3': 'audio/mpeg', '.jpg': 'image/jpeg', '.unitypackage': 'application/octet-stream', '.pdf': 'application/pdf', '.md': 'text/markdown; charset=utf-8', '.glb': 'model/gltf-binary' };
 
 // Gen routes a signed-in customer may use as they are (Gen scopes them to the customer's project).
 const PASS_GET = [/^\/v1\/jobs$/, /^\/v1\/jobs\/j_[0-9a-f]+$/, /^\/v1\/assets$/, /^\/v1\/assets\/a_[0-9a-f]+(\/file)?$/, /^\/v1\/files\/a_[0-9a-f]+$/, /^\/v1\/presets$/, /^\/v1\/tools(\/[\w.-]+)?$/, /^\/v1\/motions$/, /^\/v1\/providers\/elevenlabs\/voices$/, /^\/v1\/entities$/];
@@ -76,6 +80,33 @@ async function readForm(req: IncomingMessage) {
   const raw = (await readBody(req)).toString('utf8');
   if (String(req.headers['content-type'] ?? '').includes('application/json')) return JSON.parse(raw || '{}');
   return Object.fromEntries(new URLSearchParams(raw));
+}
+
+// A game runs in a sandbox: its own opaque origin, so its scripts can't read this site's cookies or call its API as the
+// player. Set on the page itself (not only on the editor's iframe) so a game opened directly is sandboxed too.
+const PLAY_SANDBOX = 'sandbox allow-scripts allow-pointer-lock allow-popups allow-popups-to-escape-sandbox';
+function servePlayPage(res: ServerResponse) {
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', 'Content-Security-Policy': PLAY_SANDBOX, 'X-Content-Type-Options': 'nosniff' });
+  fs.createReadStream(path.join(PUBLIC, 'play', 'play.html')).pipe(res);
+}
+
+/** A game's asset file, from Gen, for anyone playing it (open CORS: the game's sandbox has no origin). */
+async function servePlayAsset(parts: Parameters<typeof games.resolvePlayAsset>[0], req: IncomingMessage, res: ServerResponse) {
+  const a = games.resolvePlayAsset(parts);
+  const headers: Record<string, string> = {};
+  if (req.headers.range) headers.Range = String(req.headers.range);
+  const gr = await genFetch(`/v1/assets/${a.asset}/file`, { as: a.project, headers, signal: AbortSignal.timeout(300_000) });
+  if (!gr.ok && gr.status !== 206) throw new PortalError('File not found', { status: 404 });
+  const out: Record<string, string> = { 'Access-Control-Allow-Origin': '*', 'Cache-Control': a.immutable ? 'public, max-age=31536000, immutable' : 'private, max-age=3600', 'X-Content-Type-Options': 'nosniff' };
+  for (const h of ['content-type', 'content-length', 'accept-ranges', 'content-range', 'etag']) {
+    const v = gr.headers.get(h);
+    if (v) out[h] = v;
+  }
+  // Never let an asset render as a page on this origin.
+  if (/html|xml|javascript/i.test(out['content-type'] ?? '')) out['content-type'] = 'application/octet-stream';
+  res.writeHead(gr.status, out);
+  if (!gr.body) return void res.end();
+  await pipeline(Readable.fromWeb(gr.body as any), res).catch(() => {});
 }
 
 async function serveStatic(route: string, res: ServerResponse) {
@@ -145,6 +176,17 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     f = /^\/up\/([\w-]+\.[\w-]+)$/.exec(route);
     if (f && (method === 'PUT' || method === 'POST')) return send(res, 200, await receiveUpload(f[1], req, users.getUser));
 
+    // ------------------------------------------------------------ games: playing, the editor's pages
+    if (method === 'GET' || method === 'HEAD') {
+      if (/^\/play\/(_draft|[a-z0-9-]+(\/v\/\d+)?)$/.test(route) && route !== '/play/runtime.js') return servePlayPage(res);
+      let pa = /^\/play-asset\/d\/([\w-]+\.[\w-]+)\/[^/]+$/.exec(route);
+      if (pa) return await servePlayAsset({ token: pa[1] }, req, res);
+      pa = /^\/play-asset\/([a-z0-9-]+)\/(\d+)\/([^/]+)$/.exec(route);
+      if (pa) return await servePlayAsset({ slug: pa[1], version: Number(pa[2]), name: decodeURIComponent(pa[3]) }, req, res);
+      if (/^\/app\/g\/g_[0-9a-f]+$/.test(route)) return void (await serveStatic('/editor.html', res));
+      if (/^\/app\/join\/[\w-]+$/.test(route)) return void (await serveStatic('/games.html', res));
+    }
+
     if (!route.startsWith('/v1/')) {
       if ((method === 'GET' || method === 'HEAD') && (await serveStatic(route, res))) return;
       return send(res, 404, { error: 'Not found' });
@@ -169,6 +211,15 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       const s = stripeStatus();
       return send(res, 200, { packs: PACKS, firstPurchaseBonus: FIRST_PURCHASE_BONUS, stripe: { configured: s.configured, publishableKey: s.publishableKey, mode: s.mode } });
     }
+    if (route === '/v1/plans' && method === 'GET') return send(res, 200, { plans: PLANS, aiCredits: AI_CREDITS() });
+    if (route === '/v1/gallery' && method === 'GET') return send(res, 200, games.gallery(url.searchParams.get('sort') === 'new' ? 'new' : 'popular', Number(url.searchParams.get('limit')) || 60));
+    let pb = /^\/v1\/play\/([a-z0-9-]+)$/.exec(route);
+    if (pb && method === 'GET') {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      return send(res, 200, games.playBundle(pb[1], url.searchParams.get('v') ? Number(url.searchParams.get('v')) : null));
+    }
+    pb = /^\/v1\/invites\/([\w-]+)$/.exec(route);
+    if (pb && method === 'GET') return send(res, 200, games.inviteInfo(pb[1]));
     if (route === '/v1/billing/webhook' && method === 'POST') return send(res, 200, stripeWebhook(await readBody(req), String(req.headers['stripe-signature'] ?? '')));
     if (route === '/v1/users/signup' && method === 'POST') {
       const r = users.signup(await readJson(req), clientIp(req), users.originOf(req));
@@ -223,6 +274,63 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (route === '/v1/users/api-key' && method === 'POST') return send(res, 200, users.mintApiKey(user.id));
     if (route === '/v1/billing/quote' && method === 'POST') return send(res, 200, await quote(user, await readJson(req)));
     if (route === '/v1/billing/checkout' && method === 'POST') return send(res, 200, await checkout(user, await readJson(req)));
+    if (route === '/v1/billing/subscription' && method === 'GET') return send(res, 200, subscription(user));
+    if (route === '/v1/billing/plan' && method === 'POST') return send(res, 200, await choosePlan(user, await readJson(req)));
+    if (route === '/v1/billing/cancel' && method === 'POST') return send(res, 200, await setCancel(user, (await readJson(req)).cancel !== false));
+    if (route === '/v1/billing/portal' && method === 'POST') return send(res, 200, await billingPortal(user));
+
+    // ------------------------------------------------------------ games
+    if (route === '/v1/games' && method === 'GET') return send(res, 200, games.listGames(user));
+    if (route === '/v1/games' && method === 'POST') return send(res, 200, games.createGame(user, await readJson(req)));
+    const inv = /^\/v1\/invites\/([\w-]+)\/accept$/.exec(route);
+    if (inv && method === 'POST') return send(res, 200, games.acceptInvite(user, inv[1]));
+    const gm = /^\/v1\/games\/(g_[0-9a-f]+)(?:\/(.+))?$/.exec(route);
+    if (gm) {
+      const [, gid, sub = ''] = gm;
+      const conn = String(req.headers['x-conn'] ?? '') || undefined;
+      if (!sub && method === 'GET') return send(res, 200, { ...games.openGame(user, gid), kinds: Object.fromEntries(Object.entries(KINDS).map(([k, v]) => [k, { title: v.title, credits: v.credits }])), aiCredits: AI_CREDITS() });
+      if (!sub && (method === 'PATCH' || method === 'POST')) return send(res, 200, games.updateGame(user, gid, await readJson(req)));
+      if (!sub && method === 'DELETE') return send(res, 200, games.deleteGame(user, gid));
+      if (sub === 'live' && method === 'GET') {
+        games.memberGame(user, gid);
+        return void joinLive(gid, user, res);
+      }
+      if (sub === 'presence' && method === 'POST') return send(res, 200, setPresence(gid, conn ?? '', user.id, await readJson(req)));
+      if (sub === 'files' && (method === 'PUT' || method === 'POST')) {
+        games.memberGame(user, gid);
+        try {
+          return send(res, 200, games.writeFile(user, gid, await readJson(req), { conn }));
+        } catch (e: any) {
+          if (e.status === 409 && e.file) return send(res, 409, { error: e.message, file: e.file });
+          throw e;
+        }
+      }
+      if (sub === 'files' && method === 'DELETE') return send(res, 200, games.deleteFile(user, gid, url.searchParams.get('path'), conn));
+      if (sub === 'files/rename' && method === 'POST') return send(res, 200, games.renameFile(user, gid, await readJson(req), conn));
+      if (sub === 'assets' && method === 'POST') return send(res, 200, await games.addAsset(user, gid, await readJson(req)));
+      const an = /^assets\/([^/]+)(\/rename)?$/.exec(sub);
+      if (an && method === 'DELETE' && !an[2]) return send(res, 200, games.removeAsset(user, gid, decodeURIComponent(an[1])));
+      if (an && method === 'POST' && an[2]) return send(res, 200, games.renameAsset(user, gid, decodeURIComponent(an[1]), (await readJson(req)).name));
+      if (sub === 'bundle' && method === 'GET') return send(res, 200, games.draftBundle(user, gid));
+      if (sub === 'publish' && method === 'POST') return send(res, 200, games.publish(user, gid, await readJson(req)));
+      if (sub === 'live-version' && method === 'POST') return send(res, 200, games.setLive(user, gid, (await readJson(req)).version));
+      const rr = /^releases\/(\d+)\/restore$/.exec(sub);
+      if (rr && method === 'POST') return send(res, 200, games.restoreRelease(user, gid, Number(rr[1])));
+      if (sub === 'invites' && method === 'POST') return send(res, 200, games.createInvite(user, gid));
+      const mem = /^members\/(usr_[0-9a-f]+)$/.exec(sub);
+      if (mem && method === 'DELETE') return send(res, 200, games.removeMember(user, gid, mem[1]));
+      if (sub === 'chat' && method === 'GET') return send(res, 200, games.chatHistory(user, gid, Number(url.searchParams.get('limit')) || 80));
+      if (sub === 'chat' && method === 'POST') return send(res, 200, games.postChat(user, gid, (await readJson(req)).text));
+      if (sub === 'ai' && method === 'POST') return send(res, 200, await askAssistant(user, gid, await readJson(req)));
+      if (sub === 'generate' && method === 'GET') return send(res, 200, pendingGens(user, gid));
+      if (sub === 'generate' && method === 'POST') {
+        const b = await readJson(req);
+        const g = await generateAsset(user, gid, b);
+        if (b.messageId && Number.isInteger(b.suggestion)) markSuggestion(String(b.messageId), b.suggestion, g.task_id);
+        return send(res, 200, g);
+      }
+      return send(res, 404, { error: 'Not found' });
+    }
     if (route === '/v1/billing/ledger' && method === 'GET') return send(res, 200, ledger(user.id, Number(url.searchParams.get('limit')) || 100));
 
     // ------------------------------------------------------------ admins (anyone else gets a 404)
@@ -300,5 +408,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(ROOT, 'src
   if (!genKey()) console.warn('[portal] HAWKESGEN_KEY is not set: jobs will fail until it is');
   watch();
   resumeTasks();
+  resumeGens();
   http.createServer((req, res) => void handle(req, res)).listen(PORT, '127.0.0.1', () => console.log(`[portal] http://127.0.0.1:${PORT}`));
 }

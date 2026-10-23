@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Your games · Hawkes Gen</title>
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/public.css">
+  <link rel="stylesheet" href="/builder.css">
+  <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
+</head>
+<body>
+  <header class="bar">
+    <a class="hg-brand" href="/"><img src="/favicon.svg" alt=""><span>Hawkes Gen</span></a>
+    <span class="grow"></span>
+    <a class="btn btn-ghost btn-sm" href="/games">Play games</a>
+    <a class="btn btn-ghost btn-sm" href="/app/studio" id="studioLink" hidden>Asset studio</a>
+    <span id="who" hidden style="display:flex;gap:8px;align-items:center">
+      <span class="plan-chip" id="planChip">Free</span>
+      <a class="pill" href="#plans" title="Credits"><span class="num" id="credits">0</span><span class="k">credits</span></a>
+      <button class="btn btn-ghost btn-sm" id="logout">Sign out</button>
+    </span>
+  </header>
+
+  <!-- Signed out -->
+  <main id="auth" hidden>
+    <div class="auth-box">
+      <span class="label" id="authKicker">Hawkes Gen</span>
+      <h1 id="authTitle">Build games with friends and AI.</h1>
+      <p class="muted" style="margin:0" id="authLede">Sign in to start a game, or open the invite a friend sent you.</p>
+      <a class="btn btn-secondary btn-lg" id="google" href="/auth/google?next=/app" style="width:100%">Continue with Google</a>
+      <div class="segmented"><button type="button" class="on" id="tabSignup">New account</button><button type="button" id="tabLogin">Sign in</button></div>
+      <form id="authForm" class="form-grid">
+        <div class="form-field" id="nameWrap"><label for="name">Your name</label><input class="form-input" id="name" autocomplete="name" placeholder="What friends call you"></div>
+        <div class="form-field"><label for="email">Email</label><input class="form-input" id="email" type="email" autocomplete="email" required></div>
+        <div class="form-field"><label for="password">Password</label><input class="form-input" id="password" type="password" minlength="8" autocomplete="current-password" required></div>
+        <div class="form-error" id="authError" hidden></div>
+        <button class="btn btn-primary btn-lg" type="submit" id="authSubmit">Create account</button>
+      </form>
+    </div>
+  </main>
+
+  <!-- Signed in -->
+  <main id="home" class="page" hidden>
+    <div id="notices"></div>
+
+    <div id="joinBox" class="notice" hidden>
+      <div><span class="label">Invite</span><div id="joinText" style="margin-top:4px"></div></div>
+      <button class="btn btn-primary" id="joinBtn">Join game</button>
+    </div>
+
+    <h1>Your games</h1>
+    <p class="lede">Make a game in the browser with scripts, AI help and generated art, sound and 3D models. Invite friends to build it with you, then publish it for anyone to play.</p>
+
+    <div id="gameGrid" class="game-grid"></div>
+
+    <div class="section-row" id="newGame">
+      <h2>Start a game</h2>
+      <span class="muted" id="gameCount" style="font-size:13px"></span>
+    </div>
+    <form id="newForm" class="form-grid">
+      <div class="templates" id="templates"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <input class="form-input" id="newTitle" placeholder="Name your game" maxlength="80" style="max-width:360px" required>
+        <button class="btn btn-primary" type="submit">Create game</button>
+      </div>
+      <div class="form-error" id="newError" hidden></div>
+    </form>
+
+    <div class="section-row" id="plans">
+      <h2>Plan and credits</h2>
+      <span class="muted" style="font-size:13px" id="planNote"></span>
+    </div>
+    <p class="muted" style="margin-top:0;max-width:70ch;font-size:14px">Credits pay for the AI work in your games: the assistant (<span id="aiCost">8</span> credits a message), art, 3D models, sound and music. A plan adds credits every month; unused credits carry over. Top up any time.</p>
+    <div class="plans" id="planCards"></div>
+    <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap" id="planActions"></div>
+
+    <div class="section-row"><h2>Top up</h2><span></span></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap" id="packs"></div>
+    <div class="form-error" id="billError" hidden style="margin-top:10px"></div>
+  </main>
+
+  <script src="/games.js"></script>
+</body>
+</html>

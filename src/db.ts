@@ -82,6 +82,10 @@ db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_ref_code ON users(ref_code) WHE
 if (!cols('users').includes('disabled')) db.exec('ALTER TABLE users ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0');
 // Which connection or API key started a job (spend limits per connection), and an API key's own daily limit.
 if (!cols('jobs').includes('via')) db.exec('ALTER TABLE jobs ADD COLUMN via TEXT');
+// Subscriptions: the plan, Stripe's subscription and its state, when the paid month ends; monthly credits per invoice.
+for (const [c, t] of [['plan', "TEXT NOT NULL DEFAULT 'free'"], ['sub_status', 'TEXT'], ['stripe_subscription_id', 'TEXT'], ['period_end', 'INTEGER'], ['cancel_at_period_end', 'INTEGER NOT NULL DEFAULT 0']]) if (!cols('users').includes(c)) db.exec(`ALTER TABLE users ADD COLUMN ${c} ${t}`);
+if (!cols('credit_ledger').includes('stripe_invoice_id')) db.exec('ALTER TABLE credit_ledger ADD COLUMN stripe_invoice_id TEXT');
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS credit_ledger_invoice ON credit_ledger (stripe_invoice_id) WHERE stripe_invoice_id IS NOT NULL');
 if (!cols('api_keys').includes('daily_cap')) db.exec('ALTER TABLE api_keys ADD COLUMN daily_cap INTEGER');
 
 /** Runs fn in one transaction. */
