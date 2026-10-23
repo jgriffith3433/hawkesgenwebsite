@@ -8,11 +8,13 @@
   },
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning src/server.ts",
-    "typecheck": "tsc -p . && node --check public/app.js && node --check public/admin.js && node --check public/editor.js && node --check public/play/runtime.js && node --check public/play/behaviors.js && node --check public/play/net.js && node --check public/play/build.js && node --check public/play/gameplay.js && node --check public/entities.js && node --check public/community.js && node --check public/sitenav.js",
+    "typecheck": "tsc -p . && node --check public/app.js && node --check public/admin.js && node --check public/editor.js && node --check public/play/runtime.js && node --check public/play/physics.js && node --check public/play/kinds.js && node --check public/play/controllers.js && node --check public/play/loader.js && node --check public/play/behaviors.js && node --check public/play/net.js && node --check public/play/build.js && node --check public/play/gameplay.js && node --check public/entities.js && node --check public/community.js && node --check public/sitenav.js",
     "test": "node --disable-warning=ExperimentalWarning --test \"test/**/*.test.ts\""
   },
   "devDependencies": {
+    "@babylonjs/havok": "1.3.10",
     "@types/node": "^24.0.0",
+    "babylonjs": "7.54.3",
     "typescript": "^5.9.0"
   }
 }

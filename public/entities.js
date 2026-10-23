@@ -1,114 +1,25 @@
-// /entities: the entity codex. Every kind of thing the game engine (play/runtime.js) builds, spawned live in the real
-// runtime, with the spec as it is written in scene.json. Keep this in step with runtime.js fromSpec, the behaviors in
-// play/behaviors.js, KINDS in src/gameai.ts and play/WORLD.md: only what the engine does.
-/* global HawkesPlay, BABYLON */
+// /entities: the entity codex. Every kind of thing the game engine builds, read from its kind registry
+// (HawkesPlay.kinds: play/kinds.js and every module's own kinds), spawned live in the real runtime, with the spec as it
+// is written in scene.json. A kind's page here is its `codex` (H.kinds.register); a module's kind shows up by itself.
+/* global HawkesPlay, HawkesModules */
 
-const SAMPLE_GLB = 'https://models.babylonjs.com/boombox.glb';
+await HawkesModules.load('play').catch(() => {});
 
-const TYPES = [
-  {
-    group: 'Shapes', type: 'box',
-    what: 'A box. Floors, walls, crates, platforms: most levels start as boxes.',
-    spec: { type: 'box', name: 'Crate', transform: { position: [0, 0.6, 0], rotation: [0, 25, 0] }, shape: { size: [1.2, 1.2, 1.2] }, material: { color: '#c8843f' }, physics: 'static' },
-    fields: [['shape.size', 'a number, or [w, h, d] in meters', '1']],
-  },
-  {
-    group: 'Shapes', type: 'sphere',
-    what: 'A ball. Dynamic spheres fall and bounce; this one drops onto the floor.',
-    spec: { type: 'sphere', name: 'Ball', transform: { position: [0, 4, 0] }, shape: { radius: 0.6, segments: 32 }, material: { color: '#e04f5f' }, physics: 'dynamic' },
-    fields: [['shape.radius', 'meters', '0.5'], ['shape.segments', 'smoothness', '16']],
-  },
-  {
-    group: 'Shapes', type: 'cylinder',
-    what: 'A cylinder. Pillars, coins (thin and flat), barrels, towers.',
-    spec: { type: 'cylinder', name: 'Pillar', transform: { position: [0, 1, 0] }, shape: { radius: 0.5, height: 2, segments: 24 }, material: { color: '#9aa4b8' }, physics: 'static' },
-    fields: [['shape.radius', 'meters', '0.5'], ['shape.height', 'meters', '1'], ['shape.segments', 'smoothness', '16']],
-  },
-  {
-    group: 'Shapes', type: 'cone',
-    what: 'A cone. Spikes, tree tops, roofs on round towers, traffic cones.',
-    spec: { type: 'cone', name: 'Spike', transform: { position: [0, 0.75, 0] }, shape: { radius: 0.6, height: 1.5 }, material: { color: '#f97316' }, physics: 'static', behaviors: [{ use: 'hurts', damage: 20 }] },
-    fields: [['shape.radius', 'meters at the base', '0.5'], ['shape.height', 'meters', '1']],
-  },
-  {
-    group: 'Shapes', type: 'torus',
-    what: 'A ring. Hoops to fly through, wheels, halos.',
-    spec: { type: 'torus', name: 'Hoop', transform: { position: [0, 1.4, 0], rotation: [90, 0, 0] }, shape: { radius: 1, thickness: 0.2 }, material: { color: '#22d3ee', emissive: '#063a44' }, physics: 'trigger', behaviors: [{ use: 'spin', speed: 45, axis: 'z' }] },
-    fields: [['shape.radius', 'meters to the middle of the ring', '1'], ['shape.thickness', 'meters', '0.3']],
-  },
-  {
-    group: 'Shapes', type: 'capsule',
-    what: 'A pill. The usual body for players and enemies: round ends slide over edges.',
-    spec: { type: 'capsule', name: 'Player', tag: 'player', transform: { position: [0, 1, 0] }, shape: { radius: 0.4, height: 1.8 }, material: { color: '#4a9eff', emissive: '#0a1830' }, physics: 'dynamic' },
-    fields: [['shape.radius', 'meters', '0.5'], ['shape.height', 'meters, end to end', '2']],
-  },
-  {
-    group: 'Shapes', type: 'plane',
-    what: 'Flat ground. Give it a tiling texture from Gen and repeat it with material.tile.',
-    spec: { type: 'plane', name: 'Ground', transform: { position: [0, 0, 0] }, shape: { width: 12, depth: 12, subdivisions: 1 }, material: { color: '#3a7d44' }, physics: 'static' },
-    fields: [['shape.width', 'meters along x', '10'], ['shape.depth', 'meters along z', '10'], ['shape.subdivisions', 'grid cells per side', '1']],
-    noFloor: true,
-  },
-  {
-    group: 'World', type: 'text',
-    what: 'A floating sign. Instructions, names, scores, jokes.',
-    spec: { type: 'text', name: 'Sign', transform: { position: [0, 1.5, 0] }, shape: { text: 'Welcome!\nGrab anything.', size: 0.35 } },
-    fields: [['shape.text', 'the words (\\n for a new line)', ''], ['shape.size', 'letter height in meters', '0.5'], ['shape.billboard', 'false keeps it flat', 'true']],
-  },
-  {
-    group: 'World', type: 'light',
-    what: 'A light: point (a bulb), spot (a cone) or directional (sunlight). Every scene already has a sky light and a sun.',
-    spec: { type: 'light', name: 'Lamp', transform: { position: [0, 2.2, 0] }, light: { type: 'point', color: '#ffaa55', intensity: 1.6, range: 9 } },
-    fields: [['light.type', 'point, spot or directional', 'point'], ['light.color', '#rrggbb', '#ffffff'], ['light.intensity', 'brightness', '1'], ['light.range', 'meters (point, spot)', ''], ['light.direction', '[x, y, z] (spot, directional)', '[0, -1, 0]'], ['light.angle', 'cone width in degrees (spot)', '60']],
-    config: { ambient: 0.08, sun: 0.1 },
-    props: true,
-  },
-  {
-    group: 'World', type: 'model',
-    what: 'A 3D model: a .glb file. Ask for one and Hawkes Gen draws it, builds the mesh and adds it to your assets; until the file arrives you see a wireframe.',
-    uses: 'The model shown is a Babylon.js sample, so the page works without an account. In your game, shape.asset is the name of an asset in it.',
-    spec: { type: 'model', name: 'Boombox', transform: { position: [0, 0.8, 0] }, shape: { asset: SAMPLE_GLB, size: 1.6 } },
-    fields: [['shape.asset', 'an asset name in the game (tree.glb) or an https URL', ''], ['shape.size', 'its height in meters', 'its own size']],
-  },
-  {
-    group: 'World', type: 'sprite',
-    what: 'A picture: an image from your library, facing you (or flat, like a poster). Shows as a wireframe until its picture exists.',
-    spec: { type: 'sprite', name: 'Poster', transform: { position: [0, 1.2, 0] }, shape: { image: 'poster.png', size: 1.6, billboard: false } },
-    fields: [['shape.image', 'an image asset in the game', ''], ['shape.size', 'height in meters', '1'], ['shape.frames', '{ cols, rows } for a sprite sheet', '']],
-  },
-  {
-    group: 'World', type: 'video',
-    what: 'A screen playing a video from your library, muted until someone clicks it. Shows as a wireframe until its video exists.',
-    spec: { type: 'video', name: 'Screen', transform: { position: [0, 1.5, 0] }, shape: { asset: 'trailer.mp4', width: 3.2 } },
-    fields: [['shape.asset', 'a video asset in the game', ''], ['shape.width', 'meters', '3.2'], ['shape.height', 'meters', '16:9 of the width']],
-  },
-  {
-    group: 'World', type: 'mirror',
-    what: 'A framed mirror with a live reflection: a doorway look for portals between games.',
-    uses: 'It reflects what was in the scene when it was built.',
-    spec: { type: 'mirror', name: 'Mirror', transform: { position: [0, 1.6, 0] }, shape: { width: 2, height: 3 } },
-    fields: [['shape.width', 'meters', '2'], ['shape.height', 'meters', '3']],
-    props: true,
-  },
-  {
-    group: 'Logic', type: 'spawn',
-    what: 'Where players start. A green box in the editor, invisible when the game plays.',
-    spec: { type: 'spawn', name: 'Start', tag: 'player-start', transform: { position: [0, 0.5, 0] } },
-    fields: [['data.role', 'who starts here', 'player']],
-  },
-  {
-    group: 'Logic', type: 'trigger',
-    what: 'An invisible zone: checkpoints, goals, danger. Amber in the editor; you walk through it, and it notices.',
-    spec: { type: 'trigger', name: 'Goal', transform: { position: [0, 1, 0] }, shape: { size: [3, 2, 3] }, physics: 'trigger', behaviors: [{ use: 'goal', message: 'You made it!' }] },
-    fields: [['shape.size', 'the zone, [w, h, d]', '1'], ['behaviors', 'what happens inside: goal, checkpoint, hurts...', '']],
-  },
-];
-
+const GROUPS = ['Shapes', 'World', 'Logic', 'More'];
+/** The kinds, from the registry: codex: { group, what, spec, fields, uses, noFloor, props, config }. */
+const TYPES = (window.HawkesPlay ? HawkesPlay.kinds.list() : []).map((k) => {
+  const c = k.codex || {};
+  return {
+    type: k.name, group: c.group || 'More', what: c.what || `A ${k.name}.`, uses: c.uses,
+    spec: c.spec || { type: k.name, name: k.name, transform: { position: [0, 1, 0] } },
+    fields: c.fields || [], noFloor: c.noFloor, props: c.props, config: c.config,
+  };
+}).sort((a, b) => GROUPS.indexOf(a.group) - GROUPS.indexOf(b.group));
 const COMPONENTS = [
   { name: 'id, name, tag', tag: 'identity', text: 'The id is the key in scene.json. <code>name</code> is a label for people; <code>tag</code> groups things for scripts (<code>player</code>, <code>coin</code>).' },
   { name: 'transform', tag: 'where', text: '<code>position</code> [x, y, z] in meters, <code>rotation</code> [x, y, z] in degrees, <code>scale</code> a number or [x, y, z]. +y is up, +z is forward.' },
   { name: 'shape', tag: 'size', text: 'The numbers for its type: <code>size</code>, <code>radius</code>, <code>height</code>, <code>width</code>, <code>depth</code>, <code>asset</code>. Pick a type above to see its fields.' },
-  { name: 'material', tag: 'look', text: '<code>color</code>, <code>emissive</code> (glows without light), <code>opacity</code>, <code>texture</code> with <code>tile</code> [u, v], and <code>maps.normal</code> for surface detail.' },
+  { name: 'material', tag: 'look', text: '<code>color</code>, <code>emissive</code> (glows without light), <code>opacity</code>, <code>texture</code> (an image asset) with <code>tile</code> [u, v] (how many times it repeats).' },
   { name: 'physics, body', tag: 'how it moves', text: '<code>static</code>, <code>dynamic</code>, <code>kinematic</code>, <code>trigger</code> or <code>none</code> (below), and <code>body</code>: <code>bounce</code>, <code>friction</code>, <code>mass</code>, <code>grab: false</code>.' },
   { name: 'behaviors', tag: 'what it does', text: 'A list of <code>{ "use": name, ...options }</code>: spins, floats, follows you, can be collected, hurts... (below).' },
   { name: 'parent', tag: 'hierarchy', text: 'Another entity\'s id. A child moves with its parent, and deleting the parent deletes its children.' },
@@ -123,17 +34,27 @@ const PHYSICS = [
   { name: 'none', text: 'Decoration: nothing bumps into it. Signs, lights, pictures.' },
 ];
 
-// From src/gameai.ts KINDS (titles, credits and the tools behind them).
-const KINDS = [
-  ['model', '3D model (.glb)', 'Draws it, then builds a textured mesh from the drawing', 'a <code>model</code> entity', '~55'],
-  ['sprite', 'Transparent image (.png)', 'Paints it, then cuts out the background', '<code>game.sprite()</code> in scripts', '~7'],
-  ['texture', 'Tiling texture (.png)', 'Paints a seamless square', '<code>material.texture</code> with <code>tile</code>', '~5'],
-  ['image', 'Image (.png)', 'Paints a picture', '<code>material.texture</code>, a sign, a screen', '~5'],
-  ['sky', 'Sky panorama (.jpg)', 'Paints a 360° view', '<code>game.sky(\'sky.jpg\')</code> around the world', '~10'],
-  ['sfx', 'Sound effect (.mp3)', 'Records a sound from a description', '<code>game.sound()</code>', '~8'],
-  ['music', 'Music loop (.mp3)', 'Composes 10 to 180 seconds', '<code>game.music()</code>', '~20'],
-  ['voice', 'Voice line (.mp3)', 'Speaks the exact line you write', '<code>game.sound()</code>', '~10'],
-];
+// What Gen makes for a game: titles and credits come live from src/gameai.ts KINDS (/v1/asset-kinds); these say how
+// each is made and where it goes.
+const KIND_USES = {
+  model: ['Draws it, then builds a textured mesh from the drawing', 'a <code>model</code> entity'],
+  sprite: ['Paints it, then cuts out the background', '<code>game.sprite()</code> in scripts'],
+  texture: ['Paints a seamless square', '<code>material.texture</code> with <code>tile</code>'],
+  image: ['Paints a picture', '<code>material.texture</code>, a sign, a screen'],
+  sky: ['Paints a 360° view', '<code>game.sky(\'sky.jpg\')</code> around the world'],
+  sfx: ['Records a sound from a description', '<code>game.sound()</code>'],
+  music: ['Composes 10 to 180 seconds', '<code>game.music()</code>'],
+  voice: ['Speaks the exact line you write', '<code>game.sound()</code>'],
+};
+let KINDS = [];
+async function loadKinds() {
+  try {
+    const r = await fetch('/v1/asset-kinds');
+    const k = await r.json();
+    KINDS = Object.entries(k).map(([name, v]) => [name, v.title, (KIND_USES[name] || [''])[0], (KIND_USES[name] || ['', ''])[1], v.credits]);
+  } catch { KINDS = []; }
+  loadKinds();
+}
 
 const SCRIPT_ONLY = [
   { name: 'game.player', text: 'You: a first-person body every game gets (walk, jump, fly while building). <code>controls = false</code> for games that move it themselves.' },

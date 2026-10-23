@@ -240,12 +240,9 @@
     <a id="remixBtn" target="_top">Remix</a>
     <a id="badge" href="https://hawkesgen.com/" target="_top">Made with Hawkes Gen</a>
   </div>
-  <script src="https://cdn.jsdelivr.net/npm/babylonjs@7.54.3/babylon.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/babylonjs-loaders@7.54.3/babylonjs.loaders.min.js"></script>
-  <script src="/play/runtime.js?v=engine11"></script>
-  <script src="/play/behaviors.js?v=engine11"></script>
-  <script src="/play/net.js?v=engine11"></script>
-  <script src="/play/gameplay.js?v=engine11"></script>
+  <!-- The engine: its manifest and loader (src/engine.ts). HawkesModules.load() brings Babylon, Havok, the core and
+       every module (public/play/modules/*), each with the same cache-busting version. -->
+  <script src="/play/modules.js"></script>
   <script>
     // A game, not a page: no pinch or double-tap zoom, no ctrl+wheel zoom, no text selection or long-press menus.
     ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (t) { document.addEventListener(t, function (e) { e.preventDefault(); }, { passive: false }); });
@@ -265,11 +262,9 @@
       var parts = location.pathname.replace(/\/+$/, '').split('/');
       var slug = parts[2];
       var loading = document.getElementById('loading');
+      var failed = function (e) { loading.hidden = false; loading.textContent = (e && e.message) || 'The game engine did not load'; };
       if (slug === '_draft') {
-        var s = document.createElement('script');
-        s.src = '/play/build.js?v=engine11';
-        s.onload = function () { window.parent.postMessage({ source: 'hawkes-play', type: 'ready' }, '*'); };
-        document.body.appendChild(s);
+        HawkesModules.load('editor').then(function () { window.parent.postMessage({ source: 'hawkes-play', type: 'ready' }, '*'); }, failed);
         window.addEventListener('message', function (e) {
           if (e.source !== window.parent) return;
           var m = e.data || {};
@@ -299,9 +294,10 @@
         setTimeout(function () { friends.textContent = 'Room ' + room; }, 2500);
       };
       var v = parts[3] === 'v' ? '?v=' + encodeURIComponent(parts[4]) : '';
+      var engine = HawkesModules.load('play');
       fetch(tpl ? '/v1/play-template/' + encodeURIComponent(tpl) : '/v1/play/' + encodeURIComponent(slug) + v).then(function (r) {
         return r.json().then(function (b) { if (!r.ok) throw new Error(b.error || 'Could not load this game'); return b; });
-      }).then(function (b) {
+      }).then(function (b) { return engine.then(function () { return b; }); }).then(function (b) {
         HawkesPlay.run(b, { mode: 'play' });
         if (q.get('room')) { HawkesNet.connect({ play: slug, room: q.get('room') }); friends.textContent = 'Room ' + q.get('room'); }
         else if (!v) HawkesNet.connect({ play: slug, room: 'live' });
