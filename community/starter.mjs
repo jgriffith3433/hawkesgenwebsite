@@ -1,7 +1,8 @@
-// The community starter pack: what Hawkes makes for every player to use, five of each tag.
-// Each entry is [name, what it is, more search words]. tools/starter.mjs turns them into Gen jobs (filed in the starter
-// project with labels pack, community, kind, tags), and the portal lists whatever is finished (src/community.ts).
-// Add to this list freely: a run only makes what isn't made yet.
+// The community starter pack: what Hawkes makes for every player to use, five in each category.
+// A group is one kind and one category (`tag`: the shelf it sits on in the library, one word); each entry is
+// [name, what it is, more search words]. tools/starter.mjs turns them into Gen jobs (filed in the starter project with
+// labels pack, community, kind, tag, tags, name, item), and the portal lists whatever is finished (src/community.ts).
+// Names are unique within a kind (the item key is kind/name). Add to this list freely: a run only makes what isn't made yet.
 
 export const STARTER = [
   // ------------------------------------------------------------ 3D models (four views, high + low detail)
@@ -128,12 +129,19 @@ export const STARTER = [
   ] },
 
   // ------------------------------------------------------------ skies (360° panoramas)
-  { kind: 'sky', tag: 'sky', items: [
-    ['Sunny day', 'a bright blue sky with fluffy white clouds over green hills', 'day clear'],
+  { kind: 'sky', tag: 'day', items: [
+    ['Sunny day', 'a bright blue sky with fluffy white clouds over green hills', 'clear blue'],
     ['Sunset', 'a warm orange and pink sunset sky over the sea', 'evening dusk'],
-    ['Starry night', 'a deep blue night sky full of stars and a crescent moon', 'night stars'],
-    ['Deep space', 'outer space with colorful nebulas and distant stars', 'space nebula'],
     ['Storm', 'a dark stormy sky with heavy clouds and distant lightning', 'rain thunder'],
+    ['Overcast', 'a soft grey overcast sky over rolling fields', 'cloudy grey'],
+    ['Desert dusk', 'a hazy golden dusk sky over desert dunes', 'desert evening'],
+  ] },
+  { kind: 'sky', tag: 'night', items: [
+    ['Starry night', 'a deep blue night sky full of stars and a crescent moon', 'stars moon'],
+    ['Deep space', 'outer space with colorful nebulas and distant stars', 'space nebula'],
+    ['Aurora', 'green and purple northern lights over snowy mountains at night', 'northern lights snow'],
+    ['Moonlit clouds', 'a full moon lighting silver clouds at night', 'moon clouds'],
+    ['Alien world', 'an alien planet sky with two moons and a ringed planet', 'scifi planet moons'],
   ] },
 
   // ------------------------------------------------------------ sprites and icons (transparent)
@@ -190,18 +198,18 @@ export const STARTER = [
   ] },
 
   // ------------------------------------------------------------ ambience (loops)
-  { kind: 'ambience', tag: 'ambience', items: [
-    ['Forest', 'forest ambience with birds and light wind, seamless loop', 'nature birds'],
+  { kind: 'ambience', tag: 'nature', items: [
+    ['Forest', 'forest ambience with birds and light wind, seamless loop', 'birds trees'],
     ['Rain', 'steady rain on leaves with soft thunder, seamless loop', 'weather storm'],
-    ['City', 'busy city street ambience with traffic and people, seamless loop', 'urban'],
-    ['Cave', 'dripping cave ambience with distant echoes, seamless loop', 'dungeon'],
-    ['Spaceship', 'spaceship interior hum with soft beeps, seamless loop', 'scifi engine'],
-  ] },
-  { kind: 'ambience', tag: 'places', items: [
     ['Ocean waves', 'ocean waves on a beach with seagulls, seamless loop', 'beach sea'],
     ['Campfire', 'crackling campfire at night with crickets, seamless loop', 'fire night'],
-    ['Tavern', 'busy medieval tavern chatter and clinks, seamless loop', 'inn crowd'],
     ['Wind', 'howling wind on a mountain, seamless loop', 'mountain snow'],
+  ] },
+  { kind: 'ambience', tag: 'places', items: [
+    ['City', 'busy city street ambience with traffic and people, seamless loop', 'urban street'],
+    ['Cave', 'dripping cave ambience with distant echoes, seamless loop', 'dungeon'],
+    ['Spaceship', 'spaceship interior hum with soft beeps, seamless loop', 'scifi engine'],
+    ['Tavern', 'busy medieval tavern chatter and clinks, seamless loop', 'inn crowd'],
     ['Factory', 'industrial factory machines, seamless loop', 'machines'],
   ] },
 
@@ -257,20 +265,42 @@ export const STARTER = [
   ] },
 ];
 
+/**
+ * The pack's one look, in every picture's prompt and in what Claude picks against, so a game built from the pack looks
+ * like one game. Change it only to change the whole pack (and remake it: tools/starter.mjs KEY_VERSION).
+ */
+export const STYLE = 'clean stylized 3D game art, bright readable colors, soft even lighting, simple shapes with crisp detail';
+
+/**
+ * The asset.make params for one starter thing. Pictures are made three times and Claude keeps the best (pickAt the
+ * first step, against the brief and STYLE); a model only starts its 3D from the picked picture. Sounds are made once.
+ */
+export function paramsFor(kind, what) {
+  const steps = stepsFor(kind, what);
+  const visual = ['model', 'texture', 'sprite'].includes(kind);
+  if (!visual) return { steps };
+  const pick = {
+    model: 'the whole object alone, centered, straight front view, clean silhouette, no cut-off parts, no text, no extra objects, easy to turn into a 3D model',
+    texture: 'tiles seamlessly with no visible seams, even lighting, no perspective, no text, reads clearly when repeated across a floor or wall',
+    sprite: 'one clear subject, centered, readable at small sizes, no text, clean edges for a transparent cut-out',
+  }[kind];
+  return { steps, candidates: 3, pickAt: 1, pick, style: STYLE };
+}
+
 /** The Gen steps (asset.make) that make one starter thing. */
 export function stepsFor(kind, what) {
   switch (kind) {
     case 'model': return [
-      { tool: 'image.generate', params: { prompt: `${what}, single object, straight front view, centered, whole object in frame, plain flat light grey background, even light, no shadow, clean stylized game asset`, width: 1024, height: 1024, count: 1 }, save: 'front' },
+      { tool: 'image.generate', params: { prompt: `${what}, single object, straight front view, centered, whole object in frame, plain flat light grey background, even light, no shadow, ${STYLE}`, width: 1024, height: 1024, count: 1 }, save: 'front' },
       { tool: 'image.remove-background', inputs: { image: '$prev' }, save: 'cutout' },
       { tool: 'image.viewsheet', inputs: { image: '$prev' }, params: { form: 'prop', cell: 1024, retries: 2 }, save: 'views' },
       { tool: 'mesh.views3d', inputs: { image: '$step3:sheet' }, save: 'raw' },
       { tool: 'blender.character', inputs: { files: ['$step4:mesh'] }, params: { ops: [{ op: 'import', file: 0, clips: false }, { op: 'fix', shards: 0.02, holes: 24 }, { op: 'retopo', faces: 12000 }, { op: 'bake', size: 2048 }, { op: 'lod', levels: [0.15], compress: 'draco', textures: 'webp' }, { op: 'export', format: 'glb', title: 'high', compress: 'draco', textures: 'webp' }] }, save: 'model' },
     ];
-    case 'texture': return [{ tool: 'image.generate', params: { prompt: `${what}, seamless tileable texture, top-down, flat even lighting, no shadows`, width: 1024, height: 1024, seamless: true, count: 1 }, save: 'texture' }];
-    case 'sky': return [{ tool: 'image.panorama', params: { prompt: what }, save: 'sky' }];
+    case 'texture': return [{ tool: 'image.generate', params: { prompt: `${what}, seamless tileable texture, top-down, flat even lighting, no shadows, ${STYLE}`, width: 1024, height: 1024, seamless: true, count: 1 }, save: 'texture' }];
+    case 'sky': return [{ tool: 'image.panorama', params: { prompt: `${what}, ${STYLE}` }, save: 'sky' }];
     case 'sprite': return [
-      { tool: 'image.generate', params: { prompt: `${what}, single subject, centered, plain flat background, clean stylized game art`, width: 1024, height: 1024, count: 1 }, save: 'front' },
+      { tool: 'image.generate', params: { prompt: `${what}, single subject, centered, plain flat background, ${STYLE}`, width: 1024, height: 1024, count: 1 }, save: 'front' },
       { tool: 'image.cutout', inputs: { image: '$prev' }, save: 'sprite' },
     ];
     case 'music': return [{ tool: 'audio.music', params: { prompt: what, seconds: /jingle|fanfare/.test(what) ? 12 : 60 }, save: 'music' }];

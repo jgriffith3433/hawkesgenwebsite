@@ -32,7 +32,7 @@ import { upgrade as joinRoom, broadcastOps, markHere, liveCounts } from './rooms
 import type { Duplex } from 'node:stream';
 
 const PUBLIC = path.join(ROOT, 'public');
-const PAGES: Record<string, string> = { '/': 'index.html', '/home': 'index.html', '/app': 'games.html', '/app/studio': 'app.html', '/games': 'gallery.html', '/admin': 'admin.html', '/reset': 'reset.html', '/legal': 'legal.html', '/terms': 'legal.html', '/privacy': 'legal.html', '/refunds': 'legal.html', '/connect': 'connect.html', '/thanks': 'thanks.html', '/examples': 'examples.html', '/entities': 'entities.html', '/oauth/authorize': 'authorize.html', '/client/hawkesgen.mjs': 'hawkesgen.mjs' };
+const PAGES: Record<string, string> = { '/': 'index.html', '/home': 'index.html', '/app': 'games.html', '/app/studio': 'app.html', '/games': 'gallery.html', '/admin': 'admin.html', '/reset': 'reset.html', '/legal': 'legal.html', '/terms': 'legal.html', '/privacy': 'legal.html', '/refunds': 'legal.html', '/connect': 'connect.html', '/thanks': 'thanks.html', '/examples': 'examples.html', '/entities': 'entities.html', '/community': 'community.html','/oauth/authorize': 'authorize.html', '/client/hawkesgen.mjs': 'hawkesgen.mjs' };
 const TYPES: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webp': 'image/webp', '.gif': 'image/gif', '.mp3': 'audio/mpeg', '.jpg': 'image/jpeg', '.unitypackage': 'application/octet-stream', '.pdf': 'application/pdf', '.md': 'text/markdown; charset=utf-8', '.glb': 'model/gltf-binary' };
 
 // Gen routes a signed-in customer may use as they are (Gen scopes them to the customer's project).
@@ -236,7 +236,11 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       return send(res, 200, b);
     }
     // The community library is public: what's shared is for everyone (searching, browsing, its files).
-    if (route === '/v1/community' && method === 'GET') return send(res, 200, community.search({ q: url.searchParams.get('q'), kind: url.searchParams.get('kind'), tag: url.searchParams.get('tag'), limit: url.searchParams.get('limit'), sort: url.searchParams.get('sort') }));
+    if (route === '/v1/community' && method === 'GET') {
+      const p = (k: string) => url.searchParams.get(k);
+      return send(res, 200, community.search({ q: p('q'), kind: p('kind'), tag: p('tag'), category: p('category'), limit: p('limit'), offset: p('offset'), sort: p('sort'), exact: p('exact') === '1' }));
+    }
+    if (route === '/v1/community/categories' && method === 'GET') return send(res, 200, community.categories());
     if (route === '/v1/community/tags' && method === 'GET') return send(res, 200, { tags: community.tagCounts(url.searchParams.get('kind') ?? undefined) });
     const cf = /^\/v1\/community\/(a_[0-9a-f]+)\/file$/.exec(route);
     if (cf && method === 'GET') return relay(await community.file(cf[1]), res);
