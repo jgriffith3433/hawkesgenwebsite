@@ -29,7 +29,7 @@ customer ──https──▶ hawkesgen.com (this repo, its own EC2 box, Caddy, 
 - Prices come from Gen (`POST /v1/billing/quote`). Packs are in `billing.ts PACKS`.
 - Secrets live in `.env` on the box (gitignored): `HAWKESGEN_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`,
   `STRIPE_WEBHOOK_SECRET`. Never commit, print or log them.
-- **Design:** paper and ink, one accent (`--accent`), hairline rules, Instrument Serif headings, IBM Plex Sans/Mono (`public/public.css`). No gradients, glows or emoji. Copy is plain and true: no claims we can't show.
+- **Design:** dark futuristic (`--bg: #0a0a0f`, glass morphism, `--accent: #4a9eff` + `--accent-2: #a855f7`), Inter headings, JetBrains Mono for code (`public/public.css`). The editor is immersive: full-screen game preview with slide-out panels and an AI HUD overlay. Copy is plain and true: no claims we can't show.
 - No runtime dependencies (Node 24, `node:sqlite`, TypeScript by type stripping: erasable syntax only, `.ts` imports).
 
 ## Run

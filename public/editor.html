@@ -8,7 +8,6 @@
   <link rel="stylesheet" href="/public.css">
   <link rel="stylesheet" href="/builder.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/neo.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js"></script>
@@ -20,131 +19,146 @@
   <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
 </head>
 <body class="editor-page">
-  <!-- Top Bar -->
-  <header class="bar">
-    <a class="hg-brand" href="/app"><img src="/favicon.svg" alt=""><span>Hawkes Gen</span></a>
+  <!-- Full-screen game preview (the main view) -->
+  <div class="ed-game">
+    <iframe id="preview" sandbox="allow-scripts allow-pointer-lock allow-popups allow-popups-to-escape-sandbox"></iframe>
+  </div>
+
+  <!-- HUD: Top bar -->
+  <header class="ed-topbar">
+    <a class="hg-brand" href="/app"><img src="/favicon.svg" alt="">Hawkes Gen</a>
     <input type="text" class="title-input" id="gameTitle" placeholder="Untitled game">
     <span class="grow"></span>
     <span class="presence" id="presence"></span>
     <span class="save-state" id="saveState"></span>
-    <a class="btn btn-ghost btn-sm" href="#" id="playBtn">▶ Play</a>
-    <button class="btn btn-secondary btn-sm" id="inviteBtn">Invite friends</button>
-    <button class="btn btn-ghost btn-sm" id="menuBtn">⋯</button>
+    <button class="btn btn-primary btn-sm" id="playBtn">Play</button>
+    <button class="btn btn-secondary btn-sm" id="inviteBtn">Invite</button>
+    <button class="btn btn-ghost btn-sm" id="menuBtn">Menu</button>
   </header>
 
-  <!-- Main Editor Layout -->
-  <div class="ed">
-    <!-- Left: Files + Assets -->
-    <div class="ed-side">
-      <div class="ed-head">
-        <span class="label">Files</span>
-        <button class="btn btn-ghost btn-sm" id="newFileBtn" title="New file">+</button>
-      </div>
-      <div class="ed-list" id="filesList"></div>
+  <!-- HUD: Left action buttons -->
+  <div class="hud-actions left">
+    <button class="hud-btn" id="panelToggle" title="Files">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 3h12M2 8h8M2 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </button>
+    <button class="hud-btn" id="settingsToggle" title="Settings">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M8 2v2m0 8v2m-4.24-1.76 1.41-1.41m5.66-5.66 1.41-1.41M2 8h2m8 0h2M3.76 3.76l1.41 1.41m5.66 5.66 1.41 1.41" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+    </button>
+    <button class="hud-btn" id="docsToggle" title="Docs">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="3" y="2" width="10" height="12" rx="1" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 5h5M5.5 8h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+    </button>
+  </div>
 
-      <div class="ed-head" style="margin-top: 18px">
-        <span class="label">Assets</span>
-        <button class="btn btn-ghost btn-sm" id="newAssetBtn" title="Add asset">+</button>
-      </div>
-      <div class="ed-list" id="assetsList"></div>
-      <div id="gensList"></div>
+  <!-- HUD: Right action buttons -->
+  <div class="hud-actions right">
+    <button class="hud-btn" id="codeToggle" title="Code">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M5.5 4L2 8l3.5 4M10.5 4L14 8l-3.5 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button class="hud-btn" id="refreshBtn" title="Reload">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2v4h-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+
+  <!-- Left panel: Files + Assets -->
+  <div class="ed-panel" id="filesPanel">
+    <div class="ed-head">
+      <span class="label">Files</span>
+      <button class="btn btn-ghost btn-sm" id="newFileBtn" title="New file">+</button>
     </div>
+    <div class="ed-list" id="filesList"></div>
 
-    <!-- Center: Code Editor -->
-    <div class="ed-code">
-      <div id="conflict" class="conflict" hidden>
-        <span class="grow">Someone else edited this file while you were typing.</span>
-        <button class="btn btn-secondary btn-sm" id="conflictKeep">Keep mine</button>
-        <button class="btn btn-ghost btn-sm" id="conflictTake">Take theirs</button>
-      </div>
-      <div class="ed-code-head">
-        <span id="openFile" class="grow"></span>
-        <button class="btn btn-ghost btn-sm" id="renameFileBtn" hidden>Rename</button>
-        <button class="btn btn-ghost btn-sm" id="deleteFileBtn" hidden>Delete</button>
-      </div>
-      <div id="editor"></div>
+    <div class="ed-head" style="margin-top: 18px">
+      <span class="label">Assets</span>
+      <button class="btn btn-ghost btn-sm" id="newAssetBtn" title="Add asset">+</button>
     </div>
+    <div class="ed-list" id="assetsList"></div>
+    <div id="gensList"></div>
+  </div>
 
-    <!-- Right: Preview + Tabs (Chat/Console/Docs/Settings) -->
-    <div class="ed-right">
-      <div class="ed-preview-head">
-        <span class="label">Preview</span>
-        <span class="grow"></span>
-        <button class="btn btn-ghost btn-sm" id="refreshPreviewBtn">↻ Reload</button>
-      </div>
-      <div class="ed-preview">
-        <iframe id="preview" sandbox="allow-scripts allow-pointer-lock allow-popups allow-popups-to-escape-sandbox"></iframe>
-      </div>
-
-      <div class="ed-tabs">
-        <button class="ed-tab on" data-tab="chat">Assistant <span class="n" id="chatUnread" hidden>•</span></button>
-        <button class="ed-tab" data-tab="console">Console <span class="n" id="consoleCount" hidden>0</span></button>
-        <button class="ed-tab" data-tab="docs">Docs</button>
-        <button class="ed-tab" data-tab="settings">Settings</button>
-      </div>
-
-      <!-- Chat Panel -->
-      <div class="ed-pane chat" id="chatPane">
-        <div class="chat-log" id="chatLog"></div>
-        <div class="chat-input">
-          <textarea id="chatInput" placeholder="Ask the AI to help build your game..."></textarea>
-          <div class="row">
-            <span class="grow" id="chatCost"></span>
-            <button class="btn btn-primary btn-sm" id="sendChatBtn">Send</button>
+  <!-- Left panel: Settings -->
+  <div class="ed-panel" id="settingsPanel">
+    <div class="ed-head"><span class="label">Settings</span></div>
+    <div class="settings" id="settingsPane">
+      <section>
+        <label class="label">Game info</label>
+        <div class="form-field">
+          <label>Description</label>
+          <textarea class="form-input" id="descInput" placeholder="What's your game about?" maxlength="400" rows="3"></textarea>
+        </div>
+        <div class="form-field">
+          <label>Visibility</label>
+          <div class="segmented">
+            <button type="button" class="on" data-vis="public">Public</button>
+            <button type="button" data-vis="unlisted">Unlisted</button>
           </div>
         </div>
+        <div class="form-field">
+          <label>Cover image</label>
+          <input type="text" class="form-input" id="coverInput" placeholder="Asset name or URL">
+        </div>
+        <button class="btn btn-secondary btn-sm" id="saveSettingsBtn">Save</button>
+      </section>
+      <section>
+        <label class="label">Members</label>
+        <div id="membersList"></div>
+      </section>
+      <section>
+        <label class="label">Releases</label>
+        <p class="muted" style="font-size:12.5px;margin:0 0 10px">Publish a numbered release so the game stays frozen for players even as you keep editing.</p>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input type="text" class="form-input" id="releaseNotes" placeholder="What changed?" style="flex:1">
+          <button class="btn btn-primary btn-sm" id="publishBtn">Publish</button>
+        </div>
+        <div id="releasesList"></div>
+      </section>
+      <section>
+        <button class="btn btn-ghost btn-sm" id="leaveBtn">Leave game</button>
+        <button class="btn btn-ghost btn-sm" id="deleteGameBtn" hidden style="color:var(--bad)">Delete game</button>
+      </section>
+    </div>
+  </div>
+
+  <!-- Left panel: Docs -->
+  <div class="ed-panel" id="docsPanel">
+    <div class="ed-head"><span class="label">Scripting API</span></div>
+    <div class="docs" id="docsContent"></div>
+  </div>
+
+  <!-- Right panel: Code editor -->
+  <div class="ed-code-panel" id="codePanel">
+    <div id="conflict" class="conflict" hidden>
+      <span class="grow">Someone else edited this file while you were typing.</span>
+      <button class="btn btn-secondary btn-sm" id="conflictKeep">Keep mine</button>
+      <button class="btn btn-ghost btn-sm" id="conflictTake">Take theirs</button>
+    </div>
+    <div class="ed-code-head">
+      <span id="openFile" class="grow"></span>
+      <button class="btn btn-ghost btn-sm" id="renameFileBtn" hidden>Rename</button>
+      <button class="btn btn-ghost btn-sm" id="deleteFileBtn" hidden>Delete</button>
+    </div>
+    <div id="editor"></div>
+  </div>
+
+  <!-- AI HUD: Chat overlay at bottom center -->
+  <div class="ed-hud">
+    <div class="ed-hud-chat" id="hudChat">
+      <div class="chat-log" id="chatLog"></div>
+      <div class="thinking" id="thinkingIndicator" hidden>AI is thinking...</div>
+      <div class="chat-input">
+        <textarea id="chatInput" placeholder="Tell the AI what to build..." rows="1"></textarea>
+        <span class="chat-cost" id="chatCost"></span>
+        <button class="btn btn-primary btn-sm" id="sendChatBtn">Send</button>
       </div>
+    </div>
+  </div>
 
-      <!-- Console Panel -->
-      <div class="ed-pane console" id="consolePane" hidden></div>
-
-      <!-- Docs Panel -->
-      <div class="ed-pane docs" id="docsPane" hidden>
-        <div id="docsContent"></div>
-      </div>
-
-      <!-- Settings Panel -->
-      <div class="ed-pane settings" id="settingsPane" hidden>
-        <section>
-          <label class="label">Game info</label>
-          <div class="form-field">
-            <label>Description</label>
-            <textarea class="form-input" id="descInput" placeholder="What's your game about?" maxlength="400" rows="3"></textarea>
-          </div>
-          <div class="form-field">
-            <label>Visibility</label>
-            <div class="segmented">
-              <button type="button" class="on" data-vis="public">Public</button>
-              <button type="button" data-vis="unlisted">Unlisted</button>
-            </div>
-          </div>
-          <div class="form-field">
-            <label>Cover image (optional)</label>
-            <input type="text" class="form-input" id="coverInput" placeholder="Asset name or URL">
-          </div>
-          <button class="btn btn-secondary btn-sm" id="saveSettingsBtn">Save</button>
-        </section>
-
-        <section>
-          <label class="label">Members</label>
-          <div id="membersList"></div>
-        </section>
-
-        <section>
-          <label class="label">Releases</label>
-          <p class="muted" style="font-size:12.5px;margin:0 0 10px">Publish a numbered release so the game stays frozen for players even as you keep editing.</p>
-          <div style="display:flex;gap:8px;margin-bottom:12px">
-            <input type="text" class="form-input" id="releaseNotes" placeholder="What changed?" style="flex:1">
-            <button class="btn btn-primary btn-sm" id="publishBtn">Publish</button>
-          </div>
-          <div id="releasesList"></div>
-        </section>
-
-        <section>
-          <button class="btn btn-ghost btn-sm" id="leaveBtn">Leave game</button>
-          <button class="btn btn-ghost btn-sm" id="deleteGameBtn" hidden style="color:var(--bad)">Delete game</button>
-        </section>
-      </div>
+  <!-- Error indicator: sleek red pill in bottom right -->
+  <div class="ed-errors" id="errorsContainer" hidden>
+    <div class="ed-error-pill" id="errorPill">
+      <span class="count" id="errorCount">0</span> errors
+    </div>
+    <div class="ed-error-panel" id="errorPanel" hidden>
+      <div id="errorList"></div>
     </div>
   </div>
 
@@ -171,7 +185,7 @@
         <input type="text" class="form-input" id="assetId" placeholder="a_abc123...">
       </div>
       <div class="form-field">
-        <label>Name in your game (optional)</label>
+        <label>Name in your game</label>
         <input type="text" class="form-input" id="assetName" placeholder="hero.glb">
       </div>
       <div style="display:flex;gap:8px">
@@ -185,7 +199,7 @@
   <div class="modal-backdrop" id="menuModal" hidden>
     <div class="modal" style="max-width:280px">
       <div style="display:grid;gap:6px">
-        <a class="btn btn-ghost btn-sm" href="/app" style="text-align:left">← Your games</a>
+        <a class="btn btn-ghost btn-sm" href="/app" style="text-align:left">Your games</a>
         <a class="btn btn-ghost btn-sm" href="/app/studio" style="text-align:left">Asset studio</a>
         <a class="btn btn-ghost btn-sm" href="/games" style="text-align:left">Public games</a>
         <button class="btn btn-ghost btn-sm" data-close="menuModal" style="text-align:left">Close</button>

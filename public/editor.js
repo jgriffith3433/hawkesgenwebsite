@@ -1,4 +1,4 @@
-// The collaborative game editor: CodeMirror on the left, live preview on the right, AI help below.
+// The immersive game editor: full-screen game preview, AI HUD overlay, slide-out panels.
 /* global CodeMirror marked */
 const API = '/v1';
 const gameId = /\/app\/g\/(g_[0-9a-f]+)/.exec(location.pathname)?.[1];
@@ -8,6 +8,7 @@ let game = null;
 let files = {};
 let assets = {};
 let members = [];
+let releases = [];
 let me = null;
 let connId = null;
 let editor = null;
@@ -16,11 +17,13 @@ let baseRev = null;
 let saving = false;
 let dirty = false;
 let saveTimer = null;
-let remoteEditing = new Set();
 let sse = null;
-let activeTab = 'chat';
 let chatHistory = [];
 let pendingGens = [];
+let errors = [];
+
+let panelOpen = null; // 'files' | 'settings' | 'docs' | null
+let codeOpen = false;
 
 // ===================================================================== init
 (async () => {
@@ -31,16 +34,21 @@ let pendingGens = [];
     files = Object.fromEntries(data.files.map(f => [f.path, f]));
     assets = Object.fromEntries(data.assets.map(a => [a.name, a]));
     members = data.game.members || [];
-    chatHistory = data.chat || [];
-    connId = data.connId || `conn_${Date.now()}`;
+    releases = data.releases || [];
 
     document.getElementById('gameTitle').value = game.title;
     render();
     connect();
     loadDocs();
     loadSettings();
-    renderChat();
+    loadChat();
     updatePreview();
+
+    const paths = Object.keys(files).sort();
+    if (paths.length) {
+      const first = paths.find(p => p.endsWith('.js')) || paths[0];
+      openFile(first, false);
+    }
   } catch (err) {
     console.error(err);
     alert(err.message || 'Failed to load game');
@@ -48,64 +56,86 @@ let pendingGens = [];
   }
 })();
 
-// ===================================================================== api
+// ===================================================================== api helpers
 async function get(url) {
   const res = await fetch(url, { credentials: 'include' });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
   return res.json();
 }
 
-async function post(url, body) {
-  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) });
+async function post(url, body, headers = {}) {
+  const h = { 'Content-Type': 'application/json', ...headers };
+  if (connId) h['X-Conn'] = connId;
+  const res = await fetch(url, { method: 'POST', headers: h, credentials: 'include', body: JSON.stringify(body) });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
   return res.json();
 }
 
 async function del(url) {
-  const res = await fetch(url, { method: 'DELETE', credentials: 'include' });
+  const h = {};
+  if (connId) h['X-Conn'] = connId;
+  const res = await fetch(url, { method: 'DELETE', headers: h, credentials: 'include' });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
   return res.json();
 }
 
+// ===================================================================== panels
+function togglePanel(name) {
+  const panels = { files: 'filesPanel', settings: 'settingsPanel', docs: 'docsPanel' };
+  const toggles = { files: 'panelToggle', settings: 'settingsToggle', docs: 'docsToggle' };
+  if (panelOpen === name) {
+    document.getElementById(panels[name]).classList.remove('open');
+    document.getElementById(toggles[name]).classList.remove('active');
+    panelOpen = null;
+  } else {
+    for (const [k, id] of Object.entries(panels)) {
+      document.getElementById(id).classList.toggle('open', k === name);
+      document.getElementById(toggles[k]).classList.toggle('active', k === name);
+    }
+    panelOpen = name;
+  }
+}
+
+function toggleCode() {
+  codeOpen = !codeOpen;
+  document.getElementById('codePanel').classList.toggle('open', codeOpen);
+  document.getElementById('codeToggle').classList.toggle('active', codeOpen);
+  if (codeOpen && editor) editor.refresh();
+}
+
+document.getElementById('panelToggle').onclick = () => togglePanel('files');
+document.getElementById('settingsToggle').onclick = () => togglePanel('settings');
+document.getElementById('docsToggle').onclick = () => togglePanel('docs');
+document.getElementById('codeToggle').onclick = toggleCode;
+document.getElementById('refreshBtn').onclick = updatePreview;
+
 // ===================================================================== render
 function render() {
-  // Files list
   const filesList = document.getElementById('filesList');
   filesList.innerHTML = '';
-  const paths = Object.keys(files).sort();
-  for (const p of paths) {
-    const f = files[p];
+  for (const p of Object.keys(files).sort()) {
     const div = document.createElement('button');
     div.className = 'ed-item' + (p === openPath ? ' on' : '');
-    const icon = p.endsWith('.js') ? '📜' : p.endsWith('.json') ? '{}' : p.endsWith('.md') ? '📝' : '📄';
-    div.innerHTML = `<span>${icon}</span><span class="nm">${p}</span><span class="who"></span>`;
-    div.onclick = () => openFile(p);
-
-    // Show who's editing
-    const whoEl = div.querySelector('.who');
-    const editors = Array.from(remoteEditing).filter(u => u.file === p);
-    if (editors.length) {
-      whoEl.innerHTML = editors.map(u => `<span class="dot" style="background:${avatarColor(u.userId)}" title="${u.userName}"></span>`).join('');
-    }
-
+    const ext = p.split('.').pop();
+    const icon = ext === 'js' ? 'JS' : ext === 'json' ? '{}' : ext === 'md' ? 'MD' : ext;
+    div.innerHTML = `<span style="font:9px var(--mono);color:var(--fg-3);width:20px;text-align:center">${icon}</span><span class="nm">${esc(p)}</span>`;
+    div.onclick = () => openFile(p, true);
     filesList.appendChild(div);
   }
 
-  // Assets list
   const assetsList = document.getElementById('assetsList');
   assetsList.innerHTML = '';
-  const assetNames = Object.keys(assets).sort();
-  for (const name of assetNames) {
+  for (const name of Object.keys(assets).sort()) {
     const a = assets[name];
     const div = document.createElement('div');
     div.className = 'ed-item';
-    const kind = a.mime?.startsWith('image/') ? '🖼' : a.mime?.startsWith('audio/') ? '🔊' : a.kind === 'mesh' ? '📦' : '📎';
-    div.innerHTML = `<span>${kind}</span><span class="nm">${name}</span><button class="x" title="Remove">×</button>`;
+    const kind = a.mime?.startsWith('image/') ? 'IMG' : a.mime?.startsWith('audio/') ? 'SFX' : a.kind === 'mesh' ? '3D' : 'FILE';
+    div.innerHTML = `<span style="font:9px var(--mono);color:var(--fg-3);width:20px;text-align:center">${kind}</span><span class="nm">${esc(name)}</span><button class="x" title="Remove">&times;</button>`;
     div.querySelector('.x').onclick = async (e) => {
       e.stopPropagation();
       if (!confirm(`Remove ${name}?`)) return;
       try {
-        await post(`${API}/games/${gameId}/assets/${encodeURIComponent(name)}/remove`);
+        await del(`${API}/games/${gameId}/assets/${encodeURIComponent(name)}`);
         delete assets[name];
         render();
       } catch (err) { alert(err.message); }
@@ -113,20 +143,6 @@ function render() {
     assetsList.appendChild(div);
   }
 
-  // Presence
-  const presenceEl = document.getElementById('presence');
-  presenceEl.innerHTML = '';
-  const others = members.filter(m => m.id !== me.id);
-  for (const m of others.slice(0, 5)) {
-    const av = document.createElement('div');
-    av.className = 'avatar';
-    av.style.background = avatarColor(m.id);
-    av.textContent = (m.name || 'A')[0].toUpperCase();
-    av.title = m.name;
-    presenceEl.appendChild(av);
-  }
-
-  // Save state
   setSaveState(dirty ? 'Unsaved' : saving ? 'Saving...' : '');
 }
 
@@ -135,17 +151,17 @@ function setSaveState(text) {
 }
 
 function avatarColor(userId) {
-  const colors = ['#e07a5f', '#3d5a80', '#81b29a', '#f2cc8f', '#6a4c93', '#f4a261'];
-  const hash = userId.split('').reduce((a, c) => ((a << 5) - a) + c.charCodeAt(0), 0);
+  const colors = ['#4a9eff', '#a855f7', '#34d399', '#fbbf24', '#ef4444', '#f97316'];
+  const hash = (userId || '').split('').reduce((a, c) => ((a << 5) - a) + c.charCodeAt(0), 0);
   return colors[Math.abs(hash) % colors.length];
 }
 
-// ===================================================================== editor
-function openFile(path) {
+// ===================================================================== code editor
+function openFile(path, showPanel = true) {
   if (!editor) {
     editor = CodeMirror(document.getElementById('editor'), {
       lineNumbers: true,
-      theme: 'neo',
+      theme: 'default',
       tabSize: 2,
       indentWithTabs: false,
       lineWrapping: false,
@@ -173,6 +189,7 @@ function openFile(path) {
   document.getElementById('deleteFileBtn').hidden = false;
   document.getElementById('conflict').hidden = true;
 
+  if (showPanel && !codeOpen) toggleCode();
   render();
   reportPresence();
 }
@@ -185,60 +202,56 @@ function scheduleSave() {
 
 async function saveFile() {
   if (!openPath || !dirty || saving) return;
-
   saving = true;
   setSaveState('Saving...');
-
   try {
     const content = editor.getValue();
-    const res = await post(`${API}/games/${gameId}/files`, { path: openPath, content, baseRev, connId });
-    files[openPath] = { path: openPath, content, rev: res.rev, updated: res.updated, updated_by: me.id };
+    const res = await post(`${API}/games/${gameId}/files`, { path: openPath, content, baseRev });
+    files[openPath] = { path: openPath, content, rev: res.rev, updated: res.updated, updated_by: me?.id };
     baseRev = res.rev;
     dirty = false;
     saving = false;
     setSaveState('');
-
-    // Refresh preview if we just saved a script or game.json
-    if (openPath.endsWith('.js') || openPath === 'game.json') {
-      updatePreview();
-    }
+    if (openPath.endsWith('.js') || openPath === 'game.json') updatePreview();
   } catch (err) {
     saving = false;
     setSaveState('Save failed');
     console.error(err);
-    alert(err.message || 'Failed to save');
   }
 }
 
 async function reportPresence() {
   if (!connId || !openPath) return;
   try {
-    await post(`${API}/games/${gameId}/presence`, { connId, file: openPath, line: editor.getCursor().line });
+    await post(`${API}/games/${gameId}/presence`, { file: openPath, line: editor?.getCursor().line || 0 });
   } catch {}
 }
 
-// ===================================================================== realtime
+// ===================================================================== realtime (SSE)
 function connect() {
   if (sse) sse.close();
-  sse = new EventSource(`${API}/games/${gameId}/live?connId=${connId}`);
+  sse = new EventSource(`${API}/games/${gameId}/live`, { withCredentials: true });
+
+  sse.addEventListener('hello', (e) => {
+    const data = JSON.parse(e.data);
+    connId = data.conn;
+    updatePresenceUI(data.presence || []);
+  });
 
   sse.addEventListener('file', (e) => {
     const data = JSON.parse(e.data);
     files[data.path] = data;
-
-    // If it's the open file and someone else edited it
-    if (data.path === openPath && data.updated_by !== me.id) {
+    if (data.path === openPath && data.updated_by !== me?.id) {
       if (dirty) {
-        // Conflict: we have unsaved changes
         document.getElementById('conflict').hidden = false;
       } else {
-        // Take their changes
         baseRev = data.rev;
         editor.setValue(data.content);
         editor.clearHistory();
       }
     }
     render();
+    if (data.path?.endsWith('.js') || data.path === 'game.json') updatePreview();
   });
 
   sse.addEventListener('file-deleted', (e) => {
@@ -246,7 +259,7 @@ function connect() {
     delete files[data.path];
     if (data.path === openPath) {
       openPath = null;
-      editor.setValue('');
+      if (editor) editor.setValue('');
       document.getElementById('openFile').textContent = '';
     }
     render();
@@ -265,53 +278,52 @@ function connect() {
   });
 
   sse.addEventListener('presence', (e) => {
-    const data = JSON.parse(e.data);
-    remoteEditing = new Set(data.users.filter(u => u.userId !== me.id).map(u => ({ ...u, userName: members.find(m => m.id === u.userId)?.name || 'Someone' })));
-    render();
+    updatePresenceUI(JSON.parse(e.data));
   });
 
   sse.addEventListener('chat', (e) => {
-    const data = JSON.parse(e.data);
-    chatHistory.push(data);
+    chatHistory.push(JSON.parse(e.data));
     renderChat();
-    if (activeTab !== 'chat') {
-      document.getElementById('chatUnread').hidden = false;
-    }
+  });
+
+  sse.addEventListener('thinking', (e) => {
+    const data = JSON.parse(e.data);
+    const el = document.getElementById('thinkingIndicator');
+    el.hidden = !data.on;
+    if (data.on) el.textContent = `${data.by || 'AI'} is thinking...`;
   });
 
   sse.addEventListener('gen-update', (e) => {
-    const data = JSON.parse(e.data);
-    updateGen(data);
+    updateGen(JSON.parse(e.data));
   });
 
-  sse.addEventListener('member-join', (e) => {
-    const data = JSON.parse(e.data);
-    members.push(data);
-    render();
-  });
+  sse.addEventListener('reload', () => location.reload());
 
-  sse.addEventListener('member-leave', (e) => {
-    const data = JSON.parse(e.data);
-    members = members.filter(m => m.id !== data.userId);
-    render();
-  });
+  sse.onerror = () => setTimeout(connect, 3000);
+}
 
-  sse.onerror = () => {
-    console.log('SSE disconnected, reconnecting...');
-    setTimeout(connect, 2000);
-  };
+function updatePresenceUI(list) {
+  const presenceEl = document.getElementById('presence');
+  presenceEl.innerHTML = '';
+  const others = list.filter(p => p.user !== me?.id);
+  for (const p of others.slice(0, 5)) {
+    const av = document.createElement('div');
+    av.className = 'avatar';
+    av.style.background = p.color || avatarColor(p.user);
+    av.textContent = (p.name || 'A')[0].toUpperCase();
+    av.title = p.name + (p.file ? ` — ${p.file}` : '');
+    presenceEl.appendChild(av);
+  }
 }
 
 // Conflict resolution
 document.getElementById('conflictKeep').onclick = async () => {
-  // Force save our version
   dirty = true;
   await saveFile();
   document.getElementById('conflict').hidden = true;
 };
 
 document.getElementById('conflictTake').onclick = () => {
-  // Take their version
   const f = files[openPath];
   baseRev = f.rev;
   dirty = false;
@@ -327,11 +339,10 @@ document.getElementById('newFileBtn').onclick = () => {
   if (!name) return;
   const path = name.trim();
   if (files[path]) return alert('File already exists');
-
-  post(`${API}/games/${gameId}/files`, { path, content: '', baseRev: 0, connId }).then(res => {
-    files[path] = { path, content: '', rev: res.rev, updated: res.updated, updated_by: me.id };
+  post(`${API}/games/${gameId}/files`, { path, content: '', baseRev: 0 }).then(res => {
+    files[path] = { path, content: '', rev: res.rev, updated: res.updated, updated_by: me?.id };
     render();
-    openFile(path);
+    openFile(path, true);
   }).catch(err => alert(err.message));
 };
 
@@ -339,8 +350,7 @@ document.getElementById('renameFileBtn').onclick = () => {
   if (!openPath) return;
   const to = prompt('Rename to:', openPath);
   if (!to || to === openPath) return;
-
-  post(`${API}/games/${gameId}/files/rename`, { from: openPath, to, connId }).then(() => {
+  post(`${API}/games/${gameId}/files/rename`, { from: openPath, to }).then(() => {
     files[to] = { ...files[openPath], path: to };
     delete files[openPath];
     openPath = to;
@@ -352,11 +362,10 @@ document.getElementById('renameFileBtn').onclick = () => {
 document.getElementById('deleteFileBtn').onclick = () => {
   if (!openPath) return;
   if (!confirm(`Delete ${openPath}?`)) return;
-
-  del(`${API}/games/${gameId}/files/${encodeURIComponent(openPath)}?connId=${connId}`).then(() => {
+  del(`${API}/games/${gameId}/files?path=${encodeURIComponent(openPath)}`).then(() => {
     delete files[openPath];
     openPath = null;
-    editor.setValue('');
+    if (editor) editor.setValue('');
     document.getElementById('openFile').textContent = '';
     document.getElementById('renameFileBtn').hidden = true;
     document.getElementById('deleteFileBtn').hidden = true;
@@ -373,7 +382,6 @@ document.getElementById('addAssetConfirmBtn').onclick = async () => {
   const assetId = document.getElementById('assetId').value.trim();
   const name = document.getElementById('assetName').value.trim();
   if (!assetId) return alert('Enter an asset ID');
-
   try {
     const res = await post(`${API}/games/${gameId}/assets`, { asset: assetId, name });
     assets[res.name] = res;
@@ -381,9 +389,7 @@ document.getElementById('addAssetConfirmBtn').onclick = async () => {
     document.getElementById('assetModal').hidden = true;
     document.getElementById('assetId').value = '';
     document.getElementById('assetName').value = '';
-  } catch (err) {
-    alert(err.message);
-  }
+  } catch (err) { alert(err.message); }
 };
 
 // ===================================================================== preview
@@ -391,51 +397,67 @@ function updatePreview() {
   document.getElementById('preview').src = `/play/_draft?gameId=${gameId}&t=${Date.now()}`;
 }
 
-document.getElementById('refreshPreviewBtn').onclick = updatePreview;
-
 window.addEventListener('message', (e) => {
   if (e.data?.source !== 'hawkes-play') return;
-
-  if (e.data.type === 'error') {
-    addConsoleMessage(e.data.message, e.data.file, e.data.line, 'err');
-  } else if (e.data.type === 'log') {
-    addConsoleMessage(e.data.message, null, null, '');
-  }
+  if (e.data.type === 'error') addError(e.data.message, e.data.file, e.data.line);
 });
 
-function addConsoleMessage(text, file, line, cls) {
-  const con = document.getElementById('consolePane');
-  const div = document.createElement('div');
-  div.className = cls;
-  if (file && line) {
-    div.innerHTML = `<span class="ln" data-file="${file}" data-line="${line}">${file}:${line}</span>: ${text}`;
-    div.querySelector('.ln').onclick = () => {
-      if (files[file]) openFile(file);
-    };
-  } else {
-    div.textContent = text;
-  }
-  con.appendChild(div);
-  con.scrollTop = con.scrollHeight;
-
-  const count = document.getElementById('consoleCount');
-  const n = (parseInt(count.textContent) || 0) + 1;
-  count.textContent = n;
-  count.hidden = false;
+// ===================================================================== errors (red pill)
+function addError(text, file, line) {
+  errors.push({ text, file, line, time: Date.now() });
+  if (errors.length > 20) errors.shift();
+  renderErrors();
 }
 
-// ===================================================================== chat
+function renderErrors() {
+  const container = document.getElementById('errorsContainer');
+  const count = document.getElementById('errorCount');
+  const list = document.getElementById('errorList');
+
+  if (!errors.length) { container.hidden = true; return; }
+
+  container.hidden = false;
+  count.textContent = errors.length;
+  list.innerHTML = '';
+  for (const err of errors.slice(-10)) {
+    const div = document.createElement('div');
+    div.className = 'err';
+    if (err.file && err.line != null) {
+      div.innerHTML = `<span class="ln">${esc(err.file)}:${err.line}</span>: ${esc(err.text)}`;
+      div.querySelector('.ln').onclick = () => { if (files[err.file]) openFile(err.file, true); };
+      div.querySelector('.ln').style.cursor = 'pointer';
+    } else {
+      div.textContent = err.text;
+    }
+    list.appendChild(div);
+  }
+}
+
+document.getElementById('errorPill').onclick = () => {
+  document.getElementById('errorPanel').hidden = !document.getElementById('errorPanel').hidden;
+};
+
+// ===================================================================== chat (HUD overlay)
+async function loadChat() {
+  try {
+    const data = await get(`${API}/games/${gameId}/chat`);
+    chatHistory = data.messages || [];
+    renderChat();
+  } catch {}
+}
+
 function renderChat() {
   const log = document.getElementById('chatLog');
   log.innerHTML = '';
 
-  for (const msg of chatHistory) {
+  const recent = chatHistory.slice(-20);
+  for (const msg of recent) {
     const div = document.createElement('div');
     div.className = `msg ${msg.role === 'user' ? 'user' : msg.role === 'system' ? 'system' : 'ai'}`;
 
     const who = document.createElement('div');
     who.className = 'who';
-    who.textContent = msg.role === 'user' ? (members.find(m => m.id === msg.user_id)?.name || 'You') : msg.role === 'system' ? 'System' : 'AI';
+    who.textContent = msg.role === 'ai' ? 'AI' : msg.role === 'system' ? 'System' : (msg.name || 'You');
     div.appendChild(who);
 
     const text = document.createElement('div');
@@ -443,16 +465,30 @@ function renderChat() {
     text.textContent = msg.text;
     div.appendChild(text);
 
-    // Asset suggestions
-    if (msg.data?.suggestions) {
-      for (let i = 0; i < msg.data.suggestions.length; i++) {
-        const s = msg.data.suggestions[i];
-        if (s.taskId) {
-          const sugg = document.createElement('div');
-          sugg.className = 'sugg';
-          sugg.innerHTML = `<span class="grow">${s.kind}: ${s.prompt.slice(0, 80)}</span><span class="thinking">Generating...</span>`;
-          div.appendChild(sugg);
+    if (msg.data?.changed?.length) {
+      const changed = document.createElement('div');
+      changed.className = 'changed';
+      changed.textContent = `Changed: ${msg.data.changed.join(', ')}`;
+      div.appendChild(changed);
+    }
+
+    if (msg.data?.assets?.length) {
+      for (let i = 0; i < msg.data.assets.length; i++) {
+        const s = msg.data.assets[i];
+        const sugg = document.createElement('div');
+        sugg.className = 'sugg';
+        if (s.task) {
+          sugg.innerHTML = `<span class="grow">${esc(s.kind)}: ${esc(s.prompt.slice(0, 60))}</span><span style="color:var(--ok);font-size:11px">Generating...</span>`;
+        } else {
+          sugg.innerHTML = `<span class="grow">${esc(s.kind)}: ${esc(s.prompt.slice(0, 60))}</span><span style="color:var(--fg-3);font-size:11px">${s.credits || ''}</span>`;
+          const btn = document.createElement('button');
+          btn.className = 'btn btn-primary btn-sm';
+          btn.textContent = 'Generate';
+          btn.style.cssText = 'padding:3px 8px;font-size:11px';
+          btn.onclick = () => generateSuggestion(msg.id, i, s);
+          sugg.appendChild(btn);
         }
+        div.appendChild(sugg);
       }
     }
 
@@ -462,94 +498,64 @@ function renderChat() {
   log.scrollTop = log.scrollHeight;
 }
 
-document.getElementById('sendChatBtn').onclick = async () => {
+async function generateSuggestion(messageId, index, s) {
+  try {
+    await post(`${API}/games/${gameId}/generate`, { kind: s.kind, prompt: s.prompt, name: s.name, messageId, suggestion: index });
+  } catch (err) { alert(err.message); }
+}
+
+document.getElementById('sendChatBtn').onclick = sendChat;
+document.getElementById('chatInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    sendChat();
+  }
+});
+
+async function sendChat() {
   const input = document.getElementById('chatInput');
   const text = input.value.trim();
   if (!text) return;
 
   input.value = '';
   input.disabled = true;
+  document.getElementById('sendChatBtn').disabled = true;
+
+  const errText = errors.slice(-5).map(e => `${e.file || 'script'}:${e.line ?? '?'}: ${e.text}`).join('\n');
 
   try {
-    const res = await post(`${API}/games/${gameId}/chat`, { message: text, file: openPath });
-    chatHistory.push({ role: 'user', text, user_id: me.id });
-    chatHistory.push(res.reply);
-    renderChat();
-
-    if (res.reply.data?.suggestions) {
-      for (const s of res.reply.data.suggestions) {
-        if (s.taskId) {
-          pendingGens.push(s);
-          renderGens();
-        }
-      }
-    }
+    await post(`${API}/games/${gameId}/ai`, { message: text, file: openPath, errors: errText || undefined });
   } catch (err) {
     alert(err.message);
   } finally {
     input.disabled = false;
+    document.getElementById('sendChatBtn').disabled = false;
     input.focus();
   }
-};
-
-document.getElementById('chatInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-    document.getElementById('sendChatBtn').click();
-  }
-});
-
-async function loadAICost() {
-  try {
-    const data = await get(`${API}/plans`);
-    document.getElementById('chatCost').textContent = `${data.aiCredits} credits per message`;
-  } catch {}
 }
-loadAICost();
 
 // ===================================================================== gens
 function renderGens() {
   const list = document.getElementById('gensList');
   list.innerHTML = '';
-
   for (const g of pendingGens) {
     const div = document.createElement('div');
-    div.className = 'gen-row' + (g.status === 'failed' ? ' failed' : '');
-    div.textContent = g.status === 'completed' ? `✓ ${g.name}` : g.status === 'failed' ? `✗ ${g.kind} failed` : `⏳ ${g.kind}...`;
+    div.className = 'gen-row' + (g.state === 'failed' ? ' failed' : '');
+    div.textContent = g.state === 'done' ? `Done: ${g.asset_name || g.name}` : g.state === 'failed' ? `Failed: ${g.kind}` : `${g.detail || g.kind}...`;
     list.appendChild(div);
   }
 }
 
 function updateGen(data) {
-  const g = pendingGens.find(p => p.taskId === data.taskId);
-  if (!g) return;
-
-  Object.assign(g, data);
+  const idx = pendingGens.findIndex(p => p.task_id === data.task_id);
+  if (idx >= 0) pendingGens[idx] = data;
+  else pendingGens.push(data);
   renderGens();
-
-  if (data.status === 'completed' && data.name) {
-    // Asset was added
-    assets[data.name] = { name: data.name, asset: data.asset, kind: data.kind };
+  if (data.state === 'done' && data.asset_name) {
+    assets[data.asset_name] = { name: data.asset_name, asset: data.asset, kind: data.kind };
     render();
   }
 }
-
-// ===================================================================== tabs
-document.querySelectorAll('.ed-tab').forEach(tab => {
-  tab.onclick = () => {
-    const t = tab.dataset.tab;
-    document.querySelectorAll('.ed-tab').forEach(x => x.classList.remove('on'));
-    tab.classList.add('on');
-    document.querySelectorAll('.ed-pane').forEach(p => p.hidden = true);
-    document.getElementById(t + 'Pane').hidden = false;
-    activeTab = t;
-
-    if (t === 'chat') {
-      document.getElementById('chatUnread').hidden = true;
-    } else if (t === 'console') {
-      document.getElementById('consoleCount').hidden = true;
-    }
-  };
-});
 
 // ===================================================================== docs
 async function loadDocs() {
@@ -562,7 +568,7 @@ async function loadDocs() {
 
 // ===================================================================== settings
 function loadSettings() {
-  document.getElementById('descInput').value = game.description;
+  document.getElementById('descInput').value = game.description || '';
   document.querySelectorAll('[data-vis]').forEach(btn => {
     btn.classList.toggle('on', btn.dataset.vis === game.visibility);
     btn.onclick = () => {
@@ -572,13 +578,12 @@ function loadSettings() {
   });
   document.getElementById('coverInput').value = game.cover || '';
 
-  // Members
   const membersList = document.getElementById('membersList');
   membersList.innerHTML = '';
   for (const m of members) {
     const div = document.createElement('div');
-    div.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--rule);';
-    div.innerHTML = `<span style="flex:1">${m.name}</span><span class="label">${m.role}</span>`;
+    div.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)';
+    div.innerHTML = `<span style="flex:1;color:#fff">${esc(m.name || 'Someone')}</span><span class="label">${m.role}</span>`;
     if (m.id !== game.owner_id && game.role === 'owner') {
       const btn = document.createElement('button');
       btn.className = 'btn btn-ghost btn-sm';
@@ -596,43 +601,36 @@ function loadSettings() {
     membersList.appendChild(div);
   }
 
-  // Show delete button if owner
-  document.getElementById('deleteGameBtn').hidden = game.owner_id !== me.id;
-
-  // Load releases
-  loadReleases();
+  document.getElementById('deleteGameBtn').hidden = game.owner_id !== me?.id;
+  renderReleases();
 }
 
-async function loadReleases() {
-  try {
-    const data = await get(`${API}/games/${gameId}/releases`);
-    const list = document.getElementById('releasesList');
-    list.innerHTML = '';
-
-    for (const r of data.releases) {
-      const div = document.createElement('div');
-      div.className = 'release';
-      div.innerHTML = `
-        <span class="v">v${r.version}</span>
-        ${r.version === game.live_version ? '<span class="live">LIVE</span>' : ''}
-        <span class="grow muted" style="font-size:12px">${r.notes || 'No notes'}</span>
-      `;
-      if (r.version !== game.live_version && game.role === 'owner') {
-        const btn = document.createElement('button');
-        btn.className = 'btn btn-ghost btn-sm';
-        btn.textContent = 'Set live';
-        btn.onclick = async () => {
-          try {
-            await post(`${API}/games/${gameId}/live`, { version: r.version });
-            game.live_version = r.version;
-            loadReleases();
-          } catch (err) { alert(err.message); }
-        };
-        div.appendChild(btn);
-      }
-      list.appendChild(div);
+function renderReleases() {
+  const list = document.getElementById('releasesList');
+  list.innerHTML = '';
+  for (const r of releases) {
+    const div = document.createElement('div');
+    div.className = 'release';
+    div.innerHTML = `
+      <span class="v">v${r.version}</span>
+      ${r.version === game.live_version ? '<span class="live">LIVE</span>' : ''}
+      <span class="grow muted" style="font-size:12px">${esc(r.notes || 'No notes')}</span>
+    `;
+    if (r.version !== game.live_version && game.role === 'owner') {
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-ghost btn-sm';
+      btn.textContent = 'Set live';
+      btn.onclick = async () => {
+        try {
+          await post(`${API}/games/${gameId}/live-version`, { version: r.version });
+          game.live_version = r.version;
+          renderReleases();
+        } catch (err) { alert(err.message); }
+      };
+      div.appendChild(btn);
     }
-  } catch {}
+    list.appendChild(div);
+  }
 }
 
 document.getElementById('saveSettingsBtn').onclick = async () => {
@@ -646,28 +644,21 @@ document.getElementById('saveSettingsBtn').onclick = async () => {
     game.description = document.getElementById('descInput').value;
     game.visibility = vis;
     game.cover = document.getElementById('coverInput').value || null;
-    alert('Saved');
-  } catch (err) {
-    alert(err.message);
-  }
+  } catch (err) { alert(err.message); }
 };
 
 document.getElementById('publishBtn').onclick = async () => {
   const notes = document.getElementById('releaseNotes').value.trim();
   try {
-    await post(`${API}/games/${gameId}/publish`, { notes });
+    const res = await post(`${API}/games/${gameId}/publish`, { notes });
+    if (res.version) releases.unshift(res);
     document.getElementById('releaseNotes').value = '';
-    loadReleases();
-    alert('Published!');
-  } catch (err) {
-    alert(err.message);
-  }
+    renderReleases();
+  } catch (err) { alert(err.message); }
 };
 
 document.getElementById('leaveBtn').onclick = () => {
-  if (confirm('Leave this game?')) {
-    location.href = '/app';
-  }
+  if (confirm('Leave this game?')) location.href = '/app';
 };
 
 document.getElementById('deleteGameBtn').onclick = async () => {
@@ -676,9 +667,7 @@ document.getElementById('deleteGameBtn').onclick = async () => {
   try {
     await del(`${API}/games/${gameId}`);
     location.href = '/app';
-  } catch (err) {
-    alert(err.message);
-  }
+  } catch (err) { alert(err.message); }
 };
 
 // ===================================================================== top bar
@@ -698,45 +687,47 @@ document.getElementById('playBtn').onclick = () => {
 
 document.getElementById('inviteBtn').onclick = async () => {
   try {
-    const data = await post(`${API}/games/${gameId}/invite`);
-    document.getElementById('inviteLink').value = location.origin + data.url;
+    const data = await post(`${API}/games/${gameId}/invites`);
+    document.getElementById('inviteLink').value = location.origin + data.path;
     document.getElementById('inviteModal').hidden = false;
-  } catch (err) {
-    alert(err.message);
-  }
+  } catch (err) { alert(err.message); }
 };
 
 document.getElementById('copyInviteBtn').onclick = () => {
-  document.getElementById('inviteLink').select();
-  document.execCommand('copy');
+  const link = document.getElementById('inviteLink');
+  link.select();
+  navigator.clipboard?.writeText(link.value).catch(() => document.execCommand('copy'));
   document.getElementById('copyInviteBtn').textContent = 'Copied!';
-  setTimeout(() => {
-    document.getElementById('copyInviteBtn').textContent = 'Copy';
-  }, 2000);
+  setTimeout(() => document.getElementById('copyInviteBtn').textContent = 'Copy', 2000);
 };
 
 document.getElementById('menuBtn').onclick = () => {
   document.getElementById('menuModal').hidden = false;
 };
 
-// Modal close buttons
+// Modal close
 document.querySelectorAll('[data-close]').forEach(btn => {
-  btn.onclick = () => {
-    document.getElementById(btn.dataset.close).hidden = true;
-  };
+  btn.onclick = () => document.getElementById(btn.dataset.close).hidden = true;
 });
-
 document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
-  backdrop.onclick = (e) => {
-    if (e.target === backdrop) backdrop.hidden = true;
-  };
+  backdrop.onclick = (e) => { if (e.target === backdrop) backdrop.hidden = true; };
 });
 
-// Report presence periodically
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (panelOpen) togglePanel(panelOpen);
+    if (codeOpen) toggleCode();
+    document.querySelectorAll('.modal-backdrop').forEach(m => m.hidden = true);
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); togglePanel('files'); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'e') { e.preventDefault(); toggleCode(); }
+});
+
 setInterval(reportPresence, 10000);
 
-// Open first file by default
-if (Object.keys(files).length > 0) {
-  const first = Object.keys(files).sort()[0];
-  openFile(first);
+function esc(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
