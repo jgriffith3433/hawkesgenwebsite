@@ -240,6 +240,8 @@ body.studio input, body.studio textarea, body.studio .CodeMirror { -webkit-user-
 #libraryBtn, #advancedBtn, .st-chat, .st-presence, #saveState { transition: opacity .8s ease; }
 body.playing:not(.intro) #libraryBtn, body.playing:not(.intro) #advancedBtn, body.playing:not(.intro) .st-chat,
 body.playing:not(.intro) .st-presence, body.playing:not(.intro) #saveState { opacity: 0; pointer-events: none; }
+/* the chat's lines and input set pointer-events: auto themselves, so the invisible chat would still catch taps */
+body.playing:not(.intro) .st-chat * { pointer-events: none; }
 body.playing #menuBtn { opacity: .55; }
 body.playing #menuBtn:hover { opacity: 1; }
 
