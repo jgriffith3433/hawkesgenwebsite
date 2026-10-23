@@ -55,6 +55,9 @@ let voiceEnabled = (() => { try { return localStorage.getItem('hg_voice') === '1
     assets = Object.fromEntries(data.assets.map((a) => [a.name, a]));
     members = data.game.members || [];
     releases = data.releases || [];
+    // Changed since the last save (or never saved): the Save button says so.
+    unsaved = game.updated > ((releases[0] && releases[0].created) || 0) + 1000;
+    renderSave();
     $('gameTitle').value = game.title;
     document.title = `${game.title} · Hawkes Gen`;
     $('chatCost').textContent = `${aiCredits} credits`;
@@ -129,6 +132,7 @@ window.addEventListener('message', async (e) => {
       return;
     case 'started': {
       clearErrors();
+      applyRole();
       const place = new URLSearchParams(location.search).get('place');
       if (place && assets[place]) {
         history.replaceState(null, '', location.pathname);
@@ -141,19 +145,19 @@ window.addEventListener('message', async (e) => {
     case 'error': addError(m.message, m.file, m.line); return;
     case 'log': return;
     case 'ops': {
-      // A world edit from the game: save it; the server shares it with everyone else.
-      setSaveState('Saving…');
+      // A world edit from the game: it goes live for everyone (the game is always live); Save marks a point in history.
       try {
         const r = await post(`${API}/games/${gameId}/scene`, { ops: m.ops, fx: m.fx }, roomConn ? { 'X-Room-Conn': roomConn } : {});
         toStage({ type: 'ack', seq: m.seq, errors: r.errors, created: r.created });
-        setSaveState('Saved');
-        setTimeout(() => setSaveState(''), 1200);
+        markUnsaved();
       } catch (err) {
         toStage({ type: 'ack', seq: m.seq, errors: [err.message] });
-        setSaveState('Not saved');
+        setSaveState(err.status === 403 ? '' : 'Not sent');
+        if (err.status === 403) addSystem(err.message);
       }
       return;
     }
+    case 'save': return saveNow();
     case 'resync': {
       const b = await get(`${API}/games/${gameId}/bundle`).catch(() => null);
       if (b) toStage({ type: 'files', files: { 'scene.json': b.files['scene.json'] ?? null } });
@@ -198,6 +202,7 @@ function connect() {
   sse = new EventSource(`${API}/games/${gameId}/live`, { withCredentials: true });
   sse.addEventListener('hello', (e) => { const d = JSON.parse(e.data); connId = d.conn; updatePresence(d.presence || []); $('thinkingIndicator').hidden = true; });
   sse.addEventListener('file', (e) => {
+    markUnsaved();
     const d = JSON.parse(e.data);
     files[d.path] = d;
     // World edits (ops) already reached the game over its own connection; anything else is new code or a new world.
@@ -231,7 +236,8 @@ function connect() {
   sse.addEventListener('thinking', (e) => { const d = JSON.parse(e.data); $('thinkingIndicator').hidden = !d.on; if (d.on) $('thinkingIndicator').textContent = `${d.by && d.by !== me?.name ? `${d.by}'s request: ` : ''}working…`; });
   sse.addEventListener('gen', (e) => onGen(JSON.parse(e.data)));
   sse.addEventListener('game', (e) => { const d = JSON.parse(e.data); game = { ...game, ...d }; members = d.members || members; if (document.activeElement !== $('gameTitle')) $('gameTitle').value = game.title; loadSettings(); });
-  sse.addEventListener('release', (e) => { const d = JSON.parse(e.data); releases = d.releases || releases; renderReleases(); });
+  sse.addEventListener('release', (e) => { const d = JSON.parse(e.data); releases = d.releases || releases; renderReleases(); markSaved(); });
+  sse.addEventListener('role', (e) => { const d = JSON.parse(e.data); if (me && d.user === me.id) { game.role = d.role; applyRole(); addSystem(`The owner made you ${d.role === 'editor' ? 'an editor' : `a ${d.role}`}.`); } });
   sse.addEventListener('removed', (e) => { const d = JSON.parse(e.data); if (d.user === me?.id) { alert('You were removed from this game.'); location.replace('/app'); } });
   sse.addEventListener('deleted', () => { alert('This game was deleted.'); location.replace('/app'); });
   sse.addEventListener('reload', () => location.reload());
@@ -568,20 +574,61 @@ function loadSettings() {
 }
 function renderReleases() {
   const list = $('releasesList');
-  list.innerHTML = releases.length ? '' : '<p class="muted small">Not published yet.</p>';
-  for (const r of releases) {
-    const div = document.createElement('div');
-    div.className = 'release';
-    div.innerHTML = `<span class="v">v${r.version}</span>${r.version === game.liveVersion ? '<span class="live">LIVE</span>' : ''}<span class="grow muted small">${esc(r.notes || '')}</span>`;
-    if (r.version !== game.liveVersion && game.role === 'owner') {
-      const btn = document.createElement('button');
-      btn.className = 'st-btn small';
-      btn.textContent = 'Make live';
-      btn.onclick = async () => { try { await post(`${API}/games/${gameId}/live-version`, { version: r.version }); game.liveVersion = r.version; renderReleases(); } catch (err) { alert(err.message); } };
-      div.appendChild(btn);
-    }
-    list.appendChild(div);
+  list.innerHTML = releases.length ? '' : '<p class="muted small">No saves yet. Press Save (bottom right, or Ctrl+S) to keep a point you can come back to.</p>';
+  for (const r of releases) list.appendChild(saveRow(r));
+}
+const ago = (t) => { const s = Math.max(1, Math.round((Date.now() - t) / 1000)); return s < 60 ? `${s} s ago` : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : new Date(t).toLocaleDateString(); };
+/** One save in the history: when, who, what, play it, and (the owner) bring it back. */
+function saveRow(r) {
+  const div = document.createElement('div');
+  div.className = 'release';
+  div.innerHTML = `<span class="v">${r.version}</span><span class="grow small"><b>${esc(r.notes || 'Saved')}</b><br><span class="muted">${esc(r.by || '')} · ${ago(r.created)}</span></span><a class="st-btn small" target="_blank" href="/play/${esc(game.slug)}/v/${r.version}">Play</a>`;
+  if (game.role === 'owner') {
+    const btn = document.createElement('button');
+    btn.className = 'st-btn small';
+    btn.textContent = 'Bring back';
+    btn.onclick = async () => {
+      if (!confirm(`Bring back save ${r.version}? The game goes back to how it was then, live for everyone. What's there now is saved first, so you can undo this from the history.`)) return;
+      btn.disabled = true;
+      try { await post(`${API}/games/${gameId}/releases/${r.version}/restore`); location.reload(); } catch (err) { btn.disabled = false; alert(err.message); }
+    };
+    div.appendChild(btn);
   }
+  return div;
+}
+
+// ------------------------------------------------------------------ save: a point in the game's history
+let unsaved = false;
+function markUnsaved() { if (!unsaved) { unsaved = true; renderSave(); } }
+function markSaved() { unsaved = false; renderSave(); }
+function renderSave() {
+  $('saveBtn').classList.toggle('unsaved', unsaved);
+  $('saveLbl').textContent = unsaved || !releases.length ? 'Save' : 'Saved';
+}
+async function saveNow() {
+  if (!['owner', 'editor', 'builder'].includes(game.role)) return addSystem("You're playing this one: the owner can let you build from People.");
+  const b = $('saveBtn');
+  if (b.classList.contains('busy')) return;
+  b.classList.add('busy');
+  $('saveLbl').textContent = 'Saving…';
+  try {
+    const r = await post(`${API}/games/${gameId}/save`, {});
+    releases = r.releases || releases;
+    renderReleases();
+    markSaved();
+    $('saveLbl').textContent = `Saved · ${r.version}`;
+    toStage({ type: 'toast', text: `Saved (save ${r.version}). The menu's Saves brings any save back.` });
+  } catch (err) { addSystem(err.message); renderSave(); } finally { b.classList.remove('busy'); }
+}
+$('saveBtn').onclick = saveNow;
+document.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && !(document.activeElement && document.activeElement.closest('.cm-editor'))) { e.preventDefault(); if (!playing) saveNow(); } });
+
+/** What your role lets you see: players play; builders build the world; editors and the owner also have the code. */
+function applyRole() {
+  const r = game.role;
+  document.body.classList.toggle('role-player', r === 'player');
+  document.body.classList.toggle('role-builder', r === 'builder');
+  if (r === 'player') toStage({ type: 'mode', mode: 'play' });
 }
 $('saveSettingsBtn').onclick = async () => {
   try {
@@ -656,6 +703,48 @@ $('menu').querySelector('.st-menu-list').onclick = async (e) => {
       el.querySelector('#copyInvite').onclick = () => { navigator.clipboard?.writeText(location.origin + d.path).catch(() => {}); el.querySelector('#copyInvite').textContent = 'Copied: send it to a friend'; };
     } catch (err) { el.querySelector('p').textContent = err.message; }
   }
+  if (act === 'saves') {
+    const el = sheet(`<h3>Saves</h3><p>Your game is always live: everyone plays it as it is right now. A save is a point you can come back to. ${game.role === 'owner' ? 'Bring one back if something went wrong.' : 'The owner can bring one back.'}</p><div class="st-saves" id="savesList"></div><button class="st-menu-item primary" id="saveFromMenu" type="button">Save now</button><button class="st-menu-item" data-back type="button">Back</button>`);
+    el.querySelector('[data-back]').onclick = () => { el.hidden = true; };
+    const fill = () => { const l = el.querySelector('#savesList'); l.innerHTML = releases.length ? '' : '<p class="muted small">No saves yet.</p>'; for (const r of releases) l.appendChild(saveRow(r)); };
+    fill();
+    el.querySelector('#saveFromMenu').onclick = async () => { await saveNow(); fill(); };
+  }
+  if (act === 'people') {
+    const owner = game.role === 'owner';
+    const el = sheet(`<h3>People and permissions</h3><p>${owner ? 'Choose what each person can do. Builders change the world (and ask the assistant); editors also change code and settings; players only play.' : 'The owner decides what each person can do.'}</p><div class="st-people" id="peopleList"></div>
+      <div class="st-visitors"><b>Visitors</b><span class="muted small">People who open your live game without an invite.</span><div class="seg"><button type="button" data-v="play">Play only</button><button type="button" data-v="build">Can help build</button></div></div>
+      <button class="st-menu-item" id="peopleInvite" type="button">Invite someone to build</button><button class="st-menu-item" data-back type="button">Back</button>`);
+    el.querySelector('[data-back]').onclick = () => { el.hidden = true; };
+    el.querySelector('#peopleInvite').onclick = () => $('menu').querySelector('[data-act="invite"]').click();
+    const ROLE_NAMES = { owner: 'Owner', editor: 'Editor', builder: 'Builder', player: 'Player' };
+    const fill = () => {
+      const l = el.querySelector('#peopleList');
+      l.innerHTML = '';
+      for (const m of members) {
+        const row = document.createElement('div');
+        row.className = 'member';
+        row.innerHTML = `<span class="nm">${esc(m.name || 'Someone')}${me && m.id === me.id ? ' (you)' : ''}</span>`;
+        if (owner && m.role !== 'owner') {
+          const sel = document.createElement('select');
+          for (const r of ['player', 'builder', 'editor']) sel.add(new Option(ROLE_NAMES[r], r, false, m.role === r));
+          sel.onchange = async () => { try { const g = await post(`${API}/games/${gameId}/members/${m.id}`, { role: sel.value }); members = g.members || members; fill(); } catch (err) { alert(err.message); fill(); } };
+          row.appendChild(sel);
+          const x = document.createElement('button');
+          x.className = 'st-btn small'; x.type = 'button'; x.textContent = 'Remove';
+          x.onclick = async () => { if (!confirm(`Remove ${m.name}?`)) return; try { await del(`${API}/games/${gameId}/members/${m.id}`); members = members.filter((y) => y.id !== m.id); fill(); } catch (err) { alert(err.message); } };
+          row.appendChild(x);
+        } else row.insertAdjacentHTML('beforeend', `<span class="label">${ROLE_NAMES[m.role] || m.role}</span>`);
+        l.appendChild(row);
+      }
+      for (const b of el.querySelectorAll('.st-visitors [data-v]')) {
+        b.classList.toggle('on', (game.visitors || 'play') === b.dataset.v);
+        b.disabled = !owner;
+        b.onclick = async () => { try { game = { ...game, ...(await post(`${API}/games/${gameId}`, { visitors: b.dataset.v })) }; fill(); } catch (err) { alert(err.message); } };
+      }
+    };
+    fill();
+  }
   if (act === 'publish') {
     const el = sheet(`<h3>Publish</h3><p>Publishing freezes this version for players. Keep building; publish again when you want them to have the new one.</p><input class="form-input" id="releaseNotes" placeholder="What changed? (optional)"><button class="st-menu-item primary" id="publishBtn" type="button">Publish ${esc(game.title)}</button><a class="st-menu-item" id="openPlay" target="_blank" ${game.liveVersion ? `href="/play/${esc(game.slug)}"` : 'hidden'}>Open the published game</a><button class="st-menu-item" data-back type="button">Back</button>`);
     el.querySelector('[data-back]').onclick = () => { el.hidden = true; };
@@ -695,7 +784,7 @@ function communityTile(c, onClick) {
   b.type = 'button';
   b.className = 'st-lib-item community';
   b.title = `${c.title}${c.tags && c.tags.length ? ` · ${c.tags.join(' ')}` : ''} · by ${c.by}`;
-  b.innerHTML = `${c.thumb ? `<img src="${c.thumb}" alt="" loading="lazy">` : `<span>${GLYPH[c.kind] || '◆'}</span>`}<span class="kind">${KIND_LABEL[c.kind] || c.kind}</span><span class="t">${esc(c.title)}<small>${esc(c.by)}</small></span>`;
+  b.innerHTML = `${c.thumb ? `<img src="${c.thumb}" alt="" loading="lazy">` : `<span>${GLYPH[c.kind] || '◆'}</span>`}<span class="kind">${KIND_LABEL[c.kind] || c.kind}</span>${c.likes ? `<span class="likes" title="${c.likes} other ${c.likes === 1 ? 'builder' : 'builders'} used it">♥ ${c.likes}</span>` : ''}<span class="t">${esc(c.title)}<small>${esc(c.by)}</small></span>`;
   if (['music', 'ambience', 'sfx', 'voice'].includes(c.kind)) {
     // Hover to hear it.
     let au = null;
@@ -720,6 +809,8 @@ async function useCommunity(c, el, o = {}) {
   } catch (err) { addSystem(err.message); } finally { if (el) el.classList.remove('busy'); }
 }
 let communityTags = null;
+let communitySort = 'liked';
+for (const b of $('libSort').querySelectorAll('button')) b.onclick = () => { communitySort = b.dataset.s; for (const x of $('libSort').querySelectorAll('button')) x.classList.toggle('on', x === b); loadLibrary(); };
 let searchTimer = 0;
 $('libSearch').oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadLibrary, 250); };
 async function loadCommunity(grid) {
@@ -739,7 +830,7 @@ async function loadCommunity(grid) {
   }
   grid.innerHTML = '<div class="st-lib-empty">Searching the community…</div>';
   let items = [];
-  try { items = (await get(`/v1/community?${new URLSearchParams({ q: $('libSearch').value.trim(), limit: '80' })}`)).items || []; } catch { grid.innerHTML = '<div class="st-lib-empty">The community library isn\'t reachable right now. Try again in a moment.</div>'; return; }
+  try { items = (await get(`/v1/community?${new URLSearchParams({ q: $('libSearch').value.trim(), limit: '80', sort: communitySort })}`)).items || []; } catch { grid.innerHTML = '<div class="st-lib-empty">The community library isn\'t reachable right now. Try again in a moment.</div>'; return; }
   grid.innerHTML = '';
   if (!items.length) {
     grid.innerHTML = `<div class="st-lib-empty">${$('libSearch').value.trim() ? 'Nothing shared matches that yet. Ask the assistant to make one, and share it for everyone.' : 'Nothing shared yet.'}</div>`;

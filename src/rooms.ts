@@ -1,6 +1,7 @@
 // Realtime rooms for the game engine, over WebSocket (/v1/ws). Everyone in a world shares one room:
 //   edit:<gameId>            the game's members, in the editor (a signed token from GET /v1/games/:id/bundle)
-//   play:<slug>:<room code>  anyone playing a published game together (/play/<slug>?room=<code>; no account)
+//   play:<slug>:<room code>  anyone playing a game together (/play/<slug>?room=<code>; no account). Games are live:
+//                            world edits reach these rooms too, so players see the game being built
 // The server relays what each player does (their avatar, the things they simulate, script events) and keeps three
 // things itself: who is in the room, who is the host (the oldest connection, which simulates everything nobody else
 // holds), and who owns each moving thing (whoever grabbed or pushed it last). Nothing said here is saved: edits to the
@@ -61,7 +62,7 @@ export function upgrade(req: IncomingMessage, raw: Duplex) {
       key = `play:t/${t[1]}:${code}`; gameId = `t:${t[1]}`;
     } else {
       const g = gameBySlug(slug);
-      if (!g || !g.live_version) return deny('No such game');
+      if (!g) return deny('No such game');
       key = `play:${g.slug}:${code}`; gameId = g.id;
     }
     name = String(url.searchParams.get('name') ?? '').replace(/[^\p{L}\p{N} _.-]/gu, '').trim().slice(0, 24) || '';
@@ -121,8 +122,8 @@ function onMessage(room: Room, c: Conn, text: string) {
 
 /** Saved world changes: everyone in the game's edit room applies them (except the connection that made them). */
 export function broadcastOps(gameId: string, ops: unknown[], by: string, fx: string | null = null, except?: string) {
-  const room = rooms.get(`edit:${gameId}`);
-  if (room && ops.length) toAll(room, { t: 'ops', ops, by, c: except ?? null, fx }, except);
+  if (!ops.length) return;
+  for (const room of rooms.values()) if (room.gameId === gameId) toAll(room, { t: 'ops', ops, by, c: except ?? null, fx }, except);
 }
 
 /** Tells the edit room something happened (an asset arrived, a script was saved) without the editor relaying it. */
@@ -138,3 +139,23 @@ export function kickFromRooms(gameId: string, userId: string) {
 }
 
 export const roomStats = () => ({ rooms: rooms.size, people: [...rooms.values()].reduce((n, r) => n + r.conns.size, 0) });
+
+// ------------------------------------------------------------------ who is in a game right now
+// Building: the game's edit room. Playing: every play page says it's there every 30 s (POST /v1/play/<slug>/here),
+// alone or in a room, so the count is people, not rooms.
+const here = new Map<string, Map<string, number>>();
+const HERE_MS = 75_000;
+export function markHere(gameId: string, session: unknown) {
+  const s = String(session ?? '').replace(/[^\w-]/g, '').slice(0, 40);
+  if (!s) return;
+  const m = here.get(gameId) ?? new Map<string, number>();
+  m.set(s, Date.now());
+  if (m.size > 5000) for (const [k, at] of m) if (Date.now() - at > HERE_MS) m.delete(k);
+  here.set(gameId, m);
+}
+export function liveCounts(gameId: string) {
+  const m = here.get(gameId);
+  let playing = 0;
+  if (m) for (const [k, at] of m) { if (Date.now() - at > HERE_MS) m.delete(k); else playing++; }
+  return { playing, building: rooms.get(`edit:${gameId}`)?.conns.size ?? 0 };
+}

@@ -30,9 +30,18 @@ CREATE TABLE IF NOT EXISTS community_assets (
   hidden INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS community_kind ON community_assets (kind, uses);
+-- Who used what: a thing's likes are the other accounts that put it in a game (once each; never its own sharer).
+CREATE TABLE IF NOT EXISTS community_uses (
+  asset TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  game_id TEXT,
+  created INTEGER NOT NULL,
+  PRIMARY KEY (asset, user_id)
+);
 `);
+if (!(db.prepare('PRAGMA table_info(community_assets)').all() as { name: string }[]).some((c) => c.name === 'likes')) db.exec('ALTER TABLE community_assets ADD COLUMN likes INTEGER NOT NULL DEFAULT 0');
 
-type Row = { id: string; project: string; kind: string; mime: string | null; title: string; tags: string; low: string | null; thumb: string | null; by_user: string | null; source: string; uses: number; created: number; hidden: number };
+type Row = { id: string; project: string; kind: string; mime: string | null; title: string; tags: string; low: string | null; thumb: string | null; by_user: string | null; source: string; uses: number; likes: number; created: number; hidden: number };
 
 const words = (s: unknown) => String(s ?? '').toLowerCase().replace(/[^a-z0-9\s-]+/g, ' ').split(/[\s-]+/).filter((w) => w.length > 1);
 const cleanTags = (t: unknown) => [...new Set((Array.isArray(t) ? t.join(' ') : String(t ?? '')).toLowerCase().split(/[\s,]+/).map((w) => w.replace(/[^a-z0-9-]/g, '')).filter(Boolean))].slice(0, 16).join(' ');
@@ -40,14 +49,19 @@ const cleanTags = (t: unknown) => [...new Set((Array.isArray(t) ? t.join(' ') : 
 /** What the client sees of a row. Files come through /v1/community/<id>/file (and the thumb's own id). */
 export function view(r: Row) {
   const file = (id: string | null) => (id ? `/v1/community/${id}/file` : null);
-  return { id: r.id, kind: r.kind, mime: r.mime, title: r.title, tags: r.tags ? r.tags.split(' ') : [], file: file(r.id), thumb: file(r.thumb ?? (['texture', 'image', 'sprite', 'sky'].includes(r.kind) ? r.id : null)), low: Boolean(r.low), by: r.by_user ? getUser(r.by_user)?.name ?? 'A player' : 'Hawkes', source: r.source, uses: r.uses };
+  return { id: r.id, kind: r.kind, mime: r.mime, title: r.title, tags: r.tags ? r.tags.split(' ') : [], file: file(r.id), thumb: file(r.thumb ?? (['texture', 'image', 'sprite', 'sky'].includes(r.kind) ? r.id : null)), low: Boolean(r.low), by: r.by_user ? getUser(r.by_user)?.name ?? 'A player' : 'Hawkes', source: r.source, uses: r.uses, likes: r.likes ?? 0, created: r.created };
 }
 
 /** Kinds that answer for a kind (a sound effect could be an ambience loop, an image could be a sprite). */
 const RELATED: Record<string, string[]> = { image: ['image', 'sprite', 'texture'], sprite: ['sprite', 'image'], sfx: ['sfx', 'ambience'], ambience: ['ambience', 'sfx'] };
 
-/** Searches the community library: tags count most, then title words, then how often it's used. */
-export function search(o: { q?: unknown; kind?: unknown; tag?: unknown; limit?: unknown } = {}) {
+/**
+ * Searches the community library: how well it matches (tags and title words), then the order asked for: 'liked' (most
+ * other people used it, the default), 'new', or 'fresh' (the least used first, for a game that doesn't look like
+ * every other one).
+ */
+export function search(o: { q?: unknown; kind?: unknown; tag?: unknown; limit?: unknown; sort?: unknown } = {}) {
+  const sort = ['new', 'fresh'].includes(String(o.sort)) ? String(o.sort) : 'liked';
   const kind = String(o.kind ?? '');
   const kinds = kind ? RELATED[kind] ?? [kind] : null;
   const tag = String(o.tag ?? '').toLowerCase();
@@ -70,7 +84,7 @@ export function search(o: { q?: unknown; kind?: unknown; tag?: unknown; limit?: 
       return { r, s };
     })
     .filter((x) => !q.length || x.s >= 1)
-    .sort((a, b) => b.s - a.s || b.r.uses - a.r.uses || b.r.created - a.r.created);
+    .sort((a, b) => Math.round(b.s) - Math.round(a.s) || (sort === 'new' ? b.r.created - a.r.created : sort === 'fresh' ? a.r.likes - b.r.likes || b.r.created - a.r.created : b.r.likes - a.r.likes || b.r.uses - a.r.uses) || b.s - a.s);
   return { items: scored.slice(0, limit).map((x) => view(x.r)), total: scored.length };
 }
 
@@ -130,6 +144,9 @@ export async function useInGame(user: User, gameId: string, body: { id?: unknown
   const row = await addAsset(user, gameId, { asset: r.id, name: freeName(gameId, want, r.mime) }, { project: r.project });
   if (r.low && row.name.endsWith('.glb')) await addAsset(user, gameId, { asset: r.low, name: row.name.replace(/\.glb$/, '_low.glb') }, { project: r.project }).catch(() => null);
   db.prepare('UPDATE community_assets SET uses = uses + 1 WHERE id = ?').run(r.id);
+  // A like: someone else (once per account) found it good enough to use.
+  if (r.by_user !== user.id && db.prepare('INSERT OR IGNORE INTO community_uses (asset, user_id, game_id, created) VALUES (?, ?, ?, ?)').run(r.id, user.id, gameId, Date.now()).changes)
+    db.prepare('UPDATE community_assets SET likes = likes + 1 WHERE id = ?').run(r.id);
   return { asset: row, item: view(r) };
 }
 

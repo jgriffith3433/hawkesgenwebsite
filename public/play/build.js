@@ -340,6 +340,7 @@
   }
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Tab') { e.preventDefault(); setMode(H.mode === 'build' ? 'play' : 'build'); }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); if (H.mode === 'build') toParent({ type: 'save' }); }
     // Esc: closes the card or the handles; otherwise (the mouse is already free) the menu, like a game.
     if (e.key === 'Escape') { if (soft) release(); else if (popup) closePopup(); else if (gizmos && gizmos.target) toggleGizmo(null); else toParent({ type: 'menu' }); }
   });

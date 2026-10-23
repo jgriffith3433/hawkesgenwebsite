@@ -1,7 +1,12 @@
 // Games: what customers build here. A game is scripts (text files run by the Hawkes Play runtime, public/play/runtime.js,
-// on top of Babylon.js) plus named assets from Gen's library, edited together by its members in real time (live.ts) and
-// published as numbered releases anyone can play at /play/<slug>. A release is a frozen copy of the files and the asset
-// list, so a published game never changes under its players.
+// on top of Babylon.js) plus named assets from Gen's library, edited together by its members in real time (live.ts).
+// Every game is live: /play/<slug> plays it as it is right now, while people build it. A save (game_releases) is a
+// numbered copy of the files and the asset list that someone made with Save: the history the owner restores from,
+// and /play/<slug>/v/<n> plays one.
+//
+// Who can do what (the owner sets it): owner (everything, people and restores), editor (the world, code, settings),
+// builder (the world: placing, moving, the assistant, saving), player (plays it; a member who can't change it).
+// Visitors (signed in, not members) may join as builders when the owner allows it (games.visitors = 'build').
 import crypto from 'node:crypto';
 import { db, tx } from './db.ts';
 import { gen } from './gen.ts';
@@ -13,7 +18,7 @@ import { TEMPLATES, featured } from './templates.ts';
 import { broadcast, kick } from './live.ts';
 import { addFriend } from './friends.ts';
 import { applyOps, parseScene, sceneText } from './scene.ts';
-import { editToken, kickFromRooms } from './rooms.ts';
+import { editToken, kickFromRooms, liveCounts } from './rooms.ts';
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS games (
@@ -87,9 +92,11 @@ CREATE TABLE IF NOT EXISTS game_chat (
 );
 CREATE INDEX IF NOT EXISTS game_chat_game ON game_chat (game_id, created);
 `);
+// Columns added later. visitors: what signed-in people who aren't members may do in the live game (play, or build).
+if (!(db.prepare('PRAGMA table_info(games)').all() as { name: string }[]).some((c) => c.name === 'visitors')) db.exec("ALTER TABLE games ADD COLUMN visitors TEXT NOT NULL DEFAULT 'play'");
 
-export type Game = { id: string; slug: string; title: string; description: string; owner_id: string; visibility: 'public' | 'unlisted'; live_version: number | null; cover: string | null; plays: number; created: number; updated: number };
-export type Role = 'owner' | 'editor';
+export type Game = { id: string; slug: string; title: string; description: string; owner_id: string; visibility: 'public' | 'unlisted'; visitors?: 'play' | 'build'; live_version: number | null; cover: string | null; plays: number; created: number; updated: number };
+export type Role = 'owner' | 'editor' | 'builder' | 'player';
 export type FileRow = { path: string; content: string; rev: number; updated: number; updated_by: string | null };
 export type AssetRow = { name: string; asset: string; project: string; kind: string | null; mime: string | null; added_by: string | null; created: number };
 
@@ -101,13 +108,17 @@ const NAME_RE = /^[a-z0-9][a-z0-9_.-]{0,63}$/i;
 export const getGame = (gameId: string) => (db.prepare('SELECT * FROM games WHERE id = ?').get(gameId) as Game | undefined) ?? null;
 export const gameBySlug = (slug: string) => (db.prepare('SELECT * FROM games WHERE slug = ?').get(String(slug).toLowerCase()) as Game | undefined) ?? null;
 const roleOf = (gameId: string, userId: string) => (db.prepare('SELECT role FROM game_members WHERE game_id = ? AND user_id = ?').get(gameId, userId) as { role: Role } | undefined)?.role ?? null;
+export const ROLES: Role[] = ['player', 'builder', 'editor', 'owner'];
+const RANK: Record<Role, number> = { player: 0, builder: 1, editor: 2, owner: 3 };
+const NEED: Record<Role, string> = { player: 'play it', builder: 'build in this game', editor: 'change code and settings', owner: 'do that (the owner only)' };
 
-/** The game, if this customer is one of its members (else 404: a game you're not in doesn't exist for you). */
-export function memberGame(user: User, gameId: string, need: Role = 'editor') {
+/** The game, if this customer is one of its members with at least `need` (else 404: a game you're not in doesn't
+ *  exist for you; 403 when your role doesn't allow it). Building is the default. */
+export function memberGame(user: User, gameId: string, need: Role = 'builder') {
   const g = getGame(gameId);
   const role = g ? roleOf(g.id, user.id) : null;
   if (!g || !role) throw new PortalError('No such game', { status: 404 });
-  if (need === 'owner' && role !== 'owner') throw new PortalError('Only the owner can do that', { status: 403 });
+  if (RANK[role] < RANK[need]) throw new PortalError(need === 'owner' ? 'Only the owner can do that' : `The owner hasn't let you ${NEED[need]} yet`, { status: 403 });
   return { game: g, role };
 }
 
@@ -132,7 +143,8 @@ function cleanTitle(t: unknown) {
 export function summary(g: Game, userId?: string) {
   const members = (db.prepare('SELECT m.user_id, m.role, u.name FROM game_members m JOIN users u ON u.id = m.user_id WHERE m.game_id = ? ORDER BY m.added').all(g.id) as { user_id: string; role: Role; name: string }[]).map((m) => ({ id: m.user_id, name: m.name, role: m.role }));
   return {
-    id: g.id, slug: g.slug, title: g.title, description: g.description, visibility: g.visibility, liveVersion: g.live_version, cover: g.cover, plays: g.plays, created: g.created, updated: g.updated,
+    id: g.id, slug: g.slug, title: g.title, description: g.description, visibility: g.visibility, visitors: g.visitors ?? 'play', lastSave: g.live_version, cover: g.cover, plays: g.plays, created: g.created, updated: g.updated,
+    ...liveCounts(g.id),
     role: userId ? roleOf(g.id, userId) : null,
     members,
     playUrl: `/play/${g.slug}`,
@@ -162,8 +174,8 @@ export function createGame(user: User, body: { title?: unknown; template?: unkno
   return summary(getGame(gameId)!, user.id);
 }
 
-export function updateGame(user: User, gameId: string, body: { title?: unknown; description?: unknown; visibility?: unknown; cover?: unknown }) {
-  const { game } = memberGame(user, gameId);
+export function updateGame(user: User, gameId: string, body: { title?: unknown; description?: unknown; visibility?: unknown; cover?: unknown; visitors?: unknown }) {
+  const { game } = memberGame(user, gameId, 'editor');
   const patch: Partial<Game> = {};
   if (body.title !== undefined) patch.title = cleanTitle(body.title);
   if (body.description !== undefined) patch.description = String(body.description ?? '').slice(0, 400);
@@ -176,6 +188,11 @@ export function updateGame(user: User, gameId: string, body: { title?: unknown; 
     if (roleOf(game.id, user.id) !== 'owner') throw new PortalError('Only the owner can change who sees the game', { status: 403 });
     if (!['public', 'unlisted'].includes(String(body.visibility))) throw new PortalError('visibility is public or unlisted');
     patch.visibility = body.visibility as Game['visibility'];
+  }
+  if (body.visitors !== undefined) {
+    if (roleOf(game.id, user.id) !== 'owner') throw new PortalError('Only the owner decides what visitors can do', { status: 403 });
+    if (!['play', 'build'].includes(String(body.visitors))) throw new PortalError('visitors is play or build');
+    patch.visitors = body.visitors as Game['visitors'];
   }
   const keys = Object.keys(patch) as (keyof Game)[];
   if (keys.length) db.prepare(`UPDATE games SET ${keys.map((k) => `${k} = ?`).join(', ')}, updated = ? WHERE id = ?`).run(...keys.map((k) => patch[k] as any), Date.now(), game.id);
@@ -193,7 +210,7 @@ export function deleteGame(user: User, gameId: string) {
 
 /** Everything the editor opens with: the game, its files, its assets, recent releases. */
 export function openGame(user: User, gameId: string) {
-  const { game } = memberGame(user, gameId);
+  const { game } = memberGame(user, gameId, 'player');
   return {
     game: summary(game, user.id),
     files: db.prepare('SELECT path, content, rev, updated, updated_by FROM game_files WHERE game_id = ? ORDER BY path').all(game.id) as FileRow[],
@@ -205,7 +222,7 @@ export function openGame(user: User, gameId: string) {
 
 // ------------------------------------------------------------------ members and invites
 export function createInvite(user: User, gameId: string) {
-  const { game } = memberGame(user, gameId);
+  const { game } = memberGame(user, gameId, 'editor');
   const code = crypto.randomBytes(9).toString('base64url');
   const now = Date.now();
   db.prepare('INSERT INTO game_invites (code, game_id, created_by, created, expires) VALUES (?, ?, ?, ?, ?)').run(code, game.id, user.id, now, now + 7 * 24 * 3600_000);
@@ -232,7 +249,8 @@ export function acceptInvite(user: User, code: string) {
   const plan = planOf(getUser(game.owner_id));
   const count = Number((db.prepare('SELECT COUNT(*) AS n FROM game_members WHERE game_id = ?').get(game.id) as { n: number }).n);
   if (count >= plan.members) throw new PortalError(`This game is full: the owner's ${plan.name} plan allows ${plan.members} people per game.`, { status: 402 });
-  db.prepare("INSERT INTO game_members (game_id, user_id, role, added) VALUES (?, ?, 'editor', ?)").run(game.id, user.id, Date.now());
+  // An invite makes a builder; the owner gives more (or less) from People.
+  db.prepare("INSERT INTO game_members (game_id, user_id, role, added) VALUES (?, ?, 'builder', ?)").run(game.id, user.id, Date.now());
   addFriend(inv.created_by, user.id);
   const out = summary(game, user.id);
   broadcast(game.id, 'game', summary(game));
@@ -240,8 +258,37 @@ export function acceptInvite(user: User, code: string) {
   return out;
 }
 
+/** A visitor helps build a live game the owner opened to visitors: they join as a builder. */
+export function joinToBuild(user: User, slug: string) {
+  const game = gameBySlug(slug);
+  if (!game) throw new PortalError('No such game', { status: 404 });
+  const role = roleOf(game.id, user.id);
+  if (role) return summary(game, user.id);
+  if ((game.visitors ?? 'play') !== 'build') throw new PortalError('The owner builds this one with invited people only. Ask them for an invite.', { status: 403 });
+  const plan = planOf(getUser(game.owner_id));
+  const count = Number((db.prepare('SELECT COUNT(*) AS n FROM game_members WHERE game_id = ?').get(game.id) as { n: number }).n);
+  if (count >= plan.members) throw new PortalError(`This game is full: the owner's ${plan.name} plan allows ${plan.members} people per game.`, { status: 402 });
+  db.prepare("INSERT INTO game_members (game_id, user_id, role, added) VALUES (?, ?, 'builder', ?)").run(game.id, user.id, Date.now());
+  broadcast(game.id, 'game', summary(game));
+  systemNote(game.id, `${nameOf(user.id)} came by and is helping build.`);
+  return summary(game, user.id);
+}
+
+/** The owner sets what someone may do: player, builder or editor (one owner per game). */
+export function setMemberRole(user: User, gameId: string, memberId: string, role: unknown) {
+  const { game } = memberGame(user, gameId, 'owner');
+  const r = String(role) as Role;
+  if (!['player', 'builder', 'editor'].includes(r)) throw new PortalError('role is player, builder or editor');
+  if (memberId === game.owner_id) throw new PortalError('The owner stays the owner');
+  if (!db.prepare('UPDATE game_members SET role = ? WHERE game_id = ? AND user_id = ?').run(r, game.id, memberId).changes) throw new PortalError('Not in this game', { status: 404 });
+  broadcast(game.id, 'game', summary(game));
+  broadcast(game.id, 'role', { user: memberId, role: r });
+  systemNote(game.id, `${nameOf(user.id)} made ${nameOf(memberId)} ${r === 'editor' ? 'an editor' : `a ${r}`}.`);
+  return summary(game, user.id);
+}
+
 export function removeMember(user: User, gameId: string, memberId: string) {
-  const { game, role } = memberGame(user, gameId);
+  const { game, role } = memberGame(user, gameId, 'player');
   // The owner removes anyone else; anyone may leave.
   if (memberId === game.owner_id) throw new PortalError('The owner cannot leave their own game; delete it instead');
   if (memberId !== user.id && role !== 'owner') throw new PortalError('Only the owner can remove people', { status: 403 });
@@ -291,7 +338,7 @@ export function writeFile(user: User | null, gameId: string, body: { path?: unkn
 }
 
 export function deleteFile(user: User, gameId: string, p: unknown, conn?: string) {
-  memberGame(user, gameId);
+  memberGame(user, gameId, 'editor');
   const path = checkPath(p);
   if (!db.prepare('DELETE FROM game_files WHERE game_id = ? AND path = ?').run(gameId, path).changes) throw new PortalError('No such file', { status: 404 });
   touch(gameId);
@@ -300,7 +347,7 @@ export function deleteFile(user: User, gameId: string, p: unknown, conn?: string
 }
 
 export function renameFile(user: User, gameId: string, body: { from?: unknown; to?: unknown }, conn?: string) {
-  memberGame(user, gameId);
+  memberGame(user, gameId, 'editor');
   const from = checkPath(body.from);
   const to = checkPath(body.to);
   if (from === to) return { ok: true };
@@ -370,11 +417,12 @@ export function renameAsset(user: User, gameId: string, from: string, to: unknow
 /** A short-lived link to one asset of a game's draft (the editor's preview runs in a sandbox without the cookie). */
 const draftAssetUrl = (gameId: string, a: AssetRow) => `/play-asset/d/${sign({ g: gameId, a: a.asset, p: a.project }, 6 * 3600)}/${a.name}`;
 const releaseAssetUrl = (g: Game, version: number, name: string) => `/play-asset/${g.slug}/${version}/${encodeURIComponent(name)}`;
+const liveAssetUrl = (g: Game, name: string) => `/play-asset/${g.slug}/live/${encodeURIComponent(name)}`;
 const assetMap = (rows: AssetRow[], url: (a: AssetRow) => string) => Object.fromEntries(rows.map((a) => [a.name, { url: url(a), mime: a.mime, kind: a.kind }]));
 
 /** The draft as the runtime takes it: every file, every asset with a link. Members only. */
 export function draftBundle(user: User, gameId: string) {
-  const { game } = memberGame(user, gameId);
+  const { game } = memberGame(user, gameId, 'player');
   const files = Object.fromEntries((db.prepare('SELECT path, content FROM game_files WHERE game_id = ?').all(game.id) as { path: string; content: string }[]).map((f) => [f.path, f.content]));
   return { id: game.id, title: game.title, version: null, files, assets: assetMap(listAssets(game.id), (a) => draftAssetUrl(game.id, a)), net: { token: editToken(sign, game.id, user) }, me: { id: user.id, name: user.name } };
 }
@@ -395,13 +443,13 @@ export function sceneOps(user: User | null, gameId: string, ops: unknown, o: { b
 /** A copy of a published game (its live version: files and assets) as a new game of this customer's. */
 export function remix(user: User, body: { slug?: unknown }) {
   const g = gameBySlug(String(body.slug ?? ''));
-  if (!g || !g.live_version) throw new PortalError('Only published games can be remixed', { status: 404 });
+  if (!g) throw new PortalError('No such game', { status: 404 });
   const plan = planOf(getUser(user.id));
   const owned = Number((db.prepare('SELECT COUNT(*) AS n FROM games WHERE owner_id = ?').get(user.id) as { n: number }).n);
   if (owned >= plan.games) throw new PortalError(`Your ${plan.name} plan has room for ${plan.games} games. Upgrade for more, or delete one.`, { status: 402 });
-  const r = db.prepare('SELECT files, assets FROM game_releases WHERE game_id = ? AND version = ?').get(g.id, g.live_version) as { files: string; assets: string };
-  const files = JSON.parse(r.files) as Record<string, string>;
-  const assets = JSON.parse(r.assets) as AssetRow[];
+  // The game as it is right now (every game is live).
+  const files = Object.fromEntries((db.prepare('SELECT path, content FROM game_files WHERE game_id = ?').all(g.id) as { path: string; content: string }[]).map((f) => [f.path, f.content]));
+  const assets = listAssets(g.id);
   const now = Date.now();
   const gameId = id('g_', 8);
   const title = `${g.title} remix`.slice(0, 80);
@@ -416,10 +464,10 @@ export function remix(user: User, body: { slug?: unknown }) {
   return summary(getGame(gameId)!, user.id);
 }
 
-export function publish(user: User, gameId: string, body: { notes?: unknown }) {
+/** Save: a numbered copy of the game as it is now, in its history (the owner can bring any one back). */
+export function saveGame(user: User, gameId: string, body: { notes?: unknown; auto?: boolean } = {}) {
   const { game } = memberGame(user, gameId);
   const files = db.prepare('SELECT path, content FROM game_files WHERE game_id = ?').all(game.id) as { path: string; content: string }[];
-  if (!files.some((f) => f.path.endsWith('.js'))) throw new PortalError('Add a script before publishing');
   const assets = listAssets(game.id).map(({ name, asset, project, kind, mime }) => ({ name, asset, project, kind, mime }));
   const version = tx(() => {
     const v = Number((db.prepare('SELECT COALESCE(MAX(version), 0) AS v FROM game_releases WHERE game_id = ?').get(game.id) as { v: number }).v) + 1;
@@ -428,15 +476,16 @@ export function publish(user: User, gameId: string, body: { notes?: unknown }) {
     db.prepare('UPDATE games SET live_version = ?, updated = ? WHERE id = ?').run(v, Date.now(), game.id);
     return v;
   });
-  const out = { version, url: `/play/${game.slug}`, versionUrl: `/play/${game.slug}/v/${version}`, releases: releases(game.id) };
+  const out = { version, url: `/play/${game.slug}`, versionUrl: `/play/${game.slug}/v/${version}`, releases: releases(game.id), saved: Date.now() };
   broadcast(game.id, 'release', { ...out, by: nameOf(user.id) });
-  systemNote(game.id, `${nameOf(user.id)} published version ${version}.`);
+  if (!body.auto) systemNote(game.id, `${nameOf(user.id)} saved (save ${version}).`);
   return out;
 }
+export const publish = saveGame;
 
 /** Puts an earlier release back live (its files stay frozen; the draft is untouched). */
 export function setLive(user: User, gameId: string, version: unknown) {
-  const { game } = memberGame(user, gameId);
+  const { game } = memberGame(user, gameId, 'owner');
   const v = version === null ? null : Number(version);
   if (v !== null && !db.prepare('SELECT 1 FROM game_releases WHERE game_id = ? AND version = ?').get(game.id, v)) throw new PortalError('No such release', { status: 404 });
   db.prepare('UPDATE games SET live_version = ?, updated = ? WHERE id = ?').run(v, Date.now(), game.id);
@@ -444,41 +493,50 @@ export function setLive(user: User, gameId: string, version: unknown) {
   return { ok: true, liveVersion: v };
 }
 
-/** Copies a release's files back into the draft (assets too, where the release still names them). */
+/** The owner brings a save back: its files and assets become the live game. What was there is saved first, so a
+ *  restore can itself be undone from the history. */
 export function restoreRelease(user: User, gameId: string, version: number) {
-  const { game } = memberGame(user, gameId);
-  const r = db.prepare('SELECT files FROM game_releases WHERE game_id = ? AND version = ?').get(game.id, version) as { files: string } | undefined;
-  if (!r) throw new PortalError('No such release', { status: 404 });
+  const { game } = memberGame(user, gameId, 'owner');
+  const r = db.prepare('SELECT files, assets FROM game_releases WHERE game_id = ? AND version = ?').get(game.id, version) as { files: string; assets: string } | undefined;
+  if (!r) throw new PortalError('No such save', { status: 404 });
   const files = JSON.parse(r.files) as Record<string, string>;
+  const assets = JSON.parse(r.assets) as AssetRow[];
+  const before = saveGame(user, game.id, { notes: `Before bringing back save ${version}`, auto: true });
   tx(() => {
+    db.prepare('DELETE FROM game_assets WHERE game_id = ?').run(game.id);
+    for (const a of assets) db.prepare('INSERT INTO game_assets (game_id, name, asset, project, kind, mime, added_by, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(game.id, a.name, a.asset, a.project, a.kind ?? null, a.mime ?? null, a.added_by ?? user.id, a.created ?? Date.now());
     // Revisions keep counting up, so an editor still holding an older one is told to merge.
     const revs = new Map((db.prepare('SELECT path, rev FROM game_files WHERE game_id = ?').all(game.id) as { path: string; rev: number }[]).map((f) => [f.path, f.rev]));
     db.prepare('DELETE FROM game_files WHERE game_id = ?').run(game.id);
     for (const [path, content] of Object.entries(files)) db.prepare('INSERT INTO game_files (game_id, path, content, rev, updated, updated_by) VALUES (?, ?, ?, ?, ?, ?)').run(game.id, path, content, (revs.get(path) ?? 0) + 1, Date.now(), user.id);
   });
   touch(game.id);
-  broadcast(game.id, 'reload', { by: nameOf(user.id), reason: `restored version ${version}` });
+  broadcast(game.id, 'reload', { by: nameOf(user.id), reason: `brought back save ${version}` });
+  systemNote(game.id, `${nameOf(user.id)} brought back save ${version} (what was there is save ${before.version}).`);
   return openGame(user, game.id);
 }
 
 export const releases = (gameId: string) => (db.prepare('SELECT version, notes, created, created_by FROM game_releases WHERE game_id = ? ORDER BY version DESC LIMIT 50').all(gameId) as { version: number; notes: string; created: number; created_by: string | null }[]).map((r) => ({ ...r, by: nameOf(r.created_by) }));
 
-/** What a player loads: a published version (the live one unless asked) as the runtime takes it. Anyone with the link. */
+/** What a player loads: the game as it is right now (every game is live), or a save when asked. Anyone with the link. */
 export function playBundle(slug: string, version?: number | null, count = true) {
   const g = gameBySlug(slug);
   if (!g) throw new PortalError('No such game', { status: 404 });
-  const v = version ?? g.live_version;
-  if (!v) throw new PortalError('This game has not been published yet', { status: 404 });
-  const r = db.prepare('SELECT * FROM game_releases WHERE game_id = ? AND version = ?').get(g.id, v) as { version: number; files: string; assets: string; created: number } | undefined;
-  if (!r) throw new PortalError('No such version', { status: 404 });
-  if (count) db.prepare('UPDATE games SET plays = plays + 1 WHERE id = ?').run(g.id);
-  const assets = JSON.parse(r.assets) as AssetRow[];
   const owner = getUser(g.owner_id);
+  if (count) db.prepare('UPDATE games SET plays = plays + 1 WHERE id = ?').run(g.id);
+  if (!version) {
+    const files = Object.fromEntries((db.prepare('SELECT path, content FROM game_files WHERE game_id = ?').all(g.id) as { path: string; content: string }[]).map((f) => [f.path, f.content]));
+    return { id: g.id, slug: g.slug, title: g.title, description: g.description, by: owner?.name ?? null, version: null, live: true, visitors: g.visitors ?? 'play', updated: g.updated, files, assets: assetMap(listAssets(g.id), (a) => liveAssetUrl(g, a.name)) };
+  }
+  const v = version;
+  const r = db.prepare('SELECT * FROM game_releases WHERE game_id = ? AND version = ?').get(g.id, v) as { version: number; files: string; assets: string; created: number } | undefined;
+  if (!r) throw new PortalError('No such save', { status: 404 });
+  const assets = JSON.parse(r.assets) as AssetRow[];
   return { id: g.id, slug: g.slug, title: g.title, description: g.description, by: owner?.name ?? null, version: r.version, published: r.created, files: JSON.parse(r.files), assets: assetMap(assets, (a) => releaseAssetUrl(g, r.version, a.name)) };
 }
 
 /** Which Gen file an asset link means: a release's (public with the game) or a signed draft link. */
-export function resolvePlayAsset(parts: { token?: string; slug?: string; version?: number; name?: string }) {
+export function resolvePlayAsset(parts: { token?: string; slug?: string; version?: number | 'live'; name?: string }) {
   if (parts.token) {
     const t = verify<{ g: string; a: string; p: string }>(parts.token);
     if (!t || !/^a_[0-9a-f]+$/.test(t.a)) throw new PortalError('This preview link has expired; reload the editor', { status: 410 });
@@ -486,24 +544,27 @@ export function resolvePlayAsset(parts: { token?: string; slug?: string; version
   }
   const g = gameBySlug(String(parts.slug));
   if (!g) throw new PortalError('No such game', { status: 404 });
+  if (parts.version === 'live') {
+    const a = db.prepare('SELECT asset, project FROM game_assets WHERE game_id = ? AND name = ?').get(g.id, String(parts.name)) as { asset: string; project: string } | undefined;
+    if (!a) throw new PortalError('No such asset', { status: 404 });
+    return { asset: a.asset, project: a.project, immutable: false };
+  }
   const r = db.prepare('SELECT assets FROM game_releases WHERE game_id = ? AND version = ?').get(g.id, Number(parts.version ?? 0)) as { assets: string } | undefined;
   const a = r ? (JSON.parse(r.assets) as AssetRow[]).find((x) => x.name === parts.name) : null;
   if (!a) throw new PortalError('No such asset', { status: 404 });
   return { asset: a.asset, project: a.project, immutable: true };
 }
 
-/** The public games: published, listed, most played first (or newest). */
-export function gallery(sort: 'popular' | 'new' = 'popular', limit = 60) {
-  const overseer = featured();
-  const rows = db.prepare(`SELECT g.*, u.name AS owner_name FROM games g JOIN users u ON u.id = g.owner_id WHERE g.visibility = 'public' AND g.live_version IS NOT NULL ORDER BY ${sort === 'new' ? 'g.updated' : 'g.plays'} DESC LIMIT ?`).all(Math.max(1, Math.min(200, limit))) as (Game & { owner_name: string })[];
-  return {
-    featured: overseer,
-    games: rows.map((g) => {
-      const r = db.prepare('SELECT assets FROM game_releases WHERE game_id = ? AND version = ?').get(g.id, g.live_version) as { assets: string } | undefined;
-      const hasCover = g.cover && r && (JSON.parse(r.assets) as AssetRow[]).some((a) => a.name === g.cover);
-      return { slug: g.slug, title: g.title, description: g.description, by: g.owner_name, plays: g.plays, version: g.live_version, updated: g.updated, url: `/play/${g.slug}`, cover: hasCover ? releaseAssetUrl(g, g.live_version!, g.cover!) : null };
-    }),
-  };
+/** The public games, all live: most people in them right now first (then most played), or newest, or most played. */
+export function gallery(sort: 'live' | 'popular' | 'new' = 'live', limit = 60) {
+  const overseer = featured().map((t: any) => ({ ...t, ...liveCounts(`t:${t.id}`) }));
+  const rows = db.prepare(`SELECT g.*, u.name AS owner_name FROM games g JOIN users u ON u.id = g.owner_id WHERE g.visibility = 'public' ORDER BY ${sort === 'new' ? 'g.updated' : 'g.plays'} DESC LIMIT 500`).all() as (Game & { owner_name: string })[];
+  const list = rows.map((g) => {
+    const hasCover = g.cover && db.prepare('SELECT 1 FROM game_assets WHERE game_id = ? AND name = ?').get(g.id, g.cover);
+    return { slug: g.slug, title: g.title, description: g.description, by: g.owner_name, plays: g.plays, updated: g.updated, url: `/play/${g.slug}`, visitors: g.visitors ?? 'play', cover: hasCover ? liveAssetUrl(g, g.cover!) : null, ...liveCounts(g.id) };
+  });
+  if (sort === 'live') list.sort((a, b) => b.playing + b.building - (a.playing + a.building) || b.plays - a.plays);
+  return { featured: overseer, games: list.slice(0, Math.max(1, Math.min(200, limit))) };
 }
 
 // ------------------------------------------------------------------ chat
@@ -526,13 +587,13 @@ export function updateChatData(messageId: string, data: unknown) {
 const systemNote = (gameId: string, text: string) => chatMessage(gameId, null, 'system', text);
 
 export function chatHistory(user: User, gameId: string, limit = 80) {
-  memberGame(user, gameId);
+  memberGame(user, gameId, 'player');
   const rows = db.prepare('SELECT * FROM game_chat WHERE game_id = ? ORDER BY created DESC, rowid DESC LIMIT ?').all(gameId, Math.max(1, Math.min(300, limit))) as any[];
   return { messages: rows.reverse().map((r) => ({ ...r, data: r.data ? JSON.parse(r.data) : null, name: r.role === 'ai' ? 'Assistant' : r.role === 'system' ? null : nameOf(r.user_id) })) };
 }
 
 export function postChat(user: User, gameId: string, text: unknown) {
-  memberGame(user, gameId);
+  memberGame(user, gameId, 'player');
   const t = String(text ?? '').trim();
   if (!t) throw new PortalError('Say something');
   return chatMessage(gameId, user.id, 'user', t);

@@ -54,6 +54,11 @@
     </button>
   </div>
 
+  <!-- Save: a point in the game's history (building only; the game itself is always live) -->
+  <button class="st-savebtn" id="saveBtn" type="button" title="Save (Ctrl+S): a point in the history you can come back to">
+    <span class="dot"></span><span class="lbl" id="saveLbl">Save</span>
+  </button>
+
   <!-- The assistant, as game chat: the last lines fade out above the input -->
   <section class="st-chat" id="ai">
     <div class="st-chat-log" id="chatLog"></div>
@@ -84,6 +89,7 @@
     </div>
     <div class="st-lib-search" id="libSearchRow" hidden>
       <input id="libSearch" type="search" placeholder="Search: ball, grass, rain, laser…" autocomplete="off" spellcheck="false">
+      <div class="st-lib-sort" id="libSort"><button type="button" class="on" data-s="liked" title="What the most other builders used">Most liked</button><button type="button" data-s="new">New</button><button type="button" data-s="fresh" title="The least used first, so your game doesn't look like every other one">Hidden gems</button></div>
       <div class="st-lib-chips" id="libChips"></div>
     </div>
     <p class="st-lib-note" id="libNote">Click one to put it where you're looking. Then double-click it to change it, or tell the assistant what it should do.</p>
@@ -148,7 +154,7 @@
         <div id="membersList"></div>
       </section>
       <section>
-        <label class="label">Releases</label>
+        <label class="label">Saves</label>
         <div id="releasesList"></div>
       </section>
       <section>
@@ -174,7 +180,8 @@
         <button type="button" class="st-menu-item primary" data-act="resume">Back to the game</button>
         <button type="button" class="st-menu-item" data-act="mode">Play the game</button>
         <button type="button" class="st-menu-item" data-act="invite">Invite friends to build</button>
-        <button type="button" class="st-menu-item" data-act="publish">Publish</button>
+        <button type="button" class="st-menu-item" data-act="saves">Saves (history)</button>
+        <button type="button" class="st-menu-item" data-act="people">People and permissions</button>
         <button type="button" class="st-menu-item" data-act="library">Create</button>
         <button type="button" class="st-menu-item" data-act="advanced">Advanced (code, settings)</button>
         <button type="button" class="st-menu-item" data-act="codex">How things work</button>

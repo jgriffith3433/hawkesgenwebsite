@@ -1,7 +1,7 @@
 // Public gallery: browse and play games people made.
 const API = '/v1';
 let games = [];
-let sort = 'popular';
+let sort = 'live';
 
 // ===================================================================== load
 let me = null;
@@ -22,11 +22,11 @@ async function loadGames() {
   }
 }
 
-function card({ title, sub, by, plays, cover, emoji, play, remix }) {
+function card({ title, sub, by, plays, cover, emoji, play, remix, playing = 0, building = 0, visitors }) {
   const el = document.createElement('div');
   el.className = 'game-card';
   el.innerHTML = `
-    <div class="cover">${cover ? `<img src="${escapeHtml(cover)}" alt="">` : escapeHtml(emoji || (title[0] || '?').toUpperCase())}</div>
+    <div class="cover">${cover ? `<img src="${escapeHtml(cover)}" alt="">` : escapeHtml(emoji || (title[0] || '?').toUpperCase())}${playing || building ? `<span class="live-now"><i></i>${playing ? `${playing} playing` : ''}${playing && building ? ' · ' : ''}${building ? `${building} building` : ''}</span>` : ''}${visitors === 'build' ? '<span class="open-build">Open to builders</span>' : ''}</div>
     <div class="body">
       <div class="title">${escapeHtml(title)}</div>
       ${sub ? `<div class="muted" style="font-size:13px;line-height:1.4">${escapeHtml(sub.slice(0, 110))}${sub.length > 110 ? '…' : ''}</div>` : ''}
@@ -43,7 +43,7 @@ function renderFeatured(list) {
   const grid = document.getElementById('featuredGrid');
   grid.innerHTML = '';
   document.getElementById('featuredHead').hidden = !list.length;
-  for (const t of list) grid.appendChild(card({ title: t.name, sub: t.blurb, by: 'the Overseer', emoji: t.emoji, play: () => enterGame(t.url), remix: () => remixIt({ template: t.id, title: t.name }) }));
+  for (const t of list) grid.appendChild(card({ title: t.name, sub: t.blurb, by: 'the Overseer', emoji: t.emoji, playing: t.playing, building: t.building, play: () => enterGame(t.url), remix: () => remixIt({ template: t.id, title: t.name }) }));
   for (const c of grid.querySelectorAll('.game-card')) c.classList.add('overseer-card');
 }
 
@@ -52,7 +52,7 @@ function render() {
   const empty = document.getElementById('empty');
   grid.innerHTML = '';
   empty.hidden = Boolean(games.length);
-  for (const g of games) grid.appendChild(card({ title: g.title, sub: g.description, by: g.by, plays: g.plays || 0, cover: g.cover, play: () => enterGame(g.url), remix: () => remixIt({ slug: g.slug }) }));
+  for (const g of games) grid.appendChild(card({ title: g.title, sub: g.description, by: g.by, plays: g.plays || 0, cover: g.cover, playing: g.playing, building: g.building, visitors: g.visitors, play: () => enterGame(g.url), remix: () => remixIt({ slug: g.slug }) }));
 }
 
 /** A copy of a game, yours to change: then straight into it. */

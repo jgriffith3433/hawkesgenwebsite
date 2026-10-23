@@ -224,7 +224,9 @@
       .hud-bar .slot { width: 50px; height: 48px; }
       .card { width: calc(100vw - 24px); }
     }
-  </style>
+      .corner .here { font: 700 11px Rajdhani, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #9ff3c9; padding: 6px 10px; background: rgba(6,14,26,.7); }
+    .corner #buildBtn { background: linear-gradient(90deg, #4a9eff, #a855f7); color: #fff; }
+</style>
 </head>
 <body>
   <canvas id="stage" tabindex="0"></canvas>
@@ -232,6 +234,8 @@
   <div id="loading">LOADING…</div>
   <div id="error" hidden></div>
   <div class="corner" id="corner" hidden>
+    <span class="here" id="hereCount" hidden></span>
+    <button type="button" id="buildBtn" hidden>Help build</button>
     <button type="button" id="friendsBtn">Play with friends</button>
     <a id="remixBtn" target="_top">Remix</a>
     <a id="badge" href="https://hawkesgen.com/" target="_top">Made with Hawkes Gen</a>
@@ -253,7 +257,9 @@
     document.addEventListener('touchend', function (e) { var now = Date.now(); if (now - (window.__lastTouch || 0) < 320 && !/INPUT|TEXTAREA|BUTTON/.test(e.target.tagName || '')) e.preventDefault(); window.__lastTouch = now; }, { passive: false });
   </script>
   <script>
-    // /play/<slug> and /play/<slug>/v/<n> load a published version (?room=<code> plays it together);
+    // /play/<slug> plays the game live, as it is right now, with everyone else playing it (the room "live"; changes made
+    // while you play arrive as they happen). ?room=<code> is a private room, /play/<slug>/v/<n> an old save.
+    // /play/t/<id> is an Overseer game.
     // /play/_draft is the editor's: it waits for the editor to send the draft, and adds the building tools.
     (function () {
       var parts = location.pathname.replace(/\/+$/, '').split('/');
@@ -298,6 +304,33 @@
       }).then(function (b) {
         HawkesPlay.run(b, { mode: 'play' });
         if (q.get('room')) { HawkesNet.connect({ play: slug, room: q.get('room') }); friends.textContent = 'Room ' + q.get('room'); }
+        else if (!v) HawkesNet.connect({ play: slug, room: 'live' });
+        // The owner lets visitors build: one click and you're building it with them.
+        var build = document.getElementById('buildBtn');
+        if (b.live && b.visitors === 'build') {
+          build.hidden = false;
+          build.onclick = function () {
+            build.disabled = true;
+            fetch('/v1/play/' + encodeURIComponent(slug) + '/join', { method: 'POST', credentials: 'same-origin' }).then(function (r) {
+              if (r.status === 401) { top.location.href = '/app?next=' + encodeURIComponent('/play/' + slug); return; }
+              return r.json().then(function (g) { if (!r.ok) throw new Error(g.error || 'Could not join'); top.location.href = '/app/g/' + g.id; });
+            }).catch(function (e) { build.disabled = false; build.textContent = e.message; });
+          };
+        }
+        // How many are here: this page says it's here every 30 s, and hears the count back.
+        if (!v) {
+          var me = (function () { try { var k = sessionStorage.getItem('hg_here') || Math.random().toString(36).slice(2, 12); sessionStorage.setItem('hg_here', k); return k; } catch (e) { return Math.random().toString(36).slice(2, 12); } })();
+          var here = document.getElementById('hereCount');
+          var ping = function () {
+            fetch('/v1/play/' + slug + '/here', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ s: me }) }).then(function (r) { return r.json(); }).then(function (c) {
+              var n = c.playing || 0, w = c.building || 0;
+              here.hidden = false;
+              here.textContent = '● ' + n + ' playing' + (w ? ' · ' + w + ' building' : '');
+            }).catch(function () {});
+          };
+          ping();
+          setInterval(ping, 30000);
+        }
       }).catch(function (e) { loading.textContent = e.message; });
     })();
   </script>

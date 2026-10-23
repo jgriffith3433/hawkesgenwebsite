@@ -106,6 +106,15 @@ test('using a community thing in a game: the asset from its owner, under the nam
   const names = (bundle.assets ? (Array.isArray(bundle.assets) ? bundle.assets.map((a: any) => a.name) : Object.keys(bundle.assets)) : []);
   assert.ok(names.includes('beach-ball.glb') && names.includes('beach-ball_low.glb'), JSON.stringify(names));
   assert.equal((await call('/v1/community?q=ball')).body.items[0].uses, 1);
+  assert.equal((await call('/v1/community?q=ball')).body.items[0].likes, 1, 'a like: someone used it');
+  // The same account using it again is not another like; someone else is.
+  const g2 = (await call('/v1/games', { cookie: me.cookie, body: { title: 'Ball Pit 2' } })).body;
+  await call(`/v1/games/${g2.id ?? g2.game?.id}/community`, { cookie: me.cookie, body: { id: 'a_b2' } });
+  assert.equal((await call('/v1/community?q=ball')).body.items[0].likes, 1);
+  // Sorting: most liked first by default; hidden gems (least used) first when asked.
+  assert.deepEqual((await call('/v1/community?kind=model')).body.items.map((x: any) => x.title), ['Ball']);
+  const all = (await call('/v1/community?sort=fresh')).body.items.map((x: any) => x.title);
+  assert.equal(all.at(-1), 'Ball', 'the most used comes last for hidden gems');
   // Not a member: no.
   const other = await account('Stranger');
   assert.equal((await call(`/v1/games/${gid}/community`, { cookie: other.cookie, body: { id: 'a_b2' } })).status, 404, 'not their game');

@@ -28,7 +28,7 @@ import { askAssistant, generateAsset, pendingGens, markSuggestion, resumeGens, K
 import { join as joinLive, setPresence } from './live.ts';
 import { templateBundle } from './templates.ts';
 import * as community from './community.ts';
-import { upgrade as joinRoom, broadcastOps } from './rooms.ts';
+import { upgrade as joinRoom, broadcastOps, markHere, liveCounts } from './rooms.ts';
 import type { Duplex } from 'node:stream';
 
 const PUBLIC = path.join(ROOT, 'public');
@@ -197,8 +197,8 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       if (/^\/play\/(_draft|t\/[a-z0-9-]+|[a-z0-9-]+(\/v\/\d+)?)$/.test(route) && route !== '/play/runtime.js') return servePlayPage(res, req);
       let pa = /^\/play-asset\/d\/([\w-]+\.[\w-]+)\/[^/]+$/.exec(route);
       if (pa) return await servePlayAsset({ token: pa[1] }, req, res);
-      pa = /^\/play-asset\/([a-z0-9-]+)\/(\d+)\/([^/]+)$/.exec(route);
-      if (pa) return await servePlayAsset({ slug: pa[1], version: Number(pa[2]), name: decodeURIComponent(pa[3]) }, req, res);
+      pa = /^\/play-asset\/([a-z0-9-]+)\/(\d+|live)\/([^/]+)$/.exec(route);
+      if (pa) return await servePlayAsset({ slug: pa[1], version: pa[2] === 'live' ? 'live' : Number(pa[2]), name: decodeURIComponent(pa[3]) }, req, res);
       if (/^\/app\/g\/g_[0-9a-f]+$/.test(route)) return void (await serveStatic('/editor.html', res));
       if (/^\/app\/join\/[\w-]+$/.test(route)) return void (await serveStatic('/games.html', res));
     }
@@ -236,11 +236,22 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       return send(res, 200, b);
     }
     // The community library is public: what's shared is for everyone (searching, browsing, its files).
-    if (route === '/v1/community' && method === 'GET') return send(res, 200, community.search({ q: url.searchParams.get('q'), kind: url.searchParams.get('kind'), tag: url.searchParams.get('tag'), limit: url.searchParams.get('limit') }));
+    if (route === '/v1/community' && method === 'GET') return send(res, 200, community.search({ q: url.searchParams.get('q'), kind: url.searchParams.get('kind'), tag: url.searchParams.get('tag'), limit: url.searchParams.get('limit'), sort: url.searchParams.get('sort') }));
     if (route === '/v1/community/tags' && method === 'GET') return send(res, 200, { tags: community.tagCounts(url.searchParams.get('kind') ?? undefined) });
     const cf = /^\/v1\/community\/(a_[0-9a-f]+)\/file$/.exec(route);
     if (cf && method === 'GET') return relay(await community.file(cf[1]), res);
-    if (route === '/v1/gallery' && method === 'GET') return send(res, 200, games.gallery(url.searchParams.get('sort') === 'new' ? 'new' : 'popular', Number(url.searchParams.get('limit')) || 60));
+    if (route === '/v1/gallery' && method === 'GET') { const so = url.searchParams.get('sort'); return send(res, 200, games.gallery(so === 'new' ? 'new' : so === 'popular' ? 'popular' : 'live', Number(url.searchParams.get('limit')) || 60)); }
+    // A play page says it's there (every 30 s), so games show how many people are playing.
+    const ph = /^\/v1\/play\/(t\/[a-z0-9-]+|[a-z0-9-]+)\/here$/.exec(route);
+    if (ph && method === 'POST') {
+      const t = /^t\/(.+)$/.exec(ph[1]);
+      const g = t ? null : games.gameBySlug(ph[1]);
+      if (!t && !g) return send(res, 404, { error: 'No such game' });
+      const gid = t ? `t:${t[1]}` : g!.id;
+      markHere(gid, (await readJson(req)).s);
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      return send(res, 200, liveCounts(gid));
+    }
     let pb = /^\/v1\/play\/([a-z0-9-]+)$/.exec(route);
     if (pb && method === 'GET') {
       res.setHeader('Access-Control-Allow-Origin', '*');
@@ -322,6 +333,8 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (route === '/v1/games' && method === 'GET') return send(res, 200, games.listGames(user));
     if (route === '/v1/games' && method === 'POST') return send(res, 200, games.createGame(user, await readJson(req)));
     if (route === '/v1/remix' && method === 'POST') return send(res, 200, games.remix(user, await readJson(req)));
+    const jb = /^\/v1\/play\/([a-z0-9-]+)\/join$/.exec(route);
+    if (jb && method === 'POST') return send(res, 200, games.joinToBuild(user, jb[1]));
     const inv = /^\/v1\/invites\/([\w-]+)\/accept$/.exec(route);
     if (inv && method === 'POST') return send(res, 200, games.acceptInvite(user, inv[1]));
     const gm = /^\/v1\/games\/(g_[0-9a-f]+)(?:\/(.+))?$/.exec(route);
@@ -332,12 +345,12 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       if (!sub && (method === 'PATCH' || method === 'POST')) return send(res, 200, games.updateGame(user, gid, await readJson(req)));
       if (!sub && method === 'DELETE') return send(res, 200, games.deleteGame(user, gid));
       if (sub === 'live' && method === 'GET') {
-        games.memberGame(user, gid);
+        games.memberGame(user, gid, 'player');
         return void joinLive(gid, user, res);
       }
-      if (sub === 'presence' && method === 'POST') return send(res, 200, setPresence(gid, conn ?? '', user.id, await readJson(req)));
+      if (sub === 'presence' && method === 'POST') return games.memberGame(user, gid, 'player'), send(res, 200, setPresence(gid, conn ?? '', user.id, await readJson(req)));
       if (sub === 'files' && (method === 'PUT' || method === 'POST')) {
-        games.memberGame(user, gid);
+        games.memberGame(user, gid, 'editor');
         try {
           return send(res, 200, games.writeFile(user, gid, await readJson(req), { conn }));
         } catch (e: any) {
@@ -365,12 +378,14 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
         if (r.applied.length) broadcastOps(gid, r.applied, user.name ?? 'Someone', typeof b.fx === 'string' ? b.fx.slice(0, 20) : null, String(req.headers['x-room-conn'] ?? '') || undefined);
         return send(res, 200, { errors: r.errors, created: r.created, rev: r.rev });
       }
-      if (sub === 'publish' && method === 'POST') return send(res, 200, games.publish(user, gid, await readJson(req)));
+      if ((sub === 'save' || sub === 'publish') && method === 'POST') return send(res, 200, games.saveGame(user, gid, await readJson(req)));
+      if (sub === 'saves' && method === 'GET') { games.memberGame(user, gid, 'player'); return send(res, 200, { saves: games.releases(gid) }); }
       if (sub === 'live-version' && method === 'POST') return send(res, 200, games.setLive(user, gid, (await readJson(req)).version));
       const rr = /^releases\/(\d+)\/restore$/.exec(sub);
       if (rr && method === 'POST') return send(res, 200, games.restoreRelease(user, gid, Number(rr[1])));
       if (sub === 'invites' && method === 'POST') return send(res, 200, games.createInvite(user, gid));
       const mem = /^members\/(usr_[0-9a-f]+)$/.exec(sub);
+      if (mem && method === 'POST') return send(res, 200, games.setMemberRole(user, gid, mem[1], (await readJson(req)).role));
       if (mem && method === 'DELETE') return send(res, 200, games.removeMember(user, gid, mem[1]));
       if (sub === 'chat' && method === 'GET') return send(res, 200, games.chatHistory(user, gid, Number(url.searchParams.get('limit')) || 80));
       if (sub === 'chat' && method === 'POST') return send(res, 200, games.postChat(user, gid, (await readJson(req)).text));

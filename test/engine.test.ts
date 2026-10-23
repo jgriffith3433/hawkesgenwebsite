@@ -11,6 +11,7 @@ process.env.PORTAL_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'portal-engi
 process.env.HAWKESGEN_URL = 'http://127.0.0.1:9';
 process.env.HAWKESGEN_KEY = 'hg_test';
 process.env.STARTER_CREDITS = '50';
+process.env.SIGNUPS_PER_HOUR = '100';
 
 const { handle, onUpgrade } = await import('../src/server.ts');
 const { applyOps, parseScene, emptyScene } = await import('../src/scene.ts');
@@ -120,7 +121,7 @@ test('rooms: members meet, see each other move, and get world edits; a bad token
   await new Promise<void>((ok) => { bad.onerror = () => ok(); bad.onclose = () => ok(); });
 });
 
-test('Overseer games play without an account; remixing copies a published game', async () => {
+test('Overseer games play without an account; remixing copies a game as it is (every game is live)', async () => {
   const gal = (await call('/v1/gallery')).body;
   assert.ok(gal.featured.some((f: any) => f.id === 'fps-arena' && f.url === '/play/t/fps-arena'));
   const t = await call('/v1/play-template/fps-arena');
@@ -132,11 +133,70 @@ test('Overseer games play without an account; remixing copies a published game',
   const maker = await account('Maker');
   const g = (await call('/v1/games', { cookie: maker, body: { title: 'Original', template: 'blank' } })).body;
   const fan = await account('Fan');
-  assert.equal((await call('/v1/remix', { cookie: fan, body: { slug: g.slug } })).status, 404, 'unpublished games stay private');
-  assert.equal((await call(`/v1/games/${g.id}/publish`, { cookie: maker, body: {} })).status, 200);
+  assert.equal((await call('/v1/remix', { cookie: fan, body: { slug: 'no-such-game' } })).status, 404);
   const copy = await call('/v1/remix', { cookie: fan, body: { slug: g.slug } });
   assert.equal(copy.status, 200);
   assert.equal(copy.body.role, 'owner');
   const files = (await call(`/v1/games/${copy.body.id}`, { cookie: fan })).body.files.map((f: any) => f.path);
   assert.ok(files.includes('scene.json'));
+});
+
+test('live games: play as it is now, saves and bringing one back, roles the owner sets, visitors who build, who is here', async () => {
+  const owner = await account('Owner');
+  const g = (await call('/v1/games', { cookie: owner, body: { title: 'Live One', template: 'blank' } })).body;
+  // Live without publishing: the play bundle is the game now.
+  let play = await call(`/v1/play/${g.slug}`);
+  assert.equal(play.status, 200);
+  assert.equal(play.body.live, true);
+  assert.ok(play.body.files['scene.json']);
+  // A world edit shows up in the live bundle at once.
+  assert.equal((await call(`/v1/games/${g.id}/scene`, { cookie: owner, body: { ops: [{ op: 'create', entity: { id: 'live_box', type: 'box' } }] } })).status, 200);
+  play = await call(`/v1/play/${g.slug}`);
+  assert.ok(play.body.files['scene.json'].includes('live_box'));
+
+  // Save, change, bring the save back (and what was there is saved first).
+  const s1 = await call(`/v1/games/${g.id}/save`, { cookie: owner, body: { notes: 'with the box' } });
+  assert.equal(s1.status, 200);
+  await call(`/v1/games/${g.id}/scene`, { cookie: owner, body: { ops: [{ op: 'delete', id: 'live_box' }] } });
+  assert.ok(!(await call(`/v1/play/${g.slug}`)).body.files['scene.json'].includes('live_box'));
+  assert.equal((await call(`/v1/play/${g.slug}?v=${s1.body.version}`)).body.files['scene.json'].includes('live_box'), true, 'an old save plays');
+
+  // People: an invite makes a builder; builders change the world, not code; the owner makes them an editor.
+  const friend = await account('Friend');
+  const inv = (await call(`/v1/games/${g.id}/invites`, { cookie: owner, body: {} })).body;
+  await call(`/v1/invites/${inv.code}/accept`, { cookie: friend, body: {} });
+  const friendId = (await call('/v1/users/me', { cookie: friend })).body.user.id;
+  assert.equal((await call(`/v1/games/${g.id}/scene`, { cookie: friend, body: { ops: [{ op: 'create', entity: { id: 'friend_ball', type: 'sphere' } }] } })).status, 200);
+  assert.equal((await call(`/v1/games/${g.id}/files`, { cookie: friend, method: 'PUT', body: { path: 'scripts/x.js', content: '//' } })).status, 403);
+  assert.equal((await call(`/v1/games/${g.id}/releases/${s1.body.version}/restore`, { cookie: friend, body: {} })).status, 403, 'only the owner brings a save back');
+  assert.equal((await call(`/v1/games/${g.id}/members/${friendId}`, { cookie: friend, body: { role: 'editor' } })).status, 403);
+  assert.equal((await call(`/v1/games/${g.id}/members/${friendId}`, { cookie: owner, body: { role: 'editor' } })).status, 200);
+  assert.equal((await call(`/v1/games/${g.id}/files`, { cookie: friend, method: 'PUT', body: { path: 'scripts/x.js', content: '//' } })).status, 200);
+  assert.equal((await call(`/v1/games/${g.id}/members/${friendId}`, { cookie: owner, body: { role: 'player' } })).status, 200);
+  assert.equal((await call(`/v1/games/${g.id}/scene`, { cookie: friend, body: { ops: [{ op: 'delete', id: 'friend_ball' }] } })).status, 403, 'players play');
+  assert.equal((await call(`/v1/games/${g.id}`, { cookie: friend })).status, 200, 'players still open it');
+
+  const back = await call(`/v1/games/${g.id}/releases/${s1.body.version}/restore`, { cookie: owner, body: {} });
+  assert.equal(back.status, 200);
+  const now = (await call(`/v1/play/${g.slug}`)).body.files['scene.json'];
+  assert.ok(now.includes('live_box') && !now.includes('friend_ball'));
+  const saves = (await call(`/v1/games/${g.id}/saves`, { cookie: owner })).body.saves;
+  assert.ok(saves[0].notes.startsWith('Before bringing back'), 'a restore can be undone');
+
+  // Visitors: play only until the owner opens it to builders.
+  const visitor = await account('Visitor');
+  assert.equal((await call(`/v1/play/${g.slug}/join`, { cookie: visitor, body: {} })).status, 403);
+  assert.equal((await call(`/v1/games/${g.id}`, { cookie: friend, body: { visitors: 'build' } })).status, 403);
+  assert.equal((await call(`/v1/games/${g.id}`, { cookie: owner, body: { visitors: 'build' } })).body.visitors, 'build');
+  const joined = await call(`/v1/play/${g.slug}/join`, { cookie: visitor, body: {} });
+  assert.equal(joined.status, 200);
+  assert.equal(joined.body.role, 'builder');
+
+  // Who is here: play pages say so; the gallery and the game show it.
+  await call(`/v1/play/${g.slug}/here`, { body: { s: 'tab-one' } });
+  const c = await call(`/v1/play/${g.slug}/here`, { body: { s: 'tab-two' } });
+  assert.equal(c.body.playing, 2);
+  const gal = (await call('/v1/gallery')).body.games.find((x: any) => x.slug === g.slug);
+  assert.equal(gal.playing, 2);
+  assert.equal(gal.visitors, 'build');
 });

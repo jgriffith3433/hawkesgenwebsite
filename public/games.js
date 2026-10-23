@@ -156,7 +156,7 @@ function renderGames(r) {
         <a href="/app/g/${g.id}" class="cover">${esc(g.title.slice(0, 1).toUpperCase())}</a>
         <div class="body">
           <a href="/app/g/${g.id}" class="title" style="text-decoration:none;color:#fff">${esc(g.title)}</a>
-          <div class="meta"><span>${g.liveVersion ? `v${g.liveVersion} live` : 'not published'}</span><span>${g.members.length} ${g.members.length === 1 ? 'person' : 'people'}</span><span>${ago(g.updated)}</span></div>
+          <div class="meta"><span>${g.playing || g.building ? `● ${g.playing} playing${g.building ? ` · ${g.building} building` : ''}` : 'live'}</span><span>${esc(g.role)}</span><span>${g.members.length} ${g.members.length === 1 ? 'person' : 'people'}</span><span>${ago(g.updated)}</span></div>
           <div class="actions">
             <a class="btn btn-ghost btn-sm" href="/app/g/${g.id}">Open</a>
             <button class="btn btn-ghost btn-sm" data-share="${g.id}" title="Get invite link">Share</button>
@@ -335,7 +335,7 @@ async function loadPlans() {
         <li>${p.monthlyCredits ? `<b>${p.monthlyCredits.toLocaleString('en-US')} credits</b> every month` : 'Starter credits to try the AI'}</li>
         <li>Up to ${p.games} games</li>
         <li>Up to ${p.members} people per game</li>
-        <li>Publish and share games with a link</li>
+        <li>Live games anyone can play with a link, while you build</li>
       </ul>
       ${p.id === cur.id || p.id === 'free' ? '' : `<button class="btn ${p.priceCents > cur.priceCents ? 'btn-primary' : 'btn-secondary'}" data-plan="${p.id}">${cur.id === 'free' ? `Get ${esc(p.name)}` : p.priceCents > cur.priceCents ? `Upgrade to ${esc(p.name)}` : `Switch to ${esc(p.name)}`}</button>`}
     </div>`).join('');

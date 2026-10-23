@@ -103,7 +103,7 @@ function genRow(taskId: string) {
 }
 
 export function pendingGens(user: User, gameId: string) {
-  memberGame(user, gameId);
+  memberGame(user, gameId, 'player');
   return { gens: (db.prepare('SELECT task_id FROM game_gen WHERE game_id = ? ORDER BY created DESC LIMIT 30').all(gameId) as { task_id: string }[]).map((r) => genRow(r.task_id)) };
 }
 
@@ -290,7 +290,9 @@ function whyNot(job: { status: string; error?: string | null }) {
 
 /** A message to the assistant: answered in the background; the reply and its file changes reach every editor live. */
 export async function askAssistant(user: User, gameId: string, body: { message?: unknown; file?: unknown; errors?: unknown; context?: unknown; mention?: unknown }) {
-  const { game } = memberGame(user, gameId);
+  const { game, role } = memberGame(user, gameId);
+  // Builders change the world through the assistant; scripts are for editors and the owner.
+  const codes = role === 'editor' || role === 'owner';
   const message = String(body.message ?? '').trim().slice(0, 4000);
   if (!message) throw new PortalError('Ask for something');
   if (thinking.has(game.id)) throw new PortalError('The assistant is still working on the last message', { status: 429 });
@@ -339,6 +341,7 @@ export async function askAssistant(user: User, gameId: string, body: { message?:
       const changed: string[] = [];
       const problems: string[] = [];
       for (const f of Array.isArray(v.files) ? v.files : []) {
+        if (!codes) { problems.push(`${f.path}: only editors can change scripts (ask the owner)`); continue; }
         try {
           if (f.path === 'scene.json') throw new PortalError('the world changes as "world" ops, not as a file');
           if (String(f.content ?? '').length > LIMITS.fileBytes) throw new PortalError('too long');
@@ -360,7 +363,7 @@ export async function askAssistant(user: User, gameId: string, body: { message?:
         }
       }
       const deleted: string[] = [];
-      for (const p of Array.isArray(v.delete) ? v.delete : []) {
+      for (const p of codes && Array.isArray(v.delete) ? v.delete : []) {
         try {
           deleteFile(user, game.id, p);
           deleted.push(String(p));
