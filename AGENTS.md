@@ -60,6 +60,7 @@ npm test             # against a fake Gen, offline
 | `public/connect.html` | `/connect`: Add to Cursor / Install in VS Code buttons, Add to Claude (copies the address, opens Connectors in the Claude desktop app via `claude://claude.ai/customize/connectors` (a second button opens claude.ai) and shows the three steps left; Claude has no install link), a sentence to paste into Claude Code, a CLI button on the Claude card that shows the `claude mcp add` command, the Unity package, Windsurf, ChatGPT and API-key configs, things to try, the customer's connections; buttons turn to "✓ Connected" for editors already connected |
 | `src/portfolio.ts` | "Built with Hawkes Gen": only claims we can show |
 | `public/` | The pages: `index.html` (landing, portfolio, pricing), `app.html` + `app.js` (Creator Studio), `public.css`, `hawkesgen.mjs` (the JS client, a copy of `hawkesgen/clients/js`) |
+| `public/entities.html` + `entities.js` | `/entities`, the entity codex: every type `engine/engine.js` builds, spawned live in a real `HawkesEngine` with its `scene.json` spec (edit and apply), the components, physics bodies, the asset kinds Gen makes (`gameai.ts KINDS`) and the script-only makers. Keep its catalog in step when the engine gains a type |
 | `deploy/` | The box: `setup.mjs` (one-time, from J's PC), `Caddyfile`, the systemd units, `pull.mjs` (self-deploy) |
 
 ## Deploys
