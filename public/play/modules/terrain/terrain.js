@@ -28,6 +28,7 @@
     const tex = new B.DynamicTexture(name, { width: S, height: S }, scene, true);
     const ctx = tex.getContext();
     const img = ctx.createImageData(S, S);
+    if (!img || !img.data) return tex; // no 2D canvas (tests): a plain texture
     const nz = T.makeNoise(seed);
     const c = color ? L.hex(color) : new B.Color3(1, 1, 1);
     // Tileable: noise sampled on a torus (four corners blended).
@@ -263,7 +264,7 @@
   }
   function makeScatter(t) {
     const plan = scatterPlan(t);
-    t.scatter = { groups: [], trunks: [], grid: new Map() };
+    t.scatter = { groups: [], grid: new Map(), version: 0 };
     if (!plan) return;
     const scene = t.scene;
     const mat = (name, color) => { const m = new B.StandardMaterial(name, scene); m.diffuseColor = L.hex(color); m.specularColor = new B.Color3(0.03, 0.03, 0.03); return m; };
@@ -346,7 +347,7 @@
         any = true;
         if (clear && Math.hypot(p[0] - clear[0], p[1] - clear[1]) < clear[2]) g.alive[i] = false;
       });
-      if (any) placeGroup(t, g);
+      if (any) { placeGroup(t, g); if (g.kind === 'trees') t.scatter.version++; }
     }
   }
 
@@ -378,7 +379,7 @@
 
   function build(value, ctx) {
     const t0 = performance.now();
-    const t = { ctx, scene: ctx.scene, cfg: T.normalize(value), shared: [], preview: new Map(), dirty: null, havokShape: false };
+    const t = { ctx, scene: ctx.scene, cfg: T.normalize(value), shared: [], preview: new Map(), version: 0, id: ++ids };
     t.f = T.generate(value);
     const n = t.f.n;
     t.normals = new Float32Array(n * n * 3);
@@ -400,6 +401,15 @@
     makeSea(t);
     lap('scatter');
     t.assetSig = assetSig(t.cfg);
+    if (t.scatter.groups.some((g) => g.kind === 'trees')) {
+      // The trunks' collider (Havok): a thing of its own, so the ground's body stays one heightfield.
+      const node = new B.TransformNode('terrain-trunks', t.scene);
+      node.position.copyFrom(t.root.position);
+      const e = new L.Entity(node, { name: 'Trees', tag: 'terrain', physics: 'static', grab: false }, 'terrain');
+      e.measure = () => {}; e.box = () => FAR; e.isScatter = true; e.data.terrain = true;
+      t.trunks = e;
+    }
+    havokShape(t, true); // the collider is described before the first step (never the box around the whole terrain)
     if (H.world.grid && t.cfg.shape !== 'flat') H.world.grid.setEnabled(false);
     t.ms = Math.round(performance.now() - t0);
     return t;
@@ -407,6 +417,7 @@
   function destroy(t) {
     if (!t) return;
     if (t.entity && t.entity.alive) t.entity.destroy();
+    if (t.trunks && t.trunks.alive) t.trunks.destroy();
     for (const g of (t.scatter && t.scatter.groups) || []) for (const p of g.parts) p.mesh.dispose();
     if (t.sea) t.sea.dispose();
     if (t.material) t.material.dispose(true, true);
@@ -430,7 +441,7 @@
     // Things over the edit wake up (they may have a hole under them now).
     const f = t.f, x0 = f.x0 + grown.ix0 * f.cell, x1 = f.x0 + grown.ix1 * f.cell, z0 = f.z0 + grown.iz0 * f.cell, z1 = f.z0 + grown.iz1 * f.cell;
     for (const e of H.world.entities) if (e.sleeping && e.x >= x0 - 2 && e.x <= x1 + 2 && e.z >= z0 - 2 && e.z <= z1 + 2) e.wake();
-    t.havokShape = false;
+    t.version++;
     if (H.game) try { H.game.emit('terrain', { edits, box: [x0, z0, x1, z1] }); } catch { /* a listener's error is its own */ }
     return box;
   }
@@ -487,20 +498,43 @@
     refreshChunks(t, { ix0: 0, ix1: t.f.n - 1, iz0: 0, iz1: t.f.n - 1 });
     for (const g of t.scatter.groups) placeGroup(t, g);
     for (const e of H.world.entities) e.wake();
-    t.havokShape = false;
+    t.version++;
   }
 
   // ------------------------------------------------------------------ physics
-  function havokReady() { return H.physics && H.physics.engine === 'havok' && typeof H.physics._setShape === 'function'; }
-  /** On Havok: the ground is a heightfield body (rebuilt after edits, a few times a second at most). */
-  function havokShape(t) {
-    if (t.havokShape || performance.now() - (t.havokAt || 0) < 250) return;
-    t.havokShape = true; t.havokAt = performance.now();
-    const f = t.f, heights = new Float32Array(f.heights.length);
-    for (let i = 0; i < heights.length; i++) heights[i] = f.y + f.heights[i];
-    try { H.physics.setShape(t.entity, H.physics.shapes.heightfield({ width: f.size, depth: f.size, rows: f.n, cols: f.n, heights })); }
+  function havokReady() { return Boolean(H.physics && H.physics.engine === 'havok' && H.world && H.world.havok); }
+  /** A big array the physics can tell apart by name (its body is remade when the name changes, without the engine
+   *  writing out every height to compare). */
+  const named = (arr, name) => Object.assign(arr, { name, getClassName: () => 'TerrainData' });
+  /** The ground's collider: a heightfield (in Babylon's order: x from +x to -x by rows, z along each row). Remade
+   *  after edits, four times a second at most. On the old box physics it's only kept (settle() does the work). */
+  function havokShape(t, now) {
+    const time = H.world ? H.world.time : 0;
+    if (t.shapeVersion === t.version || (!now && time - (t.havokAt ?? -1) < 0.25)) return;
+    const first = t.shapeVersion === undefined;
+    t.shapeVersion = t.version; t.havokAt = time;
+    if (!first && H.world) for (const e of H.world.entities) if (e.sleeping && e.physics === 'dynamic') e.wake();
+    const f = t.f, n = f.n, data = new Float32Array(n * n);
+    for (let z = 0; z < n; z++) for (let x = 0; x < n; x++) data[(n - 1 - z) * n + x] = f.y + f.heights[z * n + x];
+    try { H.physics.setShape(t.entity, H.physics.shapes.heightfield({ width: f.size, depth: f.size, rows: n, cols: n, heights: named(data, `terrain-${t.id}-${t.version}`) })); }
     catch (err) { H.report(err, 'terrain'); }
+    trunkShape(t);
   }
+  /** Tree trunks as one static body of cylinders (Havok). */
+  function trunkShape(t) {
+    if (!t.trunks || t.trunkVersion === t.scatter.version) return;
+    t.trunkVersion = t.scatter.version;
+    const parts = [];
+    for (const g of t.scatter.groups) if (g.kind === 'trees') g.pts.forEach((p, i) => {
+      if (!g.alive[i]) return;
+      const y = T.heightAt(t.f, p[0], p[1]) ?? 0, h = 2.6 * p[2];
+      parts.push({ shape: { type: 'cylinder', radius: 0.26 * p[2], height: h }, position: [p[0] - t.cfg.center[0], y + h / 2 - 0.15, p[1] - t.cfg.center[1]] });
+    });
+    t.trunks.physics = parts.length ? 'static' : 'none';
+    if (parts.length) H.physics.setShape(t.trunks, { type: 'compound', parts: named(parts, `trunks-${t.id}-${t.scatter.version}`) });
+  }
+  let ids = 0;
+  H.physics.beforeStep(() => { if (cur && havokReady() && cur.entity && cur.entity.alive) havokShape(cur); });
   /** While asleep on the ground, a thing counts the terrain as holding it up (the old physics' sleep check). */
   function restsOnTerrain(e) {
     if (e._terrainRest) return;
@@ -524,7 +558,7 @@
     // Fog made for a small world would hide a big one: it starts farther out (the world's own setting is kept).
     const sc = w.scene, far = Math.min(900, t.cfg.size * 0.9);
     if (sc.fogMode === B.Scene.FOGMODE_LINEAR && sc.fogEnd < far && !(t.cfg.raw && t.cfg.raw.fog === false)) { sc.fogStart = Math.max(sc.fogStart, far * 0.35); sc.fogEnd = far; }
-    if (havokReady()) { havokShape(t); return; }
+    if (havokReady()) return;
     const G = Math.abs(w.config.gravity ?? -24);
     for (const e of w.entities) {
       if (!e.alive || e.physics !== 'dynamic' || e.remote || e.held || e.sleeping || e.isTerrain || e.ignoreTerrain) continue;
