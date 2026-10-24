@@ -25,7 +25,7 @@ const A = {
   oak: 'a_3360deb351df9daa', pine: 'a_384334cd70168ed9', bush: 'a_04e385dd742d5a28', rocks: 'a_19aebee77f37565e', boulder: 'a_dc56946e844c7904',
   flowers: 'a_a7ed659b5ed36b2f', cottage: 'a_e2926729398f5648', bench: 'a_c26613ea7b560e31', fence: 'a_bed4735621add18b', mailbox: 'a_6f2332b9073bd95c',
   lamp: 'a_38cb16892853ae7e', lantern: 'a_58a1cad3c13eb660', barrel: 'a_31e531682f8104f7', crate: 'a_843a91d54da816bf', duck: 'a_84460c8d4b2e652d',
-  planks: 'a_060f6c6ea7f15e43', oldWood: 'a_1f7765105ca832ed', plate: 'a_d6cd6dd006c8c540',
+  explosion: 'a_36c3b4b30fbf86a5', planks: 'a_060f6c6ea7f15e43', oldWood: 'a_1f7765105ca832ed', plate: 'a_d6cd6dd006c8c540',
 };
 export const SANDBOX_ASSETS: Record<string, string> = {
   '4x4-truck.glb': A.truck, 'speedboat.glb': A.speedboat, 'helicopter.glb': A.heli, 'rocket.glb': A.rocket, 'launch-pad.glb': A.launchpad,
@@ -118,7 +118,9 @@ export const SANDBOX = {
     player: { view: 'third', tools: [] },
     mayhem: { slowmo: true },
     spawn: { play: true, max: 200 },
-    assets: { tree: { ids: [A.oak, A.pine], mix: true }, rock: { ids: [A.rocks, A.boulder], mix: true }, bush: { ids: [A.bush], only: true }, barrel: { ids: [A.barrel], only: true }, crate: { ids: [A.crate], only: true } },
+    assets: { tree: { ids: [A.oak, A.pine], mix: true }, rock: { ids: [A.rocks, A.boulder], mix: true }, bush: { ids: [A.bush], only: true }, barrel: { ids: [A.barrel], only: true }, crate: { ids: [A.crate], only: true },
+      // The blast's sound is the explosion alone: the Overseer's "Destruction is..." voice is labelled "explosion" too, and a word's mix would play it with every blast.
+      explosion: { ids: [A.explosion], only: true } },
     quests: [QUEST],
   },
   entities(): Things {
