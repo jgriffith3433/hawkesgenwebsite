@@ -248,3 +248,17 @@ test('modules on the planet: a cow and a 4x4 from the wheel stand on the far sid
   const s1 = c.speed;
   assert.ok(s0 > 2 && Math.abs(s1 - s0) < 1.5, `still rolling (${s0.toFixed(2)} -> ${s1.toFixed(2)} m/s)`);
 });
+test('things saved far round the planet stay where they are when the world starts somewhere else, and are there when you come', () => {
+  // A crate and a cow 120° round (the world file: on the planet, standing up there), the player at the start.
+  const at = onPlanet(120, 0.5), cowAt = onPlanet(120.002, 0.9);
+  world(H, round({ crate: { type: 'box', name: 'Crate', shape: { size: 1 }, physics: 'dynamic', transform: { position: at } }, cow: { type: 'creature', name: 'Daisy', shape: { species: 'cow' }, transform: { position: cowAt } } }));
+  for (let t = 0; t < 3; t += 1 / 60) H.tick(1 / 60);
+  const crate = H.world.byId.get('crate'), cow = H.world.byId.get('cow');
+  const moved = (e: any, was: number[]) => { const p = F().toPlanet(e.position); return len([p[0] - was[0], p[1] - was[1], p[2] - was[2]]); };
+  assert.ok(moved(crate, at) < 0.01, `the crate rests out there (moved ${moved(crate, at).toFixed(3)} m)`);
+  assert.ok(moved(cow, cowAt) < 0.01, `the cow too (moved ${moved(cow, cowAt).toFixed(3)} m)`);
+  goTo(onPlanet(120.0005, 1), 2);
+  const hc = len(((p) => [p[0], p[1] + R, p[2]])(F().toPlanet([crate.x, crate.bottom, crate.z]))) - R;
+  assert.ok(Math.abs(hc) < 0.1, `there, the crate is on the ground (${hc.toFixed(3)} m)`);
+  assert.ok(cow.alive && Math.abs(H.planet.heightOf([cow.x, cow.bottom, cow.z])) < 0.6, `and the cow stands there (${H.planet.heightOf([cow.x, cow.bottom, cow.z]).toFixed(2)} m)`);
+});
