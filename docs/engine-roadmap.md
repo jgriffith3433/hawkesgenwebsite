@@ -79,14 +79,45 @@ Rules for every workstream:
 - Tell the assistant: your doc section, and examples in words ("drive the 4x4 up the mountain" → which ops/scripts).
 - Tests: scenarios in the engine tests; `npm run typecheck` and `npm test` green.
 
-### Phase 3 — Limitless (one session, after A–F)
+### Integration (after A–F)
 
-- The assistant: one prompt can combine everything ("an island with a volcano, a boat, 20 penguins and a fishing
-  contest"); it reaches for community things and offers to make what's missing (credits).
-- A spawn menu in build mode: every kind, vehicle, creature, tool and world feature by category, searchable.
-- Templates that show it off: Mayhem playground, Mountain off-road, Fishing lake, Dream house, Island adventure.
-- Studio playtest scenarios for each (`window.hawkesPlaytest`) so beta checks catch regressions.
-- Performance pass on a phone; the codex and the landing page show what's possible.
+One animal system (living owns animals; mayhem uses it), core hooks (`H.hooks.game`, one `explosion` event, the shared
+`H.use` E-key registry, `H.audio.master`, physics fixes), terrain over an existing ground, no paid AI friend talk (J:
+not for now; friends use the free phrasebook), and **assets by id** (J: "pass ids around"): the bundle carries Gen
+asset ids, words are labels (`config.assets[word] = {ids, mix}`), `H.assets.for(word)` / `pick(word, seed)`, specs
+store the chosen id, using a community item is explicit replace vs variant.
+
+### Phase 3 — Fun (J's picks, 2026-10-23)
+
+J: "make this a fun game people will like playing." Each is a workstream in its own files where it can be; run 3–4 at a
+time (more overloaded the API).
+
+1. **Play before signing up.** The landing page drops you into a live sandbox, no account; sign up to save, build or
+   share, and the session carries over.
+2. **Spawn wheel, 3 layers deep: type → category → asset**, from the kind registry, the community library (ids) and the
+   game's assets. Hold Q (desktop radial), a button and a 3-step sheet on phones, gamepad too.
+3. **Netcode and undo.** Snapshot interpolation (render ~100 ms behind a buffer), prediction and reconciliation for your
+   own player and vehicle, interest management, host hand-off. Undo/redo for world edits; rewind or reset to a world
+   snapshot while playing. (Later option: the room's simulation on the server, since the engine runs headless in Node.)
+4. **Events and quests.** One generic `when → if → do` system in scene.json (triggers, timers, counters, variables,
+   conditions, actions) the assistant writes from words; disasters (tornado, meteor, flood, zombie night) are event
+   actions; quests from NPCs and AI friends run on it. J: the logic kit is the assistant making whatever logic you need,
+   so the engine must make any behavior possible.
+5. **Juice.** Material impact sounds, ragdoll players and creatures, hit-stop, slow-mo, shake, particles, day and night,
+   weather, camera polish. J: "all of it".
+6. **Presence.** Name tags over players, friends, NPCs and pets; speech bubbles; emotes; avatar customization; who's
+   here; friend markers; spectate.
+7. **Sharing and the trailer.** Photo mode, "clip that" (the last 15 s), share links with clips, a cinematic camera
+   (paths, orbit, letterbox) J uses for the demo and trailer.
+8. **Loading speed.** Time-to-first-frame target (~2 s on a phone); load only the modules a world uses; draw distance,
+   culling, LOD for everything, compressed textures, cached Havok wasm, streaming; phone-first budgets that never cap
+   desktop.
+9. **Featured games** (the Overseer's): showcase worlds with quests, NPCs and AI friends as the soul (island adventure,
+   mountain off-road, fishing village, mayhem playground, dream house) and the existing templates upgraded; Studio
+   playtest scenarios for each.
+
+Also: safety for user-made games (chat filter, report/block, checks on what the assistant builds); fun analytics through
+Gen's player analytics; one input layer for touch, keyboard/mouse and gamepad.
 
 ## Process
 

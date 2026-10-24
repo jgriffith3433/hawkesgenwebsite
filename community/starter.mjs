@@ -293,7 +293,7 @@ export function stepsFor(kind, what) {
     case 'model': return [
       { tool: 'image.generate', params: { prompt: `${what}, single object, straight front view, centered, whole object in frame, plain flat light grey background, even light, no shadow, ${STYLE}`, width: 1024, height: 1024, count: 1 }, save: 'front' },
       { tool: 'image.remove-background', inputs: { image: '$prev' }, save: 'cutout' },
-      { tool: 'image.viewsheet', inputs: { image: '$prev' }, params: { form: 'prop', cell: 1024, retries: 2 }, save: 'views' },
+      { tool: 'image.viewsheet', inputs: { image: '$step2:cutout' }, params: { form: 'prop', cell: 1024, retries: 4, look: what }, save: 'views' },
       { tool: 'mesh.views3d', inputs: { image: '$step3:sheet' }, save: 'raw' },
       { tool: 'blender.character', inputs: { files: ['$step4:mesh'] }, params: { ops: [{ op: 'import', file: 0, clips: false }, { op: 'fix', shards: 0.02, holes: 24 }, { op: 'retopo', faces: 12000 }, { op: 'bake', size: 2048 }, { op: 'lod', levels: [0.15], compress: 'draco', textures: 'webp' }, { op: 'export', format: 'glb', title: 'high', compress: 'draco', textures: 'webp' }] }, save: 'model' },
     ];

@@ -13,12 +13,13 @@ const STARTER = 'usr_00000000000000c0';
 const assets: any[] = [];
 let clock = 1_000;
 const put = (a: any) => assets.unshift({ project: STARTER, tool: 'asset.make', created: ++clock, ...a });
-const labels = (kind: string, tag: string, name: string, words = '') => ({ pack: 'starter', community: true, kind, tag, tags: `${tag} ${words}`.trim(), name, item: name.toLowerCase().replace(/[^a-z0-9]+/g, '-') });
+const labels = (kind: string, tag: string, name: string, words = '') => ({ pack: 'starter', community: true, kind, tag, tags: `${tag} ${words}`.trim(), name, item: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), rev: 'v3' });
 
 // A model (concept, cutout, the raw mesh and the two exported GLBs), a song saved as several files, a sky, a texture.
 const crate = labels('model', 'props', 'Wooden crate', 'box container');
 put({ id: 'a_m1', job: 'j_crate', title: 'front', mime: 'image/png', labels: crate });
-put({ id: 'a_m2', job: 'j_crate', title: 'cutout', mime: 'image/png', labels: crate });
+put({ id: 'a_m2', job: 'j_crate', title: 'cutout.cutout', mime: 'image/png', labels: crate });
+put({ id: 'a_m2b', job: 'j_crate', title: 'cutout.mask', mime: 'image/png', labels: crate });
 put({ id: 'a_m3', job: 'j_crate', title: 'raw.save-3d-advanced', mime: 'model/gltf-binary', bytes: 5_000_000, labels: crate });
 put({ id: 'a_m4', job: 'j_crate', title: 'model.lod1', mime: 'model/gltf-binary', bytes: 80_000, labels: crate });
 put({ id: 'a_m5', job: 'j_crate', title: 'model.high', mime: 'model/gltf-binary', bytes: 900_000, labels: crate });
@@ -61,7 +62,7 @@ test('every page is read: things filed long ago are listed even past the first 5
   assert.equal(community.search({ q: 'crate' }).items[0]?.title, 'Wooden crate');
 });
 
-test('a model: the exported high GLB, its LOD as the low copy, the cut-out as its picture; never the raw mesh', () => {
+test('a model: the exported high GLB, its LOD as the low copy, the cut-out (not its mask) as its picture; never the raw mesh', () => {
   const crate = community.search({ q: 'crate' }).items[0];
   assert.equal(crate.id, 'a_m5');
   assert.equal(crate.low, true);
@@ -123,4 +124,16 @@ test('the pack itself: sound data, five in each category, and the recipes tools/
   assert.equal(model.steps.at(-1).save, 'model');
   assert.equal(paramsFor('sfx', 'a click').candidates, undefined);
   assert.equal(paramsFor('music', 'calm piano').steps[0].tool, 'audio.music');
+});
+
+test('3D models from before the fixed recipe are never listed, and ones already listed are withdrawn', async () => {
+  // A v2 model (built from the cut-out's mask, before Gen's views3d crop fix) that an older sync had listed.
+  const old = { ...labels('model', 'nature', 'Old oak', 'tree'), rev: 'v2' };
+  db.prepare("INSERT INTO community_assets (id, project, kind, mime, title, tags, category, item, source, created) VALUES ('a_old1', ?, 'model', 'model/gltf-binary', 'Old oak', 'tree', 'nature', 'model/old-oak', 'starter', 1)").run(STARTER);
+  put({ id: 'a_old2', job: 'j_old', title: 'model.high', mime: 'model/gltf-binary', bytes: 500_000, labels: old });
+  const r = await community.syncStarter();
+  assert.ok(r.withdrawn >= 1);
+  assert.equal(community.search({ q: 'old oak' }).total, 0, 'neither the listed one nor the new old-recipe one shows');
+  assert.ok(community.search({ q: 'crate' }).total >= 1, 'v3 models stay');
+  assert.equal(community.search({ kind: 'music', exact: true }).total, 1, 'other kinds are untouched');
 });
