@@ -49,7 +49,8 @@
     const w = W();
     if (!w || !w.player || w._overseerKept || screenless() || H.hooks.codex) return false;
     const p = policy();
-    if (!p || !G() || !G().cinematic || autoplayShot()) return false;
+    // The camera work is the share module's (game.cinematic); it may load a moment later (lazy), so it isn't asked here.
+    if (!p || !G() || autoplayShot()) return false;
     if (p === 'always') return true;
     return !seen() && !playedThisPage;
   }
@@ -142,7 +143,11 @@
     enter(w) {
       if (!wanted()) return;
       // A moment after the world starts (every module's set up, the player is in place).
-      setTimeout(() => { if (W() === w && wanted()) play().catch((e) => H.report(e, 'intro')); }, 120);
+      setTimeout(async () => {
+        if (W() !== w || !wanted()) return;
+        if (!G().cinematic && window.HawkesModules && HawkesModules.ensure) await HawkesModules.ensure('share').catch(() => {});
+        if (W() === w && wanted() && G() && G().cinematic) play().catch((e) => H.report(e, 'intro'));
+      }, 120);
     },
     leave() { playing = null; },
   });

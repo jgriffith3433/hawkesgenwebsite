@@ -115,11 +115,11 @@ void main(void) {
   // Where this point is on the flat world (the sphere's top is under the camera).
   float th = acos(clamp(N.y, -1.0, 1.0));
   vec2 dir = length(N.xz) > 1e-6 ? normalize(N.xz) : vec2(1.0, 0.0);
-  vec2 flat = camFlat.xy + dir * th * R;
-  float n = fbm(flat / 9000.0 + vec2(3.7, 1.3));
+  vec2 fp = camFlat.xy + dir * th * R;
+  float n = fbm(fp / 9000.0 + vec2(3.7, 1.3));
   float sl = mix(0.72, 0.3, look.x);
   // The local world: its land (a terrain) or its sea, then the planet's own continents farther out.
-  float ld = length(flat - localW.xy);
+  float ld = length(fp - localW.xy);
   if (localW.w > 1.5) n = mix(sl - 0.1, n, smoothstep(2500.0, 6000.0, ld));
   if (localW.w > 0.5 && localW.w < 1.5) { float isl = 1.0 - smoothstep(localW.z * 0.7, localW.z * 1.1, ld); n = mix(mix(sl - 0.08, n, smoothstep(localW.z * 1.2, localW.z * 8.0, ld)), sl + 0.12, isl); }
   float landK = smoothstep(sl - 0.01, sl + 0.01, n);
@@ -127,7 +127,7 @@ void main(void) {
   vec3 lc = mix(sand, land, smoothstep(0.0, 0.08, hgt));
   lc = mix(lc, rock, smoothstep(0.45, 0.7, hgt) * 0.7);
   lc = mix(lc, snow, smoothstep(0.7, 0.85, hgt) + smoothstep(0.82, 0.95, abs(N.y)) * 0.0);
-  lc *= 0.85 + 0.3 * n2(flat / 700.0);
+  lc *= 0.85 + 0.3 * n2(fp / 700.0);
   vec3 wc = mix(sea * 0.55, sea, smoothstep(sl - 0.18, sl, n));
   vec3 c = mix(wc, lc, landK);
   // Light: the sun on this side, the night on the other; the sea's glint.
@@ -139,7 +139,7 @@ void main(void) {
   // Lava glows by itself.
   c += sea * (1.0 - landK) * look.w * 0.8;
   // Clouds (from above: they fade in as you climb).
-  float cn = fbm(flat / 3600.0 + vec2(look.z * 0.004, look.z * 0.0015));
+  float cn = fbm(fp / 3600.0 + vec2(look.z * 0.004, look.z * 0.0015));
   float cl = smoothstep(1.0 - look.y * 0.75, 1.0 - look.y * 0.75 + 0.18, cn) * smoothstep(400.0, 2500.0, lightv.y);
   c = mix(c, vec3(0.95) * (0.08 + 0.92 * lit * lightv.x), cl * 0.9);
   // The haze: far parts fade into the sky (or the world's fog) near the horizon.
