@@ -34,9 +34,15 @@
   const myId = () => (H.sync && H.sync.online && H.sync.me ? H.sync.me : 'local');
   const isMe = (who) => who === 'local' || (who && H.sync && who === H.sync.me);
 
-  /** True when this player simulates the vehicle: the driver does; with no driver (or an NPC at the wheel) the host. */
+  const havokOn = () => H.physics.engine === 'havok' && Boolean(W() && W().havok);
+  /** Its pose travels with the engine's own sync (a scene thing with a real body), or with ours. */
+  const engineSynced = (v) => Boolean(v.e.sceneId) && v.e.physics === 'dynamic';
+
+  /** True when this player simulates the vehicle: the driver does (they take it over when they get in); with no driver
+   *  (or an NPC at the wheel) the host. */
   function simulatedByMe(v) {
     if (!H.sync || !H.sync.online) return true;
+    if (engineSynced(v)) return H.sync.mine(v.e);
     const d = v.seats[0] && v.seats[0].who;
     if (d && d !== 'npc') return isMe(d);
     return H.sync.isHost;
@@ -122,6 +128,7 @@
     d.seats = base.seats.map((x) => ({ ...x, at: S(x.at) }));
     d.eye = S(base.eye || [0, 1, 0]);
     d.contacts = base.contacts ? base.contacts.map(S) : null;
+    d.collider = (base.collider || [{ size: base.size, at: [0, 0, 0] }]).map((c) => ({ size: S(c.size), at: S(c.at) }));
     d.cam = { ...base.cam, distance: base.cam.distance * Math.max(1, s * 0.8), height: base.cam.height * Math.max(1, s * 0.8) };
     d.engine = { ...base.engine };
     if (Number(sh.speed) > 0) d.engine.top = Number(sh.speed);
@@ -135,13 +142,15 @@
     return d;
   }
 
-  function buildVehicle(type, sh, o, spec) {
+  function buildVehicle(type, sh, o, spec, kindName = type) {
     const w = W();
     const scene = w.scene;
     const def = tuned(type, sh || {}, typeof o.scale === 'number' ? o.scale : sh && sh.scale);
     const root = new B.TransformNode(type, scene);
-    const phys = o.physics === 'static' || o.physics === 'none' ? o.physics : 'kinematic';
-    const e = new L.Entity(root, { ...o, physics: phys, mass: def.mass, scale: undefined }, type);
+    // A real body on Havok (dynamic: it crashes, tumbles and is thrown like anything else, its wheels and engine
+    // driving it); on the first physics a kinematic one this file moves itself.
+    const phys = o.physics === 'static' || o.physics === 'none' ? o.physics : havokOn() ? 'dynamic' : 'kinematic';
+    const e = new L.Entity(root, { ...o, physics: phys, mass: def.mass, scale: undefined }, kindName);
     const color = o.color || (spec && spec.material && spec.material.color) || def.color;
     const mats = V.materials(scene, color);
     e._mat = mats.paint;
@@ -215,6 +224,9 @@
     v.euler = root.rotation.clone();
     v.posW = root.position.clone();
     for (const p of [...ctx.made, ...wheels.map((x) => x.tire)]) p.metadata = p.metadata && p.metadata.decor ? p.metadata : { entity: e };
+    // Its collider: the body (wheels are rays, not colliders), as boxes.
+    const parts = def.collider.map((c) => ({ shape: { type: 'box', size: c.size }, position: c.at }));
+    H.physics.setShape(e, parts.length === 1 && !parts[0].position.some(Boolean) ? parts[0].shape : H.physics.shapes.compound(parts));
     if (sh && (sh.model || sh.asset)) wearModel(v, String(sh.model || sh.asset), sh, o);
     const w2 = W();
     if (!w2.vehicles) w2.vehicles = new Set();
@@ -267,7 +279,7 @@
   // ------------------------------------------------------------------ what scripts can do with a vehicle entity
   function vehicleApi(e, v) {
     Object.defineProperties(e, {
-      velocity: { get: () => [v.vel.x, v.vel.y, v.vel.z], set: (x) => { const p = L.vec(x); v.vel.set(p[0], p[1], p[2]); wake(v); }, configurable: true },
+      velocity: { get: () => [v.vel.x, v.vel.y, v.vel.z], set: (x) => { const p = L.vec(x); v.vel.set(p[0], p[1], p[2]); if (havokOn()) { e.vx = p[0]; e.vy = p[1]; e.vz = p[2]; e._wakeBody = true; e.sleeping = false; } wake(v); }, configurable: true },
       speed: { get: () => v.vel.length(), configurable: true },
       driver: { get: () => seatHolder(v.seats[0]), configurable: true },
       riders: { get: () => v.seats.map(seatHolder).filter(Boolean), configurable: true },
@@ -276,8 +288,10 @@
       wrecked: { get: () => v.wrecked, configurable: true },
       autopilot: { get: () => v.autopilot, set: (x) => { v.autopilot = x || null; wake(v); }, configurable: true },
     });
-    e.push = (x) => { const p = L.vec(x); v.vel.addInPlaceFromFloats(p[0], p[1], p[2]); wake(v); return e; };
-    e.impulse = (x, at) => { const p = v3(x); applyImpulse(v, p, at ? v3(at).subtract(e.node.position) : B.Vector3.Zero()); wake(v); return e; };
+    // Kicks land in the vehicle's own step (on Havok after it reads the body, so nothing is lost).
+    const kick = (J, r) => { (v.pending || (v.pending = [])).push([J, r]); wake(v); if (havokOn()) { e.sleeping = false; e._wakeBody = true; } else { applyPending(v); } };
+    e.push = (x) => { const p = v3(x); kick(p.scale(v.mass), B.Vector3.Zero()); return e; };
+    e.impulse = (x, at) => { kick(v3(x), at ? v3(at).subtract(e.node.position) : B.Vector3.Zero()); return e; };
     e.force = (x) => { const p = L.vec(x); (v.extForce || (v.extForce = new B.Vector3())).addInPlaceFromFloats(p[0], p[1], p[2]); wake(v); return e; };
     e.enter = (o) => V.enter(e, o);
     e.exit = () => V.exit();
@@ -314,6 +328,11 @@
     const inv = v.Iinv || (v.Iinv = invInertia(v));
     const lx = B.Vector3.Dot(x, v.right) * inv.x, ly = B.Vector3.Dot(x, v.up) * inv.y, lz = B.Vector3.Dot(x, v.fwd) * inv.z;
     return v.right.scale(lx).addInPlace(v.up.scale(ly)).addInPlace(v.fwd.scale(lz));
+  }
+  function applyPending(v) {
+    const list = v.pending;
+    v.pending = null;
+    if (list) for (const [J, r] of list) applyImpulse(v, J, r);
   }
   function applyImpulse(v, J, r) {
     if (!v.M) { v.pos = v.e.node.position.clone(); axes(v); }
@@ -354,7 +373,8 @@
     n.rotation.copyFrom(eul);
     v.euler = eul.clone();
     v.posW = v.pos.clone();
-    v.e.measure();
+    if (havokOn() && v.e.physics === 'dynamic') { v.e.vx = v.vel.x; v.e.vy = v.vel.y; v.e.vz = v.vel.z; v.e.angularVelocity = [v.w.x / RAD, v.w.y / RAD, v.w.z / RAD]; v.e.sleeping = false; v.e._wakeBody = true; }
+    else v.e.measure();
   }
 
   // ------------------------------------------------------------------ input: the driver's, an autopilot's, or nothing
@@ -377,23 +397,21 @@
 
   // ------------------------------------------------------------------ one step of one vehicle
   function simulate(v, dt) {
-    const e = v.e, D = v.def;
-    if (e.held || e.physics === 'static' || e.physics === 'none') { v.vel.setAll(0); v.w.setAll(0); e.vx = e.vy = e.vz = 0; v.euler = null; return; }
-    readPose(v);
+    const e = v.e;
+    if (e.held || e.physics === 'static' || e.physics === 'none') { v.vel.setAll(0); v.w.setAll(0); if (e.physics !== 'dynamic') { e.vx = e.vy = e.vz = 0; } v.euler = null; return; }
+    if (havokOn() && e.physics === 'dynamic') simulateHavok(v, dt);
+    else simulateOwn(v, dt);
+  }
+
+  /** The forces of one step (wheels, water, wings, rotor, engine, controls) into v.F and v.T, and spin steering into
+   *  v.w. Gravity only when this file integrates (Havok adds its own). Returns the wheels on the ground. */
+  function forces(v, dt, withGravity) {
+    const D = v.def;
     const g = gravity();
-    const occupied = v.seats.some((s) => s.who);
-    if (v.sleeping) {
-      if (occupied || v.autopilot || v.extForce) wake(v);
-      else if ((v.sleepProbe = (v.sleepProbe || 0) + dt) > 0.5) {
-        v.sleepProbe = 0;
-        if (!cast(v, v.pos, new B.Vector3(0, -1, 0), V.restHeight(D) + 0.4)) wake(v);
-      }
-      if (v.sleeping) return;
-    }
     axes(v);
     v.Iinv = v.Iinv || invInertia(v);
     v.com = v.pos.add(v.up.scale(D.class === 'wheeled' ? -D.size[1] * 0.35 : 0));
-    v.F = new B.Vector3(0, v.mass * g, 0);
+    v.F = new B.Vector3(0, withGravity ? v.mass * g : 0, 0);
     v.T = new B.Vector3(0, 0, 0);
     if (v.extForce) { v.F.addInPlace(v.extForce); v.extForce = null; }
     const inp = inputOf(v);
@@ -402,11 +420,11 @@
     v.boosting = Boolean(inp.boost) && v.boostFuel > 0.02 && !v.wrecked;
     v.boostFuel = clamp(v.boostFuel + (v.boosting ? -0.32 : 0.14) * dt, 0, 1);
     if (v.horn && v.hornUntil && W().time > v.hornUntil) { v.horn = false; v.hornUntil = 0; }
-
     // Wheels (cars, trucks, bikes, the airplane's landing gear).
     let contacts = 0;
     if (v.wheels.length) contacts = wheelForces(v, inp, dt, g);
     v.grounded = contacts > 0;
+    if (!v.wheels.length) v.grounded = Boolean(cast(v, v.pos, new B.Vector3(0, -1, 0), V.restHeight(D) + 0.25));
     // Water: things float (boats well, cars a little), water slows everything in it.
     buoyancy(v, dt, g);
     // What each class does with its input.
@@ -418,36 +436,87 @@
     // A little air drag.
     const sp = v.vel.length();
     if (sp > 0.01) v.F.addInPlace(v.vel.scale(-v.mass * 0.0012 * sp));
-
-    // Integrate: velocity, spin.
+    return contacts;
+  }
+  function integrate(v, dt, damping) {
     v.vel.addInPlace(v.F.scale(dt / v.mass));
     v.w.addInPlace(iinv(v, v.T).scale(dt));
-    v.w.scaleInPlace(Math.max(0, 1 - dt * (v.grounded ? 0.8 : 0.35)));
+    v.w.scaleInPlace(Math.max(0, 1 - dt * damping));
     if (v.w.length() > 12) v.w.normalize().scaleInPlace(12);
     if (v.vel.length() > 160) v.vel.normalize().scaleInPlace(160);
+  }
+  /** Upside down and stuck: it rights itself after a moment (R does it at once). */
+  function selfRight(v, dt) {
+    if (!(v.seats.some((s) => s.who) || v.autopilot)) return;
+    if (v.up.y < 0.25 && v.vel.length() < 2 && !(v.def.class === 'sub' && v.submerged > 0.5)) { v.flipT += dt; if (v.flipT > 2.5) flipUpright(v); } else v.flipT = 0;
+  }
+  const occupiedOf = (v) => v.seats.some((s) => s.who);
 
+  /** On Havok: read the body, work out the step's forces, give the body its new velocity and spin. Havok moves it and
+   *  does every collision (walls, ramps, crates, other vehicles, explosions). */
+  function simulateHavok(v, dt) {
+    const e = v.e, n = e.node;
+    const busy = occupiedOf(v) || v.autopilot || v.pending || v.extForce;
+    if (v.sleeping) {
+      if (busy || !e.sleeping) wake(v);
+      else return;
+    }
+    v.pos = n.position.clone();
+    v.q = B.Quaternion.FromEulerAngles(n.rotation.x, n.rotation.y, n.rotation.z);
+    v.vel.set(e._v[0], e._v[1], e._v[2]);
+    // A sudden change from what it was given last step is a crash (a wall, a hard landing, something hitting it).
+    if (v.gave && !v.sleeping) { const dv = v.vel.subtract(v.gave).length(); if (dv > 7) crash(v, dv, null, null); }
+    const av = e.angularVelocity;
+    v.w.set(av[0] * RAD, av[1] * RAD, av[2] * RAD);
+    v.M = null;
+    axes(v);
+    applyPending(v);
+    forces(v, dt, false);
+    integrate(v, dt, v.grounded ? 0.5 : 0.1);
+    selfRight(v, dt);
+    // Parked and still: the body sleeps (and wakes when something hits it).
+    const still = !busy && v.vel.length() < 0.08 && v.w.length() < 0.08 && v.grounded;
+    v.still = still ? v.still + dt : 0;
+    if (v.still > 0.6) { v.sleeping = true; v.gave = null; v.vel.setAll(0); v.w.setAll(0); e.vx = 0; e.vy = 0; e.vz = 0; e.angularVelocity = [0, 0, 0]; e.sleep(); return; }
+    e.vx = v.vel.x; e.vy = v.vel.y; e.vz = v.vel.z;
+    e.angularVelocity = [v.w.x / RAD, v.w.y / RAD, v.w.z / RAD];
+    v.gave = v.vel.clone();
+    v.euler = null;
+  }
+
+  /** Without Havok: this file integrates the body itself and does its own collisions (kinematic to the engine). */
+  function simulateOwn(v, dt) {
+    const e = v.e;
+    readPose(v);
+    if (v.sleeping) {
+      if (occupiedOf(v) || v.autopilot || v.extForce || v.pending) wake(v);
+      else if ((v.sleepProbe = (v.sleepProbe || 0) + dt) > 0.5) {
+        v.sleepProbe = 0;
+        if (!cast(v, v.pos, new B.Vector3(0, -1, 0), V.restHeight(v.def) + 0.4)) wake(v);
+      }
+      if (v.sleeping) return;
+    }
+    axes(v);
+    applyPending(v);
+    forces(v, dt, true);
+    integrate(v, dt, v.grounded ? 0.8 : 0.35);
     // Move, stopping at walls (and sliding along them).
     moveAgainstWalls(v, dt);
     // Turn.
     const wl = v.w.length();
     if (wl > 1e-6) { const dq = B.Quaternion.RotationAxis(v.w.scale(1 / wl), wl * dt); v.q = dq.multiply(v.q); v.q.normalize(); }
     axes(v);
-    v.com = v.pos.add(v.up.scale(D.class === 'wheeled' ? -D.size[1] * 0.35 : 0));
+    v.com = v.pos.add(v.up.scale(v.def.class === 'wheeled' ? -v.def.size[1] * 0.35 : 0));
     // The hull against the ground: landings, rolling over, scraping.
     const hullHit = hullContacts(v, dt);
     v.grounded = v.grounded || hullHit;
     // Loose things in the way are thrown; other vehicles bump.
     pushThings(v, dt);
     bumpVehicles(v, dt);
-
-    // Upside down and stuck: it rights itself after a moment (R does it at once).
-    if (occupied || v.autopilot) {
-      if (v.up.y < 0.25 && v.vel.length() < 2 && !(D.class === 'sub' && v.submerged > 0.5)) { v.flipT += dt; if (v.flipT > 2.5) flipUpright(v); } else v.flipT = 0;
-    }
+    selfRight(v, dt);
     // Fell out of the world: back where it started.
     if (v.pos.y < (W().catchY ?? -25)) { caughtVehicle(v); return; }
-    // Asleep when parked and still.
-    const still = !occupied && !v.autopilot && v.vel.length() < 0.06 && v.w.length() < 0.06 && v.grounded;
+    const still = !occupiedOf(v) && !v.autopilot && v.vel.length() < 0.06 && v.w.length() < 0.06 && v.grounded;
     v.still = still ? v.still + dt : 0;
     if (v.still > 0.6) { v.sleeping = true; v.vel.setAll(0); v.w.setAll(0); }
     e.vx = e.vy = e.vz = 0;
@@ -480,7 +549,7 @@
     const spd = Math.abs(fwdSpeed);
     const want = inp.x * D.steer * RAD / (1 + spd / (D.twoWheels ? 14 : 20));
     v.steer += (want - v.steer) * Math.min(1, dt * 8);
-    const parking = throttle === 0 && brake === 0 && spd < 0.6 && !plane;
+    const parking = throttle === 0 && brake === 0 && spd < 0.6 && (!plane || v.throttle < 0.05);
     let count = 0;
     v.loadSum = 0;
     for (const w of v.wheels) {
@@ -513,14 +582,16 @@
       if (brake > 0) lon += -Math.sign(vlong) * Math.min(Math.abs(vlong) * per / dt, v.mass * 30 * brake / n);
       if (handbrake && w.rear) lon = -vlong * per / dt * 0.3;
       else if (parking) lon = -vlong * per / dt * 0.6;
-      else lon += -vlong * per * (throttle === 0 ? 0.5 : 0.08);
+      else lon += -vlong * per * (plane ? 0.02 : throttle === 0 ? 0.5 : 0.08); // (a plane's wheels roll free)
       const mag = Math.hypot(lat, lon);
       if (mag > maxF && mag > 0) { lat *= maxF / mag; lon *= maxF / mag; }
       addForceAt(v, v.up.scale(fs).addInPlace(sg.scale(lat)).addInPlace(fg.scale(lon)), hit.point);
       w.slip = Math.abs(vlat) > 3 || (handbrake && w.rear && spd > 4);
       w.spinRate = vlong / w.r;
       // Light loose things under a wheel are kicked aside (heavy ones carry the weight).
-      if (hit.entity && hit.entity.physics === 'dynamic' && !hit.entity.remote) hit.entity.wake();
+      // What it stands on takes its weight (a plank, a seesaw, another vehicle's roof).
+      const under = hit.entity;
+      if (under && under.physics === 'dynamic' && !under.remote && havokOn() && under !== v.e) under.impulse([-v.up.x * fs * dt, -v.up.y * fs * dt, -v.up.z * fs * dt], [hit.point.x, hit.point.y, hit.point.z]);
     }
     v.throttleNow = throttle;
     return count;
@@ -543,9 +614,9 @@
       const pitch = Math.asin(clamp(v.fwd.y, -1, 1));
       if (contacts === 0 && Math.abs(pitch) > 0.9) steerRate(v, v.right, Math.sign(pitch) * 2, 4, dt);
     } else if (contacts > 0) {
-      // Four wheels: settle the roll so it corners flat-ish.
-      const rollRate = B.Vector3.Dot(v.w, v.fwd);
-      v.w.addInPlace(v.fwd.scale(-rollRate * Math.min(1, dt * 2)));
+      // Four wheels: anti-roll, so it corners flat-ish (and doesn't trip over itself).
+      const phi = Math.asin(clamp(v.right.y, -1, 1));
+      steerRate(v, v.fwd, -phi * 3, 2, dt);
     }
     // Space on a bicycle hops.
     if (D.hop && inp.brake && contacts > 0 && !v.hopped) { v.vel.addInPlace(v.up.scale(D.hop)); v.hopped = true; }
@@ -578,13 +649,15 @@
       const frac = Math.min(1, depth / h);
       sub += frac / pts.length;
       addForceAt(v, new B.Vector3(0, v.mass * Math.abs(g) * floatK * frac / pts.length, 0), P);
+      // Bobbing settles (up and down at each point: it also stops rocking).
       const vp = pointVel(v, P);
-      addForceAt(v, vp.scale(-v.mass * 1.1 * frac / pts.length), P);
+      addForceAt(v, new B.Vector3(0, -vp.y * v.mass * 2.2 * frac / pts.length, 0), P);
     }
     v.submerged = sub;
     v.nearWater = any;
     if (sub > 0.02) {
-      v.F.addInPlace(v.vel.scale(-v.mass * 0.4 * sub));
+      // Water drag: hulls are made to slip through it, everything else wallows.
+      v.F.addInPlace(v.vel.scale(-v.mass * (D.class === 'boat' ? 0.08 : D.class === 'sub' ? 0.25 : 0.8) * sub));
       // Water keeps a hull upright.
       const axis = B.Vector3.Cross(v.up, UP);
       v.w.addInPlace(axis.scale(Math.min(1, dt * 3 * sub * (D.class === 'boat' || D.class === 'sub' ? 3 : 1))));
@@ -675,15 +748,19 @@
     const effv = clamp(speed / 15, 0, 1);
     const pitchIn = onGround && fwdSpeedNow < 18 ? 0 : -inp.y;
     const beta = Math.atan2(vb.x, Math.max(1, vf));
-    let rx = -pitchIn * 1.5 * eff + alpha * 1.2 * effv;   // around right: + is nose down
+    // Pulling up eases off near the stall (it still stalls when slow: gravity wins).
+    const guard = pitchIn > 0 ? clamp((stall - alpha) / stall * 1.5, 0.15, 1) : 1;
+    let rx = -pitchIn * 0.9 * eff * guard + alpha * 1.2 * effv;   // around right: + is nose down
     let ry = beta * 2 * effv;                               // around up: toward where it's going
-    let rz = -inp.x * 2.6 * eff;                            // around forward: - rolls right
+    let rz = -inp.x * 1.7 * eff;                            // around forward: - rolls right
+    // Let go of the roll and it levels its wings, gently.
+    if (Math.abs(inp.x) < 0.1) rz += Math.asin(clamp(-v.right.y, -1, 1)) * 0.9 * eff;
     if (v.stalled) { rx += 1.0; rz += Math.sin(W().time * 3) * 0.4; }
     if (!onGround) {
       // Bank turns it: a coordinated turn's yaw from the roll.
       ry += -Math.asin(clamp(v.right.y, -1, 1)) * 0.6 * eff;
       steerRate(v, v.right, rx, 5, dt); steerRate(v, v.up, ry, 4, dt); steerRate(v, v.fwd, rz, 5, dt);
-    } else if (fwdSpeedNow >= 18 && pitchIn > 0.05) steerRate(v, v.right, -pitchIn * 1.2 * eff, 4, dt);
+    } else if (fwdSpeedNow >= 18 && pitchIn > 0.05) steerRate(v, v.right, -pitchIn * 0.6 * eff, 4, dt);
   }
 
   function heliControl(v, inp, dt, g) {
@@ -693,16 +770,16 @@
     const flown = (v.seats[0].who || v.autopilot) && !v.wrecked;
     v.spool = clamp(v.spool + (flown ? dt / 2 : -dt / 4), 0, 1);
     const hover = G / (2 * G * Math.max(0.5, v.up.y));
-    let c = hover - v.vel.y * 0.05;
-    if (inp.up) c = hover + 0.38;
-    else if (inp.down) c = hover - 0.38;
+    let c = hover - v.vel.y * 0.12;
+    if (inp.up) c = hover + 0.28;
+    else if (inp.down) c = hover - 0.3;
     if (v.grounded && !inp.up) c = Math.min(c, hover * 0.6);
     v.collective = clamp(c, 0, 1);
     v.F.addInPlace(v.up.scale(v.mass * 2 * G * v.collective * v.spool));
     // Drag, more so sideways and up and down.
     const h = new B.Vector3(v.vel.x, 0, v.vel.z);
     v.F.addInPlace(h.scale(-v.mass * (v.boosting ? 0.25 : 0.38)));
-    v.F.y -= v.vel.y * v.mass * 0.6;
+    v.F.y -= v.vel.y * v.mass * 0.9;
     // Attitude: W tips the nose down and you fly forward; A/D turn; no input levels it.
     const tilt = (v.boosting ? 35 : 24) * RAD;
     const pitchDown = Math.asin(clamp(-v.fwd.y, -1, 1));
@@ -943,7 +1020,12 @@
       if (!v.M) { v.pos = c.clone(); axes(v); }
       const kick = dir.scale(force * k * 1.1 * v.mass);
       const lever = p.subtract(c).normalize().scale(-0.6 * Math.max(...v.def.size) / 2);
-      applyImpulse(v, kick, new B.Vector3(lever.x, lever.y, lever.z));
+      // (On Havok, H.physics.explode already kicked the body: only the damage is ours then.)
+      if (!(o._fromExplode && havokOn() && v.e.physics === 'dynamic')) {
+        (v.pending || (v.pending = [])).push([kick, new B.Vector3(lever.x, lever.y, lever.z)]);
+        v.e.sleeping = false; v.e._wakeBody = true;
+        if (!havokOn() || v.e.physics !== 'dynamic') applyPending(v);
+      }
       wake(v);
       if (dmg) hurtVehicle(v, dmg * k * 1.4);
     }
@@ -951,7 +1033,7 @@
   }
   if (H.physics && typeof H.physics.explode === 'function' && !H.physics.explode.__vehicles) {
     const orig = H.physics.explode;
-    H.physics.explode = function (at, o) { const r = orig.call(this, at, o); try { blast(at, o || {}); } catch (err) { H.report(err, 'vehicles'); } return r; };
+    H.physics.explode = function (at, o) { const r = orig.call(this, at, o); try { blast(at, { ...(o || {}), _fromExplode: true }); } catch (err) { H.report(err, 'vehicles'); } return r; };
     H.physics.explode.__vehicles = true;
   }
 
@@ -1025,9 +1107,9 @@
   function snapshot(v) {
     const p = v.e.node.position;
     const q = v.q;
+    const pose = engineSynced(v) ? {} : { p: [r3(p.x), r3(p.y), r3(p.z)], q: [r4(q.x), r4(q.y), r4(q.z), r4(q.w)], v: [r2(v.vel.x), r2(v.vel.y), r2(v.vel.z)], w: [r2(v.w.x), r2(v.w.y), r2(v.w.z)] };
     return {
-      p: [r3(p.x), r3(p.y), r3(p.z)], q: [r4(q.x), r4(q.y), r4(q.z), r4(q.w)],
-      v: [r2(v.vel.x), r2(v.vel.y), r2(v.vel.z)], w: [r2(v.w.x), r2(v.w.y), r2(v.w.z)],
+      ...pose,
       s: v.seats.map((s) => s.who || 0), l: v.lights ? 1 : 0, h: v.horn ? 1 : 0, b: v.boosting ? 1 : 0,
       st: r2(v.steer), t: r2(v.throttleNow || v.throttle || 0), sp: r2(v.spool), hp: Math.round(v.health), x: v.wrecked ? 1 : 0,
     };
@@ -1050,7 +1132,7 @@
   /** Each frame: vehicles someone else simulates glide to where they say (a little ahead, by their speed). */
   function followRemote(v, dt) {
     const n = v.net;
-    if (!n) return;
+    if (!n) { const fs = B.Vector3.Dot(new B.Vector3(v.e._v ? v.e._v[0] : 0, v.e._v ? v.e._v[1] : 0, v.e._v ? v.e._v[2] : 0), B.Vector3.TransformNormal(B.Axis.Z, v.e.node.getWorldMatrix()).normalize()); for (const w of v.wheels) w.spinRate = fs / w.r; return; }
     const n2 = v.e.node;
     const ahead = Math.min(0.25, (performance.now() - n.at) / 1000);
     const target = n.p.add(n.v.scale(ahead));
@@ -1062,7 +1144,7 @@
     v.euler = n2.rotation.clone();
     v.posW = n2.position.clone();
     v.pos = n2.position.clone();
-    if ((v.measureT = (v.measureT || 0) + dt) > 0.1) { v.measureT = 0; v.e.measure(); }
+    if (!havokOn() && (v.measureT = (v.measureT || 0) + dt) > 0.1) { v.measureT = 0; v.e.measure(); }
     // Wheels roll by its speed.
     axes(v);
     const fs = B.Vector3.Dot(v.vel, v.fwd);
@@ -1087,7 +1169,10 @@
     for (const e of list()) {
       const v = e.vehicle;
       try {
-        if (simulatedByMe(v)) { simulate(v, dt); v.net = null; } else { e.vx = e.vy = e.vz = 0; }
+        const mine = simulatedByMe(v);
+        // Not ours: on Havok its body follows where it's said to be (a scene thing's remote flag is the engine's).
+        if (!engineSynced(v) && havokOn()) e.remote = !mine;
+        if (mine) { simulate(v, dt); v.net = null; } else if (!havokOn()) { e.vx = e.vy = e.vz = 0; }
       } catch (err) { H.report(err, `vehicle ${e.name || v.type}`); }
     }
   });
@@ -1112,7 +1197,7 @@
     ['shape.health', 'crashes and explosions take it; 0 is a wreck', '100'],
     ['transform.scale', 'a number: a bigger or smaller one (it drives the same way)', '1'],
     ['data.autopilot', '{ speed, steer, hover }: drives itself (circles, laps, a helicopter holding a height)', ''],
-    ['physics', '"kinematic" (drives) or "static" (parked prop)', 'kinematic'],
+    ['physics', '"dynamic" (drives: a real body) or "static" (a parked prop nobody can drive)', 'dynamic'],
   ];
   const CODEX = {
     car: { what: 'A car. E gets in (B on a phone). W/S drive and brake, A/D steer, space is the handbrake (drift!), shift boosts, H honks, L lights, V camera, R flips it back.', auto: { speed: 6, steer: 1 } },
@@ -1135,14 +1220,14 @@
   function registerKind(type, name = type) {
     const def = V.types[type];
     H.kinds.register(name, {
-      physics: 'kinematic',
+      physics: 'dynamic',
       maker: true,
       build: (sh, o, spec) => buildVehicle(type, sh || {}, o, spec),
       destroy(e) { if (e.vehicle) unregister(e.vehicle); },
       editor: {
         word: `a ${def.title.toLowerCase()}`,
         lift: (spec) => V.restHeight(tuned(type, (spec && spec.shape) || {}, spec && spec.transform && typeof spec.transform.scale === 'number' ? spec.transform.scale : 1)) + 0.05,
-        motion: [['kinematic', 'Drives'], ['static', 'Parked']],
+        motion: [['dynamic', 'Drives'], ['static', 'Parked']],
         hotbar: type === 'car' ? [{ order: 120, icon: '🚗', label: 'Car', make: () => ({ type: 'car', name: 'Car', material: { color: def.color } }) }]
           : type === 'truck' ? [{ order: 121, icon: '🛻', label: '4x4', make: () => ({ type: 'truck', name: '4x4', material: { color: def.color } }) }] : [],
       },
@@ -1152,11 +1237,11 @@
   for (const type of Object.keys(V.types)) registerKind(type);
   // The general one: { "type": "vehicle", "shape": { "vehicle": "truck", "model": "monster.glb" } }.
   H.kinds.register('vehicle', {
-    physics: 'kinematic',
+    physics: 'dynamic',
     maker: false,
-    build: (sh, o, spec) => buildVehicle(V.typeOf((sh && (sh.vehicle || sh.kind)) || 'car') || 'car', sh || {}, o, spec),
+    build: (sh, o, spec) => buildVehicle(V.typeOf((sh && (sh.vehicle || sh.kind)) || 'car') || 'car', sh || {}, o, spec, 'vehicle'),
     destroy(e) { if (e.vehicle) unregister(e.vehicle); },
-    editor: { word: 'a vehicle', lift: (spec) => V.restHeight(V.types[V.typeOf((spec && spec.shape && spec.shape.vehicle) || 'car') || 'car']) + 0.05, motion: [['kinematic', 'Drives'], ['static', 'Parked']] },
+    editor: { word: 'a vehicle', lift: (spec) => V.restHeight(V.types[V.typeOf((spec && spec.shape && spec.shape.vehicle) || 'car') || 'car']) + 0.05, motion: [['dynamic', 'Drives'], ['static', 'Parked']] },
     codex: { group: 'Vehicles', what: 'Any vehicle by name (shape.vehicle: car, truck/4x4, bicycle, motorbike, boat, submarine, airplane, helicopter), usually wearing a model (shape.model).', spec: { type: 'vehicle', name: 'Monster truck', shape: { vehicle: 'truck' }, transform: { position: [0, 1.2, 0], scale: 1.3 }, material: { color: '#7c3aed' } }, fields: [['shape.vehicle', 'which vehicle it drives like', 'car'], ...FIELDS] },
   });
 
