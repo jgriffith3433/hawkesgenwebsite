@@ -361,7 +361,9 @@
       if (pb.motion === DYNAMIC) {
         if (moved) { hp(pb).HP_Body_SetQTransform(pb.id, qt(pose)); wakeBody(pb); }
         if (e._force) { const f = e._force; e._force = null; e._v[0] += (f[0] / e.mass) * dt; e._v[1] += (f[1] / e.mass) * dt; e._v[2] += (f[2] / e.mass) * dt; e._vSet = true; }
-        if (e._vSet) { pb.plugin.setLinearVelocity(pb.body, V(e._v)); wakeBody(pb); }
+        // A velocity written: given to the body (and it wakes), unless it's a stop written to a resting body (a module
+        // keeping its own still things still), or the entity says its writes never wake it (e.quietVelocity).
+        if (e._vSet && !(e.sleeping && (e.quietVelocity || (Math.abs(e._v[0]) + Math.abs(e._v[1]) + Math.abs(e._v[2]) < 1e-4)))) { pb.plugin.setLinearVelocity(pb.body, V(e._v)); wakeBody(pb); }
         if (e._impulses) { for (const [j, at] of e._impulses) pb.plugin.applyImpulse(pb.body, V(j), V(at)); e._impulses = null; wakeBody(pb); }
         if (e._torque) { const t = e._torque; e._torque = null; pb.plugin.applyAngularImpulse(pb.body, new B.Vector3(t[0] * dt, t[1] * dt, t[2] * dt)); }
         if (e._spinSet) { e._spinSet = false; const s = e._spin || [0, 0, 0]; pb.plugin.setAngularVelocity(pb.body, new B.Vector3(s[0] * RAD, s[1] * RAD, s[2] * RAD)); }
