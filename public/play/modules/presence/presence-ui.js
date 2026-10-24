@@ -30,12 +30,11 @@
 .pr-bubble{max-width:230px;padding:6px 10px;border-radius:12px;background:rgba(255,255,255,.95);color:#0b1020;font:500 13.5px/1.3 system-ui,sans-serif;text-align:center;overflow-wrap:anywhere;box-shadow:0 3px 10px rgba(0,0,0,.3);animation:pr-pop .18s ease-out;position:relative}
 .pr-bubble:last-child::after{content:"";position:absolute;left:50%;bottom:-6px;margin-left:-6px;border:6px solid transparent;border-bottom:0;border-top-color:rgba(255,255,255,.95)}
 @keyframes pr-pop{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
-.pr-hud{position:fixed;left:10px;top:10px;z-index:7;display:flex;gap:6px}
+.pr-hud{position:fixed;left:10px;top:58%;transform:translateY(-50%);z-index:7;display:flex;flex-direction:column;gap:6px}
 .pr-hud button,.pr-btn{font:600 13px/1 system-ui,sans-serif;color:#fff;background:rgba(10,14,26,.7);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.16);border-radius:10px;padding:8px 10px;cursor:pointer;min-height:34px;touch-action:manipulation}
 .pr-hud button:hover,.pr-btn:hover{background:rgba(30,40,70,.85)}
 .pr-hud button b{font-weight:700;margin-left:3px}
 body.pr-touch .pr-hud button{min-width:46px;min-height:46px;font-size:20px;border-radius:12px}
-body.pr-editor .pr-hud{left:112px;top:12px}
 .pr-log{position:fixed;left:12px;bottom:84px;z-index:7;width:min(380px,calc(100vw - 24px));display:flex;flex-direction:column;gap:3px;pointer-events:none;font:500 14px/1.3 system-ui,sans-serif}
 .pr-log p{margin:0;padding:4px 9px;border-radius:8px;background:rgba(6,10,20,.55);color:#e5ecff;text-shadow:0 1px 2px #000;transition:opacity .6s;overflow-wrap:anywhere}
 .pr-log p b{margin-right:6px}.pr-log p.npc{font-style:italic;opacity:.92}.pr-log p.sys{color:#9fb0d0;font-size:12.5px}
@@ -101,8 +100,6 @@ body.pr-touch .pr-sw button{width:38px;height:38px}body.pr-touch .pr-ch button{m
   function ensureHud() {
     style();
     document.body.classList.toggle('pr-touch', phone());
-    // In the editor its own buttons sit top left over the game: ours go beside them.
-    document.body.classList.toggle('pr-editor', String(location.pathname).startsWith('/play/_draft'));
     if (hud && hud.isConnected) return;
     hud = make('div', 'pr-hud', '<button type="button" data-a="chat" title="Chat (Enter)" aria-label="Chat">💬</button><button type="button" data-a="emote" title="Emotes (hold B)" aria-label="Emotes">😀</button><button type="button" data-a="people" title="Who\'s here (Tab)" aria-label="Who\'s here">👥<b>1</b></button>');
     hud.id = 'pr-hud';
@@ -174,7 +171,9 @@ body.pr-touch .pr-sw button{width:38px;height:38px}body.pr-touch .pr-ch button{m
       b.textContent = `${m.friend ? '★ ' : ''}${m.me ? 'You' : m.name}`;
       b.style.color = m.npc ? '#fde68a' : m.friend ? '#7dd3fc' : m.color || '#9ecbff';
       p.appendChild(b);
-      p.appendChild(document.createTextNode(m.text));
+      const t = document.createElement('span');
+      t.textContent = m.text;
+      p.appendChild(t);
     }
     log.appendChild(p);
     while (log.children.length > 8) log.firstChild.remove();
