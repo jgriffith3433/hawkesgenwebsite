@@ -307,7 +307,7 @@
       const ang = Math.atan2(rh, span / 2) * 180 / Math.PI;
       for (const s of [-1, 1]) {
         const off = (span / 4 + 0.175);
-        push({ kind: 'roof', size: alongX ? [r2(len), 0.12, r2(slope)] : [r2(slope), 0.12, r2(len)], at: alongX ? [0, r2(top + rh / 2 + 0.06), r2(s * off)] : [r2(s * off), r2(top + rh / 2 + 0.06), 0], tilt: alongX ? [r2(-s * ang), 0, 0] : [0, 0, r2(s * ang)] });
+        push({ kind: 'roof', size: alongX ? [r2(len), 0.12, r2(slope)] : [r2(slope), 0.12, r2(len)], at: alongX ? [0, r2(top + rh / 2 + 0.06), r2(s * off)] : [r2(s * off), r2(top + rh / 2 + 0.06), 0], tilt: alongX ? [r2(s * ang), 0, 0] : [0, 0, r2(-s * ang)] });
       }
     } else if (roofShape === 'flat') {
       for (const [w, d, x, z] of [[Wd + T, T, 0, z0], [Wd + T, T, 0, z0 + Dp], [T, Dp, x0, 0], [T, Dp, x0 + Wd, 0]]) push({ kind: 'box', role: 'ext', size: [r2(w), 0.5, r2(d)], at: [r2(x), r2(top + 0.25), r2(z)] });

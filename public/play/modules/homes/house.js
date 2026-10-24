@@ -122,6 +122,7 @@
       } catch (err) { H.report(new Error(`house: ${p.kind}: ${err.message || err}`)); }
       if (!e) continue;
       e.data = { ...(e.data || {}), house: key, ...(p.room ? { room: p.room } : {}) };
+      e.homesPart = p.key;
       list.push({ e, at: p.at, yaw: p.yaw || 0, p });
     }
     M.assemble(root, list.map(({ e, at, yaw }) => ({ e, at, yaw })));
@@ -252,6 +253,16 @@
     room: (opts = {}) => H.kinds.get('room').build(opts, { ...opts, position: opts.position || [Number(opts.x) || 0, Number(opts.y) || 0, Number(opts.z) || 0], lenient: true }, null),
     /** A wall with openings: game.homes.wall({ length: 6, openings: [{ type: 'door', at: 0 }] }). */
     wall: (opts = {}) => H.kinds.get('wall').build(opts, { ...opts, position: opts.position || [Number(opts.x) || 0, Number(opts.y) || 0, Number(opts.z) || 0], lenient: true }, null),
+    /** A house's (or wall's) pieces by what they are: game.homes.find(house, 'front-door'), (house, 'fridge'),
+     *  (house, 'tv'), (house, 'Kitchen') (everything in that room comes back from findAll). */
+    find: (root, what) => M.scriptApi.findAll(root, what)[0] || null,
+    findAll(root, what) {
+      if (!root || !root._parts) return [];
+      const w = String(what || '').toLowerCase();
+      const all = root._parts.map((x) => x.e).filter((e) => e.alive);
+      const exact = all.filter((e) => (e.homesPart || '').toLowerCase() === w);
+      return exact.length ? exact : all.filter((e) => !w || e.kind === w || (e.name || '').toLowerCase() === w || ((e.data && e.data.room) || '').toLowerCase() === w);
+    },
     /** The plan of a house without making it: its rooms, size and pieces. */
     plan: (opts = {}) => plan(opts),
     /** Puts a channel on a TV, computer or projector for now (not shared): game.homes.show(tv, { text: () => 'Score: ' + game.state.score }). */

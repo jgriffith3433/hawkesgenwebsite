@@ -610,6 +610,7 @@
         const m = new B.StandardMaterial('clock', W().scene); m.emissiveTexture = tex; m.disableLighting = true; m.diffuseColor = new B.Color3(0, 0, 0);
         const face = P(root, 'plane', [size * 1.3, size * 0.45], [0, 0, 0.027], m, { keep: true });
         face.rotation.y = Math.PI;
+        face.metadata = { ...(face.metadata || {}), noGlow: true };
         let last = '';
         M.animate(e, () => {
           const t = timeIn(tz);
