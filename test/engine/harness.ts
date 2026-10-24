@@ -49,14 +49,14 @@ class El {
   toDataURL() { return 'data:,'; }
 }
 
-function installPage() {
+function installPage(anyId = false) {
   const g = globalThis as any;
   const byId: Record<string, El> = {};
   for (const id of ['stage', 'ui', 'error', 'loading']) { byId[id] = new El(id === 'stage' ? 'canvas' : 'div'); byId[id].id = id; }
   const body = new El('body'), head = new El('head');
   const document = {
     body, head, documentElement: new El('html'), hidden: false, pointerLockElement: null, currentScript: null, title: '',
-    getElementById: (id: string) => byId[id] || null,
+    getElementById: (id: string) => byId[id] || (anyId ? (byId[id] = Object.assign(new El('div'), { id })) : null),
     createElement: (tag: string) => new El(tag),
     createElementNS: (_: string, tag: string) => new El(tag),
     querySelector: () => null, querySelectorAll: () => [],
@@ -83,7 +83,8 @@ export type Engine = any;
 let loaded: Engine | null = null;
 
 /** Loads the engine once (Havok, Babylon, the page, every engine script and module) and returns HawkesPlay. */
-export async function load(o: { extra?: string[] } = {}): Promise<Engine> {
+/** o.anyId: every element id exists (for the editor's build.js, whose HUD is made from HTML this page can't parse). */
+export async function load(o: { extra?: string[]; anyId?: boolean } = {}): Promise<Engine> {
   if (loaded) return loaded;
   // Havok first, before there is a "window" (it would think it's in a browser and fetch its wasm).
   const havokFactory = require('@babylonjs/havok');
@@ -91,7 +92,7 @@ export async function load(o: { extra?: string[] } = {}): Promise<Engine> {
   const hk = await havokFactory({ wasmBinary });
   const g = globalThis as any;
   g.BABYLON = require('babylonjs');
-  installPage();
+  installPage(Boolean(o.anyId));
   g.HavokPhysics = () => Promise.resolve(hk);
   g.HawkesEngineFactory = () => new g.BABYLON.NullEngine({ renderWidth: 800, renderHeight: 600, textureSize: 64, deterministicLockstep: false, lockstepMaxSteps: 1 });
   g.BABYLON.Logger.LogLevels = 0;
