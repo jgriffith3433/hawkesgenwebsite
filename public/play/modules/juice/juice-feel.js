@@ -23,6 +23,8 @@
   let drawnAt = -1e9;
   const drawing = () => J.feel.always || clockT - drawnAt < 0.5;
   const shareOwns = () => Boolean(H.share && H.share.cameraOwner);
+  // The codex (/entities) shows things live: no freezing, slowing, shaking or flashing there.
+  const codex = () => Boolean(H.hooks.codex);
 
   const listeners = { land: [], hitstop: [], slowmo: [] };
   const emit = (n, d) => { for (const f of listeners[n]) try { f(d); } catch (err) { H.report(err, 'juice'); } };
@@ -34,7 +36,7 @@
   /** Freezes the world for `seconds` (at most 0.15). Only playing alone, never while building. */
   function hitStop(seconds) {
     const s = clamp(Number(seconds) || 0, 0, 0.15);
-    if (!s || !J.allowed('hitstop') || online() || H.mode === 'build' || !W() || !drawing()) return false;
+    if (!s || codex() || !J.allowed('hitstop') || online() || H.mode === 'build' || !W() || !drawing()) return false;
     // (One beat: hits right after one, a car grinding along a wall, don't freeze it again and again.)
     if (realNow() < (stop.cool || 0) && !stop.until) return false;
     stop.until = Math.max(stop.until, realNow() + s);
@@ -46,7 +48,7 @@
   }
   /** Slows time to `scale` for `seconds` (real seconds), easing back. Only playing alone. */
   function slowmo(scale = 0.3, seconds = 1) {
-    if (!J.allowed('slowmo') || online() || H.mode === 'build' || !W() || !drawing()) return false;
+    if (codex() || !J.allowed('slowmo') || online() || H.mode === 'build' || !W() || !drawing()) return false;
     slo.scale = clamp(Number(scale) || 0.3, 0.05, 0.95);
     slo.until = realNow() + clamp(Number(seconds) || 1, 0.1, 6);
     H.slow('juice:slowmo', slo.scale);
@@ -91,7 +93,7 @@
   // ------------------------------------------------------------------ the flash (close blasts)
   let flashEl = null, flashK = 0;
   function flash(k = 0.6, color = '255,214,160') {
-    if (!J.allowed('flash')) return;
+    if (codex() || !J.allowed('flash')) return;
     const v = clamp(k * (Number(J.settings.flash) || 1) * (J.reduceMotion ? 0.3 : 1), 0, 0.85);
     if (v < 0.03 || typeof document === 'undefined') return;
     if (!flashEl || !flashEl.isConnected) {
@@ -112,7 +114,7 @@
   // ------------------------------------------------------------------ rumble: controllers and phones
   let rumbleAt = 0;
   function rumble(strong = 0.5, weak = 0.5, ms = 120) {
-    if (!J.allowed('rumble')) return false;
+    if (codex() || !J.allowed('rumble')) return false;
     const t = realNow();
     if (t - rumbleAt < 0.06) return false;
     rumbleAt = t;
@@ -209,7 +211,7 @@
     land.dip = clamp(land.dip + land.v * dt, -0.45, 0.2);
     recoilK.v = Math.max(0, recoilK.v - dt * recoilK.v * 9 - dt * 0.01);
     fov.punch = Math.max(0, fov.punch - dt * 0.4);
-    if (!render || !cam || shareOwns() || !cam.position || !cam.rotation) return;
+    if (!render || !cam || shareOwns() || codex() || !cam.position || !cam.rotation) return;
     if (J.feel.cameraOverride) { try { J.feel.cameraOverride(cam, dt); } catch (err) { H.report(err, 'juice camera'); } }
     const motion = J.motion;
     const p = w.player;

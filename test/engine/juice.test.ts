@@ -321,3 +321,16 @@ test('config.juice: false turns it all off', () => {
   world(H, sceneOf({ floor, start }));
   assert.equal(J.on, true);
 });
+
+test('on the codex (hooks.codex) nothing freezes, slows or flashes; the juice page has an example', () => {
+  play();
+  J.feel.always = true;
+  H.hooks.codex = true;
+  try {
+    assert.equal(J.hitStop(0.1), false);
+    assert.equal(J.slowmo(0.3, 1), false);
+    assert.equal(J.rumble(1, 1, 100), false);
+  } finally { H.hooks.codex = false; J.feel.always = false; }
+  const f = H.features.get('juice');
+  assert.ok(f.codex && f.codex.what && f.codex.value && f.codex.fields.length > 10);
+});
