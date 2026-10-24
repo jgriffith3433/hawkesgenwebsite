@@ -306,10 +306,12 @@
         setTimeout(function () { friends.textContent = 'Room ' + room; }, 2500);
       };
       var v = parts[3] === 'v' ? '?v=' + encodeURIComponent(parts[4]) : '';
-      var engine = HawkesModules.load('play');
-      fetch(tpl ? '/v1/play-template/' + encodeURIComponent(tpl) : '/v1/play/' + encodeURIComponent(slug) + v).then(function (r) {
+      // The game and the engine at once; the engine brings only the modules this game uses (the rest come after).
+      var bundle = fetch(tpl ? '/v1/play-template/' + encodeURIComponent(tpl) : '/v1/play/' + encodeURIComponent(slug) + v).then(function (r) {
         return r.json().then(function (b) { if (!r.ok) throw new Error(b.error || 'Could not load this game'); return b; });
-      }).then(function (b) { return engine.then(function () { return b; }); }).then(function (b) {
+      });
+      var engine = HawkesModules.load('play', { bundle: bundle });
+      bundle.then(function (b) { return engine.then(function () { return b; }); }).then(function (b) {
         HawkesPlay.run(b, { mode: 'play' });
         if (q.get('room')) { HawkesNet.connect({ play: slug, room: q.get('room') }); friends.textContent = 'Room ' + q.get('room'); }
         else if (!v) HawkesNet.connect({ play: slug, room: 'live' });

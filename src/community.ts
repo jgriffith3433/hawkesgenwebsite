@@ -9,6 +9,7 @@ import { headWord, singular, wordsOf } from './words.ts';
 import { parseScene } from './scene.ts';
 import { getUser, type User } from './users.ts';
 import { PortalError } from './util.ts';
+import { queueVariants, variantMap, variantOf } from './variants.ts';
 
 /**
  * The Gen project Hawkes' own starter pack lives in. The same one for every copy of the portal (a beta portal with its
@@ -61,10 +62,21 @@ const words = (s: unknown) => String(s ?? '').toLowerCase().replace(/[^a-z0-9\s-
 const cleanCategory = (c: unknown) => String(c ?? '').toLowerCase().trim().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24);
 const cleanTags = (t: unknown) => [...new Set((Array.isArray(t) ? t.join(' ') : String(t ?? '')).toLowerCase().split(/[\s,]+/).map((w) => w.replace(/[^a-z0-9-]/g, '')).filter(Boolean))].slice(0, 16).join(' ');
 
-/** What the client sees of a row. Files come through /v1/community/<id>/file (and the thumb's own id). */
+const IMAGE_KINDS = ['texture', 'image', 'sprite', 'sky'];
+/** What the client sees of a row. Files come through /v1/community/<id>/file (and the thumb's own id). Images carry
+ *  their smaller copies (variants.ts: { "128": file, ... } and size [w, h]); the thumb is the 256 px one when there is one. */
 export function view(r: Row) {
   const file = (id: string | null) => (id ? `/v1/community/${id}/file` : null);
-  return { id: r.id, kind: r.kind, mime: r.mime, title: r.title, category: r.category || null, tags: r.tags ? r.tags.split(' ') : [], file: file(r.id), thumb: file(r.thumb ?? (['texture', 'image', 'sprite', 'sky'].includes(r.kind) ? r.id : null)), low: Boolean(r.low), by: r.by_user ? getUser(r.by_user)?.name ?? 'A player' : 'Hawkes', source: r.source, uses: r.uses, likes: r.likes ?? 0, created: r.created };
+  const thumbId = r.thumb ?? (IMAGE_KINDS.includes(r.kind) ? r.id : null);
+  const lods = variantMap([r.id, ...(thumbId && thumbId !== r.id ? [thumbId] : [])]);
+  const mine = lods[r.id];
+  const small = thumbId ? lods[thumbId]?.variants?.['256'] ?? lods[thumbId]?.variants?.['128'] ?? null : null;
+  return {
+    id: r.id, kind: r.kind, mime: r.mime, title: r.title, category: r.category || null, tags: r.tags ? r.tags.split(' ') : [], file: file(r.id),
+    thumb: small ? file(small.id) : file(thumbId), thumbFull: file(thumbId),
+    ...(mine ? { size: mine.size, variants: Object.fromEntries(Object.entries(mine.variants).map(([s, v]) => [s, file(v.id)])) } : {}),
+    low: Boolean(r.low), by: r.by_user ? getUser(r.by_user)?.name ?? 'A player' : 'Hawkes', source: r.source, uses: r.uses, likes: r.likes ?? 0, created: r.created,
+  };
 }
 
 /** Kinds that answer for a kind (a sound effect could be an ambience loop, an image could be a sprite). */
@@ -147,6 +159,7 @@ export async function share(user: User, body: { asset?: unknown; title?: unknown
   db.prepare(`INSERT INTO community_assets (id, project, kind, mime, title, tags, category, low, thumb, by_user, source, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'player', ?)
               ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, title = excluded.title, tags = excluded.tags, category = excluded.category, low = excluded.low, thumb = excluded.thumb, hidden = 0`)
     .run(id, user.project, kind, a.mime ?? null, title, tags, cleanCategory(body.category), await own(body.low), await own(body.thumb), user.id, Date.now());
+  queueLods(db.prepare('SELECT * FROM community_assets WHERE id = ?').get(id) as Row);
   return view(db.prepare('SELECT * FROM community_assets WHERE id = ?').get(id) as Row);
 }
 
@@ -198,9 +211,18 @@ export async function useInGame(user: User, gameId: string, body: { id?: unknown
   return { asset: row, item: view(r), word, mode, assets: { [word]: next }, rev: ops.rev, applied: ops.applied };
 }
 
-/** Streams a community file (a listed thing, its thumb or low copy), from its owner's project. */
+/** An image in the library gets its smaller copies (variants.ts): the thing itself (an image kind) and its picture. */
+function queueLods(r: Row | undefined) {
+  if (!r || r.hidden) return;
+  if (IMAGE_KINDS.includes(r.kind)) queueVariants(r.id, r.project, { mime: r.mime, source: 'community' });
+  if (r.thumb) queueVariants(r.thumb, r.project, { source: 'community' });
+}
+
+/** Streams a community file (a listed thing, its thumb or low copy, or an image's smaller copy), from its owner's project. */
 export async function file(id: string) {
-  const r = db.prepare('SELECT project FROM community_assets WHERE hidden = 0 AND (id = ? OR thumb = ? OR low = ?)').get(id, id, id) as { project: string } | undefined;
+  const find = (x: string) => db.prepare('SELECT project FROM community_assets WHERE hidden = 0 AND (id = ? OR thumb = ? OR low = ?)').get(x, x, x) as { project: string } | undefined;
+  let r = find(id);
+  if (!r) { const of = variantOf(id); if (of) r = find(of); }
   if (!r) throw new PortalError('No such file', { status: 404 });
   return genFetch(`/v1/assets/${id}/file`, { as: r.project, signal: AbortSignal.timeout(120_000) });
 }
@@ -278,6 +300,7 @@ export async function syncStarter() {
     const before = db.prepare('SELECT 1 FROM community_assets WHERE id = ?').get(r.main.id);
     put.run(r.main.id, STARTER_PROJECT, r.kind, r.main.mime ?? null, r.name, r.tags, r.category, r.item, r.low?.id ?? null, r.thumb?.id ?? null, Date.now());
     retire.run(r.item, r.main.id);
+    queueLods(db.prepare('SELECT * FROM community_assets WHERE id = ?').get(r.main.id) as Row);
     if (!before) added++;
   }
   // Starter things of a kind with a minimum recipe: anything listed that isn't one of this round's good rows goes.
