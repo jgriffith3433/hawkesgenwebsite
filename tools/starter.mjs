@@ -12,14 +12,14 @@ import { STARTER, paramsFor, slug } from '../community/starter.mjs';
 
 export const STARTER_PROJECT = 'usr_00000000000000c0';
 /** Bump to remake the whole pack (a new look, a new recipe); the portal replaces each thing's row with its newest. */
-export const KEY_VERSION = 'v2';
+export const KEY_VERSION = 'v3';
 const KINDS = ['model', 'texture', 'image', 'sprite', 'sky', 'music', 'ambience', 'sfx', 'voice', 'video'];
 
 const [cmd = 'list', kindArg, tag] = process.argv.slice(2);
 const kind = kindArg === 'all' ? undefined : kindArg;
 const pick = () => STARTER.filter((g) => (!kind || g.kind === kind) && (!tag || g.tag === tag)).flatMap((g) => g.items.map(([name, what, words]) => ({ kind: g.kind, tag: g.tag, name, what, words })));
 const keyOf = (it) => `starter/${it.kind}/${slug(it.name)}/${KEY_VERSION}`;
-const labelsOf = (it) => ({ pack: 'starter', community: true, kind: it.kind, tag: it.tag, tags: [it.tag, ...it.words.split(/\s+/)].join(' '), name: it.name, item: slug(it.name) });
+const labelsOf = (it) => ({ pack: 'starter', community: true, kind: it.kind, tag: it.tag, tags: [it.tag, ...it.words.split(/\s+/)].join(' '), name: it.name, item: slug(it.name), rev: KEY_VERSION });
 
 /** Problems in the pack's data, as sentences (none: it's sound). */
 export function problems() {

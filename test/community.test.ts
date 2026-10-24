@@ -12,7 +12,7 @@ const seen: { url: string; as?: string }[] = [];
 // Assets by id: the project that owns each one.
 const assets: Record<string, any> = {};
 const put = (a: any) => (assets[a.id] = a);
-const starterLabels = (kind: string, name: string, tags: string) => ({ pack: 'starter', community: true, kind, tag: tags.split(' ')[0], name, tags });
+const starterLabels = (kind: string, name: string, tags: string) => ({ pack: 'starter', community: true, kind, tag: tags.split(' ')[0], name, tags, rev: 'v3' });
 put({ id: 'a_b0', project: STARTER, tool: 'asset.make', job: 'j_ball', title: 'front', kind: 'image', mime: 'image/png', labels: starterLabels('model', 'Ball', 'toys ball sphere bouncy') });
 put({ id: 'a_b1', project: STARTER, tool: 'asset.make', job: 'j_ball', title: 'cutout', kind: 'image', mime: 'image/png', labels: starterLabels('model', 'Ball', 'toys ball sphere bouncy') });
 put({ id: 'a_b2', project: STARTER, tool: 'asset.make', job: 'j_ball', title: 'model.high', kind: 'mesh', mime: 'model/gltf-binary', bytes: 900_000, labels: starterLabels('model', 'Ball', 'toys ball sphere bouncy') });
