@@ -1230,21 +1230,31 @@
     ['physics', '"dynamic" (drives: a real body) or "static" (a parked prop nobody can drive)', 'dynamic'],
   ];
   const CODEX = {
-    car: { what: 'A car. E gets in (B on a phone). W/S drive and brake, A/D steer, space is the handbrake (drift!), shift boosts, H honks, L lights, V camera, R flips it back.', auto: { speed: 6, steer: 1 } },
-    truck: { what: 'A 4x4 with long, soft suspension and all-wheel drive: it climbs mountains. Two seats inside, two in the back.', auto: { speed: 5, steer: 1 } },
+    car: { what: 'A car. E gets in (B on a phone). W/S drive and brake, A/D steer, space is the handbrake (drift!), shift boosts, H honks, L lights, V camera, R flips it back.', auto: { speed: 4, steer: 1 } },
+    truck: { what: 'A 4x4 with long, soft suspension and all-wheel drive: it climbs mountains. Two seats inside, two in the back.', auto: { speed: 3.5, steer: 1 } },
     bicycle: { what: 'A bicycle: pedal with W, steer with A/D, space hops, shift sprints.', auto: { speed: 4, steer: 1 } },
-    motorbike: { what: 'A motorbike: fast, leans into turns, wheelies off jumps. A passenger rides behind.', auto: { speed: 6, steer: 1 } },
+    motorbike: { what: 'A motorbike: fast, leans into turns, wheelies off jumps. A passenger rides behind.', auto: { speed: 4, steer: 1 } },
     boat: { what: 'A speedboat: floats on water (the Water module\'s, or anything tagged "water"), planes over waves.' },
     submarine: { what: 'A submarine: C dives, space rises, W/S thrust, A/D turn. Let go deep and it holds its depth.' },
     airplane: { what: 'An airplane: hold W to roll down the runway, S lifts the nose at speed. In the air: W/S pitch, A/D roll, space/C throttle. Too slow and it stalls.' },
-    helicopter: { what: 'A helicopter: space climbs, C descends (it hovers by itself), W/S tilt to fly forward and back, A/D turn.', auto: { hover: 2.5, steer: 0.4, speed: 0 } },
+    helicopter: { what: 'A helicopter: space climbs, C descends (it hovers by itself), W/S tilt to fly forward and back, A/D turn.', auto: { hover: 2.5 } },
   };
   function codexSpec(type) {
     const c = CODEX[type] || {};
     const def = V.types[type];
     const spec = { type, name: def.title, transform: { position: [0, V.restHeight(def) + 0.05, 0] }, material: { color: def.color } };
-    if (c.auto && type !== 'helicopter') spec.data = { autopilot: c.auto };
-    if (type === 'helicopter') spec.data = { autopilot: { hover: 2.5, steer: 0.35 } };
+    if (c.auto && type !== 'helicopter') {
+      spec.data = { autopilot: c.auto };
+      // Circling the middle of the codex's little floor: start a turning circle's radius to the left of it.
+      const wb = def.wheels[0].at[2] - def.wheels[def.wheels.length - 1].at[2];
+      const lock = def.steer * RAD / (1 + c.auto.speed / (def.twoWheels ? 14 : 20));
+      // (The codex's floor is 14 m across: cars and 4x4s show at three quarters size so their circle fits on it.)
+      const k = def.twoWheels ? 1 : 0.75;
+      if (k !== 1) { spec.transform.scale = k; spec.transform.position[1] = V.restHeight(def) * k + 0.05; }
+      spec.transform.position[0] = -Math.round(wb * k / Math.tan(lock) * 11.5) / 10; // (tires slip a little: the circle is wider)
+      spec.transform.position[2] = 1.2;
+    }
+    if (type === 'helicopter') spec.data = { autopilot: { hover: 2.5 } };
     return spec;
   }
   function registerKind(type, name = type) {
@@ -1261,7 +1271,7 @@
         hotbar: type === 'car' ? [{ order: 120, icon: '🚗', label: 'Car', make: () => ({ type: 'car', name: 'Car', material: { color: def.color } }) }]
           : type === 'truck' ? [{ order: 121, icon: '🛻', label: '4x4', make: () => ({ type: 'truck', name: '4x4', material: { color: def.color } }) }] : [],
       },
-      codex: { group: 'Vehicles', what: (CODEX[type] || {}).what || def.title, spec: codexSpec(type), fields: FIELDS, props: type !== 'boat' && type !== 'submarine' && type !== 'airplane' },
+      codex: { group: 'Vehicles', what: (CODEX[type] || {}).what || def.title, spec: codexSpec(type), fields: FIELDS },
     });
   }
   for (const type of Object.keys(V.types)) registerKind(type);
