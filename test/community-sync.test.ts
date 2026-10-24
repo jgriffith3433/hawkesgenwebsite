@@ -13,7 +13,7 @@ const STARTER = 'usr_00000000000000c0';
 const assets: any[] = [];
 let clock = 1_000;
 const put = (a: any) => assets.unshift({ project: STARTER, tool: 'asset.make', created: ++clock, ...a });
-const labels = (kind: string, tag: string, name: string, words = '') => ({ pack: 'starter', community: true, kind, tag, tags: `${tag} ${words}`.trim(), name, item: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), rev: 'v3' });
+const labels = (kind: string, tag: string, name: string, words = '') => ({ pack: 'starter', community: true, kind, tag, tags: `${tag} ${words}`.trim(), name, item: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), rev: kind === 'model' ? 'v4' : 'v3' });
 
 // A model (concept, cutout, the raw mesh and the two exported GLBs), a song saved as several files, a sky, a texture.
 const crate = labels('model', 'props', 'Wooden crate', 'box container');

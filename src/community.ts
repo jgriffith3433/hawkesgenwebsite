@@ -215,7 +215,7 @@ const MIME_OF: Record<string, RegExp> = { model: /^model\/gltf-binary$/, texture
  * before v3 were built from the cut-out's mask with Gen's views3d cropping one corner four times (2026-10-23): they don't
  * look like their pictures, so they're never listed, and any already listed are hidden.
  */
-export const MIN_REV: Record<string, number> = { model: 3 };
+export const MIN_REV: Record<string, number> = { model: 4 };
 const revOf = (l: any) => Number(String(l?.rev ?? 'v1').replace(/^v/, '')) || 1;
 
 export function starterRow(outs: any[]) {
