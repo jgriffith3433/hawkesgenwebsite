@@ -667,7 +667,8 @@ void main(void) {
     const id = VOICES[name];
     return id ? `/v1/community/${id}/file` : null;
   }
-  /** An Audio for a line, through the game's sound (H.audio), not yet playing; null when there's no voice for it. */
+  /** An Audio for a line, through the game's sound (H.audio), not yet playing; null when there's no voice for it.
+   *  While it plays, the music and ambience duck under it. */
   function voice(name) {
     const url = voiceUrl(name);
     if (!url || typeof Audio === 'undefined') return null;
@@ -675,8 +676,20 @@ void main(void) {
       const a = new Audio(url);
       a.crossOrigin = 'anonymous';
       if (H.audio && H.audio.media) H.audio.media(a);
-      return a;
+      return duckWhile(a);
     } catch { return null; }
+  }
+  /** The background (music, the sea) ducks while this audio of the Overseer's plays, and comes back after. */
+  let speaking = 0;
+  function duckWhile(a) {
+    if (!a || a.__ducks) return a;
+    a.__ducks = true;
+    let on = false;
+    const start = () => { if (on) return; on = true; speaking++; if (H.audio && H.audio.duck) H.audio.duck('overseer', 0.22); };
+    const stop = () => { if (!on) return; on = false; speaking = Math.max(0, speaking - 1); if (!speaking && H.audio && H.audio.duck) H.audio.duck('overseer', null); };
+    a.addEventListener('playing', start);
+    for (const ev of ['ended', 'pause', 'error', 'emptied']) a.addEventListener(ev, stop);
+    return a;
   }
   /** Says it: the words on screen and, when there's a voice for it, spoken. */
   function speak(text, name, seconds) {
@@ -687,7 +700,7 @@ void main(void) {
   }
 
   H.overseer = {
-    DEFAULTS, read, VOICES, voiceUrl, voice, speak,
+    DEFAULTS, read, VOICES, voiceUrl, voice, speak, duckWhile,
     get on() { return Boolean(O); },
     get ship() { return O; },
     get position() { return O ? O.cfg.position.slice() : null; },

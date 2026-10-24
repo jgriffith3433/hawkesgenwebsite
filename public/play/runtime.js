@@ -261,6 +261,10 @@
   // H.audio: one output every sound goes through (the engine's, every module's, music), so a module can change how
   // everything sounds (water muffles it all under water). master (a gain) -> effects (in name order) -> speakers.
   let masterNode = null, outputNode = null, links = [];
+  // The background (music, ambience: media({ background: true })) has its own level into the master, which ducks
+  // (H.audio.duck) while something must be heard over it: the Overseer speaking.
+  let bedNode = null;
+  const ducks = new Map();
   const effects = new Map();
   const mediaRouted = new WeakSet();
   // Only the chain's own links are undone when it changes: whatever else listens to the master or the output (a clip
@@ -301,15 +305,36 @@
       wire();
       return node || null;
     },
-    /** Sends an <audio> element through the master (same-origin files; others play as they are). */
-    media(el) {
+    /** Sends an <audio> element through the master (same-origin files; others play as they are). o.background: it's
+     *  background (music, ambience): it goes through the background's level, which ducks under voices. */
+    media(el, o = {}) {
       if (!el || mediaRouted.has(el) || !audioApi.master) return el;
       try {
         if (new URL(el.src, location.href).origin !== location.origin) return el;
-        audio.createMediaElementSource(el).connect(masterNode);
+        audio.createMediaElementSource(el).connect(o.background ? audioApi.background : masterNode);
         mediaRouted.add(el);
       } catch { /* plays directly */ }
       return el;
+    },
+    /** The background's level (a gain into the master): what music and ambience go through. */
+    get background() {
+      if (bedNode) return bedNode;
+      if (!audioApi.master) return null;
+      bedNode = audio.createGain();
+      bedNode.connect(masterNode);
+      return bedNode;
+    },
+    /** The background ducks under something that must be heard: duck('overseer', 0.25) while it speaks, duck(owner,
+     *  null) after. The lowest asked wins; it glides there and back (a quarter of a second, then about a second). */
+    duck(owner, level) {
+      const o = String(owner || 'default');
+      if (level === null || level === undefined || Number(level) >= 1) ducks.delete(o); else ducks.set(o, Math.max(0, Number(level) || 0));
+      const bed = audioApi.background;
+      if (!bed) return 1;
+      let k = 1;
+      for (const v of ducks.values()) k = Math.min(k, v);
+      try { bed.gain.cancelScheduledValues(audio.currentTime); bed.gain.setTargetAtTime(k, audio.currentTime, k < bed.gain.value ? 0.08 : 0.35); } catch { bed.gain.value = k; }
+      return k;
     },
   };
   async function loadBuffer(url) {
@@ -1539,7 +1564,7 @@
           musicEl.crossOrigin = 'anonymous';
           musicEl.loop = o.loop !== false;
           musicEl.volume = Math.max(0, Math.min(1, o.volume ?? 0.5));
-          audioApi.media(musicEl);
+          audioApi.media(musicEl, { background: true });
           musicEl.play().catch(() => { pendingMusic = start; });
         };
         if (audio && audio.state === 'running') start(); else pendingMusic = start;

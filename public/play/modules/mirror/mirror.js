@@ -94,6 +94,7 @@
         const a = new Audio(url);
         a.crossOrigin = 'anonymous';
         if (H.audio && H.audio.media) H.audio.media(a);
+        if (H.overseer && H.overseer.duckWhile) H.overseer.duckWhile(a); // (the music dips while it speaks)
         cur.audio = a;
         a.onended = next;
         // A voice that won't play: the words stay up long enough to read, as with no voice.

@@ -9,7 +9,11 @@ const H = window.HawkesPlay;
 const sfx = (name, o) => { if (game.hasAsset(name)) game.sound(name, o); };
 const pip = () => game.all('Pip')[0] || null;
 const say = (text, seconds = 4) => { const p = pip(); if (p && p.say) p.say(text, seconds); };
-const overseer = (text, seconds = 5) => { if (game.overseer && game.overseer.say) game.overseer.say(text, seconds); };
+const overseer = (text, seconds = 5, voice = null) => {
+  // Spoken through the Overseer (its voice, by name; the music and the sea dip under it), else just its words.
+  if (voice && game.overseer && game.overseer.speak) game.overseer.speak(text, voice, seconds);
+  else if (game.overseer && game.overseer.say) game.overseer.say(text, seconds);
+};
 const confetti = () => {
   const p = game.player;
   if (!p) return;
@@ -29,7 +33,7 @@ function loop(name, volume) {
     a.crossOrigin = 'anonymous';
     a.loop = true;
     a.volume = volume;
-    H.audio.media(a);
+    H.audio.media(a, { background: true }); // (background: it dips under the Overseer's voice)
     loops.push(a);
     a.play().catch(() => {});
     return a;
@@ -39,14 +43,15 @@ let sounding = false;
 function startSound() {
   if (sounding || game.mode !== 'play') return;
   sounding = true;
-  if (game.hasAsset('meadow.mp3')) game.music('meadow.mp3', { volume: 0.28 });
+  // (Quiet enough to talk over: J, 2026-10-24, "I can't hear the voices".)
+  if (game.hasAsset('meadow.mp3')) game.music('meadow.mp3', { volume: 0.14 });
   loop('ocean-waves.mp3', 0);
-  loop('forest.mp3', 0.12);
+  loop('forest.mp3', 0.05);
 }
 // The sea is heard by the shore: quiet, and fading out as you walk inland (silent ~70 m from the water) or go up; the
 // birds stay over the land. (A loop the browser held back starts as soon as sound is allowed: the first click or key.)
 const SEA = -1.5; // config.water.level
-const SEA_MAX = 0.12;
+const SEA_MAX = 0.06;
 /** How far the nearest sea is (meters, 0 over it), from the ground's height in rings around you. */
 function seaDistance(x, z) {
   const ground = (px, pz) => { const t = game.terrain && game.terrain.heightAt ? game.terrain.heightAt(px, pz) : null; return t === null || t === undefined ? -99 : t; };
@@ -70,7 +75,7 @@ game.every(0.25, () => {
   seaVol += (want - seaVol) * 0.35; // (eased: no jumps as you walk)
   if (loops[0]) loops[0].volume = Math.max(0, Math.min(1, seaVol));
   const onLand = d > 0;
-  if (loops[1]) loops[1].volume = onLand && h < 60 ? 0.12 : 0.01;
+  if (loops[1]) loops[1].volume = onLand && h < 60 ? 0.05 : 0.01;
 });
 
 // ------------------------------------------------------------------ the beginning: Pip offers the tour
@@ -129,7 +134,7 @@ game.on('tour', (d) => {
   confetti();
   game.camera.shake(0.08, 0.2);
   game.after(0.6, () => say(m.pip, 6));
-  if (m.overseer) game.after(1.4, () => { overseer(m.overseer, m.seconds || 5); sfx(m.voice, { volume: 1 }); });
+  if (m.overseer) game.after(1.4, () => overseer(m.overseer, m.seconds || 5, m.voice));
   if (m.give && game.mayhem && game.mayhem.giveTool) game.after(1, () => { for (const t of m.give) game.mayhem.giveTool(t); });
 });
 
@@ -138,8 +143,7 @@ game.on('tour', (d) => {
 game.on('spawn-wheel', (d) => {
   if (!d || d.state !== 'open' || window.__islandAsked) return;
   window.__islandAsked = true;
-  overseer('Ask, and I will send it down.', 4);
-  sfx('overseer-ask.mp3', { volume: 1 });
+  overseer('Ask, and I will send it down.', 4, 'overseer-ask.mp3');
 });
 
 // ------------------------------------------------------------------ the barrels: teach the switch to the launcher
@@ -184,7 +188,6 @@ game.on('wrecked', (d) => {
     if (game.all('Helicopter').some((h) => h.alive && !(h.vehicle && h.vehicle.wrecked))) return;
     const y = game.terrain && game.terrain.heightAt ? game.terrain.heightAt(HELIPAD.x, HELIPAD.z) : null;
     game.helicopter({ x: HELIPAD.x, y: (y === null || y === undefined ? 6 : y) + 1.55, z: HELIPAD.z, rotation: [0, 200, 0], name: 'Helicopter', color: '#2b5fd9', model: wreck.shape && wreck.shape.model });
-    overseer('A new one, from me.', 4);
-    sfx('overseer-a-new-one.mp3', { volume: 1 });
+    overseer('A new one, from me.', 4, 'overseer-a-new-one.mp3');
   });
 });
