@@ -339,7 +339,7 @@
   function addScore(what, n = 1) {
     if (!cfg.score || n <= 0 || !W()) return;
     const t = now();
-    score.combo = t - score.last < 1800 ? score.combo + n : n;
+    score.combo = t - score.last < 1800 ? score.combo + 1 : 1;
     score.last = t;
     let pts = 0;
     for (let i = 0; i < n; i++) pts += M.score(what, Math.min(score.combo, 10));

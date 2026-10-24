@@ -135,6 +135,7 @@
     mat.diffuseColor = hexc(color, '#cccccc'); mat.specularColor = new B.Color3(0.06, 0.06, 0.06);
     m.material = mat; m.isPickable = false; m.metadata = { decor: true };
     m.position.y = -10000;
+    m.receiveShadows = true; // for every instance
     sources.set(key, m);
     return m;
   }
@@ -191,7 +192,9 @@
       if (sp.blob) for (const s of [-1, 1]) part('sphere', '#111111', [0.1 * k, 0.12 * k, 0.05 * k], [s * bw * 0.18, bodyY + bh * 0.15, bd / 2 - 0.02]);
       if (sp.tail) part('box', sp.tail, sp.spikes ? [bw * 0.35, bh * 0.35, bd * 0.6] : [0.06 * k, 0.06 * k, bd * 0.35], [0, bodyY + (sp.spikes ? -bh * 0.1 : bh * 0.25), -bd / 2 - (sp.spikes ? bd * 0.25 : bd * 0.12)]);
       if (sp.spikes) for (let i = 0; i < 3; i++) part('box', sp.spikes, [0.06 * k, 0.22 * k, 0.22 * k], [0, bodyY + bh / 2 + 0.08 * k, bd * (0.25 - i * 0.25)], [Math.PI / 4, 0, 0]);
-      L.place(e, o);
+      // Shadows by hand: instances take receiving from their source (place() would set it on each, with a warning).
+      L.place(e, { ...o, shadow: false });
+      if (W().shadows && o.shadow !== false) for (const m of root.getChildMeshes()) W().shadows.addShadowCaster(m);
     }
     e.data.critter = sp.name;
     e.data.color = sp.color;
