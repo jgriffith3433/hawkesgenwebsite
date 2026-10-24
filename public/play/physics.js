@@ -522,7 +522,10 @@
       if (!e._walked) { const k = Math.max(0, 1 - (e.friction ?? 0.6) * 10 * dt); v[0] *= k; v[2] *= k; }
       v[1] = 0;
     } else v[1] = Math.max(-60, v[1] + g * dt);
-    const want = new B.Vector3(v[0] + (onGround ? sv.x : 0), onGround ? sv.y - 1.5 : v[1], v[2] + (onGround ? sv.z : 0));
+    // Standing still on a walkable slope: no push down into it (that pushed along the slope, a slide). Moving: a little
+    // push keeps it on the ground going downhill.
+    const still = onGround && Math.hypot(v[0], v[2]) < 0.05;
+    const want = new B.Vector3(v[0] + (onGround ? sv.x : 0), onGround ? sv.y - (still ? 0 : 1.5) : v[1], v[2] + (onGround ? sv.z : 0));
     cc.setVelocity(want);
     const before = cc.getPosition().clone();
     cc.integrate(dt, support, new B.Vector3(0, g, 0));
