@@ -470,10 +470,10 @@ void main(void) {
     const m = e.node.computeWorldMatrix(true);
     const local = opts.points ? opts.points.map((q) => L.vec(q))
       : lh[0] > 0.6 || lh[2] > 0.6 ? [-1, 1].flatMap((sx) => [-1, 1].flatMap((sy) => [-1, 1].map((sz) => [sx * lh[0] * 0.85, sy * lh[1], sz * lh[2] * 0.85])))
-      : [[0, -lh[1], 0]];
+      : null;
     const v3 = new B.Vector3();
     // (On the first physics a thing's box is already turned: no turning twice.)
-    let pts = local.map((q) => { if (!e._lhalf) return [e.x + lo[0] + q[0], e.y + lo[1] + q[1], e.z + lo[2] + q[2]]; B.Vector3.TransformCoordinatesFromFloatsToRef(q[0] + lo[0], q[1] + lo[1], q[2] + lo[2], m, v3); return [v3.x, v3.y, v3.z]; });
+    let pts = !local ? [[cx, bx.min[1], cz]] : local.map((q) => { if (!e._lhalf) return [e.x + lo[0] + q[0], e.y + lo[1] + q[1], e.z + lo[2] + q[2]]; B.Vector3.TransformCoordinatesFromFloatsToRef(q[0] + lo[0], q[1] + lo[1], q[2] + lo[2], m, v3); return [v3.x, v3.y, v3.z]; });
     if (!opts.points && pts.length > 4) pts = pts.sort((u, w) => u[1] - w[1]).slice(0, 4);
     const density = opts.density !== undefined ? Math.max(0.02, Number(opts.density) || 1) : densityOf(e);
     const g = Math.abs(H.physics.gravity || 24) * (e.gravity ?? 1);
