@@ -7,12 +7,12 @@ import { load, world, sceneOf } from './harness.ts';
 const H = await load();
 const floor = { type: 'box', shape: { size: [80, 1, 80] }, transform: { position: [0, -0.5, 0] } };
 const errors = () => ((globalThis as any).document.getElementById('error').children as any[]).map((c) => c.textContent);
-/** One frame with a key down this frame (what the frame hooks see, as in a browser), then let go. */
+/** One frame with a key going down (as the page does it: pressed for the next step and frame, held until let go). */
 function frame(H: any, key?: string, seconds = 1 / 30) {
-  const pressed = H.input.pressed;
-  if (key) pressed.add(key);
+  const b: any = { addEventListener(t: string, f: Function) { b[t] = f; }, style: {} };
+  if (key) { H.bindTouchKey(b, key); b.pointerdown({ preventDefault() {}, stopPropagation() {} }); }
   H.tick(seconds);
-  if (key) pressed.delete(key);
+  if (key) b.pointerup();
 }
 
 test('the module is loaded: its kinds are registered and the server lets scenes hold them', async () => {

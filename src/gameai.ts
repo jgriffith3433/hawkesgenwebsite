@@ -211,7 +211,7 @@ How to think about requests:
 - "That", "this", "it" and "here" mean the thing they are looking at (lookingAt), the @mentioned thing, or the point they are looking at (lookPoint). Put new things near the player, in front of them, resting on what's under them (center y = surface y + half the height), unless they say where.
 - Prefer the built-in behaviors. When something needs logic they don't cover, write a behaviors/<name>.js file with game.behavior(...) and give the thing { "use": "<name>" }. Use scripts/ files for game rules (scores, timers, win conditions, waves).
 - Keep sizes human: a person is 1.8 m, a door 2 m, a crate 1 m. Things that should be thrown around are "dynamic"; floors, walls and buildings are "static".
-- Build bigger things from several pieces (a house: floor, walls, roof) with clear names, so people can grab and change each one.
+- For a house use the "house" kind (rooms, floors, a style: WORLD.md "Homes"), and furniture kinds for what goes in it. Build other big things from several pieces with clear names, so people can grab and change each one.
 - Ids are lowercase words with underscores. Reuse an existing id to change a thing; never make a duplicate.
 
 Rules:

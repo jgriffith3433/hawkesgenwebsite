@@ -8,7 +8,8 @@
 //   });
 //
 // An offer: { label, act, priority (0; higher wins: getting off what you're on uses 100), distance (meters; nearer
-// wins at the same priority), key (another key that also does it, e.g. 't'), build: true (offered while building too) }.
+// wins at the same priority), key (another key that also does it, e.g. 't'), build: true (offered while building too),
+// noKey: true (shown and tapped, but E doesn't do it: at a piano E is a note) }.
 /* global HawkesPlay */
 (function () {
   'use strict';
@@ -25,7 +26,7 @@
       let o = null;
       try { o = def.near(p, { game: H.game, H, mode: H.mode }); } catch (err) { H.report(err, `use ${name}`); }
       if (!o || typeof o.act !== 'function' || (building && !o.build && !def.build)) continue;
-      out.push({ name, label: String(o.label || name), act: o.act, priority: Number(o.priority) || 0, distance: Number.isFinite(Number(o.distance)) ? Number(o.distance) : 1e6, key: o.key ? String(o.key).toLowerCase() : null });
+      out.push({ name, label: String(o.label || name), act: o.act, priority: Number(o.priority) || 0, distance: Number.isFinite(Number(o.distance)) ? Number(o.distance) : 1e6, key: o.key ? String(o.key).toLowerCase() : null, noKey: Boolean(o.noKey) });
     }
     out.sort((a, b) => b.priority - a.priority || a.distance - b.distance);
     return out;
@@ -43,7 +44,7 @@
     if (!e) { for (const def of defs.values()) if (def.keys) for (const k of def.keys) if (input.pressed(k)) other = k; if (!other) return; }
     const list = offers(p);
     const pick = e ? list[0] : list.find((o) => o.key === other);
-    if (pick) run(pick);
+    if (pick && !(e && pick.noKey)) run(pick);
   });
 
   // The line on the screen, a few times a second.
@@ -73,7 +74,8 @@
     if (!best) return;
     const b = document.createElement('button');
     b.innerHTML = '<kbd></kbd><span></span>';
-    b.querySelector('kbd').textContent = 'E';
+    b.querySelector('kbd').textContent = best.noKey ? '' : 'E';
+    if (best.noKey) b.querySelector('kbd').hidden = true;
     b.querySelector('span').textContent = best.label;
     b.onpointerdown = (ev) => { ev.preventDefault(); ev.stopPropagation(); const now2 = player() && offers(player())[0]; if (now2) run(now2); };
     el.appendChild(b);

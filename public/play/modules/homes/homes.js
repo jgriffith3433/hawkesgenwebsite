@@ -256,65 +256,31 @@
     unlockAudio();
   }
 
-  // The prompt: "E  Sit" over the bottom of the screen; on a phone it's a button (B does it too).
-  let promptEl = null;
-  function prompt(text) {
-    if (!promptEl) {
-      promptEl = document.createElement('button');
-      promptEl.type = 'button';
-      promptEl.id = 'homesPrompt';
-      promptEl.style.cssText = 'position:fixed;left:50%;bottom:22%;transform:translateX(-50%);z-index:6;display:none;align-items:center;gap:10px;padding:8px 16px 8px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.35);background:rgba(10,14,24,.62);color:#fff;font:600 16px/1 Inter,system-ui,sans-serif;backdrop-filter:blur(6px);pointer-events:auto;touch-action:none;cursor:pointer;text-shadow:0 1px 2px rgba(0,0,0,.5)';
-      const key = document.createElement('b');
-      key.style.cssText = 'display:inline-grid;place-items:center;min-width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,.9);color:#111;font:700 15px/1 Inter,system-ui,sans-serif';
-      promptEl.appendChild(key);
-      promptEl.appendChild(document.createElement('span'));
-      promptEl._key = key; promptEl._text = promptEl.children[1] || promptEl.lastChild;
-      promptEl.addEventListener('pointerdown', (ev) => { ev.preventDefault(); ev.stopPropagation(); tapped = true; });
-      document.body.appendChild(promptEl);
-    }
-    if (!text) { if (promptEl.style.display !== 'none') promptEl.style.display = 'none'; return; }
-    promptEl._key.textContent = H.touchUi ? 'B' : 'E';
-    if (promptEl._text.textContent !== text) promptEl._text.textContent = text;
-    if (promptEl.style.display !== 'inline-flex') promptEl.style.display = 'inline-flex';
-  }
-  let tapped = false;
   let target = null;
-  /** All of "what E does here" for homes, in one place: { label, priority, act, entity } or null. When the engine
-   *  gets its shared use registry (H.use), this is what goes in it. */
+  /** All of "what E does here" for homes, in one place: { label, priority, distance, act, entity } or null. It goes in
+   *  the engine's use registry (H.use), which picks between it, a car, a horse, a friend... */
   function useOffer(p) {
     const w = W();
     if (!w || H.mode !== 'play' || !p || !p.alive || w.paused || w.camera.target !== p) return null;
     if (p.controller === 'seat') {
       const c = p._controller.opts || {};
       // At an instrument E is a note: the prompt (or space) gets you up.
-      return { label: c.instrument ? 'Get up (space) · keys play notes' : c.pose === 'lie' ? 'Get up' : 'Stand up', priority: 20, entity: c.thing || null, keyless: Boolean(c.instrument), act: () => stand(p) };
+      return { label: c.instrument ? 'Get up (space) · keys play notes' : c.pose === 'lie' ? 'Get up' : 'Stand up', priority: 100, entity: c.thing || null, keyless: Boolean(c.instrument), act: () => stand(p) };
     }
     if (p.controller && p.controller !== 'walk') return null;
     const t = lookTarget();
     if (!t) return null;
     const label = labelOf(t.e, t.pt);
-    return { label: label.charAt(0).toUpperCase() + label.slice(1), priority: 5, entity: t.e, point: t.pt, act: () => use(t.e, t.pt) };
+    const wp = worldPoint(t.e, t.pt.at || [0, 0.5, 0]);
+    return { label: label.charAt(0).toUpperCase() + label.slice(1), distance: Math.hypot(wp[0] - p.x, wp[2] - p.z), entity: t.e, point: t.pt, act: () => use(t.e, t.pt) };
   }
-  /** Another module's E offer for this player right now (vehicles, creatures, friends): homes steps aside for it. */
-  function othersOffer(p) {
-    try {
-      const v = H.vehicles && typeof H.vehicles.useOffer === 'function' ? H.vehicles.useOffer(p) : null;
-      if (v) return v;
-      const l = H.living && Array.isArray(H.living.prompts) ? H.living.prompts : [];
-      for (const f of l) { const h = f(p); if (h && h.act && (h.key || 'e') === 'e') return h; }
-    } catch { /* theirs failed: ours stands */ }
-    return null;
-  }
+  // E: the engine's use registry picks between this and the other modules' offers (and shows the hint). At an
+  // instrument E plays a note, so "Get up" is only shown and tapped there (noKey).
+  H.use.register('homes:use', { near: (p) => { const o = useOffer(p); return o && { ...o, noKey: Boolean(o.keyless) }; } });
   function runInteract() {
     const p = W().player;
-    const tappedNow = tapped;
-    const pressed = H.input.pressed.has('e') || tapped;
-    tapped = false;
     const offer = useOffer(p);
-    if (!offer || (offer.priority < 10 && othersOffer(p))) { target = null; prompt(null); return; }
-    target = offer.point ? { e: offer.entity, pt: offer.point } : null;
-    prompt(offer.label);
-    if (offer.keyless ? tappedNow : pressed) offer.act();
+    target = offer && offer.point ? { e: offer.entity, pt: offer.point } : null;
   }
 
   // ------------------------------------------------------------------ sitting and lying (the "seat" controller)
@@ -459,7 +425,8 @@
   // ------------------------------------------------------------------ sound near things
   let ac = null;
   function actx() {
-    if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; } }
+    ac = H.audio.context; // the engine's audio: everything through H.audio.master (water muffles it under water)
+    if (!ac) return null;
     if (ac.state === 'suspended') ac.resume().catch(() => {});
     return ac;
   }
@@ -482,7 +449,7 @@
     const t = a.currentTime;
     const voice = o.voice || 'piano';
     const g = a.createGain();
-    g.connect(a.destination);
+    g.connect(H.audio.master);
     const dur = o.dur || (voice === 'organ' ? 0.8 : voice === 'bell' ? 1.6 : 1.1);
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(vol, t + 0.012);
@@ -510,13 +477,13 @@
     const src = a.createBufferSource(); src.buffer = buf;
     const filt = a.createBiquadFilter(); filt.type = o.kind === 'click' ? 'highpass' : 'lowpass'; filt.frequency.value = o.kind === 'click' ? 2000 : 900;
     const g = a.createGain(); g.gain.value = vol;
-    src.connect(filt).connect(g).connect(a.destination);
+    src.connect(filt).connect(g).connect(H.audio.master);
     src.start();
   }
   /** A sound asset by name if the game has it, else the stand-in (a function that makes one). */
   function sound(name, at, fallback, o = {}) {
     const url = soundUrl(name);
-    if (url) { const el = new Audio(url); el.crossOrigin = 'anonymous'; el.volume = Math.max(0, Math.min(1, (o.volume ?? 1) * (at ? near(at, 16) : 1))); el.play().catch(() => {}); return; }
+    if (url) { const el = new Audio(url); el.crossOrigin = 'anonymous'; H.audio.media(el); el.volume = Math.max(0, Math.min(1, (o.volume ?? 1) * (at ? near(at, 16) : 1))); el.play().catch(() => {}); return; }
     if (fallback) fallback();
   }
   // Loops near a thing (running water, a radio, a TV): an asset by name, or a synth stand-in. Louder as you get close.
@@ -526,12 +493,13 @@
     if (o.asset && soundUrl(o.asset)) {
       l.el = new Audio(soundUrl(o.asset));
       l.el.crossOrigin = 'anonymous';
+      H.audio.media(l.el);
       l.el.loop = o.loop !== false;
       l.el.volume = 0;
       l.el.play().catch(() => {});
     } else if (o.synth) {
       const a = actx();
-      if (a) { l.gain = a.createGain(); l.gain.gain.value = 0; l.gain.connect(a.destination); l.stopSynth = o.synth(a, l.gain, l); }
+      if (a) { l.gain = a.createGain(); l.gain.gain.value = 0; l.gain.connect(H.audio.master); l.stopSynth = o.synth(a, l.gain, l); }
     }
     l.stop = () => {
       l.on = false;
@@ -610,13 +578,11 @@
       scriptSeq = 0;
       things.clear(); steppables.clear(); assemblies.clear(); perFrame.clear();
       for (const l of [...loops]) l.stop();
-      prompt(null);
     },
   });
 
   // ------------------------------------------------------------------ the scripts' side: game.homes
-  // The engine makes a new `game` every time a world starts and sets window.game right after (before any script runs),
-  // so game.homes is attached there. (A core hook for this is requested; this keeps it working meanwhile.)
+  // game.homes for every game object, before any script runs (H.hooks.game).
   const scriptApi = {
     /** Changes a thing's state for everyone: game.homes.set(fridge, { open: true }). */
     set: (e, patch) => set(e, patch),
@@ -643,20 +609,7 @@
     note: (n, o) => note(n, o),
   };
   homes.scriptApi = scriptApi;
-  (function attachGame() {
-    const d = Object.getOwnPropertyDescriptor(window, 'game');
-    let current = d && 'value' in d ? d.value : undefined;
-    const prevSet = d && d.set, prevGet = d && d.get;
-    Object.defineProperty(window, 'game', {
-      configurable: true,
-      get() { return prevGet ? prevGet.call(window) : current; },
-      set(v) {
-        if (v && typeof v === 'object' && !v.homes) { try { Object.defineProperty(v, 'homes', { value: scriptApi, enumerable: true, configurable: true }); } catch {} }
-        if (prevSet) prevSet.call(window, v); else current = v;
-      },
-    });
-    if (current && !current.homes) window.game = current;
-  })();
+  H.hooks.game.push((g) => { g.homes = scriptApi; });
 
   /** Things that animate themselves (doors swinging, hands of a clock): fn(dt) every frame while the thing lives. */
   function animate(e, fn) { const f = (dt) => { if (!e.alive) { perFrame.delete(f); return; } fn(dt); }; perFrame.add(f); return f; }
