@@ -245,6 +245,16 @@
   </div>
   <!-- The engine: its manifest and loader (src/engine.ts). HawkesModules.load() brings Babylon, Havok, the core and
        every module (public/play/modules/*), each with the same cache-busting version. -->
+  <script>
+    // The bug-report panel (data-hawkes-report, a shadow root) beats the game: while a key goes to it, no game listener sees it.
+    // Registered before any game script, so these capture listeners run first.
+    ['keydown', 'keyup', 'keypress', 'beforeinput', 'input'].forEach(function (t) {
+      window.addEventListener(t, function (e) {
+        var p = e.composedPath ? e.composedPath() : [];
+        for (var i = 0; i < p.length; i++) if (p[i] && p[i].hasAttribute && p[i].hasAttribute('data-hawkes-report')) { e.stopImmediatePropagation(); return; }
+      }, true);
+    });
+  </script>
   <script src="/play/modules.js"></script>
   <script>
     // A game, not a page: no pinch or double-tap zoom, no ctrl+wheel zoom, no text selection or long-press menus.
