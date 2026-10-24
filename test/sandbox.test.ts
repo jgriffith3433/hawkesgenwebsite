@@ -16,6 +16,7 @@ process.env.HAWKESGEN_URL = 'http://127.0.0.1:9';
 process.env.HAWKESGEN_KEY = 'hg_test';
 process.env.STARTER_CREDITS = '50';
 process.env.SIGNUPS_PER_HOUR = '100';
+process.env.PORTAL_DEV_OPEN_PLAY = '0'; // a developer's local .env may turn open play on; this test checks the real headers
 
 const { handle } = await import('../src/server.ts');
 const portal = http.createServer((req, res) => void handle(req, res));
