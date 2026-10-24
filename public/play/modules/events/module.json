@@ -1,0 +1,6 @@
+{
+  "title": "Events and quests",
+  "order": 80,
+  "scripts": ["events.js", "disasters.js", "quests.js"],
+  "kinds": ["zone"]
+}
