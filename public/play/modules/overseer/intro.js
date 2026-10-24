@@ -3,7 +3,7 @@
 // About ten seconds; any key or a tap skips it. After that (or on a later visit), being beamed in is enough.
 //   - config.overseer.intro: "first" (the default: once per player, remembered on this device), "always", or false.
 //   - The sound: a score made here (a hum, the beam's swell and whoosh, a chime, a tone under each line). The voice: a
-//     sound asset named "overseer-intro" in the game, if it has one; otherwise the words are captions.
+//     sound asset named "overseer-intro" in the game, else the Overseer's own line (overseer.js VOICES).
 //   - With sound still blocked by the browser (no click or key yet), it first shows "Click to enter the world".
 //   - Remembered in localStorage ("hg_overseer_intro"); a sandboxed game page (the editor's stage) asks its page,
 //     which passes it in the bundle (bundle.overseen) and is told when it has played (message "overseer-seen").
@@ -63,7 +63,8 @@
     let id = null;
     try { id = H.assets && H.assets.pick ? H.assets.pick('overseer-intro', { kind: 'sound' }) : null; } catch { id = null; }
     if (!id) { try { if (H.lib.hasAsset('overseer-intro.mp3')) id = 'overseer-intro.mp3'; } catch { /* none */ } }
-    if (!id) return null;
+    // Not in this game: the Overseer's own voice line (overseer.js VOICES, the community library's).
+    if (!id) return OV.voice ? OV.voice('overseer-intro.mp3') : null;
     try {
       const a = new Audio(H.lib.assetUrl(id));
       a.crossOrigin = 'anonymous';

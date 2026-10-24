@@ -185,5 +185,6 @@ game.on('wrecked', (d) => {
     const y = game.terrain && game.terrain.heightAt ? game.terrain.heightAt(HELIPAD.x, HELIPAD.z) : null;
     game.helicopter({ x: HELIPAD.x, y: (y === null || y === undefined ? 6 : y) + 1.55, z: HELIPAD.z, rotation: [0, 200, 0], name: 'Helicopter', color: '#2b5fd9', model: wreck.shape && wreck.shape.model });
     overseer('A new one, from me.', 4);
+    sfx('overseer-a-new-one.mp3', { volume: 1 });
   });
 });
