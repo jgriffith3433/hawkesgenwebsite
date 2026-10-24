@@ -195,3 +195,21 @@ test('instanced copies don\'t set receiveShadows on instances (Babylon warns for
   finally { (console as any).warn = warn; B.Logger.Warn = log; }
   assert.ok(!said.some((s) => /receiveShadows/i.test(s)), said.join('\n'));
 });
+
+test('H.timeScale / H.slow: slow motion is fewer fixed steps (nothing runs twice); the slowest owner wins', () => {
+  world(H, sceneOf({ floor }));
+  let steps = 0, frames = 0;
+  H.game.onUpdate(() => steps++);
+  H.hooks.frame.push(() => frames++);
+  H.slow('test', 0.25);
+  H.slow('other', 0.5);
+  assert.equal(H.timeScale, 0.25);
+  for (let i = 0; i < 30; i++) H.tick(1 / 30);
+  assert.ok(steps >= 13 && steps <= 17, `a quarter of 60 steps (${steps})`);
+  assert.equal(frames, 30, 'every frame still runs once');
+  H.slow('test', null);
+  assert.equal(H.timeScale, 0.5);
+  H.slow('other', null);
+  assert.equal(H.timeScale, 1);
+  H.hooks.frame.pop();
+});

@@ -231,14 +231,17 @@
   }
   // H.audio: one output every sound goes through (the engine's, every module's, music), so a module can change how
   // everything sounds (water muffles it all under water). master (a gain) -> effects (in name order) -> speakers.
-  let masterNode = null;
+  let masterNode = null, outputNode = null, links = [];
   const effects = new Map();
   const mediaRouted = new WeakSet();
+  // Only the chain's own links are undone when it changes: whatever else listens to the master or the output (a clip
+  // being recorded) stays connected.
   function wire() {
     if (!masterNode) return;
-    const chain = [masterNode, ...[...effects.keys()].sort().map((k) => effects.get(k)), audio.destination];
-    for (const n of chain.slice(0, -1)) { try { n.disconnect(); } catch { /* not connected */ } }
-    for (let i = 0; i < chain.length - 1; i++) chain[i].connect(chain[i + 1]);
+    for (const [a, b] of links) { try { a.disconnect(b); } catch { /* gone */ } }
+    const chain = [masterNode, ...[...effects.keys()].sort().map((k) => effects.get(k)), outputNode];
+    links = [];
+    for (let i = 0; i < chain.length - 1; i++) { chain[i].connect(chain[i + 1]); links.push([chain[i], chain[i + 1]]); }
   }
   const audioApi = {
     /** The shared AudioContext (made on first use; it starts running at the first click, tap or key). Null without WebAudio. */
@@ -248,9 +251,13 @@
       if (masterNode) return masterNode;
       if (!makeAudio()) return null;
       masterNode = audio.createGain();
+      outputNode = audio.createGain();
+      outputNode.connect(audio.destination);
       wire();
       return masterNode;
     },
+    /** What reaches the speakers (after the effects): record from here to hear what the player hears. */
+    get output() { return audioApi.master ? outputNode : null; },
     /** True once the browser lets sound play. */
     get running() { return Boolean(audio && audio.state === 'running'); },
     /** The volume of everything, 0 to 1. */
@@ -1709,7 +1716,7 @@
     let elapsed = Math.min(0.25, (now - last) / 1000);
     last = now;
     if (!W.paused) {
-      acc += elapsed;
+      acc += elapsed * timeScale; // (slow motion: fewer fixed steps a second; 0 stops the world, frames still draw)
       let n = 0;
       while (acc >= STEP && n < 8) {
         step(STEP); acc -= STEP; n++;
@@ -1728,6 +1735,22 @@
     mouse.pressed = false;
     mouse.dx = 0; mouse.dy = 0; mouse.wheel = 0;
     if (render) W.scene.render();
+  }
+  // H.timeScale: how fast the world runs (1 normal, 0.35 slow motion, 0 stopped). Everything that steps (physics,
+  // behaviors, scripts' updates, modules' step hooks) runs fewer fixed steps a second; animations follow it. Owners ask
+  // with H.slow(owner, scale) and let go with H.slow(owner, null): the slowest asked wins (a speed-up only when nobody
+  // slows it). Setting H.timeScale is the 'default' owner.
+  let timeScale = 1, tickAcc = 0;
+  const slowers = new Map();
+  function slow(owner, k) {
+    const o = String(owner || 'default');
+    if (k === null || k === undefined || Number(k) === 1) slowers.delete(o); else slowers.set(o, Math.max(0, Math.min(4, Number(k) || 0)));
+    let s = 1;
+    for (const v of slowers.values()) s = Math.min(s, v);
+    if (s === 1) for (const v of slowers.values()) if (v > 1) s = Math.max(s, v);
+    timeScale = s;
+    if (W && W.scene) W.scene.animationTimeScale = s;
+    return s;
   }
   let ticker = null;
   function startTicker() {
@@ -1897,6 +1920,7 @@
       W.scene.dispose();
     }
     const keepPose = W && W.keepPose;
+    slowers.clear(); timeScale = 1;
     clearErrors();
     keyHandlers = [];
     behaviorDefs.clear();
@@ -2021,6 +2045,10 @@
     behavior: (name, def) => defineBehavior(name, def, true),
     behaviorDef: (name) => findDef(name),
     hooks,
+    /** How fast the world runs: 1 normal, 0.35 slow motion, 0 stopped (H.slow for several owners). */
+    get timeScale() { return timeScale; },
+    set timeScale(k) { slow('default', k); },
+    slow,
     /** One sound output for everything (H.audio.master; docs/engine-modules.md "Sound"). */
     audio: audioApi,
     lockPointer,
@@ -2039,14 +2067,18 @@
     /** Steps the world by `seconds` (whole fixed steps) and runs one frame without drawing: for tests and tools. */
     tick(seconds = STEP) {
       if (!W) return;
-      const n = Math.max(1, Math.round(seconds / STEP));
+      // `seconds` of real time: at a time scale other than 1, that many seconds of game time fewer (or more) steps.
+      let n;
+      if (timeScale === 1) { n = Math.max(1, Math.round(seconds / STEP)); tickAcc = 0; }
+      else { tickAcc += seconds * timeScale; n = Math.floor(tickAcc / STEP + 1e-6); tickAcc -= n * STEP; }
       framePressed = pressedNow; // what went down since the last tick, like a frame (advance)
       for (let i = 0; i < n && W && !W.paused; i++) { step(STEP); if (i === 0) { pressedNow = new Set(); releasedNow = new Set(); mouse.pressed = false; } }
       if (!W) return;
-      W.camera.update(n * STEP);
+      const frameDt = timeScale === 1 ? n * STEP : seconds; // (frames run in real time, like a browser's)
+      W.camera.update(frameDt);
       syncTool();
-      toolTick('frame', n * STEP);
-      for (const f of hooks.frame) f(n * STEP, false, framePressed);
+      toolTick('frame', frameDt);
+      for (const f of hooks.frame) f(frameDt, false, framePressed);
       pressedNow = new Set(); releasedNow = new Set(); mouse.pressed = false;
       mouse.dx = 0; mouse.dy = 0; mouse.wheel = 0;
     },

@@ -306,7 +306,7 @@
   H.cinematic = C;
 
   // game.cinematic and game.photo for scripts: added the moment the engine makes the game object (before scripts run).
-  // H.hooks.game when the engine has it; otherwise we watch window.game, chaining with anyone else who does.
+  // (H.hooks.game: every new game object, before any script runs.)
   const scriptApi = () => ({
     play: (n, o) => C.play(n, o), stop: () => C.stop(), skip: () => C.skip(), record: (n, o) => C.record(n, o),
     orbit: C.orbit, follow: C.follow, dolly: C.dolly, path: C.path, fixed: C.fixed, sequence: C.sequence,
@@ -320,17 +320,5 @@
     if (!Object.prototype.hasOwnProperty.call(g, 'cinematic')) Object.defineProperty(g, 'cinematic', { value: scriptApi(), enumerable: true, configurable: true });
     if (!Object.prototype.hasOwnProperty.call(g, 'photo')) Object.defineProperty(g, 'photo', { value: photoApi(), enumerable: true, configurable: true });
   };
-  function watchGame() {
-    if (H.hooks && Array.isArray(H.hooks.game)) { if (!H.hooks.game.includes(attach)) H.hooks.game.push(attach); attach(H.game); return; }
-    if (H.hooks && typeof H.hooks.game === 'function' && !H.hooks.game.__share) { try { H.hooks.game(attach); attach(H.game); return; } catch {} }
-    const desc = Object.getOwnPropertyDescriptor(window, 'game');
-    if (desc && desc.set && desc.set.__share) return;
-    let cur = desc && !desc.get ? desc.value : undefined;
-    const set = function (g) { if (desc && desc.set) desc.set.call(window, g); else cur = g; try { attach(g); } catch {} };
-    set.__share = true;
-    Object.defineProperty(window, 'game', { configurable: true, enumerable: true, get() { return desc && desc.get ? desc.get.call(window) : cur; }, set });
-    attach(H.game);
-  }
-  watchGame();
-  Promise.resolve(H.ready).then(watchGame, watchGame);
+  H.hooks.game.push(attach);
 })();
