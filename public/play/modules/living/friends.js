@@ -160,6 +160,7 @@
     const msg = String(text || '').trim().slice(0, 300);
     if (!msg) return null;
     r.awake = true;
+    f.greeted = true;
     remember(r, 'you', msg);
     const local = understand(msg);
     let reply = null;
@@ -188,8 +189,10 @@
     if (!reply) reply = { say: line(r, local.action === 'none' ? (/\b(hi|hello|hey|yo)\b/i.test(msg) ? 'hello' : 'chat') : local.action), action: local.action, target: local.target, thing: local.thing };
     if (reply.action === 'build' && !reply.thing) reply.thing = understand(msg).thing || { kind: 'box', count: 1 };
     const p = G().player;
-    const at = p ? [p.x + p.forward.x * 3, p.bottom, p.z + p.forward.z * 3] : [e.x, e.bottom, e.z + 2];
-    act({ key: f.key, say: reply.say, action: reply.action, target: reply.target, thing: reply.thing, by: H.sync && H.sync.online ? H.sync.me : null, at, yaw: p ? p.node.rotation.y : 0 });
+    // Where they're looking (for building in front of them).
+    const yaw = W().camera && typeof W().camera.yaw === 'number' ? W().camera.yaw : p ? p.node.rotation.y : 0;
+    const at = p ? [+(p.x + Math.sin(yaw) * 4.5).toFixed(2), +p.bottom.toFixed(2), +(p.z + Math.cos(yaw) * 4.5).toFixed(2)] : [e.x, e.bottom, e.z + 2];
+    act({ key: f.key, say: reply.say, action: reply.action, target: reply.target, thing: reply.thing, by: H.sync && H.sync.online ? H.sync.me : null, at, yaw });
     return reply;
   }
 
