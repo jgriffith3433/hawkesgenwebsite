@@ -121,6 +121,41 @@ test('rooms: members meet, see each other move, and get world edits; a bad token
   await new Promise<void>((ok) => { bad.onerror = () => ok(); bad.onclose = () => ok(); });
 });
 
+test('Overseer games use community things by id: /play/t/<id> loads them through the public route, a game made from one keeps them', async () => {
+  const { db } = await import('../src/db.ts');
+  await import('../src/community.ts'); // its table
+  const { TEMPLATES } = await import('../src/templates.ts');
+  for (const id of ['fps-arena', 'sky-racer', 'platform-run']) {
+    const t = TEMPLATES.find((x) => x.id === id)!;
+    assert.ok(Object.keys(t.assets ?? {}).length >= 15, `${id} lists its community things`);
+    // Every id the world uses is one of its assets.
+    const scene = t.files(t.name)['scene.json'];
+    for (const a of new Set(scene.match(/a_[0-9a-f]{16}/g) ?? [])) assert.ok(Object.values(t.assets!).includes(a), `${id}: ${a} is in its assets`);
+  }
+  // With no library rows (a fresh portal) the game still plays, with no assets.
+  assert.deepEqual((await call('/v1/play-template/sky-racer')).body.assets, {});
+  const arena = TEMPLATES.find((x) => x.id === 'fps-arena')!;
+  const now = Date.now();
+  for (const [name, id] of Object.entries(arena.assets!)) {
+    const kind = name.endsWith('.mp3') ? 'sfx' : name.endsWith('.png') ? 'texture' : 'model';
+    const mime = kind === 'sfx' ? 'audio/mpeg' : kind === 'texture' ? 'image/png' : 'model/gltf-binary';
+    db.prepare("INSERT OR IGNORE INTO community_assets (id, project, kind, mime, title, tags, source, created) VALUES (?, 'usr_00000000000000c0', ?, ?, ?, '', 'starter', ?)").run(id, kind, mime, name.replace(/\.\w+$/, ''), now);
+  }
+  db.prepare('UPDATE community_assets SET hidden = 1 WHERE id = ?').run(arena.assets!['alarm.mp3']);
+  const b = (await call('/v1/play-template/fps-arena')).body;
+  assert.equal(b.assets['robot.glb'].url, `/v1/community/${arena.assets!['robot.glb']}/file`);
+  assert.equal(b.assets['robot.glb'].id, arena.assets!['robot.glb']);
+  assert.equal(b.assets['robot.glb'].type, 'model');
+  assert.equal(b.assets['battle-drive.mp3'].type, 'sound');
+  assert.equal(b.assets['alarm.mp3'], undefined, 'a hidden library thing is left out');
+  const maker = await account('Arena');
+  const g = (await call('/v1/games', { cookie: maker, body: { title: 'My arena', template: 'fps-arena' } })).body;
+  const assets = (await call(`/v1/games/${g.id}`, { cookie: maker })).body.assets;
+  const robot = assets.find((a: any) => a.name === 'robot.glb');
+  assert.ok(robot && robot.asset === arena.assets!['robot.glb'] && robot.project === 'usr_00000000000000c0', 'the game holds the library thing itself, nothing copied');
+  assert.equal(assets.length, Object.keys(arena.assets!).length - 1);
+});
+
 test('Overseer games play without an account; remixing copies a game as it is (every game is live)', async () => {
   const gal = (await call('/v1/gallery')).body;
   assert.ok(gal.featured.some((f: any) => f.id === 'fps-arena' && f.url === '/play/t/fps-arena'));
