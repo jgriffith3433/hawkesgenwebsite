@@ -18,6 +18,9 @@ function key() {
 const b64 = (b: Buffer | string) => Buffer.from(b).toString('base64url');
 const mac = (body: string) => crypto.createHmac('sha256', key()).update(body).digest().subarray(0, 18);
 
+/** A keyed digest of some text (base64url): the same text always gives the same digest, which can't be turned back. */
+export const digest = (text: string) => b64(crypto.createHmac('sha256', key()).update(text).digest());
+
 export function sign(payload: Record<string, unknown>, ttlSeconds: number) {
   const body = b64(JSON.stringify({ ...payload, e: Math.floor(Date.now() / 1000) + ttlSeconds }));
   return `${body}.${b64(mac(body))}`;

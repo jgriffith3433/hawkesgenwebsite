@@ -225,7 +225,12 @@
     on('quest', (d) => {
       if (!d || d.id !== 'tour') return;
       if (d.state === 'start') track('sandbox_objective', { step: 'start', s: Math.round((performance.now() - t0) / 1000), touch });
-      if (d.state === 'done') { nudge(7000); setTimeout(() => highlightAssistant('done'), 9000); }
+      if (d.state === 'done') {
+        nudge(7000);
+        setTimeout(() => highlightAssistant('done'), 9000);
+        // The tour's end is the natural pause to ask how it was (the SDK's card, once a session; never mid-tour).
+        setTimeout(() => { try { window.hawkesAnalytics?.ask?.({ id: 'sandbox-tour', question: 'How was the island tour?', context: 'sandbox tour', kind: 'stars', comment: true, theme: { background: '#14161b', color: '#f1f2f4', accent: '#f2b33d', font: 'Inter, system-ui, sans-serif', radius: '12px' } }); } catch { /* fine */ } }, 20000);
+      }
     });
     // After the tour (or 5 minutes in without finishing it): the assistant is the next big thing, so its button glows
     // with a word on what it does, until it's clicked.

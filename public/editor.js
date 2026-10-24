@@ -148,6 +148,13 @@ function builderDid(name, extra) {
 }
 try { analytics()?.setContext({ entry: 'editor', account: 'user' }); } catch {}
 window.addEventListener('load', () => { try { analytics()?.setContext({ entry: 'editor', account: 'user' }); } catch {} });
+// What got in the way, and the feedback card at a natural pause (site-analytics.js; the card in the game's look).
+const hga = () => window.hgAnalytics || null;
+function frustrated(kind, props) { try { hga()?.frustration(kind, props); } catch {} }
+const ASK_THEME = { background: '#14161b', color: '#f1f2f4', accent: '#f2b33d', font: 'Inter, system-ui, sans-serif', radius: '12px' };
+function askLater(o, ms = 2500) { setTimeout(() => { try { hga()?.ask({ theme: ASK_THEME, ...o }); } catch {} }, ms); }
+// The assistant: when each request of mine went, to time its answer (and say when it's slow or fails).
+let askedAt = 0;
 
 window.addEventListener('message', async (e) => {
   if (e.source !== stage.contentWindow) return;
@@ -160,6 +167,8 @@ window.addEventListener('message', async (e) => {
       try { if (m.ctx) a.setContext(m.ctx); a.track(m.name, m.props || {}); } catch {}
       return;
     }
+    // Input inside the game: the SDK here can't see it, but it is time spent here.
+    case 'analytics-activity': try { analytics()?.activity?.(); } catch {} return;
     case 'overseer-seen':
       try { localStorage.setItem('hg_overseer_intro', String(Date.now())); } catch {}
       return;
@@ -180,7 +189,11 @@ window.addEventListener('message', async (e) => {
       }
       return;
     }
-    case 'error': addError(m.message, m.file, m.line); return;
+    case 'error':
+      addError(m.message, m.file, m.line);
+      // A game script's error (the runtime catches them): each kind once a page, like the SDK's own.
+      try { analytics()?.error({ message: String(m.message || 'Error').slice(0, 1000), stack: m.file ? `at ${m.file}:${m.line ?? '?'}` : '' }, 'script', { file: m.file || undefined, line: m.line || undefined }); } catch {}
+      return;
     case 'log': return;
     case 'ops': {
       // A world edit from the game: it goes live for everyone (the game is always live); Save marks a point in history.
@@ -194,6 +207,7 @@ window.addEventListener('message', async (e) => {
       } catch (err) {
         toStage({ type: 'ack', seq: m.seq, errors: [err.message] });
         setSaveState(err.status === 403 ? '' : 'Not sent');
+        if (err.status !== 403) frustrated('edit_not_saved', { status: err.status || 0 });
         if (err.status === 403) addSystem(err.message);
       }
       return;
@@ -285,6 +299,16 @@ function connect() {
     renderChat(i < 0 ? msg : null);
     if (i < 0 && msg.role === 'ai' && msg.text) speak(msg.text);
     if (i < 0 && msg.role === 'ai' && msg.data && msg.data.error) { $('thinkingIndicator').hidden = true; toStage({ type: 'toast', text: 'The assistant hit a problem (see chat)' }); }
+    // An answer to my request: how long it took, and whether it worked.
+    if (i < 0 && msg.role === 'ai' && askedAt) {
+      const ms = Date.now() - askedAt;
+      askedAt = 0;
+      const ok = !(msg.data && msg.data.error);
+      hga()?.track('assistant_reply', { ok, ms, suggestions: (msg.data && msg.data.suggestions && msg.data.suggestions.length) || 0 });
+      if (!ok) frustrated('assistant_failed', { error: String(msg.data.error).slice(0, 120) });
+      else if (ms > 90_000) frustrated('assistant_slow', { seconds: Math.round(ms / 1000) });
+      if (ok) askLater({ id: 'editor-assistant', question: 'Did the assistant get that right?', context: 'assistant reply', comment: true }, 4000);
+    }
   });
   sse.addEventListener('thinking', (e) => { const d = JSON.parse(e.data); $('thinkingIndicator').hidden = !d.on; if (d.on) $('thinkingIndicator').textContent = `${d.by && d.by !== me?.name ? `${d.by}'s request: ` : ''}working…`; });
   sse.addEventListener('gen', (e) => onGen(JSON.parse(e.data)));
@@ -407,7 +431,12 @@ async function sendChat(text, about, ctx) {
   try {
     await post(`${API}/games/${gameId}/ai`, { message: target ? `@${target.name || target.id} ${message}` : message, mention: target || undefined, context: context || undefined, file: openPath, errors: errText || undefined });
     setMention(null);
+    askedAt = Date.now();
+    hga()?.track('assistant_ask', { chars: message.length, mention: Boolean(target), errors: errors.length });
   } catch (err) {
+    // 402 (no credits) is told by site-analytics.js from the answer itself.
+    if (err.status === 429) frustrated('assistant_busy');
+    else if (err.status !== 402) frustrated('assistant_unreachable', { status: err.status || 0 });
     addSystem(err.status === 402 ? `${err.message} Get more credits from the menu's profile, or at hawkesgen.com/app#credits.`
       : err.status === 429 ? "I'm still working on the last request. Ask again when it's done."
       : err.status >= 500 || !err.status ? "I couldn't reach the assistant just now. Nothing was charged; try again in a moment." : err.message);
@@ -422,7 +451,14 @@ function onGen(row) {
   if (row.state === 'done' || row.state === 'failed') setTimeout(() => { pendingGens = pendingGens.filter((p) => p.task_id !== row.task_id); renderGens(); }, 8000);
   renderGens();
   toStage({ type: 'gen', row });
-  if (row.state === 'failed') addSystem(`Making ${row.name || row.kind} failed. Your credits for it were given back.`);
+  if (row.state === 'failed') {
+    addSystem(`Making ${row.name || row.kind} failed. Your credits for it were given back.`);
+    frustrated('generation_failed', { kind: row.kind || null });
+  }
+  if (row.state === 'done' && i >= 0) {
+    hga()?.track('asset_made', { kind: row.kind || null });
+    askLater({ id: 'editor-first-asset', question: `How did ${String(row.asset_name || row.name || 'that').slice(0, 40)} turn out?`, context: `made ${row.kind || 'asset'}`, kind: 'stars', comment: true }, 3000);
+  }
 }
 function renderGens() {
   const list = $('gensList');

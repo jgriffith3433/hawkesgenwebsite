@@ -14,6 +14,7 @@ const jobs = new Map<string, any>();
 const streams = new Set<http.ServerResponse>();
 const emit = (job: any) => { for (const s of streams) s.write(`event: job\ndata: ${JSON.stringify(job)}\n\n`); };
 let refuseNext = false;
+const relayed: { headers: http.IncomingHttpHeaders; raw: string }[] = [];
 const fakeGen = http.createServer(async (req, res) => {
   const chunks: Buffer[] = [];
   for await (const c of req) chunks.push(c);
@@ -41,6 +42,7 @@ const fakeGen = http.createServer(async (req, res) => {
     req.on('close', () => streams.delete(res));
     return;
   }
+  if (url.pathname === '/v1/analytics/relay') { relayed.push({ headers: req.headers, raw: raw.toString() }); return json(202, { ok: true }); }
   if (url.pathname === '/v1/assets' && req.method === 'GET') return json(200, { items: [{ id: 'a_1', project: as }] });
   if (url.pathname === '/v1/assets' && req.method === 'POST') return json(200, { id: 'a_2', project: url.searchParams.get('project'), size: raw.length, filename: req.headers['x-filename'] });
   return json(404, { error: 'not in the fake' });
@@ -374,4 +376,31 @@ test('first purchase: +25% once; the low-balance email is sent once per drop and
   const { lowBalanceEmail } = await import('../src/mail.ts');
   assert.match(lowBalanceEmail('Ada', 4, 25).text, /4 credits left[\s\S]*first pack comes with 25% more/);
   assert.ok(!lowBalanceEmail(null, 1, 0).text.includes('first pack'));
+});
+
+test("analytics: a game page's batch is passed on to Gen with our key, the origin and the visitor; a signed-in player's ids come with the page", async () => {
+  const batch = JSON.stringify({ product: 'hawkesgen', anon: 'a_guestanon0001', session: 's_session00001', events: [{ name: 'game_ready', seq: 0 }] });
+  const r = await fetch(`${base}/v1/analytics/collect`, { method: 'POST', headers: { 'Content-Type': 'text/plain', 'User-Agent': 'TestBrowser/1.0', 'X-Forwarded-For': '198.51.100.9' }, body: batch });
+  assert.equal(r.status, 202);
+  assert.equal(r.headers.get('access-control-allow-origin'), '*');
+  await until(async () => relayed.length > 0);
+  const got = relayed.at(-1)!;
+  assert.equal(got.raw, batch, 'the batch as it came');
+  assert.equal(got.headers.authorization, 'Bearer hg_portal_test_key');
+  assert.equal(got.headers['x-hawkes-relay-origin'], 'https://hawkesgen.test');
+  assert.equal(got.headers['x-hawkes-visitor-ua'], 'TestBrowser/1.0');
+  assert.ok(got.headers['x-hawkes-visitor-ip'], 'the visitor address goes to Gen (which drops it after the place)');
+  const big = await fetch(`${base}/v1/analytics/collect`, { method: 'POST', body: 'x'.repeat(70_000) });
+  assert.equal(big.status, 413);
+
+  // A guest's game page has no ids; a signed-in player's has their account id and an anonymous id made from it.
+  const guest = await call('/play/some-game');
+  assert.doesNotMatch(guest.body, /window.HAWKES_PLAY_IDS=/);
+  const c = await newCustomer();
+  const page = await call('/play/some-game', { cookie: c.cookie });
+  const ids = JSON.parse(/window\.HAWKES_PLAY_IDS=(\{.*?\});/.exec(page.body)![1]);
+  assert.equal(ids.user, c.user.id);
+  assert.match(ids.anon, /^u_[\w-]{22}$/);
+  assert.equal(JSON.parse(/window\.HAWKES_PLAY_IDS=(\{.*?\});/.exec((await call('/play/other-game', { cookie: c.cookie })).body)![1]).anon, ids.anon, 'the same id every time');
+  assert.doesNotMatch((await call('/play/sandbox', { cookie: c.cookie })).body, /window.HAWKES_PLAY_IDS=/, 'the guest sandbox keeps its own');
 });
