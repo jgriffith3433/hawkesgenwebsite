@@ -199,7 +199,7 @@ float bNoise(vec3 p, float per) {
   return mix(mix(mix(bHash(vec3(a.x, a.y, a.z)), bHash(vec3(b.x, a.y, a.z)), f.x), mix(bHash(vec3(a.x, b.y, a.z)), bHash(vec3(b.x, b.y, a.z)), f.x), f.y),
              mix(mix(bHash(vec3(a.x, a.y, b.z)), bHash(vec3(b.x, a.y, b.z)), f.x), mix(bHash(vec3(a.x, b.y, b.z)), bHash(vec3(b.x, b.y, b.z)), f.x), f.y), f.z);
 }
-float bFbm(vec3 p) { float v = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { v += a * bNoise(p, 100000.0); p = p * 2.03 + vec3(1.7, 9.2, 3.1); a *= 0.5; } return v; }
+float bFbm(vec3 p) { float v = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { v += a * bNoise(p, 100000.0); p = p * 2.03 + vec3(1.7, 9.2, 3.1); a *= 0.5; } return v; }
 vec3 biome(vec3 d, float R) {
   vec3 q = d * (R / 9000.0);
   float n = bFbm(q + vec3(3.1, 7.7, 1.3));
@@ -242,9 +242,11 @@ void main(void) {
   // Lit like the ground near you (the world's ambient and sun, as the sky has set them), dark on the night side.
   c *= lit2.x * clamp(ndl * 2.0 + 0.7, 0.08, 1.0) + lit2.y * sun;
   // Clouds, seen from above (they fade in as you climb).
-  float cn = bFbm(d * (look.x / 2600.0) + vec3(look.z * 0.003, look.z * 0.001, 0.0));
-  float cl = smoothstep(1.0 - look.y * 0.62, 1.0 - look.y * 0.62 + 0.16, cn) * smoothstep(1800.0, 9000.0, lightv.y);
-  c = mix(c, vec3(0.96) * (0.08 + 0.92 * clamp(ndl * 1.3 + 0.15, 0.0, 1.0) * lightv.x), cl * 0.85);
+  if (lightv.y > 1800.0 && look.y > 0.0) {
+    float cn = bFbm(d * (look.x / 2600.0) + vec3(look.z * 0.003, look.z * 0.001, 0.0));
+    float cl = smoothstep(1.0 - look.y * 0.62, 1.0 - look.y * 0.62 + 0.16, cn) * smoothstep(1800.0, 9000.0, lightv.y);
+    c = mix(c, vec3(0.96) * (0.08 + 0.92 * clamp(ndl * 1.3 + 0.15, 0.0, 1.0) * lightv.x), cl * 0.85);
+  }
   // The haze: far parts fade into the sky (or the world's fog) near the horizon; the air glows at the rim.
   vec3 V = normalize(camPos - vW);
   float dist = length(vW - camPos);
@@ -328,10 +330,11 @@ void main(void) {
     bg.add(sphere, 1);
     bg.add(atmo, 1);
     H.sky.onBg((main, fc) => {
-      const on = state.on;
+      const p = main.globalPosition;
+      // (A round world close to the ground: the ground round you reaches past the horizon; the ball isn't needed.)
+      const on = state.on && !(state.round && H.planet.heightOf([p.x, p.y, p.z]) < 30);
       sphere.setEnabled(on); atmo.setEnabled(on && H.sky.space > 0.02);
       if (!on) return;
-      const p = main.globalPosition;
       const R = state.radius;
       if (state.round) {
         // The ball itself, at the planet's middle, turned so its lands stay where they are on the planet.
@@ -345,7 +348,7 @@ void main(void) {
       }
       sphere.scaling.setAll(R);
       atmo.position.copyFrom(sphere.position);
-      atmo.scaling.setAll(R + state.scale * 5);
+      atmo.scaling.setAll(R + (state.round ? Math.min(state.scale * 5, R * 0.035) : state.scale * 5));
       const alt = Math.max(1, state.round ? H.planet.heightOf([p.x, p.y, p.z]) : p.y - state.surface);
       fc.minZ = clamp(alt * 0.4, 20, 4000);
       fc.maxZ = Math.max(4e5, R * 4 + alt * 2);

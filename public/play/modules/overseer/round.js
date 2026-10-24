@@ -152,20 +152,30 @@
       if (c.focus) { const p = tr.point([c.focus.x, c.focus.y, c.focus.z]); c.focus.set(p[0], p[1], p[2]); }
       if (c.arc && c.arc.target) { const p = tr.point([c.arc.target.x, c.arc.target.y, c.arc.target.z]); c.arc.target.set(p[0], p[1], p[2]); }
       c.eyeY = undefined; // (the first-person eye snaps to the moved player: it's where it was)
-      const cp = Math.cos(c.pitch || 0);
-      const d = tr.dir([Math.sin(c.yaw || 0) * cp, -Math.sin(c.pitch || 0), Math.cos(c.yaw || 0) * cp]);
-      c.yaw = Math.atan2(d[0], d[2]);
-      c.pitch = -Math.asin(Math.max(-1, Math.min(1, d[1])));
+      // The heading turns with the frame; the pitch stays what it was against the horizon under you (flying level round
+      // the planet stays level, however far each step goes).
+      const d = tr.dir([Math.sin(c.yaw || 0), 0, Math.cos(c.yaw || 0)]);
+      if (Math.hypot(d[0], d[2]) > 1e-6) c.yaw = Math.atan2(d[0], d[2]);
       if (pl && pl.alive && c.mode === 'fps' && c.target === pl) pl.node.rotation.y = c.yaw;
     }
     if (w.checkpoint) w.checkpoint = tr.point(w.checkpoint);
     for (const f of listeners) try { f(tr, w); } catch (err) { H.report(err, 'round world'); }
   }
   /** Each step (after physics): the frame follows you once you've gone far enough round. */
-  function follow() {
+  function follow(dt) {
     const w = W();
     const p = w && w.player;
     if (!F.on || !p || !p.alive || p.remote) return;
+    // Flying fast and high, a step is long: "level" (along the ground under you) goes round the planet, not off along
+    // the tangent (which would climb a little each step, and faster the higher you are: away for ever). The height
+    // changes only by what you asked for (up and down are along +y under you).
+    if (p._fast && p.flying) {
+      const r0 = Math.hypot(p._px ?? p.x, (p._py ?? p.y) + F.R, p._pz ?? p.z); // (where this step began)
+      const want = Math.max(F.R + 0.5, r0 + p.vy * dt);
+      const y = p.y + F.R, len = Math.hypot(p.x, y, p.z) || 1, k = want / len;
+      p.node.position.set(p.x * k, y * k - F.R, p.z * k);
+      if (p._cc && p._cc.cc) { p._cc.cc._position.copyFrom(p.node.position); if (p._cc.last) p._cc.last.copyFrom(p.node.position); }
+    }
     const x = p.x, y = p.y + F.R, z = p.z;
     // How far round from the frame's up you are (radians): 100 m on a 50 km planet, the same angle anywhere.
     const ang = Math.atan2(Math.hypot(x, z), y);
@@ -321,8 +331,23 @@
     },
     leave() { ground = null; },
   });
-  H.hooks.afterStep.push(() => { try { follow(); } catch (err) { H.report(err, 'round world'); } });
+  H.hooks.afterStep.push((dt) => { try { follow(dt); } catch (err) { H.report(err, 'round world'); } });
   H.hooks.step.push((dt) => rest(dt));
+
+  // game.planet for scripts: positions in scripts are in the world around the player (as on flat ground).
+  H.hooks.game.push((game) => {
+    game.planet = {
+      get round() { return F.on; },
+      get radius() { return P.radius; },
+      /** Which way is up at a point ([x, y, z]): away from the planet's middle (+y on a flat world). */
+      up: (p) => P.up(p),
+      /** Height of a point over the ground (the planet's surface; y on a flat world). */
+      height: (p) => P.heightOf(p),
+      /** A point here -> where it is on the planet (the world file's numbers), and back. */
+      toPlanet: (p) => (F.on ? toPlanet(p) : vec(p)),
+      toLocal: (p) => (F.on ? toLocal(p) : vec(p)),
+    };
+  });
 
   // The codex's page: a small round world to walk round.
   H.features.register('round planet', {

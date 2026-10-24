@@ -31,7 +31,7 @@
         p._fast = false;
         if (building && P && P.round) {
           const h = Math.max(0, P.heightOf([p.x, p.bottom, p.z]));
-          sp *= 1 + h / 8;
+          sp *= 1 + Math.min(h, P.radius * 20) / 8; // (no ceiling; the speed stops growing 20 radii out)
           // High and fast: moved straight (no collision casts that far a step); never more than a fraction of the height.
           p._fast = h > 40 && sp > 60;
         }

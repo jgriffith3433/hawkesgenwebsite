@@ -33,6 +33,31 @@ game.on('docked', () => game.ui.message('Welcome aboard'));
 | `game.on('beam', ({ at, radius, entity }) => ...)` | Every beam |
 | `game.on('docked')`, `game.on('undocked')`, `game.on('docked-pad', ({ vehicle }))` | In the Overseer's hangar; landed on its pad |
 
+**A round planet** (`config.planet.sphere`, new games): scripts work in the world around the player, as on flat ground:
+up is +y where the player is, positions near the player are small numbers, `game.box({ y: 1 })` near the start is on
+the ground. Farther round, use `game.planet`:
+
+| | |
+|---|---|
+| `game.planet.round`, `.radius` | Whether the world is a round planet; its radius (m) |
+| `game.planet.up([x, y, z])` | Which way is up there (away from the middle; `[0, 1, 0]` on a flat world) |
+| `game.planet.height([x, y, z])` | How high a point is over the ground |
+| `game.planet.toPlanet(p)`, `.toLocal(p)` | A point here → where it is on the planet (scene.json's numbers), and back |
+
+```js
+// A beacon 20 m over the ground wherever the player is, standing up there.
+const up = game.planet.up(game.player.position);
+game.cylinder({ position: game.player.position.map((v, i) => v + up[i] * 20), radius: 0.3, height: 2, emissive: '#8fd8ff' });
+```
+
+Modules (round worlds): `H.planet.round`, `H.planet.heightOf(p)`, `H.planet.up(p)`, `H.planet.center`, and
+`H.planet.frame` (round.js): the engine runs in a frame around the player that moves under them every ~100 m round;
+`frame.onRebase((tr) => ...)` turns what a module keeps itself (`tr.point(p)`, `tr.dir(v)`, `tr.quat(q)`: Living things'
+goals and vehicles' own state do this; entities, bodies, characters, the camera and the Overseer are moved for you),
+`frame.toPlanet(p)` / `toLocal(p)`, `frame.fromScene(transform)` / `toScene(ops)` (scene.json keeps things on the
+planet; edits made here are converted by `H.applyOps(ops, { local: true })` and the editor). Gravity pulls bodies to the
+middle (physics.js); dynamic things and characters more than 1.5 km off rest (`e._far`) until the player comes back.
+
 Modules: `H.sky` (the one owner of the clock and the light: report what you want with `H.sky.set(owner, { dark, flash,
 weather })`, never write the lights yourself; `H.sky.bg` is the far layer, `H.sky.onBg(fn)` places far things each
 frame), `H.planet` (`air(y)`, `altitude(y)`, `drop(d)`, `space`, `radius`, `surface`; every standard/PBR material curves

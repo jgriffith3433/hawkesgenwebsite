@@ -1904,7 +1904,11 @@
     if (mode === 'build') {
       // The builder's grid: a meter at a time, fading out with distance.
       const lines = [];
-      for (let i = -40; i <= 40; i += 2) { lines.push([new B.Vector3(i, 0.012, -40), new B.Vector3(i, 0.012, 40)]); lines.push([new B.Vector3(-40, 0.012, i), new B.Vector3(40, 0.012, i)]); }
+      // (A round world: it lies on the planet round you, curving down with it.)
+      const k = hooks.space && W.round ? 1 / (2 * W.round.radius) : 0;
+      const at = (x, z) => new B.Vector3(x, 0.012 - (x * x + z * z) * k, z);
+      const line = (f) => { const pts = []; for (let s = -40; s <= 40; s += k ? 4 : 80) pts.push(f(s)); return pts; };
+      for (let i = -40; i <= 40; i += 2) { lines.push(line((s) => at(i, s))); lines.push(line((s) => at(s, i))); }
       const grid = B.MeshBuilder.CreateLineSystem('grid', { lines }, W.scene);
       grid.color = new B.Color3(0.45, 0.75, 1); grid.alpha = 0.14; grid.isPickable = false; grid.metadata = { decor: true, noGlow: true };
       W.grid = grid;
