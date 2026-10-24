@@ -2,9 +2,10 @@
 
 A whole furnished house is **one thing**: `{ "type": "house" }`. Its walls (doors and windows cut in), floors, stairs,
 roof, a light and a switch in every room and the furniture are made for you, and they move with it. Players walk in
-through the front door. Everything is made of shapes, so it works with no art; a model asset named after a piece of
-furniture (`sofa.glb`, `fridge.glb`, ...) or given as `shape.model` replaces its look, and `<style>_wall.png`,
-`<style>_floor.png`, `<style>_roof.png` (or `shape.textures`) cover a house.
+through the front door. Everything is made of shapes, so it works with no art. A model replaces a piece of furniture's
+look: `shape.model` (an asset id, or a name in the game), else the game's asset for its word ("sofa", "fridge"). Textures
+cover a house the same way (`shape.textures`, else the assets for "<style>_wall", "<style>_floor", "<style>_roof").
+Videos, music and sounds are asset ids or names too.
 
 **Using things:** players look at a thing and press **E** (on a phone: **B**, or tap the prompt). The prompt says what E
 does ("Sit", "Open the fridge", "Next channel"). Chairs, sofas, toilets and pianos sit you down, beds and bathtubs lie

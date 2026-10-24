@@ -42,7 +42,7 @@
   function materials(style, sh) {
     const tx = sh.textures || {};
     const st = String(sh.style || 'cozy').toLowerCase();
-    const tex = (role) => tx[role] || (L.hasAsset(`${st}_${role}.png`) ? `${st}_${role}.png` : L.hasAsset(`house_${role}.png`) ? `house_${role}.png` : null);
+    const tex = (role) => tx[role] || M.assetFor(`${st}_${role}`, 'texture') || M.assetFor(`house_${role}`, 'texture');
     const many = (m) => { m.maxSimultaneousLights = 8; return m; };
     return {
       ext: many(M.mat(style.ext, { texture: tex('wall'), tile: 2 })),

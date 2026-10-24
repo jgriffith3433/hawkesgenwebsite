@@ -719,7 +719,7 @@
       const down = new Map();
       e._sound = (n, remote) => {
         const at = M.worldPoint(e, [0, 0.9, 0]);
-        if (sh.sound && L.hasAsset(sh.sound)) H.game.sound(sh.sound, { rate: Math.pow(2, (n - 60) / 12), volume: M.near(at, 20) });
+        if (sh.sound && M.hasAssetRef(sh.sound)) { const a = new Audio(M.assetUrl(sh.sound)); a.preservesPitch = false; a.playbackRate = Math.pow(2, (n - 60) / 12); a.volume = Math.min(1, M.near(at, 20)); a.play().catch(() => {}); }
         else M.note(n, { voice, at, range: 22 });
         const k = keys.get(n);
         if (k) { k.position.y -= 0.008; down.set(n, k); setTimeout(() => { k.position.y += 0.008; down.delete(n); }, 180); }
