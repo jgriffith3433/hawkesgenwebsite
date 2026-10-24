@@ -214,7 +214,7 @@ test('the stairs take the player up to the next floor; a locked door stays shut'
   world(H, sceneOf({ floor, home: { type: 'house', transform: { position: [0, 0, 0] }, shape: { rooms: 4, floors: 2, furnish: false } }, start: { type: 'spawn', transform: { position: [0, 0, -12] } } }));
   H.tick(0.3);
   const home = H.game.entity('home');
-  const steps = home._parts.map((x: any) => x.e).filter((e: any) => e.name === 'Stairs' && e.node.isVisible);
+  const steps = home._parts.map((x: any) => x.e).filter((e: any) => e.name === 'Stairs' && (e.node.isVisible || e._together)); // (drawn together with the house's other pieces: _together)
   assert.equal(steps.length, 12);
   const p = H.game.player;
   p.controls = false;
