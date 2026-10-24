@@ -312,6 +312,7 @@
       for (const p of v.parts) p.setEnabled(false);
       for (const p of v.lampMeshes) p.setEnabled(true);
       if (wheelNodes.length || !sh.showWheels) for (const w of v.wheels) w.steerNode.setEnabled(false);
+      if (v.def.class === 'heli') spinModelRotor(v, holder, r.meshes);
       if (W().shadows) for (const m of r.meshes) if (m.getTotalVertices() > 0) { W().shadows.addShadowCaster(m); m.receiveShadows = true; }
       for (const m of r.meshes) m.metadata = { entity: e };
       if (sh.color || o.color) for (const m of r.meshes) if (m.material && m.material.albedoColor && sh.tint) m.material.albedoColor = L.hex(o.color);
@@ -319,6 +320,61 @@
       e.measure();
       return e;
     }).catch((err) => { e._loaded = true; H.report(new Error(`Could not load ${name}: ${err.message || err}`)); return e; });
+  }
+
+  /** A helicopter model usually has its rotor baked into one mesh, so it can't turn (and a generated one is often bent).
+   *  The blades are the triangles high up and wider than the cabin: cut them out and let the stand-in rotor (the
+   *  spinner built with the vehicle) turn in their place, over the model's mast, as wide as they were. A model whose
+   *  rotor isn't found as that is left as it is. */
+  function spinModelRotor(v, holder, meshes) {
+    const spin = v.spinners.find((s) => s.axis === 'y');
+    if (!spin) return;
+    v.root.computeWorldMatrix(true);
+    holder.computeWorldMatrix(true);
+    const toRoot = v.root.getWorldMatrix().clone().invert();
+    for (const mesh of meshes) {
+      const pos = mesh.getVerticesData(B.VertexBuffer.PositionKind), idx = mesh.getIndices();
+      if (!pos || !idx || !idx.length) continue;
+      mesh.computeWorldMatrix(true);
+      const M = mesh.getWorldMatrix().multiply(toRoot);
+      const P = [];
+      let y0 = Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+      for (let i = 0; i < pos.length; i += 3) {
+        const p = B.Vector3.TransformCoordinates(new B.Vector3(pos[i], pos[i + 1], pos[i + 2]), M);
+        P.push(p);
+        y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); z0 = Math.min(z0, p.z); z1 = Math.max(z1, p.z);
+      }
+      const high = y0 + (y1 - y0) * 0.4, cabin = (z1 - z0) * 0.08;
+      const keep = [], cut = [], near = [];
+      let xm = 0;
+      for (let t = 0; t < idx.length; t += 3) {
+        const a = P[idx[t]], b = P[idx[t + 1]], c = P[idx[t + 2]];
+        const x = (a.x + b.x + c.x) / 3, y = (a.y + b.y + c.y) / 3;
+        if (Math.abs(x) > cabin && y > high) { near.push(t); xm = Math.max(xm, Math.abs(x)); } else keep.push(t);
+      }
+      // Only the blades, at the hub's depth (not the tail's fins, which are as high and as wide as the cabin).
+      let hz = 0, hc = 0;
+      const zOf = (t) => (P[idx[t]].z + P[idx[t + 1]].z + P[idx[t + 2]].z) / 3;
+      for (const t of near) if (Math.abs((P[idx[t]].x + P[idx[t + 1]].x + P[idx[t + 2]].x) / 3) > xm * 0.6) { hz += zOf(t); hc++; }
+      hz = hc ? hz / hc : 0;
+      for (const t of near) (Math.abs(zOf(t) - hz) < (z1 - z0) * 0.1 ? cut : keep).push(t);
+      if (cut.length < 20) continue;
+      let x0 = Infinity, x1 = -Infinity, cz0 = Infinity, cz1 = -Infinity, hy = 0, hn = 0;
+      for (const t of cut) for (let k = 0; k < 3; k++) {
+        const p = P[idx[t + k]];
+        x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); cz0 = Math.min(cz0, p.z); cz1 = Math.max(cz1, p.z);
+        if (Math.abs(p.x) < (z1 - z0) * 0.15) { hy += p.y; hn++; }
+      }
+      const span = Math.max(x1 - x0, cz1 - cz0);
+      const out = [];
+      for (const t of keep) out.push(idx[t], idx[t + 1], idx[t + 2]);
+      mesh.setIndices(out);
+      spin.node.parent = v.root;
+      spin.node.position.set((x0 + x1) / 2, hn ? hy / hn : (y0 + y1) / 2, (cz0 + cz1) / 2);
+      spin.node.scaling.setAll(span / 7.6);
+      for (const m of spin.node.getChildMeshes()) m.setEnabled(true);
+      return;
+    }
   }
 
   // ------------------------------------------------------------------ what scripts can do with a vehicle entity
