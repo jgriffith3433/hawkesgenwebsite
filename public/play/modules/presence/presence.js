@@ -174,14 +174,15 @@
     if (!w) return out;
     const host = hostConn();
     const p = w.player;
-    if (p && p.alive) out.push({ key: 'me', kind: 'me', entity: p, name: nameOf(H.hooks.myName, me.signedIn ? me.name : null) || 'You', color: H.hooks.myColor || '#4a9eff', conn: myConn(), host: Boolean(host && host === myConn()), typing: me.typing, hp: p.health, mx: p.maxHealth || 100, user: me.user, look: me.look });
+    if (p && p.alive) out.push({ key: 'me', kind: 'me', entity: p, name: (me.look && me.look.name) || nameOf(H.hooks.myName, me.signedIn ? me.name : null) || 'You', color: H.hooks.myColor || '#4a9eff', conn: myConn(), host: Boolean(host && host === myConn()), typing: me.typing, hp: p.health, mx: p.maxHealth || 100, user: me.user, look: me.look });
     if (hasNet()) {
       for (const [id, pr] of HawkesNet.peers()) {
         const i = peerInfo.get(id) || {};
         const v = i.b ? verified.get(i.b) : null;
         const friend = Boolean(v && (v.friend || me.friends.has(v.user)));
         if (pr.avatar && pr.avatar.alive) for (const c of pr.avatar.node.getChildMeshes(true)) if (c.name === 'text') c.setEnabled(!on('tags'));
-        out.push({ key: `p:${id}`, kind: friend ? 'friend' : 'player', entity: pr.avatar && pr.avatar.alive ? pr.avatar : null, name: nameOf(pr.name, v ? v.name : null) || 'Player', color: pr.color, conn: id, host: Boolean(host && host === id), typing: Boolean(i.ty), hp: i.hp, mx: i.mx, user: v ? v.user : null, verified: Boolean(v), requested: Boolean(v && v.requested), look: i.look ? C.cleanLook(i.look) : null, spectating: Boolean(i.sp), state: pr.state });
+        const theirs = i.look ? C.cleanLook(i.look) : null;
+        out.push({ key: `p:${id}`, kind: friend ? 'friend' : 'player', entity: pr.avatar && pr.avatar.alive ? pr.avatar : null, name: (theirs && theirs.name) || nameOf(pr.name, v ? v.name : null) || 'Player', color: pr.color, conn: id, host: Boolean(host && host === id), typing: Boolean(i.ty), hp: i.hp, mx: i.mx, user: v ? v.user : null, verified: Boolean(v), requested: Boolean(v && v.requested), look: i.look ? C.cleanLook(i.look) : null, spectating: Boolean(i.sp), state: pr.state });
       }
     }
     if (on('npcs')) {
@@ -249,6 +250,7 @@
     rig.meshes.push(m);
     return m;
   }
+  if (P.bodies) P.bodies._part = part;
   // Body parts are soft boxes (Living things' rounded shape), small details stay crisp boxes.
   const box = (w, h, d) => (s) => (Math.min(w, h, d) >= 0.07 && H.living && H.living.body && H.living.body.softBox
     ? H.living.body.softBox('b', { width: w, height: h, depth: d }, s)
@@ -271,6 +273,17 @@
     root.position.y = -0.9 * (1 - s[1]); // feet stay on the ground
     const body = look.body || color, head = look.head, acc = look.accent;
     const joint = (name, at) => { const t = new B.TransformNode(`pr-${name}`, scene); t.parent = pose; t.position.set(at[0], at[1], at[2]); return t; };
+    // What you are (presence-bodies.js): an animal, a robot, a shoe... built and sized there; the person is built here.
+    rig.what = look.what || 'person';
+    const what = C.WHAT && C.WHAT.get(rig.what);
+    if (what && what.body !== 'person' && P.bodies && P.bodies.build(rig, what, look, shade)) {
+      for (const [n, at] of [['hipL', [0.11, -0.36, 0]], ['hipR', [-0.11, -0.36, 0]], ['shL', [0.31, 0.24, 0]], ['shR', [-0.31, 0.24, 0]]]) if (!rig[n]) rig[n] = joint(n, at);
+      hat(rig, look.hat, acc, body);
+      for (const x of look.extras) extra(rig, x, acc, body);
+      if (look.model) loadModel(rig, look.model);
+      return rig;
+    }
+    rig.what = 'person';
     rig.hipL = joint('hipL', [0.11, -0.36, 0]); rig.hipR = joint('hipR', [-0.11, -0.36, 0]);
     // A soft figure, not blocks: capsule limbs, a tapered rounded torso, a round head, round hands and little shoes.
     const capsule = (r, h) => (sc) => B.MeshBuilder.CreateCapsule('c', { radius: r, height: h, tessellation: 12, subdivisions: 2 }, sc);
@@ -316,15 +329,20 @@
   }
   function extra(rig, kind, acc, body) {
     const p = rig.pose, n = rig.neck;
+    // On the face (glasses): where this body's face is (presence-bodies.js), a person's otherwise. On the body: placed
+    // as on a person, moved to follow where this body's head is.
+    const fy = rig.faceY ?? 0.27, fz = rig.faceZ ?? 0.215;
+    const dy = n.position.y - 0.29, dz = n.position.z;
+    const at = (x, y, z) => [x, y + dy, z + dz];
     switch (kind) {
-      case 'glasses': part(rig, 'lensL', box(0.13, 0.1, 0.02), n, [0.1, 0.27, 0.215], '#1f2937'); part(rig, 'lensR', box(0.13, 0.1, 0.02), n, [-0.1, 0.27, 0.215], '#1f2937'); part(rig, 'bridge', box(0.08, 0.025, 0.02), n, [0, 0.29, 0.215], '#1f2937'); break;
-      case 'shades': part(rig, 'shades', box(0.4, 0.1, 0.03), n, [0, 0.27, 0.215], '#020617'); break;
-      case 'scarf': { const m = part(rig, 'scarf', ring(0.44, 0.1), p, [0, 0.28, 0], acc); m.scaling.z = 0.75; part(rig, 'tailS', box(0.1, 0.3, 0.05), p, [0.12, 0.12, 0.17], acc); break; }
-      case 'backpack': part(rig, 'pack', box(0.38, 0.44, 0.18), p, [0, 0.0, -0.24], acc === '#ffffff' ? '#7c2d12' : acc); break;
-      case 'cape': { const m = part(rig, 'cape', box(0.5, 0.78, 0.03), p, [0, -0.1, -0.18], acc === '#ffffff' ? '#dc2626' : acc); m.rotation.x = 0.12; rig.cape = m; break; }
-      case 'bowtie': part(rig, 'bowL', box(0.09, 0.08, 0.03), p, [0.05, 0.24, 0.16], acc === '#ffffff' ? '#dc2626' : acc); part(rig, 'bowR', box(0.09, 0.08, 0.03), p, [-0.05, 0.24, 0.16], acc === '#ffffff' ? '#dc2626' : acc); break;
-      case 'wings': { const a = part(rig, 'wingL', box(0.42, 0.5, 0.03), p, [0.24, 0.08, -0.2], '#f8fafc'); a.rotation.y = 0.5; const b = part(rig, 'wingR', box(0.42, 0.5, 0.03), p, [-0.24, 0.08, -0.2], '#f8fafc'); b.rotation.y = -0.5; rig.wings = [a, b]; break; }
-      case 'tail': { const m = part(rig, 'tail', cyl(0.04, 0.1, 0.5, 8), p, [0, -0.3, -0.3], body); m.rotation.x = -0.9; rig.tail = m; break; }
+      case 'glasses': part(rig, 'lensL', box(0.13, 0.1, 0.02), n, [0.1, fy, fz], '#1f2937'); part(rig, 'lensR', box(0.13, 0.1, 0.02), n, [-0.1, fy, fz], '#1f2937'); part(rig, 'bridge', box(0.08, 0.025, 0.02), n, [0, fy + 0.02, fz], '#1f2937'); break;
+      case 'shades': part(rig, 'shades', box(0.4, 0.1, 0.03), n, [0, fy, fz], '#020617'); break;
+      case 'scarf': { const m = part(rig, 'scarf', ring(0.44, 0.1), p, at(0, 0.28, 0), acc); m.scaling.z = 0.75; part(rig, 'tailS', box(0.1, 0.3, 0.05), p, at(0.12, 0.12, 0.17), acc); break; }
+      case 'backpack': part(rig, 'pack', box(0.38, 0.44, 0.18), p, at(0, 0.0, -0.24), acc === '#ffffff' ? '#7c2d12' : acc); break;
+      case 'cape': { const m = part(rig, 'cape', box(0.5, 0.78, 0.03), p, at(0, -0.1, -0.18), acc === '#ffffff' ? '#dc2626' : acc); m.rotation.x = 0.12; rig.cape = m; break; }
+      case 'bowtie': part(rig, 'bowL', box(0.09, 0.08, 0.03), p, at(0.05, 0.24, 0.16), acc === '#ffffff' ? '#dc2626' : acc); part(rig, 'bowR', box(0.09, 0.08, 0.03), p, at(-0.05, 0.24, 0.16), acc === '#ffffff' ? '#dc2626' : acc); break;
+      case 'wings': { const a = part(rig, 'wingL', box(0.42, 0.5, 0.03), p, at(0.24, 0.08, -0.2), '#f8fafc'); a.rotation.y = 0.5; const b = part(rig, 'wingR', box(0.42, 0.5, 0.03), p, at(-0.24, 0.08, -0.2), '#f8fafc'); b.rotation.y = -0.5; rig.wings = [a, b]; break; }
+      case 'tail': { const m = part(rig, 'tail', cyl(0.04, 0.1, 0.5, 8), p, at(0, -0.3, -0.3), body); m.rotation.x = -0.9; rig.tail = m; break; }
       default: break;
     }
   }
@@ -349,6 +367,7 @@
       top.position.y = -0.9 - min.y * k;
       for (const m of r.meshes) { m.isPickable = false; m.metadata = { decor: true, entity: rig.e }; }
       for (const m of rig.meshes) m.setEnabled(false);
+      if (rig.body) rig.body.setEnabled(false);
       rig.model = { meshes: r.meshes, groups: r.animationGroups || [] };
       const idle = rig.model.groups.find((g) => /idle/i.test(g.name));
       if (idle) idle.start(true);
@@ -390,7 +409,8 @@
         seen.add(e);
         const self = pr.kind === 'me';
         // My own body shows only when I can see myself (third person, top view); the capsule is the collider only.
-        const show = self ? e._view !== 'first' && e._view !== 'rts' && e.visible !== false && !e._seatHidden : e.visible !== false;
+        // (At a mirror, or dressing up, I see myself whatever the view: modules/mirror sets e._mirrorShow.)
+        const show = self ? (e._mirrorShow || (e._view !== 'first' && e._view !== 'rts')) && e.visible !== false && !e._seatHidden : e.visible !== false;
         e._rigged = true;
         if (self) { if (e._visor) e._visor.setEnabled(false); }
         e.node.visibility = 0;
@@ -432,10 +452,18 @@
     if (rig.cape) rig.cape.rotation.x = 0.12 + s * 0.5;
     if (rig.tail) rig.tail.rotation.y = Math.sin(t * 3) * 0.3;
     if (rig.wings) { rig.wings[0].rotation.y = 0.5 + Math.sin(t * 2) * 0.1; rig.wings[1].rotation.y = -0.5 - Math.sin(t * 2) * 0.1; }
+    if (rig.what !== 'person' && P.bodies) P.bodies.animate(rig, dt, s);
     if (!em) { playClip(rig, null); return; }
     const k = t - em.t0;
     if (playClip(rig, em.def.clip || em.def.name)) return;
     const o = Math.sin(k * 10);
+    // An animal or a thing emotes with its whole self: a hop, a spin, a lie-down (arms, where it has them, below).
+    if (rig.what !== 'person') {
+      const n = em.def.name, b = Math.sin(k * 7);
+      r.pose.position.y = n === 'sit' || n === 'sleep' ? -0.15 : Math.abs(b) * 0.18;
+      r.pose.rotation.y = n === 'dance' ? Math.sin(k * 3.5) * 0.9 : n === 'laugh' ? Math.sin(k * 20) * 0.08 : 0;
+      r.pose.rotation.z = n === 'sleep' ? 1.3 : Math.sin(k * 9) * 0.06;
+    }
     switch (em.def.name) {
       case 'wave': r.shR.rotation.set(0, 0, -2.55 + o * 0.35); r.neck.rotation.z = 0.08; break;
       case 'dance': {

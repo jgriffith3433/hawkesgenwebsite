@@ -308,6 +308,8 @@ body.pr-touch .pr-sw button{width:38px;height:38px}body.pr-touch .pr-ch button{m
   }
   function openLook() {
     if (!P.enabled('customize')) return;
+    // The mirror's questions (modules/mirror): what you are, how you look, your name, anywhere. This panel otherwise.
+    if (H.mirror && H.mirror.dress && H.mode !== 'build') { closeWheel(); closeChat(); if (typeof closePanel === 'function') closePanel(); if (H.mirror.dress()) return; }
     ensurePanel();
     closeWheel(); closeChat();
     panelKind = 'look'; panel.className = 'pr-panel pr-look';

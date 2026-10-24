@@ -1,0 +1,6 @@
+{
+  "title": "The mirror: who you are",
+  "order": 86,
+  "scripts": ["mirror-core.js", "mirror.js"],
+  "kinds": []
+}

@@ -14,7 +14,7 @@
 (() => {
   const H = window.HawkesPlay;
   if (!H || typeof document === 'undefined') return;
-  const FEATURES = ['explode', 'drive', 'fly', 'boat', 'space', 'dock', 'fish_cast', 'fish_catch', 'spawn', 'spawn_many', 'emote', 'rewind', 'photo', 'share', 'quest_start', 'quest_done', 'intro_watched', 'intro_skipped'];
+  const FEATURES = ['explode', 'drive', 'fly', 'boat', 'space', 'dock', 'fish_cast', 'fish_catch', 'spawn', 'spawn_many', 'emote', 'rewind', 'photo', 'share', 'quest_start', 'quest_done', 'intro_watched', 'intro_skipped', 'mirror'];
   const MINUTES = [1, 3, 5, 10, 20, 30];
   const ctx = {};
   let readyAt = 0, played = 0, nextMinute = 0, firstFun = false;
@@ -43,7 +43,8 @@
     seen.add(what);
     const ms = readyAt ? Math.round(performance.now() - readyAt) : null;
     send('feature', { name: what, ms, ...(extra || {}) });
-    if (!firstFun && !/^intro_/.test(what)) { firstFun = true; send('first_fun', { what, ms }); }
+    // (The intro and the mirror come to everyone: fun is what they choose to do next.)
+    if (!firstFun && !/^intro_/.test(what) && what !== 'mirror') { firstFun = true; send('first_fun', { what, ms }); }
   }
   H.track = send;
   H.track.feature = feature;
@@ -102,6 +103,8 @@
     game.on('docked-pad', () => feature('dock'));
     game.on('quest', (d) => { if (d && d.state === 'start') feature('quest_start'); if (d && d.state === 'done') feature('quest_done'); });
     game.on('intro', (d) => { if (d && d.state === 'end') feature(d.skipped ? 'intro_skipped' : 'intro_watched'); });
+    // Who they became at the mirror (each time: what they picked says what players like).
+    game.on('mirror', (d) => { if (d && (d.state === 'done' || d.state === 'skip')) send('feature', { name: 'mirror', what: d.what || null, named: Boolean(d.name), changed: Boolean(d.changed), skipped: d.state === 'skip', auto: Boolean(d.auto) }); });
   });
 
   // A new world: ready (once a page), and the mode it runs in.

@@ -127,6 +127,9 @@ export const SANDBOX = {
     const out: Things = {};
     const add = (e: any) => { out[e.id] = e; };
     add(thing('start', 'spawn', 'Player start', [-6, groundAt(-6, 0) + 0.2, 0], { data: { role: 'player' }, transform: yaw(90) }));
+    // The mirror, beside the start (modules/mirror): after the Overseer's intro it opens by itself and asks "What are
+    // you?", "How do you look?", "What are you called?"; then Pip comes over (sandbox.js). E at it, any time after.
+    add(thing('mirror', 'mirror', 'The mirror', [-6, r2(groundAt(-6, -4.6) + 1.28), -4.6], { shape: { width: 1.5, height: 2.4, character: { steps: ['what', 'look', 'name'], start: 'always', voice: true } }, transform: yaw(0) }));
     add({ id: 'pip', type: 'friend', name: 'Pip', shape: { personality: 'a cheerful island guide who loves explosions and fishing', species: 'person', color: '#f59e0b', follow: false, stays: true, lines: ['What a day for it!', 'The 4x4 is right there: walk up and press E.', 'Those fuel barrels on the beach go BOOM.', 'The pier is east, down the path. The rod is at the end of it.', 'There is a helicopter on the hill. From up there you can see the whole planet!'] }, physics: 'dynamic', transform: { position: [-1, r2(groundAt(-1, 2.2) + 0.6), 2.2], rotation: [0, -110, 0] } });
     // The 4x4, ready on the path.
     add({ id: 'jeep', type: 'truck', name: '4x4', shape: { model: A.truck }, material: { color: '#3f7d3a' }, transform: { position: [4, r2(groundAt(4, 6.5) + 1.4), 6.5], rotation: [0, 90, 0] } });

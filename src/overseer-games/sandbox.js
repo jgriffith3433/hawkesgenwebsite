@@ -1,5 +1,6 @@
 // The island's guide. The world (scene.json) has the island, its toys and the quest line ("The island", config.quests);
-// this script is how it feels: Pip greets you once the Overseer has beamed you down and offers the tour, every step
+// this script is how it feels: once the Overseer has beamed you down and you've been to the mirror (who you are:
+// modules/mirror, by itself after the intro), Pip comes over, greets you and offers the tour, every step
 // done has its moment (a sound, confetti, Pip's line, the Overseer's words), and the island sounds like one: the sea
 // and the birds, gentle music, all through the engine's sound (they start with your first click or key).
 // Sounds and music are assets by name (the community library's); a game without one plays on quietly.
@@ -78,18 +79,29 @@ function begin() {
   if (began || game.mode !== 'play') return;
   began = true;
   startSound();
-  game.after(1.2, () => say('Hi! I\'m Pip. Welcome to the island!', 4));
+  // Pip walks over to meet you (and stays put after: the tour sends you places, Pip waves you on).
+  const p = pip();
+  const living = H && H.living;
+  if (p && living && living.command) { try { living.command(p, 'come', { target: 'player' }); } catch { /* Pip stays */ } game.after(7, () => { try { living.command(p, 'stay'); } catch { /* fine */ } }); }
+  const me = H && H.presence && H.presence.look;
+  const name = me && me.name;
+  game.after(1.2, () => say(name ? `Hi, ${name}! I'm Pip. Welcome to the island!` : 'Hi! I\'m Pip. Welcome to the island!', 4));
   game.after(3.4, () => {
     const q = game.events && game.events.quests;
     if (q && q.state('tour') === 'available') q.start('tour');
     say('Come on, I\'ll show you around. The 4x4 first!', 4);
   });
 }
-// After the Overseer's intro (it plays every time here), or straight away when there isn't one.
-game.on('intro', (d) => { if (d && d.state === 'end') begin(); });
+// After the Overseer's intro (it plays every time here) and the mirror that follows it, or straight away when there
+// are neither. The mirror says when you're done (game.on('mirror')); while it's open (or about to open) Pip waits.
+const mirrorBusy = () => Boolean(game.mirror && game.mirror.pending);
+function afterMirror() { if (!mirrorBusy()) begin(); }
+game.on('mirror', (d) => { if (d && (d.state === 'done' || d.state === 'skip')) game.after(1.6, begin); });
+game.on('intro', (d) => { if (d && d.state === 'end') game.after(1, afterMirror); });
 game.onStart(() => {
   const intro = Boolean(H && H.overseer && H.overseer.introWanted && H.overseer.introWanted());
-  game.after(intro ? 40 : 2, begin); // (an intro that never ends: begin anyway)
+  // (An intro that never ends: begin anyway, unless the mirror is open: then when it closes.)
+  game.after(intro ? 40 : 2.5, afterMirror);
 });
 window.addEventListener('pointerdown', startSound, { once: true });
 window.addEventListener('keydown', startSound, { once: true });
