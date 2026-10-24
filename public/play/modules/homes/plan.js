@@ -197,15 +197,15 @@
     const floorTop = (f) => f * Hf + 0.15;
 
     // Stairs: a switchback in the back corner cell; floor f's run goes up along band (f % 2) of the back wall.
-    const rise = 0.25, steps = Math.round(Hf / rise), tread = Math.min(0.3, (SX - 0.6) / (steps + 1));
+    const rise = 0.25, steps = Math.round(Hf / rise), tread = Math.min(0.3, (SX - 1.2) / (steps + 1));
     const stepRise = Hf / steps;
     const band = (f) => {
       if (!stairCell) return null;
       const cx0 = x0 + stairCell.c * SX, cz1 = z0 + (stairCell.r + 1) * SZ - T / 2;
       const w = Math.min(1.2, (SZ - 1) / 2);
       return f % 2 === 0
-        ? { zA: cz1 - w, zB: cz1, xs: cx0 + 0.3, dir: 1, cx0 }
-        : { zA: cz1 - 2 * w, zB: cz1 - w, xs: cx0 + SX - 0.3, dir: -1, cx0 };
+        ? { zA: cz1 - w, zB: cz1, xs: cx0 + 0.9, dir: 1, cx0 }
+        : { zA: cz1 - 2 * w, zB: cz1 - w, xs: cx0 + SX - 0.9, dir: -1, cx0 };
     };
     const holes = (f) => { // the opening in floor f for the stairs coming up from f - 1
       if (f === 0 || !stairCell) return [];
@@ -237,6 +237,10 @@
           const xa = b.dir > 0 ? b.xs + i * tread : b.xs - (i + 1) * tread;
           push({ kind: 'box', role: 'stairs', size: [r2(tread), r2(top - floorTop(f) + 0.02), r2(b.zB - b.zA)], at: [r2(xa + tread / 2), r2((floorTop(f) - 0.02 + top) / 2), r2((b.zA + b.zB) / 2)], step: true, floor: f });
         }
+        // A smooth slope over the steps' edges (invisible, for real physics: characters walk up it like a ramp).
+        const runAll = steps * tread, ang = Math.atan2(Hf, runAll) * 180 / Math.PI;
+        const x0r = b.dir > 0 ? b.xs - tread : b.xs + tread, x1r = b.xs + b.dir * (steps - 1) * tread;
+        push({ kind: 'ramp', size: [r2(Math.hypot(runAll, Hf)), 0.06, r2(b.zB - b.zA)], at: [r2((x0r + x1r) / 2), r2(floorTop(f) + Hf / 2 - 0.03), r2((b.zA + b.zB) / 2)], tilt: [0, 0, r2(b.dir * ang)], floor: f });
       }
     }
 
