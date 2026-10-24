@@ -96,8 +96,10 @@ const PLAY_SANDBOX = 'sandbox allow-scripts allow-pointer-lock allow-popups allo
 /** Local testing only: some test browsers refuse scripts from a sandboxed page on a local address. PORTAL_DEV_OPEN_PLAY=1
  *  serves games unsandboxed, and only to requests for localhost / 127.0.0.1. Never set it on the box. */
 export const devOpenPlay = (req: IncomingMessage) => env('PORTAL_DEV_OPEN_PLAY') === '1' && /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(String(req.headers.host ?? ''));
-function servePlayPage(res: ServerResponse, req: IncomingMessage) {
-  const open = devOpenPlay(req);
+function servePlayPage(res: ServerResponse, req: IncomingMessage, o: { guest?: boolean } = {}) {
+  // The guest sandbox (/play/sandbox) runs only our own template (src/templates.ts 'sandbox'), never a customer's
+  // scripts, and signs the guest up on this site: it is served without the play sandbox (play/guest.js).
+  const open = devOpenPlay(req) || o.guest === true;
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', ...(open ? {} : { 'Content-Security-Policy': PLAY_SANDBOX }), 'X-Content-Type-Options': 'nosniff' });
   fs.createReadStream(path.join(PUBLIC, 'play', 'play.html')).pipe(res);
 }
@@ -200,6 +202,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       // The engine: its manifest and loader (one script every engine page includes), and the assembled docs.
       if (route === '/play/modules.js') return void res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-cache' }).end(loaderScript());
       if (route === '/play/WORLD.md' || route === '/play/API.md') return void res.writeHead(200, { 'Content-Type': 'text/markdown; charset=utf-8', 'Cache-Control': 'no-cache' }).end(engineDoc(route === '/play/WORLD.md' ? 'world' : 'api'));
+      if (route === '/play/sandbox') return servePlayPage(res, req, { guest: true });
       if (/^\/play\/(_draft|t\/[a-z0-9-]+|[a-z0-9-]+(\/v\/\d+)?)$/.test(route) && route !== '/play/runtime.js') return servePlayPage(res, req);
       let pa = /^\/play-asset\/d\/([\w-]+\.[\w-]+)\/[^/]+$/.exec(route);
       if (pa) return await servePlayAsset({ token: pa[1] }, req, res);
