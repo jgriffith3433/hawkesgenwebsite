@@ -202,6 +202,14 @@
     D = null;
   });
   OV.onLod((lod) => { if (D) D.show(lod === 'near'); });
+  // A round world: the frame moved under you; the hull and hangar (things in the world) went with it, the lights and the
+  // hangar's middle follow here.
+  if (H.planet && H.planet.frame && H.planet.frame.onRebase) H.planet.frame.onRebase(() => {
+    if (!D || !D.O || D.O !== OV.ship) return;
+    D.c = D.O.cfg.position;
+    D.node.position.set(D.c[0], D.c[1], D.c[2]);
+    D.node.rotationQuaternion = H.planet.frame.toLocalQ().multiply(B.Quaternion.RotationAxis(B.Axis.Y, D.f.yaw));
+  });
   H.hooks.world.push({ enter() { if (!OV.on) D = null; docked = {}; hud(false); }, leave() { if (D && D.docked) setDocked(false); D = null; hud(false); } });
 
   Object.defineProperties(OV, Object.getOwnPropertyDescriptors({
