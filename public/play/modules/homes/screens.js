@@ -184,7 +184,7 @@
     m.diffuseColor = new B.Color3(0, 0, 0);
     m.emissiveColor = new B.Color3(0.03, 0.035, 0.04);
     mesh.material = m;
-    mesh.metadata = { ...(mesh.metadata || {}), keep: true, screen: true };
+    mesh.metadata = { ...(mesh.metadata || {}), keep: true, screen: true, noGlow: true }; // the glow would wash the picture out
     const res = o.small ? [192, 340] : [320, 180];
     const dyn = new B.DynamicTexture('screen', { width: res[0], height: res[1] }, sc, false);
     const s = { e, mesh, mat: m, dyn, w: res[0], h: res[1], cur: null, key: null, video: null, vtex: null, img: null, data: {}, t: 0, last: 0, feed: null, override: null };
@@ -231,7 +231,7 @@
     s.cur = kind;
     const m = s.mat;
     if (kind === 'off') { m.emissiveTexture = null; m.emissiveColor = new B.Color3(0.03, 0.035, 0.04); return r; }
-    m.emissiveColor = new B.Color3(1, 1, 1);
+    m.emissiveColor = new B.Color3(0, 0, 0); // (Babylon adds the emissive color to the picture: black keeps it true)
     if (kind === 'video') {
       const vt = new B.VideoTexture('tv', L.assetUrl(asset), W().scene, true, false, B.Texture.TRILINEAR_SAMPLINGMODE, { autoPlay: true, loop: true, muted: true, autoUpdateTexture: true });
       s.vtex = vt; s.video = vt.video; s.video.crossOrigin = 'anonymous';
@@ -309,8 +309,8 @@
   function tv(e, s, sh, o, spec, defaults, pts) {
     let list = channelsOf(sh, spec, defaults);
     const withCams = () => {
-      if (sh.channels) return list;
-      // The world's shows (cameras with data.show) join the default channels.
+      if (sh.only) return list;
+      // The world's shows (cameras with data.show) join the channels (shape.only: just the listed ones).
       const extra = [];
       for (const c of W().entities) if (isCam(c) && c._cctv.show && !list.includes(c._cctv.show)) extra.push(c._cctv.show);
       return list.concat(extra);
@@ -340,7 +340,7 @@
     return show;
   }
   homes_screens();
-  function homes_screens() { M.tune = tune; M.screen = screen; M.findCamera = findCamera; M.SHOWS = SHOWS; }
+  function homes_screens() { M.tune = tune; M.screen = screen; M.findCamera = findCamera; M.SHOWS = SHOWS; M.screens = screens; }
 
   function kind(type, def) {
     H.kinds.register(type, {
