@@ -94,7 +94,7 @@
   const mouse = { x: 0, y: 0, down: false, pressed: false, dx: 0, dy: 0, wheel: 0, locked: false, look: false };
   let keyHandlers = [];
   const stick = { x: 0, y: 0 };
-  const typing = (e) => { const t = e.target; return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable); };
+  const typing = (e) => { const t = (e.composedPath && e.composedPath()[0]) || e.target; return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable); };
   window.addEventListener('keydown', (e) => {
     if (typing(e)) return;
     const k = keyName(e);
