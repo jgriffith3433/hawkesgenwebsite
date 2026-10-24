@@ -940,7 +940,9 @@ async function loadLibrary() {
     b.className = 'st-lib-item';
     const url = `/v1/assets/${encodeURIComponent(a.id)}/file`;
     const label = { mesh: '3D', image: 'PIC', audio: 'SND', video: 'VID' }[a.kind];
-    b.innerHTML = `${a.kind === 'image' ? `<img src="${url}" alt="" loading="lazy">` : a.kind === 'video' ? `<video src="${url}" muted loop playsinline preload="metadata"></video>` : `<span>${a.kind === 'mesh' ? '◆' : '♪'}</span>`}<span class="kind">${label}</span><span class="t">${esc(a.title || a.recipe?.params?.prompt || a.tool || a.id)}</span>`;
+    // (A library tile shows a small level of the picture: Gen makes them with every image.)
+    const small = a.lods && a.lods.levels && ([...a.lods.levels].reverse().find((l) => l.level <= 256) || a.lods.levels[0]);
+    b.innerHTML = `${a.kind === 'image' ? `<img src="${small ? `${url}?lod=${small.level}&v=${encodeURIComponent(small.sha || '')}` : url}" alt="" loading="lazy">` : a.kind === 'video' ? `<video src="${url}" muted loop playsinline preload="metadata"></video>` : `<span>${a.kind === 'mesh' ? '◆' : '♪'}</span>`}<span class="kind">${label}</span><span class="t">${esc(a.title || a.recipe?.params?.prompt || a.tool || a.id)}</span>`;
     const v = b.querySelector('video');
     if (v) { b.onmouseenter = () => v.play().catch(() => {}); b.onmouseleave = () => v.pause(); }
     b.onclick = () => placeFromLibrary(a, b);

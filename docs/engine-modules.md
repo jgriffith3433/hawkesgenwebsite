@@ -243,13 +243,17 @@ too much). `docs/performance.md` has the measured numbers and how to measure.
 - **Draw distance** puts a Babylon LOD level with nothing at the far end on every entity mesh (`m._cullAt`). A mesh with
   its own LOD levels is left alone; `e.noCull = true` draws a thing at any distance (a planet; a mesh with
   `applyFog = false` or a material with `fogEnabled = false` is drawn past the fog).
-- **Textures by level of detail** (`textures.js`, `H.textures`): bundle images carry `variants` ({ "128": { id, url, w,
-  h }, ... }) and `size` [w, h] (`src/variants.ts` makes them once per image with Gen's CPU `image.transform`).
-  `H.lib.assetUrl(ref)` gives an image's **smallest** copy, so any `new B.Texture(H.lib.assetUrl(id), ...)` your module
-  makes starts small and is managed by itself: every half second the engine measures how many pixels each texture
+- **Textures by level of detail** (`textures.js`, `H.textures`): bundle images carry `lods` ({ kind: 'image', size:
+  [w, h], levels: [{ level, url, w, h, bytes }] }): Hawkes Gen makes them itself when the image is made (its LOD
+  system: 128-2048 px and the full size as WebP) and the portal puts them in the bundle (`src/lods.ts`).
+  `H.lib.assetUrl(ref, hint)` gives an image's **first level**: with `hint` `{ at: [x, y, z], size }` (the thing it's
+  on) the level about its size on screen from where the player starts, with `{ sky: true }` the screen's width, without
+  one the smallest; never more than its share of `H.budget.textureMB`. So any `new B.Texture(H.lib.assetUrl(id, hint),
+  ...)` your module makes loads once at about the right size and is managed by itself: every half second the engine measures how many pixels each texture
   covers (near, big, in view), upgrades the most needed within `H.budget.textureMB`, and downgrades the least visible
-  first when over. Swaps don't blank the texture (the new file loads beside it). Textures it doesn't manage (inside
-  models, your render targets) still count against the budget.
+  first when over. Swaps don't blank the texture (the new file loads beside it), at most `H.budget.loads` at once, and
+  the old level is disposed after the swap (one copy per texture). Textures it doesn't manage (inside models, your
+  render targets) still count against the budget.
   - **Big visuals** (a sky, a planet, the Overseer): `H.textures.reserve('yours', bytes)` keeps room for what you'll
     make (everything else shrinks to fit); `reserve('yours', 0)` gives it back. `H.textures.headroom()` is the room left.
   - A texture from an asset not made through `assetUrl`: `H.textures.track(texture, { asset: id })`.
@@ -257,8 +261,12 @@ too much). `docs/performance.md` has the measured numbers and how to measure.
     their full-detail copies go). `H.textures.stats()` for a debug overlay; `H.textures.off = true` turns it all off.
   - Never call `texture.updateURL` on a managed texture (it blanks it): leave the level to the engine.
 - **Models** (`kinds.js`): one queue, nearest to the camera first, `H.budget.loads` at a time, so the world is playable
-  while far things stream in. A model with a low copy loads only the copy its distance needs; the full copy comes when
-  you're near and the texture budget has room, and is let go far away when memory is tight. Load your own GLBs with
+  while far things stream in. A model's copies are its levels of detail from Gen (`lods` { kind: 'mesh', tris, tex,
+  levels: [{ level (triangles), tris, tex, role: low | mid | high, url }] }; `H.kinds.modelLevels(entry)`): far away its
+  low level (about 12% of the triangles, textures an eighth of the model's), near the most detailed level whose textures fit
+  `H.budget.maxTexture` (a phone: the mid, 1024 px; a desktop: every triangle, textures at most 2048). Older games pair a
+  `<name>_low.glb` by name. Only the copy its distance needs loads; the near copy comes when you're near and the texture
+  budget has room, and is let go far away when memory is tight. Load your own GLBs with
   `B.SceneLoader.ImportMeshAsync` as before; prefer the `model` kind (or `H.assets` + `model`) to get all of this.
 - **Lazy modules** (`module.json`): `"lazy": true` loads your scripts only when a game uses the module: one of its
   `kinds` in the scene, one of its `"config"` keys, one of its `"tools"` handed out or lying around, or one of those or

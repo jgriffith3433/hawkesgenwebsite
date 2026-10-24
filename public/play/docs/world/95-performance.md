@@ -4,12 +4,13 @@ Most players are on phones: a world must start in a couple of seconds and never 
 a page that takes too much). The engine does most of it by itself; build worlds that let it.
 
 **What the engine does for you**
-- **Textures by level of detail.** Every image the game uses (textures, sprites, skies) has smaller copies (128, 256,
-  512, 1024, 2048 px, WebP), made once when it enters the game or the community library. A world loads every texture at
-  its smallest and sharpens only what's near, big on screen and in view, within the device's texture budget; far or
-  unseen ones go back down when memory is tight. Use any texture size: the engine picks.
-- **Models load nearest first**, a few at a time; a model with a low-detail copy (`<name>_low.glb`, community models
-  have one) loads only the low copy far away and the full one when you come near (`shape.lod.distance`, 25 m).
+- **Textures by level of detail.** Every image Hawkes Gen makes or keeps (textures, sprites, skies) has smaller copies
+  (128, 256, 512, 1024, 2048 px, WebP), made by Gen with the image. A world loads each texture once at about the size it
+  will have on screen (a sky: the screen's width) and sharpens only what's near, big on screen and in view, within the
+  device's texture budget; far or unseen ones go back down when memory is tight. Use any texture size: the engine picks.
+- **Models load nearest first**, a few at a time. Every model Gen makes or keeps has a low-detail copy (about an eighth
+  of the triangles, small textures) and, when it pays, a middle one: far away only the low copy loads, near the most
+  detailed copy the device takes (`shape.lod.distance`, 25 m).
 - **Draw distance.** Small things far away aren't drawn (a 1 m crate: about 220 m on a phone, 700 m on a desktop;
   bigger things farther), and nothing is drawn past the fog's end. **Fog is the cheapest way to make a big world fast:**
   `config.fog` `{ "start": 70, "end": 240 }` hides and skips everything beyond it.

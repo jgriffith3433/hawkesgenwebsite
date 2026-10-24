@@ -9,7 +9,7 @@
 | `capsule` | a pill: bodies for characters | `radius`, `height` |
 | `torus` | a ring | `radius`, `thickness` |
 | `plane` | flat ground | `width`, `depth` |
-| `model` | a 3D model (.glb) | `asset` (its name in the game's assets), `size` (height in meters), `lod`: `{ low, distance }` (a low-detail copy shown farther than `distance` m, 25 by default; a `<name>_low.glb` asset is used by itself) |
+| `model` | a 3D model (.glb) | `asset` (its name in the game's assets), `size` (height in meters), `lod`: `{ low, distance }` (a low-detail copy shown farther than `distance` m, 25 by default; the model's own levels of detail from Gen, or a `<name>_low.glb` asset, are used by themselves) |
 | `sprite` | a picture that faces you | `image` (asset name), `size`, `frames: { cols, rows, fps }` (with `fps` the sheet plays on a loop) |
 | `text` | a floating sign | `text`, `size` (letter height) |
 | `light` | a light (also: `light: { type: point / spot / sun, color, intensity, range }`) | |

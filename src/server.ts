@@ -33,7 +33,6 @@ const engineVersion = () => manifest().version;
 import * as community from './community.ts';
 import { upgrade as joinRoom, broadcastOps, markHere, liveCounts } from './rooms.ts';
 import * as shares from './shares.ts';
-import { hideVariants, watchVariants } from './variants.ts';
 import type { Duplex } from 'node:stream';
 
 const PUBLIC = path.join(ROOT, 'public');
@@ -107,13 +106,17 @@ function servePlayPage(res: ServerResponse, req: IncomingMessage, o: { guest?: b
 }
 
 /** A game's asset file, from Gen, for anyone playing it (open CORS: the game's sandbox has no origin). */
-async function servePlayAsset(parts: Parameters<typeof games.resolvePlayAsset>[0], req: IncomingMessage, res: ServerResponse) {
+async function servePlayAsset(parts: Parameters<typeof games.resolvePlayAsset>[0], lod: { lod?: number; v?: string | null }, req: IncomingMessage, res: ServerResponse) {
   const a = games.resolvePlayAsset(parts);
   const headers: Record<string, string> = {};
   if (req.headers.range) headers.Range = String(req.headers.range);
-  const gr = await genFetch(`/v1/assets/${a.asset}/file`, { as: a.project, headers, signal: AbortSignal.timeout(300_000) });
-  if (!gr.ok && gr.status !== 206) throw new PortalError('File not found', { status: 404 });
-  const out: Record<string, string> = { 'Access-Control-Allow-Origin': '*', 'Cache-Control': a.immutable ? 'public, max-age=31536000, immutable' : 'private, max-age=3600', 'X-Content-Type-Options': 'nosniff' };
+  if (req.headers['if-none-match']) headers['If-None-Match'] = String(req.headers['if-none-match']);
+  // ?lod=<level>&v=<hash>: a level of detail (Gen's LOD system, lods.ts), which Gen picks; a link that names the file's
+  // hash always means that file, so it is cached for good once Gen's answer is that file.
+  const gr = await genFetch(`/v1/assets/${a.asset}/file${lod.lod ? `?lod=${lod.lod}` : ''}`, { as: a.project, headers, signal: AbortSignal.timeout(300_000) });
+  if (!gr.ok && gr.status !== 206 && gr.status !== 304) throw new PortalError('File not found', { status: 404 });
+  const named = Boolean(lod.v && /^[0-9a-f]{8,64}$/.test(lod.v) && String(gr.headers.get('etag') ?? '').replace(/"/g, '').startsWith(lod.v));
+  const out: Record<string, string> = { 'Access-Control-Allow-Origin': '*', 'Cache-Control': a.immutable || named ? 'public, max-age=31536000, immutable' : 'private, max-age=3600', 'X-Content-Type-Options': 'nosniff' };
   for (const h of ['content-type', 'content-length', 'accept-ranges', 'content-range', 'etag']) {
     const v = gr.headers.get(h);
     if (v) out[h] = v;
@@ -210,11 +213,11 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       if (route === '/play/sandbox') return servePlayPage(res, req, { guest: true });
       if (/^\/play\/(_draft|t\/[a-z0-9-]+|[a-z0-9-]+(\/v\/\d+)?)$/.test(route) && route !== '/play/runtime.js') return servePlayPage(res, req);
       let pa = /^\/play-asset\/d\/([\w-]+\.[\w-]+)\/[^/]+$/.exec(route);
-      // ?lod=<size>&v=<id>: an image's smaller copy (variants.ts; the engine's texture levels of detail).
+      // ?lod=<level>&v=<hash>: a level of detail of an image or model (Gen's LOD system: lods.ts).
       const lod = { lod: Number(url.searchParams.get('lod')) || undefined, v: url.searchParams.get('v') };
-      if (pa) return await servePlayAsset({ token: pa[1], ...lod }, req, res);
+      if (pa) return await servePlayAsset({ token: pa[1] }, lod, req, res);
       pa = /^\/play-asset\/([a-z0-9-]+)\/(\d+|live)\/([^/]+)$/.exec(route);
-      if (pa) return await servePlayAsset({ slug: pa[1], version: pa[2] === 'live' ? 'live' : Number(pa[2]), name: decodeURIComponent(pa[3]), ...lod }, req, res);
+      if (pa) return await servePlayAsset({ slug: pa[1], version: pa[2] === 'live' ? 'live' : Number(pa[2]), name: decodeURIComponent(pa[3]) }, lod, req, res);
       if (/^\/app\/g\/g_[0-9a-f]+$/.test(route)) return void (await serveStatic('/editor.html', res));
       if (/^\/app\/join\/[\w-]+$/.test(route)) return void (await serveStatic('/games.html', res));
       // Share links (src/shares.ts): the share window a game opens, a share's page, its file and picture.
@@ -265,7 +268,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (route === '/v1/community/categories' && method === 'GET') return send(res, 200, community.categories());
     if (route === '/v1/community/tags' && method === 'GET') return send(res, 200, { tags: community.tagCounts(url.searchParams.get('kind') ?? undefined) });
     const cf = /^\/v1\/community\/(a_[0-9a-f]+)\/file$/.exec(route);
-    if (cf && method === 'GET') return relay(await community.file(cf[1]), res);
+    if (cf && method === 'GET') return relay(await community.file(cf[1], { lod: Number(url.searchParams.get('lod')) || undefined, v: url.searchParams.get('v'), etag: req.headers['if-none-match'] ? String(req.headers['if-none-match']) : undefined }), res);
     // The share window asks who's there without a 401 for guests (they can still download).
     if (route === '/v1/shares/session' && method === 'GET') { const u = users.authenticate(req); return send(res, 200, { user: u ? users.profile(u).user ?? null : null }); }
     const shv = /^\/v1\/shares\/([\w-]{6,16})$/.exec(route);
@@ -504,8 +507,13 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (pass.some((r) => r.test(route))) {
       const body = method === 'POST' ? await readJson(req) : undefined;
       const gr = await genFetch(`${route}${url.search}`, { as: user.project, method, body, signal: AbortSignal.timeout(120_000) });
-      // The customer's own library list leaves out images' smaller copies (they belong to their image: variants.ts).
-      if (route === '/v1/assets' && method === 'GET' && gr.ok) return send(res, 200, hideVariants(await gr.json()));
+      // (Beta made images' smaller copies as separate assets before Gen had its LOD system, labelled { lod, of }: they
+      // belong to their image, so the customer's own list leaves them out.)
+      if (route === '/v1/assets' && method === 'GET' && gr.ok) {
+        const list: any = await gr.json();
+        if (Array.isArray(list?.items)) list.items = list.items.filter((a: any) => !(a?.labels?.lod !== undefined && a?.labels?.of));
+        return send(res, 200, list);
+      }
       return relay(gr, res);
     }
     return send(res, 404, { error: 'Not found' });
@@ -523,8 +531,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(ROOT, 'src
   resumeTasks();
   resumeGens();
   community.watchStarter();
-  // Images' smaller copies (variants.ts): anything without them is queued at start (the backfill), then made one by one.
-  if (env('PORTAL_VARIANTS') !== '0') watchVariants();
   const server = http.createServer((req, res) => void handle(req, res));
   server.on('upgrade', onUpgrade);
   server.listen(PORT, '127.0.0.1', () => console.log(`[portal] http://127.0.0.1:${PORT}`));

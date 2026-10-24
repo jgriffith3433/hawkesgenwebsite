@@ -42,13 +42,18 @@
       e.measure();
       return e;
     }
-    // Level of detail: a low-detail copy (opts.low, or "<name>_low.glb" when the game has one) is shown far away and
-    // the full model up close (lodDistance, meters). Only the copy that's needed loads: far away, just the low one (small,
-    // fast); the full one when you come near and the texture budget has room. Far again while memory is tight, the full
-    // copy is let go (its textures too) and comes back when you return.
-    const named = (L.assetEntry(name) || { name }).name; // (an id: its name, for the low copy beside it)
-    const lowName = opts.low !== undefined ? opts.low : (/\.glb$/i.test(named) && hasAsset(named.replace(/\.glb$/i, '_low.glb')) ? named.replace(/\.glb$/i, '_low.glb') : null);
-    const load = (assetName, isLow) => queued(e, () => B.SceneLoader.ImportMeshAsync('', '', assetName === name ? url : assetUrl(assetName), W.scene, null, '.glb')).then((r) => {
+    // Level of detail: a low-detail copy is shown far away and the near copy up close (lodDistance, meters). Only the copy
+    // that's needed loads: far away, just the low one (small, fast); the near one when you come near and the texture
+    // budget has room. Far again while memory is tight, the near copy is let go (its textures too) and comes back when
+    // you return. The copies are the model's levels of detail from Gen (the bundle's `lods`: modelLevels), else opts.low
+    // or "<name>_low.glb" when the game has one (older games).
+    const entry = L.assetEntry(name) || { name };
+    const levels = opts.low === undefined ? modelLevels(entry) : null;
+    if (levels) url = levels.near;
+    const named = entry.name; // (an id: its name, for the low copy beside it)
+    const lowName = levels ? (levels.low ? '(low)' : null) : opts.low !== undefined ? opts.low : (/\.glb$/i.test(named) && hasAsset(named.replace(/\.glb$/i, '_low.glb')) ? named.replace(/\.glb$/i, '_low.glb') : null);
+    const urlOf = (assetName, isLow) => (isLow && levels ? levels.low : assetName === name ? url : assetUrl(assetName));
+    const load = (assetName, isLow) => queued(e, () => B.SceneLoader.ImportMeshAsync('', '', urlOf(assetName, isLow), W.scene, null, '.glb')).then((r) => {
       if (!e.alive || world !== H.world) { for (const m of r.meshes) m.dispose(); for (const g of r.animationGroups || []) g.dispose(); return null; }
       const holder = new B.TransformNode(isLow ? 'lod-low' : 'holder', W.scene);
       for (const m of r.meshes) if (!m.parent) m.parent = holder;
@@ -97,6 +102,23 @@
     lod.far = !nearFor(e, lod.d);
     e.ready = lod.fetch(lod.far ? 'low' : 'high').then(() => (lod.low || lod.high ? null : lod.fetch(lod.far ? 'high' : 'low'))).then(() => { e.measure(); return e; });
     return e;
+  }
+
+  /**
+   * A model's copies from its levels of detail (entry.lods from Gen: levels by triangles, each with its biggest texture):
+   * near, the most detailed one whose textures fit the device (H.budget.maxTexture: a phone takes the 1024 px mid, not
+   * the 2048 px model), and low, the fewest triangles. Null without levels.
+   */
+  function modelLevels(entry) {
+    const l = entry && entry.lods;
+    if (!l || l.kind !== 'mesh' || !Array.isArray(l.levels) || !l.levels.length) return null;
+    const max = Number(H.budget && H.budget.maxTexture) || 8192;
+    // (A level as detailed as the model itself stands in for it: the same triangles, smaller textures.)
+    const all = [...l.levels.map((x) => ({ tris: x.tris || x.level, tex: x.tex || 0, url: x.url })), { tris: l.tris || Infinity, tex: l.tex || 0, url: entry.url, original: true }];
+    const fit = all.filter((x) => x.tex <= max).sort((a, b) => b.tris - a.tris || (a.original ? 1 : 0) - (b.original ? 1 : 0) || a.tex - b.tex);
+    const near = (fit[0] || all.sort((a, b) => a.tex - b.tex)[0]).url;
+    const low = l.levels.reduce((a, b) => ((b.tris || b.level) < (a.tris || a.level) ? b : a)).url;
+    return { near, low: low !== near ? low : null };
   }
 
   // ------------------------------------------------------------------ loading: nearest first, a few at a time
@@ -189,7 +211,8 @@
     const e = new Entity(plane, { physics: 'none', ...opts }, 'sprite');
     const m = new B.StandardMaterial('sprite', W.scene);
     let t = null;
-    try { t = new B.Texture(assetUrl(name), W.scene, false, true, W.pixelated || opts.pixel ? B.Texture.NEAREST_SAMPLINGMODE : B.Texture.TRILINEAR_SAMPLINGMODE); } catch (err) { if (!opts.lenient) throw err; e._waiting = name; }
+    const at = opts.position ? vec(opts.position) : [Number(opts.x) || 0, Number(opts.y) || 0, Number(opts.z) || 0];
+    try { t = new B.Texture(assetUrl(name, { at, size: height }), W.scene, false, true, W.pixelated || opts.pixel ? B.Texture.NEAREST_SAMPLINGMODE : B.Texture.TRILINEAR_SAMPLINGMODE); } catch (err) { if (!opts.lenient) throw err; e._waiting = name; }
     if (t) { t.hasAlpha = true; m.diffuseTexture = t; m.useAlphaFromDiffuseTexture = true; }
     else { m.wireframe = true; }
     m.emissiveColor = new B.Color3(1, 1, 1);
@@ -651,5 +674,6 @@
     },
   });
 
+  H.kinds.modelLevels = modelLevels;
   H.kinds.lift = (spec) => { const k = H.kinds.get(spec.type); return k && k.editor && k.editor.lift ? k.editor.lift(spec) : 0.1; };
 })();

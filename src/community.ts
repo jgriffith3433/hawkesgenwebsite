@@ -9,7 +9,7 @@ import { headWord, singular, wordsOf } from './words.ts';
 import { parseScene } from './scene.ts';
 import { getUser, type User } from './users.ts';
 import { PortalError } from './util.ts';
-import { queueVariants, variantMap, variantOf } from './variants.ts';
+import { levelUrls, lodsOf, rememberLods } from './lods.ts';
 
 /**
  * The Gen project Hawkes' own starter pack lives in. The same one for every copy of the portal (a beta portal with its
@@ -63,19 +63,22 @@ const cleanCategory = (c: unknown) => String(c ?? '').toLowerCase().trim().repla
 const cleanTags = (t: unknown) => [...new Set((Array.isArray(t) ? t.join(' ') : String(t ?? '')).toLowerCase().split(/[\s,]+/).map((w) => w.replace(/[^a-z0-9-]/g, '')).filter(Boolean))].slice(0, 16).join(' ');
 
 const IMAGE_KINDS = ['texture', 'image', 'sprite', 'sky'];
-/** What the client sees of a row. Files come through /v1/community/<id>/file (and the thumb's own id). Images carry
- *  their smaller copies (variants.ts: { "128": file, ... } and size [w, h]); the thumb is the 256 px one when there is one. */
+/** What the client sees of a row. Files come through /v1/community/<id>/file (and the thumb's own id). Images and models
+ *  carry their levels of detail (Gen's LOD system, lods.ts: `lods`, each level with its link); the thumb is a small level
+ *  (256 px) of the picture when Gen has made them. */
 export function view(r: Row) {
   const file = (id: string | null) => (id ? `/v1/community/${id}/file` : null);
   const thumbId = r.thumb ?? (IMAGE_KINDS.includes(r.kind) ? r.id : null);
-  const lods = variantMap([r.id, ...(thumbId && thumbId !== r.id ? [thumbId] : [])]);
+  // (Only images and models have levels: sounds and videos never ask Gen.)
+  const lods = lodsOf([IMAGE_KINDS.includes(r.kind) || r.kind === 'model' ? r.id : null, thumbId]);
   const mine = lods[r.id];
-  const small = thumbId ? lods[thumbId]?.variants?.['256'] ?? lods[thumbId]?.variants?.['128'] ?? null : null;
+  const t = thumbId ? lods[thumbId] : null;
+  const small = t ? [...t.levels].reverse().find((l) => l.level <= 256) ?? t.levels[0] : null;
   return {
     id: r.id, kind: r.kind, mime: r.mime, title: r.title, category: r.category || null, tags: r.tags ? r.tags.split(' ') : [], file: file(r.id),
-    thumb: small ? file(small.id) : file(thumbId), thumbFull: file(thumbId),
-    ...(mine ? { size: mine.size, variants: Object.fromEntries(Object.entries(mine.variants).map(([s, v]) => [s, file(v.id)])) } : {}),
-    low: Boolean(r.low), by: r.by_user ? getUser(r.by_user)?.name ?? 'A player' : 'Hawkes', source: r.source, uses: r.uses, likes: r.likes ?? 0, created: r.created,
+    thumb: small ? `${file(thumbId)}?lod=${small.level}&v=${small.sha}` : file(thumbId), thumbFull: file(thumbId),
+    ...(mine ? { lods: levelUrls(mine, file(r.id)!) } : {}),
+    low: Boolean(r.low) || Boolean(mine?.levels.some((l) => l.role === 'low')), by: r.by_user ? getUser(r.by_user)?.name ?? 'A player' : 'Hawkes', source: r.source, uses: r.uses, likes: r.likes ?? 0, created: r.created,
   };
 }
 
@@ -159,7 +162,7 @@ export async function share(user: User, body: { asset?: unknown; title?: unknown
   db.prepare(`INSERT INTO community_assets (id, project, kind, mime, title, tags, category, low, thumb, by_user, source, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'player', ?)
               ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, title = excluded.title, tags = excluded.tags, category = excluded.category, low = excluded.low, thumb = excluded.thumb, hidden = 0`)
     .run(id, user.project, kind, a.mime ?? null, title, tags, cleanCategory(body.category), await own(body.low), await own(body.thumb), user.id, Date.now());
-  queueLods(db.prepare('SELECT * FROM community_assets WHERE id = ?').get(id) as Row);
+  rememberLods(id, a.lods ?? null);
   return view(db.prepare('SELECT * FROM community_assets WHERE id = ?').get(id) as Row);
 }
 
@@ -194,7 +197,9 @@ export async function useInGame(user: User, gameId: string, body: { id?: unknown
   if (!row || body.name) {
     const want = String(body.name ?? '').trim() || r.title;
     row = await addAsset(user, gameId, { asset: r.id, name: freeName(gameId, want, r.mime) }, { project: r.project, words, title: r.title });
-    if (r.low && row.name.endsWith('.glb')) await addAsset(user, gameId, { asset: r.low, name: row.name.replace(/\.glb$/, '_low.glb') }, { project: r.project, words, title: r.title }).catch(() => null);
+    // (A model's low copy comes with it as its levels of detail; an old row whose model Gen hasn't made them for yet
+    // still brings its separate low copy, which the engine pairs by name.)
+    if (r.low && row.name.endsWith('.glb') && !lodsOf([r.id])[r.id]?.levels.some((l) => l.role === 'low')) await addAsset(user, gameId, { asset: r.low, name: row.name.replace(/\.glb$/, '_low.glb') }, { project: r.project, words, title: r.title }).catch(() => null);
     db.prepare('UPDATE community_assets SET uses = uses + 1 WHERE id = ?').run(r.id);
     // A like: someone else (once per account) found it good enough to use.
     if (r.by_user !== user.id && db.prepare('INSERT OR IGNORE INTO community_uses (asset, user_id, game_id, created) VALUES (?, ?, ?, ?)').run(r.id, user.id, gameId, Date.now()).changes)
@@ -211,20 +216,15 @@ export async function useInGame(user: User, gameId: string, body: { id?: unknown
   return { asset: row, item: view(r), word, mode, assets: { [word]: next }, rev: ops.rev, applied: ops.applied };
 }
 
-/** An image in the library gets its smaller copies (variants.ts): the thing itself (an image kind) and its picture. */
-function queueLods(r: Row | undefined) {
-  if (!r || r.hidden) return;
-  if (IMAGE_KINDS.includes(r.kind)) queueVariants(r.id, r.project, { mime: r.mime, source: 'community' });
-  if (r.thumb) queueVariants(r.thumb, r.project, { source: 'community' });
-}
-
-/** Streams a community file (a listed thing, its thumb or low copy, or an image's smaller copy), from its owner's project. */
-export async function file(id: string) {
-  const find = (x: string) => db.prepare('SELECT project FROM community_assets WHERE hidden = 0 AND (id = ? OR thumb = ? OR low = ?)').get(x, x, x) as { project: string } | undefined;
-  let r = find(id);
-  if (!r) { const of = variantOf(id); if (of) r = find(of); }
+/** Streams a community file (a listed thing, its thumb or low copy), from its owner's project; `lod` and `v` ask for a
+ *  level of detail (Gen picks it; Gen's answer is cached for good when the link names its hash). */
+export async function file(id: string, o: { lod?: number; v?: string | null; etag?: string } = {}) {
+  const r = db.prepare('SELECT project FROM community_assets WHERE hidden = 0 AND (id = ? OR thumb = ? OR low = ?)').get(id, id, id) as { project: string } | undefined;
   if (!r) throw new PortalError('No such file', { status: 404 });
-  return genFetch(`/v1/assets/${id}/file`, { as: r.project, signal: AbortSignal.timeout(120_000) });
+  const q = new URLSearchParams();
+  if (o.lod && o.lod > 0) q.set('lod', String(Math.round(o.lod)));
+  if (o.v && /^[0-9a-f]{8,64}$/.test(o.v)) q.set('v', o.v);
+  return genFetch(`/v1/assets/${id}/file${q.size ? `?${q}` : ''}`, { as: r.project, headers: o.etag ? { 'If-None-Match': o.etag } : {}, signal: AbortSignal.timeout(120_000) });
 }
 
 /** The files a starter job saved under `name` (a step's one output is `name`, several are `name.<title>`). */
@@ -300,7 +300,9 @@ export async function syncStarter() {
     const before = db.prepare('SELECT 1 FROM community_assets WHERE id = ?').get(r.main.id);
     put.run(r.main.id, STARTER_PROJECT, r.kind, r.main.mime ?? null, r.name, r.tags, r.category, r.item, r.low?.id ?? null, r.thumb?.id ?? null, Date.now());
     retire.run(r.item, r.main.id);
-    queueLods(db.prepare('SELECT * FROM community_assets WHERE id = ?').get(r.main.id) as Row);
+    // Each thing's levels of detail came with Gen's list (Gen makes them itself): kept for the library and bundles.
+    rememberLods(r.main.id, r.main.lods ?? null);
+    if (r.thumb) rememberLods(r.thumb.id, r.thumb.lods ?? null);
     if (!before) added++;
   }
   // Starter things of a kind with a minimum recipe: anything listed that isn't one of this round's good rows goes.
