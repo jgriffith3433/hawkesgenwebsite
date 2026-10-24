@@ -489,27 +489,53 @@
       P(root, 'cyl', [0.035, 0.22], [0, h + 0.1, -len / 2 + 0.06], '#c9d1da', { keep: true });
       P(root, 'cyl', [0.03, 0.14], [0, h + 0.2, -len / 2 + 0.12], '#c9d1da', { rot: [90, 0, 0], keep: true });
       const run = water(e, [0, h + 0.18, -len / 2 + 0.19], { sound: sh.sound, life: 0.35 });
+      // A hollow tub (its bottom and four sides), so things (and you) fit in it.
+      const B4 = (size, at) => ({ shape: H.physics.shapes.box(size), position: at });
+      H.physics.setShape(e, H.physics.shapes.compound([B4([w, 0.08, len], [0, 0.04, 0]), B4([0.08, h, len], [-w / 2 + 0.04, h / 2, 0]), B4([0.08, h, len], [w / 2 - 0.04, h / 2, 0]), B4([w, h, 0.08], [0, h / 2, -len / 2 + 0.04]), B4([w, h, 0.08], [0, h / 2, len / 2 - 0.04])]));
       const level = basin(e, root, [w - 0.16, len - 0.16], [0, 0.09, 0], h - 0.16, 0.05);
       M.track(e, { on: false }, (s) => run(s.on), M.keyOf(o, spec));
       M.usable(e, [
         { label: () => (e.homes.state.on ? 'turn the water off' : 'run the bath'), at: [0, h + 0.15, -len / 2 + 0.1], use: (ctx) => ctx.set({ on: !e.homes.state.on }) },
         { label: () => (level() > 0.15 ? 'take a bath' : 'lie in the tub'), at: [0, 0.35, 0.3], use: () => M.sit(e, [0, 0.35, -0.2], 0, { pose: 'lie', out: [w / 2 + 0.55, 0], say: level() > 0.15 ? 'Ahh, a warm bath.' : 'An empty bath. Run the water!' }) },
       ]);
-      // Things in the water float: Water's buoyancy (H.water) if it's here, a gentle lift otherwise.
-      const off = H.physics.beforeStep(() => {
-        if (!e.alive || level() < 0.05) return;
-        const top = M.worldPoint(e, [0, 0.09 + level(), 0])[1];
-        const box = e.box();
-        for (const t of W().entities) {
-          if (t.physics !== 'dynamic' || t === W().player || !t.alive || t.held) continue;
-          if (t.x < box.min[0] || t.x > box.max[0] || t.z < box.min[2] || t.z > box.max[2] || t.bottom > top || t.y < box.min[1]) continue;
-          if (H.water && typeof H.water.buoyancy === 'function') { try { H.water.buoyancy(t, { surface: top }); continue; } catch {} }
-          const depth = Math.min(1, (top - t.bottom) / Math.max(0.05, t.size[1]));
-          t.force([0, Math.abs(H.physics.gravity) * t.mass * 1.6 * depth, 0]);
-          t.vy *= 0.92; t.vx *= 0.97; t.vz *= 0.97;
-        }
-      });
-      e.onDestroy(off);
+      // Real water in the tub when the Water module is here (things float in it by themselves: the duck bobs); a
+      // gentle lift for floating things otherwise.
+      const waterKind = H.kinds.get('water');
+      if (waterKind && H.water) {
+        let pool = null, made = 0;
+        M.animate(e, () => {
+          const lv = level();
+          const want = lv < 0.06 ? 0 : Math.round(lv / 0.06) * 0.06;
+          if (want !== made) {
+            made = want;
+            if (pool && pool.alive) pool.destroy();
+            pool = null;
+            if (want) {
+              try { pool = waterKind.build({ size: [w - 0.18, want, len - 0.18], fish: false, waves: false, foam: false }, { name: 'Bath water', physics: 'none', lenient: true }, null); pool.temporary = true; } catch (err) { H.report(err, 'bathtub'); }
+            }
+          }
+          if (pool && pool.alive) {
+            const c = M.worldPoint(e, [0, 0.09 + made / 2, 0]);
+            pool.node.position.set(c[0], c[1], c[2]);
+            pool.node.rotation.y = e.node.rotation.y;
+          }
+        });
+        e.onDestroy(() => { if (pool && pool.alive) pool.destroy(); });
+      } else {
+        const off = H.physics.beforeStep(() => {
+          if (!e.alive || level() < 0.05) return;
+          const top = M.worldPoint(e, [0, 0.09 + level(), 0])[1];
+          const box = e.box();
+          for (const t of W().entities) {
+            if (t.physics !== 'dynamic' || t === W().player || !t.alive || t.held) continue;
+            if (t.x < box.min[0] || t.x > box.max[0] || t.z < box.min[2] || t.z > box.max[2] || t.bottom > top || t.y < box.min[1]) continue;
+            const depth = Math.min(1, (top - t.bottom) / Math.max(0.05, t.size[1]));
+            t.force([0, Math.abs(H.physics.gravity) * t.mass * 1.6 * depth, 0]);
+            t.vy *= 0.92; t.vx *= 0.97; t.vz *= 0.97;
+          }
+        });
+        e.onDestroy(off);
+      }
     },
   });
   furn('shower', {
@@ -528,6 +554,9 @@
       P(root, 'cyl', [0.18, 0.03], [0, h - 0.1, -s / 2 + 0.3], '#c9d1da', { keep: true, decor: true });
       P(root, 'cyl', [0.07, 0.04], [0.25, 1.1, -s / 2 + 0.03], '#c9d1da', { rot: [90, 0, 0], keep: true });
       const run = water(e, [0, h - 0.13, -s / 2 + 0.3], { shower: true, sound: sh.sound });
+      // You step into it: solid only where its tray, back and glass sides are.
+      const B4 = (size, at) => ({ shape: H.physics.shapes.box(size), position: at });
+      H.physics.setShape(e, H.physics.shapes.compound([B4([s, 0.08, s], [0, 0.04, 0]), B4([s, h, 0.04], [0, h / 2, -s / 2]), B4([0.03, h, s], [-s / 2, h / 2, 0]), B4([0.03, h, s], [s / 2, h / 2, 0])]));
       M.track(e, { on: false }, (st) => run(st.on), M.keyOf(o, spec));
       M.usable(e, [{ label: () => (e.homes.state.on ? 'turn the shower off' : 'turn the shower on'), at: [0.25, 1.1, -s / 2 + 0.1], use: (ctx) => ctx.set({ on: !e.homes.state.on }) }]);
       let under = 0;
@@ -535,7 +564,7 @@
         const p = W().player;
         if (!p || !e.homes.state.on) { under = 0; return; }
         const c = M.worldPoint(e, [0, 0, 0]);
-        if (Math.hypot(p.x - c[0], p.z - c[2]) < s / 2 && Math.abs(p.bottom - c[1]) < 0.5) { under += dt; if (under > 1.5 && under - dt <= 1.5) { say('Squeaky clean!'); if (H.game) H.game.emit('shower', { shower: e }); } } else under = 0;
+        if (Math.hypot(p.x - c[0], p.z - c[2]) < s / 2 && Math.abs(p.bottom - c[1]) < 0.5) { under += dt; if (H.game && H.game.water && H.game.water.wet && Math.floor(under * 2) !== Math.floor((under - dt) * 2)) H.game.water.wet(p, 4); if (under > 1.5 && under - dt <= 1.5) { say('Squeaky clean!'); if (H.game) H.game.emit('shower', { shower: e }); } } else under = 0;
       });
     },
   });

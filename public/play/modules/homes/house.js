@@ -107,6 +107,12 @@
         if (p.kind === 'box') e = piece(p.size, mats[p.role] || mats.int, { step: p.step, name: p.role === 'floor' ? 'Floor' : p.role === 'stairs' ? 'Stairs' : p.role === 'trim' ? 'Railing' : p.role === 'ceiling' ? 'Ceiling' : 'Wall' });
         else if (p.kind === 'glass') e = piece(p.size, mats.glass, { name: 'Window', shadow: false });
         else if (p.kind === 'roof') e = piece(p.size, mats.roof, { physics: 'none', name: 'Roof', tilt: p.tilt });
+        else if (p.kind === 'ramp') {
+          // Only for real physics (the fallback box physics would make it a solid block): the steps stay for the eye.
+          if (!(H.physics && H.physics.engine === 'havok')) continue;
+          e = piece(p.size, mats.stairs, { name: 'Stairs', tilt: p.tilt, shadow: false });
+          e.node.isVisible = false;
+        }
         else if (p.kind === 'attic') {
           const m = prism(p.size, p.alongX, mats.ext);
           e = new L.Entity(m, { physics: 'none', name: 'Roof', tag: 'house' }, 'box');

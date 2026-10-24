@@ -303,6 +303,7 @@
       p.held = true; // out of the physics while seated (it stays where the seat is)
       const s = seatWorld(o);
       W().camera.yaw = s.yaw;
+      p.node.rotation.y = s.yaw; // (the first-person camera takes its yaw from the body when the view is set again)
       W().camera.pitch = o.pose === 'lie' ? -0.6 : 0.05;
       hold(p, o);
       if (o.thing) o.thing._occupied = (o.thing._occupied || 0) + 1;

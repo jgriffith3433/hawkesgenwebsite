@@ -209,3 +209,40 @@ test('a wall with a door and a window; a room; script-made houses get the same i
   assert.ok(h._parts.find((x: any) => x.e.kind === 'door').e.homes.id.startsWith('house1/'));
   assert.deepEqual(errors(), []);
 });
+
+test('the stairs take the player up to the next floor; a locked door stays shut', () => {
+  world(H, sceneOf({ floor, home: { type: 'house', transform: { position: [0, 0, 0] }, shape: { rooms: 4, floors: 2, furnish: false } }, start: { type: 'spawn', transform: { position: [0, 0, -12] } } }));
+  H.tick(0.3);
+  const home = H.game.entity('home');
+  const steps = home._parts.map((x: any) => x.e).filter((e: any) => e.name === 'Stairs' && e.node.isVisible);
+  assert.equal(steps.length, 12);
+  const p = H.game.player;
+  p.controls = false;
+  p.position = [steps[0].x - 0.6, 1, steps[0].z];
+  p.velocity = [0, 0, 0];
+  H.tick(0.3);
+  H.game.onUpdate(() => p.walk({ x: 1, z: 0 }, 3));
+  H.tick(3);
+  assert.ok(p.bottom > 2.9, `upstairs (feet at ${p.bottom.toFixed(2)})`);
+  // Locked by a script: E says so and it stays shut.
+  const door = H.game.homes.find(home, 'front-door');
+  door.data.locked = true;
+  H.game.homes.use(door);
+  assert.equal(door.homes.state.open, false);
+  door.data.locked = false;
+  H.game.homes.use(door);
+  assert.equal(door.homes.state.open, true);
+  assert.deepEqual(errors(), []);
+});
+
+test('a bath fills with real water (Water module) and the rubber duck floats', () => {
+  world(H, sceneOf({ floor, tub: { type: 'bathtub', transform: { position: [0, 0, 3] } } }), { scripts: { 'scripts/duck.js': "game.state.duck = game.sphere({ radius: 0.09, x: 0, y: 0.3, z: 3, physics: 'dynamic', mass: 0.2, color: '#ffd43b', data: { density: 0.3 } });" } });
+  const tub = H.game.entity('tub');
+  H.game.homes.use(tub, 'run the bath');
+  for (let i = 0; i < 28; i++) H.tick(0.25); // frames, as a browser runs them (the water rises frame by frame)
+  assert.ok(tub._waterLevel > 0.3, `filled (${tub._waterLevel})`);
+  if (H.water) assert.ok(H.game.water.inWater([0, 0.25, 3]), 'there is water in the tub');
+  const duck = H.game.state.duck;
+  assert.ok(duck.y > 0.3, `the duck floats up (${duck.y.toFixed(2)})`);
+  assert.deepEqual(errors(), []);
+});
