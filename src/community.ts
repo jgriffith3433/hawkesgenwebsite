@@ -190,10 +190,19 @@ const saved = (outs: any[], name: string) => outs.filter((o) => { const t = Stri
 const MIME_OF: Record<string, RegExp> = { model: /^model\/gltf-binary$/, texture: /^image\//, image: /^image\//, sprite: /^image\//, sky: /^image\//, music: /^audio\//, ambience: /^audio\//, sfx: /^audio\//, voice: /^audio\//, video: /^video\// };
 
 /** One finished starter job's files as a library row: the main file, a model's low copy, a picture of it. Null: not usable. */
+/**
+ * The oldest recipe a starter thing of a kind may come from (tools/starter.mjs labels each job `rev`). 3D models made
+ * before v3 were built from the cut-out's mask with Gen's views3d cropping one corner four times (2026-10-23): they don't
+ * look like their pictures, so they're never listed, and any already listed are hidden.
+ */
+export const MIN_REV: Record<string, number> = { model: 3 };
+const revOf = (l: any) => Number(String(l?.rev ?? 'v1').replace(/^v/, '')) || 1;
+
 export function starterRow(outs: any[]) {
   const l = outs[0]?.labels ?? {};
   const kind = String(l.kind ?? '');
   if (!COMMUNITY_KINDS.includes(kind as any)) return null;
+  if (revOf(l) < (MIN_REV[kind] ?? 0)) return null;
   let main: any = null;
   let low: any = null;
   let thumb: any = null;
@@ -251,7 +260,13 @@ export async function syncStarter() {
     retire.run(r.item, r.main.id);
     if (!before) added++;
   }
-  return { jobs: byJob.size, things: best.size, added, unusable };
+  // Starter things of a kind with a minimum recipe: anything listed that isn't one of this round's good rows goes.
+  let withdrawn = 0;
+  for (const kind of Object.keys(MIN_REV)) {
+    const keep = [...best.values()].filter((r) => r.kind === kind).map((r) => r.main.id);
+    withdrawn += Number(db.prepare(`UPDATE community_assets SET hidden = 1 WHERE source = 'starter' AND kind = ? AND hidden = 0${keep.length ? ` AND id NOT IN (${keep.map(() => '?').join(',')})` : ''}`).run(kind, ...keep).changes);
+  }
+  return { jobs: byJob.size, things: best.size, added, unusable, withdrawn };
 }
 
 /** Keeps the starter pack current (at start, then every few minutes); a Gen hiccup just waits for the next round. */
