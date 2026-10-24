@@ -204,23 +204,35 @@
   });
 
   // ------------------------------------------------------------------ walking up to one: the prompt, E to get in
+  // All of getting in is this one offer: what E (or a tap on the prompt) does for a player right here, or null.
+  // (When the engine has a shared 'use' registry, this is what goes in it.)
+  function useOffer(p) {
+    const w = W();
+    if (!w || H.mode !== 'play' || !p || !p.alive || !p.controls || local || p.controller !== 'walk' || p._view === 'rts') return null;
+    const e = nearest(p, REACH);
+    if (!e) return null;
+    const v = e.vehicle;
+    const verb = v.seats[0].who ? 'Ride in' : v.def.class === 'plane' || v.def.class === 'heli' ? 'Fly' : v.def.twoWheels ? 'Ride' : 'Drive';
+    return { entity: e, label: `${verb} the ${e.name && e.name !== v.def.title ? e.name : v.def.title.toLowerCase()}`, key: 'e', priority: 10, act: () => enter(e) };
+  }
   let near = null;
   H.hooks.step.push(() => {
     const w = W(), g = G();
-    if (!w || !g || H.mode !== 'play') { prompt(null); return; }
-    const p = w.player;
-    if (!p || !p.alive || !p.controls || local || p.controller !== 'walk' || p._view === 'rts') { prompt(null); return; }
-    near = nearest(p, REACH);
-    prompt(near);
-    if (near && g.input.pressed('e') && w.time - lastSwitch > 0.25) enter(near);
+    const offer = w && g ? useOffer(w.player) : null;
+    near = offer ? offer.entity : null;
+    prompt(offer);
+    if (offer && g.input.pressed('e') && w.time - lastSwitch > 0.25) offer.act();
   });
+  /** The closest vehicle with a free seat to a thing or a point ([x, y, z]), within reach (meters from its side). */
   function nearest(from, reach = REACH) {
+    const f = Array.isArray(from) ? { x: +from[0] || 0, y: +from[1] || 0, z: +from[2] || 0 } : from;
+    if (!f) return null;
     let best = null, bd = Infinity;
     for (const e of V.list()) {
       const v = e.vehicle;
       if (v.wrecked || e.physics === 'static' || e.physics === 'none' || !e.visible) continue;
       if (!v.seats.some((s) => !s.who)) continue;
-      const d = Math.hypot(from.x - e.x, from.y - e.y, from.z - e.z) - Math.max(v.def.size[0], v.def.size[2]) / 2;
+      const d = Math.hypot(f.x - e.x, f.y - e.y, f.z - e.z) - Math.max(v.def.size[0], v.def.size[2]) / 2;
       if (d < reach && d < bd) { bd = d; best = e; }
     }
     return best;
@@ -255,17 +267,22 @@
   }
   H.physics.afterStep(placeRiders);
 
-  /** Puts a non-player thing (an AI friend, an animal, a dummy) in a seat; it rides until unboard. */
+  /** Puts a non-player thing (an AI friend, an animal, a dummy) in a seat; it rides until unboard. seat: a number, or
+   *  { driver: true } (the driver's seat if it's free, else a passenger's), or { seat }. */
   function board(e, who, seat) {
     const v = e && e.vehicle;
     if (!v || !who || !who.alive) return false;
-    let idx = typeof seat === 'number' ? seat : v.seats.findIndex((s) => !s.who);
+    const o = seat && typeof seat === 'object' ? seat : { seat };
+    let idx = typeof o.seat === 'number' ? o.seat : o.driver && !v.seats[0].who ? 0 : v.seats.findIndex((s, i) => !s.who && i > 0);
+    if (idx < 0 && !o.driver) idx = v.seats.findIndex((s) => !s.who);
     if (idx < 0 || !v.seats[idx] || v.seats[idx].who) return false;
     unboard(who);
     v.seats[idx].who = 'npc';
     v.seats[idx].entity = who;
     who._vehRider = { v, seat: idx, physics: who.physics, visible: who.visible };
     who.physics = 'trigger';
+    who._vehRider.held = who.held;
+    who.held = true; // (a character controller rests while it sits)
     who.visible = v.seats[idx].show || who._vehRider.visible === false ? who._vehRider.visible : false;
     X.wake(v);
     emit(e, 'enter', { entity: who }, idx);
@@ -279,6 +296,7 @@
     if (s && s.entity === who) { s.who = null; s.entity = null; if (r.seat === 0) v.autopilot = null; }
     who._vehRider = false;
     who.physics = r.physics || 'dynamic';
+    who.held = Boolean(r.held);
     who.visible = r.visible !== false;
     const at = exitSpot(v, who);
     who.position = at;
@@ -403,8 +421,9 @@ body.veh-touching #veh-hud .hint{display:none}
   }
   const layer = () => document.getElementById('ui') || document.body;
   let promptEl = null, promptFor = null;
-  function prompt(e) {
-    if (e === promptFor) return;
+  function prompt(offer) {
+    const e = offer ? offer.entity : null;
+    if (e === promptFor && (!offer || (promptEl && promptEl.__label === offer.label))) return;
     promptFor = e;
     if (!e) { if (promptEl) { promptEl.remove(); promptEl = null; } return; }
     style();
@@ -414,9 +433,8 @@ body.veh-touching #veh-hud .hint{display:none}
       promptEl.onclick = (ev) => { ev.stopPropagation(); if (promptFor) enter(promptFor); };
       layer().appendChild(promptEl);
     }
-    const v = e.vehicle;
-    const word = v.seats[0].who ? 'Ride in' : v.def.class === 'plane' || v.def.class === 'heli' ? 'Fly' : v.def.class === 'boat' || v.def.class === 'sub' ? 'Drive' : v.def.twoWheels ? 'Ride' : 'Drive';
-    promptEl.innerHTML = `<b>${H.touchUi ? 'B' : 'E'}</b>${word} the ${escape(e.name && e.name !== v.def.title ? e.name : v.def.title.toLowerCase())}`;
+    promptEl.__label = offer.label;
+    promptEl.innerHTML = `<b>${H.touchUi ? 'B' : 'E'}</b>${escape(offer.label)}`;
   }
   const escape = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -671,20 +689,27 @@ body.veh-touching #veh-hud .hint{display:none}
     };
   }
   // game.vehicles exists for every game: added the moment the engine makes the game object (window.game), before the
-  // scripts run. (Chains with anyone else watching window.game.)
-  (function watchGame() {
+  // scripts run. (Chains with anyone else watching window.game; installed again once every module has loaded, in case
+  // a later one replaced the watch without chaining. Hook request: H.hooks.game(g).)
+  const attachGame = (g) => { if (g && typeof g === 'object' && !Object.prototype.hasOwnProperty.call(g, 'vehicles')) Object.defineProperty(g, 'vehicles', { value: api(), enumerable: true, configurable: true }); };
+  function watchGame() {
     const desc = Object.getOwnPropertyDescriptor(window, 'game');
+    if (desc && desc.set && desc.set.__vehicles) return;
     let cur = desc && !desc.get ? desc.value : undefined;
-    const attach = (g) => { if (g && typeof g === 'object' && !Object.prototype.hasOwnProperty.call(g, 'vehicles')) Object.defineProperty(g, 'vehicles', { value: api(), enumerable: true, configurable: true }); };
-    Object.defineProperty(window, 'game', {
-      configurable: true,
-      get() { return desc && desc.get ? desc.get.call(window) : cur; },
-      set(g) { if (desc && desc.set) desc.set.call(window, g); else cur = g; attach(g); },
-    });
-    attach(H.game);
-  })();
+    const set = function (g) { if (desc && desc.set) desc.set.call(window, g); else cur = g; attachGame(g); };
+    set.__vehicles = true;
+    Object.defineProperty(window, 'game', { configurable: true, enumerable: true, get() { return desc && desc.get ? desc.get.call(window) : cur; }, set });
+    attachGame(H.game);
+  }
+  watchGame();
+  Promise.resolve(H.ready).then(watchGame, watchGame);
 
-  Object.assign(V, { enter, exit, board, unboard, nearest });
+  Object.assign(V, {
+    enter, exit, board, unboard, nearest, useOffer,
+    /** A vehicle within radius meters of a thing or point (one you could get into), or null. */
+    near: (from, radius = REACH) => nearest(from, radius),
+    kinds: [...Object.keys(V.types), 'vehicle'],
+  });
   Object.defineProperties(V, {
     current: { get: () => (local ? local.v.e : null), configurable: true },
     seat: { get: () => (local ? local.seat : null), configurable: true },
