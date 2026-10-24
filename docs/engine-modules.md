@@ -125,9 +125,8 @@ H.features.register('terrain', {            // owns config.terrain in scene.json
 
 The engine's physics is **Havok** (Babylon Physics v2, wasm from the CDN, pinned in `public/play/engine.json`).
 `H.physics.engine` says which is running ('havok', or 'legacy': the old box physics, while Havok loads or if it
-can't). **Status (foundation, part 1):** the API below is final; Havok is being wired in behind it, so for now
-`engine` is 'legacy' (joints, shape casts and torque wait for Havok; raycast, overlap, impulses, forces, explode and events
-already work). Write against this API, never Havok directly, so the engine can keep its promises (sleeping, budgets, sync).
+can't). Havok runs every game (`H.physics.engine === 'havok'`); 'legacy' only takes over if the wasm can't load.
+Write against this API, never Havok directly, so the engine can keep its promises (sleeping, budgets, sync).
 
 ### Bodies (on entities)
 
@@ -175,6 +174,11 @@ Returns `{ a, b, type, remove(), motor(speed, force), limits(min, max) }`.
   entered }`): each returns an `off()`. Speed is the impact speed (impact sounds, breakables).
 - `H.physics.beforeStep(fn(dt))` (apply forces: buoyancy, wind, engines) and `afterStep(fn(dt))`. Fixed step: 60 a second.
 - `H.physics.gravity` (m/s², along y), `H.physics.layer(name)` (makes or finds a layer; 16 at most).
+- `H.physics.bodyOf(e)`: the Babylon `PhysicsBody` behind an entity (or null), for what this API doesn't cover. Bodies are
+  made, remade and dropped by the engine each step (when a thing's shape, physics or visibility changes), so don't keep it.
+- How bodies follow the world: dynamic things are simulated; static things that something moves (a behavior, a script,
+  the editor) become driven bodies that carry what stands on them; `kinematic` things are always driven. Turning stays
+  Euler (`e.node.rotation`), so behaviors and scripts keep working; don't set `rotationQuaternion` on an entity's node.
 
 ### Character controller
 
@@ -213,4 +217,5 @@ boom({ at: [x, y, z], radius: 6, force: 20 });      // from anyone
 `npm test` runs `test/engine/*.test.ts`: the engine in Node (Babylon's NullEngine and Havok's wasm, no browser), the
 same files the browser loads. A scenario builds a world from scene.json, steps it (`H.tick(seconds)`) and checks what
 happened. Add your module's scenarios there (things it makes build from their specs; vehicles drive up a slope; water
-floats a crate...). `test/engine/harness.ts` loads the engine and your module. (Arriving with the Havok part of the foundation.)
+floats a crate...). `test/engine/harness.ts` loads the engine and your module: `load({ extra: [yourFile] })`, then `world(H, sceneOf({...}))`
+and `H.tick(seconds)`. `test/engine/runtime.test.ts` has every core scenario to copy from.
