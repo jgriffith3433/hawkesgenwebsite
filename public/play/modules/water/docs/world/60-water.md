@@ -34,7 +34,9 @@ has them (see "Art by word" below).
 The sea covers everything outside the land: **land is anything above the level**. On the plain Playground the ground
 is a 60 × 60 plane at height 0, so a sea at `-0.6` makes it an island you can walk off into the water. Keep the level at
 least `waves × 2` below flat ground or the wave tops show through it. With terrain (`config.terrain`) the sea fills
-every valley below its level and foams on the beaches.
+every valley below its level and foams on the beaches. On a round planet the sea is a ball at its level all the way
+round: give the planet a `seabed` (Overseer, "An ocean planet") so its ground lies under it, and the sea reaches the
+horizon however high you climb.
 
 ### Water things (`type: "water"`)
 

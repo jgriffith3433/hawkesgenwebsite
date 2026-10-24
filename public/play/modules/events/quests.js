@@ -418,9 +418,9 @@
     const st = document.createElement('style');
     st.id = 'qs-style';
     st.textContent = [
-      '.qs-btn{position:fixed;left:12px;top:46%;z-index:26;font:700 15px system-ui,sans-serif;color:#fff;background:rgba(10,14,24,.75);border:1px solid rgba(255,216,74,.55);border-radius:14px;padding:8px 12px;min-height:44px;cursor:pointer;backdrop-filter:blur(4px)}',
+      '.qs-btn{position:fixed;left:12px;top:62px;z-index:26;font:700 15px system-ui,sans-serif;color:#fff;background:rgba(10,14,24,.75);border:1px solid rgba(255,216,74,.55);border-radius:14px;padding:8px 12px;min-height:44px;cursor:pointer;backdrop-filter:blur(4px)}',
       '.qs-btn .qs-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#ffd84a;margin-left:6px;vertical-align:middle}',
-      '.qs-track{position:fixed;left:12px;top:calc(46% + 52px);z-index:25;max-width:min(300px,calc(100vw - 24px));font:600 14px/1.35 system-ui,sans-serif;color:#fff;background:rgba(10,14,24,.62);border-radius:12px;padding:8px 11px;pointer-events:auto;cursor:pointer}',
+      '.qs-track{position:fixed;left:12px;top:114px;z-index:25;max-width:min(300px,calc(100vw - 24px));font:600 14px/1.35 system-ui,sans-serif;color:#fff;background:rgba(10,14,24,.62);border-radius:12px;padding:8px 11px;pointer-events:auto;cursor:pointer}',
       '.qs-track b{color:#ffd84a;display:block;font-size:13px;letter-spacing:.02em}.qs-track .opt{opacity:.75;font-size:12.5px}.qs-track:empty{display:none}',
       '.qs-panel{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:45;width:min(440px,calc(100vw - 24px));max-height:min(78vh,620px);overflow:auto;background:rgba(14,18,30,.95);color:#eef2ff;border:1px solid rgba(255,216,74,.4);border-radius:18px;font:15px/1.45 system-ui,sans-serif;box-shadow:0 14px 50px rgba(0,0,0,.55);padding:14px 16px 16px}',
       '.qs-panel h2{margin:0 0 2px;font:800 20px system-ui,sans-serif;color:#ffd84a}.qs-panel h3{margin:14px 0 4px;font:700 13px system-ui;text-transform:uppercase;letter-spacing:.08em;opacity:.65}',
