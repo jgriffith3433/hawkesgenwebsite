@@ -1,8 +1,10 @@
-# Typecheck and tests on every push and pull request. The portal box deploys a commit on main only after this passes
-# (deploy/pull.mjs checks the commit's check runs).
+# Typecheck and tests on pushes to main and beta, and on every pull request. The portal box deploys a commit on main
+# only after this passes (deploy/pull.mjs checks the commit's check runs). Other branches get it once, through their
+# pull request: a push filter here keeps a fix branch from running it twice per commit.
 name: CI
 on:
   push:
+    branches: [main, beta]
   pull_request:
 permissions:
   contents: read
