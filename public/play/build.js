@@ -796,7 +796,8 @@
     popup.e = e;
     const cam = w.scene.activeCamera;
     const eng = w.scene.getEngine();
-    const vw = eng.getRenderWidth(true) / (window.devicePixelRatio || 1), vh = eng.getRenderHeight(true) / (window.devicePixelRatio || 1);
+    const k = eng.getHardwareScalingLevel ? eng.getHardwareScalingLevel() : 1 / (window.devicePixelRatio || 1); // (CSS pixels)
+    const vw = eng.getRenderWidth(true) * k, vh = eng.getRenderHeight(true) * k;
     const p = B.Vector3.Project(new B.Vector3(e.x + e.offset[0], e.y + e.offset[1] + e.half[1] * 0.6, e.z + e.offset[2]), B.Matrix.Identity(), w.scene.getTransformMatrix(), cam.viewport.toGlobal(vw, vh));
     const behind = p.z < 0 || p.z > 1;
     const el = popup.el;

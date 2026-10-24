@@ -229,6 +229,50 @@ teleport(p), grounded, standing, normal, remove() }`: walks over slopes up to `m
   `shadows` (nearest casters only), `detail` (fewer sides on round things on phones). Spawning 100 of anything is fine;
   test your module's worst case with the 200-body scenario in `test/engine/runtime.test.ts`.
 
+## 6c. Loading and memory (phones first)
+
+Targets: a world playable in about 2 s on a phone, and never killed for memory (iOS Safari reloads a page that takes
+too much). `docs/performance.md` has the measured numbers and how to measure.
+
+- **Devices and budgets** (`scale.js`): `H.device = { tier: 'phone' | 'tablet' | 'desktop', ios, memoryGB, cores }`
+  and `H.budget` per tier (`H.budgetsFor(device)`): besides entities, bodies, shadows and detail, `textureMB` (iPhone 64,
+  Android phone 96, iPad 128, desktop 512, or 256 with 4 GB), `maxTexture` (1024 on phones), `pixelRatio` (phones draw a
+  3x screen at 2x; desktop 0: never capped), `drawDistance` (meters drawn per meter of a mesh's radius: 220 phone, 700
+  desktop; never past the fog's end for fogged meshes), `shadowDistance` and `loads` (models and textures loading at
+  once). Phones get less; desktop is never capped to a phone's numbers.
+- **Draw distance** puts a Babylon LOD level with nothing at the far end on every entity mesh (`m._cullAt`). A mesh with
+  its own LOD levels is left alone; `e.noCull = true` draws a thing at any distance (a planet; a mesh with
+  `applyFog = false` or a material with `fogEnabled = false` is drawn past the fog).
+- **Textures by level of detail** (`textures.js`, `H.textures`): bundle images carry `variants` ({ "128": { id, url, w,
+  h }, ... }) and `size` [w, h] (`src/variants.ts` makes them once per image with Gen's CPU `image.transform`).
+  `H.lib.assetUrl(ref)` gives an image's **smallest** copy, so any `new B.Texture(H.lib.assetUrl(id), ...)` your module
+  makes starts small and is managed by itself: every half second the engine measures how many pixels each texture
+  covers (near, big, in view), upgrades the most needed within `H.budget.textureMB`, and downgrades the least visible
+  first when over. Swaps don't blank the texture (the new file loads beside it). Textures it doesn't manage (inside
+  models, your render targets) still count against the budget.
+  - **Big visuals** (a sky, a planet, the Overseer): `H.textures.reserve('yours', bytes)` keeps room for what you'll
+    make (everything else shrinks to fit); `reserve('yours', 0)` gives it back. `H.textures.headroom()` is the room left.
+  - A texture from an asset not made through `assetUrl`: `H.textures.track(texture, { asset: id })`.
+  - `H.textures.onPressure(fn)`: called with the bytes over budget when downgrading textures isn't enough (models let
+    their full-detail copies go). `H.textures.stats()` for a debug overlay; `H.textures.off = true` turns it all off.
+  - Never call `texture.updateURL` on a managed texture (it blanks it): leave the level to the engine.
+- **Models** (`kinds.js`): one queue, nearest to the camera first, `H.budget.loads` at a time, so the world is playable
+  while far things stream in. A model with a low copy loads only the copy its distance needs; the full copy comes when
+  you're near and the texture budget has room, and is let go far away when memory is tight. Load your own GLBs with
+  `B.SceneLoader.ImportMeshAsync` as before; prefer the `model` kind (or `H.assets` + `model`) to get all of this.
+- **Lazy modules** (`module.json`): `"lazy": true` loads your scripts only when a game uses the module: one of its
+  `kinds` in the scene, one of its `"config"` keys, one of its `"tools"` handed out or lying around, or one of those or
+  its `"words"` in the game's scripts (`'car'`, `game.vehicles`). `"needs": ["other"]` brings another lazy module along.
+  Everything else lazy loads a moment after the world is playable, and joins it: its scene and game hooks run, its
+  world hook's `enter(world)` runs, and scene things of its kinds (stand-in boxes until then) are rebuilt. So a lazy
+  module must work when it arrives after the world started (most do: register, then hooks). Code in another module
+  that uses yours checks it's there (`H.vehicles && ...`). `HawkesModules.ensure(name or kind)` loads one now (a spawn
+  wheel offering a car before Vehicles came). Lazy today: vehicles, homes, events, share. Don't mark a module lazy if
+  other modules use it while loading, or if it changes how the player or the world behaves from the first frame.
+- **Caching**: engine scripts carry the manifest's content hash (`?v=`) and are served `immutable` for a year when it
+  matches; Babylon and Havok come pinned from jsDelivr (immutable too), and their big files start downloading the
+  moment `/play/modules.js` runs (preload links), in parallel with the game's own fetch.
+
 ## 7. Playing together (`H.sync`)
 
 Everyone runs the whole game. Things in scene.json that move are simulated by their owner (whoever grabbed or pushed

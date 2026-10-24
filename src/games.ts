@@ -19,6 +19,7 @@ import { broadcast, kick } from './live.ts';
 import { addFriend } from './friends.ts';
 import { applyOps, parseScene, sceneText } from './scene.ts';
 import { wordsOf } from './words.ts';
+import { queueVariants, variantAt, variantMap, variantOf } from './variants.ts';
 import { editToken, kickFromRooms, liveCounts } from './rooms.ts';
 
 db.exec(`
@@ -410,6 +411,8 @@ export async function addAsset(user: User, gameId: string, body: { asset?: unkno
   const row: AssetRow = { name, asset: assetId, project, kind: a.kind ?? null, mime: a.mime ?? null, added_by: user.id, created: Date.now(), words, title };
   db.prepare('INSERT INTO game_assets (game_id, name, asset, project, kind, mime, added_by, created, words, title) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(gameId, row.name, row.asset, row.project, row.kind, row.mime, row.added_by, row.created, JSON.stringify(words), title);
   touch(gameId);
+  // An image: its smaller copies get made (once) for the engine's texture levels of detail (variants.ts).
+  queueVariants(row.asset, row.project, { mime: row.mime, source: 'game' });
   broadcast(gameId, 'asset', { ...row, by: nameOf(user.id) });
   return row;
 }
@@ -454,7 +457,18 @@ const releaseAssetUrl = (g: Game, version: number, name: string) => `/play-asset
 const liveAssetUrl = (g: Game, name: string) => `/play-asset/${g.slug}/live/${encodeURIComponent(name)}`;
 /** The bundle's assets: by name (scripts and old games use names), each with its identity: id (Gen's asset id), type
  *  (model, image, sound, video), kind (Gen's), title and words (public/play/assets.js finds them by id or word). */
-const assetMap = (rows: AssetRow[], url: (a: AssetRow) => string) => Object.fromEntries(rows.map((a) => [a.name, { url: url(a), mime: a.mime, kind: a.kind, id: a.asset, type: typeOf(a.mime), title: a.title ?? null, words: wordList(a) }]));
+/** Images also carry their smaller copies (variants.ts): variants { "128": { id, url, bytes, w, h }, ... } and size
+ *  [w, h], each at the image's own link with ?lod=<size>&v=<its id> (the id: a link that never changes what it is, so it
+ *  is cached for good). public/play/textures.js loads the smallest first. */
+function assetMap(rows: AssetRow[], url: (a: AssetRow) => string) {
+  const lods = variantMap(rows.filter((a) => typeOf(a.mime) === 'image').map((a) => a.asset));
+  return Object.fromEntries(rows.map((a) => {
+    const u = url(a);
+    const v = lods[a.asset];
+    const extra = v ? { size: v.size, variants: Object.fromEntries(Object.entries(v.variants).map(([s, x]) => [s, { id: x.id, url: `${u}?lod=${s}&v=${x.id}`, bytes: x.bytes, w: x.w, h: x.h }])) } : {};
+    return [a.name, { url: u, mime: a.mime, kind: a.kind, id: a.asset, type: typeOf(a.mime), title: a.title ?? null, words: wordList(a), ...extra }];
+  }));
+}
 
 /** The draft as the runtime takes it: every file, every asset with a link. Members only. */
 export function draftBundle(user: User, gameId: string) {
@@ -572,7 +586,18 @@ export function playBundle(slug: string, version?: number | null, count = true) 
 }
 
 /** Which Gen file an asset link means: a release's (public with the game) or a signed draft link. */
-export function resolvePlayAsset(parts: { token?: string; slug?: string; version?: number | 'live'; name?: string }) {
+export function resolvePlayAsset(parts: { token?: string; slug?: string; version?: number | 'live'; name?: string; lod?: number; v?: string | null }) {
+  const a = resolvePlayAssetFile(parts);
+  // A smaller copy (?lod=256&v=a_...): the image's own variant, in the same project (variants.ts). The one named by v
+  // when it belongs to this image (a link that always means the same file: cached for good), else the one at that size.
+  if (parts.lod && parts.lod > 0) {
+    if (parts.v && /^a_[0-9a-f]+$/.test(parts.v) && variantOf(parts.v) === a.asset) return { ...a, asset: parts.v, immutable: true };
+    const v = variantAt(a.asset, parts.lod);
+    if (v) return { ...a, asset: v, immutable: false };
+  }
+  return a;
+}
+function resolvePlayAssetFile(parts: { token?: string; slug?: string; version?: number | 'live'; name?: string }) {
   if (parts.token) {
     const t = verify<{ g: string; a: string; p: string }>(parts.token);
     if (!t || !/^a_[0-9a-f]+$/.test(t.a)) throw new PortalError('This preview link has expired; reload the editor', { status: 410 });

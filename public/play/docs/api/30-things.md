@@ -83,3 +83,6 @@ makes copies of one mesh (cheap: one draw call for all of them), each with its o
 it for herds, piles, crowds and debris. A world keeps itself playable: past a few thousand things the oldest ones
 scripts made make room, the farthest moving things rest until you come near, and only the nearest things cast
 shadows (`game.json` `"budget": { "entities": 2500, "bodies": 400, "shadows": 160 }` changes the limits; phones get less).
+The budget also has `textureMB` (texture memory: textures are sharp near you and small far away, within it),
+`maxTexture`, `drawDistance` (meters of draw distance per meter of a thing's size), `shadowDistance` and `pixelRatio`
+(WORLD.md "Keeping it fast"). Give a thing `e.noCull = true` to draw it at any distance.

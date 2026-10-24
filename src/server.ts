@@ -28,10 +28,12 @@ import { presenceRoute } from './presence.ts';
 import { askAssistant, generateAsset, pendingGens, markSuggestion, resumeGens, KINDS, AI_CREDITS } from './gameai.ts';
 import { join as joinLive, setPresence } from './live.ts';
 import { templateBundle } from './templates.ts';
-import { loaderScript, engineDoc } from './engine.ts';
+import { loaderScript, engineDoc, manifest } from './engine.ts';
+const engineVersion = () => manifest().version;
 import * as community from './community.ts';
 import { upgrade as joinRoom, broadcastOps, markHere, liveCounts } from './rooms.ts';
 import * as shares from './shares.ts';
+import { hideVariants, watchVariants } from './variants.ts';
 import type { Duplex } from 'node:stream';
 
 const PUBLIC = path.join(ROOT, 'public');
@@ -123,11 +125,14 @@ async function servePlayAsset(parts: Parameters<typeof games.resolvePlayAsset>[0
   await pipeline(Readable.fromWeb(gr.body as any), res).catch(() => {});
 }
 
-async function serveStatic(route: string, res: ServerResponse) {
+async function serveStatic(route: string, res: ServerResponse, search = '') {
   const rel = PAGES[route] ?? route.slice(1);
   const file = path.join(PUBLIC, path.normalize(rel).replace(/^(\.\.[/\\])+/, ''));
   if (!file.startsWith(PUBLIC + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return false;
-  res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] ?? 'application/octet-stream', 'Cache-Control': path.extname(file) === '.html' ? 'no-cache' : 'public, max-age=300' });
+  // The engine's files carry the manifest's version (?v=<hash of every engine file>, src/engine.ts): a new version is a
+  // new address, so one with the current version is cached for good (a phone's second visit loads no engine at all).
+  const versioned = route.startsWith('/play/') && path.extname(file) === '.js' && new URLSearchParams(search).get('v') === engineVersion();
+  res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] ?? 'application/octet-stream', 'Cache-Control': path.extname(file) === '.html' ? 'no-cache' : versioned ? 'public, max-age=31536000, immutable' : 'public, max-age=300' });
   fs.createReadStream(file).pipe(res);
   return true;
 }
@@ -205,9 +210,11 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       if (route === '/play/sandbox') return servePlayPage(res, req, { guest: true });
       if (/^\/play\/(_draft|t\/[a-z0-9-]+|[a-z0-9-]+(\/v\/\d+)?)$/.test(route) && route !== '/play/runtime.js') return servePlayPage(res, req);
       let pa = /^\/play-asset\/d\/([\w-]+\.[\w-]+)\/[^/]+$/.exec(route);
-      if (pa) return await servePlayAsset({ token: pa[1] }, req, res);
+      // ?lod=<size>&v=<id>: an image's smaller copy (variants.ts; the engine's texture levels of detail).
+      const lod = { lod: Number(url.searchParams.get('lod')) || undefined, v: url.searchParams.get('v') };
+      if (pa) return await servePlayAsset({ token: pa[1], ...lod }, req, res);
       pa = /^\/play-asset\/([a-z0-9-]+)\/(\d+|live)\/([^/]+)$/.exec(route);
-      if (pa) return await servePlayAsset({ slug: pa[1], version: pa[2] === 'live' ? 'live' : Number(pa[2]), name: decodeURIComponent(pa[3]) }, req, res);
+      if (pa) return await servePlayAsset({ slug: pa[1], version: pa[2] === 'live' ? 'live' : Number(pa[2]), name: decodeURIComponent(pa[3]), ...lod }, req, res);
       if (/^\/app\/g\/g_[0-9a-f]+$/.test(route)) return void (await serveStatic('/editor.html', res));
       if (/^\/app\/join\/[\w-]+$/.test(route)) return void (await serveStatic('/games.html', res));
       // Share links (src/shares.ts): the share window a game opens, a share's page, its file and picture.
@@ -217,7 +224,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     }
 
     if (!route.startsWith('/v1/')) {
-      if ((method === 'GET' || method === 'HEAD') && (await serveStatic(route, res))) return;
+      if ((method === 'GET' || method === 'HEAD') && (await serveStatic(route, res, url.search))) return;
       return send(res, 404, { error: 'Not found' });
     }
 
@@ -496,7 +503,10 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     const pass = method === 'GET' ? PASS_GET : method === 'POST' ? PASS_POST : [];
     if (pass.some((r) => r.test(route))) {
       const body = method === 'POST' ? await readJson(req) : undefined;
-      return relay(await genFetch(`${route}${url.search}`, { as: user.project, method, body, signal: AbortSignal.timeout(120_000) }), res);
+      const gr = await genFetch(`${route}${url.search}`, { as: user.project, method, body, signal: AbortSignal.timeout(120_000) });
+      // The customer's own library list leaves out images' smaller copies (they belong to their image: variants.ts).
+      if (route === '/v1/assets' && method === 'GET' && gr.ok) return send(res, 200, hideVariants(await gr.json()));
+      return relay(gr, res);
     }
     return send(res, 404, { error: 'Not found' });
   } catch (e: any) {
@@ -513,6 +523,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(ROOT, 'src
   resumeTasks();
   resumeGens();
   community.watchStarter();
+  // Images' smaller copies (variants.ts): anything without them is queued at start (the backfill), then made one by one.
+  if (env('PORTAL_VARIANTS') !== '0') watchVariants();
   const server = http.createServer((req, res) => void handle(req, res));
   server.on('upgrade', onUpgrade);
   server.listen(PORT, '127.0.0.1', () => console.log(`[portal] http://127.0.0.1:${PORT}`));
