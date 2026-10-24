@@ -172,7 +172,7 @@ export function createGame(user: User, body: { title?: unknown; template?: unkno
   const owned = Number((db.prepare('SELECT COUNT(*) AS n FROM games WHERE owner_id = ?').get(user.id) as { n: number }).n);
   if (owned >= plan.games) throw new PortalError(`Your ${plan.name} plan has room for ${plan.games} games. Upgrade for more, or delete one.`, { status: 402 });
   const title = cleanTitle(body.title);
-  const template = TEMPLATES.find((t) => t.id === String(body.template ?? 'blank')) ?? TEMPLATES[0];
+  const template = TEMPLATES.find((t) => t.id === String(body.template ?? 'planet')) ?? TEMPLATES[0];
   const now = Date.now();
   const gameId = id('g_', 8);
   tx(() => {

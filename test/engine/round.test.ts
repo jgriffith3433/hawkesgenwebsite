@@ -3,6 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { load, world, sceneOf } from './harness.ts';
+import { TEMPLATES } from '../../src/templates.ts';
 
 const H = await load();
 const R = 50000;
@@ -178,4 +179,18 @@ test('flat worlds are as they were: no frame, things fall straight down, edits k
   H.applyOps(ops, { local: true });
   assert.deepEqual(ops[0].patch.transform, { position: [1, 2, 3], rotation: [0, 45, 0] });
   assert.deepEqual(H.world.graph.entities.crate.transform.position, [1, 2, 3]);
+});
+
+test('the new game template: an empty round planet, the intro every time, the player standing on top', () => {
+  const tpl = TEMPLATES.find((t) => t.id === 'planet')!;
+  const scene = JSON.parse(tpl.files('Mine')['scene.json']);
+  world(H, scene);
+  assert.equal(H.planet.round, true);
+  assert.equal(H.planet.radius, 50000);
+  assert.equal(H.overseer.config.intro, 'always');
+  assert.deepEqual([...H.world.entities].filter((e: any) => e.sceneId).map((e: any) => e.sceneId), ['start'], 'nothing in it but the start');
+  H.tick(1);
+  assert.ok(H.world.player.grounded, 'standing on the planet');
+  // The Overseer hangs over its place on the planet, kilometres up.
+  assert.ok(H.overseer.position[1] > 4000);
 });

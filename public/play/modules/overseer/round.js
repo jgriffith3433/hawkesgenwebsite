@@ -332,7 +332,7 @@
       title: 'A round planet', group: 'World features',
       what: 'The whole world is a planet: walk, fly and build all the way round it. Gravity pulls to its middle, things stand up wherever they are, and from high up (fly up: faster the higher you are) you see the ball you were standing on. New games start on one, 50 km across. Here, a tiny one.',
       value: { sphere: true, radius: 400, biome: 'earth' },
-      fields: [['sphere', 'true: the world is round (walk, fly and build all the way round)', 'false'], ['radius', 'meters (50000 for a new game; 2000 or more)', '50000'], ['biome', 'its lands: earth, forest, desert, ice, alien...', 'earth'], ['clouds', '0-1, seen from high up', 'by biome'], ['air', "the air's scale height (m): space begins about 10 km up", '1800']],
+      fields: [['sphere', 'true: the world is round (walk, fly and build all the way round)', 'false'], ['radius', 'meters (a new game: 50000; at least 200)', '50000'], ['biome', 'its lands: earth, forest, desert, ice, alien...', 'earth'], ['clouds', '0-1, seen from high up', 'by biome'], ['air', "the air's scale height (m): space begins about 10 km up", '1800']],
     },
   });
 

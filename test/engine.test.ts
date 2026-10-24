@@ -87,6 +87,20 @@ test('world edits are saved to scene.json, and only members may make them', asyn
   assert.equal((await call(`/v1/games/${g.id}/scene`, { cookie: stranger, body: { ops: [{ op: 'delete', id: 'spire' }] } })).status, 404);
 });
 
+test('a new game is an empty round planet with the intro every time; the Playground is still a template', async () => {
+  const owner = await account('Planeteer');
+  const g = (await call('/v1/games', { cookie: owner, body: { title: 'Mine' } })).body;
+  const files = (await call(`/v1/games/${g.id}`, { cookie: owner })).body.files;
+  const scene = JSON.parse(files.find((f: any) => f.path === 'scene.json').content);
+  assert.equal(scene.config.planet.sphere, true);
+  assert.equal(scene.config.planet.radius, 50000);
+  assert.equal(scene.config.overseer.intro, 'always');
+  assert.deepEqual(Object.keys(scene.entities), ['start'], 'nothing but the player start');
+  const old = (await call('/v1/games', { cookie: owner, body: { title: 'Play', template: 'blank' } })).body;
+  const oldScene = JSON.parse((await call(`/v1/games/${old.id}`, { cookie: owner })).body.files.find((f: any) => f.path === 'scene.json').content);
+  assert.ok(oldScene.entities.crate_1 && !oldScene.config.planet, 'the Playground as it was');
+});
+
 test('rooms: members meet, see each other move, and get world edits; a bad token is refused', async () => {
   const owner = await account('Host');
   const g = (await call('/v1/games', { cookie: owner, body: { title: 'Room', template: 'blank' } })).body;
