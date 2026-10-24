@@ -287,6 +287,73 @@ test('shake: every game.camera.shake goes into it, it fades, and reduce motion t
   H.tick(1);
 });
 
+test('the view is level again after your own rocket: third person and first person, looking down at your feet', () => {
+  const g = play();
+  const w = H.world, B = (globalThis as any).BABYLON;
+  // Drawn frames, as a browser runs them: the frame hooks (the shake goes on), then the picture (it comes off).
+  const frame = (dt = 1 / 60) => { H.tick(dt); for (const f of H.hooks.frame) f(dt, true, new Set()); w.scene.render(); };
+  const roll = () => { const c = w.scene.activeCamera; c.getViewMatrix(true); return Math.abs(c.getDirection(B.Axis.X).y); };
+  J.feel.always = true;
+  try {
+    for (const view of ['third', 'fps']) {
+      if (view === 'third') g.camera.thirdPerson(g.player); else g.camera.firstPerson(g.player);
+      w.camera.pitch = 1;
+      g.player.position = [0, 0.95, 0];
+      for (let i = 0; i < 20; i++) frame();
+      g.explode([0.8, 0.2, 0.4], { radius: 5, force: 20, damage: 0 });
+      assert.ok(J.ragdoll.is(g.player), `${view}: you go limp`);
+      // While it shakes, the drawn picture rolls (the up vector tilts), and the camera's own state stays level.
+      let tilted = 0;
+      for (let i = 0; i < 30; i++) {
+        H.tick(1 / 60);
+        for (const f of H.hooks.frame) f(1 / 60, true, new Set());
+        const up = w.scene.activeCamera.upVector;
+        tilted = Math.max(tilted, Math.hypot(up.x, up.z));
+        w.scene.render();
+        assert.ok(w.scene.activeCamera.upVector.equalsWithEpsilon(new B.Vector3(0, 1, 0), 1e-9), `${view}: level once drawn`);
+      }
+      assert.ok(tilted > 1e-4, `${view}: the shake rolls the view (${tilted.toFixed(4)})`);
+      for (let i = 0; i < 400; i++) frame();
+      assert.equal(J.ragdoll.is(g.player), false, `${view}: back up`);
+      // Look around: the horizon stays level whichever way you turn.
+      w.camera.pitch = 0.2;
+      for (const yaw of [0, 1.5, 3, -2]) {
+        w.camera.yaw = yaw;
+        for (let i = 0; i < 5; i++) frame();
+        assert.ok(roll() < 0.01, `${view}: level looking at yaw ${yaw} (roll ${roll().toFixed(3)})`);
+      }
+    }
+  } finally { J.feel.always = false; }
+  assert.equal(errors.length, 0, errors.join('\n'));
+});
+
+test('a friend blasted by your rocket goes limp, gets back up on its feet, and follows you again', () => {
+  const g = play({ pip: { type: 'friend', name: 'Pip', shape: { species: 'person' }, transform: { position: [0, 1, -27] } } });
+  const pip = g.entity('pip'), p = g.player;
+  H.tick(1);
+  assert.equal(H.living.status(pip).following, 'player');
+  // (A rocket: Mayhem tumbles what it throws, and Juice's ragdoll takes over.)
+  g.explode([pip.x + 0.8, 0.3, pip.z + 0.3], { radius: 5, force: 20, damage: 0 });
+  H.tick(0.1);
+  assert.ok(J.ragdoll.is(pip), 'Pip goes limp');
+  H.tick(5);
+  assert.equal(J.ragdoll.is(pip), false, 'and gets back up');
+  assert.equal(pip.upright, true, 'standing upright again (not a body that tips over)');
+  p.position = [10, 0.95, -20];
+  H.tick(6);
+  const r = pip.node.rotation;
+  assert.ok(Math.abs(r.x) < 0.02 && Math.abs(r.z) < 0.02, `on its feet while walking (tilt ${r.x.toFixed(2)}, ${r.z.toFixed(2)})`);
+  assert.ok(!['knocked'].includes(H.living.status(pip).state), `not lying there (${H.living.status(pip).state})`);
+  assert.equal(H.living.status(pip).following, 'player', 'following again');
+  assert.ok(Math.hypot(pip.x - p.x, pip.z - p.z) < 5, `it caught up with you (${Math.hypot(pip.x - p.x, pip.z - p.z).toFixed(1)} m)`);
+  // Anything else that leaves a creature tipped over (not upright, turned): it stands up by itself.
+  pip.upright = false;
+  pip.node.rotation.x = 1.2;
+  H.tick(2);
+  assert.ok(pip.upright && Math.abs(pip.node.rotation.x) < 0.02, 'a tipped-over friend stands back up');
+  assert.equal(errors.length, 0, errors.join('\n'));
+});
+
 test('marks and particles: a scorch under a blast, a budget for tire marks, bursts pooled', () => {
   const g = play();
   const s0 = J.fx.decalCount('scorch');

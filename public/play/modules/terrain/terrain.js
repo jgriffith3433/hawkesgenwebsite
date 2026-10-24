@@ -453,13 +453,36 @@
     for (const { e, physics } of t.hidden || []) if (e.alive && e._underTerrain) { e._underTerrain = false; e.visible = true; e.physics = physics; }
     t.hidden = [];
   }
+  /** How deep a thing is in the ground (null: no ground there). A turned thing goes by its own box's corners, each
+   *  against the ground under it: the box around a 4x4 on a hillside (a plank, a ragdoll's arm) reaches far below
+   *  the thing itself, and going by it popped them out of the ground every quarter second. */
+  const TURN = new B.Matrix();
+  function depthIn(t, e) {
+    const r = e.node.rotation, lh = e._lhalf, lo = e._loff;
+    // A vehicle keeps itself on the ground (its wheels, its hull): only one sunk to its middle is put back on top.
+    if (e.vehicle && lh && lo) { const g = T.heightAt(t.f, e.x, e.z); return g === null || g < e.y ? null : g - e.y + lh[1] - lo[1] - 0.02; }
+    if (e.isPlayer || !lh || !lo || e.kind === 'sphere' || e.node.rotationQuaternion || (!r.x && !r.z)) {
+      const g = T.heightAt(t.f, e.x, e.z);
+      return g === null ? null : g - e.bottom - 0.02;
+    }
+    B.Matrix.RotationYawPitchRollToRef(r.y, r.x, r.z, TURN);
+    const m = TURN.m; // (rows: where the local x, y, z axes point)
+    const c = [0, 1, 2].map((i) => e.node.position.asArray()[i] + m[i] * lo[0] + m[4 + i] * lo[1] + m[8 + i] * lo[2]);
+    let deep = null;
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
+      const p = [0, 1, 2].map((i) => c[i] + m[i] * lh[0] * sx + m[4 + i] * lh[1] * sy + m[8 + i] * lh[2] * sz);
+      const g = T.heightAt(t.f, p[0], p[2]);
+      if (g !== null) deep = Math.max(deep ?? -Infinity, g - p[1]);
+    }
+    return deep === null ? null : deep - 0.1; // (resting on it is touching: Havok keeps it out of the ground)
+  }
   /** Things (and the player) that would be inside the ground go on top of it. */
   function liftOne(t, e, pad = 0.05) {
     if (!e.alive || e.isTerrain || e.isScatter || e.remote || e.held || e._underTerrain) return false;
     if (!(e.physics === 'dynamic' || e.isPlayer) || (e.isPlayer && e.flying)) return false;
-    const g = T.heightAt(t.f, e.x, e.z);
-    if (g === null || e.bottom >= g - 0.02) return false;
-    e.node.position.y += g + pad - e.bottom;
+    const d = depthIn(t, e);
+    if (d === null || d <= 0) return false;
+    e.node.position.y += d + pad + 0.02;
     if (e.vy < 0) e.vy = 0;
     e.wake();
     return true;

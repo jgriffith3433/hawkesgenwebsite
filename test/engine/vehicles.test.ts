@@ -94,6 +94,27 @@ test('the 4x4 climbs a steep ramp, and drives up a terrain hill (H.terrain)', ()
   } finally { delete H.terrain; }
 });
 
+test('a 4x4 parked on a 20° slope settles and stays still (facing down it or across it, empty or with you in it)', () => {
+  const low = { type: 'box', shape: { size: [400, 1, 400] }, transform: { position: [0, -20.5, 0] } };
+  for (const [yaw, inside] of [[0, false], [90, false], [0, true], [90, true]] as const) {
+    const slope = { type: 'box', shape: { size: [30, 1, 40] }, transform: { position: [0, 0, 0], rotation: [-20, 0, 0] } };
+    world(H, sceneOf({ floor: low, start: { type: 'spawn', transform: { position: [-30, -20, 0] } }, slope, truck: { type: 'truck', transform: { position: [0, 0.55 + rest('truck') + 0.1, 0], rotation: [-20, yaw, 0] } } }));
+    const t = H.game.entity('truck');
+    if (inside) H.game.vehicles.enter(t);
+    const what = `${yaw ? 'across' : 'down'} the slope, ${inside ? 'you in it' : 'empty'}`;
+    H.tick(2.5);
+    const at = [t.x, t.y, t.z];
+    let ys = [Infinity, -Infinity];
+    for (let i = 0; i < 180; i++) { H.tick(1 / 60); ys = [Math.min(ys[0], t.y), Math.max(ys[1], t.y)]; }
+    const moved = Math.hypot(t.x - at[0], t.y - at[1], t.z - at[2]);
+    assert.ok(moved < 0.03, `${what}: it stays where it stopped (moved ${moved.toFixed(3)} m in 3 s)`);
+    assert.ok(ys[1] - ys[0] < 0.01, `${what}: no bouncing (${(ys[1] - ys[0]).toFixed(3)} m up and down)`);
+    assert.ok(t.vehicle.wheels.every((w: any) => w.contact), `${what}: on all four wheels`);
+    if (!inside) assert.ok(t.vehicle.sleeping, `${what}: and it sleeps`);
+    else { assert.ok(t.vehicle.seats[0].who, 'you are at the wheel'); H.game.vehicles.exit(); }
+  }
+});
+
 test('two wheels stay up; a bicycle hops', () => {
   world(H, sceneOf({ floor, start, bike: { type: 'bicycle', transform: { position: [0, rest('bicycle'), 3] } }, moto: { type: 'motorbike', transform: { position: [6, rest('motorbike'), 3] } } }));
   const bike = H.game.entity('bike');
