@@ -101,6 +101,9 @@
     if (o.texture && hasAssetRef(o.texture)) { try { main.diffuseTexture = new B.Texture(assetUrl(o.texture), sc); } catch {} }
     e._mat = main;
     make(root, e, main);
+    // Its fixed parts as one mesh per material (a bookshelf's boards, a bed's frame); the ones that move, glow or
+    // are screens keep their own (metadata.keep), and parts on hinges are under their own nodes.
+    if (H.mergeParts) H.mergeParts(root.getChildMeshes(true), { keep: (m) => Boolean(m.metadata && m.metadata.keep) });
     for (const m of root.getChildMeshes()) m.metadata = { ...(m.metadata || {}), entity: e };
     L.place(e, o);
     const model = sh.model || assetFor(kind, 'model');
@@ -216,7 +219,23 @@
     return best;
   }
   const ownerOf = (e) => { let x = e; for (let i = 0; i < 4 && x; i++) { if (x._use) return x; x = x._useOwner; } return null; };
+  // What you look at, worked out 10 times a second (a ray through the world every frame was a tenth of a frame).
+  // (Again at once when you turn or move, or what you looked at is gone.)
+  const look = { at: -1, world: null, cam: null, from: null, value: null };
   function lookTarget() {
+    const w = W(), p = w.player;
+    const cam = w.scene.activeCamera;
+    if (!cam || !p) return lookNow();
+    const now = performance.now();
+    const d = cam.getDirection(B.Axis.Z);
+    const same = look.world === w && look.cam && look.from && now - look.at < 100 && (!look.value || look.value.e.alive)
+      && Math.abs(d.x - look.cam[0]) + Math.abs(d.y - look.cam[1]) + Math.abs(d.z - look.cam[2]) < 0.1
+      && Math.abs(p.x - look.from[0]) + Math.abs(p.y - look.from[1]) + Math.abs(p.z - look.from[2]) < 0.4;
+    if (same) return look.value;
+    Object.assign(look, { world: w, at: now, cam: [d.x, d.y, d.z], from: [p.x, p.y, p.z] });
+    return (look.value = lookNow());
+  }
+  function lookNow() {
     const w = W(), p = w.player, g = H.game;
     if (!p || !p.alive || !g) return null;
     const cam = w.scene.activeCamera;

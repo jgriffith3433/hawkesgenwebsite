@@ -116,8 +116,24 @@
     }
     return m;
   }
+  /** A soft box: a sphere pushed out toward a cube (rounded edges, smooth shading), width x height x depth. Bodies are
+   *  made of these rather than sharp cubes, so creatures and people read as soft toys, not as blocks. */
+  function softBox(name, o, scene) {
+    const m = B.MeshBuilder.CreateSphere(name, { diameter: 2, segments: 10, updatable: true }, scene);
+    const p = m.getVerticesData(B.VertexBuffer.PositionKind);
+    const w = (o.width ?? o.size ?? 1) / 2, h = (o.height ?? o.size ?? 1) / 2, d = (o.depth ?? o.size ?? 1) / 2;
+    const k = 0.32; // 1 is a sphere, toward 0 a cube
+    const f = (v) => Math.sign(v) * Math.pow(Math.abs(v), k);
+    for (let i = 0; i < p.length; i += 3) { p[i] = f(p[i]) * w; p[i + 1] = f(p[i + 1]) * h; p[i + 2] = f(p[i + 2]) * d; }
+    m.updateVerticesData(B.VertexBuffer.PositionKind, p);
+    const n = [];
+    B.VertexData.ComputeNormals(p, m.getIndices(), n);
+    m.updateVerticesData(B.VertexBuffer.NormalKind, n);
+    return m;
+  }
   const MAKE = {
     box: (s) => B.MeshBuilder.CreateBox('lv-box', { size: 1 }, s),
+    soft: (s) => softBox('lv-soft', { size: 1 }, s),
     sphere: (s) => B.MeshBuilder.CreateSphere('lv-sphere', { diameter: 1, segments: 8 }, s),
     cyl: (s) => B.MeshBuilder.CreateCylinder('lv-cyl', { diameter: 1, height: 1, tessellation: 10 }, s),
     cone: (s) => B.MeshBuilder.CreateCylinder('lv-cone', { diameterTop: 0, diameterBottom: 1, height: 1, tessellation: 8 }, s),
@@ -141,6 +157,8 @@
   }
   /** One part of a body: an instance of a shared mesh, under `parent`, `size` [x, y, z] meters, at `pos`. */
   function part(scene, parent, shape, color, size, pos, rot, glow) {
+    // Body parts are soft; small details (eyes, spots, noses, combs) stay crisp.
+    if (shape === 'box' && Math.min(size[0], size[1], size[2]) >= 0.07) shape = 'soft';
     const inst = source(scene, shape, color, glow).createInstance('lv-part');
     inst.parent = parent;
     inst.scaling.set(size[0], size[1], size[2]);
@@ -158,7 +176,7 @@
   }
 
   // A few looks for people, picked by the creature's seed.
-  const SHIRTS = ['#3f7fd9', '#d94f3f', '#3fa66b', '#e0b13a', '#8b5cf6', '#f2f2f2'];
+  const SHIRTS = ['#4f6d8f', '#a85a4a', '#5f8a68', '#c9a35a', '#7a6a96', '#e6e1d6', '#3e4a52'];
   const PANTS = ['#2f3b52', '#3a3a3a', '#5b4636', '#1f4f7a'];
   const SKINS = ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac'];
   const HAIR = ['#3a2a1c', '#14110f', '#d9b25f', '#8e3b1f', '#bdbdbd'];
@@ -260,7 +278,7 @@
       const tw = Wd, th = Ht, td = 0.24 * s;
       for (const sx of [-1, 1]) {
         const hip = joint(scene, vis, [sx * tw * 0.24, legH, 0], 'lv-hip');
-        part(scene, hip, 'box', pants, [legW, legH, legW * 1.05], [0, -legH / 2, 0]);
+        part(scene, hip, robot ? 'box' : 'cyl', pants, [legW, legH, legW * 1.05], [0, -legH / 2, 0]);
         part(scene, hip, 'box', robot ? c.accent === '#3ee6ff' ? '#59616e' : c.accent : '#2b2b2b', [legW * 1.05, 0.08 * s, legW * 1.6], [0, -legH + 0.04 * s, legW * 0.25]);
         rig.hips.push({ n: hip, ph: sx > 0 ? 0 : Math.PI, front: true });
       }
@@ -270,21 +288,22 @@
       rig.torso = torso;
       for (const sx of [-1, 1]) {
         const sh = joint(scene, torso, [sx * (tw / 2 + 0.06 * s), th * 0.92, 0], 'lv-arm');
-        part(scene, sh, 'box', robot ? c.legs : shirt, [0.11 * s, 0.3 * s, 0.11 * s], [0, -0.14 * s, 0]);
-        part(scene, sh, 'box', robot ? c.legs : skin, [0.1 * s, 0.3 * s, 0.1 * s], [0, -0.42 * s, 0]);
+        part(scene, sh, robot ? 'box' : 'cyl', robot ? c.legs : shirt, [0.11 * s, 0.3 * s, 0.11 * s], [0, -0.14 * s, 0]);
+        part(scene, sh, robot ? 'box' : 'cyl', robot ? c.legs : skin, [0.09 * s, 0.24 * s, 0.09 * s], [0, -0.38 * s, 0]);
+        if (!robot) part(scene, sh, 'sphere', skin, [0.11 * s, 0.11 * s, 0.11 * s], [0, -0.53 * s, 0]);
         rig.arms.push({ n: sh, ph: sx > 0 ? Math.PI : 0, side: sx });
       }
       const head = joint(scene, torso, [0, th + 0.02 * s, 0], 'lv-head');
       const hs = 0.3 * s;
-      part(scene, head, 'box', skin, [hs, hs * 1.08, hs], [0, hs * 0.55, 0]);
+      part(scene, head, robot ? 'box' : 'sphere', skin, robot ? [hs, hs * 1.08, hs] : [hs * 1.02, hs * 1.12, hs * 1.02], [0, hs * 0.55, 0]);
       if (robot) {
         for (const sx of [-1, 1]) part(scene, head, 'box', c.accent, [hs * 0.22, hs * 0.12, 0.02 * s], [sx * hs * 0.22, hs * 0.62, hs / 2 + 0.006], null, true);
         part(scene, head, 'cyl', c.legs, [0.025 * s, 0.18 * s, 0.025 * s], [0, hs * 1.15, 0]);
         part(scene, head, 'sphere', c.accent, [0.07 * s, 0.07 * s, 0.07 * s], [0, hs * 1.27, 0], null, true);
       } else {
-        part(scene, head, 'box', hair, [hs * 1.06, hs * 0.3, hs * 1.06], [0, hs * 1.08, -hs * 0.02]);
-        part(scene, head, 'box', hair, [hs * 1.06, hs * 0.6, hs * 0.2], [0, hs * 0.8, -hs * 0.45]);
-        for (const sx of [-1, 1]) part(scene, head, 'box', '#1b1b1b', [hs * 0.12, hs * 0.12, 0.02 * s], [sx * hs * 0.22, hs * 0.6, hs / 2 + 0.006]);
+        part(scene, head, 'sphere', hair, [hs * 1.1, hs * 0.62, hs * 1.1], [0, hs * 0.98, -hs * 0.05]);
+        part(scene, head, 'sphere', hair, [hs * 1.04, hs * 0.8, hs * 0.5], [0, hs * 0.72, -hs * 0.3]);
+        for (const sx of [-1, 1]) part(scene, head, 'sphere', '#1b1b1b', [hs * 0.13, hs * 0.16, hs * 0.08], [sx * hs * 0.2, hs * 0.6, hs * 0.5]);
       }
       rig.head = head; rig.headBase = 0;
       rig.height = legH + th + hs * 1.2;
@@ -454,5 +473,5 @@
     if (rig.torso && rig.plan === 'human') rig.torso.rotation.z = state === 'dance' ? Math.sin(a.t * 3.5) * 0.15 : lerp(rig.torso.rotation.z, 0, k);
   }
 
-  living.body = { make: makeBody, animate, build: buildBody, part, source };
+  living.body = { make: makeBody, animate, build: buildBody, part, source, softBox };
 })();

@@ -171,7 +171,7 @@ test('placement on terrain: things land on the hill', () => {
 test('building: a 4x4 and ×10 cows are scene ops (one edit each), saved with the world', async () => {
   play({}, 'build');
   const edits: any[] = [];
-  (globalThis as any).HawkesBuild = { edit(ops: any[], o: any) { edits.push({ ops, o }); H.applyOps(ops, { local: true }); } };
+  (globalThis as any).HawkesBuild = { edit(ops: any[], o: any) { edits.push({ ops, o }); H.applyOps(ops, { local: true, fx: o.fx }); } };
   try {
     const truck = S.search('4x4')[0];
     S.ghost.show(truck, 1);
@@ -205,12 +205,14 @@ test('building: a 4x4 and ×10 cows are scene ops (one edit each), saved with th
     assert.ok(m.ok);
     const t = H.world.graph.config.terrain;
     assert.equal(t.add[t.add.length - 1].type, 'mountain');
-    // The Overseer beams things in when the story module is there.
-    const beams: any[] = [];
-    H.overseer = { beam: (at: number[], o: any) => beams.push({ at, o }) };
-    await S.spawn(S.search('pig')[0], { count: 2 });
-    assert.equal(beams.length, 2, 'one beam per thing');
-    delete H.overseer;
+    // The Overseer brings them in (arrive.js): pigs drop out of the sky under one beam (animals fall for real, and land
+    // on their feet).
+    const pigs = await S.spawn(S.search('pig')[0], { count: 2 });
+    const made = pigs.ids.map((id: string) => H.game.entity(id));
+    assert.ok(made.every((e: any) => H.arrive.of(e) && H.arrive.of(e).kind === 'drop'), 'they drop in');
+    assert.equal(H.arrive.beams, 1, 'one beam for both');
+    H.tick(4);
+    assert.ok(made.every((e: any) => !H.arrive.of(e)), 'and are down'); 
   } finally { delete (globalThis as any).HawkesBuild; S.recent.clear(); }
 });
 

@@ -69,9 +69,17 @@
 
   // ------------------------------------------------------------------ the game's sound for a word, decoded once
   const buffers = new Map();
+  // (Words with no sound are remembered for a couple of seconds: every impact asked again, a cost of its own.)
+  const none = { at: 0, world: null, words: new Set() };
   function assetFor(words) {
     if (!H.assets || !H.assets.pick) return null;
-    for (const w of words) { try { const id = H.assets.pick(w, { kind: 'sound', mix: true }); if (id) return id; } catch { /* no assets */ } }
+    const now = performance.now();
+    if (none.world !== W() || now - none.at > 2000) { none.world = W(); none.at = now; none.words.clear(); }
+    for (const w of words) {
+      if (none.words.has(w)) continue;
+      try { const id = H.assets.pick(w, { kind: 'sound', mix: true }); if (id) return id; } catch { /* no assets */ }
+      none.words.add(w);
+    }
     return null;
   }
   function bufferOf(id) {

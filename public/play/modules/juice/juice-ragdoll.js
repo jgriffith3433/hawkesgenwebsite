@@ -128,6 +128,9 @@
     }
     // The thing itself: hidden while its body flops; it stops being solid (its simulator moves it with the body).
     for (const m of [e.node, ...e.node.getChildMeshes(false)]) if (m.isVisible !== undefined && m.name !== 'text' && !/^pr-tag|tag$/.test(m.name)) { rag.hidden.push([m, m.isVisible]); m.isVisible = false; }
+    // A tumble (Mayhem's, from the same blast) is taken over: it turned off standing upright to spin them, and only
+    // it would have turned it back on. The ragdoll gets them up now, upright as they were.
+    if (e._wasUpright !== undefined) { e.upright = e._wasUpright; e._wasUpright = undefined; }
     rag.prev = { ghost: e.ghost, gravity: e.gravity, controls: e.controls, upright: e._upright };
     e.ghost = true;
     if (authority) {
@@ -176,6 +179,8 @@
       }
       if (e === w.player) e.controls = rag.prev.controls !== false;
       e.gravity = rag.prev.gravity ?? 1;
+      e._upright = rag.prev.upright;
+      if (e.living) e.upright = true; // (creatures and friends walk on their feet, whatever tipped them before)
       const r = e.node.rotation;
       if (!e.isPlayer) { if (!quick) rising.set(e, { t: 0, x: r.x, z: r.z }); else { r.x = 0; r.z = 0; } }
       if (e.wake) e.wake();

@@ -14,7 +14,7 @@ import { sign, verify } from './sign.ts';
 import { planOf } from './plans.ts';
 import { getUser, type User } from './users.ts';
 import { id, PortalError } from './util.ts';
-import { TEMPLATES, featured } from './templates.ts';
+import { TEMPLATES, featured, type Template } from './templates.ts';
 import { broadcast, kick } from './live.ts';
 import { addFriend } from './friends.ts';
 import { applyOps, parseScene, sceneText } from './scene.ts';
@@ -179,6 +179,8 @@ export function createGame(user: User, body: { title?: unknown; template?: unkno
     db.prepare('INSERT INTO games (id, slug, title, description, owner_id, created, updated) VALUES (?, ?, ?, ?, ?, ?, ?)').run(gameId, slugFor(title), title, String(body.description ?? template.blurb).slice(0, 400), user.id, now, now);
     db.prepare("INSERT INTO game_members (game_id, user_id, role, added) VALUES (?, ?, 'owner', ?)").run(gameId, user.id, now);
     for (const [path, content] of Object.entries(template.files(title))) db.prepare('INSERT INTO game_files (game_id, path, content, rev, updated, updated_by) VALUES (?, ?, ?, 1, ?, ?)').run(gameId, path, content, now, user.id);
+    // The community things it uses become the game's own (each still in its owner's project: nothing copied).
+    for (const a of templateAssetRows(template)) db.prepare('INSERT OR IGNORE INTO game_assets (game_id, name, asset, project, kind, mime, added_by, created, words, title) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(gameId, a.name, a.asset, a.project, a.kind, a.mime, user.id, now, JSON.stringify(a.words), a.title ?? null);
   });
   return summary(getGame(gameId)!, user.id);
 }
@@ -468,6 +470,25 @@ function assetMap(rows: AssetRow[], url: (a: AssetRow) => string) {
     const l = lods[a.asset];
     return [a.name, { url: u, mime: a.mime, kind: a.kind, id: a.asset, type: typeOf(a.mime), title: a.title ?? null, words: wordList(a), ...(l ? { lods: levelUrls(l, u) } : {}) }];
   }));
+}
+
+/** A template's community things (templates.ts `assets`: name -> a_...) as asset rows, from the community library's rows
+ *  (one that's gone or hidden is left out: the template's scripts play on without it). */
+export function templateAssetRows(t: Template): AssetRow[] {
+  const out: AssetRow[] = [];
+  for (const [name, asset] of Object.entries(t.assets ?? {})) {
+    let r: { project: string; kind: string; mime: string | null; title: string; tags: string; category: string } | undefined;
+    try { r = db.prepare('SELECT project, kind, mime, title, tags, category FROM community_assets WHERE id = ? AND hidden = 0').get(asset) as typeof r; } catch { r = undefined; }
+    if (!r) continue;
+    out.push({ name, asset, project: r.project, kind: r.kind, mime: r.mime, added_by: '', created: 0, title: r.title, words: wordsOf(name, r.title, r.category, r.tags ? r.tags.split(' ') : []) });
+  }
+  return out;
+}
+/** /play/t/<id>'s assets: the template's community things, each through the public community route (no account), with
+ *  their levels of detail. */
+export function templateAssets(id: string | null | undefined) {
+  const t = TEMPLATES.find((x) => x.id === id);
+  return t ? assetMap(templateAssetRows(t), (a) => `/v1/community/${a.asset}/file`) : {};
 }
 
 /** The draft as the runtime takes it: every file, every asset with a link. Members only. */

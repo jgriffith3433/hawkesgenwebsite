@@ -64,6 +64,35 @@ test('the ground is a heightfield on Havok: things land on the surface where it 
   assert.ok(ball.y < start - 3, `the ball rolled down (${start.toFixed(1)} -> ${ball.y.toFixed(1)})`);
 });
 
+test('a 4x4 and a plank resting on a hillside stay there: turned things are not popped out of the ground', () => {
+  world(H, sceneOf({ start: { type: 'spawn', transform: { position: [0, 0, 0] } } }, { terrain: { shape: 'mountain', scatter: false } }));
+  // A spot about 20° steep.
+  let spot: number[] | null = null;
+  for (let z = 60; z < 200 && !spot; z += 2) for (let x = -40; x <= 40 && !spot; x += 4) {
+    const s = H.terrain.slopeAt(x, z);
+    if (s > 17 && s < 23 && H.terrain.slopeAt(x + 3, z) > 15 && H.terrain.slopeAt(x - 3, z + 3) > 15) spot = [x, z];
+  }
+  assert.ok(spot, 'a hillside to park on');
+  const [x, z] = spot!;
+  const n = H.terrain.normalAt(x, z);
+  const downhill = Math.atan2(n[0], n[2]);
+  const truck = H.game.vehicles.make('truck', { x, y: H.terrain.heightAt(x, z) + 2, z });
+  truck.node.rotation.y = downhill + Math.PI / 2; // (across the hill: the hardest way to park)
+  const plank = H.game.box({ x: x + 6, z, y: H.terrain.heightAt(x + 6, z) + 1, size: [0.3, 0.2, 3], physics: 'dynamic', friction: 1 });
+  H.tick(3);
+  const ys = new Map([[truck, [Infinity, -Infinity]], [plank, [Infinity, -Infinity]]]);
+  for (let i = 0; i < 120; i++) { H.tick(1 / 60); for (const [e, r] of ys) { r[0] = Math.min(r[0], e.y); r[1] = Math.max(r[1], e.y); } }
+  for (const [e, r] of ys) assert.ok(r[1] - r[0] < 0.02, `${e === truck ? 'the 4x4' : 'the plank'} rests on the hillside (${(r[1] - r[0]).toFixed(3)} m up and down)`);
+  assert.ok(truck.vehicle.wheels.every((w: any) => w.contact), 'on its four wheels');
+  // Still lifted out when it really is inside the ground (a hill raised under it, a spawn inside one).
+  plank.position = [plank.x, H.terrain.heightAt(plank.x, plank.z) - 1, plank.z];
+  H.tick(0.3);
+  assert.ok(plank.y > H.terrain.heightAt(plank.x, plank.z) - 0.2, 'something buried is put back on top');
+  truck.position = [truck.x, H.terrain.heightAt(truck.x, truck.z) - 0.5, truck.z];
+  H.tick(0.3);
+  assert.ok(truck.y > H.terrain.heightAt(truck.x, truck.z), 'a vehicle sunk to its middle too');
+});
+
 test('terrain away from the origin lines up with its collider; tree trunks are solid', () => {
   world(H, sceneOf({}, { terrain: { shape: 'flat', size: 128, center: [60, -40], add: [{ type: 'hill', at: [80, -30], radius: 15, height: 9 }], scatter: { trees: 40, rocks: 0, bushes: 0 } } }));
   const ball = H.game.sphere({ x: 80, z: -30, y: 14, radius: 0.5, physics: 'dynamic' });
