@@ -95,7 +95,8 @@ const QUEST = {
     // (Walking there counts as much as driving: the 4x4 is just faster. Every step has a place for the arrow and the
     // screen-edge pointer: `marker`, or the goal's own place.)
     { id: 'drive', text: 'Head down the path to the dock (the 4x4 is faster!)', goal: { reach: 'Dock', near: 9 }, done: [{ emit: 'tour', data: { step: 'drive' } }] },
-    { id: 'fish', text: 'Walk to the end of the pier, grab the rod and catch a fish', marker: 'rod', goal: { catch: 'any' }, done: [{ emit: 'tour', data: { step: 'fish' } }] },
+    { id: 'rod', text: 'Walk to the end of the pier and grab the fishing rod', marker: 'rod', goal: { event: 'pickup' } },
+    { id: 'fish', text: 'Cast the rod into the sea and catch a fish', goal: { catch: 'any' }, done: [{ emit: 'tour', data: { step: 'fish' } }] },
     { id: 'boom', text: 'Blow up the fuel barrels on the beach with the rocket launcher', marker: 'barrel_1', goal: { event: 'explosion' }, done: [{ emit: 'tour', data: { step: 'boom' } }] },
     { id: 'spawn', text: 'Spawn something (hold Q, or the ➕ button): the Overseer beams it down', goal: { event: 'spawned' }, done: [{ emit: 'tour', data: { step: 'spawn' } }] },
     { id: 'fly', text: 'Take the helicopter up high and look down at the planet', marker: 'heli', goal: { event: 'sandbox-high' }, done: [{ emit: 'tour', data: { step: 'fly' } }] },
