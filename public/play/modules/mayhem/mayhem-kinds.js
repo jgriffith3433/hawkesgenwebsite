@@ -160,7 +160,15 @@
       const pk = e.pickup;
       if (!pk || !e.alive) continue;
       pk.item.rotation.y = t * 1.5; pk.item.position.y = 0.55 + Math.sin(t * 2.2 + e.x) * 0.06;
-      if (pk.away > 0) { pk.away -= dt; if (pk.away <= 0) pk.item.setEnabled(true); continue; }
+      // Gone after taking: back only once the timer is out AND the player has left the (larger) leave radius.
+      if (pk.away > 0) {
+        pk.away -= dt;
+        if (pk.away <= 0) {
+          if (p && p.alive && Math.hypot(p.x - e.x, p.z - e.z) < 3) pk.away = 0.01;
+          else { pk.item.setEnabled(true); pk.used = false; }
+        }
+        continue;
+      }
       if (!p || !p.alive || H.mode === 'build') continue;
       const near = Math.hypot(p.x - e.x, p.z - e.z) < 1.1 && Math.abs(p.bottom - e.y) < 2;
       // Standing on it when it comes back does not take it again: step off first.
