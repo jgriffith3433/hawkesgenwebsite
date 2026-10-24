@@ -162,7 +162,11 @@
       pk.item.rotation.y = t * 1.5; pk.item.position.y = 1 + Math.sin(t * 2.2 + e.x) * 0.1;
       if (pk.away > 0) { pk.away -= dt; if (pk.away <= 0) pk.item.setEnabled(true); continue; }
       if (!p || !p.alive || H.mode === 'build') continue;
-      if (Math.hypot(p.x - e.x, p.z - e.z) < 1.1 && Math.abs(p.bottom - e.y) < 2) {
+      const near = Math.hypot(p.x - e.x, p.z - e.z) < 1.1 && Math.abs(p.bottom - e.y) < 2;
+      // Standing on it when it comes back does not take it again: step off first.
+      if (pk.used) { if (!near) pk.used = false; continue; }
+      if (near) {
+        pk.used = true;
         H.mayhem.giveTool(pk.tool, pk.opts);
         G().burst([e.x, e.y + 1, e.z], { color: e.emissive || '#ffffff', count: 24, speed: 4 });
         H.mayhem.sound('pop', { at: e.position });
