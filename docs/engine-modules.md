@@ -416,3 +416,21 @@ same files the browser loads. A scenario builds a world from scene.json, steps i
 happened. Add your module's scenarios there (things it makes build from their specs; vehicles drive up a slope; water
 floats a crate...). `test/engine/harness.ts` loads the engine and your module: `load({ extra: [yourFile] })`, then `world(H, sceneOf({...}))`
 and `H.tick(seconds)`. `test/engine/runtime.test.ts` has every core scenario to copy from.
+
+## 7f. The sky, the planet and the Overseer (`H.sky`, `H.planet`, `H.overseer`)
+
+The `overseer` module (`public/play/modules/overseer/`) owns the time of day, the light and the sky in every game. Don't
+write `W.hemi` / `W.sun` intensities or `scene.clearColor` every frame yourself: report what you want with
+`H.sky.set(owner, { dark: 0-1, flash: 0-1, weather: true })` (`null` takes it back) and the sky multiplies it in with
+the clock and the altitude (water's rain and the events module's dark do this). The clock is `H.sky.clock(create)` (one
+object: `{ hour, day, run, light, jumped }`), shared with the events module. Fog set by anyone keeps its colour and
+distances by day; the sky darkens it at night and stretches it with altitude.
+
+Every standard and PBR material curves with the planet (a material plugin: `y -= |xz - camera.xz|² / 2R`); a custom
+`ShaderMaterial` that draws ground or water far away adds the same line (water.js does), and `material.hpNoCurve = true`
+opts a material out. `H.planet.air(y)` is the air (1 at sea level, thinning with height): anything that flies on air
+uses it (vehicles: rotors, wings, air-breathing engines). Things beyond the world's own camera reach (the planet, the
+ship, beams) go in the sky's far layer: `H.sky.bg.add(mesh, group)` and `H.sky.onBg((camera, farCamera) => ...)`.
+
+Whatever appears is beamed in by the Overseer: scene ops with `fx: "materialize" | "arrive"` and spawnMany batches get a
+beam by themselves; for your own `H.overseer.beam(target, opts)` / `H.overseer.materialize(entity)`.

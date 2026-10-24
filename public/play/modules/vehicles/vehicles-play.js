@@ -213,7 +213,7 @@
     const e = nearest(p, REACH);
     if (!e) return null;
     const v = e.vehicle;
-    const verb = v.seats[0].who ? 'Ride in' : v.def.class === 'plane' || v.def.class === 'heli' ? 'Fly' : v.def.twoWheels ? 'Ride' : 'Drive';
+    const verb = v.seats[0].who ? 'Ride in' : ['plane', 'heli', 'rocket', 'ship'].includes(v.def.class) ? 'Fly' : v.def.twoWheels ? 'Ride' : 'Drive';
     const d = Math.hypot(p.x - e.x, p.y - e.y, p.z - e.z) - Math.max(v.def.size[0], v.def.size[2]) / 2;
     return { entity: e, label: `${verb} the ${e.name && e.name !== v.def.title ? e.name : v.def.title.toLowerCase()}`, key: 'e', distance: Math.max(0, d), act: () => { if (W().time - lastSwitch > 0.25) enter(e); } };
   }
@@ -327,7 +327,7 @@
     if (local.lookT > 1.4 && local.cam !== 'cockpit') { const k = Math.min(1, dt * 2.5); local.yaw -= local.yaw * k; local.pitch -= local.pitch * k; }
     const heading = Math.atan2(fwd.x, fwd.z);
     w.camera.yaw = heading;
-    const flying = D.class === 'plane' || D.class === 'heli';
+    const flying = ['plane', 'heli', 'rocket', 'ship'].includes(D.class);
     const speed = v.vel.length();
     cam.fov += ((local.saved.fov || 1) + (v.boosting ? 0.14 : 0) + clamp(speed / 90, 0, 0.12) - cam.fov) * Math.min(1, dt * 4);
     if (local.cam === 'cockpit') {
@@ -444,6 +444,8 @@ body.veh-touching #veh-hud .hint{display:none}
     if (D.class === 'plane') return t ? 'Stick: pitch and roll. ⤒ throttle up, ▼ down. Push up on the ground to roll, pull back at speed to lift off.' : 'Hold W to roll, S lifts off at speed. W/S pitch, A/D roll, space/C throttle, shift boost, E out.';
     if (D.class === 'heli') return t ? 'Stick: tilt and turn. ⤒ climbs, ▼ descends; it hovers by itself.' : 'Space climbs, C descends (it hovers), W/S tilt, A/D turn, E out.';
     if (D.class === 'sub') return t ? '▼ dives, ⤒ rises, the stick drives.' : 'C dives, space rises, W/S thrust, A/D turn, L lights, E out.';
+    if (D.class === 'rocket') return t ? '⤒ more thrust, ▼ less; the stick pitches and leans. Fuel fills on the ground.' : 'Space: more thrust, C: less. W/S pitch, A/D lean, shift boosts. Fuel fills on the ground. E out.';
+    if (D.class === 'ship') return t ? '⤒ climbs, ▼ descends (it hovers); the stick flies and turns.' : 'Space climbs, C descends (it hovers), W/S thrust, A/D turn, shift boost, E out.';
     if (D.class === 'boat') return t ? 'The stick drives, ⚡ boosts.' : 'W/S throttle, A/D steer, shift boost, H horn, E out.';
     if (D.hop) return t ? 'The stick pedals and steers, ⤒ hops.' : 'W pedals, A/D steer, space hops, shift sprints, E off.';
     return t ? 'The stick drives, ⤒ handbrake (drift), ⚡ boost, B gets out.' : 'W/S drive, A/D steer, space drifts, shift boosts, H horn, L lights, V camera, R flips, E out.';
@@ -468,7 +470,7 @@ body.veh-touching #veh-hud .hint{display:none}
       touchEl.id = 'veh-touch';
       const btn = (key, icon, label) => `<button type="button" data-key="${key}" aria-label="${label}">${icon}<span>${label}</span></button>`;
       const D = local && local.v.def;
-      const flyer = D && (D.class === 'plane' || D.class === 'heli' || D.class === 'sub');
+      const flyer = D && ['plane', 'heli', 'sub', 'rocket', 'ship'].includes(D.class);
       touchEl.innerHTML = btn('shift', '⚡', 'Boost') + (flyer ? btn('c', '▼', 'Down') : btn('h', '📯', 'Horn')) + btn('v', '🎥', 'View') + btn('l', '💡', 'Lights') + btn('r', '↺', 'Flip');
       document.body.appendChild(touchEl);
       for (const b of touchEl.querySelectorAll('button')) H.bindTouchKey(b, b.dataset.key);
@@ -489,14 +491,27 @@ body.veh-touching #veh-hud .hint{display:none}
     if (D.class === 'plane') info = `Altitude ${Math.round(ground)} m · throttle ${Math.round(v.throttle * 100)}%${v.stalled ? ' · <span class="warn">STALL</span>' : ''}`;
     else if (D.class === 'heli') info = `Altitude ${Math.round(ground)} m · ${v.vel.y > 0.3 ? '▲' : v.vel.y < -0.3 ? '▼' : '◆'} ${Math.abs(v.vel.y).toFixed(1)} m/s`;
     else if (D.class === 'sub') { const s = V.waterLevel(v.e.x, v.e.z); const depth = s === null ? 0 : Math.max(0, s - v.e.y); info = depth < 0.8 ? 'Surfaced' : `Depth ${depth.toFixed(1)} m`; }
+    else if (D.class === 'rocket' || D.class === 'ship') info = `Altitude ${altText(v)} · ${v.vel.y > 0.5 ? '▲' : v.vel.y < -0.5 ? '▼' : '◆'} ${Math.abs(v.vel.y).toFixed(0)} m/s${v.chute ? ' · parachute' : ''}${D.class === 'rocket' && v.fuel <= 0 ? ' · <span class="warn">NO FUEL</span>' : ''}`;
+    // The air thins as you climb (the Overseer module's planet): wings and rotors give out, then it's space.
+    if (['plane', 'heli', 'rocket', 'ship'].includes(D.class)) {
+      const air = v.air ?? 1;
+      const thin = (D.class === 'heli' && (v.ceiling || air < 0.55)) || (D.class === 'plane' && air < 0.2);
+      info += air < 0.004 ? ' · <b>SPACE</b>' : ` · air ${Math.round(air * 100)}%${thin ? ' · <span class="warn">THIN AIR</span>' : ''}`;
+    }
     const html = `<div><span class="spd">${kmh}</span><span class="unit">km/h</span></div>`
       + (info ? `<div class="info">${info}</div>` : '')
-      + (D.class === 'plane' ? bar('Throttle', v.throttle) : '')
+      + (D.class === 'plane' || D.class === 'rocket' ? bar('Throttle', v.throttle) : '')
+      + (D.class === 'rocket' ? bar('Fuel', v.fuel / (D.engine.fuel || 150), '#a78bfa') : '')
       + (D.class === 'sub' ? bar('Ballast', (v.ballast + 1) / 2, '#22d3ee') : '')
       + bar('Boost', v.boostFuel, '#ffb020')
       + bar('Health', v.health / D.health, v.health < D.health * 0.3 ? '#ff5a4a' : '#34d399')
       + (local.seat === 0 ? `<div class="hint">${escape(hintFor(D))}</div>` : '<div class="hint">Riding along · V camera · E gets out</div>');
     if (html !== hudEl.__last) { hudEl.innerHTML = html; hudEl.__last = html; }
+  }
+  /** Height above the planet's surface (sea level), for things that go high. */
+  function altText(v) {
+    const a = H.planet ? H.planet.altitude(v.e.y) : v.e.y;
+    return a > 1500 ? `${(a / 1000).toFixed(1)} km` : `${Math.round(Math.max(0, a))} m`;
   }
   function groundBelow(v) {
     const hit = X.cast(v, v.e.node.position, new B.Vector3(0, -1, 0), 400);
@@ -533,7 +548,7 @@ body.veh-touching #veh-hud .hint{display:none}
     if (!buffers.has(name)) buffers.set(name, fetch(H.lib.assetUrl(name)).then((r) => r.arrayBuffer()).then((b) => ac.decodeAudioData(b)).catch(() => null));
     return buffers.get(name);
   }
-  const ENGINE = { car: [42, 130], truck: [34, 95], motorbike: [70, 230], boat: [48, 140], submarine: [28, 40], airplane: [55, 150], helicopter: [32, 30] };
+  const ENGINE = { car: [42, 130], truck: [34, 95], motorbike: [70, 230], boat: [48, 140], submarine: [28, 40], airplane: [55, 150], helicopter: [32, 30], rocket: [26, 40], spaceship: [70, 60] };
   function makeVoice(v) {
     const out = ac.createGain();
     out.gain.value = 0;
@@ -612,7 +627,7 @@ body.veh-touching #veh-hud .hint{display:none}
       const mine = local && local.v === v;
       const gain = (mine ? 1 : 0.7) / (1 + d / 14);
       const top = v.def.engine.top || 30;
-      const rpm = clamp(v.def.class === 'heli' ? v.spool * (0.6 + v.collective * 0.6) : v.def.class === 'plane' ? 0.15 + v.throttle * 0.85 : (v.vel.length() / top) * 0.85 + Math.abs(v.throttleNow || 0) * 0.25, 0, 1.3) * (v.boosting ? 1.15 : 1);
+      const rpm = clamp(v.def.class === 'heli' ? v.spool * (0.6 + v.collective * 0.6) : v.def.class === 'plane' ? 0.15 + v.throttle * 0.85 : v.def.class === 'rocket' || v.def.class === 'ship' ? 0.1 + (v.throttleNow || 0) * 0.9 : (v.vel.length() / top) * 0.85 + Math.abs(v.throttleNow || 0) * 0.25, 0, 1.3) * (v.boosting ? 1.15 : 1);
       const t = ac.currentTime;
       try {
         voice.out.gain.setTargetAtTime(v.type === 'bicycle' ? 0 : gain, t, 0.1);
