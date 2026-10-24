@@ -60,7 +60,8 @@
     if (r.herd) return H.sync.isHost;
     return H.sync.mine(r.e);
   }
-  const groundAt = (x, z, fallback) => { const t = H.terrain && typeof H.terrain.heightAt === 'function' ? Number(H.terrain.heightAt(x, z)) : NaN; return Number.isFinite(t) ? t : fallback; };
+  // (No terrain answers null: on a round world that's no ground at all here, not a floor at y = 0; flat worlds as before.)
+  const groundAt = (x, z, fallback) => { const h = H.terrain && typeof H.terrain.heightAt === 'function' ? H.terrain.heightAt(x, z) : NaN; const t = h === null && H.planet && H.planet.round ? NaN : Number(h); return Number.isFinite(t) ? t : fallback; };
   const inWater = (p) => Boolean(H.water && typeof H.water.inWater === 'function' && H.water.inWater(p));
   const dist2 = (a, b) => Math.hypot(a.e.x - b.e.x, a.e.z - b.e.z);
   function seedOf(v) { let h = 2166136261; for (const ch of String(v)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
@@ -637,7 +638,7 @@
   function groundAhead(r, speed) {
     const e = r.e, ahead = r.foot * 0.5 + 0.8 + speed * 0.3;
     const x = e.x + r.dir.x * ahead, z = e.z + r.dir.z * ahead;
-    let ground = H.terrain && H.terrain.heightAt ? Number(H.terrain.heightAt(x, z)) : NaN;
+    let ground = groundAt(x, z, NaN);
     if (!Number.isFinite(ground)) { const hit = H.physics.raycast([x, e.bottom + 1, z], [0, -1, 0], 3.5 + r.size, { ignore: e }); if (!hit) return false; ground = hit.point[1]; }
     // Deep water ahead counts as an edge for things that don't swim.
     const s = H.water && H.water.surfaceAt ? H.water.surfaceAt(x, z) : null;
@@ -673,7 +674,7 @@
     const budget = Math.max(6, Math.ceil(list.length / 10));
     for (let i = 0; i < budget && list.length; i++) {
       const r = list[cursor++ % list.length];
-      if (!mine(r) || (building && !r.awake)) continue;
+      if (!mine(r) || (building && !r.awake) || r.e._far) continue; // (_far: a round world's far side rests, round.js)
       // Far from every player: think a quarter as often.
       if (r.far && (r.skip = (r.skip || 0) + 1) % 4) continue;
       think(r);
@@ -687,6 +688,7 @@
       }
       if (!mine(r)) continue;
       if (building && !r.awake) { if (r.goal) stop(r); continue; }
+      if (r.e._far) continue;
       steer(r, dt, t);
     }
     // A couple of path searches a step.
@@ -705,7 +707,7 @@
       const e = r.e;
       if (!e.alive) continue;
       // On the terrain (when there is one), whatever the physics did.
-      if (H.terrain && H.terrain.heightAt && !r.flying && e.physics === 'dynamic' && !e.remote) {
+      if (H.terrain && H.terrain.heightAt && !r.flying && e.physics === 'dynamic' && !e.remote && !e._far) {
         const g = groundAt(e.x, e.z, NaN);
         if (Number.isFinite(g) && e.bottom < g - 0.01) { e.node.position.y += g - e.bottom; if (e.vy < 0) e.vy = 0; e.grounded = true; }
       }

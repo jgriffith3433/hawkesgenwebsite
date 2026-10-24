@@ -142,7 +142,7 @@
       if (e.home) e.home = { position: tr.point(e.home.position), rotation: degOf(ri.multiply(quatOf(eulerOf(e.home.rotation)))) };
     }
     // What is now far from you rests at once (off the ground patch nothing holds it up).
-    rest(0, true);
+    rest();
     if (H.physics && H.physics.rebase) H.physics.rebase(tr);
     // The camera: where it is, and which way it looks (the same way, from the new up).
     const c = w.camera;
@@ -183,13 +183,9 @@
   }
 
   // ------------------------------------------------------------------ things far away rest
-  let farT = 0;
-  function rest(dt, now) {
+  function rest() {
     const w = W();
     if (!F.on || !w) return;
-    farT += dt;
-    if (farT < 0.25 && !now) return;
-    farT = 0;
     const p = w.player;
     const at = p && p.alive ? p.position : [0, 0, 0];
     const far2 = F.far * F.far;
@@ -319,7 +315,8 @@
     if (F.on) try { makeGround(w); } catch (err) { H.report(err, 'round world'); }
   });
   H.hooks.world.push({
-    enter(w) { if (F.on && !ground) try { makeGround(w); } catch (err) { H.report(err, 'round world'); } },
+    // (Things the world starts with far round the planet rest from the first step: no ground holds them up out there.)
+    enter(w) { if (F.on && !ground) try { makeGround(w); } catch (err) { H.report(err, 'round world'); } rest(); },
     ops(ops) {
       const w = W();
       if (!w || !(ops || []).some((o) => o && o.op === 'config' && o.patch && 'planet' in o.patch)) return;
@@ -332,7 +329,7 @@
     leave() { ground = null; },
   });
   H.hooks.afterStep.push((dt) => { try { follow(dt); } catch (err) { H.report(err, 'round world'); } });
-  H.hooks.step.push((dt) => rest(dt));
+  H.hooks.step.push(() => rest());
 
   // game.planet for scripts: positions in scripts are in the world around the player (as on flat ground).
   H.hooks.game.push((game) => {

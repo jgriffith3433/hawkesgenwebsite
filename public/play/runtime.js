@@ -932,6 +932,9 @@
           cam.position.set(t.x, state.eyeY, t.z);
         }
         cam.rotation.set(state.pitch, state.yaw, 0);
+        // (Babylon turns upVector with the camera whenever its roll changes (the juice module's shake and bob roll it for a
+        // frame); left turned, a later look around would roll the horizon. Up is up.)
+        if (cam.upVector.x || cam.upVector.z || cam.upVector.y !== 1) cam.upVector.set(0, 1, 0);
       } else if (state.mode === 'strategy') {
         const o = state.opts;
         if (mouse.look) state.yaw += mouse.dx * 0.005;
@@ -957,6 +960,7 @@
           const want = head.add(back.scale(dist));
           const k = Math.min(1, dt * 14);
           cam.position.copyFrom(B.Vector3.Lerp(cam.position, want, k));
+          if (cam.upVector.x || cam.upVector.z || cam.upVector.y !== 1) cam.upVector.set(0, 1, 0);
           cam.setTarget(head);
         }
       } else if (state.mode === 'follow' || state.mode === 'top') {
