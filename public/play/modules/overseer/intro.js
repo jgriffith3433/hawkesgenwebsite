@@ -69,7 +69,7 @@
       const a = new Audio(H.lib.assetUrl(id));
       a.crossOrigin = 'anonymous';
       if (H.audio && H.audio.media) H.audio.media(a);
-      return a;
+      return OV.duckWhile ? OV.duckWhile(a) : a;
     } catch { return null; }
   }
 
