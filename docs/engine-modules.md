@@ -62,6 +62,11 @@ H.kinds.register('car', {
   (a mesh entity with material, placement, shadows), `place(e, o)`, `material(o)`, `size3`, `hex`, `vec`,
   `assetUrl(name)`, `hasAsset(name)`. `H.kinds.lift(spec)`, `H.kinds.get(type)`, `H.kinds.list()`.
 - The codex (`/entities`) and build.js (HUD words, hotbar, cards, library placing) read all of this from the registry.
+- **Keep the codex in step** (J: the codex is how people meet the engine). Every kind needs `codex: { group, what, spec }`
+  (`test/engine/codex.test.ts` fails without one), and its spec should show something worth looking at: a sample
+  picture, video or sound from `public/examples/` (the codex's `SAMPLES` in `public/entities.js` maps names to them;
+  our Knight mascot is `knight-walk.webp` / `.mp4`), never a missing asset. On the codex `HawkesPlay.hooks.codex` is
+  true: a module draws no on-screen controls of its own there.
 - An entity's own cleanup: `e.onDestroy(fn)`. Everyone's: `H.hooks.destroy.push(fn)`.
 
 ## 3. A tool the player holds (`H.tools.register`)
