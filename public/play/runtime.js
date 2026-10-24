@@ -1834,7 +1834,34 @@
     try {
       const glow = new B.GlowLayer('glow', W.scene, { blurKernelSize: touchUi ? 16 : 48, mainTextureRatio: touchUi ? 0.25 : 0.5 });
       glow.intensity = 0.55;
-      glow.customEmissiveColorSelector = (mesh, sub, mat, color) => { const en = entityOf(mesh); if ((mesh.metadata && (mesh.metadata.noGlow || mesh.metadata.decor && mesh.name === 'text')) || (en && (en.kind === 'text' || en.kind === 'sprite' || en.kind === 'video'))) color.set(0, 0, 0, 0); else if (mat && mat.emissiveColor) color.set(mat.emissiveColor.r, mat.emissiveColor.g, mat.emissiveColor.b, 1); else color.set(0, 0, 0, 0); };
+      const dark = (mesh) => { const en = entityOf(mesh); return Boolean((mesh.metadata && (mesh.metadata.noGlow || mesh.metadata.decor && mesh.name === 'text')) || (en && (en.kind === 'text' || en.kind === 'sprite' || en.kind === 'video'))); };
+      glow.customEmissiveColorSelector = (mesh, sub, mat, color) => { if (dark(mesh)) color.set(0, 0, 0, 0); else if (mat && mat.emissiveColor) color.set(mat.emissiveColor.r, mat.emissiveColor.g, mat.emissiveColor.b, 1); else color.set(0, 0, 0, 0); };
+      // Only what shines is drawn into the glow (Babylon's default draws every mesh again, in black: about half the
+      // draw calls of a world), and with nothing shining the glow pass is off. Checked twice a second.
+      const shines = (mesh) => {
+        if (dark(mesh)) return false;
+        const m = mesh.material;
+        const e = m && m.emissiveColor;
+        return Boolean(m && (m.emissiveTexture || (e && e.r + e.g + e.b > 0.02)));
+      };
+      // (Babylon's "included only" list: an empty list means everything, so the glow is off while it's empty.)
+      glow.hpShines = shines;
+      glow.hpLit = new Set();
+      if (!gameLook.glowHooked) {
+        gameLook.glowHooked = true;
+        let glowCheck = 0;
+        hooks.frame.push((dt) => {
+          glowCheck += dt;
+          const g = W && W.glow;
+          if (glowCheck < 0.5 || !g || !g.hpLit || !W.scene) return;
+          glowCheck = 0;
+          const now = new Set();
+          for (const mesh of W.scene.meshes) if (!mesh.isDisposed() && g.hpShines(mesh)) now.add(mesh);
+          for (const mesh of g.hpLit) if (!now.has(mesh)) { g.hpLit.delete(mesh); try { g.removeIncludedOnlyMesh(mesh); } catch {} }
+          for (const mesh of now) if (!g.hpLit.has(mesh)) { g.hpLit.add(mesh); g.addIncludedOnlyMesh(mesh); }
+          g.isEnabled = g.hpLit.size > 0;
+        });
+      }
       W.glow = glow;
     } catch (e) { console.warn('glow', e); }
     try {
