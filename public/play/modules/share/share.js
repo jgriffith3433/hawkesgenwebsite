@@ -53,7 +53,8 @@
   // ------------------------------------------------------------------ styles and the overlay pieces
   const css = document.createElement('style');
   css.textContent = `
-    body.sh-clean > *:not(#stage):not(.sh-keep):not(script):not(style):not(link) { visibility: hidden !important; }
+    /* (Never Studio's 🐞 report button on the beta sites, [data-hawkes-report]: J reports from cinematics too.) */
+    body.sh-clean > *:not(#stage):not(.sh-keep):not(script):not(style):not(link):not([data-hawkes-report]) { visibility: hidden !important; }
     body.sh-clean #stage { cursor: default; }
     .sh-keep { font-family: 'Rajdhani', 'Inter', system-ui, sans-serif; color: #e8ecf6; }
     .sh-bars { position: fixed; inset: 0; pointer-events: none; z-index: 30; }
