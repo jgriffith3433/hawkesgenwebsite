@@ -146,3 +146,22 @@ game.onUpdate(() => {
   const h = game.planet ? game.planet.height(p.position) : p.y;
   if (h > 280) { high = true; game.emit('sandbox-high', { height: Math.round(h), mine: true }); }
 });
+
+// ------------------------------------------------------------------ the helicopter is the tour's last step
+// Blow it up (the rocket launcher is yours by then) and the tour could never finish: a new one lands on the helipad a few
+// seconds after the wreck, the old one cleared away. (Any helicopter that is wrecked, the spawned ones too.)
+const HELIPAD = { x: 30, z: 30 };
+let replacing = false;
+game.on('wrecked', (d) => {
+  const wreck = d && d.vehicle;
+  if (!wreck || replacing || !String(wreck.type || '').includes('helicopter')) return;
+  replacing = true;
+  game.after(6, () => {
+    replacing = false;
+    try { if (wreck.alive) wreck.destroy(); } catch { /* gone */ }
+    if (game.all('Helicopter').some((h) => h.alive && !(h.vehicle && h.vehicle.wrecked))) return;
+    const y = game.terrain && game.terrain.heightAt ? game.terrain.heightAt(HELIPAD.x, HELIPAD.z) : null;
+    game.helicopter({ x: HELIPAD.x, y: (y === null || y === undefined ? 6 : y) + 1.55, z: HELIPAD.z, rotation: [0, 200, 0], name: 'Helicopter', color: '#2b5fd9', model: wreck.shape && wreck.shape.model });
+    overseer('A new one, from me.', 4);
+  });
+});
