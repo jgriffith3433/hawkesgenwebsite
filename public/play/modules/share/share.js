@@ -30,9 +30,12 @@
       // The rolling clip costs a video encoder all the time: on by default on computers, a tap away on phones.
       clips: c.clips === undefined ? !H.touchUi : c.clips !== false,
       photo: c.photo !== false,
-      buttons: c.buttons !== false,
+      // The 📷 🎬 buttons and the P / F8 keys are off for now (J, 2026-10-24): a world turns them on with
+      // config.share { buttons: true, keys: { photo: 'p', clip: 'f8' } }. Photo mode and clips work as before
+      // (S.photo.toggle(), S.clipThat()).
+      buttons: c.buttons === true,
       caption: c.caption !== false,
-      keys: { photo: String((c.keys && c.keys.photo) || 'p').toLowerCase(), clip: String((c.keys && c.keys.clip) || 'f8').toLowerCase() },
+      keys: { photo: String((c.keys && c.keys.photo) || '').toLowerCase(), clip: String((c.keys && c.keys.clip) || '').toLowerCase() },
     };
   }
   S.settings = settings;

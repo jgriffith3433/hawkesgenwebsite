@@ -277,6 +277,7 @@
   }
   function setHud(s, html) { const el = hud(s); if (el._html !== html) { el.innerHTML = html; el._html = html; } return el; }
   function clearHud(s) { if (s.hud) { s.hud.remove(); s.hud = null; } }
+  const LINE_OUT = new Set(['flying', 'waiting', 'bite', 'reel', 'retract']);
   const verb = () => (H.touchUi ? 'Tap 🎣' : 'Click');
   const holdVerb = () => (H.touchUi ? 'Hold 🎣' : 'Hold the mouse');
 
@@ -312,6 +313,7 @@
     },
     unequip(ctx) {
       const s = ctx.state;
+      if (ctx.player) ctx.player._holdStill = false;
       for (const m of [s.mesh, s.bobber, s.line, s.shown]) if (m) m.dispose();
       if (s.button) s.button.remove();
       if (s.logButton) s.logButton.remove();
@@ -324,6 +326,8 @@
       const s = ctx.state, g = ctx.game, p = ctx.player;
       if (!p || !p.alive || W().paused) return;
       s.t += dt;
+      // The line is out (flying, waiting, a bite, reeling, coming back): the player stays put (J, 2026-10-24).
+      p._holdStill = LINE_OUT.has(s.phase);
       if (g.input.pressed('j')) showLog();
       const body = s.body;
       switch (s.phase) {

@@ -1,9 +1,11 @@
 ## Camera shots, photo mode and clips (`config.cinematics`, `config.share`)
 
-Every game has **photo mode** (P, or the 📷 button: the game stops, a free camera flies anywhere, then a PNG to save or
-share), **"clip that"** (F8, or 🎬: the last 15 seconds saved in one press, then trimmed and saved or shared), and
+Every game has **photo mode** (the game stops, a free camera flies anywhere, then a PNG to save or share), **"clip
+that"** (the last 15 seconds saved in one press, then trimmed and saved or shared), and
 **cinematic camera shots**: intros, cut-scenes and trailer shots with letterbox bars and no HUD. Shared photos and clips
-get a page at `/s/<id>` with a "Play this game" button. None of it needs art or credits.
+get a page at `/s/<id>` with a "Play this game" button. None of it needs art or credits. For now players get no 📷 🎬
+buttons and no P / F8 keys unless the world asks: `"share": { "buttons": true, "keys": { "photo": "p", "clip": "f8" } }`;
+scripts open them with `game.photo.open()` and `game.photo.clip()` (a "Photo" button in your own menu).
 
 ### Shots: `config.cinematics`
 

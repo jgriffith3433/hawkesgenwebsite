@@ -45,7 +45,7 @@ game.cinematic.slowmo(0.2, 1.5);   // e.g. where your script blows something up
 | `game.photo.open()`, `.close()`, `.take()`, `.on` | Photo mode from a script (a "Photo" button in your menu) |
 | `game.photo.clip()` | "Clip that": saves the last 15 seconds and opens it for review |
 
-Players: **P** photo mode (WASD, Q/E down and up, Shift faster, drag or mouse to look, wheel zooms, Z/X tilt, Space takes
+Players (when the world turns the keys on, `config.share.keys`): **P** photo mode (WASD, Q/E down and up, Shift faster, drag or mouse to look, wheel zooms, Z/X tilt, Space takes
 it, H hides the panel, Esc goes back; phones get a stick and up/down buttons; gamepads: sticks, triggers, A takes, B
 goes back). **F8** (or 🎬) clip that; right-click 🎬 turns the rolling clip off or on. Photos and clips are downloaded or
 shared from a small window on hawkesgen.com: sharing needs an account (free), downloading doesn't.
