@@ -399,6 +399,7 @@
     makeScatter(t);
     makeSea(t);
     lap('scatter');
+    t.assetSig = assetSig(t.cfg);
     if (H.world.grid && t.cfg.shape !== 'flat') H.world.grid.setEnabled(false);
     t.ms = Math.round(performance.now() - t0);
     return t;
@@ -703,6 +704,24 @@
 
   // ------------------------------------------------------------------ the world feature: config.terrain
   /** config.terrain as an object (it may be true or a shape's name). */
+  function rebuild(value, ctx) {
+    const t = ctx.state.t;
+    const shared = t ? t.shared : [];
+    destroy(t);
+    const n = build(value, ctx);
+    n.cfg.raw = rawOf(value);
+    ctx.state.t = n;
+    cur = n;
+    if (shared.length) rebuildWith(n, shared);
+    for (const e of H.world.entities) e.wake();
+  }
+  /** Which ground textures and scatter models the game has now (a change rebuilds the looks). */
+  function assetSig(cfg) {
+    const s = cfg.scatter && typeof cfg.scatter === 'object' ? (cfg.scatter.models || cfg.scatter.model || {}) : {};
+    const models = ['tree', 'rock', 'bush'].map((k) => [s[k], `terrain-${k}`, k].find((n) => n && isMesh(n)) || '');
+    const a = H.bundle && H.bundle.assets ? H.bundle.assets : {};
+    return JSON.stringify([layerAssets(cfg), models].flat().map((x) => (typeof x === 'string' ? x + (a[x] ? a[x].url : '') : JSON.stringify(Object.entries(x).map(([k, v]) => [k, v, a[v] && a[v].url])))));
+  }
   const rawOf = (v) => (v && typeof v === 'object' ? JSON.parse(JSON.stringify(v)) : typeof v === 'string' ? { shape: v } : {});
   H.features.register('terrain', {
     apply(value, ctx) {
@@ -739,14 +758,14 @@
         t.cfg = { ...b, raw: rawOf(value) };
         return;
       }
-      const shared = t ? t.shared : [];
-      destroy(t);
-      const n = build(value, ctx);
-      n.cfg.raw = rawOf(value);
-      ctx.state.t = n;
-      cur = n;
-      if (shared.length) rebuildWith(n, shared);
-      for (const e of H.world.entities) e.wake();
+      rebuild(value, ctx);
+    },
+    update(dt, ctx) {
+      // A texture or model arrived (generated, or added in the Assets panel): the ground picks it up.
+      const t = ctx.state.t;
+      if (!t || (t.assetCheck = (t.assetCheck || 0) + dt) < 1) return;
+      t.assetCheck = 0;
+      if (assetSig(t.cfg) !== t.assetSig) rebuild(t.cfg.raw, ctx);
     },
     dispose(ctx) {
       const t = ctx.state.t;
