@@ -27,7 +27,14 @@ export function genFetch(route: string, o: GenCall & { rawBody?: BodyInit; duple
 export async function gen<T = any>(route: string, o: GenCall = {}): Promise<T> {
   let r: Response;
   try {
-    r = await genFetch(route, o);
+    try {
+      r = await genFetch(route, o);
+    } catch (e: any) {
+      // A kept-alive connection the other end had just closed (ECONNRESET on reuse): a read is safe to send again, once.
+      const read = (o.method ?? (o.body !== undefined ? 'POST' : 'GET')) === 'GET';
+      if (!read || !e || !e.cause || !['ECONNRESET', 'UND_ERR_SOCKET', 'EPIPE'].includes(e.cause.code)) throw e;
+      r = await genFetch(route, o);
+    }
   } catch (e: any) {
     throw new PortalError(`Hawkes Gen is not answering (${e.name === 'TimeoutError' ? 'timed out' : e.message}); try again in a minute`, { status: 503 });
   }
