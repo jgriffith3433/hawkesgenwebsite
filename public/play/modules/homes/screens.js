@@ -218,9 +218,9 @@
     const r = resolve(ch);
     // A show with a video asset plays the video; a camera that isn't there (yet) is a test card.
     let kind = r.kind, asset = r.asset;
-    if (kind === 'show' && asset && L.hasAsset(asset)) kind = 'video';
-    if (kind === 'camera-or-show') { if (findCamera(r.name)) { kind = 'camera'; r.camera = r.name; } else if (L.hasAsset(`${r.name}.mp4`)) { kind = 'video'; asset = `${r.name}.mp4`; } else { kind = 'show'; r.show = 'bars'; r.sub = 'Waiting for this show'; } }
-    if (kind === 'video' && !L.hasAsset(asset) && !/^https:\/\//.test(asset)) { kind = 'show'; r.show = r.fallback && SHOWS[r.fallback] ? r.fallback : 'bars'; r.sub = `${asset}: not made yet`; }
+    if (kind === 'show') { const v = M.assetFor(r.show, 'video'); if (v) { kind = 'video'; asset = v; } }
+    if (kind === 'camera-or-show') { if (findCamera(r.name)) { kind = 'camera'; r.camera = r.name; } else if (M.assetFor(r.name, 'video')) { kind = 'video'; asset = M.assetFor(r.name, 'video'); } else { kind = 'show'; r.show = 'bars'; r.sub = 'Waiting for this show'; } }
+    if (kind === 'video' && !M.hasAssetRef(asset)) { kind = 'show'; r.show = r.fallback && SHOWS[r.fallback] ? r.fallback : 'bars'; r.sub = `${asset}: not made yet`; }
     const key = `${kind}|${asset || ''}|${r.show || ''}|${r.camera || ''}|${r.title || ''}`;
     s.data = { ...r, title: r.title, sub: r.sub, text: r.text, headlines: r.headlines, lines: r.lines };
     if (key === s.key) return r;
@@ -233,11 +233,11 @@
     if (kind === 'off') { m.emissiveTexture = null; m.emissiveColor = new B.Color3(0.03, 0.035, 0.04); return r; }
     m.emissiveColor = new B.Color3(0, 0, 0); // (Babylon adds the emissive color to the picture: black keeps it true)
     if (kind === 'video') {
-      const vt = new B.VideoTexture('tv', L.assetUrl(asset), W().scene, true, false, B.Texture.TRILINEAR_SAMPLINGMODE, { autoPlay: true, loop: true, muted: true, autoUpdateTexture: true });
+      const vt = new B.VideoTexture('tv', M.assetUrl(asset), W().scene, true, false, B.Texture.TRILINEAR_SAMPLINGMODE, { autoPlay: true, loop: true, muted: true, autoUpdateTexture: true });
       s.vtex = vt; s.video = vt.video; s.video.crossOrigin = 'anonymous';
       m.emissiveTexture = vt;
     } else if (kind === 'image') {
-      try { s.img = new B.Texture(L.assetUrl(asset), W().scene); m.emissiveTexture = s.img; } catch { s.cur = 'show'; s.data.show = 'bars'; m.emissiveTexture = s.dyn; }
+      try { if (!M.hasAssetRef(asset)) throw new Error('none'); s.img = new B.Texture(M.assetUrl(asset), W().scene); m.emissiveTexture = s.img; } catch { s.cur = 'show'; s.data.show = 'bars'; m.emissiveTexture = s.dyn; }
     } else if (kind === 'camera') {
       s.camera = r.camera;
       m.emissiveTexture = s.dyn; // until the camera is found

@@ -246,3 +246,14 @@ test('a bath fills with real water (Water module) and the rubber duck floats', (
   assert.ok(duck.y > 0.3, `the duck floats up (${duck.y.toFixed(2)})`);
   assert.deepEqual(errors(), []);
 });
+
+test('assets are found in one place: by id through the engine\'s asset index when there is one, else by name', () => {
+  const had = H.assets;
+  H.assets = { url: (ref: string) => (ref === 'a_sofa1' ? 'https://example.test/sofa.glb' : null), for: (word: string, kind: string) => (word === 'cartoons' && kind === 'video' ? { id: 'a_cart' } : null) };
+  try {
+    assert.equal(H.homes.assetUrl('a_sofa1'), 'https://example.test/sofa.glb');
+    assert.equal(H.homes.assetFor('cartoons', 'video'), 'a_cart');
+    assert.equal(H.homes.assetFor('nothing', 'model'), null);
+    assert.equal(H.homes.assetUrl('missing.glb'), null);
+  } finally { H.assets = had; }
+});

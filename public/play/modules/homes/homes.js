@@ -14,6 +14,33 @@
   const hex = L.hex;
   const homes = (H.homes = {});
 
+  // ------------------------------------------------------------------ assets: one place that finds them
+  // Every model, texture, sound and video homes uses is found here, by an asset id or a name the game has (or an https
+  // URL). When the engine's asset index (H.assets) is there, it answers first; a word ("sofa") finds the asset made
+  // for it. Nothing else in homes builds file names.
+  const A = () => H.assets || null;
+  /** A URL for an asset reference (an id, a name, an https URL), or null if there's none (yet). */
+  function assetUrl(ref) {
+    if (!ref) return null;
+    const a = A();
+    if (a && typeof a.url === 'function') { try { const u = a.url(ref); if (u) return u; } catch { /* not by id */ } }
+    if (/^https:\/\//.test(String(ref))) return String(ref);
+    return L.hasAsset(ref) ? L.assetUrl(ref) : null;
+  }
+  const hasAssetRef = (ref) => Boolean(assetUrl(ref));
+  /** A sound by reference, or by its word ("flush.mp3" also finds the asset made for "flush"). */
+  const soundUrl = (ref) => (ref ? assetUrl(ref) || assetUrl(assetFor(String(ref).replace(/\.[a-z0-9]+$/i, ''), 'sound')) : null);
+  /** The asset for a word ("sofa" a model, "cartoons" a video, "flush" a sound), or null: H.assets.for(word, kind), else a
+   *  name the game has ("sofa.glb"). */
+  const EXT = { model: ['glb'], video: ['mp4', 'webm'], sound: ['mp3', 'ogg', 'wav'], music: ['mp3', 'ogg'], texture: ['png', 'jpg', 'webp'], image: ['png', 'jpg', 'webp'] };
+  function assetFor(word, kind) {
+    if (!word) return null;
+    const a = A();
+    if (a && typeof a.for === 'function') { try { const r = a.for(word, kind); if (r) return typeof r === 'string' ? r : r.id || r.name || null; } catch { /* no index match */ } }
+    for (const x of EXT[kind] || []) if (L.hasAsset(`${word}.${x}`)) return `${word}.${x}`;
+    return null;
+  }
+
   // ------------------------------------------------------------------ materials (shared per world for details)
   let matCache = { scene: null, map: new Map() };
   /** A shared material for a detail (legs, handles, shelves): one per color in a world. o: { emissive, alpha, glow, texture, tile } */
@@ -29,9 +56,9 @@
     if (o.emissive) m.emissiveColor = hex(o.emissive, '#000000');
     if (o.glow) { m.emissiveColor = hex(color); m.disableLighting = true; }
     if (o.alpha !== undefined && o.alpha < 1) { m.alpha = o.alpha; m.backFaceCulling = false; }
-    if (o.texture && L.hasAsset(o.texture)) {
+    if (o.texture && hasAssetRef(o.texture)) {
       try {
-        const t = new B.Texture(L.assetUrl(o.texture), sc);
+        const t = new B.Texture(assetUrl(o.texture), sc);
         const tl = Array.isArray(o.tile) ? o.tile : [o.tile || 1, o.tile || 1];
         t.uScale = tl[0] || 1; t.vScale = tl[1] || 1;
         m.diffuseTexture = t; m.diffuseColor = new B.Color3(1, 1, 1);
@@ -77,12 +104,12 @@
     main.diffuseColor = hex(o.color, defaults.color || '#c8a27a');
     main.specularColor = new B.Color3(0.08, 0.08, 0.08);
     if (o.emissive) main.emissiveColor = hex(o.emissive, '#000000');
-    if (o.texture && L.hasAsset(o.texture)) { try { main.diffuseTexture = new B.Texture(L.assetUrl(o.texture), sc); } catch {} }
+    if (o.texture && hasAssetRef(o.texture)) { try { main.diffuseTexture = new B.Texture(assetUrl(o.texture), sc); } catch {} }
     e._mat = main;
     make(root, e, main);
     for (const m of root.getChildMeshes()) m.metadata = { ...(m.metadata || {}), entity: e };
     L.place(e, o);
-    const model = sh.model || (L.hasAsset(`${kind}.glb`) ? `${kind}.glb` : null);
+    const model = sh.model || assetFor(kind, 'model');
     if (model) dress(e, model);
     return e;
   }
@@ -90,7 +117,8 @@
   /** Puts a model over a stand-in thing: scaled to the stand-in's height, standing on the floor, centered. */
   function dress(e, name) {
     let url;
-    try { url = L.assetUrl(name); } catch { e._waiting = name; return; }
+    url = assetUrl(name);
+    if (!url) { e._waiting = name; return; }
     const root = e.node;
     root.computeWorldMatrix(true);
     const kids = root.getChildMeshes();
@@ -251,26 +279,42 @@
   }
   let tapped = false;
   let target = null;
+  /** All of "what E does here" for homes, in one place: { label, priority, act, entity } or null. When the engine
+   *  gets its shared use registry (H.use), this is what goes in it. */
+  function useOffer(p) {
+    const w = W();
+    if (!w || H.mode !== 'play' || !p || !p.alive || w.paused || w.camera.target !== p) return null;
+    if (p.controller === 'seat') {
+      const c = p._controller.opts || {};
+      // At an instrument E is a note: the prompt (or space) gets you up.
+      return { label: c.instrument ? 'Get up (space) · keys play notes' : c.pose === 'lie' ? 'Get up' : 'Stand up', priority: 20, entity: c.thing || null, keyless: Boolean(c.instrument), act: () => stand(p) };
+    }
+    if (p.controller && p.controller !== 'walk') return null;
+    const t = lookTarget();
+    if (!t) return null;
+    const label = labelOf(t.e, t.pt);
+    return { label: label.charAt(0).toUpperCase() + label.slice(1), priority: 5, entity: t.e, point: t.pt, act: () => use(t.e, t.pt) };
+  }
+  /** Another module's E offer for this player right now (vehicles, creatures, friends): homes steps aside for it. */
+  function othersOffer(p) {
+    try {
+      const v = H.vehicles && typeof H.vehicles.useOffer === 'function' ? H.vehicles.useOffer(p) : null;
+      if (v) return v;
+      const l = H.living && Array.isArray(H.living.prompts) ? H.living.prompts : [];
+      for (const f of l) { const h = f(p); if (h && h.act && (h.key || 'e') === 'e') return h; }
+    } catch { /* theirs failed: ours stands */ }
+    return null;
+  }
   function runInteract() {
-    const w = W(), p = w.player;
-    const playing = H.mode === 'play' && p && p.alive && !w.paused && w.camera.target === p;
+    const p = W().player;
     const tappedNow = tapped;
     const pressed = H.input.pressed.has('e') || tapped;
     tapped = false;
-    if (!playing) { target = null; prompt(null); return; }
-    if (p.controller === 'seat') {
-      const c = p._controller.opts || {};
-      prompt(c.instrument ? 'Get up (space) · keys play notes' : c.pose === 'lie' ? 'Get up' : 'Stand up');
-      // At an instrument E is a note: the prompt (or space) gets you up.
-      if (c.instrument ? tappedNow : pressed) stand(p);
-      return;
-    }
-    if (p.controller && p.controller !== 'walk') { target = null; prompt(null); return; }
-    target = lookTarget();
-    if (!target) { prompt(null); return; }
-    const label = labelOf(target.e, target.pt);
-    prompt(label.charAt(0).toUpperCase() + label.slice(1));
-    if (pressed) use(target.e, target.pt);
+    const offer = useOffer(p);
+    if (!offer || (offer.priority < 10 && othersOffer(p))) { target = null; prompt(null); return; }
+    target = offer.point ? { e: offer.entity, pt: offer.point } : null;
+    prompt(offer.label);
+    if (offer.keyless ? tappedNow : pressed) offer.act();
   }
 
   // ------------------------------------------------------------------ sitting and lying (the "seat" controller)
@@ -471,15 +515,16 @@
   }
   /** A sound asset by name if the game has it, else the stand-in (a function that makes one). */
   function sound(name, at, fallback, o = {}) {
-    if (name && L.hasAsset(name) && H.game) { H.game.sound(name, { volume: (o.volume ?? 1) * (at ? near(at, 16) : 1) }); return; }
+    const url = soundUrl(name);
+    if (url) { const el = new Audio(url); el.crossOrigin = 'anonymous'; el.volume = Math.max(0, Math.min(1, (o.volume ?? 1) * (at ? near(at, 16) : 1))); el.play().catch(() => {}); return; }
     if (fallback) fallback();
   }
   // Loops near a thing (running water, a radio, a TV): an asset by name, or a synth stand-in. Louder as you get close.
   const loops = new Set();
   function loop(o) {
     const l = { on: true, at: o.at, range: o.range || 14, volume: o.volume ?? 0.6, el: null, gain: null, stopSynth: null, thing: o.thing || null };
-    if (o.asset && L.hasAsset(o.asset)) {
-      l.el = new Audio(L.assetUrl(o.asset));
+    if (o.asset && soundUrl(o.asset)) {
+      l.el = new Audio(soundUrl(o.asset));
       l.el.crossOrigin = 'anonymous';
       l.el.loop = o.loop !== false;
       l.el.volume = 0;
@@ -618,5 +663,5 @@
   /** The shared-state key a kind should use: the scene id, or the one a house gave its part. */
   const keyOf = (o, spec) => (spec && spec.id) || (o && o.homesKey) || null;
 
-  Object.assign(homes, { animate, keyOf, applyLocal: applyPatch, labelOf, mat, part, furniture, dress, worldPoint, track, set, usable, use, sit, stand, steppable, assemble, follow, note, noise, sound, loop, waterSynth, tuneSynth, near, actx, perFrame, things, quarter, get target() { return target; } });
+  Object.assign(homes, { assetUrl, hasAssetRef, assetFor, useOffer, animate, keyOf, applyLocal: applyPatch, labelOf, mat, part, furniture, dress, worldPoint, track, set, usable, use, sit, stand, steppable, assemble, follow, note, noise, sound, loop, waterSynth, tuneSynth, near, actx, perFrame, things, quarter, get target() { return target; } });
 })();
