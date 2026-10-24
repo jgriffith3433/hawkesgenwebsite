@@ -53,16 +53,55 @@
   }
 
   // ------------------------------------------------------------------ the Overseer's words
-  let voice = null;
-  /** The Overseer: words on screen, and its voice when the game has the line (the starter pack's "overseer-mirror-*",
-   *  by name; delay: ms before the voice, for a caption that starts with words the voice doesn't say). */
-  function narrate(text, file, seconds, delay = 0) {
+  // One line at a time, in order: each waits for the one before it to end (its voice, else time to read it). A newer
+  // question replaces one still waiting, and so does a newer remark (they moved on): nothing piles up or overlaps.
+  const lines = [];
+  let speaking = null; // { audio, timer, wait }
+  /** The Overseer says it: words on screen, and its voice when the game has the line (the starter pack's
+   *  "overseer-mirror-*", by name). delay: ms before the voice (a caption that starts with words it doesn't say).
+   *  kind: 'step' (a question), 'react' (a remark on a choice), or 'line'. */
+  function narrate(text, file, seconds, delay = 0, kind = 'line') {
     const g = G();
     if (!g || !session || !session.cfg.voice) return;
-    if (g.overseer && g.overseer.say) g.overseer.say(text, seconds || Math.max(3, Math.min(8, text.length / 12)));
-    if (!file || !g.hasAsset || !g.hasAsset(file)) return;
-    const play = () => { try { if (voice && voice.stop) voice.stop(); } catch { /* gone */ } try { voice = g.sound(file, { volume: 1 }); } catch { /* no sound yet */ } };
-    if (delay) setTimeout(play, delay); else play();
+    if (kind !== 'line') for (let i = lines.length - 1; i >= 0; i--) if (lines[i].kind === kind || (kind === 'step' && lines[i].kind === 'react')) lines.splice(i, 1);
+    lines.push({ text, file, seconds, delay, kind });
+    speak();
+  }
+  /** Quiet now: what's being said stops, what's waiting is dropped. */
+  function hush() {
+    lines.length = 0;
+    if (!speaking) return;
+    clearTimeout(speaking.timer); clearTimeout(speaking.wait);
+    try { if (speaking.audio) speaking.audio.pause(); } catch { /* gone */ }
+    speaking = null;
+  }
+  function speak() {
+    if (speaking || !lines.length) return;
+    const g = G();
+    if (!g) { lines.length = 0; return; }
+    const it = lines.shift();
+    const read = it.seconds || Math.max(2.6, Math.min(8, it.text.length / 12));
+    if (g.overseer && g.overseer.say) g.overseer.say(it.text, read + 1.5);
+    const cur = (speaking = { audio: null, timer: null, wait: null });
+    const next = () => { if (speaking !== cur) return; clearTimeout(cur.timer); speaking = null; setTimeout(speak, 350); };
+    const url = it.file && g.hasAsset && g.hasAsset(it.file) && g.asset ? g.asset(it.file) : null;
+    // No voice for it: long enough to read before the next one.
+    if (!url || typeof Audio === 'undefined') { cur.timer = setTimeout(next, Math.min(read, 2.6) * 1000); return; }
+    cur.wait = setTimeout(() => {
+      if (speaking !== cur) return;
+      try {
+        const a = new Audio(url);
+        a.crossOrigin = 'anonymous';
+        if (H.audio && H.audio.media) H.audio.media(a);
+        cur.audio = a;
+        a.onended = next;
+        // A voice that won't play: the words stay up long enough to read, as with no voice.
+        a.onerror = () => { clearTimeout(cur.timer); cur.timer = setTimeout(next, Math.min(read, 2.6) * 1000); };
+        const pr = a.play();
+        if (pr && pr.catch) pr.catch(() => { clearTimeout(cur.timer); cur.timer = setTimeout(next, read * 1000); });
+        cur.timer = setTimeout(next, 15000); // (a voice that never says it ended)
+      } catch { cur.timer = setTimeout(next, read * 1000); }
+    }, it.delay || 0);
   }
 
   // ------------------------------------------------------------------ the session: in front of the mirror
@@ -83,8 +122,30 @@
   };
   function refreshReflection() { if (session && session.mirror) session.mirror._mirrorFast = true; }
 
+  /** The camera to a shot: at once, or (glide) from wherever it is now, eased over a second and a half (from the
+   *  intro's last shot, or from behind the player, to the reflection). */
+  let glideObs = null;
+  function stopGlide() { const w = W(); if (glideObs && w) w.scene.onBeforeRenderObservable.remove(glideObs); glideObs = null; }
+  function shot(pos, at, glide) {
+    const w = W();
+    stopGlide();
+    const cam = w.camera.babylon;
+    if (!glide || !cam || !cam.getTarget) return w.camera.internal(() => w.camera.api.fixed(pos, at));
+    const p0 = cam.position.clone(), t0 = cam.getTarget().clone();
+    const p1 = new B.Vector3(pos[0], pos[1], pos[2]), t1 = new B.Vector3(at[0], at[1], at[2]);
+    const start = performance.now(), ms = 1500;
+    const put = (k) => { const a = B.Vector3.Lerp(p0, p1, k), b = B.Vector3.Lerp(t0, t1, k); w.camera.internal(() => w.camera.api.fixed([a.x, a.y, a.z], [b.x, b.y, b.z])); };
+    put(0);
+    glideObs = w.scene.onBeforeRenderObservable.add(() => {
+      let k = Math.min(1, (performance.now() - start) / ms);
+      k = k * k * (3 - 2 * k);
+      put(k);
+      if (k >= 1) stopGlide();
+    });
+  }
+
   /** Stands the player in front of the mirror, facing it; the camera over their shoulder, looking at the reflection. */
-  function stage(p, e) {
+  function stage(p, e, glide) {
     const w = W();
     if (!e) {
       // Anywhere (dressing up without a mirror): the camera a few meters off, on the first side with nothing in the
@@ -112,7 +173,7 @@
       const feet = p.y - 0.9;
       const dist = 1.5 + Math.max(h * 1.05, deep * 1.2);
       const lean = window.innerWidth < 700 ? 0 : 0.3 + dist * 0.12;
-      w.camera.internal(() => w.camera.api.fixed([p.x + f[0] * dist, feet + h * 0.8 + 0.4, p.z + f[1] * dist], [p.x - Math.cos(yaw) * lean, feet + h * 0.5, p.z + Math.sin(yaw) * lean]));
+      shot([p.x + f[0] * dist, feet + h * 0.8 + 0.4, p.z + f[1] * dist], [p.x - Math.cos(yaw) * lean, feet + h * 0.5, p.z + Math.sin(yaw) * lean], glide);
       return;
     }
     e.node.computeWorldMatrix(true);
@@ -135,7 +196,7 @@
     const side = phone ? 0.35 : 0.8, aim = phone ? 0.15 : 1.0;
     const cam = stand.add(f.scale(phone ? 3.9 : 3.3)).add(right.scale(side));
     // (On a phone the questions take the bottom: the camera looks down a little more, so the glass sits up top.)
-    w.camera.internal(() => w.camera.api.fixed([cam.x, ground + (phone ? 2.6 : 2.25), cam.z], [m.x + right.x * aim, ground + (phone ? -0.35 : 1.1), m.z + right.z * aim]));
+    shot([cam.x, ground + (phone ? 2.6 : 2.25), cam.z], [m.x + right.x * aim, ground + (phone ? -0.35 : 1.1), m.z + right.z * aim], glide);
   }
 
   /** A sharper reflection while someone's in front of it (it's the picture they're looking at), the usual one after. */
@@ -162,12 +223,15 @@
     p.controls = false;
     if (H.mode !== 'build') p.flying = false;
     p._mirrorShow = true;
-    try { stage(p, e); } catch (err) { H.report(err, 'mirror'); }
+    hush();
+    try { stage(p, e, true); } catch (err) { H.report(err, 'mirror'); }
     if (e) { e._mirrorFast = true; sharpen(e, true); }
     try { if (g && g.input && g.input.release) g.input.release(); } catch { /* fine */ }
     show();
     emit({ state: 'open', auto: session.auto });
-    if (session.auto && cfg.voice) { narrate(MC.OPEN.say, MC.OPEN.voice, 3.2); setTimeout(() => go(0), 3000); } else go(0);
+    // (Arriving, the Overseer's first words come before the first question: the queue keeps them in order.)
+    if (session.auto && cfg.voice) narrate(MC.OPEN.say, MC.OPEN.voice, 3.2);
+    go(0);
     return true;
   }
   /** Ends it: the look stays (it's set as you choose), the camera and controls come back, the Overseer names you. */
@@ -177,6 +241,9 @@
     const lk = look();
     hide();
     clearTimeout(reactT);
+    stopGlide();
+    // Whatever was still to be said about the questions is dropped; done, the Overseer has the last word.
+    if (skipped) hush(); else for (let i = lines.length - 1; i >= 0; i--) if (lines[i].kind !== 'line') lines.splice(i, 1);
     p._mirrorShow = false;
     if (s.mirror) { s.mirror._mirrorFast = false; sharpen(s.mirror, false); }
     if (p.alive) {
@@ -187,7 +254,7 @@
       try { p.view = view; } catch (err) { H.report(err, 'mirror'); }
     }
     if (!skipped) {
-      narrate(MC.doneLine(lk), MC.DONE.voice, 5.5, lk.name ? 1300 : 900);
+      narrate(MC.doneLine(lk), MC.DONE.voice, 5.5, lk.name ? 1300 : 900, 'line');
       try { if (g && g.burst) { g.burst([p.x, p.y + 1.2, p.z], { color: '#ffd84a', count: 40, speed: 5, size: 0.2 }); g.burst([p.x, p.y + 1.5, p.z], { color: '#7dd3fc', count: 30, speed: 4.5, size: 0.18 }); } } catch { /* no fx */ }
       try { if (g && g.hasAsset && g.hasAsset('level-up.mp3')) g.sound('level-up.mp3', { volume: 0.45 }); } catch { /* no sound */ }
     }
@@ -205,7 +272,7 @@
     session.i = Math.max(0, i);
     const st = MC.STEPS.find((x) => x.id === session.steps[session.i]);
     render();
-    if (st) narrate(st.say, st.voice);
+    if (st) narrate(st.say, st.voice, undefined, 0, 'step');
     emit({ state: 'step', step: st ? st.id : null });
   }
 
@@ -360,7 +427,7 @@
     if (t.dataset.view) {
       session.view = t.dataset.view;
       try { session.p.view = session.view; } catch { /* fine */ }
-      stage(session.p, session.mirror); // (the view moves the camera: back to the mirror's)
+      stage(session.p, session.mirror, false); // (the view moves the camera: back to the mirror's)
       return render();
     }
   }
@@ -374,7 +441,7 @@
     if (lk.what !== id) { part.body = w.colors[0]; part.accent = w.colors[1]; part.head = w.colors[2]; if (w.body !== 'person') part.face = 'eyes'; }
     setLook(part);
     clearTimeout(reactT);
-    reactT = setTimeout(() => narrate(w.line, null, 4.5), 350);
+    reactT = setTimeout(() => narrate(w.line, null, 4.5, 0, 'react'), 350);
     emit({ state: 'pick', what: id });
   }
 
@@ -404,7 +471,7 @@
     },
   });
   H.hooks.game.push((game) => {
-    game.on('intro', (d) => { if (d && d.state === 'end' && pending && !session) setTimeout(() => { const e = autoMirror(); if (e && !session) open(e, { auto: true }); else pending = false; }, 700); });
+    game.on('intro', (d) => { if (d && d.state === 'end' && pending && !session) setTimeout(() => { const e = autoMirror(); if (e && !session) open(e, { auto: true }); else pending = false; }, 150); });
     game.mirror = {
       /** Opens the questions at a mirror (a thing, a name, or the nearest). */
       open: (m) => open(typeof m === 'string' ? game.find(m) : m || null),
@@ -423,7 +490,7 @@
   M.finish = (skipped) => finish(skipped);
   M.go = (i) => go(i);
   Object.defineProperty(M, 'session', { get: () => session, configurable: true });
-  M._internal = { pickWhat, nearestMirror, autoMirror, configOf, get pending() { return pending; }, forget: () => { seenOnPage.clear(); store.set(seenKey(), ''); } };
+  M._internal = { lines: () => lines.slice(), speaking: () => speaking, pickWhat, nearestMirror, autoMirror, configOf, get pending() { return pending; }, forget: () => { seenOnPage.clear(); store.set(seenKey(), ''); } };
 
   // ------------------------------------------------------------------ building: the mirror's own settings (its card's 🪞)
   const kind = H.kinds.get('mirror');

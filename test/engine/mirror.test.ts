@@ -107,7 +107,16 @@ test('in front of the mirror: stood facing it, three questions, the look changes
   assert.equal(P.look.what, 'shoe');
   assert.equal(P.look.body, C.WHAT.get('shoe').colors[0]);
   await new Promise((r) => setTimeout(r, 450));
+  // One line at a time: the remark waits for the question before it to finish (no voice here: time to read it).
+  assert.ok(!said.some((t) => /shoe with ambition/.test(t)), 'not over the question');
+  assert.equal(M._internal.lines().length, 1, 'waiting its turn');
+  await new Promise((r) => setTimeout(r, 3000));
   assert.ok(said.some((t) => /shoe with ambition/.test(t)), 'the Overseer on being a shoe');
+  assert.ok(said.indexOf('First question. What are you?') < said.findIndex((t) => /shoe with ambition/.test(t)), 'after the question, in order');
+  // A newer question replaces a remark still waiting (they moved on).
+  M._internal.pickWhat('toaster');
+  await new Promise((r) => setTimeout(r, 450));
+  M._internal.pickWhat('shoe');
   M.go(1);
   assert.equal(g.mirror.step, 'look');
   P.setLook({ hat: 'crown', shape: 'tiny' });
@@ -118,7 +127,9 @@ test('in front of the mirror: stood facing it, three questions, the look changes
   assert.equal(g.mirror.isOpen, false, 'past the last question: done');
   assert.equal(p.controls, true);
   assert.equal(p._mirrorShow, false);
+  await new Promise((r) => setTimeout(r, 3200)); // (after what was being said when they finished)
   assert.ok(said.includes('Sir Laces the shoe. I will remember that. Go on, then.'));
+  assert.equal(said.filter((t) => /^And what are you called/.test(t)).length <= 1, true, 'questions they skipped past are dropped, not said late');
   const done = events.find((e) => e.state === 'done');
   assert.ok(done && done.what === 'shoe' && done.name === 'Sir Laces' && done.changed);
   assert.deepEqual(events.filter((e) => e.state === 'step').map((e) => e.step), ['what', 'look', 'name']);

@@ -204,6 +204,8 @@
     const a = (Math.atan2(y, x) + Math.PI / 2 + Math.PI * 4) % (Math.PI * 2);
     return Math.round((a / (Math.PI * 2)) * wh.list.length) % wh.list.length;
   }
+  /** The game hears it opened: game.on('spawn-wheel', ({ state: 'open', as: 'wheel' | 'sheet', by })). */
+  function opened(as, by) { try { if (H.game && H.game.emit) H.game.emit('spawn-wheel', { state: 'open', as, by }); } catch { /* no world */ } }
   function openWheel(by = 'mouse') {
     if (!S.allowed() || !W()) return false;
     closeSheet();
@@ -212,6 +214,7 @@
     Object.assign(wh, { open: true, hot: -1, vx: 0, vy: 0, by, ten: false, shift: false });
     wheel.hidden = false;
     renderWheel();
+    opened('wheel', by);
     S.loadShelves && S.loadShelves().then(() => { if (wh.open && nav.layer === 0) renderWheel(); });
     return true;
   }
@@ -388,6 +391,7 @@
     ensureSheet();
     if (!keep) go(0, { type: null, cat: null });
     sh.open = true;
+    if (!keep) opened('sheet', 'touch');
     sheet.classList.toggle('phone', phone());
     // The panel sits between the editor's bars (H.hooks.uiTop / uiBottom), not under them.
     const top = Number(H.hooks.uiTop) || 0, bottom = Number(H.hooks.uiBottom) || 0;

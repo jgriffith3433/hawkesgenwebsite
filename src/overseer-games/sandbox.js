@@ -113,7 +113,8 @@ const MOMENTS = {
   drive: { sound: 'level-up.mp3', pip: 'You made it! The rod is at the end of the pier. Hold click to cast, click when the bobber dips.', overseer: 'You found your way. Good.', voice: 'overseer-found-your-way.mp3' },
   fish: { sound: 'power-up.mp3', pip: 'A fish! Here, take the rocket launcher. See the barrels up the beach? Go on.', overseer: 'The sea gives. Remember that.', voice: 'overseer-the-sea-gives.mp3', give: ['rocket-launcher'] },
   boom: { sound: 'level-up.mp3', pip: 'BOOM! Now ask the Overseer for something: hold Q and pick anything.', overseer: 'Destruction is a kind of freedom too.', voice: 'overseer-destruction.mp3' },
-  spawn: { sound: 'teleport.mp3', pip: 'It came from the Overseer! Last one: the helicopter on the hill. Go up, way up.', overseer: 'Ask, and I will send it down.', voice: 'overseer-ask.mp3' },
+  // (The Overseer's "Ask, and I will send it down" is said when they first hold Q: below.)
+  spawn: { sound: 'teleport.mp3', pip: 'It came from the Overseer! Last one: the helicopter on the hill. Go up, way up.' },
   fly: { sound: 'victory.mp3', pip: 'Look down! That speck in the sea is our island. The spawn gun and the gravity gun are yours too.', overseer: 'That is your world. All of it.', voice: 'overseer-your-world.mp3', seconds: 6, give: ['spawn-gun', 'gravity-gun'] },
 };
 // Each moment plays once: a step the quest enters again (a restored or re-synced quest state, a second blast of the
@@ -128,8 +129,17 @@ game.on('tour', (d) => {
   confetti();
   game.camera.shake(0.08, 0.2);
   game.after(0.6, () => say(m.pip, 6));
-  game.after(1.4, () => { overseer(m.overseer, m.seconds || 5); sfx(m.voice, { volume: 1 }); });
+  if (m.overseer) game.after(1.4, () => { overseer(m.overseer, m.seconds || 5); sfx(m.voice, { volume: 1 }); });
   if (m.give && game.mayhem && game.mayhem.giveTool) game.after(1, () => { for (const t of m.give) game.mayhem.giveTool(t); });
+});
+
+// ------------------------------------------------------------------ the first time they ask (hold Q: the spawn wheel)
+// The Overseer answers the first ask, as the wheel opens: "Ask, and I will send it down." Once a visit.
+game.on('spawn-wheel', (d) => {
+  if (!d || d.state !== 'open' || window.__islandAsked) return;
+  window.__islandAsked = true;
+  overseer('Ask, and I will send it down.', 4);
+  sfx('overseer-ask.mp3', { volume: 1 });
 });
 
 // ------------------------------------------------------------------ the barrels: teach the switch to the launcher
