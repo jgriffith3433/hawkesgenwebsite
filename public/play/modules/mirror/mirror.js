@@ -84,7 +84,8 @@
     if (g.overseer && g.overseer.say) g.overseer.say(it.text, read + 1.5);
     const cur = (speaking = { audio: null, timer: null, wait: null });
     const next = () => { if (speaking !== cur) return; clearTimeout(cur.timer); speaking = null; setTimeout(speak, 350); };
-    const url = it.file && g.hasAsset && g.hasAsset(it.file) && g.asset ? g.asset(it.file) : null;
+    // (The game's own asset by that name, else the Overseer's own line from the community library: overseer.js.)
+    const url = !it.file ? null : H.overseer && H.overseer.voiceUrl ? H.overseer.voiceUrl(it.file) : g.hasAsset && g.hasAsset(it.file) && g.asset ? g.asset(it.file) : null;
     // No voice for it: long enough to read before the next one.
     if (!url || typeof Audio === 'undefined') { cur.timer = setTimeout(next, Math.min(read, 2.6) * 1000); return; }
     cur.wait = setTimeout(() => {
@@ -441,7 +442,7 @@
     if (lk.what !== id) { part.body = w.colors[0]; part.accent = w.colors[1]; part.head = w.colors[2]; if (w.body !== 'person') part.face = 'eyes'; }
     setLook(part);
     clearTimeout(reactT);
-    reactT = setTimeout(() => narrate(w.line, null, 4.5, 0, 'react'), 350);
+    reactT = setTimeout(() => narrate(w.line, `overseer-is-${id}.mp3`, 4.5, 0, 'react'), 350);
     emit({ state: 'pick', what: id });
   }
 

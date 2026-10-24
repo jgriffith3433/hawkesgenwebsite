@@ -42,6 +42,9 @@ export const SANDBOX_ASSETS: Record<string, string> = {
   // ...and the mirror's (modules/mirror plays "overseer-mirror-<step>" with each question, by name).
   'overseer-mirror-open.mp3': 'a_045f8213473256ee', 'overseer-mirror-what.mp3': 'a_c0e328781a118af8', 'overseer-mirror-look.mp3': 'a_994bf59af90bf68b',
   'overseer-mirror-name.mp3': 'a_76a84299626f8402', 'overseer-mirror-view.mp3': 'a_92afa99ab3bb1365', 'overseer-mirror-done.mp3': 'a_7a79bc1e721339aa',
+  // The helicopter coming back after a wreck (sandbox.js). (The mirror's remarks and the ship's "Welcome aboard" come
+  // from the Overseer's own lines, overseer.js VOICES, in every game.)
+  'overseer-a-new-one.mp3': 'a_2e4236a4f60b4f15',
   // Sound: the island (ambience), gentle music, and a sound for each moment.
   'ocean-waves.mp3': 'a_d998f214d5f7be98', 'forest.mp3': 'a_f69c9b828dba9342', 'meadow.mp3': 'a_58c72e4ca54f1b54', 'ocean-drift.mp3': 'a_dce85c4cf4bb730b',
   'level-up.mp3': 'a_39a9c6daee1e4450', 'power-up.mp3': 'a_67e1ecc6f6db5125', 'confirm.mp3': 'a_d9173a67938251db', 'teleport.mp3': 'a_da988c2a3ef17441',

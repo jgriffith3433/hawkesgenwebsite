@@ -187,7 +187,7 @@
           D.landed = true;
           if (G()) { G().ui.message('Docked', 2.4); G().emit('docked-pad', { vehicle: veh }); }
           chime();
-          OV.say('Welcome aboard.', 3);
+          OV.speak('Welcome aboard.', 'overseer-welcome-aboard.mp3', 3);
         }
       } else if (!onPad(at)) D.landed = false;
     } else if (!inside) D.landed = false;

@@ -233,3 +233,13 @@ test("building: the mirror's card opens its settings; each choice saves shape.ch
   assert.deepEqual(last().steps, ['what', 'look', 'name'], 'asking again starts from the usual questions');
   press({ a: 'close' });
 });
+
+test('every line the Overseer says at the mirror and the ship has its voice (overseer.js VOICES), played from the community library', () => {
+  const V = H.overseer.VOICES;
+  const need = [MC.OPEN.voice, MC.DONE.voice, ...MC.STEPS.map((s: any) => s.voice), ...C.WHATS.map((w: any) => `overseer-is-${w.id}.mp3`), 'overseer-welcome-aboard.mp3', 'overseer-intro.mp3'];
+  for (const n of need) assert.match(V[n] || '', /^a_[0-9a-f]{16}$/, `${n} has a voice`);
+  assert.equal(H.overseer.voiceUrl('overseer-is-shoe.mp3'), `/v1/community/${V['overseer-is-shoe.mp3']}/file`);
+  assert.equal(H.overseer.voiceUrl('nothing-like-this.mp3'), null);
+  const mirror = fs.readFileSync(path.join(ROOT, 'public', 'play', 'modules', 'mirror', 'mirror.js'), 'utf8');
+  assert.match(mirror, /overseer-is-\$\{id\}\.mp3/, 'the remark on what you picked is spoken');
+});

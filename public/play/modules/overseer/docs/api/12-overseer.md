@@ -30,6 +30,7 @@ game.on('docked', () => game.ui.message('Welcome aboard'));
 | `game.overseer.beam(target, opts)` | A beam from the emitter to a thing or `[x, y, z]`. `opts`: `radius` (m, at the bottom), `seconds` (1.6), `hold: true` (stays until `.end()`), `color`, `entity` (grows in), `ring`, `sound`. Returns `{ end(), move(target) }` |
 | `game.overseer.materialize(thing or [things], opts)` | Beams it in (one wide beam for several) |
 | `game.overseer.say(text, seconds)` | Words from the Overseer over the picture |
+| `game.overseer.speak(text, voice, seconds)` | The same, spoken in its voice: `voice` is one of its lines (`HawkesPlay.overseer.VOICES`: the intro, the mirror's questions and remarks, `overseer-welcome-aboard.mp3`...) or a sound asset of the game's. A new line needs a voice made first (ask J) |
 | `game.arrive(thing or [things], how)` | Brings it in from the Overseer where it is now: `'drop'` (from high in the beam; real physics while playing; lands on a roof over it), `'grow'` (up out of the ground), `'beam'`, `'auto'` (by what it is). Several drop one by one |
 | `game.spawnMany(what, n, { arrive })` | `arrive`: `'drop'`, `'grow'`, `'beam'`, `'none'`, or `{ how, delay, gap }` (seconds before the first, between each). Default: by what it is. Online the host's copies fall for real and everyone sees the same |
 | `game.on('landed', ({ thing, at, weight, on }) => ...)` | A dropped thing came down (`weight` 0-1: how heavy it felt; `on`: what it landed on) |

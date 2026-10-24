@@ -599,6 +599,8 @@ void main(void) {
       get radius() { return O ? O.r : 0; },
       /** Words from the Overseer, over the picture (seconds: how long). */
       say: (text, seconds) => say(text, seconds),
+      /** Words and its voice: speak('Welcome aboard.', 'overseer-welcome-aboard.mp3'). Every line it has: VOICES. */
+      speak: (text, name, seconds) => speak(text, name, seconds),
     };
   });
   /** The Overseer speaks: words over the picture for a while (the cinematic's caption when it's there). */
@@ -639,8 +641,53 @@ void main(void) {
     },
   });
 
+  // ------------------------------------------------------------------ the Overseer's voice
+  // Everything it says, spoken (the starter pack's "overseer" voice shelf: community/starter.mjs, by name -> the
+  // community library's id). Any game plays them through the public community route; a game's own asset by the same
+  // name wins. New lines: add them to the starter pack, make them (tools/starter.mjs make voice), then here.
+  const VOICES = {
+    'overseer-a-new-one.mp3': 'a_2e4236a4f60b4f15', 'overseer-welcome-aboard.mp3': 'a_ceea2f1d5cf68b50', 'overseer-is-duck.mp3': 'a_33ec5fb3050ccaf5',
+    'overseer-is-potato.mp3': 'a_de63438973351455', 'overseer-is-mushroom.mp3': 'a_33390ba6b35b07cf', 'overseer-is-banana.mp3': 'a_5f27bf90c9ece2c9',
+    'overseer-is-teapot.mp3': 'a_393a4c32c63637b4', 'overseer-is-cone.mp3': 'a_edfb51c5ca40e3dc', 'overseer-is-cactus.mp3': 'a_9911a88f7dd0fd42',
+    'overseer-is-toaster.mp3': 'a_6a01c9caca211602', 'overseer-is-shoe.mp3': 'a_2a65deb07e22e8d6', 'overseer-is-fish.mp3': 'a_dec9d95b90601d01',
+    'overseer-is-dinosaur.mp3': 'a_a7c59e8e3cd53968', 'overseer-is-horse.mp3': 'a_0a8447d0b306fec0', 'overseer-is-sheep.mp3': 'a_2f08b9ca67eaa9b4',
+    'overseer-is-cow.mp3': 'a_3ab5910a08e35b19', 'overseer-is-chicken.mp3': 'a_30313b0c91108e15', 'overseer-is-penguin.mp3': 'a_b314c71f232ea63d',
+    'overseer-is-rabbit.mp3': 'a_3f1f067a50fc532a', 'overseer-is-bear.mp3': 'a_8e59609d0dccb727', 'overseer-is-pig.mp3': 'a_c8ab6d53fa981ec7',
+    'overseer-is-fox.mp3': 'a_3e8a5574ebf6d4f9', 'overseer-is-cat.mp3': 'a_2cf3eda01cb0713d', 'overseer-is-dog.mp3': 'a_e88d6e1ed2e81ff2',
+    'overseer-is-rollbot.mp3': 'a_a3c0bc3d2cde517a', 'overseer-is-robot.mp3': 'a_69ccb99202e9fcb5', 'overseer-is-tvbot.mp3': 'a_b4d98a1639e6ea52',
+    'overseer-is-person.mp3': 'a_7070c29cdc240b5c', 'overseer-mirror-done.mp3': 'a_7a79bc1e721339aa', 'overseer-mirror-view.mp3': 'a_92afa99ab3bb1365',
+    'overseer-mirror-name.mp3': 'a_76a84299626f8402', 'overseer-mirror-what.mp3': 'a_c0e328781a118af8', 'overseer-mirror-open.mp3': 'a_045f8213473256ee',
+    'overseer-mirror-look.mp3': 'a_994bf59af90bf68b', 'overseer-your-world.mp3': 'a_996ee77e57857b6a', 'overseer-ask.mp3': 'a_e8eb1d1e6dc695fb',
+    'overseer-destruction.mp3': 'a_96af75c7b29f0446', 'overseer-intro.mp3': 'a_f5c151efa39d35c9', 'overseer-the-sea-gives.mp3': 'a_e86b71afc8a4d1c7',
+    'overseer-found-your-way.mp3': 'a_bacd20f46737e756',
+  };
+  /** Where a line's voice is (a game's own asset first, else the community library's), or null. */
+  function voiceUrl(name) {
+    try { if (H.lib.hasAsset(name)) return H.lib.assetUrl(name); } catch { /* not this game's */ }
+    const id = VOICES[name];
+    return id ? `/v1/community/${id}/file` : null;
+  }
+  /** An Audio for a line, through the game's sound (H.audio), not yet playing; null when there's no voice for it. */
+  function voice(name) {
+    const url = voiceUrl(name);
+    if (!url || typeof Audio === 'undefined') return null;
+    try {
+      const a = new Audio(url);
+      a.crossOrigin = 'anonymous';
+      if (H.audio && H.audio.media) H.audio.media(a);
+      return a;
+    } catch { return null; }
+  }
+  /** Says it: the words on screen and, when there's a voice for it, spoken. */
+  function speak(text, name, seconds) {
+    say(text, seconds);
+    const a = name ? voice(name) : null;
+    if (a) { const pr = a.play(); if (pr && pr.catch) pr.catch(() => {}); }
+    return a;
+  }
+
   H.overseer = {
-    DEFAULTS, read,
+    DEFAULTS, read, VOICES, voiceUrl, voice, speak,
     get on() { return Boolean(O); },
     get ship() { return O; },
     get position() { return O ? O.cfg.position.slice() : null; },
