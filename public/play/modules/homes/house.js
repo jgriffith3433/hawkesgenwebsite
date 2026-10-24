@@ -106,7 +106,7 @@
       try {
         if (p.kind === 'box') e = piece(p.size, mats[p.role] || mats.int, { step: p.step, name: p.role === 'floor' ? 'Floor' : p.role === 'stairs' ? 'Stairs' : p.role === 'trim' ? 'Railing' : p.role === 'ceiling' ? 'Ceiling' : 'Wall' });
         else if (p.kind === 'glass') e = piece(p.size, mats.glass, { name: 'Window', shadow: false });
-        else if (p.kind === 'roof') e = piece(p.size, mats.roof, { physics: 'none', name: 'Roof', tilt: p.tilt });
+        else if (p.kind === 'roof') e = piece(p.size, mats.roof, { name: 'Roof', tilt: p.tilt }); // (solid: what falls from the sky lands on it and slides off)
         else if (p.kind === 'ramp') {
           // Only for real physics (the fallback box physics would make it a solid block): the steps stay for the eye.
           if (!(H.physics && H.physics.engine === 'havok')) continue;
