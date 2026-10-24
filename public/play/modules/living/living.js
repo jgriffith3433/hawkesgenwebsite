@@ -542,6 +542,12 @@
       return;
     }
     if (r.ridden) return;
+    // On its feet: upright, and level again if anything left it tipped (a tumble cut short, a shove).
+    if (!e._ragdoll && !e.held && !sp.swims) {
+      if (!e.upright) e.upright = true;
+      const rn = e.node.rotation;
+      if (rn.x || rn.z) { const k = Math.min(1, dt * 6); rn.x -= rn.x * k; rn.z -= rn.z * k; if (Math.abs(rn.x) + Math.abs(rn.z) < 0.01) { rn.x = 0; rn.z = 0; } }
+    }
     if (r.act === 'flop' && sp.swims) {
       // A fish out of water: flip-flop about.
       r.state = 'flop';

@@ -476,6 +476,10 @@
       if (busy || !e.sleeping) wake(v);
       else return;
     }
+    // How fast it really moved last step. (Its velocity is no measure of resting: what it's given holds it up against
+    // Havok's gravity, a step's worth of g, even standing still.)
+    const moved = v.lastPos ? B.Vector3.Distance(n.position, v.lastPos) / dt : Infinity;
+    v.lastPos = n.position.clone();
     v.pos = n.position.clone();
     v.q = B.Quaternion.FromEulerAngles(n.rotation.x, n.rotation.y, n.rotation.z);
     v.vel.set(e._v[0], e._v[1], e._v[2]);
@@ -491,9 +495,9 @@
     integrate(v, dt, v.grounded ? 0.5 : 0.1);
     selfRight(v, dt);
     // Parked and still: the body sleeps (and wakes when something hits it).
-    const still = !busy && v.vel.length() < 0.08 && v.w.length() < 0.08 && v.grounded;
+    const still = !busy && moved < 0.08 && v.w.length() < 0.08 && v.grounded;
     v.still = still ? v.still + dt : 0;
-    if (v.still > 0.6) { v.sleeping = true; v.gave = null; v.vel.setAll(0); v.w.setAll(0); e.vx = 0; e.vy = 0; e.vz = 0; e.angularVelocity = [0, 0, 0]; e.sleep(); return; }
+    if (v.still > 0.6) { v.sleeping = true; v.gave = null; v.lastPos = null; v.vel.setAll(0); v.w.setAll(0); e.vx = 0; e.vy = 0; e.vz = 0; e.angularVelocity = [0, 0, 0]; e.sleep(); return; }
     e.vx = v.vel.x; e.vy = v.vel.y; e.vz = v.vel.z;
     e.angularVelocity = [v.w.x / RAD, v.w.y / RAD, v.w.z / RAD];
     v.gave = v.vel.clone();
@@ -565,7 +569,12 @@
     const spd = Math.abs(fwdSpeed);
     const want = inp.x * D.steer * RAD / (1 + spd / (D.twoWheels ? 14 : 20));
     v.steer += (want - v.steer) * Math.min(1, dt * 8);
-    const parking = throttle === 0 && brake === 0 && spd < 0.6 && (!plane || v.throttle < 0.05);
+    // Stopped (or nobody in it: the handbrake is on): the tires hold it where it is, on a slope too.
+    const parking = throttle === 0 && brake === 0 && (spd < 0.6 || !(occupiedOf(v) || v.autopilot)) && (!plane || v.throttle < 0.05);
+    // Where it stopped: the tires' static grip pulls it back there (no creeping down a hill). Pushed far off, a new spot.
+    if (!parking || spd > 0.6 || (v.park && B.Vector3.Distance(v.park, v.pos) > 0.5)) v.park = null;
+    if (parking && spd <= 0.6 && !v.park) v.park = v.pos.clone();
+    const off = v.park ? v.pos.subtract(v.park) : null;
     let count = 0;
     v.loadSum = 0;
     for (const w of v.wheels) {
@@ -592,12 +601,15 @@
       const per = v.mass / n;
       const mu = D.grip * (handbrake && w.rear ? D.drift : 1);
       const maxF = mu * fs;
-      let lat = -vlat * per / dt * 0.5;
+      // Gravity along the ground, this wheel's share of it (by its load): what the tire must push back to stand still
+      // on a slope. Without it a parked vehicle never rests there (it creeps, and slides sideways across a hill).
+      const hold = fs / Math.max(0.2, N.y);
+      let lat = -vlat * per / dt * 0.5 + hold * sg.y - (off ? B.Vector3.Dot(off, sg) * per * 60 : 0);
       let lon = 0;
       if (w.drive) lon += drive / driven;
       if (brake > 0) lon += -Math.sign(vlong) * Math.min(Math.abs(vlong) * per / dt, v.mass * 30 * brake / n);
       if (handbrake && w.rear) lon = -vlong * per / dt * 0.3;
-      else if (parking) lon = -vlong * per / dt * 0.6;
+      else if (parking) lon = -vlong * per / dt * 0.6 + hold * fg.y - (off ? B.Vector3.Dot(off, fg) * per * 60 : 0);
       else lon += -vlong * per * (plane ? 0.02 : throttle === 0 ? 0.5 : 0.08); // (a plane's wheels roll free)
       const mag = Math.hypot(lat, lon);
       if (mag > maxF && mag > 0) { lat *= maxF / mag; lon *= maxF / mag; }
