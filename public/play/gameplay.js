@@ -203,7 +203,9 @@
     if (p && B.Vector3.Distance(at, new B.Vector3(p.x, p.y, p.z)) < (w.radius || 4.5) + 3) g.camera.shake(0.35, 0.3);
     if (remote) return;
     // Real pushes (mass-aware with Havok) and damage that falls off with distance: H.physics.explode.
-    H.physics.explode([at.x, at.y, at.z], { radius: w.radius || 4.5, force: 14, damage: w.damage, owner });
+    // Damage here (the one who fired gets the kills); the push is the host's, for everyone (H.sync.explode).
+    H.physics.explode([at.x, at.y, at.z], { radius: w.radius || 4.5, force: 0, damage: w.damage, owner, push: false });
+    H.sync.explode([at.x, at.y, at.z], { radius: w.radius || 4.5, force: 14 });
   }
 
   // The guns are tools (H.tools): config.player.weapon / tool "rifle", or { "type": "rifle", ...changes }.

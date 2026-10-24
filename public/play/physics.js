@@ -698,7 +698,7 @@
       const d = Math.hypot(e.x - p[0], e.y - p[1], e.z - p[2]);
       const k = Math.max(0, 1 - d / R);
       if (e.physics === 'dynamic' && !e.isPlayer) {
-        if (e.remote && o.owner !== undefined) for (const f of H.hooks.push) f(e, o.owner);
+        if (e.remote && force > 0 && o.owner !== undefined) for (const f of H.hooks.push) f(e, o.owner);
         const dir = new B.Vector3(e.x - p[0], e.y - p[1] + up, e.z - p[2]).normalize();
         // A real impulse (heavier things fly less), a little off center so things tumble.
         const j = [dir.x * force * k * e.mass, dir.y * force * 0.7 * k * e.mass, dir.z * force * k * e.mass];
