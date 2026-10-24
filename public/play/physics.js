@@ -228,7 +228,7 @@
   const solidKinds = { static: 1, dynamic: 1, kinematic: 1 };
   const wantsBody = (e) => e.alive && !e._cc && solidKinds[e.physics] === 1 && !e.ghost && e.kind !== 'light' && e.node.isEnabled();
   function motionFor(e) {
-    if (e.physics === 'dynamic' && !e.remote && !e.held && !e.node.parent) return DYNAMIC;
+    if (e.physics === 'dynamic' && !e.remote && !e.held && !e.node.parent && !e._frozen) return DYNAMIC; // (frozen: past the body budget, scale.js)
     if (e.physics === 'static' && !(e._pb && e._pb.moved) && !e.held) return STATIC;
     return ANIMATED;
   }
@@ -698,7 +698,7 @@
       const d = Math.hypot(e.x - p[0], e.y - p[1], e.z - p[2]);
       const k = Math.max(0, 1 - d / R);
       if (e.physics === 'dynamic' && !e.isPlayer) {
-        if (e.remote && o.owner !== undefined) for (const f of H.hooks.push) f(e, o.owner);
+        if (e.remote && force > 0 && o.owner !== undefined) for (const f of H.hooks.push) f(e, o.owner);
         const dir = new B.Vector3(e.x - p[0], e.y - p[1] + up, e.z - p[2]).normalize();
         // A real impulse (heavier things fly less), a little off center so things tumble.
         const j = [dir.x * force * k * e.mass, dir.y * force * 0.7 * k * e.mass, dir.z * force * k * e.mass];
