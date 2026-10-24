@@ -42,9 +42,13 @@ Playing together: what players dig, and craters, are shared (the host decides, l
 are saved in the game. The terrain should be about 120 KB of edits at most (the brush says how full it is).
 
 **Examples in words** (what to do):
-- "make an island with a beach": `config` patch `{ "terrain": { "shape": "island" } }` and delete the old ground.
+- **A world that already has a flat ground** (the Playground's "Ground" plane, a big floor box): turning terrain on hides
+  it while the terrain is on (nothing stands on it; it comes back when terrain is turned off), and the player and loose
+  things below the new ground are put on top of it. Leave it, or delete it to be rid of it for good; never move it.
+  Things standing on it (steps, buildings) stay where they are: move them onto the terrain if they're buried.
+- "make an island with a beach": `config` patch `{ "terrain": { "shape": "island" } }`.
   Add `"water": {...}` too if the world has the Water module, for real waves; the terrain draws a plain sea otherwise.
-- "spawn a mountain and a 4x4 so I can drive up it": `{ "terrain": { "shape": "mountain" } }` (delete the ground),
+- "spawn a mountain and a 4x4 so I can drive up it": `{ "terrain": { "shape": "mountain" } }`,
   then the 4x4 at the foot of the road: the road starts near (0, 0) and winds up the mountain ahead (+z). A script can
   read it: `game.terrain.road` (points from the foot to the top).
 - "put a mountain over there" (world already has terrain): add `{ "type": "mountain", "at": [x, z], "radius": 80,

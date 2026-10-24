@@ -1,5 +1,5 @@
-// Mayhem (public/play/modules/mayhem): explosions, chain reactions, things that break and burn, critters, spawning a
-// hundred of anything, and the tools, run in Node on the real engine (Havok) through test/engine/harness.ts.
+// Mayhem (public/play/modules/mayhem): explosions, chain reactions, things that break and burn, animals (Living things'
+// creatures) thrown about, spawning a hundred of anything, and the tools, run in Node on the real engine (Havok) through test/engine/harness.ts.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { load, world, sceneOf } from './harness.ts';
@@ -40,28 +40,32 @@ test('the math: layouts, fractures, falloff, the same numbers for the same seed'
 test('the kinds are in the world list and build from their specs', () => {
   const r = applyOps(emptyScene(), [
     { op: 'create', entity: { type: 'barrel' } }, { op: 'create', entity: { type: 'crate' } },
-    { op: 'create', entity: { type: 'critter', shape: { species: 'pig' } } }, { op: 'create', entity: { type: 'tool-pickup', shape: { tool: 'lasso' } } },
+    { op: 'create', entity: { type: 'creature', shape: { species: 'pig' } } }, { op: 'create', entity: { type: 'tool-pickup', shape: { tool: 'lasso' } } },
   ]);
   assert.equal(r.errors.length, 0, r.errors.join('; '));
   const g = play({
     barrel: { type: 'barrel', transform: { position: [0, 0.6, 0] } },
     crate: { type: 'crate', transform: { position: [3, 0.5, 0] } },
-    cow: { type: 'critter', shape: { species: 'cow' }, transform: { position: [-4, 1, 0] } },
-    duck: { type: 'critter', shape: { species: 'duck', size: 0.6 }, transform: { position: [-7, 1, 0] } },
-    wibble: { type: 'critter', shape: { species: 'wibble' }, transform: { position: [-10, 1, 0] } },
+    cow: { type: 'creature', shape: { species: 'cow' }, transform: { position: [-4, 1, 0] } },
+    duck: { type: 'creature', shape: { species: 'duck', size: 2 }, transform: { position: [-7, 1, 0] } },
+    wibble: { type: 'creature', shape: { species: 'wibble' }, transform: { position: [-10, 1, 0] } },
+    old: { type: 'critter', shape: { species: 'pig' }, transform: { position: [-13, 1, 0] } },
     pad: { type: 'tool-pickup', shape: { tool: 'gravity-gun' }, transform: { position: [8, 0.05, 0] } },
   });
   H.tick(1.5);
   assert.equal(g.entity('barrel').kind, 'barrel');
   assert.ok(g.entity('barrel').data.explosive && g.entity('barrel').hp === 20);
   assert.ok(g.entity('crate')._break, 'crates break');
-  for (const id of ['cow', 'duck', 'wibble']) {
+  // Animals are Living things' creatures; "critter" (Mayhem's old word) builds one too.
+  for (const id of ['cow', 'duck', 'wibble', 'old']) {
     const c = g.entity(id);
-    assert.equal(c.kind, 'critter');
+    assert.equal(c.kind, 'creature');
     assert.ok(Math.abs(c.bottom) < 0.15, `${id} stands on the floor (${c.bottom.toFixed(2)})`);
   }
-  assert.ok(Math.abs(g.entity('duck').size[1] - 0.6) < 0.05, 'size is its height');
-  assert.ok(typeof g.critter === 'function' && typeof g.barrel === 'function' && typeof g.spawnMany === 'function', 'makers and game.spawnMany');
+  assert.equal(g.entity('wibble').data.species, 'wibble', 'any word is an animal');
+  assert.equal(g.entity('old').data.species, 'pig');
+  assert.ok(typeof g.creature === 'function' && typeof g.barrel === 'function' && typeof g.spawnMany === 'function', 'makers and game.spawnMany');
+  assert.ok(!H.kinds.get('critter').editor.hotbar.length, 'one way to make animals: no second cow in the hotbar');
   // Walking into a tool pickup puts it in your hands.
   g.player.position = [8, 1, 0];
   H.tick(0.3);
@@ -78,7 +82,7 @@ test('spawn 100 cows: all of them, on the ground, smooth enough, and an explosio
   const g = play();
   const cows = g.spawnMany('cows', 100, { at: [0, 0, 0], area: 14 });
   assert.equal(cows.length, 100);
-  assert.ok(cows.every((c: any) => c.kind === 'critter' && c.data.critter === 'cow' && c.temporary && c.sceneId));
+  assert.ok(cows.every((c: any) => c.kind === 'creature' && c.data.species === 'cow' && c.living && c.temporary && c.sceneId), 'Living things\' cows');
   const t0 = performance.now();
   H.tick(2);
   const ms = (performance.now() - t0) / 120;
@@ -105,8 +109,10 @@ test('spawn 100 cows: all of them, on the ground, smooth enough, and an explosio
 
 test('words become things: animals, kinds, shapes, models by name, stand-ins', () => {
   play();
-  assert.equal(H.mayhem.specFor('penguins').type, 'critter');
+  assert.equal(H.mayhem.specFor('penguins').type, 'creature');
   assert.equal(H.mayhem.specFor('penguins').shape.species, 'penguin');
+  assert.equal(H.mayhem.specFor('elephants').shape.species, 'elephant');
+  assert.equal(H.mayhem.specFor('puppies').shape.species, 'dog', 'Living things\' words for animals');
   assert.equal(H.mayhem.specFor('barrels').type, 'barrel');
   assert.equal(H.mayhem.specFor('balls').type, 'sphere');
   assert.equal(H.mayhem.specFor('crates').type, 'crate');
@@ -245,7 +251,7 @@ test('tools: the rocket launcher, grenades, sticky bombs (R sets them off), the 
   aimAt(g, [0, 0, -2]);
   pull();
   H.tick(0.2);
-  assert.ok(H.mayhem.spawned.some((e: any) => e.data.critter === 'cow'), 'the spawn gun made a cow');
+  assert.ok(H.mayhem.spawned.some((e: any) => e.kind === 'creature' && e.data.species === 'cow'), 'the spawn gun made a cow');
 
   const box = g.box({ x: 0, y: 0.5, z: -8, size: 0.8, physics: 'dynamic' });
   p.tool = 'gravity-gun';

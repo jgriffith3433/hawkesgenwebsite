@@ -55,10 +55,14 @@
   const friends = () => living._records().filter((r) => r.friend && r.e.alive);
   const canTalk = (e) => e && e.alive && e.living && e.living.friend && e.living.friend.talk !== false;
   const nearestFriend = (p, reach = 4) => { let best = null, bd = reach; for (const r of friends()) { const d = Math.hypot(r.e.x - p.x, r.e.z - p.z); if (d < bd && r.friend.talk !== false) { bd = d; best = r; } } return best; };
-  living.prompts.push((p) => {
-    if (panel && panel.friend) return null;
-    const r = nearestFriend(p);
-    return r ? { key: 't', label: `Talk to ${r.friend.name}`, act: () => open(r.e) } : null;
+  // E (or T) near a friend opens the chat (H.use: the engine picks between this, riding, vehicles, chairs...).
+  H.use.register('living:talk', {
+    keys: ['t'],
+    near(p) {
+      if (panel && panel.friend) return null;
+      const r = nearestFriend(p);
+      return r ? { label: `Talk to ${r.friend.name}`, key: 't', distance: Math.hypot(r.e.x - p.x, r.e.z - p.z), act: () => open(r.e) } : null;
+    },
   });
 
   // ------------------------------------------------------------------ understanding plain words (free, offline)

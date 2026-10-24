@@ -61,7 +61,7 @@
   function startSound(ctx, s) {
     const asset = X.assetNamed('rain');
     if (asset) {
-      try { const a = new Audio(L.assetUrl(asset)); a.loop = true; a.volume = clamp(s.rain * 0.6, 0, 1); a.crossOrigin = 'anonymous'; a.play().catch(() => { ctx.state.pending = a; }); ctx.state.audio = a; } catch { /* no sound */ }
+      try { const a = new Audio(L.assetUrl(asset)); a.loop = true; a.volume = clamp(s.rain * 0.6, 0, 1); a.crossOrigin = 'anonymous'; H.audio.media(a); a.play().catch(() => { ctx.state.pending = a; }); ctx.state.audio = a; } catch { /* no sound */ }
       return;
     }
     const ac = X.audioCtx();
@@ -70,7 +70,7 @@
     const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1400; f.Q.value = 0.4;
     const lo = ac.createBiquadFilter(); lo.type = 'lowpass'; lo.frequency.value = 5000;
     const gn = ac.createGain(); gn.gain.value = 0;
-    src.connect(f).connect(lo).connect(gn).connect(ac.destination);
+    src.connect(f).connect(lo).connect(gn).connect(H.audio.master);
     src.start();
     ctx.state.noise = { src, gn };
   }
@@ -92,7 +92,7 @@
     const src = ac.createBufferSource(); src.buffer = X.noiseBuffer(ac);
     const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 160;
     const gn = ac.createGain(); gn.gain.setValueAtTime(0.0001, t0); gn.gain.exponentialRampToValueAtTime(0.9, t0 + 0.15); gn.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.6);
-    src.connect(f).connect(gn).connect(ac.destination); src.start(t0, Math.random()); src.stop(t0 + 2.8);
+    src.connect(f).connect(gn).connect(H.audio.master); src.start(t0, Math.random()); src.stop(t0 + 2.8);
   }
 
   // Rings where the rain hits water near you: a few meshes, reused.
@@ -124,6 +124,12 @@
   }
 
   H.features.register('weather', {
+    codex: {
+      title: 'Weather', group: 'World features',
+      what: 'Rain, drizzle and storms (lightning and thunder): rings on the water, a darker sky, wet players, fish that bite sooner.',
+      value: 'storm',
+      fields: [['(a word)', 'rain, drizzle, storm, clear', ''], ['rain', '0 to 1', ''], ['wind', '[x, z]', '[0, 0]'], ['dark', '0 to 1', ''], ['lightning', 'true or false', 'storms']],
+    },
     apply(value, ctx) {
       const s = read(value);
       ctx.state.s = s;

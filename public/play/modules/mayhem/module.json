@@ -2,5 +2,5 @@
   "title": "Mayhem",
   "order": 60,
   "scripts": ["mayhem-math.js", "mayhem.js", "mayhem-tools.js", "mayhem-kinds.js"],
-  "kinds": ["barrel", "crate", "critter", "tool-pickup"]
+  "kinds": ["barrel", "crate", "tool-pickup"]
 }

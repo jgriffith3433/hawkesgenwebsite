@@ -8,11 +8,17 @@ A model's clips play by name: walk, run, idle, eat, sleep, sit, dance, attack.
 |---|---|---|
 | `creature` | one animal or person with a brain | `species`, `size`, `temper`, `follow`, `roam`, `speed`, `color`, `colors` `{ body, head, legs, accent }`, `model`, `rideable`, `hp`, `sight` |
 | `herd` | many of one species at once (1 to 300), cheap: they keep together, graze, sleep and stampede together | `species`, `count`, `radius`, `size`, `roam`, `temper` |
-| `friend` | an AI friend with a name and a personality; players talk to them (T, or click) | `personality`, `species` (person by default), `follow` (false = stays put: a villager), `lines` (things they say when you come near), `talk` (false = no chat), `color` |
+| `friend` | an AI friend with a name and a personality; players talk to them (E or T near them, or click) | `personality`, `species` (person by default), `follow` (false = stays put: a villager), `lines` (things they say when you come near), `talk` (false = no chat), `color` |
+
+**Living things own every animal** in a game: this is the one way to make one (Mayhem's `game.spawnMany('cow', 100)` and
+its spawn gun make these creatures too, and blow them up). `critter` is an old word for `creature`.
 
 **Species:** cow, sheep, pig, horse, deer, dog, cat, wolf, bear, rabbit, chicken, bird (flies), penguin, dinosaur,
 fish (out of water it flops about; in water it swims), person, robot. Other words work too: puppy, kitten, bunny, hen,
-lamb, pony, t-rex, villager, android, duck, goat, fox...
+lamb, pony, t-rex, villager, android, duck, goat, fox... and these borrow a close body in their own colors and size:
+elephant, lion, tiger, zebra, giraffe, panda, llama, alpaca, monkey, turtle, mouse, rat, frog, hamster, squirrel,
+raccoon, moose, camel, kangaroo, slime, ostrich, parrot, owl, eagle. Any other word ("wibbles") is a small stand-in
+animal in a color of its own.
 
 **Tempers** (each species has one; `shape.temper` changes it):
 - `calm` (cows, sheep, horses): graze and wander; move away from players who come too close or run at them; stampede from
@@ -29,7 +35,7 @@ air, lies there a moment, gets up and runs. They find their way around walls and
 health (`hp`): weapons and explosions can kill them. While building they stand still where you put them.
 
 **Riding:** a creature with `rideable: true` (horses and dinosaurs are) is ridden with E: WASD steers, shift gallops,
-space jumps, E gets off.
+space jumps, E gets off. (E does the nearest thing on offer: ride, talk to a friend, get in a car...)
 
 **AI friends** follow you, stay, come, sit, sleep, dance, cheer, play fetch, carry things, build blocks with you (in the
 editor their blocks are real edits), ride along in vehicles (and drive, with the Vehicles module), flee explosions and

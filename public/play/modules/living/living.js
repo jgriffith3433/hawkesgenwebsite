@@ -68,9 +68,8 @@
   /** Makes a creature. `shape`: species, size, color, colors, model, temper, follow, roam, speed, hp, rideable,
    *  seed. The body is a stand-in (or the model); the entity is an invisible box you can hit, push and click. */
   function makeCreature(shape, o, spec) {
-    const name = SP.name(shape.species || (spec && spec.data && spec.data.species) || 'cow') || 'cow';
-    const sp = SP.get(name);
-    const size = clamp(Number(shape.size) || 1, 0.15, 10);
+    const { name, def: sp } = SP.of(shape.species || shape.animal || (spec && spec.data && spec.data.species) || 'cow');
+    const size = clamp((Number(shape.size) || 1) * (sp.scale || 1), 0.15, 20);
     const [foot, tall] = dims(sp, size);
     const scene = W().scene;
     const box = B.MeshBuilder.CreateBox('creature', { width: foot, height: tall, depth: foot }, scene);
@@ -122,20 +121,37 @@
     build: (shape, o, spec) => makeCreature(shape, o, spec),
     editor: {
       word: 'a creature',
-      lift: (spec) => { const sp = SP.get((spec.shape && spec.shape.species) || 'cow') || SP.get('cow'); return dims(sp, Number(spec.shape && spec.shape.size) || 1)[1] / 2 + 0.02; },
+      lift: (spec) => creatureLift(spec),
       motion: [['dynamic', 'Lives: walks, thinks, can be pushed'], ['static', 'A statue: stands still']],
       hotbar: [
         { order: 300, icon: '🐄', label: 'Cow', make: () => ({ type: 'creature', name: 'Cow', shape: { species: 'cow' } }) },
         { order: 301, icon: '🐕', label: 'Dog', make: () => ({ type: 'creature', name: 'Dog', shape: { species: 'dog', follow: 'player' } }) },
         { order: 302, icon: '🐎', label: 'Horse', make: () => ({ type: 'creature', name: 'Horse', shape: { species: 'horse' } }) },
+        { order: 304, icon: '🐖', label: 'Pig', make: () => ({ type: 'creature', name: 'Pig', shape: { species: 'pig' } }) },
+        { order: 305, icon: '🐔', label: 'Chicken', make: () => ({ type: 'creature', name: 'Chicken', shape: { species: 'chicken' } }) },
       ],
     },
     codex: {
       group: 'Living things',
-      what: 'An animal or person that lives: walks around, eats, sleeps, flees, follows, hunts. Species: ' + SP.list().join(', ') + '. Uses the game\'s "<species>.glb" model when there is one.',
+      what: 'An animal or person that lives: walks around, eats, sleeps, flees, follows, hunts; blown up, it tumbles and gets back up. Species: ' + SP.list().join(', ') + ' (and ' + SP.looks().join(', ') + ', or any word: a stand-in in its own color). Uses the game\'s "<species>.glb" model when there is one.',
       spec: { type: 'creature', name: 'Daisy', shape: { species: 'cow' }, transform: { position: [0, 1, 0] } },
       fields: [['shape.species', SP.list().join(' | '), 'cow'], ['shape.size', 'times normal size', '1'], ['shape.temper', 'calm | shy | pet | predator | angry | neutral | person', 'by species'], ['shape.follow', '"player" or a thing\'s name/id', ''], ['shape.roam', 'meters it wanders from home', '12'], ['shape.color', 'its main color', 'by species'], ['shape.model', 'a .glb asset to use as its body', '<species>.glb'], ['shape.rideable', 'true: E rides it', 'horse, dinosaur']],
     },
+  });
+
+  function creatureLift(spec) {
+    const sh = spec.shape || {};
+    const { def } = SP.of(sh.species || sh.animal || 'cow');
+    return dims(def, (Number(sh.size) || 1) * (def.scale || 1))[1] / 2 + 0.02;
+  }
+  // "critter": what the Mayhem module called its stand-in animals before Living things owned animals. Worlds that have
+  // one get a creature (no hotbar, no page in the codex: write "creature").
+  H.kinds.register('critter', {
+    alias: 'creature', // builds a creature (its kind says so)
+    physics: 'dynamic',
+    build: (shape, o, spec) => makeCreature(shape, o, spec),
+    editor: { word: 'a creature', lift: (spec) => creatureLift(spec), motion: [['dynamic', 'Lives: walks, thinks, can be pushed'], ['static', 'A statue: stands still']], hotbar: [] },
+    codex: { hidden: true, group: 'Living things', what: 'An old name for a creature (use "creature").' },
   });
 
   // ------------------------------------------------------------------ the herd kind: many at once
@@ -146,9 +162,8 @@
     const scene = W().scene;
     const root = new B.TransformNode('herd', scene);
     const e = new H.lib.Entity(root, { ...o, physics: 'none' }, 'herd');
-    const name = SP.name(shape.species || 'cow') || 'cow';
-    const sp = SP.get(name);
-    const size = clamp(Number(shape.size) || 1, 0.15, 10);
+    const { name, def: sp } = SP.of(shape.species || 'cow');
+    const size = clamp((Number(shape.size) || 1) * (sp.scale || 1), 0.15, 20);
     const room = maxCreatures() - list.length;
     const asked = clamp(Math.round(Number(shape.count) || 12), 1, 300);
     const count = Math.max(0, Math.min(asked, room));
@@ -177,7 +192,7 @@
       const rr = spacing * Math.sqrt(i + 0.5) * 0.9, th = i * 2.399963 + Math.random() * 0.3;
       const x = at[0] + Math.cos(th) * rr, z = at[2] + Math.sin(th) * rr;
       const y = groundAt(x, z, at[1]) + tall / 2 + 0.02;
-      const m = makeCreature({ ...shape, count: undefined, seed: seedOf(`${rec.key}:${i}`) }, { name: null, tag: o.tag || name, data: { herd: rec.key }, position: [x, y, z], rotation: Math.random() * 360, physics: 'dynamic', lenient: true }, null);
+      const m = makeCreature({ ...shape, species: name, size: shape.size, count: undefined, seed: seedOf(`${rec.key}:${i}`) }, { name: null, tag: o.tag || name, data: { herd: rec.key }, position: [x, y, z], rotation: Math.random() * 360, physics: 'dynamic', lenient: true }, null);
       m.living.herd = rec;
       m.living.index = i;
       m.living.home = [at[0], at[2]];
@@ -495,13 +510,13 @@
     const hv = Math.hypot(e.vx, e.vz);
     // Thrown by a blast (or a big push): tumble, land, lie there a moment, get up and run.
     if (r.state !== 'knocked' && !r.flying && !r.ridden && t > (r.jumpAt || 0) + 0.8 && (e.vy > 4 || hv > Math.max(sp.run * 1.8, 11)) && (!r.lastSet || Math.abs(hv - r.lastSet) > 4 || e.vy > 4)) {
-      r.state = 'knocked'; r.act = 'knocked'; r.knockT = 0; r.tipSide = Math.random() < 0.5 ? -1 : 1; r.spinRate = rand(6, 14) * (Math.random() < 0.5 ? -1 : 1);
-      r.goal = null; r.path = null; r.fear = 1;
-      if (r.carrying) drop(r);
-      tell('hurt', r, { knocked: true });
+      knock(r);
       return;
     }
+    // Tumbling (Mayhem's ragdoll spin, e._tumble): lying there until it's back on its feet.
+    if (e._tumble && r.state !== 'knocked') { r.state = 'knocked'; r.act = 'knocked'; r.knockT = 0; r.goal = null; r.path = null; r.fear = 1; if (r.carrying) drop(r); }
     if (r.state === 'knocked') {
+      if (e._tumble) { r.knockT = 0; if (e.grounded) e.walk({ x: 0, z: 0 }, 0); return; }
       if (e.grounded && hv < 1) r.knockT += dt;
       if (r.knockT > 1.4) { r.state = 'idle'; r.act = 'idle'; r.startle = { from: [e.x + rand(-1, 1), e.z + rand(-1, 1)], until: t + 3 }; r.lastThink = t; r.think = 0; }
       r.lastSet = 0;
@@ -725,15 +740,22 @@
     else if (from || r.fear < 1) startle(from ? [from.x, from.y, from.z] : [e.x + rand(-1, 1), e.y, e.z + rand(-1, 1)], { radius: 12, strength: 0.8, only: 'fearful' });
     tell('hurt', r, d);
   }
-  /** Explosions anywhere (H.physics.explode, the Mayhem module's game.emit('explosion')) scare everything near. */
-  function watchExplosions() {
-    const P = H.physics;
-    if (P && P.explode && !P.explode.__living) {
-      const orig = P.explode;
-      const wrapped = function (at, o = {}) { const r = orig.apply(this, arguments); try { startle(at, { radius: Math.max(14, (Number(o.radius) || 4.5) * 4), strength: 1.2, all: true }); } catch (err) { H.report(err, 'living'); } return r; };
-      wrapped.__living = true;
-      P.explode = wrapped;
+  /** Explosions anywhere (the engine's 'explosion' event: rockets, barrels, grenades, scripts) scare everything near. */
+  // The ones close enough to be thrown are knocked over (they tumble, lie there a moment, get up and run).
+  H.physics.on('explosion', (d) => {
+    if (!W() || !list.length) return;
+    const p = d.position, R = Number(d.radius) || 4.5, F = Number(d.force) || 0;
+    if (d.authoritative && F > 0) for (const r of around(p[0], p[2], R)) {
+      const e = r.e, k = 1 - Math.hypot(e.x - p[0], e.y - p[1], e.z - p[2]) / R;
+      if (k > 0 && F * k > 5 && e.physics === 'dynamic' && !r.statue && !r.ridden && mine(r)) knock(r);
     }
+    startle(p, { radius: Math.max(14, R * 4), strength: 1.2, all: true });
+  });
+  function knock(r) {
+    r.state = 'knocked'; r.act = 'knocked'; r.knockT = 0; r.tipSide = Math.random() < 0.5 ? -1 : 1; r.spinRate = rand(6, 14) * (Math.random() < 0.5 ? -1 : 1);
+    r.goal = null; r.path = null; r.fear = 1;
+    if (r.carrying) drop(r);
+    tell('hurt', r, { knocked: true });
   }
 
   // ------------------------------------------------------------------ riding (E near a horse, a dinosaur, anything rideable)
@@ -758,7 +780,6 @@
     update(p, dt, ctx) {
       const r = ctx.state.r, input = ctx.game.input;
       if (!r || !r.e.alive || r.e.dead) { p.control('walk'); return; }
-      if (input.pressed('e')) { p.control('walk'); return; }
       const a = input.direction(), m = r.e;
       const len = Math.hypot(a.x, a.z);
       const speed = input.key('shift') ? r.sp.run * 1.15 : Math.max(r.sp.walk * 2.4, r.sp.run * 0.45);
@@ -788,6 +809,7 @@
       const d = Math.hypot(r.e.x - p.x, r.e.z - p.z) - r.foot * 0.5;
       if (d < reachM && d < bd) { bd = d; best = r; }
     }
+    if (best) best.reach = bd;
     return best;
   }
   function ride(e) { const p = G() && G().player; if (p && e && e.living) p.control('ride', { mount: e }); return e; }
@@ -836,27 +858,14 @@
     for (const r of list) if (r.command && r.command.do === 'fetch') r.think = 0;
   }
 
-  // ------------------------------------------------------------------ prompts: "E Ride the horse", touch buttons
-  // One line near the bottom of the screen says what you can do here; tapping it does it (phones). friends.js adds
-  // its own ("T Talk to Max") through living.prompts.
-  const prompts = [];
-  living.prompts = prompts;
-  prompts.push((p) => {
-    if (H.mode === 'build' || p.controller === 'ride') return p.controller === 'ride' ? { key: 'e', label: 'Get off' } : null;
-    if (H.vehicles && typeof H.vehicles.near === 'function' && H.vehicles.near(p, 3)) return null;
-    const r = mountNear(p);
-    return r ? { key: 'e', label: `Ride the ${r.name}`, act: () => ride(r.e) } : null;
+  // ------------------------------------------------------------------ E: ride, get off (H.use: the engine picks one offer)
+  H.use.register('living:ride', {
+    near(p) {
+      if (p.controller === 'ride') return { label: 'Get off', priority: 100, act: () => p.control('walk') };
+      const r = mountNear(p);
+      return r ? { label: `Ride the ${r.name}`, distance: r.reach, act: () => ride(r.e) } : null;
+    },
   });
-  let hintEl = null, hintAt = 0, hintNow = null;
-  function ui() {
-    if (hintEl || !document.body) return;
-    const st = document.createElement('style');
-    st.textContent = '.lv-hint{position:fixed;left:50%;bottom:22%;transform:translateX(-50%);z-index:30;display:flex;gap:8px;pointer-events:none}.lv-hint button{pointer-events:auto;font:600 15px system-ui,sans-serif;color:#fff;background:rgba(10,14,24,.72);border:1px solid rgba(255,255,255,.25);border-radius:12px;padding:9px 14px;cursor:pointer;backdrop-filter:blur(4px)}.lv-hint kbd{display:inline-block;min-width:1.4em;margin-right:6px;padding:1px 6px;border-radius:6px;background:rgba(255,255,255,.18);font:700 13px system-ui}.lv-hint:empty{display:none}.lv-touchbtn{position:fixed;right:18px;bottom:190px;z-index:31;width:64px;height:64px;border-radius:50%;font:700 14px system-ui;color:#fff;background:rgba(232,75,60,.75);border:2px solid rgba(255,255,255,.4)}';
-    document.head.appendChild(st);
-    hintEl = document.createElement('div');
-    hintEl.className = 'lv-hint';
-    document.body.appendChild(hintEl);
-  }
   const buttons = new Map();
   living.ui = {
     /** A round touch button that holds a key (null label removes it). */
@@ -864,6 +873,12 @@
       const old = buttons.get(id);
       if (old) { old.remove(); buttons.delete(id); }
       if (!label) return;
+      if (!document.getElementById('lv-style')) {
+        const st = document.createElement('style');
+        st.id = 'lv-style';
+        st.textContent = '.lv-touchbtn{position:fixed;right:18px;bottom:190px;z-index:31;width:64px;height:64px;border-radius:50%;font:700 14px system-ui;color:#fff;background:rgba(232,75,60,.75);border:2px solid rgba(255,255,255,.4)}';
+        document.head.appendChild(st);
+      }
       const b = document.createElement('button');
       b.className = 'lv-touchbtn'; b.textContent = label;
       b.style.bottom = `${190 + buttons.size * 74}px`;
@@ -872,47 +887,20 @@
       buttons.set(id, b);
     },
   };
-  function updateHint() {
-    const w = W(), p = w && w.player;
-    if (!hintEl) ui();
-    if (!hintEl) return;
-    let h = null;
-    if (p && p.alive && p.controls !== false) for (const f of prompts) { try { h = f(p); } catch (err) { H.report(err, 'living'); } if (h) break; }
-    const key = h ? `${h.key}|${h.label}` : '';
-    if (key === hintNow) return;
-    hintNow = key;
-    hintEl.textContent = '';
-    if (!h) return;
-    const b = document.createElement('button');
-    b.innerHTML = `<kbd></kbd><span></span>`;
-    b.querySelector('kbd').textContent = h.key.toUpperCase();
-    b.querySelector('span').textContent = h.label;
-    b.onpointerdown = (ev) => { ev.preventDefault(); ev.stopPropagation(); if (h.act) h.act(); else if (h.key === 'e' && p.controller === 'ride') p.control('walk'); };
-    hintEl.appendChild(b);
-  }
-  // Pressing the key does what the line says.
-  function promptKeys() {
-    const w = W(), p = w && w.player, g = G();
-    if (!p || !p.alive || !g) return;
-    if (p.controller === 'ride') return; // the ride controller handles E
-    if (!g.input.pressed('e') && !g.input.pressed('t')) return;
-    for (const f of prompts) { const h = f(p); if (h && h.act && g.input.pressed(h.key)) { h.act(); return; } }
-  }
-
   // ------------------------------------------------------------------ the world starting and ending
   H.hooks.world.push({
     enter() {
-      watchExplosions();
       syncStates();
       const g = G();
-      if (g) { g.on('hurt', onHurt); g.on('explosion', (d) => { const at = d && (d.at || d.position || d.pos); if (at) startle(at, { radius: Math.max(14, (Number(d.radius) || 5) * 4), strength: 1.2, all: true }); }); g.living = living; }
+      if (g) g.on('hurt', onHurt);
       tell('world', W());
     },
-    leave() { list = []; hash = new Map(); pathQueue = []; cursor = 0; warned = false; hintNow = null; if (hintEl) hintEl.textContent = ''; for (const id of [...buttons.keys()]) living.ui.button(id, null); },
+    leave() { list = []; hash = new Map(); pathQueue = []; cursor = 0; warned = false; for (const id of [...buttons.keys()]) living.ui.button(id, null); },
   });
-  H.physics.beforeStep((dt) => { try { promptKeys(); stepAll(dt); } catch (err) { H.report(err, 'living'); } });
+  H.hooks.game.push((g) => { g.living = living; });
+  H.physics.beforeStep((dt) => { try { stepAll(dt); } catch (err) { H.report(err, 'living'); } });
   H.physics.afterStep(() => { try { afterAll(); } catch (err) { H.report(err, 'living'); } });
-  H.hooks.frame.push((dt) => { try { frameAll(dt); if (performance.now() > hintAt) { hintAt = performance.now() + 200; updateHint(); } } catch (err) { H.report(err, 'living'); } });
+  H.hooks.frame.push((dt) => { try { frameAll(dt); } catch (err) { H.report(err, 'living'); } });
 
   // ------------------------------------------------------------------ H.living: for scripts (game.living) and modules
   /** Makes creatures: spawn('cow', { count: 100, at: [0, 0, 0], radius }) (a herd when count > 1), or one:
@@ -921,8 +909,8 @@
     const at = o.at ? H.lib.vec(o.at) : o.position ? H.lib.vec(o.position) : [Number(o.x) || 0, o.y !== undefined ? Number(o.y) : 1, Number(o.z) || 0];
     const shape = { ...o, species: kind || o.species };
     if (Number(o.count) > 1) return makeHerd(shape, { name: o.name, tag: o.tag, position: at }, null);
-    const sp = SP.get(shape.species) || SP.get('cow');
-    if (o.y === undefined && !o.at && !o.position) at[1] = groundAt(at[0], at[2], 0) + dims(sp, Number(o.size) || 1)[1] / 2 + 0.05;
+    const sp = SP.of(shape.species).def;
+    if (o.y === undefined && !o.at && !o.position) at[1] = groundAt(at[0], at[2], 0) + dims(sp, (Number(o.size) || 1) * (sp.scale || 1))[1] / 2 + 0.05;
     return makeCreature(shape, { name: o.name, tag: o.tag, data: o.data, position: at, rotation: o.rotation }, null);
   }
   const recOf = (e) => (e && e.living) || null;

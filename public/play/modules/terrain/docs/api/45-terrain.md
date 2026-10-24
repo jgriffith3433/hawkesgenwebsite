@@ -26,8 +26,9 @@ event) happens everywhere by itself. An edit from one player's action (a key, a 
 last argument so everyone gets it: `game.terrain.dig(x, z, 3, 2, { share: true })`. The shovel and explosions share
 theirs already. Script edits aren't saved in the world (they're part of playing); stamps and brush strokes are.
 
-**Explosions** (`game.emit('explosion', { at: [x, y, z], radius, force })`, which the Mayhem module sends) leave a
-crater sized by the radius, unless `config.terrain.craters` is false or the blast was high in the air.
+**Explosions** (the engine's `'explosion'` event: `game.explode`, `game.physics.explode`, rockets, barrels, grenades)
+leave a crater sized by the radius where the blast was decided (`authoritative`; everyone gets the edit), unless
+`config.terrain.craters` is false or the blast was high in the air.
 
 **The shovel** is a tool: `game.player.tool = 'shovel'` (or `{ type: 'shovel', radius: 2.5, depth: 1.2 }` for a big
 one). Click digs where you look and throws the dirt beside the hole; shift+click (or R) piles dirt; holding G or R keeps going. On a

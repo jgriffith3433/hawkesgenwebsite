@@ -44,6 +44,12 @@
   };
   let cfg = { ...DEFAULTS };
   H.features.register('mayhem', {
+    codex: {
+      title: 'Mayhem settings', group: 'World features',
+      what: 'How explosions and spawning behave: slow motion for big blasts, the score and combo text, shake, debris, smoke, how many things can be spawned at once.',
+      value: { slowmo: true, score: true, shake: 1, maxSpawn: 400 },
+      fields: Object.entries(DEFAULTS).map(([k, v]) => [k, typeof v, String(v)]),
+    },
     apply(value) { cfg = { ...DEFAULTS, ...(value && typeof value === 'object' ? value : {}) }; },
     change(value) { cfg = { ...DEFAULTS, ...(value && typeof value === 'object' ? value : {}) }; },
     dispose() { cfg = { ...DEFAULTS }; },
@@ -62,15 +68,8 @@
   const q = (n) => Math.max(1, Math.round(n * [1, 0.55, 0.3][quality.level]));
 
   // ------------------------------------------------------------------ sound: an asset by name, or synthesized
-  let ac = null;
-  function audio() {
-    if (ac) { if (ac.state === 'suspended') ac.resume().catch(() => {}); return ac; }
-    const C = window.AudioContext || window.webkitAudioContext;
-    if (!C) return null;
-    try { ac = new C(); } catch { return null; }
-    return ac;
-  }
-  for (const ev of ['pointerdown', 'keydown', 'touchstart']) window.addEventListener(ev, () => audio(), { passive: true });
+  // The engine's audio (H.audio): one context, and every sound through its master (water can muffle it).
+  const audio = () => H.audio.context;
   let noiseBuf = null;
   function noise() {
     const a = audio();
@@ -118,7 +117,7 @@
     if (!a || a.state !== 'running' || vol <= 0.01) return;
     const t = a.currentTime;
     const out = a.createGain();
-    out.connect(a.destination);
+    out.connect(H.audio.master);
     const noiseSrc = (dur) => { const s = a.createBufferSource(); s.buffer = noise(); s.start(t, Math.random(), dur); s.stop(t + dur); return s; };
     if (kind === 'boom') {
       const big = clamp((o.size || 5) / 6, 0.5, 2);
@@ -128,7 +127,7 @@
       n.connect(lp).connect(out);
       const os = a.createOscillator(); os.type = 'sine'; os.frequency.setValueAtTime(110, t); os.frequency.exponentialRampToValueAtTime(28, t + 0.6);
       const og = a.createGain(); og.gain.setValueAtTime(0.9 * vol, t); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
-      os.connect(og).connect(a.destination); os.start(t); os.stop(t + 0.75);
+      os.connect(og).connect(H.audio.master); os.start(t); os.stop(t + 0.75);
     } else if (kind === 'crash') {
       const n = noiseSrc(0.45);
       const hp = a.createBiquadFilter(); hp.type = 'bandpass'; hp.frequency.value = 900 + Math.random() * 900; hp.Q.value = 0.7;
@@ -435,7 +434,7 @@
         else tb.spin = [0, 0, 0];
       }
       if (resting) tb.rest += dt; else tb.rest = 0;
-      const getsUp = Boolean(e.data && (e.data.critter || e.data.upright)) || e._wasUpright;
+      const getsUp = Boolean(e.living || (e.data && e.data.upright)) || e._wasUpright;
       if (havok() && !getsUp && tb.rest > 0.2) { e._tumble = null; tumbling.delete(e); continue; } // blocks lie as they fell
       if (tb.rest > (getsUp ? 0.9 : 0.15)) {
         // Lying still: creatures get back on their feet (upright again, so they don't tip while they do); blocks
@@ -449,7 +448,7 @@
           r.x = tx; r.z = tz;
           if (havok() && e._wasUpright !== undefined) { e.upright = e._wasUpright; e._wasUpright = undefined; e.wake(); }
           e._tumble = null; tumbling.delete(e);
-          if (getsUp && e.data.critter) G().emit('landed', { entity: e });
+          if (getsUp && e.living) G().emit('landed', { entity: e });
         }
       }
       if (tb.t > 12) { if (havok() && e._wasUpright !== undefined) { e.upright = e._wasUpright; e._wasUpright = undefined; } e._tumble = null; tumbling.delete(e); }
@@ -463,6 +462,7 @@
     const sc = W().scene;
     const own = e._mat;
     const m = new B.StandardMaterial('mh-piece', sc);
+    if (!own && e.living) { m.diffuseColor = hexc(color || creatureColor(e)); m.specularColor = new B.Color3(0.05, 0.05, 0.05); return m; }
     if (own && own.diffuseTexture) { m.diffuseTexture = own.diffuseTexture; m.diffuseColor = own.diffuseColor ? own.diffuseColor.clone() : new B.Color3(1, 1, 1); }
     else m.diffuseColor = own && own.diffuseColor ? own.diffuseColor.clone() : hexc(color || e.data.color || '#a07a50');
     if (own && own.emissiveColor) m.emissiveColor = own.emissiveColor.clone();
@@ -658,24 +658,24 @@
     }
     knockPlayer(at, R * 1.1, F);
     if (authoritative) {
-      // Real pushes and damage (H.physics: mass-aware impulses on Havok), then tumbling, breaking and burning.
-      const hit = H.physics.explode(at, { radius: R, force: F, damage: d.damage || 0, owner: d.owner || null, up: 0.8, push: false }) || [];
+      // Real pushes and damage (H.physics: mass-aware impulses on Havok), then tumbling, breaking and burning. (The
+      // 'explosion' event is announced once, below, with mayhem's own fields.)
+      const hit = H.physics.explode(at, { radius: R, force: F, damage: d.damage || 0, owner: d.owner || null, up: 0.8, push: false, event: false }) || [];
       let pushed = 0;
       for (const e of hit) {
         if (!e.alive || e.isPlayer || e.remotePlayer) continue;
         const dist = Math.hypot(e.x - at[0], e.y - at[1], e.z - at[2]);
         const k = M.falloff(dist, R);
-        if (e.physics === 'dynamic') { tumble(e, 0.5 + k * 2); pushed++; if (e.data && e.data.critter) panic(e, at); }
+        if (e.physics === 'dynamic') { tumble(e, 0.5 + k * 2); pushed++; }
         if (e._break && !e._shattered && F * k >= e._break.strength * 0.6) shatter(e, { at, force: F * k * 0.8 });
         if (d.fire && k > 0.25) ignite(e, {});
       }
-      // Scared creatures further out run away too.
-      for (const e of w.entities) if (e.data && e.data.critter && e.alive && !e._tumble && e.distanceTo(at) < R * 3) panic(e, at);
+      // (Creatures run from it by themselves: Living things hears the event.)
       if (byMe && pushed) addScore('hit', Math.min(pushed, 12));
     }
     if (byMe || credit()) addScore('boom');
     if (cfg.slowmo && (R >= 8 || chain >= 2)) slowMotion(R >= 8 ? 1.1 : 0.7);
-    g.emit('explosion', { position: at, radius: R, force: F, damage: d.damage || 0, fire: Boolean(d.fire), authoritative, by: d.by || null, chain });
+    H.physics.announce({ position: at, radius: R, force: F, damage: d.damage || 0, fire: Boolean(d.fire), authoritative, by: d.by || null, chain, mayhem: true });
   }
   /** Blows up at a point: real pushes, damage that falls off with distance, a fireball, a shockwave, smoke, debris,
    *  a shake and a boom. opts: { radius (5), force (18), damage (40), fire (sets things alight), color, sound (an asset
@@ -699,9 +699,11 @@
     if (!e) return;
     if (e.data && (e.data.explosive || e.data.barrel) && !e._exploded) blowUp(e, 0.06 + Math.random() * 0.14);
     else if (e._break && !e._shattered) { if (e.sceneId) shatterAction({ id: e.sceneId }); else shatterLocal(e, { keep: true }); }
-    else if (e.data && e.data.critter && !e._shattered) shatterLocal(e, { keep: true, pieces: 6, force: 5, color: e.data.color });
-    if (e.data && e.data.critter && (credit() || !online())) addScore('kill');
+    else if (e.living && !e._shattered) shatterLocal(e, { keep: true, pieces: 6, force: 5, color: creatureColor(e) });
+    if (e.living && (credit() || !online())) addScore('kill');
   }
+
+  const creatureColor = (e) => { const c = e.living && e.living.sp && e.living.sp.colors; return (c && c.body) || '#a07a50'; };
 
   // ------------------------------------------------------------------ fire
   const burning = new Map(); // entity -> { t, life, ps, smoke, tick, spread }
@@ -709,7 +711,8 @@
   function flammable(e) {
     if (!e || !e.alive || e.isPlayer || e.remotePlayer || e.kind === 'light' || e.kind === 'text' || e.kind === 'spawn') return false;
     if (e.data && e.data.flammable === false) return false;
-    if (e.data && (e.data.flammable || e.data.critter || e.data.barrel || e.data.explosive || e.data.crate)) return true;
+    if (e.data && (e.data.flammable || e.data.barrel || e.data.explosive || e.data.crate)) return true;
+    if (e.living) return true;
     return e.physics === 'dynamic' || Boolean(e._break);
   }
   function fireSystem(e) {
@@ -800,15 +803,18 @@
     }
   }
 
-  // ------------------------------------------------------------------ creatures run from blasts
+  // ------------------------------------------------------------------ creatures run (Living things does the running)
   function panic(e, from) {
-    if (!e.alive || e.remote) return;
-    e._panic = { from: vec(from), t: 2.5 + Math.random() * 1.5 };
+    if (!e || !e.alive || e.remote || !e.living || !H.living || !H.living.startle) return;
+    const p = vec(from);
+    H.living.startle(p, { radius: Math.hypot(e.x - p[0], e.z - p[2]) + 1, strength: 1 });
   }
 
   // ------------------------------------------------------------------ spawning many things
   const spawned = new Set();
-  const ANIMALS = ['cow', 'pig', 'sheep', 'chicken', 'penguin', 'horse', 'dog', 'cat', 'duck', 'goat', 'rabbit', 'bunny', 'bear', 'fox', 'frog', 'deer', 'elephant', 'dinosaur', 'dino', 'llama', 'panda', 'monkey', 'mouse', 'rat', 'lion', 'tiger', 'wolf', 'zebra', 'giraffe', 'turtle', 'animal', 'creature', 'critter', 'bird', 'goose', 'hen', 'piglet', 'calf', 'lamb', 'puppy', 'kitten', 'slime', 'blob'];
+  // Words that mean animals beyond Living things' own (its species and their other words are asked of it).
+  const ANIMALS = ['animal', 'creature', 'critter', 'beast', 'pet', 'blob'];
+  const isAnimal = (w) => ANIMALS.includes(w) || Boolean(H.living && H.living.species && H.living.species.name(w));
   const SINGULAR = { sheep: 'sheep', mice: 'mouse', geese: 'goose', boxes: 'box', wolves: 'wolf', puppies: 'puppy', bunnies: 'bunny', kitties: 'kitten', ponies: 'pony', dinos: 'dino', cubes: 'cube', fish: 'fish' };
   const single = (w) => SINGULAR[w] || (w.endsWith('ies') ? w.slice(0, -3) + 'y' : w.endsWith('es') && /(ss|x|ch|sh)es$/.test(w) ? w.slice(0, -2) : w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w);
   const COLORS = ['#e04f5f', '#f4a340', '#f4d35e', '#5fbf6a', '#4a9eff', '#a974e8', '#e86fb5', '#55d6c2'];
@@ -826,10 +832,10 @@
     const word = single(raw.toLowerCase().replace(/\.glb$/, '').replace(/[^a-z0-9 _-]/g, '').trim()) || 'box';
     const glb = [raw, `${raw}.glb`, `${word}.glb`].find((n) => /\.glb$/i.test(n) && L.hasAsset(n));
     const size = Number(o.size) || 0;
-    if (ANIMALS.includes(word) || ANIMALS.includes(raw.toLowerCase())) {
-      // Living things (a module) brings real creatures; until then, critters: stand-in animals that tumble.
-      if (H.kinds.has('creature')) return { type: 'creature', name: cap(word), shape: { species: word, ...(size ? { size } : {}) }, physics: 'dynamic' };
-      return { type: 'critter', name: cap(word), shape: { species: word, ...(size ? { size } : {}) }, physics: 'dynamic' };
+    if ((isAnimal(word) || isAnimal(raw.toLowerCase())) && H.kinds.has('creature')) {
+      // Animals are Living things' creatures (they graze, flee, tumble when blown up and get back up).
+      const species = ANIMALS.includes(word) ? 'cow' : H.living.species.name(word) || word;
+      return { type: 'creature', name: cap(species), shape: { species, ...(size ? { size } : {}) }, physics: 'dynamic' };
     }
     if (glb) return { type: 'model', name: cap(word), shape: { asset: glb, size: size || 1.5 }, physics: 'dynamic' };
     const alias = { ball: 'sphere', cube: 'box', block: 'box', bomb: 'barrel', explosive: 'barrel', tnt: 'barrel', pillar: 'cylinder', can: 'cylinder', crates: 'crate' }[word] || word;
@@ -945,17 +951,13 @@
   }
   const clearAction = H.sync.action('mayhem:clear', () => { for (const e of [...spawned]) e.destroy(); for (const p of [...debris]) if (p.alive) p.destroy(); debris.length = 0; });
 
-  // A velocity for something whose body is being made this step (just spawned, just let go): Havok makes the body
-  // without it, so it's given again after the step. (Hook request: physics.js could keep _vSet across a remade body.)
-  const launches = [];
-  function launch(e, v) { e.velocity = v; launches.push([e, vec(v)]); }
-  function runLaunches() { for (const [e, v] of launches.splice(0)) if (e.alive && e.physics === 'dynamic' && !e.held) e.velocity = v; }
+  /** Sends a thing flying (the engine keeps a velocity set while its body is being made). */
+  function launch(e, v) { e.velocity = vec(v); }
 
   // ------------------------------------------------------------------ every step and frame
   H.hooks.step.push((dt) => { runKnock(dt); });
   H.physics.afterStep((dt) => {
     if (!W()) return;
-    runLaunches();
     runTumble(dt);
     runFire(dt);
     runDebris();
@@ -973,7 +975,6 @@
   H.hooks.world.push({
     enter() {
       const g = G();
-      augment(g);
       g.on('death', onDeath);
       score.total = 0; score.combo = 0;
       if (score.el) score.el.hidden = true;
@@ -1006,17 +1007,10 @@
     credit: () => { myMayhemAt = now(); },
   };
 
-  // game.spawnMany / game.explode / game.mayhem for scripts. The engine has no hook for "a new game object" yet, so
-  // we see it when runtime.js sets window.game (before any script runs). Hook request: H.hooks.game.
-  function augment(g) {
-    if (!g || typeof g !== 'object' || g.mayhem === H.mayhem) return;
+  // game.spawnMany / game.explode / game.mayhem for scripts (every new game object, before scripts run).
+  H.hooks.game.push((g) => {
     g.mayhem = H.mayhem;
     if (!g.spawnMany) g.spawnMany = (what, count, o) => spawnMany(what, count, o);
     if (!g.explode) g.explode = (at, o) => explode(at, o);
-  }
-  try {
-    let current = window.game;
-    Object.defineProperty(window, 'game', { configurable: true, enumerable: true, get: () => current, set: (v) => { current = v; try { augment(v); } catch {} } });
-    augment(current);
-  } catch { /* the hooks.world enter above still adds them (after scripts' first lines) */ }
+  });
 })();

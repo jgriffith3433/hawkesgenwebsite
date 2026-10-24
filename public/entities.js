@@ -6,15 +6,22 @@
 await HawkesModules.load('play').catch(() => {});
 
 const GROUPS = ['Shapes', 'World', 'Logic', 'More'];
+const rank = (t) => (t.group === 'World features' ? 1000 : GROUPS.includes(t.group) ? GROUPS.indexOf(t.group) : 50);
 /** The kinds, from the registry: codex: { group, what, spec, fields, uses, noFloor, props, config }. */
-const TYPES = (window.HawkesPlay ? HawkesPlay.kinds.list() : []).map((k) => {
+const TYPES = (window.HawkesPlay ? HawkesPlay.kinds.list() : []).filter((k) => !k.alias && !(k.codex && k.codex.hidden)).map((k) => {
   const c = k.codex || {};
   return {
     type: k.name, group: c.group || 'More', what: c.what || `A ${k.name}.`, uses: c.uses,
     spec: c.spec || { type: k.name, name: k.name, transform: { position: [0, 1, 0] } },
     fields: c.fields || [], noFloor: c.noFloor, props: c.props, config: c.config,
   };
-}).sort((a, b) => GROUPS.indexOf(a.group) - GROUPS.indexOf(b.group));
+})
+  // World features (H.features with a codex): a config key, shown live with its example value.
+  .concat((window.HawkesPlay ? HawkesPlay.features.list() : []).filter((f) => f.codex).map((f) => ({
+    type: f.name, feature: f.name, group: 'World features', what: f.codex.what || `config.${f.name}`, uses: `config.${f.name} in scene.json (a world setting): { "op": "config", "patch": { "${f.name}": ... } }`,
+    spec: f.codex.value, fields: f.codex.fields || [], noFloor: true, props: true, config: false,
+  })))
+  .sort((a, b) => rank(a) - rank(b));
 const COMPONENTS = [
   { name: 'id, name, tag', tag: 'identity', text: 'The id is the key in scene.json. <code>name</code> is a label for people; <code>tag</code> groups things for scripts (<code>player</code>, <code>coin</code>).' },
   { name: 'transform', tag: 'where', text: '<code>position</code> [x, y, z] in meters, <code>rotation</code> [x, y, z] in degrees, <code>scale</code> a number or [x, y, z]. +y is up, +z is forward.' },
@@ -83,9 +90,11 @@ function world(t, spec) {
     add('prop_b', { type: 'sphere', name: 'Prop', transform: { position: [2.2, 0.6, 1.6] }, shape: { radius: 0.6 }, material: { color: '#34d399' } });
     add('prop_c', { type: 'cylinder', name: 'Prop', transform: { position: [0, 0.4, 3] }, shape: { radius: 0.4, height: 0.8 }, material: { color: '#fbbf24' } });
   }
-  add('thing', clone(spec));
-  const config = { background: '#0d0f18', ambient: t.config ? 0.15 : 0.7, sun: t.config ? 0.15 : 0.8, shadows: false, player: false };
-  const cam = `game.camera.orbit([0, ${t.type === 'plane' ? 0 : 1}, 0], { distance: ${t.type === 'plane' ? 17 : 8} });\nconst c = game.camera.babylon; c.beta = 1.05; c.useAutoRotationBehavior = true;\n`;
+  if (!t.feature) add('thing', clone(spec));
+  const config = { background: t.feature ? '#9fd3f0' : '#0d0f18', ambient: t.config ? 0.15 : 0.7, sun: t.config ? 0.15 : 0.8, shadows: false, player: false };
+  if (t.feature) config[t.feature] = clone(spec);
+  const far = t.feature ? 60 : t.type === 'plane' ? 17 : 8;
+  const cam = `game.camera.orbit([0, ${t.type === 'plane' ? 0 : t.feature ? 4 : 1}, 0], { distance: ${far} });\nconst c = game.camera.babylon; c.beta = 1.05; c.useAutoRotationBehavior = true;\n`;
   return { 'scene.json': JSON.stringify({ config, entities }), 'scripts/view.js': cam };
 }
 
@@ -98,8 +107,8 @@ function spawn(spec) {
 function show(t) {
   current = t;
   for (const b of document.querySelectorAll('.types button')) b.classList.toggle('on', b.dataset.type === t.type);
-  $('hudType').textContent = t.type;
-  const phys = t.spec.physics;
+  $('hudType').textContent = t.feature ? `config.${t.type}` : t.type;
+  const phys = t.spec && t.spec.physics;
   $('hudPhys').hidden = !phys;
   if (phys) $('hudPhys').querySelector('b').textContent = phys;
   $('inspName').textContent = t.type;
@@ -124,6 +133,7 @@ function msg(text, cls = '') {
 function apply() {
   let spec;
   try { spec = JSON.parse($('spec').value); } catch (e) { return msg(e.message, 'bad'); }
+  if (current.feature) { if (!running) return msg('The engine is not running', 'bad'); spawn(spec); return msg('Applied', 'ok'); }
   if (!spec || typeof spec !== 'object' || Array.isArray(spec)) return msg('A spec is one JSON object', 'bad');
   if (spec.type && spec.type !== current.type) {
     const t = TYPES.find((x) => x.type === spec.type);

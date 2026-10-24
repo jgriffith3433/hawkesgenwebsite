@@ -316,9 +316,12 @@
 
   // The host-authoritative explosion (H.sync.explode(at, { radius, force, up })): the host throws things, and so takes
   // over simulating what it throws (their new places reach everyone as transforms); everyone else's own player is
-  // pushed where they are. Damage is the caller's to do (H.physics.explode with force 0), so kills are credited right.
+  // pushed where they are. Damage is the caller's to do (H.physics.explode with force 0 and event: false), so kills are
+  // credited right. Every player gets one 'explosion' event (authoritative on the host).
   const explodeAction = H.sync.action('_explode', (d, { authoritative }) => {
-    if (authoritative) { H.physics.explode(d.at, { radius: d.radius, force: d.force, up: d.up, owner: 'host' }); return; }
+    const info = { ...(d.info || {}), damage: d.damage || 0 };
+    if (authoritative) { H.physics.explode(d.at, { radius: d.radius, force: d.force, up: d.up, owner: 'host', info }); return; }
+    H.physics.announce({ ...info, position: d.at, radius: d.radius, force: d.force, authoritative: false });
     const p = W() && W().player;
     if (!p || !p.alive) return;
     const dx = p.x - d.at[0], dy = p.y - d.at[1] + (d.up ?? 0.6), dz = p.z - d.at[2];
@@ -327,7 +330,8 @@
     const l = Math.hypot(dx, dy, dz) || 1;
     if (k > 0) p.push([(dx / l) * d.force * 0.6 * k, (dy / l) * d.force * 0.5 * k, (dz / l) * d.force * 0.6 * k]);
   });
-  H.sync.explode = (at, o = {}) => explodeAction({ at: Array.isArray(at) ? at.slice(0, 3) : [at.x, at.y, at.z], radius: Number(o.radius) || 4.5, force: o.force ?? 14, up: o.up ?? 0.6 });
+  /** o: { radius, force, up, damage (for the event: do the damage yourself), info (more fields for the event) }. */
+  H.sync.explode = (at, o = {}) => explodeAction({ at: Array.isArray(at) ? at.slice(0, 3) : [at.x, at.y, at.z], radius: Number(o.radius) || 4.5, force: o.force ?? 14, up: o.up ?? 0.6, damage: Number(o.damage) || 0, info: o.info || null });
 
   H.hooks.step.push(step);
   H.hooks.step.push(() => syncStates(performance.now()));
