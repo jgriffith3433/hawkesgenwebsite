@@ -5,8 +5,9 @@
 
 await HawkesModules.load('play').catch(() => {});
 
-const GROUPS = ['Shapes', 'World', 'Logic', 'More'];
-const rank = (t) => (t.group === 'World features' ? 1000 : GROUPS.includes(t.group) ? GROUPS.indexOf(t.group) : 50);
+// The fun first; plain shapes last. A module's own group sits between World and Logic.
+const GROUPS = ['World', 'Logic', 'More', 'World features', 'Shapes'];
+const rank = (t) => (GROUPS.includes(t.group) ? GROUPS.indexOf(t.group) * 100 : 50);
 /** The kinds, from the registry: codex: { group, what, spec, fields, uses, noFloor, props, config }. */
 const TYPES = (window.HawkesPlay ? HawkesPlay.kinds.list() : []).filter((k) => !k.alias && !(k.codex && k.codex.hidden)).map((k) => {
   const c = k.codex || {};
@@ -75,6 +76,12 @@ const SCRIPT_ONLY = [
 
 // ------------------------------------------------------------------ the live engine (the real runtime)
 
+/** The codex's own sample files (our Knight), so pictures and screens show something without an account. */
+const SAMPLES = {
+  'knight-walk.webp': { kind: 'image', url: '/examples/walk-sheet.webp' },
+  'knight-walk.mp4': { kind: 'video', url: '/examples/knight-walk.mp4' },
+};
+
 const $ = (id) => document.getElementById(id);
 const clone = (o) => JSON.parse(JSON.stringify(o));
 let running = false;
@@ -107,6 +114,8 @@ function spawn(spec) {
 function show(t) {
   current = t;
   for (const b of document.querySelectorAll('.types button')) b.classList.toggle('on', b.dataset.type === t.type);
+  const open = document.querySelector(`.types details[data-group="${t.group}"]`);
+  if (open) open.open = true;
   $('hudType').textContent = t.feature ? `config.${t.type}` : t.type;
   const phys = t.spec && t.spec.physics;
   $('hudPhys').hidden = !phys;
@@ -151,7 +160,8 @@ function start() {
   try {
     if (!window.BABYLON || !window.HawkesPlay) throw new Error('Babylon.js did not load');
     HawkesPlay.hooks.autoLock = false;
-    HawkesPlay.run({ title: 'Entity codex', files: world(current, current.spec), assets: {} }, { mode: 'build' });
+    HawkesPlay.hooks.codex = true; // modules: no on-screen controls of your own on this page (it shows things, not the game)
+    HawkesPlay.run({ title: 'Entity codex', files: world(current, current.spec), assets: SAMPLES }, { mode: 'build' });
     document.title = 'Entity codex · Hawkes Gen';
     running = true;
   } catch (e) {
@@ -168,13 +178,14 @@ function renderPage() {
     .map(([n, l]) => `<div><b>${n}</b><span>${l}</span></div>`).join('');
   $('typeCount').textContent = TYPES.length;
 
-  let html = '';
-  let group = '';
+  // One folded group per heading (closed by default; the open thing's group opens).
+  const groups = [];
   for (const t of TYPES) {
-    if (t.group !== group) { group = t.group; html += `<h4>${group}</h4>`; }
-    html += `<button type="button" data-type="${t.type}"><span class="glyph ${t.type}"></span>${t.type}</button>`;
+    if (!groups.length || groups[groups.length - 1].name !== t.group) groups.push({ name: t.group, types: [] });
+    groups[groups.length - 1].types.push(t);
   }
-  $('types').innerHTML = html;
+  $('types').innerHTML = groups.map((g) => `<details data-group="${g.name}"><summary>${g.name}<span class="n">${g.types.length}</span></summary>${
+    g.types.map((t) => `<button type="button" data-type="${t.type}"><span class="glyph ${t.type}"></span>${t.type}</button>`).join('')}</details>`).join('');
   $('types').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-type]');
     if (b) { show(TYPES.find((t) => t.type === b.dataset.type)); history.replaceState(null, '', `#${b.dataset.type}`); }
