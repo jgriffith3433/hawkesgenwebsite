@@ -68,7 +68,8 @@ export function upgrade(req: IncomingMessage, raw: Duplex) {
   }
   const room = rooms.get(key) ?? relay.newRoom(key, gameId, edit);
   if (room.conns.size >= ROOM_LIMITS.people) return deny('This room is full');
-  const s = accept(req, raw, { maxMessage: ROOM_LIMITS.message });
+  // (Nothing heard for 20 s: the player is gone, and a host that went quiet hands the world on.)
+  const s = accept(req, raw, { maxMessage: ROOM_LIMITS.message, idleMs: 20_000 });
   if (!s) return;
   rooms.set(key, room);
   if (!timer) { timer = setInterval(tick, ROOM_LIMITS.flushMs); timer.unref?.(); }
