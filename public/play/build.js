@@ -449,7 +449,7 @@
     const right = cam.getDirection(B.Axis.X);
     const w = e.size[0] + 0.3;
     spec.transform = { ...(spec.transform || {}), position: [r2(p[0] + right.x * w), r2(p[1] + (e.physics === 'dynamic' ? 0.3 : 0)), r2(p[2] + right.z * w)] };
-    edit([{ op: 'create', entity: spec }], { label: `copying ${e.name || 'it'}`, fx: 'materialize' });
+    edit([{ op: 'create', entity: spec }], { label: `copying ${e.name || 'it'}`, fx: H.arrive ? 'beam' : 'materialize' }); // (a copy goes exactly beside it)
     toast(`Copied ${e.name || spec.type}`);
   }
   function placeFromHotbar(k) {
@@ -466,6 +466,7 @@
     if (r && r.distance > 1.2 && r.distance < 30) at = [r.pickedPoint.x, r.pickedPoint.y + lift, r.pickedPoint.z];
     else { const d = cam.getDirection(B.Axis.Z); at = [cam.position.x + d.x * 4, cam.position.y + d.y * 4, cam.position.z + d.z * 4]; }
     spec.transform = { ...(spec.transform || {}), position: at.map(r2) };
+    if (H.arrive) H.arrive.plan(spec); // (it drops from the sky: a roof over the spot catches it)
     edit([{ op: 'create', entity: spec }], { label: `adding ${h.label.toLowerCase()}`, fx: 'materialize' });
     toast(`Added ${h.label.toLowerCase()} · double-click it to change it`);
   }
@@ -506,6 +507,7 @@
     if (r && r.distance > 1.2 && r.distance < 30) at = [r.pickedPoint.x, r.pickedPoint.y + lift, r.pickedPoint.z];
     else { const d = cam.getDirection(B.Axis.Z); at = [cam.position.x + d.x * 4, cam.position.y + d.y * 4, cam.position.z + d.z * 4]; }
     spec.transform = { ...(spec.transform || {}), position: at.map(r2) };
+    if (H.arrive) H.arrive.plan(spec);
     edit([{ op: 'create', entity: spec }], { label: `adding ${spec.name}`, fx: 'materialize' });
     toast(`Added ${spec.name}${a.kind === 'audio' ? ' · touch it to hear it' : a.kind === 'video' ? ' · click it for sound' : ''}`);
   }

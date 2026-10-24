@@ -242,7 +242,9 @@ function worldOps(list: any[], problems: string[]) {
     let body: any = {};
     try { body = w?.json ? JSON.parse(String(w.json)) : {}; } catch { problems.push(`world: ${w?.op} ${w?.id}: not valid JSON`); continue; }
     const id = String(w?.id ?? '');
-    if (w?.op === 'create' || w?.op === 'replace') ops.push({ op: w.op, entity: { ...body, ...(id ? { id } : {}) } });
+    // "arrive" in a new thing's JSON says how it comes in (drop, grow, beam, none): the op carries it, the thing doesn't.
+    const { arrive, ...entity } = body && typeof body === 'object' ? body : ({} as any);
+    if (w?.op === 'create' || w?.op === 'replace') ops.push({ op: w.op, entity: { ...entity, ...(id ? { id } : {}) }, ...(arrive ? { arrive } : {}) });
     else if (w?.op === 'update') ops.push({ op: 'update', id, patch: body });
     else if (w?.op === 'delete') ops.push({ op: 'delete', id });
     else if (w?.op === 'config') ops.push({ op: 'config', patch: body });

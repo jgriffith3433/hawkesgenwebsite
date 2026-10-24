@@ -440,5 +440,21 @@ opts a material out. `H.planet.air(y)` is the air (1 at sea level, thinning with
 uses it (vehicles: rotors, wings, air-breathing engines). Things beyond the world's own camera reach (the planet, the
 ship, beams) go in the sky's far layer: `H.sky.bg.add(mesh, group)` and `H.sky.onBg((camera, farCamera) => ...)`.
 
-Whatever appears is beamed in by the Overseer: scene ops with `fx: "materialize" | "arrive"` and spawnMany batches get a
-beam by themselves; for your own `H.overseer.beam(target, opts)` / `H.overseer.materialize(entity)`.
+Whatever appears comes down from the Overseer, through **arrivals** (`H.arrive`, `modules/overseer/arrive.js`), chosen
+by what the thing is: **drop** (most things: high in the beam, then a fall; real physics while playing, so online the
+host or owner decides it; building, an exact fall onto the op's spot), **grow** (plants, up out of the ground), **beam**
+(lights, text, zones, things that float or are attached: in place), **none**. Every way of making things uses it: scene
+ops (`fx`: `"materialize"`, `"arrive"` and `"auto"` choose by the thing, or `"drop"`, `"grow"`, `"beam"`, `"none"`; an
+op's own `arrive` wins; overseer.js hands its ops hook to `H.arrive.ops`), Mayhem's spawnMany for everyone (its
+`arrive` option; `H.arrive.spawned` from `runSpawn`: the spawn gun, the spawn wheel while playing, events' spawns), and
+terrain stamps (terrain.js eases the ground to the new shape over ~5 s and calls `H.arrive.quake`).
+- **Building, a drop's spot is decided before the op:** `H.arrive.plan(specs)` moves a falling thing onto whatever is
+  over its spot (a roof), so the op, the saved world and undo hold where it really lands (the spawn wheel and the hotbar
+  do this; the gizmo, grab and copy never drop). Someone else's drop (the assistant's) that lands on a roof is saved
+  there by the room's host (one `update`, on nobody's undo list).
+- **Your own:** `H.arrive.bring(things, { how, exact })`, `H.arrive.how(e)`, `H.arrive.landing(at, { lift, half })`;
+  the look alone is `H.overseer.beam(target, opts)` (`.pulse(k)`), `H.overseer.materialize(entity)`,
+  `H.overseer.flare(k)`. Use `H.arrive.down(at)` / `up(at)` for which way things fall (straight down today; a round
+  planet makes it toward the center). Cheap by design: no lights, nearby arrivals share one beam, landing rings are a
+  pool of six, particles are juice's pools, a few synthesized voices through `H.audio.master`, nothing left behind
+  (`test/engine/arrive.test.ts`).

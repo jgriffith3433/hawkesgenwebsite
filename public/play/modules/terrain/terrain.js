@@ -699,6 +699,75 @@
   }
   H.physics.afterStep(settle);
 
+  // ------------------------------------------------------------------ growing: stamps added (or taken back) move the ground
+  // A mountain asked for here rises over ~5 s (H.arrive: the rumble, the shake, dust, rocks, the Overseer's beam); a
+  // canyon or a hole sinks. Undo takes it back down faster. The heights ease from the old shape to the new one; the
+  // meshes follow 15 times a second, the collider every half second, and anything standing on it rides up.
+  const GROW_HZ = 15;
+  /** Starts moving the ground to `value`'s shape. Returns false when there's nothing to animate (rebuild instead). */
+  function growTo(t, value, o = {}) {
+    if (t.grow) endGrow(t);
+    const target = T.generate(value);
+    if (target.n !== t.f.n || target.x0 !== t.f.x0 || target.z0 !== t.f.z0) return false;
+    for (const e of t.shared) T.applyEdit(target, e);
+    const f = t.f, n = f.n, from = f.heights, to = target.heights;
+    let box = null, peak = 0, px = 0, pz = 0, sum = 0;
+    for (let iz = 0; iz < n; iz++) for (let ix = 0; ix < n; ix++) {
+      const i = iz * n + ix, d = to[i] - from[i];
+      if (Math.abs(d) < 1e-3) continue;
+      box = box ? { ix0: Math.min(box.ix0, ix), ix1: Math.max(box.ix1, ix), iz0: Math.min(box.iz0, iz), iz1: Math.max(box.iz1, iz) } : { ix0: ix, ix1: ix, iz0: iz, iz1: iz };
+      if (Math.abs(d) > Math.abs(peak)) { peak = d; px = ix; pz = iz; }
+      sum += d;
+    }
+    t.cfg = { ...T.normalize(value), raw: rawOf(value) };
+    f.paintLayer.set(target.paintLayer); f.paintAmt.set(target.paintAmt);
+    f.road = target.road;
+    if (!box) { shadeAll(t); refreshChunks(t, { ix0: 0, ix1: n - 1, iz0: 0, iz1: n - 1 }); return true; }
+    const grown = { ix0: Math.max(0, box.ix0 - 2), ix1: Math.min(n - 1, box.ix1 + 2), iz0: Math.max(0, box.iz0 - 2), iz1: Math.min(n - 1, box.iz1 + 2) };
+    const at = [f.x0 + px * f.cell, f.y + (sum >= 0 ? to : from)[pz * n + px], f.z0 + pz * f.cell];
+    const radius = Math.max(box.ix1 - box.ix0, box.iz1 - box.iz0) * f.cell / 2;
+    const seconds = o.back ? H.arrive.FALL.terrainBack : H.arrive.FALL.terrainSeconds;
+    t.grow = { from: from.slice(), to, box: grown, t: 0, seconds, meshT: 0, fx: H.arrive.quake(at, { radius, rise: peak, seconds, back: o.back }) };
+    return true;
+  }
+  /** The ground at k (0 the old shape, 1 the new one) in the moving box. */
+  function growAt(t, k) {
+    const g = t.grow, f = t.f, n = f.n, b = g.box;
+    for (let iz = b.iz0; iz <= b.iz1; iz++) for (let ix = b.ix0; ix <= b.ix1; ix++) { const i = iz * n + ix; f.heights[i] = g.from[i] + (g.to[i] - g.from[i]) * k; }
+    if (k >= 1) { let lo = Infinity, hi = -Infinity; for (let i = 0; i < f.heights.length; i++) { const h = f.heights[i]; if (h < lo) lo = h; if (h > hi) hi = h; } f.min = lo; f.max = hi; }
+    else for (let iz = b.iz0; iz <= b.iz1; iz++) for (let ix = b.ix0; ix <= b.ix1; ix++) { const h = f.heights[iz * n + ix]; if (h < f.min) f.min = h; if (h > f.max) f.max = h; }
+  }
+  function growMeshes(t, final) {
+    const b = t.grow.box;
+    shade(t, b);
+    refreshChunks(t, b);
+    if (final || (t.grow.scatterT = (t.grow.scatterT || 0) + 1) % 6 === 0) scatterAfterEdit(t, b);
+    t.version++;
+    // The collider: every half second while it moves (players are kept on the surface every step meanwhile).
+    t.havokAt = final ? -1 : (H.world ? H.world.time : 0) + 0.25;
+  }
+  function stepGrow(t, dt) {
+    const g = t.grow;
+    g.t += dt;
+    const k = Math.min(1, g.t / g.seconds);
+    const e = k * k * (3 - 2 * k);
+    growAt(t, e);
+    if ((g.meshT += dt) >= 1 / GROW_HZ || k >= 1) { g.meshT = 0; growMeshes(t, k >= 1); }
+    // Whatever stands on the moving ground rides with it (the player, things, animals).
+    const w = H.world, f = t.f, b = g.box;
+    const x0 = f.x0 + b.ix0 * f.cell, x1 = f.x0 + b.ix1 * f.cell, z0 = f.z0 + b.iz0 * f.cell, z1 = f.z0 + b.iz1 * f.cell;
+    if (w) for (const en of w.entities) if (en.x >= x0 && en.x <= x1 && en.z >= z0 && en.z <= z1 && (en.physics === 'dynamic' || en.isPlayer)) liftOne(t, en);
+    if (k >= 1) endGrow(t);
+  }
+  function endGrow(t) {
+    const g = t.grow;
+    if (!g) return;
+    if (g.t < g.seconds) { g.t = g.seconds; growAt(t, 1); growMeshes(t, true); }
+    t.grow = null;
+    if (g.fx) g.fx.end();
+    if (H.game) try { H.game.emit('terrain', { grown: true, box: [t.f.x0 + g.box.ix0 * t.f.cell, t.f.z0 + g.box.iz0 * t.f.cell, t.f.x0 + g.box.ix1 * t.f.cell, t.f.z0 + g.box.iz1 * t.f.cell] }); } catch { /* a listener's error is its own */ }
+  }
+
   // ------------------------------------------------------------------ H.terrain: the contract everyone uses
   const off = () => !cur;
   const num = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
@@ -842,6 +911,12 @@
       const a = T.normalize(old), b = T.normalize(value);
       const strip = (c) => JSON.stringify({ ...c, edits: 0 });
       const prefix = t && a.edits.length <= b.edits.length && a.edits.every((e, i) => JSON.stringify(e) === JSON.stringify(b.edits[i]));
+      // Stamps added or taken back (a mountain here, undo): the ground moves there (H.arrive), the rest stays.
+      const stripAdd = (c) => JSON.stringify({ ...c, edits: 0, add: 0 });
+      if (t && prefix && a.edits.length === b.edits.length && stripAdd(a) === stripAdd(b) && JSON.stringify(a.add) !== JSON.stringify(b.add) && H.arrive && H.arrive.quake) {
+        const back = b.add.length < a.add.length;
+        if (growTo(t, value, { back })) return;
+      }
       if (t && prefix && strip(a) === strip(b)) {
         // Only new edits (the brush): apply what isn't already showing.
         const fresh = [];
@@ -853,6 +928,7 @@
       rebuild(value, ctx);
     },
     update(dt, ctx) {
+      if (ctx.state.t && ctx.state.t.grow) stepGrow(ctx.state.t, dt);
       // A texture or model arrived (generated, or added in the Assets panel): the ground picks it up.
       const t = ctx.state.t;
       if (!t || (t.assetCheck = (t.assetCheck || 0) + dt) < 1) return;
@@ -861,6 +937,7 @@
     },
     dispose(ctx) {
       const t = ctx.state.t;
+      if (t && t.grow) { if (t.grow.fx) t.grow.fx.end(); t.grow = null; }
       if (cur === t) cur = null;
       destroy(t);
     },
