@@ -155,7 +155,7 @@ test('budgets per device: phones strict (iOS strictest), desktop roomy and never
   assert.equal(phone.maxTexture, 1024);
   assert.equal(phone.pixelRatio, 2, 'a 3x phone screen is drawn at 2x');
   assert.equal(desktop.pixelRatio, 0, 'desktop: the device\'s own, never capped');
-  for (const k of ['entities', 'bodies', 'shadows', 'drawDistance', 'shadowDistance', 'loads']) assert.ok(desktop[k] > phone[k], k);
+  for (const k of ['entities', 'bodies', 'shadows', 'drawDistance', 'shadowDistance', 'loads', 'lights', 'catchUp']) assert.ok(desktop[k] > phone[k], k);
   assert.equal(H.budgetsFor({ tier: 'desktop', memoryGB: 4 }).textureMB, 256);
   assert.equal(H.device.tier, 'desktop', 'the test page is a desktop');
 });

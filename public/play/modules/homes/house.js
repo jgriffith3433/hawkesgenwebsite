@@ -43,7 +43,7 @@
     const tx = sh.textures || {};
     const st = String(sh.style || 'cozy').toLowerCase();
     const tex = (role) => tx[role] || M.assetFor(`${st}_${role}`, 'texture') || M.assetFor(`house_${role}`, 'texture');
-    const many = (m) => { m.maxSimultaneousLights = 8; return m; };
+    const many = (m) => { m.maxSimultaneousLights = Number(H.budget && H.budget.lights) || 8; return m; };
     return {
       ext: many(M.mat(style.ext, { texture: tex('wall'), tile: 2 })),
       int: many(M.mat(style.int, { texture: tex('inside'), tile: 2 })),
@@ -149,8 +149,73 @@
       }
       light.includedOnlyMeshes = near;
     }
+    drawTogether(root, list, lamps.map((l) => l.e._light).filter(Boolean));
     return list;
   }
+
+  /** The house's walls, floors, windows and roof drawn as one mesh per material and per set of lamps lighting them
+   *  (55 boxes in about a dozen draw calls, each lit as before). The pieces stay as they are, invisible, for walking,
+   *  physics and rays; a group whose piece goes, hides or changes is drawn piece by piece again (`check`). */
+  function drawTogether(root, list, lights) {
+    const groups = new Map();
+    for (const it of list) {
+      const m = it.e.node;
+      if (!['box', 'glass', 'roof', 'attic'].includes(it.p.kind) || m.getClassName() !== 'Mesh' || !m.isVisible || !m.material || m.getChildren().length) continue;
+      const lit = lights.map((l, i) => (l.includedOnlyMeshes.includes(m) ? i : '')).join(',');
+      const key = `${m.material.uniqueId}|${lit}|${it.e._casters && it.e._casters.has(m) ? 1 : 0}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(it.e);
+    }
+    root._drawn = [];
+    for (const members of groups.values()) if (members.length > 1) root._drawn.push(join(root, members, lights));
+  }
+  function join(root, members, lights) {
+    const n = root.node;
+    n.computeWorldMatrix(true);
+    const inv = n.getWorldMatrix().clone().invert();
+    const vds = members.map((e) => {
+      e.node.computeWorldMatrix(true);
+      const vd = B.VertexData.ExtractFromMesh(e.node, true, true);
+      vd.transform(e.node.getWorldMatrix().multiply(inv));
+      return vd;
+    });
+    const first = members[0].node;
+    const g = { members, mat: first.material, mesh: null };
+    try {
+      vds[0].merge(vds.slice(1), true);
+      const mesh = new B.Mesh('house-parts', first.getScene());
+      vds[0].applyToMesh(mesh, false);
+      mesh.parent = n;
+      mesh.material = first.material;
+      mesh.receiveShadows = true;
+      mesh.isPickable = false;
+      mesh.metadata = { decor: true, entity: root };
+      const sg = W().shadows;
+      if (sg && members[0]._casters && members[0]._casters.has(first)) sg.addShadowCaster(mesh);
+      for (const l of lights) if (l.includedOnlyMeshes.includes(first)) l.includedOnlyMeshes.push(mesh);
+      g.mesh = mesh;
+      for (const e of members) { e.node.isVisible = false; e._together = g; }
+    } catch { /* drawn piece by piece */ }
+    return g;
+  }
+  /** Twice a second: a group whose piece went, was hidden or changed its look is drawn piece by piece again. */
+  function check(root) {
+    if (!root._drawn) return;
+    for (const g of root._drawn) {
+      if (!g.mesh) continue;
+      if (g.members.every((e) => e.alive && e.node.isEnabled() && e.node.material === g.mat)) continue;
+      for (const e of g.members) if (e.alive) { e.node.isVisible = true; e._together = null; }
+      g.mesh.dispose();
+      g.mesh = null;
+    }
+  }
+  H.hooks.step.push(() => {
+    const w = W();
+    if (!w) return;
+    w._houseCheck = (w._houseCheck || 0) + 1;
+    if (w._houseCheck % 30) return;
+    for (const e of w.entities) if (e._drawn) check(e);
+  });
 
   /** The handle you grab a house (or a wall) by while building: a little glowing house over it. Hidden when playing. */
   function handle(root, at, label) {
