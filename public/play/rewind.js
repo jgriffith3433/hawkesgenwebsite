@@ -189,7 +189,7 @@
   H.hooks.frame.push((dt) => {
     const w = W();
     if (!w) return;
-    show(H.mode === 'play' && allowed());
+    show(H.mode === 'play' && allowed() && !H.hooks.codex); // (no on-screen controls on the codex)
     gamepad();
     keys();
     if (scrub) {
