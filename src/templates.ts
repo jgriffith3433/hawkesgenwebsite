@@ -110,6 +110,37 @@ function climb(): Things {
   return out;
 }
 
+/** The guest sandbox (/play/sandbox): an island in the sea, made only from the engine's modules (terrain, water,
+ *  vehicles, mayhem, living). Laid out around the start (facing +x, east): a friend, barrels and crates, the 4x4,
+ *  herds on the hills, and the dock on the east beach with a rod and a boat. The island (size 150, height 10, seed 3)
+ *  is flat at y 4 within ~12 m of the middle; the east shore is at x ~40. */
+export const SANDBOX = {
+  config: {
+    background: '#8fd0f5', ambient: 0.8, sun: 0.95, gravity: -24, fog: { color: '#a9dcf5', start: 70, end: 240 },
+    terrain: { shape: 'island', size: 150, height: 10, seed: 3, scatter: { trees: 60, rocks: 25, bushes: 50, seed: 3 } },
+    water: { level: 0, waves: 0.25 },
+    player: { view: 'third', tools: ['rocket-launcher', 'spawn-gun', 'gravity-gun'], tool: 'rocket-launcher' },
+    mayhem: { slowmo: true },
+  },
+  entities(): Things {
+    const out: Things = {
+      start: thing('start', 'spawn', 'Player start', [-6, 4.2, 0], { data: { role: 'player' }, transform: { position: [-6, 4.2, 0], rotation: [0, 90, 0] } }),
+      pip: { id: 'pip', type: 'friend', name: 'Pip', shape: { personality: 'a cheerful island guide who loves explosions and fishing', species: 'person', color: '#f59e0b', lines: ['Hi! Welcome to the island!', 'The 4x4 is right there: walk up and press E.', 'Those red barrels go BOOM. Try the rocket launcher!', 'The dock is east, down by the beach. There is a rod at the end of it, and a boat.'] }, physics: 'dynamic', transform: { position: [-1, 4.6, 1.8], rotation: [0, -90, 0] } },
+      jeep: { id: 'jeep', type: 'truck', name: '4x4', material: { color: '#3f7d3a' }, transform: { position: [3, 5.4, 6], rotation: [0, 90, 0] } },
+      sheep: { id: 'sheep', type: 'herd', name: 'Sheep', shape: { species: 'sheep', count: 10, radius: 6 }, transform: { position: [16, 5, 13] } },
+      cows: { id: 'cows', type: 'herd', name: 'Cows', shape: { species: 'cow', count: 6, radius: 5 }, transform: { position: [12, 5, -17] } },
+      dock: thing('dock', 'box', 'Dock', [46, 0.75, 0], { shape: { size: [14, 0.3, 2.6] }, material: { color: '#8a6440' } }),
+      dock_sign: thing('dock_sign', 'text', 'Dock sign', [39, 2.6, -2], { shape: { text: 'Fishing dock', size: 0.35 }, transform: { position: [39, 2.6, -2], rotation: [0, 90, 0] } }),
+      rod: { id: 'rod', type: 'tool-pickup', name: 'Fishing rod', shape: { tool: 'rod', respawn: 5 }, transform: { position: [51, 0.95, 0] } },
+      boat: { id: 'boat', type: 'boat', name: 'Boat', material: { color: '#e5e7eb' }, transform: { position: [47, 0.3, 3.6], rotation: [0, 90, 0] } },
+    };
+    // Barrels close enough to chain, and crates to smash, on the flat ground ahead and to the right.
+    [[6, -6], [7.1, -6.2], [6.5, -7.2], [7.6, -5.1], [5.6, -5]].forEach(([x, z], i) => { out[`barrel_${i + 1}`] = { id: `barrel_${i + 1}`, type: 'barrel', name: 'Barrel', transform: { position: [x, 4.7, z] } }; });
+    [[9.5, -9, 4.6], [10.7, -9, 4.6], [10.1, -9, 5.7]].forEach(([x, z, y], i) => { out[`crate_${i + 1}`] = { id: `crate_${i + 1}`, type: 'crate', name: 'Crate', transform: { position: [x, y, z] } }; });
+    return out;
+  },
+};
+
 export const TEMPLATES: Template[] = [
   {
     id: 'fps-arena',
@@ -569,6 +600,20 @@ game.ui.message('${title.replace(/'/g, "\\'")}', 1.5);
 // You already have a first-person player; game.player is you.
 game.onStart(() => {
   game.ui.message(game.title, 1.5);
+});
+`,
+    }),
+  },
+  {
+    id: 'sandbox',
+    name: 'Island sandbox',
+    blurb: 'An island to mess about on: drive the 4x4, blow up barrels, fish off the dock, take the boat out, and meet Pip.',
+    files: (title) => ({
+      'README.md': readme(title, 'An island made from the engine\'s modules: terrain, the sea, a 4x4 and a boat (E to get in), exploding barrels and crates, herds of sheep and cows, Pip (an AI friend: T to talk), and a fishing rod at the end of the dock. You carry a rocket launcher, a spawn gun and a gravity gun (Q switches).'),
+      'scene.json': sceneJson(SANDBOX.config, SANDBOX.entities()),
+      'scripts/main.js': `// Game rules go here. The world itself is scene.json (build it by walking around in it).
+game.onStart(() => {
+  game.ui.message('Welcome to the island', 2);
 });
 `,
     }),
