@@ -150,6 +150,10 @@
   /** Changes the world: here first, then saved and shared. */
   function edit(ops, o = {}) {
     if (!ops.length) return;
+    // A round world: what you did here is in the world around you, and the world file keeps it on the planet (undo and
+    // redo are made from the world file: they already are).
+    const sp = H.hooks.space;
+    if (sp) { if (o.scene) sp.mark(ops); else sp.toScene(ops); }
     const steps = o.undo === false ? null : remember(ops);
     H.applyOps(ops, { local: true, fx: o.fx });
     const id = ++seq;
@@ -162,7 +166,7 @@
     const u = from.pop();
     if (!u) { toast(dir < 0 ? 'Nothing to undo' : 'Nothing to redo'); return false; }
     const { ops, kept } = replay(u.steps, dir);
-    if (ops.length) u.seq = edit(ops, { undo: false });
+    if (ops.length) u.seq = edit(ops, { undo: false, scene: true });
     to.push(u);
     const what = u.label || 'that';
     toast(!ops.length ? `Nothing left to ${dir < 0 ? 'undo' : 'redo'} in ${what}: someone changed it since` : `${dir < 0 ? 'Undid' : 'Redid'} ${what}${kept ? ' (kept the changes others made since)' : ''}`);
@@ -449,6 +453,7 @@
     const right = cam.getDirection(B.Axis.X);
     const w = e.size[0] + 0.3;
     spec.transform = { ...(spec.transform || {}), position: [r2(p[0] + right.x * w), r2(p[1] + (e.physics === 'dynamic' ? 0.3 : 0)), r2(p[2] + right.z * w)] };
+    if (H.hooks.space) spec.transform.rotation = e.rotation3.map((n) => Math.round(n * 10) / 10); // (here, turned as it is here)
     edit([{ op: 'create', entity: spec }], { label: `copying ${e.name || 'it'}`, fx: 'materialize' });
     toast(`Copied ${e.name || spec.type}`);
   }
@@ -942,18 +947,22 @@
     const cam = w.scene.activeCamera;
     const d = cam.getDirection(B.Axis.Z);
     const at = p ? p.position : [cam.position.x, cam.position.y, cam.position.z];
+    // A round world: the assistant writes the world file, so it is told where things are on the planet (and which way is up).
+    const sp = H.hooks.space;
+    const pl = (v) => (sp ? sp.toPlanet(v) : v).map(r2);
+    const dl = (v) => (sp ? sp.dirToPlanet(v) : v).map(r2);
     const near = [...w.entities].filter((e) => e.sceneId && e.alive).map((e) => ({ e, d: e.distanceTo(at) })).sort((a, b) => a.d - b.d).slice(0, 14)
-      .map(({ e, d: dist }) => ({ id: e.sceneId, name: e.name, what: describe(e).bits.join(', '), distance: r2(dist), at: e.position.map(r2) }));
-    const looking = target && target.sceneId ? { id: target.sceneId, name: target.name, what: describe(target).bits.join(', '), distance: hit ? r2(hit.distance) : null, at: target.position.map(r2), size: target.size.map(r2) } : null;
+      .map(({ e, d: dist }) => ({ id: e.sceneId, name: e.name, what: describe(e).bits.join(', '), distance: r2(dist), at: pl(e.position) }));
+    const looking = target && target.sceneId ? { id: target.sceneId, name: target.name, what: describe(target).bits.join(', '), distance: hit ? r2(hit.distance) : null, at: pl(target.position), size: target.size.map(r2) } : null;
     const groundAhead = pickAt(cam.getForwardRay(40));
     return {
       mode: H.mode,
-      player: { at: at.map(r2), facing: [r2(d.x), r2(d.y), r2(d.z)], flying: Boolean(p && p.flying), standingOn: p && p.standing && p.standing.sceneId || null },
+      player: { at: pl(at), facing: dl([d.x, d.y, d.z]), ...(sp ? { up: dl([0, 1, 0]) } : {}), flying: Boolean(p && p.flying), standingOn: p && p.standing && p.standing.sceneId || null },
       lookingAt: looking,
-      lookPoint: groundAhead ? [r2(groundAhead.pickedPoint.x), r2(groundAhead.pickedPoint.y), r2(groundAhead.pickedPoint.z)] : null,
+      lookPoint: groundAhead ? pl([groundAhead.pickedPoint.x, groundAhead.pickedPoint.y, groundAhead.pickedPoint.z]) : null,
       selected: selected && selected.sceneId ? { id: selected.sceneId, name: selected.name } : null,
       nearby: near,
-      players: H.hooks.net ? H.hooks.net.players().map((x) => ({ name: x.name, at: x.entity ? x.entity.position.map(r2) : null })) : [],
+      players: H.hooks.net ? H.hooks.net.players().map((x) => ({ name: x.name, at: x.entity ? pl(x.entity.position) : null })) : [],
     };
   }
 

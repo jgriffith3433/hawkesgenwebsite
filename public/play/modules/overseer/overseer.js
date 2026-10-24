@@ -215,6 +215,10 @@
     O.decor.position.set(c.x, c.y - off, c.z);
     O.farHull.position.copyFrom(O.decor.position);
     if (O.model && O.model.root) O.model.root.position.copyFrom(O.decor.position);
+    // A round world: it hangs over its place on the planet, turned with the planet (you see it tilt as you go round).
+    const q = H.planet && H.planet.round ? H.planet.frame.toLocalQ() : null;
+    O.decor.rotationQuaternion = q; O.farHull.rotationQuaternion = q;
+    if (O.model && O.model.root) O.model.root.rotationQuaternion = q;
     // Hazy by day, glowing at night: the hull fades into the sky with distance through the air, the seams shine.
     const sky = H.sky;
     const night = 1 - clamp((sky.day - 0.12) / 0.88, 0, 1);
@@ -515,7 +519,7 @@ void main(void) {
     enter(w) {
       beams = [];
       O = null;
-      const cfg = read(L.effectiveConfig());
+      const cfg = localize(read(L.effectiveConfig()));
       if (cfg) {
         try { O = build(w, cfg); } catch (err) { H.report(err, 'overseer'); O = null; }
         if (O) { setLod(H.sky.bg ? 'far' : 'near'); for (const f of enterListeners) try { f(O, w); } catch (err) { H.report(err, 'overseer'); } wearModel(); }
@@ -535,6 +539,15 @@ void main(void) {
     },
   });
   const enterListeners = [];
+  /** A round world: config.overseer.position is on the planet (above the start by default); the ship is placed around
+   *  you from there, and again whenever the frame moves (round.js). */
+  function localize(cfg) {
+    if (!cfg || !(H.planet && H.planet.round && H.planet.frame.on)) return cfg;
+    cfg.home = cfg.position.slice();
+    cfg.position = H.planet.frame.toLocal(cfg.home);
+    return cfg;
+  }
+  if (H.planet && H.planet.frame && H.planet.frame.onRebase) H.planet.frame.onRebase(() => { if (O && O.cfg.home) O.cfg.position = H.planet.frame.toLocal(O.cfg.home); });
   function beamPlayer(p) {
     if (!p || !p.alive || (O && O.cfg && !O.cfg.beams)) return null;
     return beam(p, { radius: 1.3, seconds: 1.8, sound: true });
@@ -546,7 +559,7 @@ void main(void) {
     for (const f of leaveListeners) try { f(O); } catch (err) { H.report(err, 'overseer'); }
     if (O) disposeShip();
     O = null;
-    const cfg = read(L.effectiveConfig());
+    const cfg = localize(read(L.effectiveConfig()));
     if (!cfg) return;
     try { O = build(w, cfg); } catch (err) { H.report(err, 'overseer'); return; }
     setLod(H.sky.bg ? 'far' : 'near');

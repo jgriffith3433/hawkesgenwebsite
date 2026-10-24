@@ -66,7 +66,7 @@
         // It broke (or was blown up) since: back from the world file.
         const spec = r.id && w.graph.entities[r.id];
         if (!spec || w.byId.get(r.id)) continue;
-        try { e = H.fromSpec(JSON.parse(JSON.stringify(spec))); } catch (err) { H.report(err, 'rewind'); continue; }
+        try { e = H.fromSpec(JSON.parse(JSON.stringify(spec)), true); } catch (err) { H.report(err, 'rewind'); continue; }
       }
       if (theirs(e)) continue;
       if (online() && e.remote && e.sceneId) H.sync.claim(e);

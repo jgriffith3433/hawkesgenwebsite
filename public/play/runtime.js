@@ -54,7 +54,9 @@
   // Extension points for net.js and build.js (and anything else layered on the engine).
   // hooks.game: fn(game, world) for every new `game` object, before the world is built and before any script runs
   // (modules add game.<theirs> here: game.living, game.water, game.spawnMany...).
-  const hooks = { world: [], scene: [], game: [], step: [], afterStep: [], frame: [], push: [], destroy: [], contact: [], physics: null, quietErrors: false };
+  const hooks = { world: [], scene: [], game: [], step: [], afterStep: [], frame: [], push: [], destroy: [], contact: [], physics: null, quietErrors: false, space: null };
+  // hooks.space: a round world's frame (modules/overseer/round.js): { fromScene(transform) -> { position, rotation } in
+  // the world around you, toScene(ops) (edits made here, in place), below(e) (fell through the ground) }; null when flat.
 
   // ------------------------------------------------------------------ registries: how modules extend the engine
   // Every module (its own file, listed in public/play/modules/<name>/module.json) adds to the engine through these, never
@@ -725,8 +727,10 @@
   }
 
   /** Builds one thing from its scene.json spec: its kind (H.kinds) makes it, the engine gives it its id and behaviors. */
-  function fromSpec(spec) {
+  function fromSpec(spec, scene) {
     const o = optsFromSpec(spec);
+    // A thing from the world file in a round world: where it is on the planet, as seen from where you are.
+    if (scene && hooks.space) { const t = hooks.space.fromScene(spec.transform || {}); o.position = t.position; o.rotation = t.rotation; }
     const def = kindDefs.get(spec.type);
     let e;
     if (def) e = def.build(spec.shape || {}, o, spec);
@@ -744,7 +748,7 @@
   function buildScene(graph) {
     W.graph = graph;
     for (const spec of Object.values(graph.entities || {})) {
-      try { fromSpec(spec); } catch (e) { report(new Error(`${spec.name || spec.id}: ${e.message || e}`), 'scene.json'); }
+      try { fromSpec(spec, true); } catch (e) { report(new Error(`${spec.name || spec.id}: ${e.message || e}`), 'scene.json'); }
     }
     // Parents after everything exists.
     for (const spec of Object.values(graph.entities || {})) if (spec.parent) setParent(spec.id, spec.parent);
@@ -758,7 +762,7 @@
   function measureWorld() {
     let lowest = Infinity;
     for (const e of W.entities) if ((e.physics === 'static' || e.physics === 'kinematic') && e.sceneId) lowest = Math.min(lowest, e.bottom);
-    W.catchY = Math.min(-25, (isFinite(lowest) ? lowest : 0) - 25);
+    W.catchY = hooks.space ? -1e12 : Math.min(-25, (isFinite(lowest) ? lowest : 0) - 25); // (a round world: below(e))
   }
 
   /** Same rules as the server (src/scene.ts merge): arrays and values replace, null removes. */
@@ -777,6 +781,8 @@
   function applyOps(ops, o = {}) {
     if (!W) return [];
     const touched = [];
+    // Edits made here in a round world are in the world around you: the world file keeps them on the planet.
+    if (o.local && hooks.space) hooks.space.toScene(ops || []);
     for (const op of ops || []) {
       try {
         if (op.op === 'create' || op.op === 'replace') {
@@ -785,7 +791,7 @@
           const old = W.byId.get(spec.id);
           if (old) old.destroy();
           W.graph.entities[spec.id] = spec;
-          const e = fromSpec(spec);
+          const e = fromSpec(spec, true);
           if (spec.parent) setParent(spec.id, spec.parent);
           touched.push(e);
         } else if (op.op === 'update') {
@@ -794,7 +800,7 @@
           merge(spec, op.patch);
           const e = W.byId.get(op.id);
           if (e && onlyTransform(op.patch)) {
-            const t = spec.transform || {};
+            const t = hooks.space ? { ...spec.transform, ...hooks.space.fromScene(spec.transform || {}) } : spec.transform || {};
             if (!e.remote || o.force) {
               place(e, { position: t.position || e.position, rotation: t.rotation, scale: t.scale, shadow: false });
               e.velocity = [0, 0, 0];
@@ -804,7 +810,7 @@
           } else {
             const keep = e ? { v: e.velocity, remote: e.remote } : null;
             if (e) e.destroy();
-            const n = fromSpec(spec);
+            const n = fromSpec(spec, true);
             if (spec.parent) setParent(spec.id, spec.parent);
             if (keep) n.remote = keep.remote;
             touched.push(n);
@@ -1607,7 +1613,7 @@
     else legacyStep(dt);
     for (const e of [...W.entities]) {
       if (!e.alive) continue;
-      if (e.physics === 'dynamic' && !e.remote && !e.held && e.y < W.catchY) caught(e);
+      if (e.physics === 'dynamic' && !e.remote && !e.held && (hooks.space ? hooks.space.below(e) : e.y < W.catchY)) caught(e);
       if (e._sheet && e._sheet.fps > 0) {
         const s = e._sheet;
         s.t += dt * s.fps;
