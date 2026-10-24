@@ -20,16 +20,23 @@
       const game = ctx.game, input = game.input, building = ctx.mode === 'build';
       const a = input.direction();
       const sprint = input.key('shift') && !p.flying;
-      if (input.pressed('f') && (building || p.canFly)) { p.flying = !p.flying; p.vy = 0; game.ui.message(p.flying ? 'Flying: E up, C down' : 'Walking', 1.2); }
-      // Building: E goes up and C goes down (and starts flying), like a builder's camera (holding Q is the spawn wheel).
-      if (building && !p.flying && input.key('e') && !H.hooks.holding) { p.flying = true; }
+      if (input.pressed('f') && (building || p.canFly)) { p.flying = !p.flying; p.vy = 0; game.ui.message(p.flying ? 'Flying: you go where you look, space up, C down' : 'Walking', 1.4); }
+      // (E is always "use"; holding Q is the spawn wheel: neither moves you.)
       if (p.flying) {
         p.gravity = 0;
         const sp = input.key('shift') ? 16 : 8;
-        p.vx = a.x * sp; p.vz = a.z * sp;
-        const up = input.key('space') || (building && input.key('e'));
-        const down = input.key('c') || input.key('control') || (building && input.key('q'));
-        p.vy = (up ? sp : 0) - (down ? sp : 0);
+        // Forward and back go where the camera looks, up and down too (look down and press W to dive); sideways stays
+        // level. Space and C (or Ctrl) still rise and sink straight up and down.
+        const ax = input.axis();
+        const cam = game.camera.babylon;
+        const look = cam ? cam.getDirection(B.Axis.Z) : new B.Vector3(a.x, 0, a.z);
+        const yaw = Math.atan2(look.x, look.z);
+        const side = { x: Math.cos(yaw), z: -Math.sin(yaw) };
+        const up = input.key('space');
+        const down = input.key('c') || input.key('control');
+        p.vx = (look.x * ax.y + side.x * ax.x) * sp;
+        p.vz = (look.z * ax.y + side.z * ax.x) * sp;
+        p.vy = look.y * ax.y * sp + (up ? sp : 0) - (down ? sp : 0);
         p._walked = true;
         p.wake();
         return;
@@ -44,7 +51,7 @@
         const speed = Math.sqrt(2 * g * (p.jumpHeight || 1.5)) || 8.5;
         if (p.jump(speed)) { /* jumped */ }
         else if (p.doubleJump && !p._doubled) { p._doubled = true; p.vy = speed; game.burst([p.x, p.bottom, p.z], { color: '#c8d8ff', count: 10, speed: 2 }); }
-        else if ((building || p.canFly) && performance.now() - (p._lastJump || 0) < 300) { p.flying = true; game.ui.message(building ? 'Flying: E up, C down, F lands' : 'Flying: space up, C down, F lands', 1.4); }
+        else if ((building || p.canFly) && performance.now() - (p._lastJump || 0) < 300) { p.flying = true; game.ui.message('Flying: you go where you look, space up, C down, F lands', 1.4); }
         p._lastJump = performance.now();
       }
     },

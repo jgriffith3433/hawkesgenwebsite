@@ -122,6 +122,22 @@
   canvas.addEventListener('wheel', (e) => { mouse.wheel += Math.sign(e.deltaY); e.preventDefault(); }, { passive: false });
   document.addEventListener('pointerlockchange', () => { mouse.locked = document.pointerLockElement === canvas; for (const f of lockWatchers) f(mouse.locked); });
   const lockWatchers = [];
+  // Any dialog over the game (a sign-up sheet, a share window, a module's panel, one added later) gets the mouse at
+  // once: the pointer is freed as it appears, and a click while one is open doesn't capture it again.
+  const MODAL = '[role="dialog"], [role="alertdialog"], [aria-modal="true"], dialog[open], .modal, .gs-veil';
+  const shown = (el) => !el.hidden && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
+  const modalOpen = () => { if (!document.querySelectorAll) return false; for (const el of document.querySelectorAll(MODAL)) if (shown(el)) return true; return false; };
+  let modalCheck = 0;
+  const freeForModal = () => {
+    modalCheck = 0;
+    if (!modalOpen()) return;
+    mouse.dragLook = false;
+    if (document.pointerLockElement) document.exitPointerLock();
+  };
+  if (typeof MutationObserver === 'function' && document.body) {
+    new MutationObserver(() => { if (!modalCheck) modalCheck = (window.requestAnimationFrame || setTimeout)(freeForModal); })
+      .observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'open', 'class', 'style', 'aria-modal'] });
+  }
   /** Captures the mouse for first-person looking (the browser needs a click first). */
   /** Resolves true once the mouse is captured, false if the browser refuses (some embedded browsers always do). */
   function lockPointer() {
@@ -140,7 +156,7 @@
   }
   canvas.addEventListener('click', () => {
     const al = hooks.autoLock;
-    if (al === false || (typeof al === 'function' && !al())) return;
+    if (al === false || (typeof al === 'function' && !al()) || modalOpen()) return;
     // "mouse": "free" (or an RTS view): the pointer stays a pointer.
     if (W && W.player && W.player.mouse === 'free') return;
     if (W && W.camera && (W.camera.mode === 'fps' || W.camera.mode === 'third')) lockPointer().then((ok) => { if (!ok) { softLook = true; document.body.classList.add('soft-control'); } });

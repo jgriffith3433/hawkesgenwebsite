@@ -112,6 +112,21 @@ document.addEventListener('dblclick', (e) => { if (!e.target.closest('input, tex
 const coarseOnly = matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches;
 if (navigator.userAgentData && typeof navigator.userAgentData.mobile === 'boolean' ? navigator.userAgentData.mobile || coarseOnly : coarseOnly) document.body.classList.add('touch');
 const toStage = (m) => { try { stage.contentWindow.postMessage(m, '*'); } catch {} };
+// A dialog on this page (sign-in, sharing, a confirm, the library...) frees the mouse the game may have captured.
+{
+  const MODAL = '[role="dialog"], [role="alertdialog"], [aria-modal="true"], dialog[open], .modal';
+  const shown = (el) => !el.hidden && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
+  let was = false, pending = 0;
+  new MutationObserver(() => {
+    if (pending) return;
+    pending = requestAnimationFrame(() => {
+      pending = 0;
+      const open = [...document.querySelectorAll(MODAL)].some(shown);
+      if (open && !was) toStage({ type: 'release-mouse' });
+      was = open;
+    });
+  }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'open', 'class', 'style', 'aria-modal'] });
+}
 async function loadStage() {
   const bundle = await get(`${API}/games/${gameId}/bundle`);
   // Whether this player has seen the Overseer's intro (the stage is sandboxed: it has no storage of its own).
