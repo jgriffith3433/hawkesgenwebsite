@@ -960,7 +960,9 @@
     // The rotor pushes on the air: in thin air it needs more collective to hover, and past ~1.2 km it can't.
     const rho = Math.max(0.02, v.air);
     const hover = G / (2 * G * Math.max(0.5, v.up.y) * rho);
-    let c = hover - v.vel.y * 0.12;
+    // Someone flying who isn't climbing, descending or tilting to fly lets the collective sag: it coasts down (about 3 m/s).
+    const idle = v.seats[0].who && v.seats[0].who !== 'npc' && !v.autopilot && !inp.up && !inp.down && Math.abs(inp.y) < 0.05;
+    let c = hover - (v.vel.y + (idle ? 4.2 : 0)) * 0.12;
     if (inp.up) c = hover + 0.28;
     else if (inp.down) c = hover - 0.3;
     if (v.grounded && !inp.up) c = Math.min(c, hover * 0.6);
@@ -1488,7 +1490,7 @@
     boat: { what: 'A speedboat: floats on water (the Water module\'s, or anything tagged "water"), planes over waves.' },
     submarine: { what: 'A submarine: C dives, space rises, W/S thrust, A/D turn. Let go deep and it holds its depth.' },
     airplane: { what: 'An airplane: hold W to roll down the runway, S lifts the nose at speed. In the air: W/S pitch, A/D roll, space/C throttle. Too slow and it stalls.' },
-    helicopter: { what: 'A helicopter: space climbs, C descends (it hovers by itself), W/S tilt to fly forward and back, A/D turn. Its rotor needs air: it tops out around 1.2 km.', auto: { hover: 2.5 } },
+    helicopter: { what: 'A helicopter: space climbs, C descends (it coasts down when you let go), W/S tilt to fly forward and back, A/D turn. Its rotor needs air: it tops out around 1.2 km.', auto: { hover: 2.5 } },
     rocket: { what: 'A rocket: space opens the throttle, C closes it, W/S pitch, A/D lean. It burns its fuel (it fills on the ground) and works in vacuum: fly it to space and the Overseer. A parachute opens if it falls back into the air.' },
     spaceship: { what: "A space ship: space climbs, C descends (it hovers by itself), W/S thrust, A/D turn, shift boosts. It flies in the air and in space, and docks in the Overseer's hangar." },
   };
