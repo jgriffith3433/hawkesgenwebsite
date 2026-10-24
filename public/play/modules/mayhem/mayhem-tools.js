@@ -697,7 +697,7 @@
         const mine = [...ropes].filter((r) => r.by === me());
         if (mine.length >= (Number(ctx.opts.max) || 8)) cutAction({ ids: [mine[0].id] });
         ropeAction({ id: `rope${Math.random().toString(36).slice(2, 7)}`, a: { player: me() }, b: ref, len: r2(Math.max(1.5, Math.min(hit.distance, Number(ctx.opts.length) || hit.distance))), by: me() });
-        if (target && target.data && target.data.critter) X.panic(target, p.position);
+        if (target && target.living) X.panic(target, p.position);
       }
       X.credit();
     },

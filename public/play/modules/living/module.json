@@ -2,5 +2,5 @@
   "title": "Living things",
   "order": 60,
   "scripts": ["nav.js", "species.js", "living.js", "friends.js"],
-  "kinds": ["creature", "herd", "friend"]
+  "kinds": ["creature", "herd", "friend", "critter"]
 }

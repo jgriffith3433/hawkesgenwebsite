@@ -101,7 +101,10 @@ test('dig a giant hole: what stood there falls in; explosions leave craters', ()
   const crate = H.game.entity('crate');
   assert.ok(crate.y < -13, `the crate fell into the hole (${crate.y.toFixed(1)})`);
   const before = H.terrain.heightAt(-40, -40);
-  H.game.emit('explosion', { at: [-40, before, -40], radius: 8, force: 20 });
+  // The engine's explosion event: only the one who decided it (authoritative) digs; everyone gets the edit.
+  H.physics.announce({ position: [-40, before, -40], radius: 8, force: 20, authoritative: false });
+  assert.equal(H.terrain.heightAt(-40, -40), before, 'not where it was only seen');
+  H.physics.explode([-40, before, -40], { radius: 8, force: 20 });
   assert.ok(H.terrain.heightAt(-40, -40) < before - 1, 'a crater');
   H.game.emit('explosion', { at: [40, 60, 40], radius: 8 });
   near(H.terrain.heightAt(40, 40), 0, 0.01, 'no crater under an explosion high in the air');
@@ -140,4 +143,32 @@ test('edits saved in scene.json come back; the brush adds strokes without rebuil
   H.applyOps([{ op: 'config', patch: { terrain: null } }]);
   assert.equal(H.terrain.active, false);
   assert.equal(H.terrain.heightAt(0, 0), null);
+});
+
+test('terrain over a world that has a flat ground: the ground hides, the player and loose things end up on top', () => {
+  // The Playground template: a 60 m "Ground" plane, the start, a crate, a step.
+  world(H, sceneOf({
+    ground: { type: 'plane', name: 'Ground', shape: { width: 60, depth: 60 }, transform: { position: [0, 0, 0] } },
+    start: { type: 'spawn', transform: { position: [0, 0.1, 8] } },
+    crate: { type: 'box', physics: 'dynamic', transform: { position: [20, 0.5, 20] } },
+    step: { type: 'box', shape: { size: [3, 1, 3] }, transform: { position: [6, 0.5, -4] } },
+  }));
+  H.tick(0.5);
+  const ground = H.game.entity('ground'), p = H.game.player, crate = H.game.entity('crate');
+  assert.ok(ground.visible);
+  // The assistant turns hills on in the running world.
+  H.applyOps([{ op: 'config', patch: { terrain: { shape: 'hills', height: 14, scatter: false, home: false, seed: 4 } } }]);
+  assert.ok(!ground.visible && ground.physics === 'none', 'the old ground is hidden while the terrain is on');
+  assert.ok(H.game.entity('step').visible, 'a small step is not a ground');
+  H.tick(1);
+  for (const [what, e] of [['the player', p], ['the crate', crate]] as const) {
+    const g = H.terrain.heightAt(e.x, e.z);
+    assert.ok(e.bottom > g - 0.25 && e.bottom < g + 1.5, `${what} stands on the terrain (${e.bottom.toFixed(2)} on ${g.toFixed(2)})`);
+  }
+  // A respawn at a start under a hill comes up on top too.
+  H.respawn();
+  H.tick(0.3);
+  assert.ok(p.bottom > H.terrain.heightAt(p.x, p.z) - 0.25, 'after a respawn');
+  H.applyOps([{ op: 'config', patch: { terrain: null } }]);
+  assert.ok(ground.visible && ground.physics === 'static', 'turned off: the ground is back');
 });

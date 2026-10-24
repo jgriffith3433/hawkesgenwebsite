@@ -410,12 +410,15 @@
       t.trunks = e;
     }
     havokShape(t, true); // the collider is described before the first step (never the box around the whole terrain)
+    hideGrounds(t);
+    liftAll(t);
     if (H.world.grid && t.cfg.shape !== 'flat') H.world.grid.setEnabled(false);
     t.ms = Math.round(performance.now() - t0);
     return t;
   }
   function destroy(t) {
     if (!t) return;
+    showGrounds(t);
     if (t.entity && t.entity.alive) t.entity.destroy();
     if (t.trunks && t.trunks.alive) t.trunks.destroy();
     for (const g of (t.scatter && t.scatter.groups) || []) for (const p of g.parts) p.mesh.dispose();
@@ -424,6 +427,57 @@
     for (const tx of t.textures || []) tx.dispose();
     if (H.world && H.world.grid && !H.world.grid.isDisposed()) H.world.grid.setEnabled(true);
   }
+
+  // ------------------------------------------------------------------ the world's old ground, and things under the new one
+  /** A flat ground the world already had (the template's "Ground" plane, a big floor box) would sit inside the hills:
+   *  while the terrain is on it's hidden and nothing stands on it (it comes back when the terrain is turned off; delete
+   *  it to be rid of it). A ground: static, a plane or a box at most 1.5 m thick, at least 20 m (or a quarter of the
+   *  terrain) across, and either called ground/floor/grass/meadow or lying low (its top within 2 m of the terrain's base). */
+  function isGround(t, e) {
+    if (!e.alive || e.isTerrain || e.isScatter || e.physics !== 'static' || (e.kind !== 'plane' && e.kind !== 'box') || !e.visible) return false;
+    if (e.data && e.data.keepWithTerrain) return false;
+    const b = e.box(), w = b.max[0] - b.min[0], d = b.max[2] - b.min[2], h = b.max[1] - b.min[1];
+    const big = Math.min(w, d) >= Math.min(20, t.cfg.size * 0.25);
+    if (!big || h > 1.5) return false;
+    const named = /\b(ground|floor|grass|meadow|terrain|land)\b/i.test(`${e.name || ''} ${e.tag || ''} ${e.sceneId || ''}`);
+    return named || Math.abs(b.max[1] - t.f.y) < 2;
+  }
+  function hideGrounds(t) {
+    const w = H.world;
+    t.hidden = t.hidden || [];
+    if (w) for (const e of w.entities) if (!e._underTerrain && isGround(t, e)) { t.hidden.push({ e, physics: e.physics }); e.visible = false; e.physics = 'none'; e._underTerrain = true; }
+  }
+  function showGrounds(t) {
+    for (const { e, physics } of t.hidden || []) if (e.alive && e._underTerrain) { e._underTerrain = false; e.visible = true; e.physics = physics; }
+    t.hidden = [];
+  }
+  /** Things (and the player) that would be inside the ground go on top of it. */
+  function liftOne(t, e, pad = 0.05) {
+    if (!e.alive || e.isTerrain || e.isScatter || e.remote || e.held || e._underTerrain) return false;
+    if (!(e.physics === 'dynamic' || e.isPlayer) || (e.isPlayer && e.flying)) return false;
+    const g = T.heightAt(t.f, e.x, e.z);
+    if (g === null || e.bottom >= g - 0.02) return false;
+    e.node.position.y += g + pad - e.bottom;
+    if (e.vy < 0) e.vy = 0;
+    e.wake();
+    return true;
+  }
+  function liftAll(t) { const w = H.world; if (w) for (const e of [...w.entities]) liftOne(t, e); }
+  let liftStep = 0;
+  // Every step for the player (a spawn point under a hill, a respawn), every quarter second for everything else.
+  H.physics.afterStep(() => {
+    const t = cur, w = H.world;
+    if (!t || !w || !t.entity || !t.entity.alive) return;
+    if (w.player) liftOne(t, w.player);
+    if (++liftStep % 15) return;
+    for (const e of w.entities) if (e.physics === 'dynamic' && !e.isPlayer && !e.living) liftOne(t, e);
+  });
+  // Grounds and things that arrive later (the world's own things are built after the terrain, edits add more).
+  H.hooks.world.push({
+    enter() { if (cur) { hideGrounds(cur); liftAll(cur); } },
+    ops() { if (cur) hideGrounds(cur); },
+    respawn(p) { if (cur) liftOne(cur, p); },
+  });
 
   // ------------------------------------------------------------------ editing (everyone's way in: tools, brush, scripts, explosions)
   /** Applies edits to the live terrain: heights, looks, physics, scatter. Returns the touched box. */
@@ -503,9 +557,6 @@
 
   // ------------------------------------------------------------------ physics
   function havokReady() { return Boolean(H.physics && H.physics.engine === 'havok' && H.world && H.world.havok); }
-  /** A big array the physics can tell apart by name (its body is remade when the name changes, without the engine
-   *  writing out every height to compare). */
-  const named = (arr, name) => Object.assign(arr, { name, getClassName: () => 'TerrainData' });
   /** The ground's collider: a heightfield (in Babylon's order: x from +x to -x by rows, z along each row). Remade
    *  after edits, four times a second at most. On the old box physics it's only kept (settle() does the work). */
   function havokShape(t, now) {
@@ -516,7 +567,7 @@
     if (!first && H.world) for (const e of H.world.entities) if (e.sleeping && e.physics === 'dynamic') e.wake();
     const f = t.f, n = f.n, data = new Float32Array(n * n);
     for (let z = 0; z < n; z++) for (let x = 0; x < n; x++) data[(n - 1 - z) * n + x] = f.y + f.heights[z * n + x];
-    try { H.physics.setShape(t.entity, H.physics.shapes.heightfield({ width: f.size, depth: f.size, rows: n, cols: n, heights: named(data, `terrain-${t.id}-${t.version}`) })); }
+    try { H.physics.setShape(t.entity, H.physics.shapes.heightfield({ width: f.size, depth: f.size, rows: n, cols: n, heights: data, id: `terrain-${t.id}`, version: t.version })); }
     catch (err) { H.report(err, 'terrain'); }
     trunkShape(t);
   }
@@ -531,7 +582,7 @@
       parts.push({ shape: { type: 'cylinder', radius: 0.26 * p[2], height: h }, position: [p[0] - t.cfg.center[0], y + h / 2 - 0.15, p[1] - t.cfg.center[1]] });
     });
     t.trunks.physics = parts.length ? 'static' : 'none';
-    if (parts.length) H.physics.setShape(t.trunks, { type: 'compound', parts: named(parts, `trunks-${t.id}-${t.scatter.version}`) });
+    if (parts.length) H.physics.setShape(t.trunks, { type: 'compound', parts, id: `trunks-${t.id}`, version: t.scatter.version });
   }
   let ids = 0;
   H.physics.beforeStep(() => { if (cur && havokReady() && cur.entity && cur.entity.alive) havokShape(cur); });
@@ -758,6 +809,12 @@
   }
   const rawOf = (v) => (v && typeof v === 'object' ? JSON.parse(JSON.stringify(v)) : typeof v === 'string' ? { shape: v } : {});
   H.features.register('terrain', {
+    codex: {
+      title: 'Terrain', group: 'World features',
+      what: 'Ground you can drive across, dig into and reshape: hills, a mountain with a road, an island in a sea, a canyon, dunes. A flat ground the world already had is hidden while it is on.',
+      value: { shape: 'island', size: 256, seed: 2 },
+      fields: [['shape', 'flat, hills, mountain, mountains, island, canyon, valley, craters, dunes (or words: "volcano", "beach")', 'hills'], ['height', 'meters', 'per shape'], ['size', 'meters across', '512'], ['seed', 'another landscape of the same kind', '1'], ['sea', 'sea level, or false', 'island: 0'], ['scatter', '{ trees, rocks, bushes } or false', 'by shape'], ['craters', 'false: explosions leave no holes', 'true']],
+    },
     apply(value, ctx) {
       setupSync();
       const t = build(value, ctx);
@@ -765,13 +822,12 @@
       cur = t;
       ctx.state.t = t;
       ctx.game.terrain = api;
-      // Explosions leave craters (Mayhem's 'explosion' event; the host decides, everyone gets the edit).
+      // Explosions leave craters (the engine's 'explosion' event): only where it was decided (authoritative), and
+      // everyone gets the edit.
       ctx.game.on('explosion', (d) => {
-        if (cur !== t || !d || t.cfg.raw && t.cfg.raw.craters === false) return;
-        if (H.sync && H.sync.online && !H.sync.isHost) return;
-        const at = d.at || d.pos || d.position || d.point;
-        if (!at) return;
-        const p = Array.isArray(at) ? at : [at.x, at.y, at.z];
+        if (cur !== t || !d || !d.authoritative || (t.cfg.raw && t.cfg.raw.craters === false)) return;
+        const p = d.position;
+        if (!p) return;
         const g = T.heightAt(t.f, p[0], p[2]);
         const R = Math.max(1, Number(d.radius) || 4);
         if (g === null || p[1] - g > R * 0.8) return; // high in the air: no mark on the ground
@@ -805,9 +861,8 @@
       const t = ctx.state.t;
       if (cur === t) cur = null;
       destroy(t);
-      if (ctx.game && ctx.game.terrain === api) delete ctx.game.terrain;
     },
   });
   // Scripts can always reach game.terrain (it says active: false when the world has none).
-  H.hooks.world.push({ enter() { if (H.game && !H.game.terrain) H.game.terrain = api; } });
+  H.hooks.game.push((g) => { g.terrain = api; });
 })();

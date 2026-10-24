@@ -13,11 +13,12 @@
 | `game.mayhem.slowMotion(seconds)` | Slows the game for a moment (playing alone) |
 | `game.mayhem.sound(name, { at, volume })` | A mayhem sound: `'boom'`, `'crash'`, `'whoosh'`, `'pop'`, `'beep'`, `'fire'`, `'throw'`, `'zap'`, `'rope'`, `'moo'` (the game's asset by that name, or synthesized) |
 | `game.mayhem.score`, `game.state.mayhem` | The MAYHEM score (things hit, broken, burnt, killed, times the combo) |
-| `game.critter('pig', { x, y, z, size })`, `game.barrel({ x, y, z, power })`, `game.crate({ x, y, z, size })`, `game['tool-pickup']('lasso', { x, y, z })` | Makers for the kinds |
+| `game.barrel({ x, y, z, power })`, `game.crate({ x, y, z, size })`, `game['tool-pickup']('lasso', { x, y, z })` | Makers for the kinds |
 
-Events (`game.on`): `'explosion'` `{ position, radius, force, damage, fire, authoritative, by, chain }` (every player
-gets it; `authoritative` is true where the host decided it: terrain digs craters there), `'break'` `{ entity, pieces }`,
-`'ignite'` `{ entity }`, `'spawned'` `{ things, what, count }`, `'landed'` `{ entity }` (a critter back on its feet),
+Events (`game.on`): `'explosion'` `{ position, radius, force, damage, fire, authoritative, by, chain, mayhem }` (the
+engine's one explosion event, once per blast for every player; `authoritative` is true where it was decided: terrain
+digs craters there), `'break'` `{ entity, pieces }`,
+`'ignite'` `{ entity }`, `'spawned'` `{ things, what, count }`, `'landed'` `{ entity }` (an animal back on its feet),
 `'mayhem'` `{ what, points, total, combo }`.
 
 ```js
@@ -33,7 +34,7 @@ game.spawnMany('crate', 8, { pattern: 'stack', at: [0, 0, 6] });
 game.after(3, () => game.explode([0, 0.5, 6], { radius: 7, force: 30, fire: true }));
 
 // "When a cow dies, spawn two more" (a hydra farm)
-game.on('death', ({ entity }) => { if (entity.data.critter === 'cow') game.spawnMany('cow', 2, { at: entity.position }); });
+game.on('death', ({ entity }) => { if (entity.data.species === 'cow') game.spawnMany('cow', 2, { at: entity.position }); });
 
 // "Points for every explosion"
 game.on('explosion', (e) => { if (e.authoritative) game.state.score = (game.state.score || 0) + 10; });

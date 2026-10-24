@@ -118,7 +118,7 @@ test('every kind in the registry builds from its spec', () => {
     spec.id = `k_${k.name}`;
     const [e] = H.applyOps([{ op: 'create', entity: spec }]);
     assert.ok(e && e.alive, `${k.name} built`);
-    assert.equal(e.kind, k.name);
+    assert.equal(e.kind, k.alias || k.name);
     assert.equal(H.game.entity(spec.id), e);
   }
   H.tick(0.5);

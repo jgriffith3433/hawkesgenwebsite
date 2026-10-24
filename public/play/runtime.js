@@ -52,7 +52,9 @@
   window.addEventListener('resize', () => engine.resize());
 
   // Extension points for net.js and build.js (and anything else layered on the engine).
-  const hooks = { world: [], scene: [], step: [], afterStep: [], frame: [], push: [], destroy: [], contact: [], physics: null, quietErrors: false };
+  // hooks.game: fn(game, world) for every new `game` object, before the world is built and before any script runs
+  // (modules add game.<theirs> here: game.living, game.water, game.spawnMany...).
+  const hooks = { world: [], scene: [], game: [], step: [], afterStep: [], frame: [], push: [], destroy: [], contact: [], physics: null, quietErrors: false };
 
   // ------------------------------------------------------------------ registries: how modules extend the engine
   // Every module (its own file, listed in public/play/modules/<name>/module.json) adds to the engine through these, never
@@ -215,13 +217,67 @@
   const buffers = new Map();
   let musicEl = null;
   let pendingMusic = null;
+  function makeAudio() {
+    if (audio) return audio;
+    const C = window.AudioContext || window.webkitAudioContext;
+    if (!C) return null;
+    try { audio = new C(); } catch { audio = null; }
+    return audio;
+  }
   function unlockAudio() {
-    if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch { return; } }
-    if (audio.state === 'suspended') audio.resume();
+    if (!makeAudio()) return;
+    if (audio.state === 'suspended') audio.resume().catch(() => {});
     if (pendingMusic) { const p = pendingMusic; pendingMusic = null; p(); }
   }
+  // H.audio: one output every sound goes through (the engine's, every module's, music), so a module can change how
+  // everything sounds (water muffles it all under water). master (a gain) -> effects (in name order) -> speakers.
+  let masterNode = null;
+  const effects = new Map();
+  const mediaRouted = new WeakSet();
+  function wire() {
+    if (!masterNode) return;
+    const chain = [masterNode, ...[...effects.keys()].sort().map((k) => effects.get(k)), audio.destination];
+    for (const n of chain.slice(0, -1)) { try { n.disconnect(); } catch { /* not connected */ } }
+    for (let i = 0; i < chain.length - 1; i++) chain[i].connect(chain[i + 1]);
+  }
+  const audioApi = {
+    /** The shared AudioContext (made on first use; it starts running at the first click, tap or key). Null without WebAudio. */
+    get context() { return makeAudio(); },
+    /** Where every sound connects (instead of context.destination). Null without WebAudio. */
+    get master() {
+      if (masterNode) return masterNode;
+      if (!makeAudio()) return null;
+      masterNode = audio.createGain();
+      wire();
+      return masterNode;
+    },
+    /** True once the browser lets sound play. */
+    get running() { return Boolean(audio && audio.state === 'running'); },
+    /** The volume of everything, 0 to 1. */
+    get volume() { return masterNode ? masterNode.gain.value : 1; },
+    set volume(v) { const m = audioApi.master; if (m) m.gain.value = Math.max(0, Math.min(1, Number(v) || 0)); },
+    /** Puts a node (a filter, a reverb) between everything and the speakers, under a name; null takes it out. */
+    effect(name, node) {
+      if (!audioApi.master) return null;
+      const old = effects.get(name);
+      if (old) { try { old.disconnect(); } catch { /* fine */ } effects.delete(name); }
+      if (node) effects.set(String(name), node);
+      wire();
+      return node || null;
+    },
+    /** Sends an <audio> element through the master (same-origin files; others play as they are). */
+    media(el) {
+      if (!el || mediaRouted.has(el) || !audioApi.master) return el;
+      try {
+        if (new URL(el.src, location.href).origin !== location.origin) return el;
+        audio.createMediaElementSource(el).connect(masterNode);
+        mediaRouted.add(el);
+      } catch { /* plays directly */ }
+      return el;
+    },
+  };
   async function loadBuffer(url) {
-    if (!buffers.has(url)) buffers.set(url, fetch(url).then((r) => r.arrayBuffer()).then((b) => new Promise((ok, bad) => (audio || new (window.AudioContext || window.webkitAudioContext)()).decodeAudioData(b, ok, bad))));
+    if (!buffers.has(url)) buffers.set(url, fetch(url).then((r) => r.arrayBuffer()).then((b) => new Promise((ok, bad) => makeAudio().decodeAudioData(b, ok, bad))));
     return buffers.get(url);
   }
 
@@ -510,7 +566,7 @@
     if (opts.scale !== undefined && opts.scale !== null) { if (typeof opts.scale === 'number') e.node.scaling.setAll(opts.scale); else { const s = vec(opts.scale, [1, 1, 1]); e.node.scaling.set(s[0] || 1, s[1] || 1, s[2] || 1); } }
     if (opts.visible === false) e.node.setEnabled(false);
     if (opts.velocity) e.velocity = opts.velocity;
-    if (W.shadows && opts.shadow !== false && e.kind !== 'sprite' && e.kind !== 'text') { for (const m of [e.node, ...e.node.getChildMeshes()]) if (m.getTotalVertices && m.getTotalVertices() > 0 && !(m.metadata && m.metadata.decor)) { W.shadows.addShadowCaster(m); (e._casters ||= new Set()).add(m); m.receiveShadows = true; } }
+    if (W.shadows && opts.shadow !== false && e.kind !== 'sprite' && e.kind !== 'text') { for (const m of [e.node, ...e.node.getChildMeshes()]) if (m.getTotalVertices && m.getTotalVertices() > 0 && !(m.metadata && m.metadata.decor)) { W.shadows.addShadowCaster(m); (e._casters ||= new Set()).add(m); if (!(m instanceof B.InstancedMesh)) m.receiveShadows = true; } }
     e.measure();
     return e;
   }
@@ -527,8 +583,7 @@
       e._mat = inst.sourceMesh.material;
       const c = hex(opts.color, '#cfcfcf');
       inst.instancedBuffers.color = new B.Color4(c.r, c.g, c.b, 1);
-    } else mesh.material = e._mat = material(opts, kind);
-    mesh.receiveShadows = true;
+    } else { mesh.material = e._mat = material(opts, kind); mesh.receiveShadows = true; } // (instances take it from their source)
     return place(e, opts);
   }
   /** The hidden mesh a kind of copy is an instance of (one per shape, glow and opacity, per world). */
@@ -1384,7 +1439,7 @@
           if (o.rate) src.playbackRate.value = o.rate;
           const gn = audio.createGain();
           gn.gain.value = o.volume ?? 1;
-          src.connect(gn).connect(audio.destination);
+          src.connect(gn).connect(audioApi.master || audio.destination);
           src.start();
         }).catch((e) => report(new Error(`Could not play ${name}: ${e.message || e}`)));
       },
@@ -1395,6 +1450,7 @@
           musicEl.crossOrigin = 'anonymous';
           musicEl.loop = o.loop !== false;
           musicEl.volume = Math.max(0, Math.min(1, o.volume ?? 0.5));
+          audioApi.media(musicEl);
           musicEl.play().catch(() => { pendingMusic = start; });
         };
         if (audio && audio.state === 'running') start(); else pendingMusic = start;
@@ -1867,6 +1923,7 @@
     W.camera = makeCamera();
     gameLook(cfg);
     game = makeGame();
+    for (const f of hooks.game) try { f(game, W); } catch (err) { report(err); }
     window.game = game;
     applyLook(cfg);
     applyFeatures(cfg);
@@ -1945,6 +2002,8 @@
     behavior: (name, def) => defineBehavior(name, def, true),
     behaviorDef: (name) => findDef(name),
     hooks,
+    /** One sound output for everything (H.audio.master; docs/engine-modules.md "Sound"). */
+    audio: audioApi,
     lockPointer,
     bindTouchKey,
     setClockOffset: (ms) => { clockOffset = ms; },
@@ -1962,12 +2021,14 @@
     tick(seconds = STEP) {
       if (!W) return;
       const n = Math.max(1, Math.round(seconds / STEP));
+      framePressed = pressedNow; // what went down since the last tick, like a frame (advance)
       for (let i = 0; i < n && W && !W.paused; i++) { step(STEP); if (i === 0) { pressedNow = new Set(); releasedNow = new Set(); mouse.pressed = false; } }
       if (!W) return;
       W.camera.update(n * STEP);
       syncTool();
       toolTick('frame', n * STEP);
       for (const f of hooks.frame) f(n * STEP, false, framePressed);
+      pressedNow = new Set(); releasedNow = new Set(); mouse.pressed = false;
       mouse.dx = 0; mouse.dy = 0; mouse.wheel = 0;
     },
     /** The engine's building blocks, for modules that make kinds of things (kinds.js uses them). */

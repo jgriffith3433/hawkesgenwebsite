@@ -52,14 +52,15 @@
     /** The exact triangles of a mesh: for things that stay put (static or kinematic only). */
     mesh: (from) => ({ type: 'mesh', from }),
     /** Ground from heights: rows x cols samples over width x depth meters, heights row by row (Float32Array or array),
-     *  centered on the entity. Row r is z = -depth/2 + r * depth / (rows - 1); column c is x likewise. */
-    heightfield: ({ width, depth, rows, cols, heights }) => ({ type: 'heightfield', width, depth, rows, cols, heights }),
+     *  centered on the entity. Row r is z = -depth/2 + r * depth / (rows - 1); column c is x likewise. `id` and
+     *  `version` name the data: the collider is remade when either changes (heights are never compared). */
+    heightfield: ({ width, depth, rows, cols, heights, id, version }) => ({ type: 'heightfield', width, depth, rows, cols, heights, id, version }),
     /** Several shapes as one body: [{ shape, position: [x, y, z], rotation: [x, y, z] (degrees) }]. */
     compound: (parts) => ({ type: 'compound', parts }),
   };
 
   // ------------------------------------------------------------------ events
-  const listeners = { collision: [], 'collision-end': [], trigger: [], before: [], after: [] };
+  const listeners = { collision: [], 'collision-end': [], trigger: [], explosion: [], before: [], after: [] };
   const on = (name, fn) => {
     const list = listeners[name];
     if (!list) throw new Error(`H.physics.on: one of ${Object.keys(listeners).filter((k) => k !== 'before' && k !== 'after').join(', ')}`);
@@ -158,7 +159,12 @@
     for (const [x, y] of [[a, b], [b, a]]) if (x.remote && x.sceneId && x.physics === 'dynamic' && y.physics === 'dynamic' && !y.remote) for (const f of H.hooks.push) f(x, y);
     if (!listeners.collision.length) return;
     const imp = Number(c.impulse) || 0;
-    fire('collision', { a, b, point: c.point ? [c.point.x, c.point.y, c.point.z] : null, normal: c.normal ? [c.normal.x, c.normal.y, c.normal.z] : null, impulse: imp, speed: imp / Math.max(0.05, Math.min(a.mass, b.mass)) });
+    // The impact speed: an impulse J changes how fast they close by J (1/ma + 1/mb); things that don't move (static,
+    // kinematic, held) count as infinitely heavy; a bounce carries the speed back out, so it's taken off.
+    const inv = (e) => (e._pb && e._pb.motion === DYNAMIC && e.mass > 0 ? 1 / Math.max(0.05, e.mass) : 0);
+    const k = inv(a) + inv(b) || 1 / Math.max(0.05, Math.min(a.mass || 1, b.mass || 1));
+    const e1 = 1 + Math.max(0, Math.min(0.95, Math.max(Number(a.bounce) || 0, Number(b.bounce) || 0)));
+    fire('collision', { a, b, point: c.point ? [c.point.x, c.point.y, c.point.z] : null, normal: c.normal ? [c.normal.x, c.normal.y, c.normal.z] : null, impulse: imp, speed: (imp * k) / e1 });
   }
 
   /** What collider a thing gets: its body.shape (a description), or 'auto' by its kind. */
@@ -281,7 +287,32 @@
     try { pb.body.dispose(); } catch {}
     try { pb.shape.dispose(); } catch {}
   }
-  const shapeKey = (e, motion) => `${e._mv || 0}|${motion === DYNAMIC ? 'd' : 's'}|${e._shapeSpec ? JSON.stringify(e._shapeSpec, (k, v) => (v && v.__entity ? v.sceneId : v && v.getClassName ? v.name : v)) : ''}`;
+  // What a shape description is, as a short string: worked out once per description object (and again only when its
+  // `version` changes). Heightfields and big arrays go by their id (or one given here), never by their numbers.
+  const autoIds = new WeakMap();
+  let autoId = 0;
+  const idOf = (o) => { let n = autoIds.get(o); if (!n) { n = `#${++autoId}`; autoIds.set(o, n); } return n; };
+  function describe(d) {
+    return JSON.stringify(d, (k, v) => {
+      if (v && v.__entity) return v.sceneId || idOf(v);
+      if (v && typeof v === 'object' && v.getClassName) return v.name || idOf(v);
+      if (ArrayBuffer.isView(v)) return idOf(v);
+      if (Array.isArray(v) && v.length > 64) return idOf(v);
+      if (v && typeof v === 'object' && v.type === 'heightfield') return `hf:${v.id ?? idOf(v.heights || v)}:${v.version ?? ''}:${v.rows}x${v.cols}:${v.width}x${v.depth}`;
+      return v;
+    });
+  }
+  function specKey(e) {
+    const d = e._shapeSpec;
+    if (!d) return '';
+    if (typeof d !== 'object') return String(d);
+    const c = e._shapeKeyCache;
+    if (c && c.d === d && c.v === d.version) return c.key;
+    const key = d.id !== undefined ? `id:${d.id}:${d.version ?? ''}` : describe(d);
+    e._shapeKeyCache = { d, v: d.version, key };
+    return key;
+  }
+  const shapeKey = (e, motion) => `${e._mv || 0}|${motion === DYNAMIC ? 'd' : 's'}|${specKey(e)}`;
   /** Material, filters, mass and gravity: kept in step with the entity's settings. */
   function refresh(e, pb) {
     const mk = `${e.friction}|${e.bounce}`;
@@ -397,7 +428,9 @@
     const lh = e._lhalf, lo = e._loff;
     if (!lh) return;
     const r = e.node.rotation;
-    if (!r.x && !r.z && !r.y) { e.half = lh.slice(); e.offset = lo.slice(); return; }
+    // A ball looks the same however it has rolled: its box stays its own (turning it would only grow it).
+    const round = e.kind === 'sphere' && (!e._shapeSpec || e._shapeSpec === 'sphere' || e._shapeSpec.type === 'sphere');
+    if (round || (!r.x && !r.z && !r.y)) { if (e.half[0] !== lh[0] || e.half[1] !== lh[1] || e.half[2] !== lh[2]) { e.half = lh.slice(); e.offset = lo.slice(); } return; }
     B.Matrix.RotationYawPitchRollToRef(r.y, r.x, r.z, TMP_M);
     const m = TMP_M.m;
     // Rows of m are where the local x, y, z axes point.
@@ -686,10 +719,30 @@
     return { entity: entityOfBody(hitR.body), point: [p.x, p.y, p.z], normal: [n.x, n.y, n.z], fraction: hitR.hitFraction };
   }
 
+  /** Tells everyone an explosion happened: H.physics.on('explosion', fn) for modules (across worlds) and
+   *  game.on('explosion', fn) for scripts, with { position, radius, force, damage, authoritative, ...more }.
+   *  authoritative: this player decided it (pushed things, did the damage): craters and other lasting changes are made
+   *  only then; everyone gets the event for effects (startled animals, sounds). H.physics.explode and H.sync.explode
+   *  call this themselves (once per explosion per player); a module that shows an explosion without either calls it. */
+  function announce(d) {
+    const p = vec(d.position || d.at);
+    const ev = { ...d, position: p, radius: Number(d.radius) || 4.5, force: Number(d.force ?? 14), damage: Number(d.damage) || 0, authoritative: d.authoritative !== false };
+    delete ev.at;
+    fire('explosion', ev);
+    if (H.game) try { H.game.emit('explosion', ev); } catch (err) { H.report(err, 'explosion'); }
+    return ev;
+  }
   /** An explosion's push: every dynamic thing within `radius` is thrown away from `at` (stronger closer), things with
    *  health are hurt by `damage` (less farther). Returns what it touched. Online, run it from a sync action
-   *  (H.sync.action) so the host decides once for everyone. */
+   *  (H.sync.action) so the host decides once for everyone (H.sync.explode does). It announces the explosion (the
+   *  'explosion' event, authoritative) unless o.event is false (a second call for the same blast: damage only); o.info
+   *  adds fields to the event. */
   function explode(at, o = {}) {
+    const hit = blast(at, o);
+    if (o.event !== false) announce({ ...(o.info || {}), position: vec(at), radius: Number(o.radius) || 4.5, force: o.force ?? 14, damage: o.damage || (o.info && o.info.damage) || 0, authoritative: o.authoritative !== false });
+    return hit;
+  }
+  function blast(at, o) {
     const p = vec(at);
     const R = Number(o.radius) || 4.5, force = o.force ?? 14, up = o.up ?? 0.6;
     const hit = [];
@@ -744,7 +797,7 @@
     layer, layers: LAYERS, maskOf,
     shapes, setShape,
     raycast, shapeCast, overlap,
-    explode, joint, character,
+    explode, announce, joint, character,
     on,
     beforeStep: (fn) => on('before', fn),
     afterStep: (fn) => on('after', fn),

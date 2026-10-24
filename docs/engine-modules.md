@@ -120,6 +120,18 @@ H.features.register('terrain', {            // owns config.terrain in scene.json
 - `ctx = { game, H, world, scene, key, state, value }`. Features apply before the world's things are built, so things
   land on your terrain. `false`/`null` turns a feature off. One key per feature: terrain, water, weather, time.
 - The assistant turns it on with `{ "op": "config", "patch": { "terrain": { ... } } }`: document the value's shape.
+- `codex: { title, group, what, value, fields: [[key, what, default]] }` gives it a page in the codex (`/entities`):
+  `value` is an example the codex turns on live.
+
+## 5b. Your part of `game` (`H.hooks.game`)
+
+```js
+H.hooks.game.push((game, world) => { game.vehicles = api; });   // game.vehicles for scripts
+```
+
+Runs for every new `game` object (each run, each reload), before the world is built and before any script's first
+line. Never redefine `window.game`. (Mayhem adds game.spawnMany/explode, water game.water, living game.living, terrain
+game.terrain this way.)
 
 ## 6. Physics (`H.physics`)
 
@@ -148,8 +160,11 @@ Write against this API, never Havok directly, so the engine can keep its promise
 
 `H.physics.shapes.box([w, h, d])`, `.sphere(r)`, `.capsule(r, h)`, `.cylinder(r, h)`, `.convex(entityOrMesh)` (hull: for
 models that move), `.mesh(entityOrMesh)` (exact triangles: static/kinematic only), `.heightfield({ width, depth, rows,
-cols, heights })` (terrain), `.compound([{ shape, position, rotation }])`. Give one to `H.physics.setShape(e, shape)` or
-as spec `body.shape` (`'auto'`, the default, picks: box, sphere, capsule, cylinder, convex for models).
+cols, heights, id, version })` (terrain), `.compound([{ shape, position, rotation }])`. Give one to `H.physics.setShape(e, shape)` or
+as spec `body.shape` (`'auto'`, the default, picks: box, sphere, capsule, cylinder, convex for models). A description
+is looked at once (by identity): to change a collider give a new description (or bump its `version`). Big data
+(heightfields, compounds with many parts) should carry an `id` and a `version`: the body is remade when either changes,
+and the numbers are never compared.
 
 ### Queries
 
@@ -168,10 +183,20 @@ Returns `{ a, b, type, remove(), motor(speed, force), limits(min, max) }`.
 
 ### Explosions, events, steps
 
-- `H.physics.explode(at, { radius, force, damage, owner, up })`: impulses away from `at` (stronger closer) and damage to
-  things with health. Online, use it through the sync action (7) so the host decides once for everyone.
+- `H.physics.explode(at, { radius, force, damage, owner, up, info, event })`: impulses away from `at` (stronger closer)
+  and damage to things with health. Online, use it through the sync action (7) so the host decides once for everyone.
+- **One explosion event.** Every explosion is announced once per player: `H.physics.on('explosion', fn)` (modules: it
+  lasts across worlds) and `game.on('explosion', fn)` (scripts), with `{ position, radius, force, damage,
+  authoritative, ...info }`. `H.physics.explode` and `H.sync.explode` announce it themselves (`authoritative: true` where
+  it was decided, `false` for the others online); pass `event: false` for a second call on the same blast (the
+  launcher's damage-only call). A module that shows an explosion some other way calls `H.physics.announce({ position,
+  radius, force, damage, authoritative, ... })` once. React to it, never wrap `H.physics.explode`: effects for everyone,
+  lasting changes (craters, scores) only when `authoritative`.
 - `H.physics.on('collision', fn({ a, b, point, normal, speed }))`, `'collision-end'`, `'trigger'` (`{ trigger, entity,
-  entered }`): each returns an `off()`. Speed is the impact speed (impact sounds, breakables).
+  entered }`), `'explosion'`: each returns an `off()`. Speed is the impact speed (how fast they were closing: fixed things
+  count as infinitely heavy), for impact sounds and breakables.
+- A velocity set on a thing whose body is being made or remade this step (just spawned, reshaped, let go, made dynamic)
+  is kept: no need to set it again after the step.
 - `H.physics.beforeStep(fn(dt))` (apply forces: buoyancy, wind, engines) and `afterStep(fn(dt))`. Fixed step: 60 a second.
 - `H.physics.gravity` (m/s², along y), `H.physics.layer(name)` (makes or finds a layer; 16 at most).
 - `H.physics.bodyOf(e)`: the Babylon `PhysicsBody` behind an entity (or null), for what this API doesn't cover. Bodies are
@@ -221,7 +246,7 @@ const boom = H.sync.action('mayhem:boom', (d, { authoritative }) => {
 boom({ at: [x, y, z], radius: 6, force: 20 });      // from anyone
 ```
 
-- `H.sync.explode(at, { radius, force, up })`: the engine's own host-authoritative explosion (the rocket launcher uses
+- `H.sync.explode(at, { radius, force, up, damage, info })`: the engine's own host-authoritative explosion (the rocket launcher uses
   it): the host throws things and takes them over, everyone's own player is pushed where they stand. Do the damage
   yourself with `H.physics.explode(at, { radius, damage, force: 0, owner })` so kills are credited to whoever fired.
 - Moving scene things are sent by their simulator 10 times a second, delta-encoded (only the fields that changed, all
@@ -229,6 +254,42 @@ boom({ at: [x, y, z], radius: 6, force: 20 });      // from anyone
 - `H.sync.mine(e)`, `H.sync.claim(e)` (take over simulating it: do this before pushing a thing someone else owns),
   `H.sync.release(e)`, `H.sync.isHost`, `H.sync.online`, `H.sync.me`.
 - Scripts' own messages stay `game.net.send / on` (API.md).
+
+## 7b. E near things (`H.use`)
+
+One key does what's near: riding a horse, talking to a friend, getting into a car, sitting on a chair. Don't read E
+yourself; offer it:
+
+```js
+H.use.register('vehicles:enter', {
+  keys: ['f'],                 // optional: other keys that do your offer too
+  near(player) {               // asked every step and a few times a second for the hint: keep it cheap
+    const car = nearestCar(player, 3);
+    if (player.controller === 'drive') return { label: 'Get out', priority: 100, act: () => player.control('walk') };
+    return car && { label: `Drive the ${car.name}`, distance: dist(car), act: () => enter(car) };
+  },
+});
+```
+
+The engine picks one offer: the highest `priority` (0 by default; getting off/out of what you're on uses 100), then the
+smallest `distance`. It shows it as one line ("E Ride the horse"; tapping it does it on phones) and E does it, once per
+press. `build: true` (on the offer or the registration) offers it while building too. `H.use.offers()` lists what's on
+offer, `H.use.act()` does the best one. Living things registers `living:ride` and `living:talk` (T too).
+
+## 7c. Sound (`H.audio`)
+
+Every sound goes through one output: `H.audio.master` (a GainNode), never `context.destination`. `H.audio.context` is the
+engine's AudioContext (one for everything; it starts running at the first click, tap or key; null without WebAudio, as
+in tests). `H.audio.effect(name, node)` puts a filter between everything and the speakers (water muffles the world
+under water: `effect('water', lowpass)`, `null` takes it out); `H.audio.media(audioElement)` routes an `<audio>` (music,
+loops) through it; `H.audio.volume` is the master volume. `game.sound(name)` and `game.music(name)` already use it.
+
+## 7d. Animals
+
+**Living things owns animals** (species, brains, herds, riding, friends): to make one, use its `creature` kind (or
+`H.living.spawn`). Other modules don't make their own animals: Mayhem's `spawnMany('cow')` and spawn gun make creatures and
+throw them; vehicles carry them; homes have pets the same way. Knock one over with an explosion, or set `e._tumble`
+while you spin it (Living things lets it lie until it's cleared).
 
 ## 8. Tests
 

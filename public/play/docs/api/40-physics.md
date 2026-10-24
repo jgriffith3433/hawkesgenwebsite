@@ -16,7 +16,7 @@ push them around:
 | `e.force([x, y, z])` | A steady push for this step: call it every step (thrusters, wind). |
 | `e.angularVelocity = [x, y, z]` | Spins it (degrees a second). |
 | `e.upright = true` | It never tips over (characters, animals). |
-| `game.physics.explode([x, y, z], { radius: 5, force: 15, damage: 40 })` | Throws everything nearby away and hurts what has health. |
+| `game.physics.explode([x, y, z], { radius: 5, force: 15, damage: 40 })` | Throws everything nearby away and hurts what has health. Every explosion (this, `game.explode`, rockets, barrels) sends one `'explosion'` event: `game.on('explosion', ({ position, radius, force, damage, authoritative }) => ...)` (`authoritative`: decided here; make lasting changes only then). |
 | `game.physics.overlap(game.physics.shapes.sphere(3), [x, y, z])` | The things within 3 m. |
 | `game.physics.joint('hinge', door, frame, { axis: [0, 1, 0], pivotA: [-0.5, 0, 0] })` | Joins two things: `fixed`, `hinge`, `ball`, `slider`, `distance`, `spring`. |
 | `game.physics.gravity = -9.8` | The world's gravity (m/s², default -24, which feels like a game). |

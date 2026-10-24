@@ -12,7 +12,7 @@ but only once the world is running: in updates, events and timers, not at the to
 | `living.all(species?)`, `living.near(at, radius, species?)` | creatures |
 | `living.command(e, what, opts)` | `'follow'` (`target`: `'player'`, an entity or a name), `'stay'`, `'sit'`, `'sleep'`, `'come'` (`target`), `'goto'` (`at: [x, z]`), `'dance'`, `'cheer'`, `'fetch'` (`target`), `'carry'` (`thing`), `'drop'`, `'wander'`, `'attack'` (`target`), `'flee'` (`target`); `seconds` ends it |
 | `living.follow(e, target)`, `living.stay(e)`, `living.goTo(e, [x, z])`, `living.wander(e)` | the same, shorter |
-| `living.startle(at, { radius, strength })` | scares the creatures near a point: they run (herds stampede). Explosions (`H.physics.explode`, `game.emit('explosion', { at, radius })`) and gunfire do it by themselves |
+| `living.startle(at, { radius, strength })` | scares the creatures near a point: they run (herds stampede). Explosions (the engine's `'explosion'` event: any blast) and gunfire do it by themselves; the closest are knocked over |
 | `living.status(e)` | `{ species, state, act, hunger, energy, fear, following, carrying, riding }` (state: idle walk run eat sleep sit dance knocked attack cheer fly swim flop) |
 | `living.ride(e)`, `living.dismount()` | puts the player on a creature and off it (the `ride` controller) |
 | `living.path(from, to)` | a way around obstacles: `[[x, z], ...]` or null |

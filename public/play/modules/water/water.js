@@ -264,6 +264,12 @@ void main(void) {
   }
 
   H.features.register('water', {
+    codex: {
+      title: 'The sea', group: 'World features',
+      what: 'A sea with waves: swim and dive, things float or sink, boats bob, everything sounds muffled under water.',
+      value: { level: -0.3, waves: 0.3 },
+      fields: [['level', 'height of the surface (meters)', '0'], ['waves', 'wave height (0 calm, 0.6 rough)', '0.2'], ['wavelength', 'meters', '14'], ['speed', 'how fast they roll', '1']],
+    },
     apply(value, ctx) { ctx.state.sea = makeSea(value); },
     change(value, old, ctx) { if (ctx.state.sea) changeSea(ctx.state.sea, value); else ctx.state.sea = makeSea(value); },
     dispose(ctx) { if (ctx.state.sea) removeBody(ctx.state.sea); ctx.state.sea = null; },
@@ -581,37 +587,16 @@ void main(void) {
 
   // Sounds: a game asset named "splash", "plop", "bite", "reel", "catch", "snap" or "rain" when it has one; otherwise a
   // small synthesized stand-in. Everything is muffled while your ears are under water.
-  let ac = null, noise = null;
-  const filters = new Map(); // AudioContext -> the muffling filter in front of its speakers
-  const audioCtx = () => {
-    if (ac) return ac;
-    try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch { ac = null; }
-    return ac;
-  };
-  const wake = () => { if (ac && ac.state === 'suspended') ac.resume().catch(() => {}); };
-  window.addEventListener('pointerdown', () => { audioCtx(); wake(); }, true);
-  window.addEventListener('keydown', () => { audioCtx(); wake(); }, true);
-  function muffleNode(ctx) {
-    let f = filters.get(ctx);
-    if (!f) {
-      f = ctx.createBiquadFilter();
-      f.type = 'lowpass'; f.frequency.value = under.on ? 520 : 22000; f.Q.value = 0.7;
-      f.__water = true;
-      CONNECT.call(f, ctx.destination);
-      filters.set(ctx, f);
-    }
-    return f;
-  }
-  // Every sound in the game (the engine's too) goes to the speakers through one filter per audio context, so being under
-  // water can muffle it. (The engine has no master audio node to hook into: see the module's notes.)
-  const CONNECT = window.AudioNode && AudioNode.prototype.connect;
-  if (CONNECT && !AudioNode.prototype.connect.__water) {
-    const patched = function (dest, ...rest) {
-      try { if (dest && typeof AudioDestinationNode !== 'undefined' && dest instanceof AudioDestinationNode && !this.__water) return CONNECT.call(this, muffleNode(dest.context), ...rest); } catch { /* fall through */ }
-      return CONNECT.call(this, dest, ...rest);
-    };
-    patched.__water = true;
-    AudioNode.prototype.connect = patched;
+  // The engine's audio (H.audio): one context; every sound goes through its master, and under water a low-pass filter
+  // between the master and the speakers muffles everything (the engine's sounds, music and every module's).
+  let noise = null, muffle = null;
+  const audioCtx = () => H.audio.context;
+  const out = () => H.audio.master;
+  function setMuffle(on) {
+    const ctx = audioCtx();
+    if (!ctx) return;
+    if (on && !muffle) { muffle = ctx.createBiquadFilter(); muffle.type = 'lowpass'; muffle.frequency.value = 520; muffle.Q.value = 0.7; H.audio.effect('water', muffle); }
+    else if (!on && muffle) { H.audio.effect('water', null); muffle = null; }
   }
   function assetNamed(word) {
     const assets = (H.bundle && H.bundle.assets) || {};
@@ -637,20 +622,20 @@ void main(void) {
     const ctx = audioCtx();
     if (!ctx || ctx.state !== 'running') return;
     const t0 = ctx.currentTime, size = clamp(o.size ?? 1, 0.1, 4);
-    const out = ctx.createGain();
-    out.connect(ctx.destination);
+    const gainOut = ctx.createGain();
+    gainOut.connect(out());
     const env = (gain, a, peak, dec) => { gain.gain.setValueAtTime(0.0001, t0); gain.gain.exponentialRampToValueAtTime(peak, t0 + a); gain.gain.exponentialRampToValueAtTime(0.0001, t0 + a + dec); };
     const tone = (f0, f1, dur, type = 'sine', peak = 0.2, delay = 0) => {
       const os = ctx.createOscillator(), gn = ctx.createGain();
       os.type = type; os.frequency.setValueAtTime(f0, t0 + delay); os.frequency.exponentialRampToValueAtTime(f1, t0 + delay + dur);
       gn.gain.setValueAtTime(0.0001, t0 + delay); gn.gain.exponentialRampToValueAtTime(peak * vol, t0 + delay + 0.01); gn.gain.exponentialRampToValueAtTime(0.0001, t0 + delay + dur);
-      os.connect(gn).connect(out); os.start(t0 + delay); os.stop(t0 + delay + dur + 0.05);
+      os.connect(gn).connect(gainOut); os.start(t0 + delay); os.stop(t0 + delay + dur + 0.05);
     };
     const hiss = (f0, f1, dur, peak, type = 'lowpass') => {
       const src = ctx.createBufferSource(); src.buffer = noiseBuffer(ctx);
       const f = ctx.createBiquadFilter(); f.type = type; f.frequency.setValueAtTime(f0, t0); f.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t0 + dur);
       const gn = ctx.createGain(); env(gn, 0.008, Math.max(0.001, peak * vol), dur);
-      src.connect(f).connect(gn).connect(out); src.start(t0, Math.random()); src.stop(t0 + dur + 0.1);
+      src.connect(f).connect(gn).connect(gainOut); src.start(t0, Math.random()); src.stop(t0 + dur + 0.1);
     };
     if (name === 'splash') { hiss(2600 + size * 400, 300, 0.25 + size * 0.35, 0.35 + size * 0.12); tone(260 / (0.6 + size * 0.4), 90, 0.18 + size * 0.1, 'sine', 0.25); }
     else if (name === 'plop' || name === 'drip') tone(name === 'drip' ? 900 : 380, name === 'drip' ? 2200 : 1100, 0.09, 'sine', 0.22);
@@ -761,7 +746,6 @@ void main(void) {
     const bg = L.hex(cfg.background, '#9fd3f0');
     sc.clearColor = new B.Color4(bg.r, bg.g, bg.b, 1);
   }
-  function setMuffle(on) { for (const f of filters.values()) { try { f.frequency.setTargetAtTime(on ? 520 : 22000, f.context.currentTime, 0.05); } catch { f.frequency.value = on ? 520 : 22000; } } }
   function underwater() {
     const w = W();
     if (!w || !w.scene.activeCamera) return;
@@ -845,16 +829,6 @@ void main(void) {
   }));
   H.water = water;
 
-  // game.water for scripts: the game object is made fresh for every run, and window.game is set right after (runtime.js
-  // start), before any script runs. (A seam for this would be nicer: see the module's notes.)
-  const attach = (g) => { if (g && typeof g === 'object') { try { g.water = water; } catch { /* frozen */ } } };
-  const prior = Object.getOwnPropertyDescriptor(window, 'game');
-  let current = window.game;
-  Object.defineProperty(window, 'game', {
-    configurable: true,
-    enumerable: true,
-    get: () => (prior && prior.get ? prior.get() : current),
-    set: (g) => { if (prior && prior.set) prior.set(g); current = g; attach(g); },
-  });
-  attach(current);
+  // game.water for scripts (every new game object, before any script runs).
+  H.hooks.game.push((g) => { g.water = water; });
 })();

@@ -39,15 +39,53 @@
   // Other words for the same things.
   const ALIAS = { 'fish-out-of-water': 'fish', trex: 'dinosaur', 't-rex': 'dinosaur', dino: 'dinosaur', puppy: 'dog', kitten: 'cat', kitty: 'cat', bunny: 'rabbit', hen: 'chicken', rooster: 'chicken', chick: 'chicken', lamb: 'sheep', calf: 'cow', bull: 'cow', cattle: 'cow', pony: 'horse', stag: 'deer', doe: 'deer', fawn: 'deer', human: 'person', villager: 'person', npc: 'person', man: 'person', woman: 'person', kid: 'person', android: 'robot', bot: 'robot', crow: 'bird', pigeon: 'bird', seagull: 'bird', duck: 'chicken', goat: 'sheep', fox: 'dog', puppydog: 'dog', piglet: 'pig' };
   ALIAS.wolves = 'wolf'; ALIAS.ponies = 'horse'; ALIAS.puppies = 'dog'; ALIAS.people = 'person'; ALIAS.fishes = 'fish'; ALIAS.geese = 'chicken'; ALIAS.mice = 'rabbit'; ALIAS.dinos = 'dinosaur';
-  /** The species a word means ("cows", "puppy", "t-rex"), or null. */
+  // Animals with no table row of their own: a close species' body, their own colors and size (`scale`).
+  const LOOKS = {
+    elephant: ['cow', '#8d8f96', 1.9], lion: ['dog', '#d9a441', 1.7], tiger: ['dog', '#e8822a', 1.7], zebra: ['horse', '#f2f2f2', 1],
+    giraffe: ['horse', '#d9b05a', 1.35], panda: ['bear', '#f2f2f2', 0.9], llama: ['sheep', '#e8dcc0', 1.35], alpaca: ['sheep', '#f0e2c8', 1.1],
+    monkey: ['dog', '#7a5230', 0.8], turtle: ['rabbit', '#3a7a4a', 1.1], mouse: ['rabbit', '#9a9aa0', 0.45], rat: ['rabbit', '#6a6a70', 0.5],
+    frog: ['rabbit', '#4caf50', 0.8], hamster: ['rabbit', '#e0a060', 0.5], squirrel: ['rabbit', '#a0603a', 0.7], raccoon: ['cat', '#77736e', 1.2],
+    moose: ['deer', '#5a3a24', 1.5], camel: ['horse', '#d2a868', 1.15], kangaroo: ['deer', '#b07850', 1], slime: ['pig', '#66dd77', 0.8],
+    ostrich: ['chicken', '#3a3030', 3.2], parrot: ['bird', '#2fb04a', 1.3], owl: ['bird', '#8a6a4a', 1.4], eagle: ['bird', '#5a4030', 1.8],
+  };
+  const derived = new Map();
+  function look(name, [base, color, scale]) {
+    const b = SPECIES[base];
+    return { ...b, colors: { ...b.colors, body: color, head: color, legs: color }, scale, base };
+  }
+  /** Any other word ("wibble"): a small four-legged body in a color from its name. */
+  function generic(word) {
+    let h = 2166136261; for (const ch of word) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+    const c = ['#d98b5f', '#8fb3d9', '#b38fd9', '#d9c78f', '#8fd9a8', '#d98fae'][(h >>> 0) % 6];
+    return look(word, ['pig', c, 1]);
+  }
+  const singular = (n) => n.replace(/ies$/, 'y').replace(/(ss|x|ch|sh)es$/, '$1').replace(/([^s])s$/, '$1');
+  /** The species a word means ("cows", "puppy", "t-rex", "elephants"), or null. */
   function nameOf(s) {
     const n = String(s || '').toLowerCase().trim();
-    for (const c of [n, n.replace(/s$/, ''), n.replace(/es$/, '')]) { if (SPECIES[c]) return c; if (ALIAS[c]) return ALIAS[c]; }
+    for (const c of [n, n.replace(/s$/, ''), n.replace(/es$/, '')]) { if (SPECIES[c]) return c; if (ALIAS[c]) return ALIAS[c]; if (LOOKS[c]) return c; }
     return null;
   }
+  function getDef(name) {
+    if (!name) return null;
+    if (SPECIES[name]) return SPECIES[name];
+    if (!derived.has(name)) derived.set(name, LOOKS[name] ? look(name, LOOKS[name]) : generic(name));
+    return derived.get(name);
+  }
   const species = {
-    get: (s) => SPECIES[nameOf(s)] || null,
+    get: (s) => getDef(nameOf(s)),
     name: (s) => nameOf(s),
+    /** Any word as an animal: { name, def }. Known species and their other words first; any other word gets a stand-in
+     *  body in its own color (so "spawn 20 wibbles" works). */
+    of(s) {
+      const known = nameOf(s);
+      if (known) return { name: known, def: getDef(known) };
+      const w = singular(String(s || '').toLowerCase().replace(/[^a-z -]/g, '').trim());
+      if (!w) return { name: 'cow', def: SPECIES.cow };
+      return { name: w, def: getDef(w) };
+    },
+    /** Words that are animals beyond the table (each looks like a close species). */
+    looks: () => Object.keys(LOOKS),
     list: () => Object.keys(SPECIES),
     /** A new species: { plan, len, h, w, legH, legW, head, colors, walk, run, temper, group, diet, hp, mass, ... }
      *  (copy a row of the table: H.living.species.add('goat', { ...H.living.species.get('sheep'), colors: {...} })). */
