@@ -969,6 +969,8 @@
         return;
       }
       case 'context?': return toParent({ type: 'context', id: m.id, context: context() });
+      // The editor page opened a dialog over the game: give the mouse back.
+      case 'release-mouse': if (document.pointerLockElement) document.exitPointerLock(); return;
       case 'gen': return onGen(m.row);
       case 'advanced': advanced = Boolean(m.on); if (!advanced) toggleGizmo(null); if (popup) renderCard(); return;
       case 'select': { const e = W().byId.get(m.id); if (e) { openPopup(e); } return; }

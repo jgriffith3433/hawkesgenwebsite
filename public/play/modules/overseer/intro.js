@@ -2,7 +2,9 @@
 // the Overseer beams the player down and says: "I have given you the power of free will. Do with it what you will."
 // About ten seconds; any key or a tap skips it. After that (or on a later visit), being beamed in is enough.
 //   - config.overseer.intro: "first" (the default: once per player, remembered on this device), "always", or false.
-//   - The voice: a sound asset named "overseer-intro" in the game, if it has one; otherwise the words alone.
+//   - The sound: a score made here (a hum, the beam's swell and whoosh, a chime, a tone under each line). The voice: a
+//     sound asset named "overseer-intro" in the game, if it has one; otherwise the words are captions.
+//   - With sound still blocked by the browser (no click or key yet), it first shows "Click to enter the world".
 //   - Remembered in localStorage ("hg_overseer_intro"); a sandboxed game page (the editor's stage) asks its page,
 //     which passes it in the bundle (bundle.overseen) and is told when it has played (message "overseer-seen").
 //   - game.overseer.intro() plays it from a script; game.on('intro', ({ state }) => ...) hears it start and end.
@@ -70,6 +72,84 @@
     } catch { return null; }
   }
 
+  // ------------------------------------------------------------------ the sound (made here: no files, nothing to pay)
+  /** The Overseer's score for the intro, synthesized: a deep hum under it all, a swell and a whoosh as the beam comes
+   *  down, a chime as the player appears, and a soft voice-like tone under each line. Returns stop(fade seconds). */
+  function score() {
+    const ctx = H.audio && H.audio.context, out = H.audio && H.audio.master;
+    if (!ctx || !out || ctx.state !== 'running') return () => {};
+    const t0 = ctx.currentTime + 0.05;
+    const bus = ctx.createGain(); bus.gain.value = 0.9; bus.connect(out);
+    const nodes = [];
+    const keep = (n) => { nodes.push(n); return n; };
+    const env = (g, at, a, peak, hold, rel) => { g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(peak, at + a); g.gain.setValueAtTime(peak, at + a + hold); g.gain.exponentialRampToValueAtTime(0.0001, at + a + hold + rel); };
+    const tone = (type, freq, at, a, peak, hold, rel, dest = bus, detune = 0) => {
+      const o = keep(ctx.createOscillator()); o.type = type; o.frequency.value = freq; o.detune.value = detune;
+      const g = ctx.createGain(); env(g, at, a, peak, hold, rel); o.connect(g).connect(dest);
+      o.start(at); o.stop(at + a + hold + rel + 0.1);
+      return o;
+    };
+    const noise = () => {
+      const b = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate), d = b.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      const n = keep(ctx.createBufferSource()); n.buffer = b; n.loop = true; return n;
+    };
+    // The hum: two low tones a fifth apart, slightly detuned, through a slowly breathing filter.
+    const humF = ctx.createBiquadFilter(); humF.type = 'lowpass'; humF.frequency.value = 220; humF.Q.value = 6; humF.connect(bus);
+    const lfo = keep(ctx.createOscillator()); lfo.frequency.value = 0.18; const lfoG = ctx.createGain(); lfoG.gain.value = 90; lfo.connect(lfoG).connect(humF.frequency); lfo.start(t0);
+    for (const [f, dt] of [[55, -4], [55, 5], [82.4, 0], [110, 3]]) tone('sawtooth', f, t0, 2.2, 0.07, SECONDS - 3, 2.6, humF, dt);
+    const air = noise(); const airF = ctx.createBiquadFilter(); airF.type = 'bandpass'; airF.frequency.value = 900; airF.Q.value = 0.7;
+    const airG = ctx.createGain(); env(airG, t0, 2.5, 0.025, SECONDS - 3.5, 2.5); air.connect(airF).connect(airG).connect(bus); air.start(t0); air.stop(t0 + SECONDS + 1);
+    // The beam: a swell of light (a high chord) and a rising whoosh.
+    const tb = t0 + 1.3;
+    for (const f of [440, 554.4, 659.3, 880]) tone('sine', f, tb, 1.6, 0.035, 1.6, 2.2, bus, (Math.random() - 0.5) * 8);
+    tone('triangle', 1760, tb + 0.4, 1.2, 0.012, 1.2, 1.8);
+    const wh = noise(); const whF = ctx.createBiquadFilter(); whF.type = 'bandpass'; whF.Q.value = 1.4;
+    whF.frequency.setValueAtTime(300, tb); whF.frequency.exponentialRampToValueAtTime(4200, tb + 1.8);
+    const whG = ctx.createGain(); env(whG, tb, 0.9, 0.12, 0.4, 1.2); wh.connect(whF).connect(whG).connect(bus); wh.start(tb); wh.stop(tb + 3);
+    // The chime: the player is here.
+    const tc = t0 + 2.7;
+    for (const [f, peak] of [[1318.5, 0.08], [1975.5, 0.045], [2637, 0.02]]) tone('sine', f, tc, 0.01, peak, 0.05, 2.6);
+    // Under each line: a low, warm, voice-like tone (a formant over a soft saw).
+    for (const [at, len] of [[3.0, 2.9], [6.2, 3.3]]) {
+      const vf = ctx.createBiquadFilter(); vf.type = 'bandpass'; vf.frequency.value = 520; vf.Q.value = 3; vf.connect(bus);
+      tone('sawtooth', 98, t0 + at, 0.35, 0.05, len - 0.9, 0.8, vf);
+      tone('sawtooth', 146.8, t0 + at, 0.45, 0.025, len - 1, 0.8, vf, 4);
+    }
+    return (fade = 0.6) => {
+      const now = ctx.currentTime;
+      try { bus.gain.cancelScheduledValues(now); bus.gain.setValueAtTime(bus.gain.value, now); bus.gain.linearRampToValueAtTime(0, now + fade); } catch { /* fine */ }
+      setTimeout(() => { for (const n of nodes) { try { n.stop(); } catch { /* done */ } } try { bus.disconnect(); } catch { /* fine */ } }, (fade + 0.1) * 1000);
+    };
+  }
+
+  /** Browsers keep sound off until the first click or key: before the intro, a quiet "click to enter", so it's heard. */
+  function waitForSound() {
+    const ctx = H.audio && H.audio.context;
+    if (!ctx || ctx.state === 'running' || H.hooks.codex) return Promise.resolve();
+    return new Promise((done) => {
+      const veil = document.createElement('div');
+      veil.className = 'hp-enter';
+      veil.innerHTML = '<div><b>Click to enter the world</b><span>or press any key</span></div>';
+      if (!document.getElementById('hp-enter-css')) {
+        const st = document.createElement('style');
+        st.id = 'hp-enter-css';
+        st.textContent = '.hp-enter{position:fixed;inset:0;z-index:2147482000;display:grid;place-items:center;background:radial-gradient(ellipse at center,rgba(4,6,16,.35),rgba(4,6,16,.75));cursor:pointer;animation:hpEnterIn .6s ease both}.hp-enter div{display:grid;gap:8px;text-align:center;color:#eef2ff;font:600 22px/1.2 system-ui,sans-serif;letter-spacing:.02em;text-shadow:0 2px 18px rgba(120,160,255,.6)}.hp-enter span{font:400 13px/1 system-ui,sans-serif;opacity:.65;letter-spacing:.08em;text-transform:uppercase}@keyframes hpEnterIn{from{opacity:0}to{opacity:1}}';
+        document.head.appendChild(st);
+      }
+      const go = (e) => {
+        if (e && e.type === 'keydown' && ['shift', 'control', 'alt', 'meta'].includes(String(e.key || '').toLowerCase())) return;
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        window.removeEventListener('keydown', go, true);
+        veil.remove();
+        ctx.resume().catch(() => {}).finally(() => setTimeout(done, 60));
+      };
+      veil.addEventListener('pointerdown', go);
+      window.addEventListener('keydown', go, true);
+      document.body.appendChild(veil);
+    });
+  }
+
   /** Plays the intro now (resolves { skipped } when it ends). */
   async function play() {
     const w = W(), g = G();
@@ -78,6 +158,8 @@
     const c = OV.position;
     if (!p || !p.alive || !c) return { skipped: true };
     playedThisPage = true;
+    await waitForSound();
+    if (W() !== w || !p.alive) return { skipped: true };
     const at = [p.x, p.bottom, p.z];
     // Toward the ship across the ground, and the side.
     let hx = c[0] - at[0], hz = c[2] - at[2];
@@ -108,6 +190,7 @@
     window.addEventListener('keydown', onKey, true);
     window.addEventListener('pointerdown', onKey, true);
     playing = { started: t0 };
+    const stopScore = score();
     g.emit('intro', { state: 'start' });
     // The beam: the player appears in it.
     later(1.3, () => {
@@ -127,6 +210,7 @@
     window.removeEventListener('keydown', onKey, true);
     window.removeEventListener('pointerdown', onKey, true);
     if (audio && r.skipped) try { audio.pause(); } catch { /* fine */ }
+    stopScore(r.skipped ? 0.4 : 2.5);
     if (r.skipped) OV.say('', 0.01);
     playing = null;
     if (W() === w && p.alive) {
