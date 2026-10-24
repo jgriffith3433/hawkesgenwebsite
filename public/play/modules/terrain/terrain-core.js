@@ -348,17 +348,34 @@
   /** The terrain's volume of a dab (cosine bump of radius r, height 1): to pile what a shovel digs. */
   const bumpVolume = (r) => Math.PI * r * r * (0.5 - 2 / (Math.PI * Math.PI));
 
-  /** The whole field from a config: the shape, the home pad, the stamps (add), then every edit in order. */
-  function generate(value) {
+  /** The whole field from a config: the shape, the home pad, the stamps (add), then every edit in order.
+   *  o.round ({ radius, floor }): the terrain stands on a round planet (terrain.js puts it upright at its middle), so
+   *  its edges ease down to the planet's ground (floor: its height there, under the sea or 0) and the whole field
+   *  follows the ball's curve, meeting the ground round it without a step. Edits come after: they are made on it. */
+  function generate(value, o = {}) {
     const cfg = normalize(value);
     const f = makeField(cfg);
     const noise = makeNoise(cfg.seed);
     base(f, noise);
     for (const s of cfg.add) try { stamp(f, s); } catch { /* a bad stamp is skipped */ }
+    if (o.round && o.round.radius > 0) curve(f, o.round.radius, num(o.round.floor, 0));
     measure(f);
     for (const e of cfg.edits) applyEdit(f, e);
     measure(f);
     return f;
+  }
+  /** On a round planet of radius R: the outside eases to the planet's ground (`floor`, meters under or at sea level), in
+   *  a ring from 60% of the way to the edge and all of it by the edge (so no square shows under the sea; it ends just
+   *  under the planet's ground, which covers the seam), and every
+   *  height drops by the ball's curve from the middle (exact: R - √(R² - r²)). */
+  function curve(f, R, floor) {
+    const c = f.cfg, half = c.size / 2, cx = c.center[0], cz = c.center[1];
+    forEachSample(f, (ix, iz, x, z, i) => {
+      const dx = x - cx, dz = z - cz, r2 = dx * dx + dz * dz;
+      const k = Math.max(smooth(0.6, 0.98, Math.sqrt(r2) / half), smooth(0.82, 1, Math.max(Math.abs(dx), Math.abs(dz)) / half));
+      const h = f.heights[i] * (1 - k) + (floor - 0.6 - f.y) * k; // (a little under the ground: it covers the seam)
+      f.heights[i] = h - r2 / (R + Math.sqrt(Math.max(0, R * R - r2)));
+    });
   }
   function measure(f) {
     let lo = Infinity, hi = -Infinity;

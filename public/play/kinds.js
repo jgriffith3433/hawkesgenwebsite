@@ -48,7 +48,8 @@
     // you return. The copies are the model's levels of detail from Gen (the bundle's `lods`: modelLevels), else opts.low
     // or "<name>_low.glb" when the game has one (older games).
     const entry = L.assetEntry(name) || { name };
-    const levels = opts.low === undefined ? modelLevels(entry) : null;
+    // (Small things never need the biggest textures: under 2.5 m tall, 1024 px at most.)
+    const levels = opts.low === undefined ? modelLevels(entry, want && want < 2.5 ? 1024 : undefined) : null;
     if (levels) url = levels.near;
     const named = entry.name; // (an id: its name, for the low copy beside it)
     const lowName = levels ? (levels.low ? '(low)' : null) : opts.low !== undefined ? opts.low : (/\.glb$/i.test(named) && hasAsset(named.replace(/\.glb$/i, '_low.glb')) ? named.replace(/\.glb$/i, '_low.glb') : null);
@@ -107,12 +108,13 @@
   /**
    * A model's copies from its levels of detail (entry.lods from Gen: levels by triangles, each with its biggest texture):
    * near, the most detailed one whose textures fit the device (H.budget.maxTexture: a phone takes the 1024 px mid, not
-   * the 2048 px model), and low, the fewest triangles. Null without levels.
+   * the 2048 px model), and low, the fewest triangles. Null without levels. maxTex caps the textures further (a small
+   * thing, a vehicle's body).
    */
-  function modelLevels(entry) {
+  function modelLevels(entry, maxTex) {
     const l = entry && entry.lods;
     if (!l || l.kind !== 'mesh' || !Array.isArray(l.levels) || !l.levels.length) return null;
-    const max = Number(H.budget && H.budget.maxTexture) || 8192;
+    const max = Math.min(Number(H.budget && H.budget.maxTexture) || 8192, Number(maxTex) || Infinity);
     // (A level as detailed as the model itself stands in for it: the same triangles, smaller textures.)
     const all = [...l.levels.map((x) => ({ tris: x.tris || x.level, tex: x.tex || 0, url: x.url })), { tris: l.tris || Infinity, tex: l.tex || 0, url: entry.url, original: true }];
     const fit = all.filter((x) => x.tex <= max).sort((a, b) => b.tris - a.tris || (a.original ? 1 : 0) - (b.original ? 1 : 0) || a.tex - b.tex);

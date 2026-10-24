@@ -32,7 +32,7 @@
   };
   const ALIAS = { earthlike: 'earth', green: 'forest', jungle: 'forest', sand: 'desert', dunes: 'desert', mars: 'desert', snow: 'ice', frozen: 'ice', winter: 'ice', water: 'ocean', sea: 'ocean', islands: 'ocean', volcano: 'lava', volcanic: 'lava', fire: 'lava', purple: 'alien', strange: 'alien' };
 
-  const state = { on: true, round: false, radius: 60000, surface: 0, airBase: 0, scale: 1800, k: 1 / 120000 };
+  const state = { on: true, round: false, seabed: 0, radius: 60000, surface: 0, airBase: 0, scale: 1800, k: 1 / 120000 };
   /** Whether config.planet asks for a round world (sphere: true, or "round" / "sphere" / "globe"). */
   const isRound = (v) => Boolean(v && ((typeof v === 'object' && (v.sphere === true || v.round === true || /^(sphere|round|globe)$/i.test(String(v.shape || '')))) || (typeof v === 'string' && /^(sphere|round|globe)$/i.test(v))));
   /** Reads config.planet (and guesses the rest from the world: its sea, its terrain). */
@@ -51,8 +51,13 @@
     const colors = { ...base, ...(o.colors && typeof o.colors === 'object' ? o.colors : {}) };
     if (!(o.colors && o.colors.sea) && cfg.water && typeof cfg.water === 'object' && cfg.water.color) colors.sea = cfg.water.color;
     const hasGround = Boolean(cfg.water || cfg.terrain);
-    // A round world: the planet is the ground (sea level is its surface, y = 0 under you; no seas to sink into).
+    // A round world: the planet is the ground (sea level is its surface, y = 0 under you). With a seabed (meters, under
+    // 0) the ground sits that deep everywhere: the world's sea (config.water) is then an ocean round the whole planet,
+    // and its terrain an island in it (the ball from afar is sea, with the island painted where it is).
     if (round) {
+      const seabed = clamp(Math.min(0, num(o.seabed, 0)), -2000, 0);
+      const tr = cfg.terrain && typeof cfg.terrain === 'object' ? cfg.terrain : cfg.terrain ? {} : null;
+      const isle = tr && seabed < 0 ? { at: Array.isArray(tr.center) ? [num(tr.center[0], 0), num(tr.center[1], 0)] : [0, 0], r: num(tr.size, 512) * (/island|beach/i.test(String(tr.shape || '')) ? 0.3 : 0.5) } : null;
       return {
         on: true, round: true,
         biome: { ...colors, name: biomeName },
@@ -62,6 +67,7 @@
         land: 1,
         clouds: clamp(num(o.clouds, base.clouds), 0, 1),
         local: 0, localR: 0,
+        seabed, isle,
       };
     }
     return {
@@ -232,11 +238,22 @@ uniform vec4 lit2;      // ambient, sun
 uniform vec3 hazeCol;
 uniform vec4 fogv;      // mode (3 linear), start, end, density
 uniform vec4 lightv;    // day light, altitude, haze distance, space
+uniform vec4 seaC;      // an ocean planet (a seabed): the sea's colour, on
+uniform vec4 isl;       // its island: where (a direction from the middle), its radius (m)
 ${BIOME_UNIFORMS}${BIOME_GLSL}
 void main(void) {
   vec3 d = normalize(vN);
   vec3 N = normalize(vNw);
   vec3 c = biome(d, look.x);
+  // An ocean planet: sea everywhere, its island (sand, then the lands) where it is.
+  float seaK = 0.0;
+  if (seaC.w > 0.5) {
+    float land = isl.w > 0.0 ? 1.0 - smoothstep(isl.w * 0.75, isl.w * 1.15, length(d - isl.xyz) * look.x) : 0.0;
+    // (Lit below like the ground: the sea's own colour comes out about as the water near you draws it.)
+    vec3 sc = seaC.rgb * (0.42 + 0.12 * bNoise(d * (look.x / 1500.0), 100000.0));
+    c = mix(sc, mix(bSand, c, smoothstep(0.5, 0.9, land)), land);
+    seaK = 1.0 - land;
+  }
   float ndl = dot(N, toSun);
   float sun = clamp(ndl, 0.0, 1.0);
   // Lit like the ground near you (the world's ambient and sun, as the sky has set them), dark on the night side.
@@ -254,6 +271,7 @@ void main(void) {
   if (fogv.x > 2.5) hz = clamp((dist - fogv.y) / max(1.0, fogv.z - fogv.y), 0.0, 1.0);
   else hz = 1.0 - exp(-dist / lightv.z);
   float rim = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 3.0) * lightv.w;
+  c += vec3(1.0, 0.95, 0.85) * pow(max(dot(reflect(-toSun, N), V), 0.0), 60.0) * 0.6 * seaK * sun * lightv.x;
   c = mix(c, hazeCol, clamp(max(hz * (1.0 - lightv.w * 0.8), rim * 0.75), 0.0, 1.0));
   gl_FragColor = vec4(c, 1.0);
 }`;
@@ -274,7 +292,7 @@ void main(void) {
     // A round world's ball: its lands fixed to the planet (turned with the frame), lit like the ground.
     const rm = new B.ShaderMaterial('hp-round', scene, { vertex: 'hpRound', fragment: 'hpRound' }, {
       attributes: ['position'],
-      uniforms: ['world', 'viewProjection', 'camPos', 'toSun', 'look', 'lit2', 'hazeCol', 'fogv', 'lightv', 'bLand', 'bLand2', 'bSand', 'bRock', 'bSnow'],
+      uniforms: ['world', 'viewProjection', 'camPos', 'toSun', 'look', 'lit2', 'hazeCol', 'fogv', 'lightv', 'seaC', 'isl', 'bLand', 'bLand2', 'bSand', 'bRock', 'bSnow'],
     });
     const atmo = B.MeshBuilder.CreateSphere('hp-atmo', { diameter: 2, segments: PHONE ? 32 : 48 }, scene);
     const am = new B.ShaderMaterial('hp-atmo', scene, { vertex: 'hpPlanet', fragment: 'hpAtmo' }, { attributes: ['position'], uniforms: ['world', 'viewProjection', 'camPos', 'toSun', 'glow', 'vis'], needAlphaBlending: true });
@@ -323,6 +341,11 @@ void main(void) {
       e.setFloat4('fogv', sk.fogOn ? w.scene.fogMode : 0, w.scene.fogStart, w.scene.fogEnd, w.scene.fogDensity);
       const alt = H.planet.heightOf([p.x, p.y, p.z]);
       e.setFloat4('lightv', Math.max(0.08, sk.day), alt, 2600 + Math.max(0, alt) * 3.5, sk.space);
+      const sea = L.hex(cf.biome.sea, '#1d6aa5');
+      e.setFloat4('seaC', sea.r, sea.g, sea.b, cf.seabed < 0 ? 1 : 0);
+      const is = cf.isle;
+      if (is) { const l = Math.hypot(is.at[0], state.radius, is.at[1]); e.setFloat4('isl', is.at[0] / l, state.radius / l, is.at[1] / l, is.r); }
+      else e.setFloat4('isl', 0, 1, 0, 0);
     });
     sphere.material = m;
     sphere.alwaysSelectAsActiveMesh = true;
@@ -346,7 +369,8 @@ void main(void) {
         sphere.rotationQuaternion = null;
         sphere.position.set(p.x, state.surface - R, p.z);
       }
-      sphere.scaling.setAll(R);
+      // (An ocean planet's ball is its seabed's: the sea is drawn on it.)
+      sphere.scaling.setAll(state.round ? R + state.seabed : R);
       atmo.position.copyFrom(sphere.position);
       atmo.scaling.setAll(R + (state.round ? Math.min(state.scale * 5, R * 0.035) : state.scale * 5));
       const alt = Math.max(1, state.round ? H.planet.heightOf([p.x, p.y, p.z]) : p.y - state.surface);
@@ -361,7 +385,7 @@ void main(void) {
   function configure() {
     const cf = read(L.effectiveConfig());
     // (A round world isn't curved in the shader: its things really are on the ball.)
-    Object.assign(state, { on: cf.on, round: Boolean(cf.on && cf.round), radius: cf.radius, surface: cf.surface, airBase: cf.airBase === null || cf.airBase === undefined ? cf.surface : cf.airBase, scale: cf.scale, k: cf.on && !cf.round ? 1 / (2 * cf.radius) : 0 });
+    Object.assign(state, { on: cf.on, round: Boolean(cf.on && cf.round), seabed: cf.seabed || 0, radius: cf.radius, surface: cf.surface, airBase: cf.airBase === null || cf.airBase === undefined ? cf.surface : cf.airBase, scale: cf.scale, k: cf.on && !cf.round ? 1 / (2 * cf.radius) : 0 });
     if (planet) planet.cfg = cf;
     return cf;
   }
@@ -407,6 +431,8 @@ void main(void) {
     get center() { return state.round ? [0, -state.radius, 0] : null; },
     /** The local frame of a round world (round.js fills it in): where you are on the planet and how it's turned. */
     frame: { toLocalQ: () => B.Quaternion.Identity() },
+    /** A round world's seabed: how far under sea level its ground is (0, or negative: an ocean planet). */
+    get seabed() { return state.round ? state.seabed : 0; },
     /** The planet's surface (sea level) in world meters. */
     get surface() { return state.surface; },
     /** The air's scale height (m): the air thins by e every this many meters. */

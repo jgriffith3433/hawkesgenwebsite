@@ -470,9 +470,15 @@ integrator's pose and velocity), turn them in `H.planet.frame.onRebase((tr) => .
 (`e._far`: skip simulating them yourself, as vehicles do). Scene edits made here go through `H.applyOps(ops, { local:
 true })` (or the editor's `edit`), which put them on the planet; never write a world-file position from a local one
 yourself. The ground is a curved patch round the player (`kind: 'planet'`, `_frameFixed`) and the ball in the far layer.
-Things still assuming flat ground: Terrain (a flat heightfield at the start), Water (a flat sea that curves in the shader:
-fine near you), Living things' navigation grid (flat cells near the creature), Mayhem's and Events' spawn heights (y
-near 0 under you is right).
+Terrain is a thing on the planet: it's put upright at its `center`, its heights follow the ball's curve and its edges
+ease down to the planet's ground (`generate(value, { round })` in terrain-core.js), the frame moves it like everything
+else, and `H.terrain`'s queries (`heightAt`, `normalAt`, `place`, `dig`, edits, craters) take points in the world round
+you and turn them into its own coordinates (`H.terrain.fieldPoint(p)`; edits are saved in those). **An ocean planet**
+(`config.planet.seabed`, meters under sea level): the ground patch and the ball sit that deep, the ball paints sea
+with the terrain's island where it is, and Water's sea (a ball at its level round the middle in the shader) has no floor
+of its own and grows to the horizon as you climb (`test/engine/round.test.ts`, "an ocean planet"). Things still
+assuming flat ground: Living things' navigation grid (flat cells near the creature), Mayhem's and Events' spawn heights
+(y near 0 under you is right).
 
 
 Whatever appears comes down from the Overseer, through **arrivals** (`H.arrive`, `modules/overseer/arrive.js`), chosen

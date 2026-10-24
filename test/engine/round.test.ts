@@ -267,3 +267,78 @@ test('things saved far round the planet stay where they are when the world start
   assert.ok(Math.abs(hc) < 0.1, `there, the crate is on the ground (${hc.toFixed(3)} m)`);
   assert.ok(cow.alive && Math.abs(H.planet.heightOf([cow.x, cow.bottom, cow.z])) < 0.6, `and the cow stands there (${H.planet.heightOf([cow.x, cow.bottom, cow.z]).toFixed(2)} m)`);
 });
+
+// ------------------------------------------------------------------ an ocean planet (planet.seabed): the sea round the whole ball
+const ocean = (more: Record<string, any> = {}, terrain: any = { shape: 'island', size: 150, height: 10, seed: 3, scatter: false }) => sceneOf({ start: { ...start, transform: { position: [0, 4.2, 0] } }, ...more }, { planet: { sphere: true, radius: R, seabed: -20 }, overseer: { intro: false }, water: { level: 0, waves: 0 }, terrain });
+test('an ocean planet: the ground sits at the seabed, the sea is deep everywhere and has no floor of its own', () => {
+  world(H, ocean({ crate: { type: 'box', name: 'Crate', shape: { size: 1 }, physics: 'dynamic', transform: { position: [120, 3, 0] } } }));
+  H.tick(3);
+  assert.equal(H.planet.seabed, -20);
+  const g = [...H.world.entities].find((e: any) => e.kind === 'planet');
+  assert.ok(Math.abs(g.y + 20) < 1e-6, `the ground is 20 m under the sea (${g.y})`);
+  assert.ok(![...H.world.entities].some((e: any) => e.tag === 'seabed'), 'no flat sea floor: the planet is the floor');
+  const sea = H.water.sea;
+  assert.ok(sea.floor === false && Math.abs(sea.depth - 20) < 1e-6, `the sea is 20 m deep, its floor the planet's (${sea.depth})`);
+  // Something dropped in the sea away from the island floats there (no floor at sea level holds it up).
+  const c = H.world.byId.get('crate');
+  assert.ok(Math.abs(c.y) < 0.8, `the crate floats (y ${c.y.toFixed(2)})`);
+  // The planet's settings say it: an island at the start, in the sea.
+  const cf = H.planet.config;
+  assert.equal(cf.seabed, -20);
+  assert.deepEqual(cf.isle && cf.isle.at, [0, 0]);
+  assert.ok(cf.isle.r > 30 && cf.isle.r < 60);
+  // Without a seabed a round world is as before: the ground at sea level.
+  world(H, round());
+  assert.equal(H.planet.seabed, 0);
+  assert.ok(Math.abs([...H.world.entities].find((e: any) => e.kind === 'planet').y) < 1e-6);
+});
+
+test('an ocean planet: the ball from afar is its seabed, painted as sea with the island where it is', () => {
+  world(H, ocean());
+  H.tick(0.5);
+  const scene = H.world.scene;
+  const m = scene.materials.find((x: any) => x.name === 'hp-round');
+  assert.ok(m, 'the ball\'s material');
+  assert.ok(m.options.uniforms.includes('seaC') && m.options.uniforms.includes('isl'), 'the ball knows the sea and the island');
+  assert.match((globalThis as any).BABYLON.Effect.ShadersStore.hpRoundFragmentShader, /seaC\.w > 0\.5/);
+});
+
+test('an ocean planet: the island meets the seabed at its edges, curved like the ball', () => {
+  world(H, ocean());
+  H.tick(0.5);
+  const T = H.terrain;
+  const drop = (r: number) => R - Math.sqrt(R * R - r * r);
+  assert.ok(Math.abs(T.heightAt(0, 0) - 4) < 0.6, 'the middle is the flat home ground');
+  for (const [x, z] of [[75, 0], [0, -75], [75, 75], [-75, 30]]) {
+    const h = T.heightAt(x, z), want = -20 - drop(Math.hypot(x, z));
+    assert.ok(h < want && h > want - 1, `edge (${x}, ${z}) at ${h.toFixed(3)}: just under the seabed there (${want.toFixed(3)})`);
+  }
+  // A big island on the same planet: its corners would be 1.3 m off the ball if it were flat; now they meet it.
+  world(H, ocean({}, { shape: 'island', size: 512, scatter: false }));
+  H.tick(0.2);
+  const h = H.terrain.heightAt(256, 256), want = -20 - drop(Math.hypot(256, 256));
+  assert.ok(h < want && h > want - 1, `the corner at ${h.toFixed(3)}, just under the seabed (${want.toFixed(3)})`);
+});
+
+test('an ocean planet: the island goes with the frame (heights, things on it, the player in the sea)', () => {
+  world(H, ocean({ crate: { type: 'box', name: 'Crate', shape: { size: 1 }, physics: 'dynamic', transform: { position: [8, 5.5, 6] } } }, { shape: 'island', size: 150, height: 10, seed: 3, scatter: { trees: 20, rocks: 0, bushes: 0, seed: 3 } }));
+  for (let t = 0; t < 2; t += 1 / 60) H.tick(1 / 60);
+  const crate = H.world.byId.get('crate');
+  const before = F().toPlanet(crate.position);
+  const tree = H.world.scene.meshes.find((m: any) => m.name === 'tree-trunk');
+  assert.ok(tree && tree.parent, 'the trees stand on the terrain (they move with it)');
+  // Out to sea 260 m: the frame moves under the player.
+  goTo([260, -0.3, 0], 2);
+  assert.ok(F().rebases >= 1, 'the frame moved');
+  const p = H.world.player;
+  assert.ok(p.y < 1, `the player is still in the sea, not lifted onto where the island was (y ${p.y.toFixed(2)})`);
+  // The island's middle, wherever it is round the player now, is still 4 m up; the crate didn't move on the planet.
+  const mid = F().toLocal([0, 0, 0]);
+  const hm = H.terrain.heightAt(mid[0], mid[2]);
+  assert.ok(Math.abs(hm - (mid[1] + 4)) < 0.6, `the island's middle (${hm.toFixed(2)} vs ${(mid[1] + 4).toFixed(2)})`);
+  const after = F().toPlanet(crate.position);
+  assert.ok(len([after[0] - before[0], after[1] - before[1], after[2] - before[2]]) < 0.1, 'the crate stayed on the island');
+  // A point here, in the island's own coordinates (what edits are saved in).
+  const at = H.terrain.fieldPoint([mid[0], mid[1] + 4, mid[2]]);
+  assert.ok(Math.abs(at[0]) < 0.3 && Math.abs(at[2]) < 0.3 && Math.abs(at[1] - 4) < 0.3, `field point ${at.map((v: number) => v.toFixed(2))}`);
+});
