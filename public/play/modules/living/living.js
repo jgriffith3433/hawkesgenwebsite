@@ -24,6 +24,19 @@
   // ------------------------------------------------------------------ the creatures in this world
   let list = []; // records: { e, sp, name, state, act, goal, path, ... } (e.living is its record)
   let cursor = 0, steps = 0, hash = new Map(), pathQueue = [], warned = false;
+  // A round world: the frame moved under the player (round.js moved the creatures); where they're going, their
+  // homes and herds' middles go with it (their paths are worked out again).
+  if (H.planet && H.planet.frame && H.planet.frame.onRebase) H.planet.frame.onRebase((tr) => {
+    const xz = (a) => { const p = tr.point([a[0], 0, a[1]]); return [p[0], p[2]]; };
+    for (const r of list) {
+      if (r.home) r.home = xz(r.home);
+      if (r.goal && !r.goal.ent) { const p = xz([r.goal.x, r.goal.z]); r.goal.x = p[0]; r.goal.z = p[1]; }
+      if (r.netGoal) { const p = xz([r.netGoal.x, r.netGoal.z]); r.netGoal.x = p[0]; r.netGoal.z = p[1]; }
+      r.path = null;
+      if (r.trk) r.trk = null;
+    }
+    hash = new Map();
+  });
   const listeners = { startle: [], hurt: [], act: [], world: [] };
   living.on = (name, fn) => { (listeners[name] || (listeners[name] = [])).push(fn); return () => { const l = listeners[name]; const i = l.indexOf(fn); if (i >= 0) l.splice(i, 1); }; };
   const tell = (name, ...args) => { for (const f of listeners[name] || []) try { f(...args); } catch (err) { H.report(err, 'living'); } };

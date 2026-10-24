@@ -194,3 +194,36 @@ test('the new game template: an empty round planet, the intro every time, the pl
   // The Overseer hangs over its place on the planet, kilometres up.
   assert.ok(H.overseer.position[1] > 4000);
 });
+test('modules on the planet: a cow and a 4x4 from the wheel stand on the far side; a moving car keeps going through a rebase', async () => {
+  world(H, round(), { mode: 'build' });
+  H.tick(0.5);
+  goTo(onPlanet(120, 1), 1);
+  for (const word of ['cow', '4x4']) {
+    const it = H.spawn.pick(word);
+    assert.ok(it, `the wheel has ${word}`);
+    if (it.lazy || /4x4|truck/.test(word)) await (globalThis as any).HawkesModules?.ensure?.('vehicles').catch(() => {});
+    const r = await H.spawn.spawn(it, { count: 1 });
+    assert.ok(r.ok, `${word}: ${r.error}`);
+    await new Promise((done) => setTimeout(done, 1300));
+    for (let t = 0; t < 2; t += 1 / 60) H.tick(1 / 60);
+    const e = H.world.byId.get(r.ids[0]);
+    const pp = F().toPlanet([e.x, e.bottom, e.z]);
+    const h = len([pp[0], pp[1] + R, pp[2]]) - R;
+    assert.ok(Math.abs(h) < 0.6, `${word} stands on the ground (its feet ${h.toFixed(2)} m up)`);
+    const q = (globalThis as any).BABYLON.Quaternion.FromEulerAngles(e.node.rotation.x, e.node.rotation.y, e.node.rotation.z);
+    const u = (globalThis as any).BABYLON.Vector3.Up().rotateByQuaternionToRef(q, new (globalThis as any).BABYLON.Vector3());
+    assert.ok(dot([u.x, u.y, u.z], [0, 1, 0]) > 0.98, `${word} upright`);
+  }
+  // A 4x4 rolling when the frame moves: it keeps its speed (the vehicle's own state went with the frame).
+  world(H, round({ jeep: { type: 'truck', name: '4x4', transform: { position: [0, 1.2, 12] } } }));
+  H.tick(1.5);
+  const c = H.world.byId.get('jeep');
+  assert.ok(c && c.vehicle, 'a 4x4');
+  c.velocity = [0, 0, 8];
+  for (let t = 0; t < 0.2; t += 1 / 60) H.tick(1 / 60);
+  const s0 = c.speed;
+  H.planet.frame.rebase([c.x + 60, 0, c.z]);
+  H.tick(1 / 60);
+  const s1 = c.speed;
+  assert.ok(s0 > 2 && Math.abs(s1 - s0) < 1.5, `still rolling (${s0.toFixed(2)} -> ${s1.toFixed(2)} m/s)`);
+});

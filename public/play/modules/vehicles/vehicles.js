@@ -36,6 +36,21 @@
 
   // ------------------------------------------------------------------ the world's vehicles
   const list = () => { const w = W(); if (!w) return []; if (!w.vehicles) w.vehicles = new Set(); return [...w.vehicles].filter((e) => e.alive); };
+  // A round world: the frame moved under the player (round.js turned every vehicle's node); what each one keeps of
+  // its own (where it is, how it moves and turns) goes with it, so a car driving through keeps driving.
+  if (H.planet && H.planet.frame && H.planet.frame.onRebase) H.planet.frame.onRebase((tr) => {
+    const pt = (x) => { if (!x) return x; const a = tr.point([x.x, x.y, x.z]); return new B.Vector3(a[0], a[1], a[2]); };
+    const dir = (x) => { if (x) { const a = tr.dir([x.x, x.y, x.z]); x.set(a[0], a[1], a[2]); } };
+    for (const e of list()) {
+      const v = e.vehicle;
+      if (!v) continue;
+      v.pos = pt(v.pos); v.posW = pt(v.posW); if (v.com) v.com = pt(v.com);
+      dir(v.vel); dir(v.w); dir(v.gave);
+      if (v.q) v.q = tr.quat(v.q).normalize();
+      if (v.euler) v.euler = e.node.rotation.clone();
+      if (v.q && v.M) axes(v);
+    }
+  });
   const myId = () => (H.sync && H.sync.online && H.sync.me ? H.sync.me : 'local');
   const isMe = (who) => who === 'local' || (who && H.sync && who === H.sync.me);
 
@@ -405,6 +420,7 @@
   // ------------------------------------------------------------------ one step of one vehicle
   function simulate(v, dt) {
     const e = v.e;
+    if (e._far) return; // (a round world: far from you it rests where it is, round.js)
     if (e.held || e.physics === 'static' || e.physics === 'none') { v.vel.setAll(0); v.w.setAll(0); if (e.physics !== 'dynamic') { e.vx = e.vy = e.vz = 0; } v.euler = null; return; }
     if (havokOn() && e.physics === 'dynamic') simulateHavok(v, dt);
     else simulateOwn(v, dt);
