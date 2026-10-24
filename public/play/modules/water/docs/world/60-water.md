@@ -2,8 +2,8 @@
 
 Water is a world setting (the sea, `config.water`), a kind of thing (`water`: pools, ponds, lakes, rivers, tanks), and
 weather (`config.weather`: rain and storms). In any of it players swim and dive, things float or sink, things that
-fall in splash, and you can fish. Everything works with no art; models and sounds are picked up by name when the game
-has them (see "Art by name" below).
+fall in splash, and you can fish. Everything works with no art; models and sounds are picked up by word when the game
+has them (see "Art by word" below).
 
 ### The sea (`config.water`)
 
@@ -115,10 +115,10 @@ Your own fish in a world (no script): `"species": [{ "id": "lava-eel", "name": "
 a bigger bucket that you refill by dipping it in water). Click (phones: 💧) to throw the water where you look: it
 splashes, knocks people over, soaks them and puts out fire. Pouring water on someone from a script: API.md "Water".
 
-### Art by name
+### Art by word
 
-Stand-ins until the game has these assets (any file whose name, without its extension, matches): models `bucket`,
-`fishing-rod` (or `rod`), a fish per species (`trout`, or `fish-trout`, or one `fish` for all); sounds `splash`,
+Stand-ins until the game has assets for these words (WORLD.md "Assets by id"): models `bucket`, `fishing rod` (or
+`rod`), a fish per species (`trout`, or `fish trout`, or one `fish` for all); sounds `splash`,
 `plop`, `bite`, `reel`, `catch`, `snap`, `drip`, `rain` (looped).
 
 ### Examples in words

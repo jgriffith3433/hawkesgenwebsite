@@ -1,7 +1,7 @@
 ## Mayhem: explosions, fire, things that break, animals, tools, spawning a hundred of anything
 
 Everything here works with no art: blocky stand-ins, flashes, smoke and synthesized sounds. A model or a sound with the
-right name is used by itself when the game has one (`cow.glb` for cows, `explosion.mp3` for blasts; see the end).
+game's asset for the word is used by itself when it has one (a cow model for cows, an explosion sound for blasts: WORLD.md "Assets by id"; see the end).
 
 ### Kinds
 
@@ -59,12 +59,12 @@ MAYHEM score and combo text; `shake` (1; 0 turns camera shake off); `debris: fal
 (things spawned at once, 400; 150 on phones: past it the oldest go); `maxDebris` (160); `debrisLife` (8 s);
 `burnSeconds` (7); `spread: false` (fire doesn't spread).
 
-### Sounds and models by name
+### Sounds and models by word
 
-Blasts play the first of `explosion`, `boom`, `explode`, `blast` (with .mp3/.wav/.ogg/.m4a) the game has; breaking
+The game's assets for these words (WORLD.md "Assets by id"): blasts `explosion`, `boom`, `explode`, `blast`; breaking
 `break`/`shatter`/`crash`; rockets `rocket`/`whoosh`; spawning `spawn`/`pop`; fire `fire`/`flame`; throws `throw`;
-ropes `rope`/`lasso`; cows `moo`. Without one, a sound is synthesized. Critters use `<species>.glb`; `spawnMany("tree")`
-uses `tree.glb` when there is one.
+ropes `rope`/`lasso`; cows `moo`. Without one, a sound is synthesized. Animals use their species' model (Living things); `spawnMany("tree")`
+uses the game's tree models (mixed, when `config.assets.tree` mixes).
 
 ### In words (what the assistant does)
 

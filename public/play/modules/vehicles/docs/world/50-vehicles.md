@@ -37,7 +37,7 @@ health show bottom right (altitude and throttle in aircraft, depth and ballast i
 | `shape.handling` | `"drift"` (slides more) or `"grippy"` | |
 | `shape.mass` | kilograms (heavier pushes more and is pushed less) | car 1200, truck 2000 |
 | `shape.health` | crashes and explosions take it; at 0 it's a smoking wreck nobody can drive | 100 |
-| `shape.sounds` | `{ "engine": "asset.mp3", "horn": "...", "crash": "..." }`. Without them, assets named `car-engine.mp3`, `horn.mp3`, `crash.mp3` (type first, or plain) are used, else the engine makes its own sounds | |
+| `shape.sounds` | `{ "engine": "<asset id>", "horn": "...", "crash": "..." }`. Without them, the game's sounds for "car engine" (the type first) or "engine", "horn", "crash" are used (by word), else the engine makes its own sounds | |
 | `data.autopilot` | it drives itself: `{ "speed": 6, "steer": 1 }` circles, `{ "speed": 10 }` goes straight, a helicopter `{ "hover": 4 }` holds 4 m up | none |
 | `data.density` | for the Water module: under 1 floats | by type |
 | `physics` | `"dynamic"`: it drives (a real body). `"static"`: a parked prop nobody can get into | dynamic |
@@ -56,7 +56,7 @@ slopes too steep for them.
 - "an airport" / "let me fly a plane" → a long flat runway (a `box` 12 × 0.2 × 160) and an `airplane` at one end facing
   down it; "a helicopter on the roof" → a `helicopter` on a flat roof.
 - "a monster truck" → `{ "type": "truck", "transform": { "scale": 1.5 } }` (or `vehicle` with a model).
-- "make this model a car" (a model asset) → `{ "type": "vehicle", "shape": { "vehicle": "car", "model": "<asset>.glb" } }`.
+- "make this model a car" (a model asset) → `{ "type": "vehicle", "shape": { "vehicle": "car", "model": "<asset id>" } }`.
 - "a race" → cars plus `waypoint`s (`data.role` "checkpoint" and a "finish"): driving through them counts.
 - "cars that drive around by themselves" → `data.autopilot` `{ "speed": 8, "steer": 0.3 }`.
 - "a bike for my friend too" → two `bicycle`s; or a `motorbike` (two seats).

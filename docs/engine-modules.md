@@ -284,6 +284,29 @@ in tests). `H.audio.effect(name, node)` puts a filter between everything and the
 under water: `effect('water', lowpass)`, `null` takes it out); `H.audio.media(audioElement)` routes an `<audio>` (music,
 loops) through it; `H.audio.volume` is the master volume. `game.sound(name)` and `game.music(name)` already use it.
 
+## 7e. Art: assets by id, found by word (`H.assets`)
+
+**Never build file names** (`${species}.glb`, `car-engine.mp3`). A game can hold many assets for one word (seven
+cows), each with an id (`a_...`), a name, a type (model, image, sound, video), a title and words. Ask for a word:
+
+```js
+const id = H.assets.pick('cow', { kind: 'model', seed: e.sceneId });   // the one for this thing (or null: a stand-in)
+const all = H.assets.for('cow', { kind: 'model' });                    // every one, in the world's order
+const url = H.assets.url(id);                                           // H.lib.assetUrl / hasAsset take ids too
+```
+
+- Order: `config.assets[word].ids` (the world's choice), then assets labelled with the word (plurals, and synonyms
+  modules add: `H.assets.synonym('puppy', 'dog')`), then names (`word.glb`, `word-2.glb`) for old games.
+- `pick` gives the default, or a variant per `seed` when the word mixes (`config.assets[word].mix`): seed with the
+  thing's id (a herd: its id and the animal's index), so a reload gets the same ones.
+- Mark the scene thing that picked by word (`e._assetPick = word`): a change of `config.assets` rebuilds it, so the
+  herd swaps its cows at once. A new thing you make from a spec (not in the world file) writes the id it got into its
+  spec (`shape.model`), so it's kept when saved.
+- Specs and options take ids: `shape.model`, `shape.asset`, `material.texture`, `sounds.<what>`.
+- Living things (species), Mayhem (sounds, spawning), Water (sounds, fish, bucket, rod), Terrain (layers, scatter),
+  Vehicles (sounds, `shape.model`) and Homes (`assetFor(word, kind)`) all do this; WORLD.md "Assets by id" tells the
+  assistant.
+
 ## 7d. Animals
 
 **Living things owns animals** (species, brains, herds, riding, friends): to make one, use its `creature` kind (or

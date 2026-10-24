@@ -879,6 +879,14 @@
       case 'place': return placeAsset(m.asset);
       case 'placeBasic': return placeFromHotbar(m.k);
       case 'basics?': return toParent({ type: 'basics', list: hotbarList().map((h) => ({ k: h.k, icon: h.icon, label: h.label })) });
+      // The editor's "In this game" shelf: each word and the assets it uses (H.assets), and changing that choice
+      // (config.assets: an edit like any other, so it's undoable and reaches everyone).
+      case 'words?': return toParent({ type: 'words', words: H.assets.words(), assets: H.assets.list().map((a) => ({ id: a.id, name: a.name, url: a.url, type: a.type, title: a.title, words: a.words })) });
+      case 'assetsConfig': {
+        const word = String(m.word || '').toLowerCase().trim();
+        if (word) edit([{ op: 'config', patch: { assets: { [word]: m.value ?? null } } }], { label: `the ${word} assets` });
+        return toParent({ type: 'words', words: H.assets.words(), assets: H.assets.list().map((a) => ({ id: a.id, name: a.name, url: a.url, type: a.type, title: a.title, words: a.words })) });
+      }
     }
   });
 

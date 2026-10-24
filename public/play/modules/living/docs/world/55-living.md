@@ -1,7 +1,7 @@
 ## Living things: animals, people and AI friends
 
 Three kinds bring a world to life. They work with no art at all (bodies built from blocks that walk, graze, sleep and
-wag), and a model replaces the stand-in by itself when the game has an asset named `<species>.glb` (or `shape.model`).
+wag), and a model replaces the stand-in by itself when the game has one for the species' word (WORLD.md "Assets by id": `config.assets.cow` mixes several cow models over a herd), or `shape.model` (an asset id).
 A model's clips play by name: walk, run, idle, eat, sleep, sit, dance, attack.
 
 | type | what it is | `shape` |
@@ -64,4 +64,5 @@ say particular things, give it `lines`.
   of species `person`.
 - "a horse I can ride" → `{ "type": "creature", "shape": { "species": "horse" } }` (rideable: E).
 - "a giant pink pig" → `{ "type": "creature", "shape": { "species": "pig", "size": 3, "color": "#ff9ecb" } }`.
-- "make the cows use my cow model" → name the asset `cow.glb` (or `shape.model: "spotty_cow.glb"`).
+- "make the cows use my cow model" → `config.assets.cow.ids` = [its id] (or one cow's `shape.model`: the id). "Mix in the
+  brown cows" → add the brown cow's id with `"mix": true`.

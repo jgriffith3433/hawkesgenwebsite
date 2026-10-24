@@ -113,11 +113,12 @@
   /** Words and what they use: { cow: { ids: [...], mix, from: 'config' | 'words' } } (the editor's Library shows it). */
   function words() {
     const out = {};
-    for (const [w, v] of Object.entries(config())) out[norm(w)] = { ids: forWord(w), mix: Boolean(v && v.mix), from: 'config' };
-    for (const a of list()) for (const w of a.words.slice(0, 3)) if (!out[w]) out[w] = { ids: forWord(w), mix: false, from: 'words' };
+    for (const [w, v] of Object.entries(config())) { const c = chosen(w); out[norm(w)] = { ids: forWord(w), chosen: c && Array.isArray(c.ids) ? c.ids.map((r) => idOfRef(r)) : [], mix: Boolean(v && v.mix), from: 'config' }; }
+    for (const a of list()) for (const w of a.words.slice(0, 3)) if (!out[w]) out[w] = { ids: forWord(w), chosen: [], mix: false, from: 'words' };
     return out;
   }
 
+  const idOfRef = (ref) => { const a = get(ref); return a ? keyOf(a) : String(ref); };
   const api = {
     get, has: (ref) => Boolean(get(ref)), url: (ref) => { const a = get(ref); return a ? a.url : null; },
     for: forWord, pick, list, words, synonym, singular, norm,
