@@ -20,8 +20,8 @@
       const game = ctx.game, input = game.input, building = ctx.mode === 'build';
       const a = input.direction();
       const sprint = input.key('shift') && !p.flying;
-      if (input.pressed('f') && (building || p.canFly)) { p.flying = !p.flying; p.vy = 0; game.ui.message(p.flying ? 'Flying: E up, Q down' : 'Walking', 1.2); }
-      // Building: E goes up and Q goes down (and starts flying), like a builder's camera.
+      if (input.pressed('f') && (building || p.canFly)) { p.flying = !p.flying; p.vy = 0; game.ui.message(p.flying ? 'Flying: E up, C down' : 'Walking', 1.2); }
+      // Building: E goes up and C goes down (and starts flying), like a builder's camera (holding Q is the spawn wheel).
       if (building && !p.flying && input.key('e') && !H.hooks.holding) { p.flying = true; }
       if (p.flying) {
         p.gravity = 0;
@@ -44,7 +44,7 @@
         const speed = Math.sqrt(2 * g * (p.jumpHeight || 1.5)) || 8.5;
         if (p.jump(speed)) { /* jumped */ }
         else if (p.doubleJump && !p._doubled) { p._doubled = true; p.vy = speed; game.burst([p.x, p.bottom, p.z], { color: '#c8d8ff', count: 10, speed: 2 }); }
-        else if ((building || p.canFly) && performance.now() - (p._lastJump || 0) < 300) { p.flying = true; game.ui.message(building ? 'Flying: E up, Q down, F lands' : 'Flying: space up, C down, F lands', 1.4); }
+        else if ((building || p.canFly) && performance.now() - (p._lastJump || 0) < 300) { p.flying = true; game.ui.message(building ? 'Flying: E up, C down, F lands' : 'Flying: space up, C down, F lands', 1.4); }
         p._lastJump = performance.now();
       }
     },
