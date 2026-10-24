@@ -1,78 +1,35 @@
-// The water module (public/play/modules/water) in the real engine: Babylon's NullEngine in Node, the same files the
-// browser loads, a tiny stand-in for the page (no browser). Worlds are built from scene.json and stepped with H.tick.
-// (When the foundation's shared harness, test/engine/harness.ts, arrives, this file's setup can move onto it.)
+// The water module (public/play/modules/water) in the real engine: Babylon's NullEngine and Havok in Node, the same
+// files the browser loads (test/engine/harness.ts). Worlds are built from scene.json and stepped with H.tick.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import vm from 'node:vm';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { load, world as run, sceneOf } from './harness.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const PLAY = path.join(ROOT, 'public', 'play');
-const require = createRequire(import.meta.url);
-
-// ------------------------------------------------------------------ a page, just enough for the engine
+const mod = JSON.parse(fs.readFileSync(path.join(ROOT, 'public', 'play', 'modules', 'water', 'module.json'), 'utf8'));
+const H = await load();
 const g = globalThis as any;
-const noop = () => {};
-class El {
-  tagName: string; id = ''; className = ''; textContent = ''; innerHTML = ''; hidden = false; children: El[] = []; parent: El | null = null;
-  style: any = { setProperty: noop, removeProperty: noop }; dataset: any = {}; width = 300; height = 150; isConnected = true;
-  classList = { _s: new Set<string>(), add: (c: string) => this.classList._s.add(c), remove: (c: string) => this.classList._s.delete(c), toggle: (c: string, on?: boolean) => { const v = on ?? !this.classList._s.has(c); if (v) this.classList._s.add(c); else this.classList._s.delete(c); return v; }, contains: (c: string) => this.classList._s.has(c) };
-  constructor(tag = 'div') { this.tagName = tag.toUpperCase(); }
-  appendChild(c: El) { this.children.push(c); c.parent = this; return c; }
-  remove() { if (this.parent) this.parent.children = this.parent.children.filter((x) => x !== this); this.isConnected = false; }
-  get firstChild() { return this.children[0] || null; }
-  querySelector() { return null; }
-  querySelectorAll() { return []; }
-  addEventListener() {} removeEventListener() {} setAttribute() {} removeAttribute() {} focus() {} setPointerCapture() {}
-  getBoundingClientRect() { return { left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600 }; }
-  getContext() {
-    const grad = { addColorStop: noop };
-    return new Proxy({}, { get: (_t, k) => (k === 'measureText' ? () => ({ width: 10 }) : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => grad : k === 'getImageData' ? () => ({ data: new Uint8ClampedArray(4) }) : noop), set: () => true });
-  }
-}
-const byId = new Map<string, El>();
-g.window = g;
-g.parent = g;
-g.addEventListener = noop;
-g.removeEventListener = noop;
-g.location = { search: '' };
-g.matchMedia = () => ({ matches: false, addEventListener: noop });
-g.document = {
-  hidden: false, pointerLockElement: null, title: '',
-  head: new El('head'), body: new El('body'),
-  getElementById: (id: string) => { if (!byId.has(id)) { const e = new El(id === 'stage' ? 'canvas' : 'div'); e.id = id; byId.set(id, e); } return byId.get(id); },
-  createElement: (t: string) => new El(t),
-  addEventListener: noop, removeEventListener: noop,
-  querySelectorAll: () => [], querySelector: () => null,
-  exitPointerLock: noop,
-};
-g.BABYLON = require('babylonjs');
-const B = g.BABYLON;
-g.HawkesEngineFactory = () => new B.NullEngine();
-B.Logger.LogLevels = 0;
-const run = (file: string) => vm.runInThisContext(fs.readFileSync(file, 'utf8'), { filename: file });
-const core = JSON.parse(fs.readFileSync(path.join(PLAY, 'engine.json'), 'utf8')).core as string[];
-for (const f of core) run(path.join(PLAY, f));
-const mod = JSON.parse(fs.readFileSync(path.join(PLAY, 'modules', 'water', 'module.json'), 'utf8'));
-for (const f of mod.scripts) run(path.join(PLAY, 'modules', 'water', f));
-const H = g.HawkesPlay;
-H.hooks.quietErrors = true;
 const errors: string[] = [];
-const report = H.report;
-H.report = (e: any, where?: string) => { errors.push(`${where || ''}: ${e && e.message || e}`); };
-void report;
+H.report = (e: any, where?: string) => { errors.push(String(where || '') + ': ' + String((e && e.message) || e)); };
+const errorBox = () => (g.document.getElementById('error').children as any[]).map((c) => c.textContent);
+const floor = { type: 'box', name: 'Ground', shape: { size: [40, 1, 40] }, transform: { position: [0, -0.5, 0] } };
 
-function world(config: any, entities: Record<string, any> = {}, mode = 'play') {
+function world(config: any, entities: Record<string, any> = {}, mode: 'play' | 'build' = 'play') {
   errors.length = 0;
-  const scene = { config: { gravity: -24, ...config }, entities: { ground: { id: 'ground', type: 'plane', name: 'Ground', transform: { position: [0, 0, 0] }, shape: { width: 40, depth: 40 } }, ...entities } };
-  const bundle = { title: 'Water test', files: { 'scene.json': JSON.stringify(scene) }, assets: {} };
-  if (!H.world) H.run(bundle, { loop: false, mode });
-  else { H.setMode(mode); H.reload({ 'scene.json': JSON.stringify(scene) }); }
+  run(H, sceneOf({ floor, ...entities }, config), { mode });
   return H.game;
 }
+// Keys, as the phone buttons press them (H.bindTouchKey): held while down, 'pressed' on the step it went down.
+const buttons = new Map<string, any>();
+function key(type: 'keydown' | 'keyup', k: string) {
+  let b = buttons.get(k);
+  if (!b) { b = new g.HTMLElement('button'); H.bindTouchKey(b, k); buttons.set(k, b); }
+  b.dispatch(type === 'keydown' ? 'pointerdown' : 'pointerup', { preventDefault() {}, stopPropagation() {} });
+}
+function press(k: string) { key('keydown', k); H.tick(1 / 60); key('keyup', k); }
+const clean = () => assert.deepEqual([...errors, ...errorBox()], []);
 const near = (a: number, b: number, d: number, what: string) => assert.ok(Math.abs(a - b) <= d, `${what}: ${a.toFixed(2)} is not within ${d} of ${b}`);
 
 // ------------------------------------------------------------------ the module is there
@@ -114,7 +71,7 @@ test('water: the sea has a surface with waves, and things float or sink by densi
   assert.ok(Math.abs(crate.vy) < 1.5, `the crate settles (vy ${crate.vy})`);
   near(rock.bottom, -1 - 20, 0.2, 'a rock sinks to the sea floor');
   near(heavy.bottom, -21, 0.2, 'data.density over 1 sinks');
-  assert.deepEqual(errors, []);
+  clean();
 });
 
 test('water: buoyancy(entity, { density }) is what a boat calls each step (and the automatic pass leaves it alone)', () => {
@@ -126,6 +83,17 @@ test('water: buoyancy(entity, { density }) is what a boat calls each step (and t
   off();
   assert.ok(r && r.submerged > 0.15 && r.submerged < 0.5, `submerged ${r && r.submerged}`);
   near(boat.bottom, -0.3, 0.15, 'density 0.3: 30% under');
+});
+
+test('water: on Havok, a tipped raft rights itself (lift at four points) and floats level', () => {
+  const game = world({ water: { level: 0, waves: 0 } });
+  assert.equal(H.physics.engine, 'havok');
+  const raft = game.box({ size: [3, 0.5, 2], x: 28, y: 1.5, z: 0, rotation: [0, 0, 35], physics: 'dynamic', name: 'Raft' });
+  H.tick(8);
+  const roll = Math.abs(raft.rotation3[2]) % 180;
+  assert.ok(Math.min(roll, 180 - roll) < 8, `the raft lies flat (roll ${raft.rotation3[2].toFixed(1)}°)`);
+  near(raft.y, 0, 0.3, 'floating at the surface');
+  clean();
 });
 
 // ------------------------------------------------------------------ the water kind
@@ -148,7 +116,7 @@ test('water: a pool from scene.json has a basin, a surface at its top, and stays
   H.applyOps([{ op: 'update', id: 'pool', patch: { transform: { position: [9, 0.8, 5] } } }]);
   H.tick(0.1);
   assert.ok(parts.every((p: any) => p.x > 5), 'the walls followed');
-  assert.deepEqual(errors, []);
+  clean();
 });
 
 test('water: game.water(...) makes water from a script; deleting it takes its walls', () => {
@@ -168,10 +136,9 @@ test('water: walking into deep water swims, C dives, breath runs out, standing a
   H.tick(1.5);
   assert.equal(p.controller, 'swim');
   near(p.bottom, -1.25, 0.3, 'floating with your head out');
-  const keys = (t: string, k: string) => { const ev: any = { key: k, target: null, preventDefault: noop }; for (const f of listeners[t] || []) f(ev); };
-  keys('keydown', 'c');
+  key('keydown', 'c');
   H.tick(1);
-  keys('keyup', 'c');
+  key('keyup', 'c');
   assert.ok(p.bottom < -3, `dived (${p.bottom.toFixed(2)})`);
   const before = p.health;
   H.tick(4.5);
@@ -197,11 +164,13 @@ test('water: dumping water on someone splashes, knocks them over, soaks them, an
   const crate = game.box({ size: 0.8, x: 1.5, y: 0.4, z: 0, physics: 'dynamic', name: 'Crate' });
   H.tick(0.3);
   const seen: Record<string, any> = {};
-  for (const n of ['soaked', 'extinguish', 'knocked', 'wet']) game.on(n, (d: any) => { seen[n] = seen[n] || d; });
+  for (const n of ['soaked', 'extinguish', 'knocked', 'wet']) game.on(n, (d: any) => { if (n !== 'extinguish' || d.by === 'bucket') seen[n] = seen[n] || d; });
   let pushed = 0;
   game.on('soaked', () => { pushed = crate.vx; });
   game.water.dump('You', { volume: 4 });
-  H.tick(1.2);
+  H.tick(0.8);
+  assert.equal(p.controls, false, 'knocked down for a moment');
+  H.tick(1.5);
   assert.ok(seen.soaked && seen.soaked.entities.includes(p), 'soaked you');
   assert.ok(seen.extinguish && seen.extinguish.radius > 1, 'extinguish');
   assert.ok(seen.knocked, 'knocked over');
@@ -275,7 +244,7 @@ test('water: fish live by water kind; custom species; a cast, a bite, the reel-i
   const j = game.water.fish.journal();
   assert.equal(j.total, 1);
   assert.equal(j.fish[caught.fish.id].count, 1);
-  assert.deepEqual(errors, []);
+  clean();
   p.tool = null;
   H.tick(0.1);
 });
@@ -289,7 +258,7 @@ test('water: rain turns on and off with config.weather', () => {
   assert.ok(game.water.rain > 0 && game.water.rain < 0.5);
   H.applyOps([{ op: 'config', patch: { weather: null } }]);
   assert.equal(game.water.rain, 0);
-  assert.deepEqual(errors, []);
+  clean();
 });
 
 test('water: a world full of floating things keeps up', () => {
@@ -300,10 +269,3 @@ test('water: a world full of floating things keeps up', () => {
   const ms = (performance.now() - t0) / 120;
   assert.ok(ms < 40, `a step with 150 floating crates took ${ms.toFixed(1)} ms`);
 });
-
-// Input for the tests: the engine listens on window (keydown/keyup).
-const listeners: Record<string, ((e: any) => void)[]> = {};
-function key(type: string, k: string) { for (const f of listeners[type] || []) f({ key: k, target: null, preventDefault: noop }); }
-function press(k: string) { key('keydown', k); H.tick(1 / 60); key('keyup', k); }
-// (Captured before the engine loads: runtime.js adds its key listeners with window.addEventListener.)
-void listeners;
