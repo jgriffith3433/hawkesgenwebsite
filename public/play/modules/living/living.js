@@ -24,6 +24,19 @@
   // ------------------------------------------------------------------ the creatures in this world
   let list = []; // records: { e, sp, name, state, act, goal, path, ... } (e.living is its record)
   let cursor = 0, steps = 0, hash = new Map(), pathQueue = [], warned = false;
+  // A round world: the frame moved under the player (round.js moved the creatures); where they're going, their
+  // homes and herds' middles go with it (their paths are worked out again).
+  if (H.planet && H.planet.frame && H.planet.frame.onRebase) H.planet.frame.onRebase((tr) => {
+    const xz = (a) => { const p = tr.point([a[0], 0, a[1]]); return [p[0], p[2]]; };
+    for (const r of list) {
+      if (r.home) r.home = xz(r.home);
+      if (r.goal && !r.goal.ent) { const p = xz([r.goal.x, r.goal.z]); r.goal.x = p[0]; r.goal.z = p[1]; }
+      if (r.netGoal) { const p = xz([r.netGoal.x, r.netGoal.z]); r.netGoal.x = p[0]; r.netGoal.z = p[1]; }
+      r.path = null;
+      if (r.trk) r.trk = null;
+    }
+    hash = new Map();
+  });
   const listeners = { startle: [], hurt: [], act: [], world: [] };
   living.on = (name, fn) => { (listeners[name] || (listeners[name] = [])).push(fn); return () => { const l = listeners[name]; const i = l.indexOf(fn); if (i >= 0) l.splice(i, 1); }; };
   const tell = (name, ...args) => { for (const f of listeners[name] || []) try { f(...args); } catch (err) { H.report(err, 'living'); } };
@@ -47,7 +60,8 @@
     if (r.herd) return H.sync.isHost;
     return H.sync.mine(r.e);
   }
-  const groundAt = (x, z, fallback) => { const t = H.terrain && typeof H.terrain.heightAt === 'function' ? Number(H.terrain.heightAt(x, z)) : NaN; return Number.isFinite(t) ? t : fallback; };
+  // (No terrain answers null: on a round world that's no ground at all here, not a floor at y = 0; flat worlds as before.)
+  const groundAt = (x, z, fallback) => { const h = H.terrain && typeof H.terrain.heightAt === 'function' ? H.terrain.heightAt(x, z) : NaN; const t = h === null && H.planet && H.planet.round ? NaN : Number(h); return Number.isFinite(t) ? t : fallback; };
   const inWater = (p) => Boolean(H.water && typeof H.water.inWater === 'function' && H.water.inWater(p));
   const dist2 = (a, b) => Math.hypot(a.e.x - b.e.x, a.e.z - b.e.z);
   function seedOf(v) { let h = 2166136261; for (const ch of String(v)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
@@ -630,7 +644,7 @@
   function groundAhead(r, speed) {
     const e = r.e, ahead = r.foot * 0.5 + 0.8 + speed * 0.3;
     const x = e.x + r.dir.x * ahead, z = e.z + r.dir.z * ahead;
-    let ground = H.terrain && H.terrain.heightAt ? Number(H.terrain.heightAt(x, z)) : NaN;
+    let ground = groundAt(x, z, NaN);
     if (!Number.isFinite(ground)) { const hit = H.physics.raycast([x, e.bottom + 1, z], [0, -1, 0], 3.5 + r.size, { ignore: e }); if (!hit) return false; ground = hit.point[1]; }
     // Deep water ahead counts as an edge for things that don't swim.
     const s = H.water && H.water.surfaceAt ? H.water.surfaceAt(x, z) : null;
@@ -666,7 +680,7 @@
     const budget = Math.max(6, Math.ceil(list.length / 10));
     for (let i = 0; i < budget && list.length; i++) {
       const r = list[cursor++ % list.length];
-      if (!mine(r) || (building && !r.awake)) continue;
+      if (!mine(r) || (building && !r.awake) || r.e._far) continue; // (_far: a round world's far side rests, round.js)
       // Far from every player: think a quarter as often.
       if (r.far && (r.skip = (r.skip || 0) + 1) % 4) continue;
       think(r);
@@ -680,6 +694,7 @@
       }
       if (!mine(r)) continue;
       if (building && !r.awake) { if (r.goal) stop(r); continue; }
+      if (r.e._far) continue;
       steer(r, dt, t);
     }
     // A couple of path searches a step.
@@ -698,7 +713,7 @@
       const e = r.e;
       if (!e.alive) continue;
       // On the terrain (when there is one), whatever the physics did.
-      if (H.terrain && H.terrain.heightAt && !r.flying && e.physics === 'dynamic' && !e.remote) {
+      if (H.terrain && H.terrain.heightAt && !r.flying && e.physics === 'dynamic' && !e.remote && !e._far) {
         const g = groundAt(e.x, e.z, NaN);
         if (Number.isFinite(g) && e.bottom < g - 0.01) { e.node.position.y += g - e.bottom; if (e.vy < 0) e.vy = 0; e.grounded = true; }
       }

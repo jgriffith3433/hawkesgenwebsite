@@ -234,7 +234,7 @@
   const solidKinds = { static: 1, dynamic: 1, kinematic: 1 };
   const wantsBody = (e) => e.alive && !e._cc && solidKinds[e.physics] === 1 && !e.ghost && e.kind !== 'light' && e.node.isEnabled();
   function motionFor(e) {
-    if (e.physics === 'dynamic' && !e.remote && !e.held && !e.node.parent && !e._frozen) return DYNAMIC; // (frozen: past the body budget, scale.js)
+    if (e.physics === 'dynamic' && !e.remote && !e.held && !e.node.parent && !e._frozen && !e._far) return DYNAMIC; // (frozen: past the body budget, scale.js; far: round.js)
     if (e.physics === 'static' && !(e._pb && e._pb.moved) && !e.held) return STATIC;
     return ANIMATED;
   }
@@ -496,7 +496,8 @@
     // Put somewhere by a script (respawn, a teleport): the controller goes there too.
     if (B.Vector3.DistanceSquared(n.position, c.last) > 1e-8) { cc._position.copyFrom(n.position); cc._manifold = []; }
     const v = e._v;
-    if (e.ghost) { n.position.addInPlaceFromFloats(v[0] * dt, v[1] * dt, v[2] * dt); cc._position.copyFrom(n.position); c.last.copyFrom(n.position); e.grounded = false; e.standing = null; return; }
+    // (A ghost goes through everything; _fast is flying high and fast in a round world: moved straight, no casts.)
+    if (e.ghost || e._fast) { n.position.addInPlaceFromFloats(v[0] * dt, v[1] * dt, v[2] * dt); cc._position.copyFrom(n.position); c.last.copyFrom(n.position); e.grounded = false; e.standing = null; return; }
     // Carried by what it stands on: however that moved and turned since the last step (platforms, lifts, boats).
     const on = c.on;
     if (on && on.alive && e.grounded) {
@@ -659,11 +660,68 @@
       const g = w.config.gravity ?? -24;
       if (g !== w.havok.gravity) { w.havok.gravity = g; w.havok.plugin.setGravity(new B.Vector3(0, g, 0)); }
       beforeStep(dt, w);
+      if (w.round) roundGravity(dt, w, g);
       w.havok.plugin.executeStep(dt, []);
-      for (const e of [...w.entities]) if (e._cc && e.alive) { if (e.remote || e.held) { e._cc.last && e._cc.last.copyFrom(e.node.position); continue; } stepCharacter(e, dt, w); }
+      for (const e of [...w.entities]) if (e._cc && e.alive) { if (e.remote || e.held || e._far) { e._cc.last && e._cc.last.copyFrom(e.node.position); continue; } stepCharacter(e, dt, w); }
       afterStep(w);
     },
   };
+
+  // ------------------------------------------------------------------ a round world (round.js)
+  /** Gravity toward the planet's middle. Havok pulls everything along -y (exact where you are: the frame is turned so
+   *  that up is +y under you); a moving body away from you gets the rest of its pull toward the middle each step.
+   *  Resting bodies are left asleep (they rest where they landed). */
+  function roundGravity(dt, w, g) {
+    const R = w.round.radius;
+    for (const e of w.entities) {
+      const pb = e._pb;
+      if (!pb || pb.motion !== DYNAMIC || e.sleeping || !e.gravity) continue;
+      const x = e.node.position.x, y = e.node.position.y + R, z = e.node.position.z;
+      if (x * x + z * z < 4) continue; // (within 2 m of the axis: -y is the middle to within a few millidegrees)
+      const len = Math.hypot(x, y, z) || 1;
+      const k = Math.abs(g) * e.gravity * dt, s = g < 0 ? 1 : -1;
+      // What it should get (toward the middle) less what Havok gives it (straight down).
+      const ax = -s * (x / len) * k, ay = -s * (y / len) * k + s * k, az = -s * (z / len) * k;
+      const v = hp(pb).HP_Body_GetLinearVelocity(pb.id)[1];
+      hp(pb).HP_Body_SetLinearVelocity(pb.id, [v[0] + ax, v[1] + ay, v[2] + az]);
+    }
+  }
+  /** The frame moved under the player (round.js has already moved and turned every entity's node): the bodies, their
+   *  velocities, the characters and the joints' anchors go with them, as they are (nothing is woken, nothing is
+   *  driven, nothing is remade). `tr` = { point([x, y, z]), dir([x, y, z]) }. */
+  function rebase(tr) {
+    const w = W();
+    if (!w || !w.havok) return;
+    for (const e of w.entities) {
+      const pb = e._pb;
+      if (pb && !pb.gone) {
+        const pose = nodePose(e);
+        const k = hp(pb);
+        k.HP_Body_SetQTransform(pb.id, qt(pose));
+        pb.pose = pose;
+        if (pb.motion === DYNAMIC) {
+          const v = k.HP_Body_GetLinearVelocity(pb.id)[1], a = k.HP_Body_GetAngularVelocity(pb.id)[1];
+          k.HP_Body_SetLinearVelocity(pb.id, tr.dir(v));
+          k.HP_Body_SetAngularVelocity(pb.id, tr.dir(a));
+          // (A resting body stays asleep where it rests: moving the frame isn't a push.)
+          if (e.sleeping) try { k.HP_Body_SetActivationState(pb.id, hk.ActivationState.INACTIVE); } catch {}
+        } else if (pb.moving) pb.plugin.setTargetTransform(pb.body, new B.Vector3(pose[0], pose[1], pose[2]), new B.Quaternion(pose[3], pose[4], pose[5], pose[6]));
+      }
+      const c = e._cc;
+      if (c && c.cc) {
+        c.cc._position.copyFrom(e.node.position);
+        if (c.last) c.last.copyFrom(e.node.position);
+        c.cc._manifold = [];
+        // (What it stands on is where it is now, moved or not: the ground stays under you.)
+        if (c.on && c.on.alive) { const op = whereIs(c.on.node); c.onAt = [op.x, op.y, op.z]; c.onYaw = c.on.node.rotation.y; }
+        if (c.cc._velocity) { const v = tr.dir([c.cc._velocity.x, c.cc._velocity.y, c.cc._velocity.z]); c.cc._velocity.set(v[0], v[1], v[2]); }
+      }
+    }
+    for (const j of w.havok.joints) {
+      if (j.worldPivot) j.worldPivot = tr.point(j.worldPivot);
+      if (j.anchor) { j.anchor.node.position.set(j.worldPivot[0], j.worldPivot[1], j.worldPivot[2]); try { w.havok.plugin._hknp.HP_Body_SetQTransform(j.anchor.body._pluginData.hpBodyId, [j.worldPivot.slice(), [0, 0, 0, 1]]); } catch { /* it's remade with its joint */ } }
+    }
+  }
   // The player is a character. Bodies and controllers go with their entity.
   H.hooks.destroy.push((e) => { dropBody(e); if (e._cc && e._cc.cc) e._cc.cc = null; });
   const isCharacter = (e) => e.isPlayer && !e.remotePlayer;
@@ -836,6 +894,7 @@
     shapes, setShape,
     raycast, shapeCast, overlap,
     explode, announce, joint, character,
+    rebase,
     on,
     beforeStep: (fn) => on('before', fn),
     afterStep: (fn) => on('after', fn),
