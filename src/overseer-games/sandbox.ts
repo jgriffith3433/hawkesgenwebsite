@@ -112,7 +112,7 @@ export const SANDBOX = {
     planet: PLANET,
     overseer: { intro: 'always' },
     terrain: TERRAIN,
-    water: { level: -0.5, waves: 0.15, color: '#1b86b8', fish: 'salt' },
+    water: { level: -1.5, waves: 0.15, color: '#1b86b8', fish: 'salt' },
     // Tools come with the tour: none at first (the rocket launcher at the barrels, the rest when it's done).
     player: { view: 'third', tools: [] },
     mayhem: { slowmo: true },
@@ -148,8 +148,8 @@ export const SANDBOX = {
     add(thing('sign_post', 'cylinder', 'Sign post', [58.5, groundAt(58.5, -3.6) + 0.6, -3.66], { shape: { radius: 0.07, height: 1.25 }, material: { color: '#6b4a2f', texture: A.oldWood } }));
     add(thing('sign_text', 'text', 'Sign words', [58.44, groundAt(58.5, -3.6) + 1.5, -3.6], { shape: { text: "PIP'S PIER\nfishing · boats", size: 0.2, billboard: false, color: '#3a2614' }, transform: yaw(90) }));
     add({ id: 'rod', type: 'tool-pickup', name: 'Fishing rod', shape: { tool: 'rod', respawn: 5 }, transform: { position: [80.5, pierY + 0.45, -0.4] } });
-    add({ id: 'boat', type: 'boat', name: 'Speedboat', shape: { model: A.speedboat }, material: { color: '#e5e7eb' }, transform: { position: [73, -0.2, 4.4], rotation: [0, 90, 0] } });
-    add(thing('duck', 'model', 'Rubber duck', [77, -0.35, -4], { shape: { asset: A.duck, size: 0.45 }, physics: 'dynamic', data: { density: 0.3 } }));
+    add({ id: 'boat', type: 'boat', name: 'Speedboat', shape: { model: A.speedboat }, material: { color: '#e5e7eb' }, transform: { position: [73, -1.2, 4.4], rotation: [0, 90, 0] } });
+    add(thing('duck', 'model', 'Rubber duck', [77, -1.35, -4], { shape: { asset: A.duck, size: 0.45 }, physics: 'dynamic', data: { density: 0.3 } }));
     // The fuel dump on the beach north of the dock: oil barrels close enough to chain, and crates to smash.
     [[50, -18], [51.2, -18.4], [50.5, -19.5], [51.7, -17.2], [49.6, -16.9]].forEach(([x, z], i) => add(model(`barrel_${i + 1}`, 'Fuel barrel', A.barrel, x, z, 1.15, { physics: 'dynamic', body: { shape: { type: 'cylinder', radius: 0.4, height: 1.15 } }, behaviors: [{ use: 'explosive', radius: 6, force: 22, damage: 60 }], data: { barrel: true } }, 0.05)));
     [[46.5, -21.5, 0], [47.6, -21.6, 20], [47.1, -21.4, 10]].forEach(([x, z, r], i) => add(model(`crate_${i + 1}`, 'Crate', A.crate, x, z, 1, { physics: 'dynamic', body: { shape: { type: 'box', size: [1, 1, 1] } }, transform: yaw(r), behaviors: [{ use: 'breakable', strength: 10, pieces: 8 }] }, i === 2 ? 1.02 : 0.02)));

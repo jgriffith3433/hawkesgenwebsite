@@ -44,7 +44,7 @@ function startSound() {
 }
 // The sea is heard by the shore: quiet, and fading out as you walk inland (silent ~70 m from the water) or go up; the
 // birds stay over the land. (A loop the browser held back starts as soon as sound is allowed: the first click or key.)
-const SEA = -0.5; // config.water.level
+const SEA = -1.5; // config.water.level
 const SEA_MAX = 0.12;
 /** How far the nearest sea is (meters, 0 over it), from the ground's height in rings around you. */
 function seaDistance(x, z) {
