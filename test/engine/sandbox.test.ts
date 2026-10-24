@@ -47,7 +47,8 @@ test('sandbox: the island builds from the modules with no errors', () => {
   // The boat floats by the dock.
   const boat = H.world.byId.get('boat');
   assert.ok(boat.y > -1 && boat.y < 1.5, `boat y ${boat.y.toFixed(2)}`);
-  assert.equal(game.player.tool && (game.player.tool.name || game.player.tool.type || game.player.tool), 'rocket-launcher');
+  // Empty-handed at first: the tour hands out the rocket launcher at the barrels step (sandbox.js), the rest at the end.
+  assert.ok(!game.player.tool, 'no tool until the tour gives one');
 });
 
 test('sandbox: guest snapshot turns the changed world into scene ops', () => {

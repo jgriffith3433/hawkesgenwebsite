@@ -35,6 +35,10 @@ export const SANDBOX_ASSETS: Record<string, string> = {
   'wood-planks.png': A.planks, 'old-wood.png': A.oldWood, 'diamond-plate.png': A.plate,
   // Fish you can catch in the sea (water's fishing finds a model by the fish's id).
   'tuna.glb': 'a_3dfc2c1c930c9d3c', 'snapper.glb': 'a_2dca8b8f15912700', 'salmon.glb': 'a_76d71b002bac2b77', 'swordfish.glb': 'a_96630d7a5f927828', 'tin-can.glb': 'a_6e4f9f1eed67e96b',
+  // The Overseer's voice (the community library's "overseer" voice shelf): the intro (modules/overseer/intro.js plays
+  // "overseer-intro" when a game has it) and the guide's moments.
+  'overseer-intro.mp3': 'a_f5c151efa39d35c9', 'overseer-found-your-way.mp3': 'a_bacd20f46737e756', 'overseer-the-sea-gives.mp3': 'a_e86b71afc8a4d1c7',
+  'overseer-destruction.mp3': 'a_96af75c7b29f0446', 'overseer-ask.mp3': 'a_e8eb1d1e6dc695fb', 'overseer-your-world.mp3': 'a_996ee77e57857b6a',
   // Sound: the island (ambience), gentle music, and a sound for each moment.
   'ocean-waves.mp3': 'a_d998f214d5f7be98', 'forest.mp3': 'a_f69c9b828dba9342', 'meadow.mp3': 'a_58c72e4ca54f1b54', 'ocean-drift.mp3': 'a_dce85c4cf4bb730b',
   'level-up.mp3': 'a_39a9c6daee1e4450', 'power-up.mp3': 'a_67e1ecc6f6db5125', 'confirm.mp3': 'a_d9173a67938251db', 'teleport.mp3': 'a_da988c2a3ef17441',
@@ -86,13 +90,15 @@ const yaw = (deg: number) => ({ rotation: [0, deg, 0] });
 const QUEST = {
   id: 'tour', title: 'The island', giver: 'Pip', auto: false,
   text: "Hi, I'm Pip! The Overseer just beamed you onto the best island on the whole planet. Want the tour? It's mostly things that go fast and things that go boom.",
-  lines: { accept: 'Follow the arrow! I will catch up.', progress: 'Keep going, the arrow knows the way!', done: 'You saw everything. Now the planet is yours.', decline: 'Explore first, then come back to me!' },
+  lines: { accept: "Follow the arrow! I'll wait right here.", progress: 'Keep going, the arrow knows the way!', done: 'You saw everything. Now the planet is yours.', decline: 'Explore first, then come back to me!' },
   steps: [
-    { id: 'drive', text: 'Drive the 4x4 down the path to the dock', goal: { drive: '4x4', to: 'Dock', near: 9 }, done: [{ emit: 'tour', data: { step: 'drive' } }] },
-    { id: 'fish', text: 'Grab the rod at the end of the pier and catch a fish', goal: { catch: 'any' }, done: [{ emit: 'tour', data: { step: 'fish' } }] },
-    { id: 'boom', text: 'Back to the rocket launcher: blow up the fuel barrels on the beach', goal: { event: 'explosion' }, done: [{ emit: 'tour', data: { step: 'boom' } }] },
+    // (Walking there counts as much as driving: the 4x4 is just faster. Every step has a place for the arrow and the
+    // screen-edge pointer: `marker`, or the goal's own place.)
+    { id: 'drive', text: 'Head down the path to the dock (the 4x4 is faster!)', goal: { reach: 'Dock', near: 9 }, done: [{ emit: 'tour', data: { step: 'drive' } }] },
+    { id: 'fish', text: 'Walk to the end of the pier, grab the rod and catch a fish', marker: 'rod', goal: { catch: 'any' }, done: [{ emit: 'tour', data: { step: 'fish' } }] },
+    { id: 'boom', text: 'Blow up the fuel barrels on the beach with the rocket launcher', marker: 'barrel_1', goal: { event: 'explosion' }, done: [{ emit: 'tour', data: { step: 'boom' } }] },
     { id: 'spawn', text: 'Spawn something (hold Q, or the ➕ button): the Overseer beams it down', goal: { event: 'spawned' }, done: [{ emit: 'tour', data: { step: 'spawn' } }] },
-    { id: 'fly', text: 'Take the helicopter up high and look down at the planet', goal: { event: 'sandbox-high' }, done: [{ emit: 'tour', data: { step: 'fly' } }] },
+    { id: 'fly', text: 'Take the helicopter up high and look down at the planet', marker: 'heli', goal: { event: 'sandbox-high' }, done: [{ emit: 'tour', data: { step: 'fly' } }] },
   ],
   reward: { score: 100, text: 'The whole planet is yours' },
 };
@@ -106,8 +112,9 @@ export const SANDBOX = {
     planet: PLANET,
     overseer: { intro: 'always' },
     terrain: TERRAIN,
-    water: { level: 0, waves: 0.3, color: '#1b86b8', fish: 'salt' },
-    player: { view: 'third', tools: ['rocket-launcher', 'spawn-gun', 'gravity-gun'], tool: 'rocket-launcher' },
+    water: { level: -0.5, waves: 0.15, color: '#1b86b8', fish: 'salt' },
+    // Tools come with the tour: none at first (the rocket launcher at the barrels, the rest when it's done).
+    player: { view: 'third', tools: [] },
     mayhem: { slowmo: true },
     spawn: { play: true, max: 200 },
     assets: { tree: { ids: [A.oak, A.pine], mix: true }, rock: { ids: [A.rocks, A.boulder], mix: true }, bush: { ids: [A.bush], only: true }, barrel: { ids: [A.barrel], only: true }, crate: { ids: [A.crate], only: true } },
@@ -117,7 +124,7 @@ export const SANDBOX = {
     const out: Things = {};
     const add = (e: any) => { out[e.id] = e; };
     add(thing('start', 'spawn', 'Player start', [-6, groundAt(-6, 0) + 0.2, 0], { data: { role: 'player' }, transform: yaw(90) }));
-    add({ id: 'pip', type: 'friend', name: 'Pip', shape: { personality: 'a cheerful island guide who loves explosions and fishing', species: 'person', color: '#f59e0b', follow: false, lines: ['What a day for it!', 'The 4x4 is right there: walk up and press E.', 'Those fuel barrels on the beach go BOOM.', 'The pier is east, down the path. The rod is at the end of it.', 'There is a helicopter on the hill. From up there you can see the whole planet!'] }, physics: 'dynamic', transform: { position: [-1, r2(groundAt(-1, 2.2) + 0.6), 2.2], rotation: [0, -110, 0] } });
+    add({ id: 'pip', type: 'friend', name: 'Pip', shape: { personality: 'a cheerful island guide who loves explosions and fishing', species: 'person', color: '#f59e0b', follow: false, stays: true, lines: ['What a day for it!', 'The 4x4 is right there: walk up and press E.', 'Those fuel barrels on the beach go BOOM.', 'The pier is east, down the path. The rod is at the end of it.', 'There is a helicopter on the hill. From up there you can see the whole planet!'] }, physics: 'dynamic', transform: { position: [-1, r2(groundAt(-1, 2.2) + 0.6), 2.2], rotation: [0, -110, 0] } });
     // The 4x4, ready on the path.
     add({ id: 'jeep', type: 'truck', name: '4x4', shape: { model: A.truck }, material: { color: '#3f7d3a' }, transform: { position: [4, r2(groundAt(4, 6.5) + 1.4), 6.5], rotation: [0, 90, 0] } });
     // Pip's hut and yard, up the slope behind the start.
@@ -139,10 +146,10 @@ export const SANDBOX = {
     add(thing('lantern', 'model', 'Lantern', [81.6, pierY + 0.45, 1.3], { shape: { asset: A.lantern, size: 0.6 }, body: { shape: 'box' }, shadow: false }));
     add(thing('sign_board', 'box', 'Sign', [58.5, groundAt(58.5, -3.6) + 1.5, -3.6], { shape: { size: [1.9, 0.75, 0.08] }, material: { color: '#d8b48a', texture: A.planks, tile: [1, 1] }, transform: yaw(-90) }));
     add(thing('sign_post', 'cylinder', 'Sign post', [58.5, groundAt(58.5, -3.6) + 0.6, -3.66], { shape: { radius: 0.07, height: 1.25 }, material: { color: '#6b4a2f', texture: A.oldWood } }));
-    add(thing('sign_text', 'text', 'Sign words', [58.44, groundAt(58.5, -3.6) + 1.5, -3.6], { shape: { text: "PIP'S PIER\nfishing · boats", size: 0.2, billboard: false, color: '#3a2614' }, transform: yaw(-90) }));
+    add(thing('sign_text', 'text', 'Sign words', [58.44, groundAt(58.5, -3.6) + 1.5, -3.6], { shape: { text: "PIP'S PIER\nfishing · boats", size: 0.2, billboard: false, color: '#3a2614' }, transform: yaw(90) }));
     add({ id: 'rod', type: 'tool-pickup', name: 'Fishing rod', shape: { tool: 'rod', respawn: 5 }, transform: { position: [80.5, pierY + 0.45, -0.4] } });
-    add({ id: 'boat', type: 'boat', name: 'Speedboat', shape: { model: A.speedboat }, material: { color: '#e5e7eb' }, transform: { position: [73, 0.3, 4.4], rotation: [0, 90, 0] } });
-    add(thing('duck', 'model', 'Rubber duck', [77, 0.15, -4], { shape: { asset: A.duck, size: 0.45 }, physics: 'dynamic', data: { density: 0.3 } }));
+    add({ id: 'boat', type: 'boat', name: 'Speedboat', shape: { model: A.speedboat }, material: { color: '#e5e7eb' }, transform: { position: [73, -0.2, 4.4], rotation: [0, 90, 0] } });
+    add(thing('duck', 'model', 'Rubber duck', [77, -0.35, -4], { shape: { asset: A.duck, size: 0.45 }, physics: 'dynamic', data: { density: 0.3 } }));
     // The fuel dump on the beach north of the dock: oil barrels close enough to chain, and crates to smash.
     [[50, -18], [51.2, -18.4], [50.5, -19.5], [51.7, -17.2], [49.6, -16.9]].forEach(([x, z], i) => add(model(`barrel_${i + 1}`, 'Fuel barrel', A.barrel, x, z, 1.15, { physics: 'dynamic', body: { shape: { type: 'cylinder', radius: 0.4, height: 1.15 } }, behaviors: [{ use: 'explosive', radius: 6, force: 22, damage: 60 }], data: { barrel: true } }, 0.05)));
     [[46.5, -21.5, 0], [47.6, -21.6, 20], [47.1, -21.4, 10]].forEach(([x, z, r], i) => add(model(`crate_${i + 1}`, 'Crate', A.crate, x, z, 1, { physics: 'dynamic', body: { shape: { type: 'box', size: [1, 1, 1] } }, transform: yaw(r), behaviors: [{ use: 'breakable', strength: 10, pieces: 8 }] }, i === 2 ? 1.02 : 0.02)));

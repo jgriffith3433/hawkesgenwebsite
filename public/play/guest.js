@@ -122,6 +122,9 @@
 .gs-acts{right:12px;top:12px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100vw - 24px);pointer-events:auto}
 .gs-acts button{font:700 14px var(--hud);letter-spacing:.03em;color:#e8ecf6;background:rgba(10,14,24,.78);border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:10px;padding:9px 13px;cursor:pointer;min-height:40px}
 .gs-acts button:hover{border-color:#4a9eff}
+.gs-acts button.glow{border-color:#ffd84a;color:#fff;animation:gsGlow 1.6s ease-in-out infinite;position:relative}
+.gs-acts button.glow::after{content:attr(data-tip);position:absolute;right:0;top:calc(100% + 8px);width:max-content;max-width:260px;font:600 13px/1.35 var(--hud);letter-spacing:0;text-align:left;color:#16130a;background:#ffd84a;border-radius:10px;padding:8px 11px;box-shadow:0 6px 20px rgba(0,0,0,.4);pointer-events:none}
+@keyframes gsGlow{0%,100%{box-shadow:0 0 0 0 rgba(255,216,74,.0),0 0 12px rgba(255,216,74,.35)}50%{box-shadow:0 0 0 6px rgba(255,216,74,.18),0 0 26px rgba(255,216,74,.7)}}
 .gs-acts button.primary{background:linear-gradient(90deg,#4a9eff,#a855f7);border-color:transparent;color:#fff}
 .gs-acts .more{display:none}
 .gs-toast{right:12px;top:62px;padding:12px 14px;display:flex;gap:12px;align-items:center;font:600 15px var(--hud);pointer-events:auto;max-width:calc(100vw - 24px)}
@@ -222,8 +225,23 @@
     on('quest', (d) => {
       if (!d || d.id !== 'tour') return;
       if (d.state === 'start') track('sandbox_objective', { step: 'start', s: Math.round((performance.now() - t0) / 1000), touch });
-      if (d.state === 'done') nudge(7000);
+      if (d.state === 'done') { nudge(7000); setTimeout(() => highlightAssistant('done'), 9000); }
     });
+    // After the tour (or 5 minutes in without finishing it): the assistant is the next big thing, so its button glows
+    // with a word on what it does, until it's clicked.
+    let highlighted = false;
+    function highlightAssistant(why) {
+      if (highlighted) return;
+      const b = acts.querySelector('[data-intent="assistant"]');
+      if (!b) return;
+      highlighted = true;
+      b.classList.add('glow');
+      b.dataset.tip = 'Describe anything ("a volcano", "a race around the island") and the Overseer builds it.';
+      if (window.matchMedia && window.matchMedia('(max-width: 700px)').matches) acts.classList.add('open');
+      b.addEventListener('click', () => { b.classList.remove('glow'); delete b.dataset.tip; }, { once: true });
+      track('sandbox_highlight', { what: 'assistant', why, s: Math.round((performance.now() - t0) / 1000) });
+    }
+    setTimeout(() => highlightAssistant('5min'), 5 * 60 * 1000);
     on('terrain', (d) => { for (const x of (d && d.edits) || []) if (edits.length < MAX_EDITS) edits.push(x); });
     setInterval(() => {
       try { if (H.game.player && H.game.player.controller === 'drive') tick('drive'); } catch { /* fine */ }
@@ -326,10 +344,12 @@
         const r = await api('POST', `/v1/games/${game.id}/scene`, { ops: part });
         if (r && r.errors && r.errors.length) notApplied.push(...r.errors);
       }
+      // Their island, from now on: the Overseer's beginning only the first time (they've seen it here).
+      await api('POST', `/v1/games/${game.id}/scene`, { ops: [{ op: 'config', patch: { overseer: { intro: 'first' } } }] }).catch(() => {});
       if (notApplied.length) console.warn('sandbox: some changes were not kept', notApplied);
       store.clear();
       track('sandbox_claimed', { intent, changes: ops.length, skipped: notApplied.length, user: user ? 'yes' : 'no' });
-      location.replace(`/app/g/${game.id}`);
+      location.replace(`/app/g/${game.id}?welcome=build`); // (the editor's short building tour)
     } catch (x) {
       busy.innerHTML = `<div class="gs-glass gs-sheet"><h3>That did not work</h3><p>${esc(x.message)}</p><a class="go" style="display:block;text-align:center;text-decoration:none" href="/app">Go to my games</a><button type="button" class="back" data-back>Back to the island</button></div>`;
       busy.querySelector('[data-back]').onclick = () => { busy.remove(); if (!window.HawkesPlay || !window.HawkesPlay.world) location.replace('/play/sandbox'); };
