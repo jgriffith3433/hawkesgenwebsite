@@ -409,6 +409,7 @@ export const STARTER = [
     ['Overseer ask and I will send it', '[generous] Ask, [pause] and I will send it down.', 'overseer guide spawn'],
     ['Overseer your world', '[slowly, proud] That is your world. [pause] All of it.', 'overseer guide planet'],
     // The mirror (modules/mirror): who you are, right after the intro. "Done" is said after the caption's name.
+    // (Made 2026-10-24; the sandbox uses them by id: src/overseer-games/sandbox.ts.)
     ['Overseer mirror open', '[warm, slow] Before you go anywhere: look. [pause] That is you. [amused] For now.', 'overseer mirror beginning'],
     ['Overseer mirror what', '[curious] First question. [pause] What are you?', 'overseer mirror what'],
     ['Overseer mirror look', '[warm] Now. [pause] How do you look?', 'overseer mirror look'],
