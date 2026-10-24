@@ -12,3 +12,9 @@
 `grab: false` (players can't pick it up). Players stand on anything solid and ride along on things that move.
 Anything that falls out of the world comes back where it was (players go back to their start or last checkpoint).
 
+Physics is real: dynamic things tumble, roll, stack and topple; walkers (capsules, anything with a walking behavior)
+stay upright; players walk up slopes and stairs and ride whatever they stand on. `body` also takes `upright: true`
+(never tips over), `shape` (`"box"`, `"sphere"`, `"capsule"`, `"cylinder"`, `"convex"`, `"mesh"`; default `"auto"`,
+the thing's own shape) and `layer` / `collides` (which things hit which). `"instanced": true` on a thing makes many
+copies of the same shape cheap.
+
