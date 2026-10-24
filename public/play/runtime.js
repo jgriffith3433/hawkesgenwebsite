@@ -425,7 +425,7 @@
     get emissive() { return this._mat && this._mat.emissiveColor ? this._mat.emissiveColor.toHexString() : null; }
     set emissive(c) { if (this.ownMaterial()) this._mat.emissiveColor = hex(c, '#000000'); }
     get opacity() { return this._mat ? this._mat.alpha : 1; }
-    set opacity(v) { if (this.ownMaterial()) this._mat.alpha = Math.max(0, Math.min(1, Number(v))); }
+    set opacity(v) { if (this.ownMaterial()) { this._mat.alpha = Math.max(0, Math.min(1, Number(v))); cutout(this._mat); } }
     /** Things that look alike share one material; call this before changing e._mat yourself, so only this one changes.
      *  (Instanced copies share their look for good: their color is their own, the rest is all the copies'.) Returns
      *  the material, or null. */
@@ -609,7 +609,14 @@
       } catch (e) { if (!opts.lenient) throw e; }
     }
     if (opts.opacity !== undefined && opts.opacity !== null) m.alpha = Number(opts.opacity);
+    cutout(m);
     return m;
+  }
+  /** A texture's alpha is a cutout (drawn with the solid things, writing depth), not a blend: Babylon writes no depth
+   *  for blended meshes, so a blended plank pier let the sea (also blended, sorted nearer) draw right over it. It
+   *  blends only while the thing is see-through (opacity < 1). */
+  function cutout(m) {
+    if (m.diffuseTexture && m.diffuseTexture.hasAlpha && m.useAlphaFromDiffuseTexture) m.transparencyMode = m.alpha < 1 ? B.Material.MATERIAL_ALPHATESTANDBLEND : B.Material.MATERIAL_ALPHATEST;
   }
 
   function place(e, opts) {
