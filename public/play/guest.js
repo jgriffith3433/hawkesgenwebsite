@@ -86,7 +86,8 @@
     s.src = 'https://gen.hawkesgen.com/sdk/analytics@1.js';
     s.defer = true;
     s.dataset.product = 'hawkesgen';
-    s.onload = () => { for (const [n, p] of queue.splice(0)) track(n, p); };
+    // Every event from here says it's the no-sign-up sandbox, played as a guest (who sticks around, by where they came in).
+    s.onload = () => { try { window.hawkesAnalytics.setContext({ entry: 'sandbox', account: 'guest' }); } catch { /* fine */ } for (const [n, p] of queue.splice(0)) track(n, p); };
     document.head.appendChild(s);
   })();
 

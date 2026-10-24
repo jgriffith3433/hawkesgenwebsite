@@ -122,11 +122,29 @@ async function loadStage() {
 }
 let stageBundle = null;
 const contextWaits = new Map();
+// Player analytics (Gen's SDK on this page): the game's events come through the frame (play/analytics.js), and the
+// builder's own moments are sent from here, each kind once a session (feature name, ms since the page opened).
+const ANALYTICS_SEEN = new Set();
+function analytics() { return window.hawkesAnalytics || null; }
+function builderDid(name, extra) {
+  if (ANALYTICS_SEEN.has(name)) return;
+  ANALYTICS_SEEN.add(name);
+  try { analytics()?.track('feature', { name, ms: Math.round(performance.now()), ...(extra || {}) }); } catch {}
+}
+try { analytics()?.setContext({ entry: 'editor', account: 'user' }); } catch {}
+window.addEventListener('load', () => { try { analytics()?.setContext({ entry: 'editor', account: 'user' }); } catch {} });
+
 window.addEventListener('message', async (e) => {
   if (e.source !== stage.contentWindow) return;
   const m = e.data || {};
   if (m.source !== 'hawkes-play') return;
   switch (m.type) {
+    case 'analytics': {
+      const a = analytics();
+      if (!a || !/^[a-z][a-z0-9_]{1,39}$/.test(String(m.name))) return;
+      try { if (m.ctx) a.setContext(m.ctx); a.track(m.name, m.props || {}); } catch {}
+      return;
+    }
     case 'overseer-seen':
       try { localStorage.setItem('hg_overseer_intro', String(Date.now())); } catch {}
       return;
@@ -153,6 +171,7 @@ window.addEventListener('message', async (e) => {
       // A world edit from the game: it goes live for everyone (the game is always live); Save marks a point in history.
       try {
         const r = await post(`${API}/games/${gameId}/scene`, { ops: m.ops, fx: m.fx }, roomConn ? { 'X-Room-Conn': roomConn } : {});
+        builderDid('build_edit');
         toStage({ type: 'ack', seq: m.seq, errors: r.errors, created: r.created });
         markUnsaved();
       } catch (err) {
@@ -162,7 +181,7 @@ window.addEventListener('message', async (e) => {
       }
       return;
     }
-    case 'save': return saveNow();
+    case 'save': builderDid('save'); return saveNow();
     case 'resync': {
       const b = await get(`${API}/games/${gameId}/bundle`).catch(() => null);
       if (b) toStage({ type: 'files', files: { 'scene.json': b.files['scene.json'] ?? null } });
@@ -185,6 +204,7 @@ window.addEventListener('message', async (e) => {
     case 'library': toggleLibrary(); return;
     // The spawn wheel (play/modules/spawn): a community thing put in the game (variant or replace), then spawned there.
     case 'spawn-community': {
+      builderDid('library_use');
       try {
         const r = await post(`${API}/games/${gameId}/community`, { id: m.id, mode: m.mode === 'replace' ? 'replace' : 'variant', word: m.word || undefined });
         assets[r.asset.name] = r.asset;
@@ -358,6 +378,7 @@ $('chatInput').addEventListener('keydown', (e) => {
 function backToGame() { $('chatInput').blur(); stage.focus(); }
 
 async function sendChat(text, about, ctx) {
+  builderDid('assistant');
   const input = $('chatInput');
   const message = (text ?? input.value).trim();
   if (!message) return;
