@@ -163,7 +163,10 @@
     const spec = r.spec;
     const place = S.place(spec, { count, floats: it.floats });
     const specs = layout(spec, place);
-    for (const s of specs) beam(s.transform.position, it.name);
+    // The Overseer's arrivals (H.arrive) beam, drop and grow things themselves; building, a drop's spot is where it
+    // will land (a roof over it catches it), worked out before the edit so the op and undo hold the real spot.
+    if (H.arrive) { if (building) H.arrive.plan(specs, { half: place.half }); }
+    else for (const s of specs) beam(s.transform.position, it.name);
     let ids = [];
     if (building) {
       edit(specs.map((s) => ({ op: 'create', entity: s })), `spawning ${label.toLowerCase()}`, 'materialize');
@@ -192,7 +195,7 @@
       let made = [];
       if (H.mayhem && H.mayhem.spawnMany) {
         const spec = clone(s); delete spec.id;
-        made = H.mayhem.spawnMany(spec, 1, { at: p, ground: false, effects: false }) || [];
+        made = H.mayhem.spawnMany(spec, 1, { at: p, ground: false, effects: false, arrive: { delay: out.length * Math.min(0.14, 2.6 / specs.length) } }) || [];
       } else {
         try { const e = H.fromSpec({ ...s, id: undefined }); e.temporary = true; e.spawned = true; made = [e]; } catch (err) { H.report(err, 'spawn'); }
       }
@@ -216,7 +219,7 @@
       if (w.depth) add.depth = w.depth;
       cur.add = [...(Array.isArray(cur.add) ? cur.add : []), add];
       edit([{ op: 'config', patch: { terrain: cur } }], `adding a ${w.terrainAdd}`);
-      beam([x, at[1], z], it.name);
+      if (!H.arrive) beam([x, at[1], z], it.name); // (the ground grows itself, under the Overseer's beam)
       say(`${it.name.replace(/ here$/, '')} ✓ · Ctrl+Z takes it back`);
     } else if (w.terrain) {
       const cur = c.terrain && typeof c.terrain === 'object' ? clone(c.terrain) : {};
