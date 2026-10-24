@@ -77,3 +77,9 @@ game.behavior('wobble', {
 `start(thing, o, memory, game)` runs once, `update(thing, dt, ...)` every step, `hit(thing, other, ...)` on touch,
 `stop(thing, ...)` when it goes.
 
+
+**Many at once:** `game.many(100, (i) => ({ type: 'box', size: 0.8, x: i % 10, z: Math.floor(i / 10), y: 3, physics: 'dynamic', color: '#ffffff' }))`
+makes copies of one mesh (cheap: one draw call for all of them), each with its own position, color and physics. Use
+it for herds, piles, crowds and debris. A world keeps itself playable: past a few thousand things the oldest ones
+scripts made make room, the farthest moving things rest until you come near, and only the nearest things cast
+shadows (`game.json` `"budget": { "entities": 2500, "bodies": 400, "shadows": 160 }` changes the limits; phones get less).

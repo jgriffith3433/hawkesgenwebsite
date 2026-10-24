@@ -181,7 +181,7 @@
     title: 'Glows', says: (o) => `glows ${o.color}`,
     defaults: { color: '#4a9eff', speed: 1.5 },
     update(e, dt, o, s, game) {
-      if (!e._mat) return;
+      if (!e._mat || !e.ownMaterial()) return; // its own material: things that look alike share one
       const k = 0.55 + 0.45 * Math.sin(game.now * o.speed * Math.PI);
       const c = game.BABYLON.Color3.FromHexString(/^#[0-9a-f]{6}$/i.test(o.color) ? o.color : '#4a9eff');
       e._mat.emissiveColor = c.scale(k);

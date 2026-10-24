@@ -235,3 +235,27 @@ test('explosions throw things (mass-aware) and hurt what has health', () => {
   assert.ok(Math.abs(H.game.entity('far').x - 10) < 0.01, 'the far one did not');
   assert.ok(H.game.entity('bot').hp < 50, 'the bot was hurt');
 });
+
+test('scale: shared materials, instanced copies, the spawn and body budgets', () => {
+  world(H, sceneOf({ floor, a: { type: 'box', material: { color: '#ff0000' } }, b: { type: 'box', material: { color: '#ff0000' }, transform: { position: [2, 0.5, 0] } } }));
+  const a = H.game.entity('a'), b = H.game.entity('b');
+  assert.equal(a._mat, b._mat, 'things that look alike share a material');
+  a.color = '#00ff00';
+  assert.notEqual(a._mat, b._mat, 'changing one gives it its own');
+  assert.equal(b.color, '#FF0000');
+  const cows = H.game.many(120, (i: number) => ({ type: 'box', size: [1.2, 0.8, 0.6], x: (i % 12) * 2 - 12, y: 1 + Math.floor(i / 12), z: 5, physics: 'dynamic', color: i % 2 ? '#ffffff' : '#222222', tag: 'cow' }));
+  assert.equal(cows.length, 120);
+  assert.ok(cows.every((c: any) => c.node.getClassName() === 'InstancedMesh'), 'copies of one mesh');
+  assert.equal(new Set(cows.map((c: any) => c.node.sourceMesh)).size, 1, 'one source for all');
+  cows[3].color = '#ff00ff';
+  assert.equal(cows[3].color, '#FF00FF', 'a copy keeps its own color');
+  H.tick(2);
+  assert.ok(cows.every((c: any) => c.y > 0 && c.y < 12), 'they fall and land');
+  H.budget.bodies = 50;
+  H.tick(0.6);
+  assert.equal(cows.filter((c: any) => c._frozen).length, 70, 'past the body budget, the farthest rest');
+  H.budget.entities = H.world.entities.size - 20;
+  H.tick(0.6);
+  assert.equal(cows.filter((c: any) => !c.alive).length, 20, 'past the spawn budget, the oldest made things make room');
+  assert.ok(a.alive && b.alive, 'never the world\'s own');
+});
