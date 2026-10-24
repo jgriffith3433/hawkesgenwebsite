@@ -36,7 +36,7 @@
     return true;
   };
   function flash(e) {
-    const m = e._mat;
+    const m = e.ownMaterial ? e.ownMaterial() : e._mat;
     if (!m || !m.emissiveColor) return;
     if (!e._baseEmissive) e._baseEmissive = m.emissiveColor.clone();
     m.emissiveColor = new B.Color3(1, 0.25, 0.2);

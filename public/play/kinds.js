@@ -61,7 +61,7 @@
       holder.parent = root;
       root.computeWorldMatrix(true);
       if (opts.color) for (const m of r.meshes) if (m.material && m.material.albedoColor) m.material.albedoColor = hex(opts.color);
-      if (W.shadows && opts.shadow !== false) for (const m of r.meshes) if (m.getTotalVertices() > 0) { W.shadows.addShadowCaster(m); m.receiveShadows = true; }
+      if (W.shadows && opts.shadow !== false) for (const m of r.meshes) if (m.getTotalVertices() > 0) { W.shadows.addShadowCaster(m); (e._casters ||= new Set()).add(m); m.receiveShadows = true; }
       for (const m of r.meshes) m.metadata = { entity: e };
       return { holder, r };
     });
@@ -312,11 +312,13 @@
   // ------------------------------------------------------------------ the kinds
   const TEXTURE = { textureable: true };
   const num = (v, d) => Number(v) || d;
+  /** Round things are made with fewer sides on phones (H.budget.detail): they look the same at a glance. */
+  const detail = (n) => Math.max(6, Math.round(n * ((H.budget && H.budget.detail) || 1)));
   const SAMPLE_GLB = 'https://models.babylonjs.com/boombox.glb';
 
   H.kinds.register('box', {
     physics: 'static', maker: true,
-    build: (sh, o) => { const s = size3(sh.size, 1); return shape('box', () => B.MeshBuilder.CreateBox('box', { width: s[0], height: s[1], depth: s[2] }, W.scene), o); },
+    build: (sh, o) => { const s = size3(sh.size, 1); return shape('box', () => B.MeshBuilder.CreateBox('box', { width: s[0], height: s[1], depth: s[2] }, W.scene), o, s.join(',')); },
     editor: {
       word: 'a block', ...TEXTURE,
       lift: (spec) => size3(spec.shape && spec.shape.size, 1)[1] / 2 + 0.02,
@@ -337,7 +339,7 @@
 
   H.kinds.register('sphere', {
     physics: 'static', maker: true,
-    build: (sh, o) => shape('sphere', () => B.MeshBuilder.CreateSphere('sphere', { diameter: num(sh.radius, 0.5) * 2, segments: num(sh.segments, 24) }, W.scene), o),
+    build: (sh, o) => { const r = num(sh.radius, 0.5), n = detail(num(sh.segments, 24)); return shape('sphere', () => B.MeshBuilder.CreateSphere('sphere', { diameter: r * 2, segments: n }, W.scene), o, `${r},${n}`); },
     editor: {
       word: 'a ball', ...TEXTURE,
       lift: (spec) => num(spec.shape && spec.shape.radius, 0.5) + 0.02,
@@ -352,7 +354,7 @@
 
   H.kinds.register('cylinder', {
     physics: 'static', maker: true,
-    build: (sh, o) => shape('cylinder', () => B.MeshBuilder.CreateCylinder('cylinder', { diameter: num(sh.radius, 0.5) * 2, height: num(sh.height, 1), tessellation: num(sh.segments, 32) }, W.scene), o),
+    build: (sh, o) => { const r = num(sh.radius, 0.5), h = num(sh.height, 1), n = detail(num(sh.segments, 32)); return shape('cylinder', () => B.MeshBuilder.CreateCylinder('cylinder', { diameter: r * 2, height: h, tessellation: n }, W.scene), o, `${r},${h},${n}`); },
     editor: {
       word: 'a pillar', ...TEXTURE,
       lift: (spec) => (spec.transform && spec.transform.rotation ? 0.9 : num(spec.shape && spec.shape.height, 1) / 2 + 0.02),
@@ -372,7 +374,7 @@
 
   H.kinds.register('cone', {
     physics: 'static', maker: true,
-    build: (sh, o) => shape('cone', () => B.MeshBuilder.CreateCylinder('cone', { diameterTop: 0, diameterBottom: num(sh.radius, 0.5) * 2, height: num(sh.height, 1), tessellation: num(sh.segments, 32) }, W.scene), o),
+    build: (sh, o) => { const r = num(sh.radius, 0.5), h = num(sh.height, 1), n = detail(num(sh.segments, 32)); return shape('cone', () => B.MeshBuilder.CreateCylinder('cone', { diameterTop: 0, diameterBottom: r * 2, height: h, tessellation: n }, W.scene), o, `${r},${h},${n}`); },
     editor: { word: 'a cone', ...TEXTURE, lift: (spec) => num(spec.shape && spec.shape.height, 1) / 2 + 0.02 },
     codex: {
       group: 'Shapes', what: 'A cone. Spikes, tree tops, roofs on round towers, traffic cones.',
@@ -383,7 +385,7 @@
 
   H.kinds.register('capsule', {
     physics: 'static', maker: true,
-    build: (sh, o) => { const r = num(sh.radius, 0.4); return shape('capsule', () => B.MeshBuilder.CreateCapsule('capsule', { radius: r, height: Math.max(r * 2, num(sh.height, 1.8)), tessellation: 16 }, W.scene), o); },
+    build: (sh, o) => { const r = num(sh.radius, 0.4), h = Math.max(r * 2, num(sh.height, 1.8)), n = detail(16); return shape('capsule', () => B.MeshBuilder.CreateCapsule('capsule', { radius: r, height: h, tessellation: n }, W.scene), o, `${r},${h},${n}`); },
     editor: { word: 'a capsule', ...TEXTURE, lift: (spec) => num(spec.shape && spec.shape.height, 1.8) / 2 + 0.02 },
     codex: {
       group: 'Shapes', what: 'A pill. The usual body for players and enemies: round ends slide over edges.',
@@ -394,7 +396,7 @@
 
   H.kinds.register('torus', {
     physics: 'static', maker: true,
-    build: (sh, o) => shape('torus', () => B.MeshBuilder.CreateTorus('torus', { diameter: num(sh.radius, 1) * 2, thickness: num(sh.thickness, 0.3), tessellation: 40 }, W.scene), o),
+    build: (sh, o) => { const r = num(sh.radius, 1), t = num(sh.thickness, 0.3), n = detail(40); return shape('torus', () => B.MeshBuilder.CreateTorus('torus', { diameter: r * 2, thickness: t, tessellation: n }, W.scene), o, `${r},${t},${n}`); },
     editor: { word: 'a ring', ...TEXTURE, lift: () => 0.2 },
     codex: {
       group: 'Shapes', what: 'A ring. Hoops to fly through, wheels, halos.',
@@ -410,7 +412,7 @@
     build: (sh, o) => {
       const s = Array.isArray(sh.size) ? sh.size : sh.size !== undefined ? [Number(sh.size), Number(sh.size)] : [];
       const w = num(sh.width ?? s[0], 10), d = num(sh.depth ?? s[1], w);
-      return shape('plane', () => B.MeshBuilder.CreateBox('plane', { width: w, height: 0.02, depth: d }, W.scene), o);
+      return shape('plane', () => B.MeshBuilder.CreateBox('plane', { width: w, height: 0.02, depth: d }, W.scene), o, `${w},${d}`);
     },
     editor: { word: 'a floor', ...TEXTURE, lift: () => 0.05 },
     codex: {

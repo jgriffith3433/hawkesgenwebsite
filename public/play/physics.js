@@ -228,7 +228,7 @@
   const solidKinds = { static: 1, dynamic: 1, kinematic: 1 };
   const wantsBody = (e) => e.alive && !e._cc && solidKinds[e.physics] === 1 && !e.ghost && e.kind !== 'light' && e.node.isEnabled();
   function motionFor(e) {
-    if (e.physics === 'dynamic' && !e.remote && !e.held && !e.node.parent) return DYNAMIC;
+    if (e.physics === 'dynamic' && !e.remote && !e.held && !e.node.parent && !e._frozen) return DYNAMIC; // (frozen: past the body budget, scale.js)
     if (e.physics === 'static' && !(e._pb && e._pb.moved) && !e.held) return STATIC;
     return ANIMATED;
   }
