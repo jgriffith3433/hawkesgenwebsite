@@ -367,16 +367,12 @@
   /** Slows the game down for a moment (seconds, to about a third of the speed). Online games keep full speed. */
   function slowMotion(seconds = 0.9) {
     if (online() || !W() || W().paused || H.mode === 'build') return;
-    slowmo = { until: now() + seconds * 1000, n: 0, paused: false };
+    slowmo = { until: now() + seconds * 1000 };
+    H.slow('mayhem', 0.35); // the engine's time scale: fewer steps a second, nothing else runs twice
   }
   function runSlowmo() {
-    const w = W();
-    if (!slowmo || !w) return;
-    if (w.paused && !slowmo.paused) { slowmo = null; return; } // someone else paused it (a menu, game over)
-    slowmo.n++;
-    if (now() > slowmo.until) { if (slowmo.paused) w.paused = false; slowmo = null; return; }
-    slowmo.paused = slowmo.n % 3 !== 0;
-    w.paused = slowmo.paused;
+    if (!slowmo) return;
+    if (now() > slowmo.until || !W()) { slowmo = null; H.slow('mayhem', null); }
   }
 
   // ------------------------------------------------------------------ the local player gets thrown too

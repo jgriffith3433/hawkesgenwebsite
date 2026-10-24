@@ -220,7 +220,7 @@
     time.scale = k;
     const w = W();
     if (w && w.scene) w.scene.animationTimeScale = k;
-    if (typeof H.timeScale === 'number' && Object.getOwnPropertyDescriptor(H, 'timeScale')) { try { H.timeScale = k; } catch {} }
+    if (typeof H.slow === 'function') H.slow('share', k); else if (typeof H.timeScale === 'number' && Object.getOwnPropertyDescriptor(H, 'timeScale')) { try { H.timeScale = k; } catch {} }
     if (k === 1 && time.pausedByUs && w) { w.paused = false; time.pausedByUs = false; time.acc = 0; }
     // Stopping or slowing takes effect now, not after the next step.
     if (k !== 1 && w && !nativeTime()) { if (!w.paused) time.pausedByUs = true; w.paused = true; }
@@ -367,7 +367,7 @@
   let audioDest = null;
   /** The game's sound as a stream track, when the engine gives us its master output (H.audio.master). */
   function audioTracks() {
-    const m = H.audio && H.audio.master;
+    const m = H.audio && (H.audio.output || H.audio.master);
     if (!m || !m.context || !m.context.createMediaStreamDestination) return [];
     try {
       if (!audioDest || audioDest.context !== m.context) { audioDest = m.context.createMediaStreamDestination(); m.connect(audioDest); }
