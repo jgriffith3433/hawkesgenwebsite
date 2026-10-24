@@ -76,7 +76,7 @@
         H.setClockOffset(sorted[Math.floor(sorted.length / 2)]);
         return;
       }
-      case 'join': addPeer(m.c, m.name, m.color); for (const st of states.values()) st.sent = null; dispatch('join', { id: m.c, name: m.name }); status('online'); return;
+      case 'join': addPeer(m.c, m.name, m.color); sent.clear(); for (const st of states.values()) st.sent = null; dispatch('join', { id: m.c, name: m.name }); status('online'); return;
       case 'leave': dropPeer(m.c); for (const [k, v] of owners) if (v === m.c) owners.delete(k); flags(); dispatch('leave', { id: m.c }); status('online'); return;
       case 'host': host = m.c; flags(); return;
       case 'me': { const pr = peers.get(m.c); if (pr) { pr.state = m.s; pr.seen = performance.now(); if (!pr.avatar || !pr.avatar.alive) makeAvatar(pr); } return; }
@@ -105,7 +105,7 @@
     for (const e of w.entities) {
       if (!e.sceneId || e.remotePlayer) continue;
       const r = online && !mine(e.sceneId);
-      if (e.remote && !r) { e.wake(); e._net = null; }
+      if (e.remote && !r) { e.wake(); e._net = null; e._netVals = null; }
       e.remote = r;
     }
   }
@@ -113,7 +113,7 @@
     if (!online || !e || !e.sceneId) return;
     if (owners.get(e.sceneId) === me) return;
     owners.set(e.sceneId, me);
-    e.remote = false; e._net = null; e.wake();
+    e.remote = false; e._net = null; e._netVals = null; e.wake();
     send({ t: 'own', id: e.sceneId, on: true });
   }
   function release(e) {
@@ -132,7 +132,12 @@
       const o = ownerOf(x[0]);
       if (o ? o !== c : c !== host) continue; // only the one simulating it says where it is
       e.remote = true;
-      e._net = { p: [x[1], x[2], x[3]], r: [x[4], x[5], x[6]], v: [x[7], x[8], x[9]], at: performance.now() };
+      // [id, mask, ...the values whose bits are set] (x y z, rx ry rz, vx vy vz): only what changed is sent.
+      const last = e._netVals || (e._netVals = [e.x, e.y, e.z, e.node.rotation.x, e.node.rotation.y, e.node.rotation.z, 0, 0, 0]);
+      const mask = x[1];
+      let k = 2;
+      for (let i = 0; i < 9; i++) if (mask & (1 << i)) last[i] = x[k++];
+      e._net = { p: [last[0], last[1], last[2]], r: [last[3], last[4], last[5]], v: [last[6], last[7], last[8]], at: performance.now() };
     }
   }
 
@@ -180,13 +185,19 @@
       for (const e of w.entities) {
         if (!e.sceneId || e.remote || e.physics !== 'dynamic' || !e.alive) continue;
         if (!mine(e.sceneId)) continue;
-        const pose = [e.x, e.y, e.z, e.node.rotation.x, e.node.rotation.y, e.node.rotation.z];
+        const vals = [r3(e.x), r3(e.y), r3(e.z), r3(e.node.rotation.x), r3(e.node.rotation.y), r3(e.node.rotation.z), r2(e.vx), r2(e.vy), r2(e.vz)];
         const before = sent.get(e.sceneId);
-        const moved = !before || pose.some((v, i) => Math.abs(v - before[i]) > 0.005);
+        const moved = !before || vals.slice(0, 6).some((v, i) => Math.abs(v - before[i]) > 0.005);
         if (!moved && (e.sleeping || now - (before.at || 0) < 1000)) continue;
-        pose.at = now;
-        sent.set(e.sceneId, pose);
-        out.push([e.sceneId, ...pose.slice(0, 6).map(r3), r2(e.vx), r2(e.vy), r2(e.vz)]);
+        // Delta-encoded: the bits of what changed since the last send, then those values. Everything once a second
+        // (and the first time) so someone who missed one catches up.
+        const full = !before || now - (before.full || 0) > 1000;
+        let mask = 0;
+        const changed = [];
+        vals.forEach((v, i) => { if (full || Math.abs(v - before[i]) > (i < 6 ? 0.002 : 0.05)) { mask |= 1 << i; changed.push(v); } else vals[i] = before[i]; }); // (what others have)
+        vals.at = now; vals.full = full ? now : before.full;
+        sent.set(e.sceneId, vals);
+        out.push([e.sceneId, mask, ...changed]);
         // Done moving and not held: give it back to the host.
         if (owners.get(e.sceneId) === me && !e.held && e.sleeping && !isHost()) release(e);
       }
@@ -302,6 +313,21 @@
     get isHost() { return isHost(); },
     get me() { return me; },
   };
+
+  // The host-authoritative explosion (H.sync.explode(at, { radius, force, up })): the host throws things, and so takes
+  // over simulating what it throws (their new places reach everyone as transforms); everyone else's own player is
+  // pushed where they are. Damage is the caller's to do (H.physics.explode with force 0), so kills are credited right.
+  const explodeAction = H.sync.action('_explode', (d, { authoritative }) => {
+    if (authoritative) { H.physics.explode(d.at, { radius: d.radius, force: d.force, up: d.up, owner: 'host' }); return; }
+    const p = W() && W().player;
+    if (!p || !p.alive) return;
+    const dx = p.x - d.at[0], dy = p.y - d.at[1] + (d.up ?? 0.6), dz = p.z - d.at[2];
+    const dist = Math.hypot(p.x - d.at[0], p.y - d.at[1], p.z - d.at[2]);
+    const k = Math.max(0, 1 - dist / (d.radius || 4.5));
+    const l = Math.hypot(dx, dy, dz) || 1;
+    if (k > 0) p.push([(dx / l) * d.force * 0.6 * k, (dy / l) * d.force * 0.5 * k, (dz / l) * d.force * 0.6 * k]);
+  });
+  H.sync.explode = (at, o = {}) => explodeAction({ at: Array.isArray(at) ? at.slice(0, 3) : [at.x, at.y, at.z], radius: Number(o.radius) || 4.5, force: o.force ?? 14, up: o.up ?? 0.6 });
 
   H.hooks.step.push(step);
   H.hooks.step.push(() => syncStates(performance.now()));

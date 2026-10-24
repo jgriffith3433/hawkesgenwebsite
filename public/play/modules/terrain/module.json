@@ -1,0 +1,7 @@
+{
+  "title": "Terrain",
+  "order": 30,
+  "scripts": ["terrain-core.js", "terrain.js", "shovel.js"],
+  "editor": ["editor.js"],
+  "kinds": []
+}
