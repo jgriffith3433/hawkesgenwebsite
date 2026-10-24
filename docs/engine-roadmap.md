@@ -113,9 +113,9 @@ time (more overloaded the API).
    culling, LOD for everything, compressed textures, cached Havok wasm, streaming; phone-first budgets that never cap
    desktop.
    **Textures by level of detail** (J, 2026-10-23: library textures are megabytes; network and memory are the limits, and
-   Safari reloads the page when it runs out of memory): every texture gets smaller variants (e.g. 128, 256, 512, 1024,
-   WebP) made once when it enters the library or a game, kept on the asset by id; scenes load the smallest first and
-   upgrade only what's near and big on screen while there's headroom; a per-device texture memory budget (strict on iOS
+   Safari reloads the page when it runs out of memory): Hawkes Gen's LOD system makes every image's levels (128-2048 px
+   WebP) and every model's (low, mid, high) when the asset is made, kept with the asset (done, 2026-10-23); scenes load
+   each texture once at about its size on screen and upgrade only what's near and big while there's headroom; a per-device texture memory budget (strict on iOS
    Safari) downgrades the least visible first so the page is never killed; KTX2/Basis GPU compression measured and used
    where it pays; the textures baked inside models get the same treatment.
 9. **Featured games** (the Overseer's): showcase worlds with quests, NPCs and AI friends as the soul (island adventure,

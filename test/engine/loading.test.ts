@@ -1,5 +1,5 @@
 // Loading speed and memory (#8): textures by level of detail (public/play/textures.js: the planner's order under
-// pressure, which copy is picked, a texture starting at its smallest and upgraded when near), the budgets per device
+// pressure, which level is picked first and later, one copy held), models' copies (kinds.js modelLevels), the budgets per device
 // (scale.js), draw distance, and the manifest's lazy modules (src/engine.ts, public/play/loader.js needs()).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -44,39 +44,74 @@ test('over budget: the least needed go down first, only as far as needed', () =>
 });
 
 // ------------------------------------------------------------------ levels of an asset
+// As the bundle carries them (src/games.ts assetMap: Gen's LOD summary with each level's link, src/lods.ts levelUrls).
+const lod = (level: number, w?: number, h?: number) => ({ level, url: `/v${level}`, bytes: 1000, ...(w ? { w, h } : {}) });
 const entry = {
-  url: '/play-asset/g/live/grass.png', mime: 'image/png', type: 'image', id: 'a_1', size: [2048, 1024],
-  variants: { 128: { id: 'a_2', url: '/v128', w: 128, h: 64 }, 256: { id: 'a_3', url: '/v256', w: 256, h: 128 }, 512: { id: 'a_4', url: '/v512' }, 1024: { id: 'a_5', url: '/v1024' }, 2048: { id: 'a_6', url: '/v2048' } },
+  url: '/play-asset/g/live/grass.png', mime: 'image/png', type: 'image', id: 'a_1',
+  lods: { kind: 'image', size: [2048, 1024], bytes: 1_400_000, levels: [lod(128, 128, 64), lod(256, 256, 128), lod(512), lod(1024), lod(2048)] },
 };
 
-test('an asset\'s levels: its copies smallest first; the full-size WebP stands for the original', () => {
+test('an asset\'s levels: Gen\'s levels smallest first; the full-size WebP stands for the original', () => {
   const levels = T.levelsOf(entry);
   assert.deepEqual(levels.map((l: any) => l.size), [128, 256, 512, 1024, 2048]);
   assert.deepEqual(levels.map((l: any) => l.url), ['/v128', '/v256', '/v512', '/v1024', '/v2048'], 'never the 1 MB PNG');
   assert.deepEqual([levels[2].w, levels[2].h], [512, 256], 'the aspect from the original');
   assert.equal(levels[4].bytes, T.gpuBytes(2048, 1024));
-  // Without a full-size copy, the original is the top level.
-  const partial = T.levelsOf({ ...entry, variants: { 128: { url: '/v128' }, 256: { url: '/v256' } } });
+  // Without a full-size level, the original is the top level.
+  const partial = T.levelsOf({ ...entry, lods: { ...entry.lods, levels: [lod(128), lod(256)] } });
   assert.deepEqual(partial.map((l: any) => l.url), ['/v128', '/v256', entry.url]);
-  // No copies yet: just the original.
+  // No levels: just the original.
   assert.deepEqual(T.levelsOf({ url: '/x.png' }).map((l: any) => l.url), ['/x.png']);
 });
 
-test('which copy: the smallest that covers the pixels on screen, never past the device\'s largest', () => {
+test('which level: the smallest that covers the pixels on screen, never past the device\'s largest', () => {
   const levels = T.levelsOf(entry);
   assert.equal(levels[T.levelFor(levels, 90)].size, 128);
   assert.equal(levels[T.levelFor(levels, 300)].size, 512);
   assert.equal(levels[T.levelFor(levels, 5000)].size, 2048);
   assert.equal(levels[T.levelFor(levels, 5000, 1024)].size, 1024, 'a phone: 1024 at most');
-  assert.equal(T.startUrl(entry), '/v128', 'a texture starts at the smallest');
   assert.equal(T.startUrl({ url: '/x.png' }), '/x.png');
+});
+
+test('the first level: from the expected size and the budget\'s share, so most textures load once', () => {
+  const levels = T.levelsOf(entry);
+  const at = (o: any) => levels[T.firstLevel(levels, o)].size;
+  assert.equal(at({ px: 256, maxSize: 1024, share: 64 * MB / 4 }), 256, 'a phone: 256 px to start, not 128 and then 256');
+  assert.equal(at({ px: 512, maxSize: 8192, share: 512 * MB / 18 }), 512, 'a desktop: 512');
+  assert.equal(at({ px: 4000, maxSize: 1024, share: 64 * MB / 3 }), 1024, 'a sky on a phone: as wide as the screen, at most 1024');
+  assert.equal(at({ px: 4000, maxSize: 8192, share: 2 * MB }), 512, 'a small share of the budget: smaller, so it never goes over');
+  assert.equal(at({ px: 10, maxSize: 8192, share: 0 }), 128);
+  assert.equal(at({ px: 400, maxSize: 8192, share: 0, under: true }), 256, 'a guess: the level under it');
+  // In the engine: nothing to go by, the smallest; a sky as wide as the screen; a thing by its size and distance.
+  assert.equal(T.startUrl(entry), '/v128');
+  assert.equal(T.startUrl(entry, { sky: true }), '/v2048');
+  assert.equal(T.startUrl(entry, { px: 300 }), '/v512');
+  const near = T.startUrl(entry, { at: [0, 1.6, 4], size: 4 });
+  const far = T.startUrl(entry, { at: [0, 1.6, 400], size: 1 });
+  assert.ok(['/v1024', '/v2048'].includes(near), `a big thing in front of you: sharp at once (${near})`);
+  assert.equal(far, '/v128', 'a small thing far off: the smallest');
+});
+
+test('a model\'s copies: the low far away, near the most detailed whose textures fit the device', () => {
+  const m = { url: '/chair.glb', lods: { kind: 'mesh', tris: 12000, tex: 4096, bytes: 9e6, levels: [
+    { level: 1400, tris: 1400, tex: 512, role: 'low', url: '/low' }, { level: 4800, tris: 4800, tex: 1024, role: 'mid', url: '/mid' }, { level: 12000, tris: 12000, tex: 2048, role: 'high', url: '/high' },
+  ] } };
+  const was = H.budget.maxTexture;
+  try {
+    H.budget.maxTexture = 8192;
+    assert.deepEqual(H.kinds.modelLevels(m), { near: '/high', low: '/low' }, 'desktop: every triangle, with its textures at 2048 instead of 4096');
+    H.budget.maxTexture = 1024;
+    assert.deepEqual(H.kinds.modelLevels(m), { near: '/mid', low: '/low' }, 'a phone: the mid (1024 px textures)');
+    assert.deepEqual(H.kinds.modelLevels({ url: '/x.glb', lods: { kind: 'mesh', tris: 300, tex: 256, levels: [{ level: 300, tris: 300, tex: 128, url: '/small' }] } }), { near: '/small', low: null });
+    assert.equal(H.kinds.modelLevels({ url: '/x.glb' }), null, 'no levels: the old way (a _low.glb beside it)');
+  } finally { H.budget.maxTexture = was; }
 });
 
 // ------------------------------------------------------------------ in the engine
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
-const tex = (n: string) => ({ url: `${PNG}#${n}`, mime: 'image/png', type: 'image', id: `a_${n}`, size: [2048, 2048], variants: Object.fromEntries([128, 256, 512].map((s) => [s, { id: `a_${n}${s}`, url: `${PNG}#${n}-${s}`, w: s, h: s }])) });
+const tex = (n: string) => ({ url: `${PNG}#${n}`, mime: 'image/png', type: 'image', id: `a_${n}`, lods: { kind: 'image', size: [2048, 2048], bytes: 4e6, levels: [128, 256, 512].map((s) => ({ level: s, url: `${PNG}#${n}-${s}`, w: s, h: s, bytes: 1000 })) } });
 
-test('a textured thing starts at its smallest copy and is upgraded when the camera is near (and down to budget)', async () => {
+test('a textured thing starts at its first level, is sharpened when near (one copy held), and comes down to budget', async () => {
   const scene = sceneOf({
     near: { type: 'box', shape: { size: [4, 4, 4] }, material: { texture: 'a_n' }, transform: { position: [0, 2, 6] } },
     far: { type: 'box', shape: { size: [1, 1, 1] }, material: { texture: 'a_f' }, transform: { position: [0, 2, 300] } },
@@ -87,17 +122,20 @@ test('a textured thing starts at its smallest copy and is upgraded when the came
   cam.position.set(0, 2, 0);
   if (cam.setTarget) cam.setTarget(new (globalThis as any).BABYLON.Vector3(0, 2, 6));
   const t = (id: string) => H.game.entity(id).node.material.diffuseTexture;
-  assert.match(t('near').url, /#n-128$/, 'starts small');
-  assert.match(t('far').url, /#f-128$/);
+  assert.match(t('near').url, /#n-(256|512)$/, 'big and near: sharper at once, not 128 first');
+  assert.match(t('far').url, /#f-128$/, 'small and far: the smallest');
+  const before = t('near').getInternalTexture();
   w.scene.render();
   T.update();
   await new Promise((r) => setTimeout(r, 50));
   T.update();
   assert.ok(t('near')._lod, 'managed');
-  assert.ok(t('near')._lod.need > 128, `the near box covers many pixels (${t('near')._lod.need})`);
-  assert.match(t('near').url, /#n$/, 'near and big on screen: the full image (no full-size copy here)');
-  assert.match(t('far').url, /#f-128$/, 'far and small: stays small');
+  assert.ok(t('near')._lod.need > 512, `the near box covers many pixels (${t('near')._lod.need})`);
+  assert.match(t('near').url, /#n$/, 'near and big on screen: the full image (no full-size level here)');
   assert.ok(T.stats().upgrades >= 1);
+  // One copy: the level it had is gone from the GPU once the sharper one took its place.
+  assert.notEqual(t('near').getInternalTexture(), before);
+  assert.equal(before._references, 0, 'the old level was disposed');
   // A budget with no room left: the near one comes back down (the page never runs out of memory).
   T.reserve('test', (H.budget.textureMB - 8.5) * MB);
   T.update();

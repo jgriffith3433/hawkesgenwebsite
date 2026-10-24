@@ -1,17 +1,24 @@
-// Textures by level of detail (H.textures). Every image a game uses has smaller copies (128, 256, 512, 1024, 2048 px
-// and the full size, as WebP: src/variants.ts, in the bundle as asset.variants). The engine:
-//   - loads every texture at its smallest copy first (assetUrl gives the smallest: the first frame comes fast and small),
+// Textures by level of detail (H.textures). Every image a game uses has levels of detail from Hawkes Gen's LOD system
+// (128, 256, 512, 1024, 2048 px and the full size, as WebP, made by Gen when the image was: in the bundle as asset.lods,
+// src/games.ts). The engine:
+//   - loads each texture at a first level picked for it: about how big it will be on screen from where the player starts
+//     (a sky: the screen's width; a thing: its size and distance), within its share of the device's budget, so what's
+//     near and big isn't loaded at 128 px and then again sharper (every upgrade is one more request); a texture with
+//     nothing to go by starts at the smallest,
 //   - every half second, works out how many pixels each texture covers on screen (near, big and in view: more), and
 //     upgrades the ones that need it, most needed first, as long as the device's texture memory budget allows,
 //   - and when over budget (a big new thing, the Overseer's sky...), downgrades the least visible first, so the page is
 //     never killed for memory (iOS Safari reloads a page that takes too much).
+// A texture holds one copy: after a swap the old one is disposed. At most H.budget.loads swaps download at once.
 // Textures that aren't managed (inside models, shadow maps, a module's own) still count against the budget.
 //
 //   H.textures.stats()                    { tier, budgetMB, usedMB, managedMB, otherMB, managed, upgrades, downgrades, loading }
 //   H.textures.reserve(owner, bytes)      a module keeps room for something big it will make (the sky, a planet): the
 //                                         budget for the rest shrinks; reserve(owner, 0) gives it back
 //   H.textures.track(texture, o)          manage a texture a module made from an asset (o.asset: its id or name)
-//   H.textures.startUrl(entry)            the address a texture of this asset starts at (runtime.js assetUrl uses it)
+//   H.textures.startUrl(entry, hint)      the address a texture of this asset starts at (runtime.js assetUrl uses it);
+//                                         hint { px }, { sky: true } or { at, size } (the thing it's on)
+//   H.textures.firstLevel(levels, o)      the start level on its own (pure; tests use it)
 //   H.textures.plan(items, budget)        the planner on its own (pure; tests use it)
 // The budget per device is H.budget.textureMB (scale.js: strict on phones, iOS strictest; roomy on desktop).
 /* global HawkesPlay, BABYLON */
@@ -22,23 +29,22 @@
   const MB = 1048576;
 
   // ------------------------------------------------------------------ the levels of an asset
-  /** An asset's levels, smallest first: [{ size (long side, px), url, w, h, bytes (on the GPU, with mipmaps) }]. The
-   *  last is the original (its size when known). Assets without variants have one level. */
+  /** An image asset's levels, smallest first: [{ size (long side, px), url, w, h, bytes (on the GPU, with mipmaps) }]. The
+   *  last is the original (its size when known). Assets without levels of detail have one level. */
+  const imageLods = (entry) => (entry && entry.lods && entry.lods.kind === 'image' && Array.isArray(entry.lods.levels) && entry.lods.levels.length ? entry.lods : null);
   function levelsOf(entry) {
     if (!entry) return [];
     const out = [];
-    const v = entry.variants && typeof entry.variants === 'object' ? entry.variants : null;
-    const size = Array.isArray(entry.size) ? entry.size : null;
+    const lods = imageLods(entry);
+    const size = lods && Array.isArray(lods.size) ? lods.size : null;
     const long = size ? Math.max(size[0], size[1]) : 0;
     const dims = (s, x) => (x && x.w && x.h ? [x.w, x.h] : size ? (size[0] >= size[1] ? [s, Math.max(1, Math.round((size[1] * s) / size[0]))] : [Math.max(1, Math.round((size[0] * s) / size[1])), s]) : [s, s]);
-    if (v) for (const k of Object.keys(v).map(Number).filter((n) => n > 0).sort((a, b) => a - b)) {
-      const x = v[k];
-      const url = typeof x === 'string' ? x : x && x.url;
-      if (!url) continue;
-      const [w, h] = dims(k, x);
-      out.push({ size: k, url, w, h, bytes: gpuBytes(w, h) });
+    if (lods) for (const x of [...lods.levels].sort((a, b) => a.level - b.level)) {
+      if (!x || !x.url || !(x.level > 0)) continue;
+      const [w, h] = dims(x.level, x);
+      out.push({ size: x.level, url: x.url, w, h, bytes: gpuBytes(w, h) });
     }
-    // The original: only when it's bigger than the biggest copy (a full-size WebP copy stands for it).
+    // The original: only when it's bigger than the biggest level (a full-size WebP level stands for it).
     if (!out.length || !long || long > out[out.length - 1].size) {
       const [w, h] = size || [long || 1024, long || 1024];
       out.push({ size: long || Infinity, url: entry.url, w, h, bytes: gpuBytes(w, h), original: true });
@@ -102,27 +108,85 @@
   const byUrl = new Map(); // url -> { entry, index }
   let indexed = null;
   /** Every level's address of every image in the bundle, so a texture made from any of them is recognised. */
+  let images = 0;
   function index() {
     const assets = (H.bundle && H.bundle.assets) || {};
     if (indexed === assets) return;
     byUrl.clear();
+    images = 0;
     for (const [name, a] of Object.entries(assets)) {
-      if (!a || !a.variants) continue;
+      if (!imageLods(a)) continue;
       const entry = { name, ...a };
       const levels = levelsOf(entry);
       levels.forEach((l, i) => byUrl.set(l.url, { entry, levels, index: i }));
+      images++;
     }
     indexed = assets;
   }
-  /** Where a texture of this asset starts: its smallest copy (or the asset itself when it has none). */
-  function startUrl(entry) {
-    if (!entry || !entry.variants || H.textures.off) return entry && entry.url;
+
+  /** Where the player first looks from: the world's spawn (from scene.json, so it's known before the spawn is built),
+   *  else the camera. Kept per bundle. */
+  let viewOf = null, viewAt = null;
+  function viewPoint() {
+    const b = H.bundle;
+    if (viewOf === b && viewAt) return viewAt;
+    viewOf = b;
+    viewAt = null;
+    try {
+      const scene = JSON.parse((b && b.files && b.files['scene.json']) || '{}');
+      const ents = Object.values(scene.entities || {});
+      const sp = ents.find((x) => x && x.type === 'spawn' && (!x.data || !x.data.role || x.data.role === 'player')) || ents.find((x) => x && x.type === 'spawn');
+      const p = sp && sp.transform && sp.transform.position;
+      if (Array.isArray(p)) viewAt = [Number(p[0]) || 0, Number(p[1]) || 0, Number(p[2]) || 0];
+    } catch { /* no scene: the camera */ }
+    if (!viewAt) {
+      const c = H.world && H.world.scene && H.world.scene.activeCamera;
+      viewAt = c ? [c.position.x, c.position.y, c.position.z] : [0, 1.6, 6];
+    }
+    return viewAt;
+  }
+  /** About how many pixels something `size` meters big at `at` covers from where the player starts (one texture repeat). */
+  function expectedPx(at, size, tile = 1) {
+    const v = viewPoint();
+    const d = Math.max(1, Math.hypot(at[0] - v[0], at[1] - v[1], at[2] - v[2]) - size / 2);
+    const screenH = (window.innerHeight || 800) * Math.min(Number(window.devicePixelRatio) || 1, Number(H.budget && H.budget.pixelRatio) || 4);
+    return ((size / d) * screenH) / (2 * Math.tan(0.4)) * Math.max(1, tile);
+  }
+  /**
+   * The level a texture loads first (an index): the smallest that covers `px` (how big it will be on screen; a sky:
+   * the screen's width), or with `under`, the biggest not over it (a guess from where the player starts: better a level
+   * under that the update sharpens than one too big for good); at most the device's largest texture, then smaller while
+   * it takes more than its share of the budget. Pure: o = { px, maxSize, share (bytes), under }.
+   */
+  function firstLevel(levels, o = {}) {
+    if (!levels.length) return 0;
+    let i = levelFor(levels, Math.max(1, o.px || 256), o.maxSize || Infinity);
+    if (o.under) while (i > 0 && levels[i].size > o.px) i--;
+    while (i > 0 && o.share > 0 && levels[i].bytes > o.share) i--;
+    return i;
+  }
+  /** Where a texture of this asset starts (or the asset itself when it has no levels). hint: { px }, { sky: true }, or
+   *  { at: [x, y, z], size (m), tile } (the thing it's on: its size on screen from where the player starts). Without one,
+   *  the smallest: the half-second update sharpens it if it turns out near. */
+  function startUrl(entry, hint = {}) {
+    if (!imageLods(entry) || H.textures.off) return entry && entry.url;
+    index();
     const levels = levelsOf(entry);
-    return levels.length ? levels[0].url : entry.url;
+    if (!levels.length) return entry.url;
+    const max = Number(H.budget && H.budget.maxTexture) || 8192;
+    // A sky surrounds you: about the screen's width times how many screens go round (update() works it out exactly).
+    const screenW = (window.innerWidth || 1280) * Math.min(Number(window.devicePixelRatio) || 1, Number(H.budget && H.budget.pixelRatio) || 4);
+    const px = hint.sky ? screenW * 2.5 : Number(hint.px) || (Array.isArray(hint.at) ? expectedPx(hint.at, Number(hint.size) || 1, Number(hint.tile) || 1) : 1);
+    // Each texture's share of the budget: the budget over the world's images (a sky may take a third).
+    const share = hint.sky ? budgetBytes() / 3 : budgetBytes() / Math.max(4, images);
+    const i = firstLevel(levels, { px, maxSize: max, share, under: !hint.sky && !hint.px });
+    const k = i === levels.length - 1 && levels[i].original ? 'full' : String(levels[i].size);
+    stats.first[k] = (stats.first[k] || 0) + 1;
+    return levels[i].url;
   }
 
   const reserved = new Map();
-  const stats = { upgrades: 0, downgrades: 0, failed: 0, loading: 0, usedMB: 0, managedMB: 0, otherMB: 0, managed: 0 };
+  const stats = { upgrades: 0, downgrades: 0, failed: 0, loading: 0, usedMB: 0, managedMB: 0, otherMB: 0, managed: 0, first: {} };
   const budgetBytes = () => {
     const b = H.budget || {};
     let r = 0;
@@ -299,7 +363,7 @@
   H.hooks.world.push({ leave() { indexed = null; } });
 
   H.textures = {
-    plan, shed, levelsOf, levelFor, gpuBytes, startUrl, track, update,
+    plan, shed, levelsOf, levelFor, firstLevel, gpuBytes, startUrl, track, update,
     /** A module keeps room for something big (bytes); 0 gives it back. */
     reserve(owner, bytes) { if (!bytes) reserved.delete(owner); else reserved.set(owner, Math.max(0, Number(bytes) || 0)); },
     /** Called with the bytes over budget when downgrading textures isn't enough (models drop their full-detail copies). */

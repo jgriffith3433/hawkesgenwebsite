@@ -195,7 +195,11 @@ export class HawkesGen {
 
   asset(id) { return this.request(`/assets/${id}`); }
   assets(query = {}) { return this.request(`/assets?${new URLSearchParams(query)}`); }
-  fileUrl(assetId) { return `${this.url}/v1/files/${assetId}`; }
+  /** An asset's file; `lod` asks for a level of detail (px for images, triangles for models: the largest level at most
+   *  that, else the smallest). Every image and model in the library has them (GET /v1/assets/:id `lods`). */
+  fileUrl(assetId, { lod } = {}) { return `${this.url}/v1/files/${assetId}${lod ? `?lod=${lod}` : ''}`; }
+  /** Many assets' levels of detail in one request: { lods: { a_...: { kind, size | tris, levels } }, queued }. */
+  lods(ids) { return this.request(`/lods?ids=${[...ids].join(',')}`); }
 
   /** The bytes of an asset (Uint8Array). */
   async bytes(assetId) {

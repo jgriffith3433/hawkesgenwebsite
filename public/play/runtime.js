@@ -313,13 +313,14 @@
     return n ? { name: n, ...assets[n] } : null;
   }
   const hasAsset = (ref) => Boolean(assetEntry(ref));
-  function assetUrl(ref) {
+  function assetUrl(ref, hint) {
     if (/^https:\/\//.test(String(ref))) return ref;
     const a = assetEntry(ref);
     if (!a) throw new Error(`No asset "${ref}". Add it in the Assets panel, or check the spelling.`);
-    // An image with smaller copies starts at the smallest; textures.js upgrades what's near and big on screen.
-    const T = a.variants && window.HawkesPlay && window.HawkesPlay.textures;
-    return T ? T.startUrl(a) : a.url;
+    // An image with levels of detail (Gen's) starts at the level its budget and size need; textures.js sharpens what's
+    // near and big on screen. hint: { px } (how big it will be on screen) or { sky: true }.
+    const T = a.lods && a.lods.kind === 'image' && window.HawkesPlay && window.HawkesPlay.textures;
+    return T ? T.startUrl(a, hint) : a.url;
   }
   const hex = (c, fallback = '#cccccc') => { try { return B.Color3.FromHexString(/^#[0-9a-f]{6}$/i.test(String(c)) ? c : fallback); } catch { return B.Color3.FromHexString(fallback); } };
   const vec = (v, d = [0, 0, 0]) => (Array.isArray(v) ? [Number(v[0]) || 0, Number(v[1]) || 0, Number(v[2]) || 0] : v && typeof v === 'object' && 'x' in v ? [Number(v.x) || 0, Number(v.y) || 0, Number(v.z) || 0] : d);
@@ -562,7 +563,7 @@
 
   /** A material for a look. Plain looks (a color, a glow, an opacity: no texture) are shared by everything that has
    *  them, so a world of a thousand crates has a few materials; changing one thing's look gives it its own (ownMaterial). */
-  function material(opts, name) {
+  function material(opts, name, hint) {
     const key = !opts.texture && opts.share !== false ? `${hex(opts.color, '#cfcfcf').toHexString()}|${opts.emissive ? hex(opts.emissive).toHexString() : ''}|${opts.opacity ?? ''}` : null;
     if (key && W.mats && W.mats.has(key)) return W.mats.get(key);
     const m = new B.StandardMaterial(name || 'm', W.scene);
@@ -572,7 +573,7 @@
     if (opts.emissive) m.emissiveColor = hex(opts.emissive);
     if (opts.texture) {
       try {
-        const t = new B.Texture(assetUrl(opts.texture), W.scene, false, true, W.pixelated ? B.Texture.NEAREST_SAMPLINGMODE : B.Texture.TRILINEAR_SAMPLINGMODE);
+        const t = new B.Texture(assetUrl(opts.texture, hint), W.scene, false, true, W.pixelated ? B.Texture.NEAREST_SAMPLINGMODE : B.Texture.TRILINEAR_SAMPLINGMODE);
         const tile = vec(opts.tile, [1, 1, 0]);
         t.uScale = tile[0] || 1; t.vScale = tile[1] || 1;
         t.hasAlpha = /png|webp|gif/.test(String(assetEntry(opts.texture)?.mime || opts.texture));
@@ -609,7 +610,13 @@
       e._mat = inst.sourceMesh.material;
       const c = hex(opts.color, '#cfcfcf');
       inst.instancedBuffers.color = new B.Color4(c.r, c.g, c.b, 1);
-    } else { mesh.material = e._mat = material(opts, kind); mesh.receiveShadows = true; } // (instances take it from their source)
+    } else {
+      // (A texture's first level from how big the thing will look from where the player starts: textures.js.)
+      let hint;
+      if (opts.texture) { const bi = mesh.getBoundingInfo && mesh.getBoundingInfo(); hint = { at: opts.position ? vec(opts.position) : [Number(opts.x) || 0, Number(opts.y) || 0, Number(opts.z) || 0], size: bi ? bi.boundingSphere.radius * 2 : 1 }; }
+      mesh.material = e._mat = material(opts, kind, hint);
+      mesh.receiveShadows = true; // (instances take it from their source)
+    }
     return place(e, opts);
   }
   /** The hidden mesh a kind of copy is an instance of (one per shape, glow and opacity, per world). */
@@ -1436,7 +1443,7 @@
         if (W.skybox) { W.skybox.dispose(); W.skybox = null; }
         if (/^#/.test(String(what))) { const c = hex(what); W.scene.clearColor = new B.Color4(c.r, c.g, c.b, 1); if (W.scene.fogMode) W.scene.fogColor = c; gradientSky({ ...effectiveConfig(), background: what }); return; }
         if (W.dome) { W.dome.dispose(); W.dome = null; }
-        W.skybox = new B.PhotoDome('sky', assetUrl(what), { resolution: 32, size: 1000 }, W.scene);
+        W.skybox = new B.PhotoDome('sky', assetUrl(what, { sky: true }), { resolution: 32, size: 1000 }, W.scene);
         W.skybox.mesh.isPickable = false;
       },
       burst(at, o = {}) {

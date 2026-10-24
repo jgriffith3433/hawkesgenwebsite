@@ -129,7 +129,10 @@ async function showModel(it) {
   engine.runRenderLoop(() => scene.render());
   addEventListener('resize', () => viewer?.engine.resize());
   try {
-    const r = await B.SceneLoader.ImportMeshAsync('', it.file, '', scene, null, '.glb');
+    // The preview needs no more than the model's mid level (Gen's levels of detail), when it has one.
+    const levels = it.lods && it.lods.kind === 'mesh' ? it.lods.levels : [];
+    const src = (levels.find((l) => l.role === 'mid') || levels.find((l) => l.role === 'high') || {}).url || it.file;
+    const r = await B.SceneLoader.ImportMeshAsync('', src, '', scene, null, '.glb');
     const meshes = r.meshes.filter((m) => m.getTotalVertices?.() > 0);
     let min = new B.Vector3(Infinity, Infinity, Infinity), max = new B.Vector3(-Infinity, -Infinity, -Infinity);
     for (const m of meshes) { m.computeWorldMatrix(true); const b = m.getBoundingInfo().boundingBox; min = B.Vector3.Minimize(min, b.minimumWorld); max = B.Vector3.Maximize(max, b.maximumWorld); }

@@ -1099,16 +1099,25 @@ async function loadAssets() {
   renderGallery();
 }
 
+/** A card's picture or model at a level of detail Gen made (asset.lods): an image about `px` wide, a model's mid copy. */
+function previewUrl(asset, px = 512) {
+  const fileUrl = `/v1/assets/${encodeURIComponent(asset.id)}/file`;
+  const levels = asset.lods && Array.isArray(asset.lods.levels) ? asset.lods.levels : [];
+  if (!levels.length) return fileUrl;
+  const pick = asset.kind === 'mesh' ? (levels.find((l) => l.role === 'mid') || levels[levels.length - 1]) : ([...levels].reverse().find((l) => l.level <= px) || levels[0]);
+  return `${fileUrl}?lod=${pick.level}&v=${encodeURIComponent(pick.sha || '')}`;
+}
+
 function renderMediaPreview(asset) {
   const fileUrl = `/v1/assets/${encodeURIComponent(asset.id)}/file`;
   if (asset.kind === 'image') {
-    return `<img src="${fileUrl}" alt="${escapeHtml(asset.title || asset.id)}" loading="lazy">`;
+    return `<img src="${previewUrl(asset)}" alt="${escapeHtml(asset.title || asset.id)}" loading="lazy">`;
   }
   if (asset.kind === 'video') {
     return `<video src="${fileUrl}" controls preload="metadata" playsinline></video>`;
   }
   if (asset.kind === 'mesh') {
-    return `<model-viewer src="${fileUrl}" camera-controls auto-rotate style="width:100%;height:100%;background:#05060a;"></model-viewer>`;
+    return `<model-viewer src="${previewUrl(asset)}" camera-controls auto-rotate style="width:100%;height:100%;background:#05060a;"></model-viewer>`;
   }
   if (asset.kind === 'audio') {
     return `<div style="padding:16px;width:100%;"><audio src="${fileUrl}" controls style="width:100%;"></audio></div>`;
