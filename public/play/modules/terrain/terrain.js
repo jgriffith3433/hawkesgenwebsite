@@ -319,7 +319,10 @@
   /** A real model instead of the stand-in primitives (loaded once, merged, drawn as thin instances). */
   async function useModel(t, group, name) {
     try {
-      const r = await B.SceneLoader.ImportMeshAsync('', '', L.assetUrl(name), t.scene, null, '.glb');
+      // Hundreds of copies are drawn at once: its lowest level of detail (Gen's) when it has them, else the model itself.
+      const entry = L.assetEntry(name), lods = entry && entry.lods;
+      const low = lods && lods.kind === 'mesh' && Array.isArray(lods.levels) && lods.levels.length ? lods.levels.reduce((a, b) => ((b.tris || b.level) < (a.tris || a.level) ? b : a)) : null;
+      const r = await B.SceneLoader.ImportMeshAsync('', '', low && low.url ? low.url : L.assetUrl(name), t.scene, null, '.glb');
       if (cur !== t) { r.meshes.forEach((m) => m.dispose()); return; }
       const parts = r.meshes.filter((m) => m.getTotalVertices && m.getTotalVertices() > 0);
       for (const m of parts) { m.setParent(null); m.bakeCurrentTransformIntoVertices(); }
