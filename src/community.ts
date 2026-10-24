@@ -201,7 +201,9 @@ export function starterRow(outs: any[]) {
     // The last step exports the model (model.high) and its lower-detail copy (model.lod1): the biggest GLB is the model.
     const glbs = saved(outs, 'model').filter((o) => MIME_OF.model.test(o.mime ?? '')).sort((a, b) => (b.bytes ?? 0) - (a.bytes ?? 0));
     [main, low] = [glbs[0] ?? null, glbs.length > 1 ? glbs[glbs.length - 1] : null];
-    thumb = saved(outs, 'cutout')[0] ?? saved(outs, 'front')[0] ?? null;
+    // The cut-out picture, never its mask (image.remove-background saves both: cutout.cutout and cutout.mask).
+    const pics = saved(outs, 'cutout').filter((o) => !/mask/i.test(String(o.title ?? '')));
+    thumb = pics.find((o) => /^cutout(\.cutout)?$/.test(String(o.title ?? ''))) ?? pics[0] ?? saved(outs, 'front')[0] ?? null;
   } else {
     main = saved(outs, kind).find((o) => MIME_OF[kind].test(o.mime ?? '')) ?? null;
   }
