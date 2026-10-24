@@ -105,8 +105,9 @@ const MOMENTS = {
   fly: { sound: 'victory.mp3', pip: 'Look down! That speck in the sea is our island. The spawn gun and the gravity gun are yours too.', overseer: 'That is your world. All of it.', voice: 'overseer-your-world.mp3', seconds: 6, give: ['spawn-gun', 'gravity-gun'] },
 };
 // Each moment plays once: a step the quest enters again (a restored or re-synced quest state, a second blast of the
-// same barrels) must not make the Overseer say its line again.
-const played = new Set();
+// same barrels) must not make the Overseer say its line again. Kept on window: a script that runs again (hot reload)
+// keeps its old listeners, and each one would otherwise have its own set and say the line too.
+const played = (window.__islandPlayed = window.__islandPlayed || new Set());
 game.on('tour', (d) => {
   const m = d && MOMENTS[d.step];
   if (!m || played.has(d.step)) return;
