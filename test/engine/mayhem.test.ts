@@ -116,7 +116,8 @@ test('words become things: animals, kinds, shapes, models by name, stand-ins', (
   assert.equal(H.mayhem.specFor('barrels').type, 'barrel');
   assert.equal(H.mayhem.specFor('balls').type, 'sphere');
   assert.equal(H.mayhem.specFor('crates').type, 'crate');
-  assert.equal(H.mayhem.specFor('tables').data.standIn, 'table');
+  assert.equal(H.mayhem.specFor('tables').type, 'table', 'a kind from another module (homes)');
+  assert.equal(H.mayhem.specFor('wobblers').data.standIn, 'wobbler', 'anything else: a stand-in');
   assert.equal(H.mayhem.specFor({ type: 'box', shape: { size: 2 } }).physics, 'dynamic');
 });
 
