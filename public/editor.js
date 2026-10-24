@@ -178,6 +178,16 @@ window.addEventListener('message', async (e) => {
       else if (mention && mention.fromCard && !$('chatInput').value.trim()) setMention(null);
       return;
     case 'library': toggleLibrary(); return;
+    // The spawn wheel (play/modules/spawn): a community thing put in the game (variant or replace), then spawned there.
+    case 'spawn-community': {
+      try {
+        const r = await post(`${API}/games/${gameId}/community`, { id: m.id, mode: m.mode === 'replace' ? 'replace' : 'variant', word: m.word || undefined });
+        assets[r.asset.name] = r.asset;
+        await sendAssets();
+        toStage({ type: 'spawn-community', req: m.req, ok: true, asset: { name: r.asset.name }, word: r.word });
+      } catch (err) { toStage({ type: 'spawn-community', req: m.req, ok: false, error: err.message }); }
+      return;
+    }
     case 'basics': basics = m.list || []; if (libKind === 'basics' && $('library').classList.contains('open')) loadLibrary(); return;
     case 'words': if (libKind === 'game' && $('library').classList.contains('open')) renderWords(m.words || {}, m.assets || []); return;
   }

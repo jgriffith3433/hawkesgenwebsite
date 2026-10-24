@@ -1,0 +1,6 @@
+{
+  "title": "The spawn wheel",
+  "order": 25,
+  "scripts": ["spawn-core.js", "spawn.js", "spawn-ui.js"],
+  "kinds": []
+}
