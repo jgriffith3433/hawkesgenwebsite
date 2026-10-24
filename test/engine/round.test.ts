@@ -133,6 +133,19 @@ test('flying where you look on the planet, faster high up; landing again', () =>
   const round_ = Math.acos(Math.min(1, dot(upAt(pp0), upAt(pp1)))) * R;
   assert.ok(round_ > 2000, `went ${round_.toFixed(0)} m round`);
   assert.ok(Math.hypot(p.x, p.z) < 400, 'the frame kept up');
+  // High up and level (150 km, holding shift: hundreds of km/s): round the planet at the same height, not off into space.
+  p.position = [p.x, 150000, p.z];
+  H.tick(1 / 60);
+  const hi0 = H.planet.heightOf(p.position), u0 = upAt(F().toPlanet(p.position));
+  H.world.camera.pitch = 0;
+  const b: any = { style: {}, addEventListener(t: string, f: Function) { b[t] = f; } }; H.bindTouchKey(b, 'shift'); b.pointerdown({ preventDefault() {}, stopPropagation() {} });
+  hold('w', 2);
+  b.pointerup();
+  const hi1 = H.planet.heightOf(p.position), u1 = upAt(F().toPlanet(p.position));
+  assert.ok(Math.abs(hi1 - hi0) < hi0 * 0.01, `level stays level high up (${hi0.toFixed(0)} -> ${hi1.toFixed(0)} m)`);
+  assert.ok(Math.acos(Math.min(1, dot(u0, u1))) > 1, 'and goes a long way round (over 57°)');
+  p.position = [p.x, 3000, p.z];
+  H.tick(1 / 60);
   // Down again: it slows as the ground comes near, and you can land.
   H.world.camera.pitch = 1.5;
   hold('w', 20);
