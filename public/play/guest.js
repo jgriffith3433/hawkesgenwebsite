@@ -365,7 +365,7 @@
       // Fetch the world while the engine loads.
       const bundle = fetch('/v1/play-template/sandbox').then((r) => r.json().then((b) => { if (!r.ok) throw new Error(b.error || 'Could not load the sandbox'); return b; }));
       try {
-        await window.HawkesModules.load('play');
+        await window.HawkesModules.load('play', { bundle }); // (only the modules the island uses; the rest after)
         const b = await bundle;
         let base = null;
         try { base = JSON.parse(b.files['scene.json']); } catch { /* the template is ours: never */ }

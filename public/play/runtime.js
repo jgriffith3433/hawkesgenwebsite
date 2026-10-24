@@ -317,7 +317,9 @@
     if (/^https:\/\//.test(String(ref))) return ref;
     const a = assetEntry(ref);
     if (!a) throw new Error(`No asset "${ref}". Add it in the Assets panel, or check the spelling.`);
-    return a.url;
+    // An image with smaller copies starts at the smallest; textures.js upgrades what's near and big on screen.
+    const T = a.variants && window.HawkesPlay && window.HawkesPlay.textures;
+    return T ? T.startUrl(a) : a.url;
   }
   const hex = (c, fallback = '#cccccc') => { try { return B.Color3.FromHexString(/^#[0-9a-f]{6}$/i.test(String(c)) ? c : fallback); } catch { return B.Color3.FromHexString(fallback); } };
   const vec = (v, d = [0, 0, 0]) => (Array.isArray(v) ? [Number(v[0]) || 0, Number(v[1]) || 0, Number(v[2]) || 0] : v && typeof v === 'object' && 'x' in v ? [Number(v.x) || 0, Number(v.y) || 0, Number(v.z) || 0] : d);
@@ -1319,7 +1321,9 @@
       if (!W || !attached || !attached.size) return;
       const cam = W.scene.activeCamera;
       const eng = W.scene.getEngine();
-      const vw = eng.getRenderWidth(true) / (window.devicePixelRatio || 1), vh = eng.getRenderHeight(true) / (window.devicePixelRatio || 1);
+      // (CSS pixels: the render size times the scaling, which a phone's budget may set below the device's ratio.)
+      const k = eng.getHardwareScalingLevel ? eng.getHardwareScalingLevel() : 1 / (window.devicePixelRatio || 1);
+      const vw = eng.getRenderWidth(true) * k, vh = eng.getRenderHeight(true) * k;
       for (const [id, a] of attached) {
         if (!a.entity || !a.entity.alive) { a.el.remove(); attached.delete(id); continue; }
         const e = a.entity;
