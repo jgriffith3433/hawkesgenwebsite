@@ -271,6 +271,7 @@
     const s = C.LOOK.sizes[look.shape] || C.LOOK.sizes.normal;
     root.scaling.set(s[0], s[1], s[2]);
     root.position.y = -0.9 * (1 - s[1]); // feet stay on the ground
+    rig.baseY = root.position.y;
     const body = look.body || color, head = look.head, acc = look.accent;
     const joint = (name, at) => { const t = new B.TransformNode(`pr-${name}`, scene); t.parent = pose; t.position.set(at[0], at[1], at[2]); return t; };
     // What you are (presence-bodies.js): an animal, a robot, a shoe... built and sized there; the person is built here.
@@ -415,6 +416,13 @@
         if (self) { if (e._visor) e._visor.setEnabled(false); }
         e.node.visibility = 0;
         rig.root.setEnabled(show);
+        // Small bumps (a slope's steps, the walk settling on uneven ground) smoothed out of the body; it never lags
+        // more than a few centimeters behind its capsule (falling, flying, riding: it's right there).
+        const wy = e.node.position.y;
+        let off = rig.smY === undefined ? 0 : Math.max(-0.12, Math.min(0.12, rig.smY - wy)) * (1 - Math.min(1, dt * 16));
+        if (!Number.isFinite(off)) off = 0;
+        rig.smY = wy + off;
+        rig.root.position.y = (rig.baseY || 0) + off;
         animate(rig, dt, pr);
       }
     }

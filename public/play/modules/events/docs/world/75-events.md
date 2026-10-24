@@ -167,7 +167,7 @@ player only. Variables and quests are kept by the host and shown to all.
 
 People and AI friends ask for help: a "!" floats over them, the player walks up and presses E (or T, or taps;
 friends also get a quest button in their chat), reads the quest, and accepts. Steps show in the **quest log** (📜
-button, or Tab) and a tracker on screen; a glowing marker and an arrow at your feet point the way; finishing it pops
+button) and a tracker on screen; a glowing marker and an arrow at your feet point the way; finishing it pops
 a banner, a fanfare and the rewards. Givers speak from your `lines` (free; no paid AI talk). Everyone playing shares
 the quests (the host keeps them).
 

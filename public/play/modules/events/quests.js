@@ -441,7 +441,7 @@
     p.className = 'qs-panel';
     // A dialog: the engine frees the mouse while it's open and doesn't take it back on a click (runtime.js MODAL).
     p.setAttribute('role', 'dialog'); p.setAttribute('aria-modal', 'true');
-    for (const t of ['pointerdown', 'wheel', 'touchstart', 'keydown']) p.addEventListener(t, (ev) => { if (ev.key === 'Escape' || ev.key === 'Tab') { closeDialog(); ev.preventDefault && ev.preventDefault(); } ev.stopPropagation(); }, { passive: t !== 'keydown' });
+    for (const t of ['pointerdown', 'wheel', 'touchstart', 'keydown']) p.addEventListener(t, (ev) => { if (ev.key === 'Escape') { closeDialog(); ev.preventDefault && ev.preventDefault(); } ev.stopPropagation(); }, { passive: t !== 'keydown' });
     document.body.appendChild(p);
     Q.dialog = p;
     try { const g = G(); if (g.input && g.input.release) g.input.release(); } catch { /* fine */ }
@@ -717,8 +717,7 @@
     if (!live()) return;
     const t = W().time;
     try {
-      // (Tab opens the log in a game; in the editor Tab switches building and playing, so there the button opens it.)
-      if (E.playing() && !window.HawkesBuild && pressed && pressed.has && pressed.has('tab')) { if (Q.open === 'log') closeDialog(); else openLog(); }
+      // (The log opens from its 📜 button. Tab is Who's here (presence), and in the editor building and playing: J, 2026-10-24.)
       updateMarks(t);
       if (t >= Q.nextUi || t < Q.nextUi - 1) { Q.nextUi = t + 0.2; renderUi(); }
       if (t - chipAt > 0.3 || t < chipAt) { chipAt = t; friendChip(); }

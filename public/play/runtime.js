@@ -894,6 +894,12 @@
     cam.maxZ = 2000;
     cam.fov = 1.0;
     cam.inputs.clear();
+    /** Follows `to`, smoothing small bumps (at `rate` per second) but never more than `most` meters behind it. */
+    const smoothBump = (from, to, dt, rate, most) => {
+      if (from === undefined || !Number.isFinite(from)) return to;
+      const off = Math.max(-most, Math.min(most, from - to)) * (1 - Math.min(1, dt * rate));
+      return to + off;
+    };
     const state = { mode: 'fixed', target: null, opts: {}, cam, arc: null, shake: 0, shakeTime: 0, yaw: 0, pitch: 0, claimed: false };
     const claim = () => { if (!internal) state.claimed = true; };
     const api = {
@@ -944,9 +950,9 @@
         if (t && t.alive) {
           t.node.rotation.y = state.yaw;
           const eye = t === W.player ? t.bottom + state.opts.height : t.y + state.opts.height;
-          // Smooth the eye a little so steps and landings don't jolt the view.
-          const k = state.eyeY === undefined ? 1 : Math.min(1, dt * 18);
-          state.eyeY = state.eyeY === undefined ? eye : state.eyeY + (eye - state.eyeY) * k;
+          // Smooth the eye a little so steps, slopes and landings don't jolt the view (small bumps only: falling or
+          // flying, it never trails behind).
+          state.eyeY = smoothBump(state.eyeY, eye, dt, 18, 0.35);
           cam.position.set(t.x, state.eyeY, t.z);
         }
         cam.rotation.set(state.pitch, state.yaw, 0);
@@ -969,15 +975,18 @@
         state.yaw += mouse.dx * o.sensitivity * RAD;
         state.pitch = Math.max(-0.4, Math.min(1.2, state.pitch + mouse.dy * o.sensitivity * RAD));
         if (t && t.alive) {
-          const head = new B.Vector3(t.x, (t === W.player ? t.bottom + 1.5 : t.y + o.height), t.z);
+          // The head, with small bumps smoothed (a slope's steps, a landing); never trailing when falling or flying.
+          state.headY = smoothBump(state.headY, t === W.player ? t.bottom + 1.5 : t.y + o.height, dt, 14, 0.3);
+          const head = new B.Vector3(t.x, state.headY, t.z);
           const back = new B.Vector3(-Math.sin(state.yaw) * Math.cos(state.pitch), Math.sin(state.pitch), -Math.cos(state.yaw) * Math.cos(state.pitch));
           // Walls between you and the camera pull it in, so it never looks through them.
           let dist = o.distance;
           const hit = W.scene.pickWithRay(new B.Ray(head, back, o.distance), (m) => { const en = entityOf(m); return Boolean(en && en !== t && en.solid && !(m.metadata && m.metadata.decor)); });
           if (hit && hit.hit) dist = Math.max(0.8, hit.distance - 0.3);
-          const want = head.add(back.scale(dist));
-          const k = Math.min(1, dt * 14);
-          cam.position.copyFrom(B.Vector3.Lerp(cam.position, want, k));
+          // Fixed to the head at its distance (no trailing: fast falls and rides don't wobble); a wall pulls it in at
+          // once, and it eases back out.
+          state.dist = state.dist === undefined || dist < state.dist ? dist : state.dist + (dist - state.dist) * Math.min(1, dt * 5);
+          cam.position.copyFrom(head.add(back.scale(state.dist)));
           if (cam.upVector.x || cam.upVector.z || cam.upVector.y !== 1) cam.upVector.set(0, 1, 0);
           cam.setTarget(head);
         }
@@ -1784,6 +1793,10 @@
       }
       if (n === most) acc = 0;
     }
+    // Things that move are drawn where they are between their last two steps (the steps don't line up with the screen's
+    // frames: some frames get none, some two), so they and the camera following them move smoothly; their real place
+    // comes back after the picture, before the next step.
+    const between = inBetween(W.paused ? 1 : acc / STEP);
     W.camera.update(elapsed);
     if (W.motes && W.scene.activeCamera) W.motes.emitter = W.scene.activeCamera.position;
     syncTool();
@@ -1794,6 +1807,34 @@
     mouse.pressed = false;
     mouse.dx = 0; mouse.dy = 0; mouse.wheel = 0;
     if (render) W.scene.render();
+    backFromBetween(between);
+  }
+  /** Moves each thing that moved last step to where it is `k` (0-1) of the way from that step's start to its end; returns
+   *  what to put back. Not: held, remote (net.js smooths those), parented, static things, or a jump (a teleport, the
+   *  planet's frame moving under everything) */
+  const betweenList = [];
+  function inBetween(k) {
+    betweenList.length = 0;
+    if (!W || !(k < 0.999)) return betweenList;
+    for (const e of W.entities) {
+      if (!e.alive || e._px === undefined || e.held || e.remote || e.remotePlayer || e.physics === 'static' || e.node.parent) continue;
+      const p = e.node.position;
+      const dx = p.x - e._px, dy = p.y - e._py, dz = p.z - e._pz;
+      const d2 = dx * dx + dy * dy + dz * dz;
+      if (d2 < 1e-10 || d2 > 400) continue;
+      const x = e._px + dx * k, y = e._py + dy * k, z = e._pz + dz * k;
+      betweenList.push(e, p.x, p.y, p.z, x, y, z);
+      p.set(x, y, z);
+    }
+    return betweenList;
+  }
+  /** Puts them back where the physics has them (unless something moved one meanwhile: then that stays). */
+  function backFromBetween(list) {
+    for (let i = 0; i < list.length; i += 7) {
+      const e = list[i], p = e.node.position;
+      if (p.x === list[i + 4] && p.y === list[i + 5] && p.z === list[i + 6]) p.set(list[i + 1], list[i + 2], list[i + 3]);
+    }
+    list.length = 0;
   }
   // H.timeScale: how fast the world runs (1 normal, 0.35 slow motion, 0 stopped). Everything that steps (physics,
   // behaviors, scripts' updates, modules' step hooks) runs fewer fixed steps a second; animations follow it. Owners ask
@@ -2155,6 +2196,8 @@
     kinds, features, controllers, tools,
     /** Resolves when the engine can run a game (physics.js replaces it with its own readiness). */
     ready: Promise.resolve(),
+    /** The frame's drawing between steps (tests): where things are drawn, and back. */
+    _between: { inBetween: (k) => inBetween(k), back: (list) => backFromBetween(list) },
     /** Steps the world by `seconds` (whole fixed steps) and runs one frame without drawing: for tests and tools. */
     tick(seconds = STEP) {
       if (!W) return;

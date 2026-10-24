@@ -839,6 +839,8 @@ $('menu').querySelector('.st-menu-list').onclick = async (e) => {
   if (!b) return;
   const act = b.dataset.act;
   if (act === 'resume') closeMenu();
+  // Who you are (the mirror's questions, in the game): what you are, how you look, your name.
+  if (act === 'look') { closeMenu(); toStage({ type: 'presence', open: 'customize' }); }
   if (act === 'mode') { closeMenu(); toStage({ type: 'mode', mode: playing ? 'build' : 'play' }); }
   if (act === 'library') { closeMenu(); openLibrary(); }
   if (act === 'advanced') { closeMenu(); openDrawer('code'); }
