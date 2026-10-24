@@ -1,0 +1,6 @@
+{
+  "title": "Resource monitor",
+  "order": 5,
+  "scripts": ["monitor.js"],
+  "kinds": []
+}
