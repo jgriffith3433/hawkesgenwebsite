@@ -218,7 +218,7 @@
   function homePad(f) {
     const c = f.cfg;
     if (!c.home) return;
-    const level = c.shape === 'island' ? 2.5 : c.shape === 'dunes' ? 0 : 0;
+    const level = c.shape === 'island' ? 4 : 0;
     forEachSample(f, (ix, iz, x, z, i) => {
       const d = Math.hypot(x, z);
       if (d > 45) return;
