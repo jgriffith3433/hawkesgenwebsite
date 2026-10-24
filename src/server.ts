@@ -62,6 +62,13 @@ function limitLogins(ip: string) {
 }
 
 /** Gen's answer straight to the customer: status, the headers that matter, the body as it streams. */
+/** Streams Gen's answer to the browser. A body that errors late (its timeout fires after a player's <audio> stopped
+ *  reading a long track, or after they left) must never become an unhandled 'error' event: that ends the server. */
+async function pipeBody(gr: Response, res: ServerResponse) {
+  const body = Readable.fromWeb(gr.body as any);
+  body.on('error', () => { if (!res.destroyed) res.destroy(); });
+  await pipeline(body, res).catch(() => {});
+}
 async function relay(gr: Response, res: ServerResponse) {
   const headers: Record<string, string> = {};
   for (const h of ['content-type', 'content-length', 'content-disposition', 'cache-control', 'etag', 'last-modified', 'accept-ranges', 'content-range']) {
@@ -70,7 +77,7 @@ async function relay(gr: Response, res: ServerResponse) {
   }
   res.writeHead(gr.status, headers);
   if (!gr.body) return void res.end();
-  await pipeline(Readable.fromWeb(gr.body as any), res).catch(() => {});
+  await pipeBody(gr, res);
 }
 
 // MCP clients and their OAuth run from other origins (editors, claude.ai, the MCP inspector): CORS for bearer-token routes
@@ -125,7 +132,7 @@ async function servePlayAsset(parts: Parameters<typeof games.resolvePlayAsset>[0
   if (/html|xml|javascript/i.test(out['content-type'] ?? '')) out['content-type'] = 'application/octet-stream';
   res.writeHead(gr.status, out);
   if (!gr.body) return void res.end();
-  await pipeline(Readable.fromWeb(gr.body as any), res).catch(() => {});
+  await pipeBody(gr, res);
 }
 
 async function serveStatic(route: string, res: ServerResponse, search = '') {
@@ -258,7 +265,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       const b = templateBundle(tb[1]);
       if (!b) return send(res, 404, { error: 'No such game' });
       res.setHeader('Access-Control-Allow-Origin', '*');
-      return send(res, 200, b);
+      return send(res, 200, { ...b, assets: games.templateAssets(b.template) });
     }
     // The community library is public: what's shared is for everyone (searching, browsing, its files).
     if (route === '/v1/community' && method === 'GET') {
@@ -268,7 +275,8 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (route === '/v1/community/categories' && method === 'GET') return send(res, 200, community.categories());
     if (route === '/v1/community/tags' && method === 'GET') return send(res, 200, { tags: community.tagCounts(url.searchParams.get('kind') ?? undefined) });
     const cf = /^\/v1\/community\/(a_[0-9a-f]+)\/file$/.exec(route);
-    if (cf && method === 'GET') return relay(await community.file(cf[1], { lod: Number(url.searchParams.get('lod')) || undefined, v: url.searchParams.get('v'), etag: req.headers['if-none-match'] ? String(req.headers['if-none-match']) : undefined }), res);
+    // (Open CORS: the Overseer games at /play/t/<id> load their community things from inside the play sandbox, no origin.)
+    if (cf && method === 'GET') { res.setHeader('Access-Control-Allow-Origin', '*'); return relay(await community.file(cf[1], { lod: Number(url.searchParams.get('lod')) || undefined, v: url.searchParams.get('v'), etag: req.headers['if-none-match'] ? String(req.headers['if-none-match']) : undefined }), res); }
     // The share window asks who's there without a 401 for guests (they can still download).
     if (route === '/v1/shares/session' && method === 'GET') { const u = users.authenticate(req); return send(res, 200, { user: u ? users.profile(u).user ?? null : null }); }
     const shv = /^\/v1\/shares\/([\w-]{6,16})$/.exec(route);
