@@ -115,12 +115,15 @@
         return;
       }
       case 'pong': {
+        // The shared clock: of the last few pings, trust the quickest (a slow answer, queued somewhere or behind a
+        // busy page, says little about the clock). The first few go a second apart so it settles fast.
         const rtt = Date.now() - m.at;
-        offsets.push(m.now + rtt / 2 - Date.now());
-        if (offsets.length > 7) offsets.shift();
-        const sorted = [...offsets].sort((a, b) => a - b);
-        H.setClockOffset(sorted[Math.floor(sorted.length / 2)]);
+        offsets.push({ rtt, off: m.now + rtt / 2 - Date.now() });
+        if (offsets.length > 10) offsets.shift();
+        const best = offsets.reduce((a, b) => (b.rtt < a.rtt ? b : a));
+        H.setClockOffset(best.off);
         stats.rtt = rtt;
+        if (offsets.length < 5) setTimeout(ping, 1000);
         return;
       }
       case 'join': addPeer(m.c, m.name, m.color); dispatch('join', { id: m.c, name: m.name }); status('online'); return;

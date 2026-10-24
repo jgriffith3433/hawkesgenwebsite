@@ -17,7 +17,7 @@ export type Socket = {
 };
 
 /** Answers the upgrade and returns the socket, or null (and a 400) when it isn't a WebSocket handshake. */
-export function accept(req: IncomingMessage, raw: Duplex, o: { maxMessage?: number } = {}): Socket | null {
+export function accept(req: IncomingMessage, raw: Duplex, o: { maxMessage?: number; idleMs?: number } = {}): Socket | null {
   const key = req.headers['sec-websocket-key'];
   if (String(req.headers.upgrade ?? '').toLowerCase() !== 'websocket' || typeof key !== 'string' || !key) {
     raw.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n');
@@ -55,7 +55,9 @@ export function accept(req: IncomingMessage, raw: Duplex, o: { maxMessage?: numb
     open = false;
     try { s.onClose(); } catch {}
   };
+  let seen = Date.now();
   raw.on('data', (chunk: Buffer) => {
+    seen = Date.now();
     buf = buf.length ? Buffer.concat([buf, chunk]) : chunk;
     for (;;) {
       if (buf.length < 2) return;
@@ -95,8 +97,14 @@ export function accept(req: IncomingMessage, raw: Duplex, o: { maxMessage?: numb
   raw.on('close', finish);
   raw.on('end', finish);
   raw.on('error', finish);
-  // Pings keep proxies from closing a quiet socket.
-  const beat = setInterval(() => { if (open) try { raw.write(frame(0x9, Buffer.alloc(0))); } catch {} else clearInterval(beat); }, 25_000);
+  // Pings keep proxies from closing a quiet socket, and tell a dead one (a laptop asleep, a network gone: no close ever
+  // comes) from a quiet one: browsers answer pings even in a hidden tab, so nothing at all for idleMs means gone.
+  const idle = o.idleMs ?? 0;
+  const beat = setInterval(() => {
+    if (!open) return clearInterval(beat);
+    if (idle && Date.now() - seen > idle) { s.close(1001, 'gone quiet'); raw.destroy(); return; }
+    try { raw.write(frame(0x9, Buffer.alloc(0))); } catch {}
+  }, idle ? Math.min(25_000, Math.max(1000, idle / 3)) : 25_000);
   beat.unref?.();
   return s;
 }
