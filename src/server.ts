@@ -30,6 +30,7 @@ import { templateBundle } from './templates.ts';
 import { loaderScript, engineDoc } from './engine.ts';
 import * as community from './community.ts';
 import { upgrade as joinRoom, broadcastOps, markHere, liveCounts } from './rooms.ts';
+import * as shares from './shares.ts';
 import type { Duplex } from 'node:stream';
 
 const PUBLIC = path.join(ROOT, 'public');
@@ -94,8 +95,10 @@ const PLAY_SANDBOX = 'sandbox allow-scripts allow-pointer-lock allow-popups allo
 /** Local testing only: some test browsers refuse scripts from a sandboxed page on a local address. PORTAL_DEV_OPEN_PLAY=1
  *  serves games unsandboxed, and only to requests for localhost / 127.0.0.1. Never set it on the box. */
 export const devOpenPlay = (req: IncomingMessage) => env('PORTAL_DEV_OPEN_PLAY') === '1' && /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(String(req.headers.host ?? ''));
-function servePlayPage(res: ServerResponse, req: IncomingMessage) {
-  const open = devOpenPlay(req);
+function servePlayPage(res: ServerResponse, req: IncomingMessage, o: { guest?: boolean } = {}) {
+  // The guest sandbox (/play/sandbox) runs only our own template (src/templates.ts 'sandbox'), never a customer's
+  // scripts, and signs the guest up on this site: it is served without the play sandbox (play/guest.js).
+  const open = devOpenPlay(req) || o.guest === true;
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', ...(open ? {} : { 'Content-Security-Policy': PLAY_SANDBOX }), 'X-Content-Type-Options': 'nosniff' });
   fs.createReadStream(path.join(PUBLIC, 'play', 'play.html')).pipe(res);
 }
@@ -198,6 +201,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       // The engine: its manifest and loader (one script every engine page includes), and the assembled docs.
       if (route === '/play/modules.js') return void res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-cache' }).end(loaderScript());
       if (route === '/play/WORLD.md' || route === '/play/API.md') return void res.writeHead(200, { 'Content-Type': 'text/markdown; charset=utf-8', 'Cache-Control': 'no-cache' }).end(engineDoc(route === '/play/WORLD.md' ? 'world' : 'api'));
+      if (route === '/play/sandbox') return servePlayPage(res, req, { guest: true });
       if (/^\/play\/(_draft|t\/[a-z0-9-]+|[a-z0-9-]+(\/v\/\d+)?)$/.test(route) && route !== '/play/runtime.js') return servePlayPage(res, req);
       let pa = /^\/play-asset\/d\/([\w-]+\.[\w-]+)\/[^/]+$/.exec(route);
       if (pa) return await servePlayAsset({ token: pa[1] }, req, res);
@@ -205,6 +209,10 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       if (pa) return await servePlayAsset({ slug: pa[1], version: pa[2] === 'live' ? 'live' : Number(pa[2]), name: decodeURIComponent(pa[3]) }, req, res);
       if (/^\/app\/g\/g_[0-9a-f]+$/.test(route)) return void (await serveStatic('/editor.html', res));
       if (/^\/app\/join\/[\w-]+$/.test(route)) return void (await serveStatic('/games.html', res));
+      // Share links (src/shares.ts): the share window a game opens, a share's page, its file and picture.
+      if (route === '/share/new') return void (await serveStatic('/share.html', res));
+      const sp = /^\/s\/([\w-]{6,16})(?:\/(media|image))?$/.exec(route);
+      if (sp) return sp[2] ? await shares.serveShareFile(sp[1], sp[2] as 'media' | 'image', req, res) : shares.sharePage(sp[1], res);
     }
 
     if (!route.startsWith('/v1/')) {
@@ -250,6 +258,10 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (route === '/v1/community/tags' && method === 'GET') return send(res, 200, { tags: community.tagCounts(url.searchParams.get('kind') ?? undefined) });
     const cf = /^\/v1\/community\/(a_[0-9a-f]+)\/file$/.exec(route);
     if (cf && method === 'GET') return relay(await community.file(cf[1]), res);
+    // The share window asks who's there without a 401 for guests (they can still download).
+    if (route === '/v1/shares/session' && method === 'GET') { const u = users.authenticate(req); return send(res, 200, { user: u ? users.profile(u).user ?? null : null }); }
+    const shv = /^\/v1\/shares\/([\w-]{6,16})$/.exec(route);
+    if (shv && method === 'GET') { res.setHeader('Access-Control-Allow-Origin', '*'); return send(res, 200, shares.getShare(shv[1])); }
     if (route === '/v1/gallery' && method === 'GET') { const so = url.searchParams.get('sort'); return send(res, 200, games.gallery(so === 'new' ? 'new' : so === 'popular' ? 'popular' : 'live', Number(url.searchParams.get('limit')) || 60)); }
     // A play page says it's there (every 30 s), so games show how many people are playing.
     const ph = /^\/v1\/play\/(t\/[a-z0-9-]+|[a-z0-9-]+)\/here$/.exec(route);
@@ -333,6 +345,11 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (route === '/v1/community/mine' && method === 'GET') return send(res, 200, community.mine(user));
     const cs = /^\/v1\/community\/(a_[0-9a-f]+)$/.exec(route);
     if (cs && method === 'DELETE') return send(res, 200, community.unshare(user, cs[1]));
+
+    // ------------------------------------------------------------ share links for photos and clips (src/shares.ts)
+    if (route === '/v1/shares' && method === 'POST') return send(res, 200, await shares.createShare(user, await readJson(req)));
+    if (route === '/v1/shares/mine' && method === 'GET') return send(res, 200, shares.myShares(user));
+    if (shv && method === 'DELETE') return send(res, 200, shares.deleteShare(user, shv[1]));
 
     // ------------------------------------------------------------ friends
     if (route === '/v1/friends' && method === 'GET') return send(res, 200, { friends: friends.listFriends(user.id) });

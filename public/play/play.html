@@ -279,6 +279,15 @@
         });
         return;
       }
+      // /play/sandbox: the guest sandbox (play/guest.js), no account, played alone, the way into signing up.
+      if (slug === 'sandbox') {
+        var gs = document.createElement('script');
+        gs.src = '/play/guest.js?v=' + HawkesModules.version;
+        gs.onload = function () { HawkesGuest.boot({ failed: failed }); };
+        gs.onerror = function () { failed(new Error('The sandbox did not load')); };
+        document.head.appendChild(gs);
+        return;
+      }
       var q = new URLSearchParams(location.search);
       var corner = document.getElementById('corner');
       corner.hidden = false;

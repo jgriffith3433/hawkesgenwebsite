@@ -31,10 +31,10 @@
           <h1 style="margin-top:18px;">Just describe<br><em>what you want to build.</em></h1>
           <p class="lede">Tell the AI what game you want, and it builds it with you. Invite friends to build together in real-time. Generate art and sounds by asking. Your game is live on the web from the first minute: people play it while you build. No coding knowledge required—the AI handles it.</p>
           <div class="actions">
-            <button type="button" class="btn btn-primary btn-lg" data-open-auth="signup">Start building</button>
-            <a class="btn btn-secondary btn-lg" href="/games">Play games</a>
+            <a class="btn btn-primary btn-lg" href="/play/sandbox" data-play-now>Play now (no sign-up)</a>
+            <button type="button" class="btn btn-secondary btn-lg" data-open-auth="signup">Start building</button>
           </div>
-          <div class="fine">Free to start. No card needed.</div>
+          <div class="fine">Play now drops you on an island in your browser: a 4x4, a boat, exploding barrels, a fishing rod. Like it? Save it and it becomes your game. Free to start, no card needed. Or <a href="/games">play the games people made</a>.</div>
           <div class="label" style="margin:28px 0 10px">How it works</div>
           <div style="display:flex;flex-direction:column;gap:8px;max-width:420px">
             <div style="display:flex;align-items:center;gap:12px">
@@ -446,6 +446,38 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
     }).catch(() => {});
   </script>
   <script src="/enter.js"></script>
+  <script>
+    // Play now: the sandbox (/play/sandbox, play/guest.js). The engine is big, so it's fetched ahead into the cache:
+    // after the page is idle on a good connection, or as soon as someone points at the button. Never before first paint.
+    (function () {
+      var btn = document.querySelector('[data-play-now]');
+      if (!btn) return;
+      btn.addEventListener('click', function () { if (window.hawkesAnalytics && window.hawkesAnalytics.track) window.hawkesAnalytics.track('sandbox_open', { from: 'hero' }); });
+      var started = false;
+      function prefetch() {
+        if (started) return;
+        started = true;
+        var s = document.createElement('script');
+        s.src = '/play/modules.js';
+        s.onload = function () {
+          var M = window.HawkesModules;
+          if (!M) return;
+          [].concat(M.babylon || [], M.havok ? [M.havok] : [], M.scripts || [], ['/play/guest.js?v=' + M.version, '/v1/play-template/sandbox']).forEach(function (u) {
+            var l = document.createElement('link');
+            l.rel = 'prefetch';
+            l.href = u;
+            document.head.appendChild(l);
+          });
+        };
+        document.head.appendChild(s);
+      }
+      ['pointerenter', 'touchstart', 'focus'].forEach(function (t) { btn.addEventListener(t, prefetch, { passive: true, once: true }); });
+      var c = navigator.connection || {};
+      if (!c.saveData && !/(^|-)2g$|^3g$/.test(c.effectiveType || '')) {
+        window.addEventListener('load', function () { (window.requestIdleCallback || function (f) { setTimeout(f, 1500); })(prefetch, { timeout: 4000 }); });
+      }
+    })();
+  </script>
   <script>
     // The community library section: real counts per kind and a few real things (nothing shown that isn't there).
     (async () => {

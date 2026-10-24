@@ -112,6 +112,12 @@ time (more overloaded the API).
 8. **Loading speed.** Time-to-first-frame target (~2 s on a phone); load only the modules a world uses; draw distance,
    culling, LOD for everything, compressed textures, cached Havok wasm, streaming; phone-first budgets that never cap
    desktop.
+   **Textures by level of detail** (J, 2026-10-23: library textures are megabytes; network and memory are the limits, and
+   Safari reloads the page when it runs out of memory): every texture gets smaller variants (e.g. 128, 256, 512, 1024,
+   WebP) made once when it enters the library or a game, kept on the asset by id; scenes load the smallest first and
+   upgrade only what's near and big on screen while there's headroom; a per-device texture memory budget (strict on iOS
+   Safari) downgrades the least visible first so the page is never killed; KTX2/Basis GPU compression measured and used
+   where it pays; the textures baked inside models get the same treatment.
 9. **Featured games** (the Overseer's): showcase worlds with quests, NPCs and AI friends as the soul (island adventure,
    mountain off-road, fishing village, mayhem playground, dream house) and the existing templates upgraded; Studio
    playtest scenarios for each.
