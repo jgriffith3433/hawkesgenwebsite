@@ -41,7 +41,7 @@
   const KIND_PLACE = {
     car: ['vehicles', 'road', 'On the road'], truck: ['vehicles', 'road', 'On the road'], motorbike: ['vehicles', 'road', 'On the road'], bicycle: ['vehicles', 'road', 'On the road'],
     boat: ['vehicles', 'water', 'On the water'], submarine: ['vehicles', 'water', 'On the water'],
-    airplane: ['vehicles', 'air', 'In the air'], helicopter: ['vehicles', 'air', 'In the air'],
+    airplane: ['vehicles', 'air', 'In the air'], helicopter: ['vehicles', 'air', 'In the air'], rocket: ['vehicles', 'air', 'In the air'], spaceship: ['vehicles', 'air', 'In the air'],
     herd: ['living', 'herds', 'Herds'], friend: ['living', 'people', 'People and robots'],
     box: ['things', 'shapes', 'Shapes'], sphere: ['things', 'shapes', 'Shapes'], cylinder: ['things', 'shapes', 'Shapes'], cone: ['things', 'shapes', 'Shapes'], capsule: ['things', 'shapes', 'Shapes'], torus: ['things', 'shapes', 'Shapes'], plane: ['things', 'shapes', 'Shapes'],
     barrel: ['things', 'mayhem', 'Mayhem'], crate: ['things', 'mayhem', 'Mayhem'],
@@ -56,7 +56,7 @@
   };
   // Kinds the wheel doesn't offer as such: they need an asset (the game's own and the library's come as those),
   // they're another word for one that is, or they're offered another way (animals by species, tools as pickups).
-  const KIND_ICON = { car: '🚗', truck: '🛻', motorbike: '🏍', bicycle: '🚲', boat: '🚤', submarine: '⚓', airplane: '✈', helicopter: '🚁', table: '🍽', desk: '🖥', shelf: '📚', plant: '🪴', rug: '🟫', fridge: '🧊', cupboard: '🗄', switch: '🔘', sink: '🚰', bathtub: '🛁', shower: '🚿', toilet: '🚽', oven: '🍳', clock: '🕰', piano: '🎹', computer: '💻', projector: '📽', cctv: '📹', radio: '📻', remote: '🎛', phone: '📱', wall: '🧱', cone: '🔺', capsule: '💊', torus: '⭕', plane: '▭', mirror: '🪞', trigger: '▢' };
+  const KIND_ICON = { car: '🚗', truck: '🛻', motorbike: '🏍', bicycle: '🚲', boat: '🚤', submarine: '⚓', airplane: '✈', helicopter: '🚁', rocket: '🚀', spaceship: '🛸', table: '🍽', desk: '🖥', shelf: '📚', plant: '🪴', rug: '🟫', fridge: '🧊', cupboard: '🗄', switch: '🔘', sink: '🚰', bathtub: '🛁', shower: '🚿', toilet: '🚽', oven: '🍳', clock: '🕰', piano: '🎹', computer: '💻', projector: '📽', cctv: '📹', radio: '📻', remote: '🎛', phone: '📱', wall: '🧱', cone: '🔺', capsule: '💊', torus: '⭕', plane: '▭', mirror: '🪞', trigger: '▢' };
   const CAT_ICON = { 'vehicles:road': '🚙', 'vehicles:water': '🚤', 'vehicles:air': '✈', 'vehicles:models': '◆', 'living:farm': '🐄', 'living:pets': '🐕', 'living:wild': '🦁', 'living:birds': '🦜', 'living:water': '🐟', 'living:people': '🧍', 'living:strange': '🦖', 'living:herds': '🐑', 'things:shapes': '🔷', 'things:mayhem': '🛢', 'things:furniture': '🛋', 'things:kitchen': '🛁', 'things:screens': '📺', 'things:signs': '💡', 'things:game': '🏁', 'nature:plants': '🌳', 'nature:rocks': '🪨', 'buildings:houses': '🏠', 'buildings:walls': '🚪', 'tools:mayhem': '🚀', 'tools:weapons': '🔫', 'tools:outdoors': '🎣', 'world:terrain': '⛰', 'world:land': '🏝', 'world:water': '🌊', 'world:weather': '⛈', 'world:disasters': '🌪', 'world:skies': '🌅', 'effects:boom': '💥', 'effects:sparkle': '🎆', 'effects:time': '🐢', 'effects:music': '♫', 'effects:sounds': '♪', 'game:models': '◆', 'game:pictures': '🖼', 'game:sounds': '♪', 'game:videos': '▶' };
   S.CAT_ICON = CAT_ICON;
   const SKIP = new Set(['model', 'sprite', 'video', 'vehicle', 'critter', 'creature', 'tool-pickup']);
@@ -396,7 +396,7 @@
     if (Array.isArray(sh.size)) half = Math.max(sh.size[0], sh.size[2] ?? sh.size[0]) / 2;
     else if (typeof sh.size === 'number') half = sh.size / 2;
     else if (sh.radius) half = Number(sh.radius);
-    const big = { car: 2.3, truck: 2.6, boat: 3, submarine: 4, airplane: 6, helicopter: 5, house: 6, room: 4, bed: 1.2, sofa: 1.2, piano: 1, herd: 4, water: 4, bicycle: 1, motorbike: 1.2 };
+    const big = { car: 2.3, truck: 2.6, boat: 3, submarine: 4, airplane: 6, helicopter: 5, rocket: 4, spaceship: 6, house: 6, room: 4, bed: 1.2, sofa: 1.2, piano: 1, herd: 4, water: 4, bicycle: 1, motorbike: 1.2 };
     if (spec && big[spec.type]) half = Math.max(half, big[spec.type]);
     const sc = spec && spec.transform && spec.transform.scale;
     if (Array.isArray(sc)) half *= Math.max(sc[0], sc[2]);
