@@ -236,13 +236,17 @@
       promptEl.type = 'button';
       promptEl.id = 'homesPrompt';
       promptEl.style.cssText = 'position:fixed;left:50%;bottom:22%;transform:translateX(-50%);z-index:6;display:none;align-items:center;gap:10px;padding:8px 16px 8px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.35);background:rgba(10,14,24,.62);color:#fff;font:600 16px/1 Inter,system-ui,sans-serif;backdrop-filter:blur(6px);pointer-events:auto;touch-action:none;cursor:pointer;text-shadow:0 1px 2px rgba(0,0,0,.5)';
-      promptEl.innerHTML = '<b style="display:inline-grid;place-items:center;min-width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,.9);color:#111;font:700 15px/1 Inter,system-ui,sans-serif"></b><span></span>';
+      const key = document.createElement('b');
+      key.style.cssText = 'display:inline-grid;place-items:center;min-width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,.9);color:#111;font:700 15px/1 Inter,system-ui,sans-serif';
+      promptEl.appendChild(key);
+      promptEl.appendChild(document.createElement('span'));
+      promptEl._key = key; promptEl._text = promptEl.children[1] || promptEl.lastChild;
       promptEl.addEventListener('pointerdown', (ev) => { ev.preventDefault(); ev.stopPropagation(); tapped = true; });
       document.body.appendChild(promptEl);
     }
     if (!text) { if (promptEl.style.display !== 'none') promptEl.style.display = 'none'; return; }
-    promptEl.firstChild.textContent = H.touchUi ? 'B' : 'E';
-    if (promptEl.lastChild.textContent !== text) promptEl.lastChild.textContent = text;
+    promptEl._key.textContent = H.touchUi ? 'B' : 'E';
+    if (promptEl._text.textContent !== text) promptEl._text.textContent = text;
     if (promptEl.style.display !== 'inline-flex') promptEl.style.display = 'inline-flex';
   }
   let tapped = false;
@@ -344,15 +348,15 @@
     p.control('seat', { thing: e, at, yaw, pose: o.pose || 'sit', instrument: o.instrument || false, say: o.say, out: o.out });
   }
 
-  // ------------------------------------------------------------------ steps and stairs (until Havok's character controller)
-  // The first physics can't climb a step. Floors, stairs and doorsteps of houses are "steppable": walking into one up to
+  // ------------------------------------------------------------------ steps and stairs (only when Havok can't load)
+  // On Havok the player's character controller climbs steps up to 45 cm. The fallback box physics can't, so floors, stairs and doorsteps of houses are "steppable": walking into one up to
   // 45 cm high lifts you onto it, so stairs and porches just work.
   const steppables = new Set();
   function steppable(e) { steppables.add(e); e.onDestroy(() => steppables.delete(e)); return e; }
   function stepUp(dt) {
     const w = W(), p = w && w.player;
     if (!p || !p.alive || p.held || p.flying || p.physics !== 'dynamic' || !steppables.size) return;
-    if (H.physics && H.physics.engine === 'havok' && H.physics._character) return;
+    if (H.physics && H.physics.engine === 'havok') return; // Havok's character controller climbs steps itself
     if (Math.hypot(p.vx, p.vz) < 0.2 || p.vy > 1) return;
     const b = p.box();
     const ax = p.vx * dt * 3, az = p.vz * dt * 3;
@@ -387,7 +391,8 @@
     follow(root, true);
     return root;
   }
-  const quarter = (y) => Math.round(y / (Math.PI / 2)) * (Math.PI / 2);
+  // On Havok pieces turn freely; the fallback box physics only has unturned boxes, so there they turn in quarter turns.
+  const quarter = (y) => (H.physics && H.physics.engine === 'havok' ? y : Math.round(y / (Math.PI / 2)) * (Math.PI / 2));
   function follow(root, force) {
     const n = root.node;
     const pose = `${n.position.x.toFixed(3)},${n.position.y.toFixed(3)},${n.position.z.toFixed(3)},${quarter(n.rotation.y).toFixed(3)}`;
@@ -582,7 +587,8 @@
     /** Uses a thing as if the player pressed E at it (optionally the action by name: 'open', 'sit'...). */
     use(e, action) {
       if (!e || !e._use) return false;
-      const pt = (action && e._use.find((x) => labelOf(e, x).toLowerCase().includes(String(action).toLowerCase()))) || e._use.find((x) => !x.when || x.when(e));
+      const open = e._use.filter((x) => !x.when || x.when(e));
+      const pt = action ? open.find((x) => labelOf(e, x).toLowerCase().includes(String(action).toLowerCase())) : open[0];
       if (!pt) return false;
       use(e, pt, 'script');
       return true;
