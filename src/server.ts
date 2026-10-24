@@ -31,6 +31,7 @@ import { loaderScript, engineDoc } from './engine.ts';
 import * as community from './community.ts';
 import { upgrade as joinRoom, broadcastOps, markHere, liveCounts } from './rooms.ts';
 import { companionTalk } from './companions.ts';
+import * as shares from './shares.ts';
 import type { Duplex } from 'node:stream';
 
 const PUBLIC = path.join(ROOT, 'public');
@@ -209,6 +210,10 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       if (pa) return await servePlayAsset({ slug: pa[1], version: pa[2] === 'live' ? 'live' : Number(pa[2]), name: decodeURIComponent(pa[3]) }, req, res);
       if (/^\/app\/g\/g_[0-9a-f]+$/.test(route)) return void (await serveStatic('/editor.html', res));
       if (/^\/app\/join\/[\w-]+$/.test(route)) return void (await serveStatic('/games.html', res));
+      // Share links (src/shares.ts): the share window a game opens, a share's page, its file and picture.
+      if (route === '/share/new') return void (await serveStatic('/share.html', res));
+      const sp = /^\/s\/([\w-]{6,16})(?:\/(media|image))?$/.exec(route);
+      if (sp) return sp[2] ? await shares.serveShareFile(sp[1], sp[2] as 'media' | 'image', req, res) : shares.sharePage(sp[1], res);
     }
 
     if (!route.startsWith('/v1/')) {
@@ -254,6 +259,10 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (route === '/v1/community/tags' && method === 'GET') return send(res, 200, { tags: community.tagCounts(url.searchParams.get('kind') ?? undefined) });
     const cf = /^\/v1\/community\/(a_[0-9a-f]+)\/file$/.exec(route);
     if (cf && method === 'GET') return relay(await community.file(cf[1]), res);
+    // The share window asks who's there without a 401 for guests (they can still download).
+    if (route === '/v1/shares/session' && method === 'GET') { const u = users.authenticate(req); return send(res, 200, { user: u ? users.profile(u).user ?? null : null }); }
+    const shv = /^\/v1\/shares\/([\w-]{6,16})$/.exec(route);
+    if (shv && method === 'GET') { res.setHeader('Access-Control-Allow-Origin', '*'); return send(res, 200, shares.getShare(shv[1])); }
     if (route === '/v1/gallery' && method === 'GET') { const so = url.searchParams.get('sort'); return send(res, 200, games.gallery(so === 'new' ? 'new' : so === 'popular' ? 'popular' : 'live', Number(url.searchParams.get('limit')) || 60)); }
     // AI friends in a game (src/companions.ts): open (the game is sandboxed), paid by the owner only if they turned it on.
     const cmp = /^\/v1\/companion\/([\w-]+)$/.exec(route); if (cmp && method === 'POST') { res.setHeader('Access-Control-Allow-Origin', '*'); return send(res, 200, await companionTalk(cmp[1], await readJson(req), clientIp(req))); }
@@ -339,6 +348,11 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (route === '/v1/community/mine' && method === 'GET') return send(res, 200, community.mine(user));
     const cs = /^\/v1\/community\/(a_[0-9a-f]+)$/.exec(route);
     if (cs && method === 'DELETE') return send(res, 200, community.unshare(user, cs[1]));
+
+    // ------------------------------------------------------------ share links for photos and clips (src/shares.ts)
+    if (route === '/v1/shares' && method === 'POST') return send(res, 200, await shares.createShare(user, await readJson(req)));
+    if (route === '/v1/shares/mine' && method === 'GET') return send(res, 200, shares.myShares(user));
+    if (shv && method === 'DELETE') return send(res, 200, shares.deleteShare(user, shv[1]));
 
     // ------------------------------------------------------------ friends
     if (route === '/v1/friends' && method === 'GET') return send(res, 200, { friends: friends.listFriends(user.id) });

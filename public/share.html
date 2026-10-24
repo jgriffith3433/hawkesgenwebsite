@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Save or share · Hawkes Gen</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/public.css">
+  <link rel="stylesheet" href="/site.css">
+  <style>
+    .sw { max-width: 620px; margin: 0 auto; padding: 18px 16px 32px; display: grid; gap: 14px; }
+    .sw-head { display: flex; align-items: center; gap: 10px; }
+    .sw-head img { width: 26px; height: 26px; }
+    .sw-head h1 { font-size: 20px; margin: 0; flex: 1; }
+    .sw-media { width: 100%; max-height: 52vh; object-fit: contain; background: #0a0a0f; border-radius: 12px; display: block; }
+    .sw-card { display: grid; gap: 10px; padding: 14px; border-radius: 12px; background: #fff; box-shadow: var(--shadow); }
+    .sw-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .sw-row .grow { flex: 1; min-width: 160px; }
+    .sw-link { font: 14px var(--mono); padding: 10px 12px; border-radius: 8px; background: var(--surface-2); word-break: break-all; }
+    .sw-bar { height: 4px; border-radius: 2px; background: var(--surface-2); overflow: hidden; }
+    .sw-bar i { display: block; height: 100%; width: 0; background: var(--accent, #4a9eff); transition: width .2s; }
+    .sw-wait { text-align: center; padding: 40px 0; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body class="landing">
+  <main class="sw">
+    <div class="sw-head"><img src="/favicon.svg" alt=""><h1 id="heading">Save or share</h1></div>
+
+    <p class="muted sw-wait" id="waiting">Getting it from the game…</p>
+    <p class="muted sw-wait" id="orphan" hidden>Open this from a game: the 📷 button (or P) takes a photo, 🎬 (or F8) saves the last 15 seconds.</p>
+
+    <div id="ready" hidden>
+      <div id="mediaWrap"></div>
+    </div>
+
+    <div class="sw-card" id="saveCard" hidden>
+      <div class="sw-row">
+        <input class="form-input grow" id="title" maxlength="90" placeholder="A title (optional)">
+        <a class="btn btn-secondary" id="download" download>Download</a>
+      </div>
+      <p class="muted" style="margin:0;font-size:13px" id="facts"></p>
+    </div>
+
+    <div class="sw-card" id="shareCard" hidden>
+      <strong>Share a link</strong>
+      <p class="muted" style="margin:0;font-size:14px">A page with your <span data-kind></span> and a "Play this game" button. It looks right when you paste it in Discord or on X. The file goes in your own library.</p>
+      <button class="btn btn-primary btn-lg" type="button" id="shareBtn">Get a share link</button>
+      <div class="sw-bar" id="bar" hidden><i></i></div>
+      <div class="form-error" id="shareError" hidden></div>
+    </div>
+
+    <div class="sw-card" id="authCard" hidden>
+      <strong>Sign up to share links</strong>
+      <p class="muted" style="margin:0;font-size:14px">Download works without an account. A free account keeps your photos and clips and gives each a link. This window stays open, so nothing is lost.</p>
+      <div class="segmented">
+        <button type="button" class="on" id="tabSignup">New account</button>
+        <button type="button" id="tabLogin">Sign in</button>
+      </div>
+      <form id="authForm" class="form-grid">
+        <div class="form-field" id="nameWrap"><label for="name">Your name</label><input class="form-input" id="name" autocomplete="name" placeholder="What friends call you"></div>
+        <div class="form-field"><label for="email">Email</label><input class="form-input" id="email" type="email" autocomplete="email" required></div>
+        <div class="form-field"><label for="password">Password</label><input class="form-input" id="password" type="password" minlength="8" autocomplete="current-password" required></div>
+        <div class="form-error" id="authError" hidden></div>
+        <button class="btn btn-primary btn-lg" type="submit" id="authSubmit">Create account</button>
+      </form>
+    </div>
+
+    <div class="sw-card" id="doneCard" hidden>
+      <strong>Your link</strong>
+      <div class="sw-link" id="link"></div>
+      <div class="sw-row">
+        <button class="btn btn-primary" type="button" id="copy">Copy link</button>
+        <a class="btn btn-secondary" id="postX" target="_blank" rel="noopener">Post on X</a>
+        <a class="btn btn-secondary" id="open" target="_blank" rel="noopener">Open the page</a>
+      </div>
+    </div>
+  </main>
+  <script src="/share.js"></script>
+</body>
+</html>
