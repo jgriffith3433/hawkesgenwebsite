@@ -1,0 +1,6 @@
+{
+  "title": "Water",
+  "order": 60,
+  "scripts": ["water.js", "swim.js", "bucket.js", "rain.js", "fishing.js"],
+  "kinds": ["water"]
+}
