@@ -199,13 +199,13 @@ const skyRacer: Template = {
 // ================================================================== Leap
 const LEAP = {
   planks: 'a_060f6c6ea7f15e43', plate: 'a_d6cd6dd006c8c540', stone: 'a_c2f9d6efb08c842c', coin: 'a_bdd747c0513b38a9', gem: 'a_0f13da54b1166f65',
-  cottage: 'a_e2926729398f5648', well: 'a_d2eaa7374e99d9a4', fence: 'a_bed4735621add18b', mailbox: 'a_6f2332b9073bd95c', bench: 'a_c26613ea7b560e31',
+  cottage: 'a_e2926729398f5648', well: 'a_d2eaa7374e99d9a4', fence: 'a_bed4735621add18b',
   lamp: 'a_38cb16892853ae7e', tower: 'a_35f0b66a09575340', rocket: 'a_11e8d3df79091171', mushroom: 'a_6ec70af4a0070343', flowers: 'a_a7ed659b5ed36b2f',
   oak: 'a_3360deb351df9daa', bush: 'a_04e385dd742d5a28', rocks: 'a_19aebee77f37565e',
 };
 const LEAP_ASSETS: Record<string, string> = {
   'wood-planks.png': LEAP.planks, 'diamond-plate.png': LEAP.plate, 'stone-bricks.png': LEAP.stone, 'coin.png': LEAP.coin, 'gem.png': LEAP.gem,
-  'cottage.glb': LEAP.cottage, 'well.glb': LEAP.well, 'fence.glb': LEAP.fence, 'mailbox.glb': LEAP.mailbox, 'bench.glb': LEAP.bench,
+  'cottage.glb': LEAP.cottage, 'well.glb': LEAP.well, 'fence.glb': LEAP.fence,
   'street-lamp.glb': LEAP.lamp, 'watchtower.glb': LEAP.tower, 'rocket.glb': LEAP.rocket, 'mushroom.glb': LEAP.mushroom, 'flower-patch.glb': LEAP.flowers,
   'oak-tree.glb': LEAP.oak, 'bush.glb': LEAP.bush, 'rock.glb': LEAP.rocks,
   'arcade.mp3': 'a_3299fe2e5324b5da', 'victory.mp3': 'a_59258c64f6975010', 'game-over.mp3': 'a_65269b057ec298d3',
@@ -244,8 +244,6 @@ function climb(): Things {
   // The village at the foot of the climb.
   out.cottage = model('cottage', 'Cottage', LEAP.cottage, [-12, 0, -16], 6, { transform: { rotation: [0, 30, 0] } });
   out.well = model('well', 'Well', LEAP.well, [-5, 0, -15], 2.4);
-  out.mailbox = model('mailbox', 'Mailbox', LEAP.mailbox, [-3, 0, -12], 1.3, { transform: { rotation: [0, 180, 0] } });
-  out.bench = model('bench', 'Bench', LEAP.bench, [5, 0, -15], 1.1, { transform: { rotation: [0, 180, 0] } });
   out.lamp_post = model('lamp_post', 'Street lamp', LEAP.lamp, [3, 0, -11], 3.6);
   [[-8, -20], [-4, -20], [0, -20], [4, -20], [8, -20]].forEach(([x, z], i) => { out[`fence_${i}`] = model(`fence_${i}`, 'Fence', LEAP.fence, [x, 0, z], 1.2); });
   out.tower = model('tower', 'Watchtower', LEAP.tower, [18, 0, -14], 9, { transform: { rotation: [0, -30, 0] } });
