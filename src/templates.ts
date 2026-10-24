@@ -121,6 +121,7 @@ export const SANDBOX = {
     water: { level: 0, waves: 0.25 },
     player: { view: 'third', tools: ['rocket-launcher', 'spawn-gun', 'gravity-gun'], tool: 'rocket-launcher' },
     mayhem: { slowmo: true },
+    spawn: { play: true, max: 200 },
   },
   entities(): Things {
     const out: Things = {
