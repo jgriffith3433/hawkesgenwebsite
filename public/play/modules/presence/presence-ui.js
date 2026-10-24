@@ -1,5 +1,6 @@
 // Presence, the player's side: game chat (Enter, or 💬), the emote wheel (hold B, 😀 on phones, Y on a gamepad),
-// who's here (Tab, or 👥: friends first, add friend, mute, watch), customizing your look (🎨), and the spectate bar.
+// who's here (Tab, or 👥: friends first, add friend, mute, watch), customizing your look (the editor's profile menu, or
+// a mirror: the mirror's questions; this panel where there's no mirror module), and the spectate bar.
 // Everything here is page UI over the game; presence.js does the world side.
 /* global HawkesPlay */
 (function () {
@@ -264,7 +265,7 @@ body.pr-touch .pr-sw button{width:38px;height:38px}body.pr-touch .pr-ch button{m
     if (!force && sig === peopleSig) return;
     peopleSig = sig;
     const n = list.length;
-    let html = `<header><b>Who's here <small style="opacity:.6;font-weight:500">${n}</small></b><button type="button" class="pr-btn" data-a="look">🎨 Customize</button><button type="button" class="pr-x" data-a="close" aria-label="Close">×</button></header>`;
+    let html = `<header><b>Who's here <small style="opacity:.6;font-weight:500">${n}</small></b><button type="button" class="pr-x" data-a="close" aria-label="Close">×</button></header>`;
     for (const x of list) {
       const tags = `${x.host ? ' 👑' : ''}${x.friend ? ' ★' : ''}${x.typing ? ' …' : ''}`;
       html += `<div class="pr-row" data-id="${esc(x.id)}"><span class="dot" style="background:${esc(x.color || '#4a9eff')}"></span><span class="nm">${esc(x.name)}${tags}${x.me ? '<small>you</small>' : x.friend ? '<small>friend</small>' : ''}${x.host ? '<small>host</small>' : ''}</span>`;
@@ -309,7 +310,7 @@ body.pr-touch .pr-sw button{width:38px;height:38px}body.pr-touch .pr-ch button{m
   function openLook() {
     if (!P.enabled('customize')) return;
     // The mirror's questions (modules/mirror): what you are, how you look, your name, anywhere. This panel otherwise.
-    if (H.mirror && H.mirror.dress && H.mode !== 'build') { closeWheel(); closeChat(); if (typeof closePanel === 'function') closePanel(); if (H.mirror.dress()) return; }
+    if (H.mirror && H.mirror.dress) { closeWheel(); closeChat(); closePanel(); if (H.mirror.dress()) return; }
     ensurePanel();
     closeWheel(); closeChat();
     panelKind = 'look'; panel.className = 'pr-panel pr-look';

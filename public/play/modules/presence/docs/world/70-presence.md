@@ -16,7 +16,7 @@ changes it through `config.presence`.
   for the wheel; keys 1–0 pick one. Everyone in the room sees it on the avatar, with the emoji on the name tag. Sit and
   sleep last until you move. AI friends and pets join in when everyone emotes.
 - **Looks:** every player is what they chose at a mirror ("The mirror": a person, an animal, a robot, a shoe...) with a
-  name over their head, dressed up (🎨 Customize, in the 👥 list, asks the mirror's questions anywhere): body, skin and accent
+  name over their head, dressed up (the editor's profile menu has "Change who you are": the mirror's questions anywhere): body, skin and accent
   colors, a shape (normal, tall, short, wide, tiny, big), a hat (cap, beanie, tophat, crown, cowboy, party, halo, horns,
   bunny, helmet, chef), a face (visor, eyes, smile) and up to three extras (glasses, shades, scarf, backpack, cape,
   bowtie, wings, tail). Or a model, by a community model's asset id (its animations named wave, dance... play the
