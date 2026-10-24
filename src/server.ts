@@ -24,6 +24,7 @@ import * as google from './google.ts';
 import { PLANS, subscription, choosePlan, setCancel, billingPortal } from './plans.ts';
 import * as games from './games.ts';
 import * as friends from './friends.ts';
+import { presenceRoute } from './presence.ts';
 import { askAssistant, generateAsset, pendingGens, markSuggestion, resumeGens, KINDS, AI_CREDITS } from './gameai.ts';
 import { join as joinLive, setPresence } from './live.ts';
 import { templateBundle } from './templates.ts';
@@ -305,6 +306,8 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       users.clearSessionCookie(res, req);
       return send(res, 200, { ok: true });
     }
+
+    if (/^\/v1\/(users\/me\/avatar|presence\/who|friends\/request)$/.test(route)) return await presenceRoute(req, res, route, method); // presence.ts: looks, badges, friend requests (open to the game's sandbox)
 
     // ------------------------------------------------------------ a customer
     const user = users.authenticate(req);

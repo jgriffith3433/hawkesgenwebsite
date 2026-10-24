@@ -1,0 +1,6 @@
+{
+  "title": "Presence",
+  "order": 80,
+  "scripts": ["presence-core.js", "presence.js", "presence-ui.js"],
+  "kinds": []
+}
