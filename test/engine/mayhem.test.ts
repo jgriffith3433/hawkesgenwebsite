@@ -67,6 +67,11 @@ test('the kinds are in the world list and build from their specs', () => {
   H.tick(0.3);
   assert.equal(g.player.tool, 'gravity-gun');
   assert.deepEqual(H.mayhem.belt, ['gravity-gun']);
+  // Q switches between the tools on the belt.
+  H.mayhem.giveTool('lasso');
+  assert.equal(g.player.tool, 'lasso');
+  H.input.held.add('q'); H.tick(1 / 60); H.input.held.delete('q'); H.tick(1 / 60);
+  assert.equal(g.player.tool, 'gravity-gun');
 });
 
 test('spawn 100 cows: all of them, on the ground, smooth enough, and an explosion throws and spins them', () => {

@@ -73,11 +73,11 @@
     const cyl = (dia, h) => B.MeshBuilder.CreateCylinder('mh-vm', { diameter: dia, height: h, tessellation: 14 }, sc);
     let muzzle;
     if (kind === 'rocket-launcher') {
-      part(cyl(0.17, 0.85), dark, 0, 0.02, 0.18).rotation.x = Math.PI / 2;
-      part(B.MeshBuilder.CreateTorus('mh-vm', { diameter: 0.19, thickness: 0.03, tessellation: 18 }, sc), lit, 0, 0.02, 0.6).rotation.x = Math.PI / 2;
+      part(cyl(0.11, 0.7), dark, 0, 0.02, 0.16).rotation.x = Math.PI / 2;
+      part(B.MeshBuilder.CreateTorus('mh-vm', { diameter: 0.13, thickness: 0.025, tessellation: 18 }, sc), lit, 0, 0.02, 0.5).rotation.x = Math.PI / 2;
       part(box(0.08, 0.18, 0.09), dark, 0, -0.14, 0).rotation.x = 0.3;
       part(box(0.04, 0.06, 0.12), lit, 0, 0.13, -0.05);
-      muzzle = part(box(0.02, 0.02, 0.02), lit, 0, 0.02, 0.64);
+      muzzle = part(box(0.02, 0.02, 0.02), lit, 0, 0.02, 0.53);
     } else if (kind === 'grenade' || kind === 'sticky-bomb') {
       part(B.MeshBuilder.CreateSphere('mh-vm', { diameter: 0.17, segments: 10 }, sc), kind === 'grenade' ? dark : lit, 0, 0, 0.12);
       part(box(0.05, 0.06, 0.05), kind === 'grenade' ? lit : dark, 0, 0.1, 0.12);
@@ -157,17 +157,20 @@
     a.textContent = alt || ''; a.hidden = !alt;
     hud.touch.querySelector('.mh-next').hidden = belt.length < 2;
   }
+  // The belt: Q (or ⇄) switches to the next tool you have.
+  const beltKeys = {};
+  X.steps.push(() => {
+    const p = W().player;
+    if (!keyTap(beltKeys, '_next', ['q', 'mnext']) || !p || belt.length < 2) return;
+    const name = toolName(p.tool);
+    const i = belt.findIndex((b) => b.name === name);
+    const next = belt[(i + 1) % belt.length];
+    p.tool = next.opts && Object.keys(next.opts).length ? { type: next.name, ...next.opts } : next.name;
+  });
   function hideHud() { if (hud.cross) hud.cross.hidden = true; if (hud.touch) hud.touch.hidden = true; }
   X.frames.push((dt) => {
     if (hud.tip && hud.tipT > 0) { hud.tipT -= dt; if (hud.tipT <= 0) hud.tip.classList.add('out'); }
-    // The belt: Q (or ⇄) switches to the next tool you have.
     const p = W().player;
-    if (p && H.mode !== 'build' && belt.length > 1 && (I().pressed.has('q') || I().pressed.has('mnext'))) {
-      const name = toolName(p.tool);
-      const i = belt.findIndex((b) => b.name === name);
-      const next = belt[(i + 1) % belt.length];
-      p.tool = next.opts && Object.keys(next.opts).length ? { type: next.name, ...next.opts } : next.name;
-    }
     const held = p && MAYHEM_TOOLS.includes(toolName(p.tool)) && H.mode !== 'build';
     if (!held) hideHud();
   });
