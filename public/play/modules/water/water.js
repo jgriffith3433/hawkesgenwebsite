@@ -463,25 +463,34 @@ void main(void) {
     if (!w) return null;
     const b = w.body, t = now();
     if (opts.manual !== false) e._waterManualAt = W().time;
-    const hx = (bx.max[0] - bx.min[0]) / 2, hz = (bx.max[2] - bx.min[2]) / 2;
-    const pts = opts.points ? opts.points.map((p) => [cx + (Number(p[0]) || 0), cz + (Number(p[2] ?? p[1]) || 0)])
-      : hx > 0.6 || hz > 0.6 ? [[cx - hx * 0.7, cz - hz * 0.7], [cx + hx * 0.7, cz - hz * 0.7], [cx - hx * 0.7, cz + hz * 0.7], [cx + hx * 0.7, cz + hz * 0.7]] : [[cx, cz]];
+    // Where it is wet: the lowest corners of the thing itself (turned with it), so a tipped hull gets more lift on its
+    // low side (it rights itself on Havok). Small things: one point under the middle. opts.points: your own points, in
+    // the thing's own space ([x, y, z] from its middle), e.g. a boat's hull.
+    const lh = e._lhalf || e.half, lo = e._loff || e.offset;
+    const m = e.node.computeWorldMatrix(true);
+    const local = opts.points ? opts.points.map((q) => L.vec(q))
+      : lh[0] > 0.6 || lh[2] > 0.6 ? [-1, 1].flatMap((sx) => [-1, 1].flatMap((sy) => [-1, 1].map((sz) => [sx * lh[0] * 0.85, sy * lh[1], sz * lh[2] * 0.85])))
+      : [[0, -lh[1], 0]];
+    const v3 = new B.Vector3();
+    // (On the first physics a thing's box is already turned: no turning twice.)
+    let pts = local.map((q) => { if (!e._lhalf) return [e.x + lo[0] + q[0], e.y + lo[1] + q[1], e.z + lo[2] + q[2]]; B.Vector3.TransformCoordinatesFromFloatsToRef(q[0] + lo[0], q[1] + lo[1], q[2] + lo[2], m, v3); return [v3.x, v3.y, v3.z]; });
+    if (!opts.points && pts.length > 4) pts = pts.sort((u, w) => u[1] - w[1]).slice(0, 4);
     const density = opts.density !== undefined ? Math.max(0.02, Number(opts.density) || 1) : densityOf(e);
     const g = Math.abs(H.physics.gravity || 24) * (e.gravity ?? 1);
     let sub = 0, surf = 0;
     const each = [];
-    for (const [px, pz] of pts) {
+    for (const [px, py, pz] of pts) {
       const s = surfaceOf(b, px, pz, t);
-      const k = clamp((s - bx.min[1]) / ht, 0, 1);
-      each.push([px, pz, s, k]);
+      const k = clamp((s - py) / ht, 0, 1);
+      each.push([px, py, pz, s, k]);
       sub += k; surf += s;
     }
     sub /= pts.length; surf /= pts.length;
     if (sub <= 0) return { submerged: 0, surface: surf, depth: surf - bx.min[1], body: b.id };
     // Resting on the bottom and heavier than water: nothing to do (let it sleep).
-    if (density >= 1 && (e.grounded || e.sleeping) && !opts.always) return { submerged: sub, surface: surf, depth: surf - bx.min[1], body: b.id };
+    if (density >= 1 && (e.grounded || e.sleeping || Math.hypot(e.vx, e.vy, e.vz) < 0.08) && !opts.always) return { submerged: sub, surface: surf, depth: surf - bx.min[1], body: b.id };
     const lift = (e.mass * g) / density / pts.length * (opts.lift ?? 1);
-    for (const [px, pz, s, k] of each) if (k > 0) e.force([0, lift * k, 0], [px, (bx.min[1] + Math.min(s, bx.max[1])) / 2, pz]);
+    for (const [px, py, pz, s, k] of each) if (k > 0) e.force([0, lift * k, 0], [px, py + Math.min(s - py, ht) / 2, pz]);
     const drag = (opts.drag ?? 1.6) * sub * e.mass;
     const fx = -e.vx * drag, fy = -e.vy * drag * 1.4, fz = -e.vz * drag;
     let cxF = 0, czF = 0;
@@ -491,7 +500,8 @@ void main(void) {
     const sl = waveSlope(b, cx, cz, t);
     const drift = e.mass * g * 0.15 * Math.min(1, sub * 2) * (density < 1 ? 1 : 0);
     e.force([fx + cxF - sl[0] * drift, fy, fz + czF - sl[1] * drift]);
-    if (H.physics.engine === 'havok' && opts.spin !== false) { const av = e.angularVelocity; const k = 1 - Math.min(0.9, sub * 0.05); e.angularVelocity = [av[0] * k, av[1] * k, av[2] * k]; }
+    // Water slows spinning too (a torque against it: setting the spin would undo the lift's righting push).
+    if (H.physics.engine === 'havok' && opts.spin !== false) { const av = e.angularVelocity, RAD = Math.PI / 180, k = -(opts.spinDrag ?? 0.4) * sub * e.mass * Math.max(0.3, (ht * ht) / 6); e.torque([av[0] * RAD * k, av[1] * RAD * k, av[2] * RAD * k]); }
     if (e.grounded) e.grounded = false;
     return { submerged: sub, surface: surf, depth: surf - bx.min[1], body: b.id };
   }
