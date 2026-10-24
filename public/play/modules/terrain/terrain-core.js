@@ -373,7 +373,10 @@
     forEachSample(f, (ix, iz, x, z, i) => {
       const dx = x - cx, dz = z - cz, r2 = dx * dx + dz * dz;
       const k = Math.max(smooth(0.6, 0.98, Math.sqrt(r2) / half), smooth(0.82, 1, Math.max(Math.abs(dx), Math.abs(dz)) / half));
-      const h = f.heights[i] * (1 - k) + (floor - 0.6 - f.y) * k; // (a little under the ground: it covers the seam)
+      // (Never under the planet's ground inside: the ball would cover it and only patches would show. The edge ends a
+      // little under the ground: it covers the seam.)
+      const top = Math.max(f.heights[i], floor + 0.25 - f.y);
+      const h = top * (1 - k) + (floor - 0.6 - f.y) * k;
       f.heights[i] = h - r2 / (R + Math.sqrt(Math.max(0, R * R - r2)));
     });
   }

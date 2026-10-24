@@ -10,7 +10,7 @@
   const T = window.HawkesTerrainCore;
   const BUDGET = 120 * 1024; // config.terrain's share of the scene (the whole scene may be 240 KB)
   const TOOLS = [['raise', '▲', 'Raise'], ['lower', '▼', 'Lower'], ['flatten', '▬', 'Flatten'], ['smooth', '≈', 'Smooth'], ['paint', '🖌', 'Paint']];
-  const st = { open: false, tool: 'raise', layer: 'dirt', size: 6, strength: 1, stroke: null, ring: null, hover: null, seq: 1000000 };
+  const st = { open: false, tool: 'raise', layer: 'dirt', size: 6, strength: 3, stroke: null, ring: null, hover: null, seq: 1000000 };
 
   const css = document.createElement('style');
   css.textContent = `
@@ -56,7 +56,13 @@
         <select class="tb-shape">${Object.entries(T.SHAPES).map(([k, v]) => `<option value="${k}">${k}: ${v.what}</option>`).join('')}</select>
         <button class="tb-add" type="button" style="padding:8px;border-radius:8px;background:#4a9eff;color:#fff;border:0;cursor:pointer">Add ground</button>
         <div class="tb-note">Big ground you can drive across, dig into and shape. The assistant can make it too: "make an island with a beach".</div>`;
-      panel.querySelector('.tb-add').onclick = () => { send({ terrain: { shape: panel.querySelector('.tb-shape').value } }, 'Terrain added'); render(); };
+      panel.querySelector('.tb-add').onclick = () => {
+        const t = { shape: panel.querySelector('.tb-shape').value };
+        const v = H.spawn && H.spawn.viewer && H.spawn.viewer(); // (a round world: round you, not at the planet's top)
+        if (v && H.spawn.terrainPoint) H.spawn.terrainPoint(t, v.x, v.y, v.z, 150);
+        send({ terrain: t }, 'Terrain added');
+        render();
+      };
       return;
     }
     const c = terrainCfg() || {};
@@ -65,7 +71,7 @@
       <div class="tb-row">${TOOLS.map(([k, i, t]) => `<button type="button" data-tool="${k}" class="${st.tool === k ? 'on' : ''}" title="${t}">${i}<br>${t}</button>`).join('')}</div>
       ${st.tool === 'paint' ? `<div class="tb-row">${T.LAYERS.map((l) => `<button type="button" data-layer="${l}" class="${st.layer === l ? 'on' : ''}">${l}</button>`).join('')}<button type="button" data-layer="erase" class="${st.layer === 'erase' ? 'on' : ''}">erase</button></div>` : ''}
       <label>Size <input type="range" min="1" max="40" step="1" value="${st.size}" data-k="size"><span>${st.size}</span></label>
-      <label>Strength <input type="range" min="0.2" max="3" step="0.1" value="${st.strength}" data-k="strength"><span>${st.strength}</span></label>
+      <label>Strength <input type="range" min="1" max="20" step="1" value="${st.strength}" data-k="strength"><span>${st.strength}</span></label>
       <button class="tb-hold" type="button">Hold to brush</button>
       <div class="tb-row"><button type="button" class="tb-undo">Undo stroke</button><button type="button" class="tb-clear">Clear edits</button></div>
       <div class="tb-note">${H.touchUi ? 'Hold the button and look where to shape.' : 'Drag on the ground to shape it.'} ${(c.edits || []).length} edits · ${Math.round(used / 1024)} of ${BUDGET / 1024} KB</div>`;
@@ -100,7 +106,7 @@
   const q = (v) => Math.round(v * 10) / 10;
   function amount() {
     if (st.tool === 'raise' || st.tool === 'lower') return q(0.12 * st.strength * Math.max(1, st.size / 6));
-    if (st.tool === 'smooth') return q(Math.min(1, 0.25 * st.strength));
+    if (st.tool === 'smooth') return q(Math.min(1, 0.1 * st.strength));
     if (st.tool === 'paint') return st.layer === 'erase' ? -1 : T.LAYERS.indexOf(st.layer);
     return 0;
   }
