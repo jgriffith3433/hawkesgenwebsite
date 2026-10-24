@@ -87,6 +87,20 @@ export function sendWelcome(email: string, name: string | null, credits: number)
   void sendEmail(email, m.subject, m.text, m.html).catch((e) => console.warn(`[portal] welcome email to ${email}: ${e.message}`));
 }
 
+/** "Forgot your password?": the one-time link to set a new one. */
+export function resetEmail(name: string | null, url: string) {
+  const hi = name ? `Hi ${name},` : 'Hi,';
+  const text = `${hi}\n\nSomeone (hopefully you) asked to reset the password for your Hawkes Gen account. Set a new one here (the link works once, for 24 hours):\n\n${url}\n\nIf it wasn't you, ignore this email: your password stays as it is.\n\nHawkes Gen`;
+  const html = `<p>${esc(hi)}</p><p>Someone (hopefully you) asked to reset the password for your Hawkes Gen account. Set a new one here (the link works once, for 24 hours):</p><p><a href="${esc(url)}">Set a new password</a></p><p>If it wasn't you, ignore this email: your password stays as it is.</p><p>Hawkes Gen</p>`;
+  return { subject: 'Reset your Hawkes Gen password', text, html };
+}
+/** Sends it; false when this server sends no email (beta, local). */
+export function mailOn() { return env('PORTAL_MAIL') === 'ses'; }
+export function sendReset(email: string, name: string | null, url: string) {
+  const m = resetEmail(name, url);
+  void sendEmail(email, m.subject, m.text, m.html).catch((e) => console.warn(`[portal] reset email to ${email}: ${e.message}`));
+}
+
 /** The email for an admin's gift: how many credits, what they're good for, the admin's message, the new balance. */
 export function giftEmail(name: string | null, credits: number, balance: number, message: string) {
   const site = publicUrl();

@@ -244,6 +244,26 @@ export function passwordLink(userId: string, site: string) {
   return `${site}/reset?token=${token}`;
 }
 
+// "Forgot your password?": a few an hour per address and per email, so it can't be used to flood an inbox.
+const forgotByKey = new Map<string, number[]>();
+function limitForgot(key: string, max: number) {
+  const now = Date.now();
+  const recent = (forgotByKey.get(key) ?? []).filter((t) => now - t < 3600_000);
+  if (recent.length >= max) throw new PortalError('Too many reset emails; try again in an hour', { status: 429 });
+  recent.push(now);
+  forgotByKey.set(key, recent);
+}
+/** A reset link for whoever has this email (a day, one use), or null when nobody does (or the account is disabled).
+ *  The caller answers the same either way. */
+export function forgotPassword(emailIn: unknown, ip: string, site: string) {
+  const email = String(emailIn ?? '').trim().toLowerCase();
+  if (!EMAIL_RE.test(email) || email.length > 200) throw new PortalError('Enter a valid email address');
+  limitForgot(`ip:${ip}`, 5);
+  limitForgot(`email:${email}`, 3);
+  const u = active(getUserByEmail(email));
+  return u ? { user: u, url: passwordLink(u.id, site) } : null;
+}
+
 /** Sets the password a link was made for; the link is spent, and every other session ends. */
 export function setPasswordWithToken(token: string, password: string) {
   if (typeof password !== 'string' || password.length < 8) throw new PortalError('Password must be at least 8 characters');

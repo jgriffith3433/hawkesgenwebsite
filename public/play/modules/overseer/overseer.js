@@ -616,6 +616,8 @@ void main(void) {
       document.body.appendChild(sayEl);
     }
     sayEl.innerHTML = '';
+    // (In the editor, the same words are the Overseer's message in the chat: it is the assistant.)
+    try { if (H.post) H.post({ type: 'overseer-say', text: String(text) }); } catch { /* fine */ }
     const line = document.createElement('div'); line.textContent = String(text);
     const who = document.createElement('small'); who.textContent = 'The Overseer';
     sayEl.appendChild(line); sayEl.appendChild(who);

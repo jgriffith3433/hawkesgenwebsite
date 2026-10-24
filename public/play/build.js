@@ -635,7 +635,7 @@
       ${isLight ? `<div class="card-row"><label>Brightness</label><input type="range" id="cBright" min="0" max="4" step="0.1" value="${(spec.light && spec.light.intensity) ?? 1}"></div>` : `<div class="card-row"><label>Size</label><input type="range" id="cSize" min="0.2" max="4" step="0.05" value="${scaleNow.toFixed(2)}"></div>`}
       <div class="card-row"><label>${isLight ? 'Light color' : 'Color'}</label><div class="swatches">${SWATCHES.map((c) => `<button type="button" style="background:${c}" data-c="${c}" class="${c.toLowerCase() === String(color).toLowerCase() ? 'on' : ''}" aria-label="${c}"></button>`).join('')}<input type="color" id="cColor" value="${/^#[0-9a-f]{6}$/i.test(color) ? color : '#cccccc'}" aria-label="Any color"></div></div>
       ${e._waiting ? `<div class="card-row"><button type="button" class="card-btn hot" id="cMake">Make “${esc(e._waiting)}” with AI</button></div>` : ''}
-      <form class="card-ask" id="cAsk"><input id="cAskIn" placeholder="Ask the assistant about ${esc(e.name || 'this')}…" autocomplete="off"><button type="submit">Ask</button></form>
+      <form class="card-ask" id="cAsk"><input id="cAskIn" placeholder="Ask the Overseer about ${esc(e.name || 'this')}…" autocomplete="off"><button type="submit">Ask</button></form>
       ${popup.full ? `<div class="card-more">
       ${motionChoices.length ? `<div class="card-row"><label>How it moves</label><div class="seg" id="cMotion">${motionChoices.map(([v, t]) => `<button type="button" data-v="${v}" class="${e.physics === v ? 'on' : ''}">${t}</button>`).join('')}</div></div>` : ''}
       ${e.waypoint ? `<div class="card-row"><label>What it is</label><div class="seg" id="cRole">${[['waypoint', 'Waypoint'], ['checkpoint', 'Checkpoint'], ['finish', 'Finish']].map(([v, t]) => `<button type="button" data-v="${v}" class="${e.waypoint.role === v ? 'on' : ''}">${t}</button>`).join('')}</div></div><div class="card-row"><label>Leads to</label><select id="cNext"><option value="">Nothing</option>${Object.values(W().graph.entities).filter((x) => x.type === 'waypoint' && x.id !== e.sceneId).map((x) => `<option value="${esc(x.id)}" ${e.waypoint.next === x.id ? 'selected' : ''}>${esc(x.name || x.id)}</option>`).join('')}</select></div>` : ''}
@@ -700,7 +700,7 @@
     };
     const make = q('cMake');
     if (make) make.onclick = () => { toParent({ type: 'generate', kind: 'model', name: e._waiting, prompt: e.name || e._waiting.replace(/\.[a-z]+$/, '') }); make.disabled = true; make.textContent = 'Asked… (check the chat)'; };
-    q('cAsk').onsubmit = (ev) => { ev.preventDefault(); const v = q('cAskIn').value.trim(); if (!v) return; toParent({ type: 'ask', text: v, mention: { id: e.sceneId, name: e.name || e.sceneId }, context: context() }); q('cAskIn').value = ''; q('cAskIn').placeholder = 'Sent. The assistant is on it…'; };
+    q('cAsk').onsubmit = (ev) => { ev.preventDefault(); const v = q('cAskIn').value.trim(); if (!v) return; toParent({ type: 'ask', text: v, mention: { id: e.sceneId, name: e.name || e.sceneId }, context: context() }); q('cAskIn').value = ''; q('cAskIn').placeholder = 'Sent. The Overseer is on it…'; };
     q('cCopy').onclick = () => copyThing(W().byId.get(e.sceneId) || e);
     q('cChat').onclick = () => { toParent({ type: 'focus-chat', mention: { id: e.sceneId, name: e.name || e.sceneId } }); };
     q('cDel').onclick = () => removeThing(W().byId.get(e.sceneId) || e);
@@ -917,13 +917,17 @@
     let b = beams.get(row.task_id);
     if (!b && row.state !== 'done' && row.state !== 'failed') { b = makeBeam(beamFor(row), row.name || row.kind); beams.set(row.task_id, b); b.log(`${row.kind || 'asset'}: starting`); }
     if (!b) return;
+    b.status(row);
     if (row.detail) b.log(row.detail);
-    if (row.progress != null) b.progress(row.progress);
-    if (row.state === 'done' || row.state === 'failed') { b.log(row.state === 'done' ? 'done' : 'failed'); b.progress(1); setTimeout(() => { b.end(row.state === 'done'); beams.delete(row.task_id); }, 700); }
-    else b.progress(Math.min(0.9, (b.p || 0.05) + 0.12));
+    if (row.state === 'done' || row.state === 'failed') {
+      b.log(row.state === 'done' ? 'Done' : (row.error || 'Failed'));
+      b.finish(row.state === 'done');
+      setTimeout(() => { b.end(row.state === 'done'); beams.delete(row.task_id); }, 1600);
+    }
   }
-  /** The Overseer's beam while Hawkes Gen makes something (H.overseer.beam, held until it's done), with its progress
-   *  written in the air. */
+  /** The Overseer's beam while Hawkes Gen makes something (H.overseer.beam, held until it's done): a wireframe box
+   *  where it will be, a panel over it (the name, step n of m and what it's doing, a bar from the task's real progress),
+   *  and each new log line floating up off the box and fading. */
   function makeBeam(at, label) {
     const scene = W().scene;
     const p = new B.Vector3(at[0], at[1], at[2]);
@@ -940,21 +944,109 @@
     const gm = new B.StandardMaterial('beam-ghost', scene);
     gm.wireframe = true; gm.emissiveColor = new B.Color3(0.55, 0.75, 1); gm.disableLighting = true;
     ghost.material = gm; ghost.isPickable = false; ghost.metadata = { decor: true };
-    let lbl = null;
-    const st = { p: 0.05, lines: [] };
-    const draw = () => { if (lbl) lbl.dispose(); lbl = H.textPlane(`${label}\n${'▮'.repeat(Math.round(st.p * 12))}${'▯'.repeat(12 - Math.round(st.p * 12))}\n${st.lines.slice(-2).join('\n')}`, { size: 0.16 }); lbl.isPickable = false; lbl.metadata = { decor: true }; lbl.position = p.add(new B.Vector3(0, 1.6, 0)); };
-    draw();
+
+    // The panel: one canvas, redrawn when what it shows changes (at most ~12 times a second).
+    const PW = 640, PH = 176;
+    const tex = new B.DynamicTexture('beam-panel', { width: PW, height: PH }, scene, true);
+    tex.hasAlpha = true;
+    const panel = B.MeshBuilder.CreatePlane('beam-panel', { width: 1.9, height: (1.9 * PH) / PW, sideOrientation: B.Mesh.DOUBLESIDE }, scene);
+    const pm = new B.StandardMaterial('beam-panel', scene);
+    pm.diffuseTexture = tex; pm.useAlphaFromDiffuseTexture = true; pm.emissiveColor = new B.Color3(1, 1, 1); pm.disableLighting = true; pm.backFaceCulling = false;
+    panel.material = pm; panel.billboardMode = B.Mesh.BILLBOARDMODE_ALL; panel.isPickable = false; panel.metadata = { decor: true };
+    panel.position = p.add(new B.Vector3(0, 1.45, 0));
+    const st = { target: 0.03, shown: 0, cap: 0.99, step: null, steps: null, doing: '', state: 'running', drawn: '', drawAt: 0 };
+    const rr = (c, x, y, w, h, r) => { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); };
+    function draw(force) {
+      const pct = Math.round(st.shown * 100);
+      const key = `${pct}|${st.step}|${st.steps}|${st.doing}|${st.state}`;
+      const now = performance.now();
+      if (!force && (key === st.drawn || now - st.drawAt < 80)) return;
+      st.drawn = key; st.drawAt = now;
+      const c = tex.getContext();
+      const bad = st.state === 'failed';
+      c.clearRect(0, 0, PW, PH);
+      c.fillStyle = 'rgba(8,14,28,0.78)'; rr(c, 4, 4, PW - 8, PH - 8, 22); c.fill();
+      c.strokeStyle = bad ? 'rgba(255,110,110,0.7)' : 'rgba(120,190,255,0.55)'; c.lineWidth = 3; rr(c, 4, 4, PW - 8, PH - 8, 22); c.stroke();
+      c.textBaseline = 'middle'; c.textAlign = 'left';
+      c.fillStyle = '#ffffff'; c.font = '700 40px system-ui, sans-serif';
+      c.fillText(String(label).slice(0, 26), 28, 44);
+      c.textAlign = 'right'; c.fillStyle = bad ? '#ff9a9a' : '#9fe0ff'; c.font = '700 36px system-ui, sans-serif';
+      c.fillText(bad ? 'failed' : `${pct}%`, PW - 28, 44);
+      c.textAlign = 'left'; c.fillStyle = 'rgba(210,230,255,0.85)'; c.font = '500 26px system-ui, sans-serif';
+      const sub = st.state === 'done' ? 'Done' : `${st.steps ? `Step ${st.step} of ${st.steps} · ` : ''}${st.doing}`;
+      c.fillText(sub.slice(0, 44), 28, 92);
+      // The bar, with a mark between steps
+      const bx = 28, by = 122, bw = PW - 56, bh = 26;
+      c.fillStyle = 'rgba(255,255,255,0.12)'; rr(c, bx, by, bw, bh, 13); c.fill();
+      const g = c.createLinearGradient(bx, 0, bx + bw, 0);
+      const ends = bad ? ['#ff6b6b', '#ff9a5a'] : st.state === 'done' ? ['#5dffa8', '#9dffcf'] : ['#4a9eff', '#a855f7'];
+      g.addColorStop(0, ends[0]); g.addColorStop(1, ends[1]);
+      c.fillStyle = g; rr(c, bx, by, Math.max(bh, bw * st.shown), bh, 13); c.fill();
+      if (st.steps > 1) { c.fillStyle = 'rgba(8,14,28,0.55)'; for (let i = 1; i < st.steps; i++) c.fillRect(bx + (bw * i) / st.steps - 1.5, by + 3, 3, bh - 6); }
+      tex.update();
+    }
+    draw(true);
+
+    // Log lines float up off the box and fade.
+    const floats = [];
+    let lastLine = '';
+    const LIFE = 3.6;
+    function float(text) {
+      const plane = H.textPlane(text, { size: 0.12, background: 'rgba(10,18,34,0.6)', color: '#cfe8ff' });
+      plane.isPickable = false; plane.metadata = { decor: true };
+      plane.position = p.add(new B.Vector3((Math.random() - 0.5) * 0.6, 0.55, (Math.random() - 0.5) * 0.6));
+      if (plane.material) plane.material.alpha = 0;
+      floats.push({ plane, t: 0 });
+      while (floats.length > 6) { const f = floats.shift(); f.plane.dispose(); }
+    }
     const t0 = performance.now();
-    const obs = scene.onBeforeRenderObservable.add(() => { const t = (performance.now() - t0) / 1000; if (bm) bm.alpha = 0.18 + 0.12 * Math.sin(t * 5) + st.p * 0.2; ghost.rotation.y = t; ghost.scaling.setAll(0.9 + 0.1 * Math.sin(t * 3)); });
+    let prev = t0;
+    const obs = scene.onBeforeRenderObservable.add(() => {
+      const now = performance.now();
+      const dt = Math.min(0.1, (now - prev) / 1000); prev = now;
+      const t = (now - t0) / 1000;
+      if (bm) bm.alpha = 0.18 + 0.12 * Math.sin(t * 5) + st.shown * 0.2;
+      ghost.rotation.y = t; ghost.scaling.setAll(0.9 + 0.1 * Math.sin(t * 3));
+      // Between the server's updates it creeps on, never past the end of the step it's on.
+      if (st.state === 'running') st.target = Math.min(Math.max(st.target, st.cap), st.target + dt * 0.003);
+      st.shown += (st.target - st.shown) * Math.min(1, dt * 3);
+      draw(false);
+      for (let i = floats.length - 1; i >= 0; i--) {
+        const f = floats[i];
+        f.t += dt;
+        f.plane.position.y += dt * 0.32;
+        const k = f.t / LIFE;
+        if (f.plane.material) f.plane.material.alpha = k < 0.15 ? k / 0.15 : Math.max(0, 1 - (k - 0.15) / 0.85);
+        if (k >= 1) { f.plane.dispose(); floats.splice(i, 1); }
+      }
+    });
     return {
-      get p() { return st.p; },
-      log(s) { st.lines.push(String(s).slice(0, 40)); draw(); },
-      progress(v) { st.p = Math.max(st.p, Math.min(1, v)); draw(); },
+      get p() { return st.shown; },
+      get target() { return st.target; },
+      get floating() { return floats.length; },
+      /** A log line: floats up off the box (the same line twice in a row only once). */
+      log(s) {
+        const line = String(s).slice(0, 48);
+        if (!line || line === lastLine) return;
+        lastLine = line;
+        float(line);
+      },
+      /** The generation's row: progress (0-1), step of steps, what it's doing. */
+      status(row) {
+        if (row.steps) { st.step = row.step; st.steps = row.steps; st.cap = Math.min(0.99, row.step / row.steps - 0.01); }
+        if (row.progress != null && Number.isFinite(Number(row.progress))) st.target = Math.max(st.target, Math.min(1, Number(row.progress)));
+        if (row.detail) st.doing = String(row.detail).split(':')[0].slice(0, 40);
+      },
+      progress(v) { st.target = Math.max(st.target, Math.min(1, v)); },
+      finish(ok) { st.state = ok ? 'done' : 'failed'; if (ok) { st.target = 1; st.cap = 1; } draw(true); },
       end(ok) {
         scene.onBeforeRenderObservable.remove(obs);
         if (ok && !shaft) G().burst(at, { color: '#ffffff', count: 50, speed: 6 });
         if (shaft) shaft.end(ok);
-        for (const m of [beam, ghost, lbl]) if (m) m.dispose();
+        for (const f of floats) f.plane.dispose();
+        floats.length = 0;
+        for (const m of [beam, ghost, panel]) if (m) m.dispose();
+        tex.dispose();
       },
     };
   }
@@ -1005,6 +1097,8 @@
       case 'select': { const e = W().byId.get(m.id); if (e) { openPopup(e); } return; }
       case 'mode': return setMode(m.mode);
       case 'toast': return toast(m.text);
+      // Something the editor page saw, for the game's scripts (e.g. 'asked': a message to the Overseer).
+      case 'event': if (typeof m.name === 'string' && /^[a-z][\w-]{0,40}$/.test(m.name) && H.game && H.game.emit) H.game.emit(m.name, m.data && typeof m.data === 'object' ? m.data : {}); return;
       case 'undo': return void undo();
       case 'redo': return void redo();
       case 'place': return placeAsset(m.asset);

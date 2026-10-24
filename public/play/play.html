@@ -222,6 +222,22 @@
     .wp-hud.low .wp-hp-bar i { background: linear-gradient(90deg, #ef4444, #f97316); }
     .wp-hud.low::after { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 120px rgba(255,30,30,.45); animation: wp-low 1s ease-in-out infinite alternate; }
     @keyframes wp-low { from { opacity: .4; } to { opacity: 1; } }
+    /* Phones (J, 2026-10-24): a game's menu always fits the screen (whatever width its own style asks for), the side
+       buttons step aside while one is open, and the corner leaves the bottom to the touch controls (stick, jump, ammo,
+       health): a column on the right edge, without the badge. */
+    body:has(.ui-menu-wrap) .pr-hud { display: none; }
+    @media (max-width: 640px), (pointer: coarse) and (max-height: 640px) {
+      .ui-menu, .ui-popup { box-sizing: border-box; min-width: 0 !important; max-width: calc(100vw - 24px) !important; padding: 18px; }
+      .corner { bottom: auto; top: 30%; right: 6px; flex-direction: column; align-items: flex-end; gap: 5px; }
+      .corner a, .corner button { padding: 7px 9px; font-size: 11px; }
+      .corner #badge { display: none; }
+      body:has(.ui-menu-wrap) .corner { display: none; }
+      /* The gun's ammo and health go up top, under the game's own HUD: the bottom corners are the stick and jump. */
+      .wp-ammo { right: 8px; bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 64px); padding: 4px 10px 6px 20px; }
+      .wp-ammo b { font-size: 24px; }
+      .wp-hp { left: 10px; bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 70px); font-size: 14px; gap: 6px; }
+      .wp-hp-bar { width: 110px; height: 8px; }
+    }
     @media (max-width: 640px) {
       .hud-hint { bottom: 76px; font-size: 10.5px; }
       .hud-bar .slot { width: 50px; height: 48px; }

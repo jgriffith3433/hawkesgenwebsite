@@ -180,6 +180,7 @@ window.addEventListener('message', async (e) => {
     case 'started': {
       clearErrors();
       applyRole();
+      if (tourPlay) startTourPlay();
       const place = new URLSearchParams(location.search).get('place');
       if (place && assets[place]) {
         history.replaceState(null, '', location.pathname);
@@ -195,6 +196,14 @@ window.addEventListener('message', async (e) => {
       try { analytics()?.error({ message: String(m.message || 'Error').slice(0, 1000), stack: m.file ? `at ${m.file}:${m.line ?? '?'}` : '' }, 'script', { file: m.file || undefined, line: m.line || undefined }); } catch {}
       return;
     case 'log': return;
+    // The Overseer speaking in the game (a caption, its voice): the same words are its message in the chat.
+    case 'overseer-say': {
+      const text = String(m.text || '').trim().slice(0, 400);
+      const last = chatHistory.at(-1);
+      if (!text || (last && last.local && last.text === text && Date.now() - last.at < 5000)) return;
+      addOverseer(text);
+      return;
+    }
     case 'ops': {
       // A world edit from the game: it goes live for everyone (the game is always live); Save marks a point in history.
       try {
@@ -221,7 +230,7 @@ window.addEventListener('message', async (e) => {
     case 'context': { const w = contextWaits.get(m.id); if (w) { contextWaits.delete(m.id); w(m.context); } return; }
     case 'ask': await sendChat(m.text, m.mention, m.context); return;
     case 'focus-chat': setMention(m.mention); $('chatInput').focus(); return;
-    case 'generate': try { await post(`${API}/games/${gameId}/generate`, { kind: m.kind, prompt: m.prompt, name: m.name }); } catch (err) { addSystem(err.message); } return;
+    case 'generate': try { await post(`${API}/games/${gameId}/generate`, { kind: m.kind, prompt: m.prompt, name: m.name }); } catch (err) { if (err.status === 402) noCredits(err.message); else addSystem(err.message); } return;
     case 'open-code': openDrawer('code'); openFile('scene.json'); if (m.entity) revealEntity(m.entity); return;
     case 'net': if (m.conn) roomConn = m.conn; return;
     case 'mode': setPlaying(m.mode === 'play'); return;
@@ -307,7 +316,7 @@ function connect() {
       hga()?.track('assistant_reply', { ok, ms, suggestions: (msg.data && msg.data.suggestions && msg.data.suggestions.length) || 0 });
       if (!ok) frustrated('assistant_failed', { error: String(msg.data.error).slice(0, 120) });
       else if (ms > 90_000) frustrated('assistant_slow', { seconds: Math.round(ms / 1000) });
-      if (ok) askLater({ id: 'editor-assistant', question: 'Did the assistant get that right?', context: 'assistant reply', comment: true }, 4000);
+      if (ok) askLater({ id: 'editor-assistant', question: 'Did the Overseer get that right?', context: 'assistant reply', comment: true }, 4000);
     }
   });
   sse.addEventListener('thinking', (e) => { const d = JSON.parse(e.data); $('thinkingIndicator').hidden = !d.on; if (d.on) $('thinkingIndicator').textContent = `${d.by && d.by !== me?.name ? `${d.by}'s request: ` : ''}working…`; });
@@ -352,6 +361,18 @@ function renderChat(fresh) {
     if (d.world && d.world.length) did.push(`${d.world.length} change${d.world.length === 1 ? '' : 's'} to the world`);
     if (d.changed && d.changed.length) did.push(`edited ${d.changed.join(', ')}`);
     if (did.length) { const c = document.createElement('span'); c.className = 'changed'; c.textContent = did.join(' · '); div.appendChild(c); }
+    // A line with something to do (out of credits: get more), a link that opens beside the game.
+    if (msg.action) {
+      const a = document.createElement('span');
+      a.className = 'sugg';
+      const link = document.createElement('a');
+      link.className = 'sugg-link';
+      link.href = msg.action.href; link.target = '_blank'; link.rel = 'noopener';
+      link.textContent = msg.action.label;
+      if (msg.action.onclick) link.onclick = msg.action.onclick;
+      a.appendChild(link);
+      div.appendChild(a);
+    }
     // It didn't work out: one click asks again, the same way (only the last failed one, so old ones don't pile up).
     if (d.error && d.retry && msg === chatHistory.filter((x) => x.data && x.data.error).at(-1) && msg === chatHistory.at(-1)) {
       const again = document.createElement('span');
@@ -388,7 +409,7 @@ function renderChat(fresh) {
         btn.type = 'button';
         btn.textContent = sg.task ? 'Making…' : `${picks.length ? 'Make our own' : 'Make it'} · ${sg.credits || ''}`;
         btn.disabled = Boolean(sg.task);
-        btn.onclick = async () => { btn.disabled = true; btn.textContent = 'Making…'; try { await post(`${API}/games/${gameId}/generate`, { kind: sg.kind, prompt: sg.prompt, name: sg.name, messageId: msg.id, suggestion: i }); } catch (err) { btn.disabled = false; addSystem(err.message); } };
+        btn.onclick = async () => { btn.disabled = true; btn.textContent = 'Making…'; try { await post(`${API}/games/${gameId}/generate`, { kind: sg.kind, prompt: sg.prompt, name: sg.name, messageId: msg.id, suggestion: i }); } catch (err) { btn.disabled = false; btn.textContent = `${picks.length ? 'Make our own' : 'Make it'} · ${sg.credits || ''}`; if (err.status === 402) noCredits(err.message); else addSystem(err.message); } };
         sugg.appendChild(btn);
       }
       div.appendChild(sugg);
@@ -403,11 +424,53 @@ function renderChat(fresh) {
   }
 }
 function addSystem(text) { chatHistory.push({ id: `local_${Date.now()}`, role: 'system', text }); renderChat(); }
+/** A line from the Overseer that isn't the assistant's answer (what it says in the game, its welcome, credits): shown in
+ *  the chat with the assistant's (the Overseer is the assistant), kept on this page only, never read aloud again. */
+function addOverseer(text, o = {}) {
+  const msg = { id: `local_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, role: 'ai', text, local: true, at: Date.now(), action: o.action || null };
+  chatHistory.push(msg);
+  renderChat(msg);
+  return msg;
+}
+/** Out of credits (402 from the assistant or a generation): the Overseer says so, with a way to get more (a new tab: the
+ *  game keeps running), and the balance is read again when they come back. */
+let creditsAskedAt = 0;
+function noCredits(message) {
+  hga()?.track('credits_out', { where: 'editor' });
+  const fresh = Date.now() - creditsAskedAt > 20_000;
+  creditsAskedAt = Date.now();
+  if (!fresh) return;
+  addOverseer(`${message ? `${String(message).replace(/\.?$/, '.')} ` : ''}I make things from credits, and yours have run out. Get more and ask me again: I will remember the island.`, {
+    action: { label: 'Get credits', href: '/app#credits' },
+  });
+  const back = () => { if (document.visibilityState !== 'visible') return; document.removeEventListener('visibilitychange', back); get('/v1/users/me').then((r) => { const before = Number(me && me.credits) || 0; me = r.user; if ((Number(me.credits) || 0) > before) addOverseer(`You have ${Number(me.credits).toLocaleString()} credits now. Ask me again.`); }).catch(() => {}); };
+  document.addEventListener('visibilitychange', back);
+}
+
+// ------------------------------------------------------------------ the island's tour, carried on here (?tour=1)
+// From the sandbox's mirror and account sheet (public/play/guest.js): the island is their game now. It plays (not the
+// building view), Pip's tour goes on in the game, and the Overseer greets them here in the chat: what it can do, and
+// that it costs their credits (or that they have none yet).
+const tourPlay = new URLSearchParams(location.search).get('tour') === '1';
+if (tourPlay) { history.replaceState(null, '', location.pathname); document.body.classList.add('tour-play'); }
+let tourStarted = false;
+function startTourPlay() {
+  if (tourStarted) return;
+  tourStarted = true;
+  toStage({ type: 'mode', mode: 'play' });
+  hga()?.track('sandbox_tour_editor', {});
+  setTimeout(() => {
+    const name = (me && me.name) || '';
+    const n = Number(me && me.credits) || 0;
+    if (n > 0) addOverseer(`${name ? `Welcome, ${name}. ` : 'Welcome. '}This island is yours now, and I am here: talk to me in this chat. Ask for anything ("a castle on the hill") and I will beam it down. What I make uses your credits: you have ${n.toLocaleString()}.`);
+    else addOverseer(`${name ? `Welcome, ${name}. ` : 'Welcome. '}This island is yours now, and I am here: talk to me in this chat. What I make uses credits, and you have none right now.`, { action: { label: 'Get credits', href: '/app#credits' } });
+  }, 3500);
+}
 function setMention(m) {
   mention = m && m.id ? m : null;
   $('mention').hidden = !mention;
   if (mention) $('mentionName').textContent = `@${mention.name || mention.id}`;
-  $('chatInput').placeholder = mention ? `Tell the assistant what ${mention.name || 'it'} should do…` : 'Press Enter to talk to the assistant';
+  $('chatInput').placeholder = mention ? `Tell the Overseer what ${mention.name || 'it'} should do…` : 'Press Enter to talk to the Overseer';
 }
 $('mentionX').onclick = () => setMention(null);
 $('chatForm').onsubmit = (e) => { e.preventDefault(); sendChat(); };
@@ -433,13 +496,15 @@ async function sendChat(text, about, ctx) {
     setMention(null);
     askedAt = Date.now();
     hga()?.track('assistant_ask', { chars: message.length, mention: Boolean(target), errors: errors.length });
+    // The game hears it too (game.on('asked'): the island's tour has a step for it).
+    toStage({ type: 'event', name: 'asked', data: { chars: message.length } });
   } catch (err) {
     // 402 (no credits) is told by site-analytics.js from the answer itself.
     if (err.status === 429) frustrated('assistant_busy');
     else if (err.status !== 402) frustrated('assistant_unreachable', { status: err.status || 0 });
-    addSystem(err.status === 402 ? `${err.message} Get more credits from the menu's profile, or at hawkesgen.com/app#credits.`
-      : err.status === 429 ? "I'm still working on the last request. Ask again when it's done."
-      : err.status >= 500 || !err.status ? "I couldn't reach the assistant just now. Nothing was charged; try again in a moment." : err.message);
+    if (err.status === 402) { noCredits(err.message); if (text === undefined) input.value = message; return; }
+    addSystem(err.status === 429 ? "I'm still working on the last request. Ask again when it's done."
+      : err.status >= 500 || !err.status ? "I couldn't hear you just now. Nothing was charged; try again in a moment." : err.message);
     if (text === undefined) input.value = message;
   }
 }
@@ -479,8 +544,11 @@ function addError(text, file, line) {
   renderErrors();
 }
 function clearErrors() { errors = []; renderErrors(); }
+// The errors pill and its list only with ?dev=1 on the editor's address (J, 2026-10-24); the errors are still kept and
+// reported.
+const DEV_ERRORS = new URLSearchParams(location.search).get('dev') === '1';
 function renderErrors() {
-  $('errorsContainer').hidden = !errors.length;
+  $('errorsContainer').hidden = !errors.length || !DEV_ERRORS;
   $('errorCount').textContent = errors.length;
   const list = $('errorList');
   list.innerHTML = '';

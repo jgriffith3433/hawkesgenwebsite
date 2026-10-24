@@ -16,7 +16,7 @@ A list of `{ "use": name, ...options }`. A thing can have several.
 | `hurts` | hurts players who touch it | `damage` 20, `every` 0.6 |
 | `checkpoint` | players come back here after falling | |
 | `goal` | touching it wins the game | `message` "You win!" |
-| `launch` | launches whatever lands on it upward | `power` 18 |
+| `launch` | launches whatever lands on it upward; with `to` (a thing's id or `[x, y, z]`) it throws you over to land there (a launch pad up to a tower) | `power` 18, `to` none |
 | `opens` | rises out of the way when someone comes close (a door) | `height` 3, `distance` 4, `speed` 3 |
 | `glow` | glows and pulses | `color`, `speed` 1.5 |
 | `talks` | says something when you come close | `text`, `distance` 4 |

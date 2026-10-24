@@ -34,7 +34,10 @@
       const r = await fetch('/v1/users/password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, password: p1 }) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) { err.textContent = d.error || 'That did not work.'; err.hidden = false; return; }
-      location.href = d.user?.role === 'admin' ? '/admin' : '/app';
+      // Came from the sandbox's account sheet: back to the island (its snapshot waits in this browser), to keep it.
+      let island = null;
+      try { island = JSON.parse(localStorage.getItem('hg_guest_world') || 'null'); } catch { island = null; }
+      location.href = d.user?.role === 'admin' ? '/admin' : island && island.intent ? `/play/sandbox?claim=${encodeURIComponent(island.intent)}` : '/app';
     });
   </script>
   <script src="/enter.js"></script>

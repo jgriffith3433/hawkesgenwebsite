@@ -38,10 +38,13 @@
   const $ = (id) => document.getElementById(id);
   const canvas = $('stage');
   const uiLayer = $('ui');
+  // The error box is for us: on screen only with ?dev=1 (J, 2026-10-24). The lines are kept either way (the tests read
+  // them) and every error is still reported (the editor's list, analytics).
+  const DEV = (() => { try { return new URLSearchParams(location.search).get('dev') === '1'; } catch { return false; } })();
   function showError(text) {
     const box = $('error');
     if (!box || hooks.quietErrors) return;
-    box.hidden = false;
+    box.hidden = !DEV;
     const line = document.createElement('div');
     line.textContent = text;
     box.appendChild(line);

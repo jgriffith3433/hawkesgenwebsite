@@ -48,6 +48,31 @@ function save(t: Task, patch: Partial<Task>) {
   events.emit(t.id, t);
 }
 
+/** How far along a task is, 0-1: its finished steps, plus the running one's share. Inside a step: what Gen's job says
+ *  ("12/30", "45%") when it says, else time (a step creeps toward 85% of its share and never claims more until it's
+ *  done). Waiting in line counts as just begun. */
+const within = new Map<string, number>();
+export function progressOf(t: Task): number {
+  if (t.state === 'done') return 1;
+  const n = Math.max(1, t.steps.length);
+  if (t.state !== 'running') return Math.min(1, t.step / n);
+  let f = within.get(t.id);
+  if (f === undefined) {
+    const s = (Date.now() - (t.stepStarted ?? t.created)) / 1000;
+    f = /in line|queued|starting/.test(t.detail ?? '') ? 0.02 : 0.85 * (1 - Math.exp(-s / 45));
+  }
+  return Math.max(0, Math.min(0.99, (t.step + Math.min(0.95, f)) / n));
+}
+/** A job's own progress from its words, when it has any: "45%", "step 12/30". */
+function fraction(detail: unknown): number | undefined {
+  const d = String(detail ?? '');
+  const pc = /(\d{1,3}(?:\.\d+)?)\s*%/.exec(d);
+  if (pc) return Math.min(1, Number(pc[1]) / 100);
+  const of = /(\d+)\s*\/\s*(\d+)/.exec(d);
+  if (of && Number(of[2]) > 0) return Math.min(1, Number(of[1]) / Number(of[2]));
+  return undefined;
+}
+
 /** What the customer keeps: the steps marked keep, else the last step's outputs. */
 export function results(t: Task): Output[] {
   const kept = t.steps.flatMap((s, i) => (s.keep ? t.outputs[i] ?? [] : []));
@@ -77,6 +102,8 @@ async function waitJob(user: User, jobId: string, t: Task) {
     // Waiting its turn: say where in line it is (Gen counts the jobs ahead in the same lane, from every customer).
     const line = j.status === 'queued' && j.queue ? (j.queue.ahead ? `in line, ${j.queue.ahead} job${j.queue.ahead === 1 ? '' : 's'} ahead of yours` : 'next in line') : null;
     const detail = `${t.steps[t.step].title}: ${line ?? j.detail ?? j.status}`;
+    const f = line ? 0 : fraction(j.detail);
+    if (f === undefined) within.delete(t.id); else within.set(t.id, f);
     if (detail !== last) {
       last = detail;
       save(t, { detail });
@@ -116,8 +143,11 @@ async function run(t: Task) {
       t.outputs[t.step] = (j.outputs ?? []).map((o: any) => ({ asset: o.asset, kind: o.kind, mime: o.mime, title: o.title, step: t.step }));
       const next = t.steps[t.step + 1];
       started.set(t.id, Date.now());
+      within.delete(t.id);
+      t.stepStarted = Date.now();
       save(t, { outputs: t.outputs, step: t.step + 1, detail: next ? `${next.title}: starting` : null });
     }
+    within.delete(t.id);
     if (t.state === 'running') save(t, { state: 'done', detail: null });
   } catch (e: any) {
     save(t, { state: 'failed', error: e.message ?? String(e), detail: null });

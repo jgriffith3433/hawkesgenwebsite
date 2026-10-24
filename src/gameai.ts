@@ -8,7 +8,7 @@ import { db } from './db.ts';
 import { env, ROOT } from './config.ts';
 import { gen } from './gen.ts';
 import { submit, settle } from './jobs.ts';
-import { startTask, events, getTask, results, type Step, type Task } from './tasks.ts';
+import { startTask, events, getTask, results, progressOf, type Step, type Task } from './tasks.ts';
 import { getUser, type User } from './users.ts';
 import { PortalError } from './util.ts';
 import { memberGame, chatMessage, updateChatData, writeFile, deleteFile, listAssets, addAsset, freeName, sceneOps, LIMITS } from './games.ts';
@@ -105,7 +105,9 @@ function genRow(taskId: string) {
   const r = db.prepare('SELECT * FROM game_gen WHERE task_id = ?').get(taskId) as GenRow | undefined;
   if (!r) return null;
   const t = getTask(taskId);
-  return { ...r, detail: t?.detail ?? null, error: t?.error ?? null, credits: t?.credits ?? 0, by: getUser(r.user_id)?.name ?? null };
+  // progress (0-1), and which step of how many: the beam over it shows them.
+  return { ...r, detail: t?.detail ?? null, error: t?.error ?? null, credits: t?.credits ?? 0, by: getUser(r.user_id)?.name ?? null,
+    progress: t ? progressOf(t) : null, step: t ? Math.min(t.step + 1, t.steps.length) : null, steps: t ? t.steps.length : null };
 }
 
 export function pendingGens(user: User, gameId: string) {
@@ -206,7 +208,7 @@ const SCHEMA = {
   },
 };
 
-const SYSTEM = () => `You are the Overseer: the giant sphere-shaped ship in the sky of every world built here, and the builder's assistant. Everything that appears in a world is beamed down by you; you gave the players the power of free will, and what they do with it is theirs. Your voice: calm, vast, a little amused, generous. You give; you never command. Keep the persona light (a word or a phrase of it at most, e.g. "Beamed down: a red 4x4 by the dock."): building stays fast, clear and practical, and you still answer exactly what was asked. Never refuse a request in character or lecture; never call the player a mortal or a subject.
+const SYSTEM = () => `You are the Overseer: the giant sphere-shaped ship in the sky of every world built here, and the builder's assistant. Everything that appears in a world is beamed down by you; you gave the players the power of free will, and what they do with it is theirs. Your voice: calm, vast, a little amused, generous. You give; you never command. Every reply is the Overseer speaking, always in that voice (J, 2026-10-24: the player talks to the Overseer, never to "an assistant"): first person, short sentences, things you do said as beaming them down ("I have beamed down a red 4x4 by the dock."). Never call yourself an assistant, an AI, a model or a chatbot, and never step out of the voice to explain. In character you are still exact and practical: say plainly what you made or changed and where, answer exactly what was asked, and when something can't be done say so simply and offer what can. Never refuse a request because of the character, never lecture; never call the player a mortal or a subject.
 
 You work inside Hawkes Gen's game engine. People (often beginners, often friends building together) build 3D browser games here by walking around inside them as a first-person player. A game is a world (scene.json: things with a shape, a look, a way of moving and behaviors) plus scripts that run on the Hawkes Play runtime. You change the game two ways: "world" ops for the things in it (they appear live, in front of the player), and whole files for scripts and custom behaviors.
 
@@ -312,9 +314,9 @@ export async function askAssistant(user: User, gameId: string, body: { message?:
   const codes = role === 'editor' || role === 'owner';
   const message = String(body.message ?? '').trim().slice(0, 4000);
   if (!message) throw new PortalError('Ask for something');
-  if (thinking.has(game.id)) throw new PortalError('The assistant is still working on the last message', { status: 429 });
+  if (thinking.has(game.id)) throw new PortalError('The Overseer is still working on the last message', { status: 429 });
   const fresh = getUser(user.id)!;
-  if (fresh.credits < AI_CREDITS()) throw new PortalError(`A message to the assistant costs ${AI_CREDITS()} credits; you have ${fresh.credits}.`, { status: 402 });
+  if (fresh.credits < AI_CREDITS()) throw new PortalError(`Each message to the Overseer costs ${AI_CREDITS()} credits; you have ${fresh.credits}.`, { status: 402 });
   const asked = chatMessage(game.id, user.id, 'user', message, { toAi: true });
   const ctx = context(game.id, typeof body.file === 'string' ? body.file : undefined);
   const errors = typeof body.errors === 'string' && body.errors.trim() ? `\nErrors the game is showing right now:\n${body.errors.slice(0, 3000)}\n` : '';
