@@ -132,7 +132,7 @@
     const ring = B.MeshBuilder.CreateTorus('tp-ring', { diameter: 1.3, thickness: 0.05, tessellation: 40 }, sc);
     ring.material = glow; ring.parent = root; ring.position.y = 0.1;
     // The tool itself, floating: a stand-in shape per tool.
-    const item = new B.TransformNode('tp-item', sc); item.parent = root; item.position.y = 1;
+    const item = new B.TransformNode('tp-item', sc); item.parent = root; item.position.y = 0.55;
     const dark = new B.StandardMaterial('tp-dark', sc); dark.diffuseColor = new B.Color3(0.15, 0.16, 0.2);
     const bit = (m, mat, x, y, z) => { m.material = mat; m.parent = item; m.position.set(x, y, z); return m; };
     if (tool === 'grenade' || tool === 'sticky-bomb') { bit(B.MeshBuilder.CreateSphere('tp-b', { diameter: 0.4, segments: 12 }, sc), tool === 'grenade' ? dark : glow, 0, 0, 0); bit(B.MeshBuilder.CreateBox('tp-c', { width: 0.1, height: 0.12, depth: 0.1 }, sc), glow, 0, 0.24, 0); }
@@ -144,7 +144,7 @@
       bit(B.MeshBuilder.CreateBox('tp-grip', { width: 0.1, height: 0.22, depth: 0.1 }, sc), dark, 0, -0.17, -0.12);
     }
     const tag = H.textPlane(label, { size: 0.22 });
-    tag.parent = root; tag.position.y = 1.75; tag.isPickable = false; tag.metadata = { decor: true };
+    tag.parent = root; tag.position.y = 1.3; tag.isPickable = false; tag.metadata = { decor: true };
     for (const m of root.getChildMeshes()) { if (!m.metadata) m.metadata = { entity: e }; }
     e._mat = glow;
     e.pickup = { tool, opts: sh.options && typeof sh.options === 'object' ? sh.options : {}, respawn: num(sh.respawn, 10), item, away: 0 };
@@ -159,7 +159,7 @@
     for (const e of w.entities) {
       const pk = e.pickup;
       if (!pk || !e.alive) continue;
-      pk.item.rotation.y = t * 1.5; pk.item.position.y = 1 + Math.sin(t * 2.2 + e.x) * 0.1;
+      pk.item.rotation.y = t * 1.5; pk.item.position.y = 0.55 + Math.sin(t * 2.2 + e.x) * 0.06;
       if (pk.away > 0) { pk.away -= dt; if (pk.away <= 0) pk.item.setEnabled(true); continue; }
       if (!p || !p.alive || H.mode === 'build') continue;
       const near = Math.hypot(p.x - e.x, p.z - e.z) < 1.1 && Math.abs(p.bottom - e.y) < 2;
