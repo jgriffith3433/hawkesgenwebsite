@@ -9,7 +9,8 @@
 // 'sandbox') and the difference as scene ops (POST /v1/games/:id/scene), then the editor (/app/g/<id>).
 //
 // Analytics (Hawkes analytics, gen.hawkesgen.com/sdk/analytics@1.js): sandbox_start, sandbox_first_action,
-// sandbox_try (each thing to try, once), sandbox_prompt (a button), signup_open, sandbox_signup, sandbox_claimed.
+// sandbox_try (each thing to try, once), sandbox_objective (each step of Pip's tour), sandbox_prompt (a button),
+// signup_open, sandbox_signup, sandbox_claimed.
 (function () {
   'use strict';
   const KEY = 'hg_guest_world';
@@ -40,7 +41,9 @@
         spec.id = e.sceneId;
         if (!orig) { delete spec.shadow; delete spec.temporary; }
         // Moving things where they are now (unless they fell into the sea or out of the world).
-        if (e.physics === 'dynamic' && Number.isFinite(e.y) && e.y > -2) {
+        const round = Boolean(H.planet && H.planet.round && H.hooks && H.hooks.space);
+        const up = round ? H.planet.heightOf(e.position) : e.y;
+        if (e.physics === 'dynamic' && Number.isFinite(up) && up > -2) {
           const q = e.node && e.node.rotationQuaternion;
           let yaw = 0;
           try { yaw = q && q.toEulerAngles ? q.toEulerAngles().y * 180 / Math.PI : e.rotation; } catch { yaw = 0; }
@@ -48,6 +51,8 @@
           t.position = [r2(e.x), r2(e.y + 0.05), r2(e.z)];
           t.rotation = [0, Math.round(Number(yaw) || 0), 0];
           spec.transform = t;
+          // (A round world: that's in the frame round the player; the world file keeps it on the planet.)
+          if (round) H.hooks.space.toScene([{ op: 'replace', entity: spec }]);
         }
         entities[e.sceneId] = spec;
         n++;
@@ -114,18 +119,6 @@
     st.textContent = `
 .gs-ui{position:fixed;z-index:30;font-family:var(--hud);color:#e8ecf6}
 .gs-glass{background:rgba(10,14,24,.78);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
-.gs-tries{left:12px;top:12px;width:min(330px,calc(100vw - 24px));padding:12px 14px 10px;pointer-events:auto}
-.gs-tries h4{margin:0 0 2px;font:700 13px var(--display);letter-spacing:.12em;text-transform:uppercase;color:#7cc4ff;display:flex;justify-content:space-between;align-items:center}
-.gs-tries h4 button{background:none;border:0;color:#a5acc2;font:600 12px var(--hud);cursor:pointer;padding:4px 6px;letter-spacing:.05em}
-.gs-tries p.sub{margin:0 0 8px;font:500 13px var(--hud);color:#a5acc2}
-.gs-tries ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
-.gs-tries li{display:flex;gap:9px;align-items:flex-start;font:600 15px/1.25 var(--hud)}
-.gs-tries li i{flex:none;width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,.35);margin-top:1px;font-style:normal;font-size:11px;display:grid;place-items:center}
-.gs-tries li.done{color:#9ff3c9}.gs-tries li.done i{background:#34d399;border-color:#34d399;color:#06281b}
-.gs-tries li kbd{font:700 12px var(--mono);background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-bottom-width:2px;border-radius:5px;padding:0 5px;color:#fff}
-.gs-tries li small{display:block;font:500 12.5px var(--hud);color:#a5acc2}
-.gs-chip{left:12px;top:12px;padding:8px 12px;font:700 13px var(--hud);letter-spacing:.06em;cursor:pointer;pointer-events:auto;color:#e8ecf6}
-.gs-chip b{color:#9ff3c9}
 .gs-acts{right:12px;top:12px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100vw - 24px);pointer-events:auto}
 .gs-acts button{font:700 14px var(--hud);letter-spacing:.03em;color:#e8ecf6;background:rgba(10,14,24,.78);border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:10px;padding:9px 13px;cursor:pointer;min-height:40px}
 .gs-acts button:hover{border-color:#4a9eff}
@@ -154,9 +147,7 @@
 .gs-busy{font:700 14px var(--display);letter-spacing:.18em;color:#7cc4ff;text-align:center}
 .gs-busy small{display:block;margin-top:10px;font:500 14px var(--sans);letter-spacing:0;color:#a5acc2}
 @media (max-width:640px){
- .gs-tries{top:62px;width:calc(100vw - 24px);max-width:340px;padding:10px 12px 8px}.gs-tries li{font-size:13.5px}.gs-tries li small{font-size:11.5px}
- .gs-chip{padding:8px 10px;font-size:12px}
- .gs-acts .opt{display:none}.gs-acts .more{display:inline-block}
+   .gs-acts .opt{display:none}.gs-acts .more{display:inline-block}
  .gs-acts.open{flex-direction:column;align-items:stretch}.gs-acts.open .opt{display:inline-block}
  .gs-toast{left:12px;flex-wrap:wrap}
 }`;
@@ -172,14 +163,10 @@
     return d;
   }
 
-  // ------------------------------------------------------------------ things to try
-  const TRIES = [
-    { id: 'drive', key: { desk: 'Walk to the green 4x4 and press <kbd>E</kbd> to drive', touch: 'Walk to the green 4x4 and tap the prompt to drive' }, sub: 'The boat by the dock works the same way' },
-    { id: 'boom', key: { desk: '<b>Click</b> to fire the rocket launcher at the red barrels', touch: 'Tap <b>FIRE</b>: the rocket launcher, at the red barrels' }, sub: { desk: 'Q switches to the spawn gun and the gravity gun', touch: '⇄ switches to the spawn gun and the gravity gun' } },
-    { id: 'fish', key: { desk: 'Go east to the dock, grab the rod, hold <b>click</b> to cast', touch: 'Go east to the dock, grab the rod, 🎣 to cast' }, sub: { desk: 'Click when the bobber goes under', touch: 'Tap when the bobber goes under' } },
-    { id: 'talk', key: { desk: 'Say hi to Pip: <kbd>T</kbd> when you are close', touch: 'Say hi to Pip: tap her' }, sub: 'Free simple talk: follow, stay, dance' },
-  ];
-  const pick = (v, touch) => (v && typeof v === 'object' ? (touch ? v.touch : v.desk) : v || '');
+  // ------------------------------------------------------------------ what they try (the island's own quest line guides them)
+  // The guide is the world's: Pip's tour (config.quests "tour", src/overseer-games/sandbox.ts) in the quest tracker, and
+  // its moments in the template's script. Here we only notice what they do, for the analytics and the nudge.
+  const TRIES = ['drive', 'boom', 'fish', 'talk', 'spawn', 'fly'];
 
   function startUi(H, base, t0) {
     style();
@@ -189,42 +176,32 @@
     const edits = [];
     track('sandbox_start', { touch, ms: Math.round(performance.now()), loadMs: Math.round(performance.now() - t0) });
 
-    // The card: what to try, ticked off as they do it. Collapses to a chip (on phones by itself after a while).
-    const card = el(`<h4>Things to try <button type="button" data-hide>Hide</button></h4><p class="sub">Nothing here is saved, and it's all free.</p><ul>${TRIES.map((x) => `<li data-try="${x.id}"><i></i><span>${pick(x.key, touch)}<small>${pick(x.sub, touch)}</small></span></li>`).join('')}</ul>`, 'gs-glass gs-tries');
-    const chip = el('Things to try <b>0/4</b>', 'gs-glass gs-chip');
-    chip.hidden = true;
-    const collapse = (on) => { card.hidden = on; chip.hidden = !on; };
-    card.querySelector('[data-hide]').onclick = () => collapse(true);
-    chip.onclick = () => collapse(false);
-    // Phones have little room (the vehicle and tool buttons): the card folds away after a while, and after each tick.
-    if (touch) setTimeout(() => collapse(true), 10000);
     function tick(id) {
-      if (done.has(id) || !TRIES.some((x) => x.id === id)) return;
+      if (done.has(id) || !TRIES.includes(id)) return;
       done.add(id);
-      const li = card.querySelector(`[data-try="${id}"]`);
-      if (li) { li.classList.add('done'); li.querySelector('i').textContent = '✓'; }
-      chip.querySelector('b').textContent = `${done.size}/${TRIES.length}`;
-      if (touch) collapse(true);
       track('sandbox_try', { what: id, n: done.size, s: Math.round((performance.now() - t0) / 1000) });
-      if (done.size === 2) nudge();
+      if (done.size === 2 && !touring()) nudge(4000);
     }
+    // (While Pip's tour runs, the nudge waits for its end.)
+    const touring = () => { try { return H.game.events.quests.state('tour') === 'active'; } catch { return false; } };
 
     // The buttons that open the account side.
     const acts = el(`<button type="button" class="primary" data-intent="save">Save this world</button><button type="button" class="opt" data-intent="build">Build your own</button><button type="button" class="opt" data-intent="assistant">Ask the assistant</button><button type="button" class="opt" data-intent="invite">Invite a friend</button><button type="button" class="more" data-more aria-label="More">⋯</button>`, 'gs-acts');
     acts.querySelectorAll('[data-intent]').forEach((b) => { b.onclick = () => { acts.classList.remove('open'); want(b.dataset.intent, 'button'); }; });
     acts.querySelector('[data-more]').onclick = () => acts.classList.toggle('open');
 
-    // One gentle nudge, once: after two things tried, or after four minutes.
+    // One gentle nudge, once: after two things tried, at the end of the tour, or after four minutes.
     let nudged = false;
-    function nudge() {
+    function nudge(wait = 0) {
       if (nudged) return;
       nudged = true;
+      if (wait) return void setTimeout(() => { nudged = false; nudge(); }, wait);
       const t = el('<span>Having fun? Keep this island: it becomes your game.</span><button type="button" class="primary" data-yes>Save this world</button><button type="button" data-no>Not now</button>', 'gs-glass gs-toast');
       t.querySelector('[data-yes]').onclick = () => { t.remove(); want('save', 'nudge'); };
       t.querySelector('[data-no]').onclick = () => t.remove();
       setTimeout(() => t.remove(), 12000);
     }
-    setTimeout(nudge, 4 * 60 * 1000);
+    setTimeout(() => { if (!touring()) nudge(); }, 4 * 60 * 1000);
 
     // What they do: the first action, and the things to try.
     const firstAction = (what) => { if (first) return; first = true; track('sandbox_first_action', { what, s: Math.round((performance.now() - t0) / 100) / 10, touch }); };
@@ -238,6 +215,15 @@
     on('explosion', () => tick('boom'));
     on('cast', () => tick('fish'));
     on('catch', () => tick('fish'));
+    on('spawned', () => tick('spawn'));
+    on('sandbox-high', () => tick('fly'));
+    // The tour's steps (Pip's quest line), each once, and its end: the moment to offer keeping the island.
+    on('tour', (d) => { if (d && d.step) track('sandbox_objective', { step: d.step, s: Math.round((performance.now() - t0) / 1000), touch }); });
+    on('quest', (d) => {
+      if (!d || d.id !== 'tour') return;
+      if (d.state === 'start') track('sandbox_objective', { step: 'start', s: Math.round((performance.now() - t0) / 1000), touch });
+      if (d.state === 'done') nudge(7000);
+    });
     on('terrain', (d) => { for (const x of (d && d.edits) || []) if (edits.length < MAX_EDITS) edits.push(x); });
     setInterval(() => {
       try { if (H.game.player && H.game.player.controller === 'drive') tick('drive'); } catch { /* fine */ }
