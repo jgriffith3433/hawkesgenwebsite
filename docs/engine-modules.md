@@ -221,6 +221,11 @@ const boom = H.sync.action('mayhem:boom', (d, { authoritative }) => {
 boom({ at: [x, y, z], radius: 6, force: 20 });      // from anyone
 ```
 
+- `H.sync.explode(at, { radius, force, up })`: the engine's own host-authoritative explosion (the rocket launcher uses
+  it): the host throws things and takes them over, everyone's own player is pushed where they stand. Do the damage
+  yourself with `H.physics.explode(at, { radius, damage, force: 0, owner })` so kills are credited to whoever fired.
+- Moving scene things are sent by their simulator 10 times a second, delta-encoded (only the fields that changed, all
+  of them once a second); things scripts make (game.many) are not synced: every player's scripts make their own.
 - `H.sync.mine(e)`, `H.sync.claim(e)` (take over simulating it: do this before pushing a thing someone else owns),
   `H.sync.release(e)`, `H.sync.isHost`, `H.sync.online`, `H.sync.me`.
 - Scripts' own messages stay `game.net.send / on` (API.md).
