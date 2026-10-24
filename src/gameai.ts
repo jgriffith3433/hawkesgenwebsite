@@ -64,6 +64,11 @@ export const KINDS: Record<string, { title: string; credits: string; build: (pro
   },
   sfx: { title: 'Sound effect', credits: '~8', build: (p, o) => [{ tool: 'audio.sfx', title: 'Recording', params: { text: p, ...(o.seconds ? { duration: Number(o.seconds) } : {}), loop: false, count: 1 } }] },
   music: { title: 'Music loop', credits: '~20', build: (p, o) => [{ tool: 'audio.music', title: 'Composing', params: { prompt: p, seconds: Math.max(10, Math.min(180, Number(o.seconds) || 60)) } }] },
+  // A video clip (a TV show, a screen's loop): text to video, 16:9 for screens. Plays on tv, projector, computer and video things.
+  video: {
+    title: 'Video (a TV show clip)', credits: '~40',
+    build: (p, o) => [{ tool: 'video.t2v', title: 'Filming', params: { prompt: `${p}, a TV show shot, steady framing`, seconds: Math.max(1, Math.min(10, Number(o.seconds) || 5)), width: 832, height: 480 } }],
+  },
   voice: {
     title: 'Voice line', credits: '~10',
     build: async (p, o) => {
@@ -133,7 +138,7 @@ async function finish(row: GenRow, t: Task) {
   // A model comes as the full GLB and its low-detail copy (title "…LOD1"): the copy joins as "<name>_low.glb".
   const glbs = out.filter((o) => o.mime === 'model/gltf-binary');
   const low = glbs.find((o) => /lod/i.test(o.title ?? ''));
-  const pick = glbs.find((o) => !/lod/i.test(o.title ?? '')) ?? out.find((o) => /^(image|audio|model)\//.test(o.mime) || o.mime === 'model/gltf-binary') ?? out[0];
+  const pick = glbs.find((o) => !/lod/i.test(o.title ?? '')) ?? out.find((o) => /^(image|audio|model|video)\//.test(o.mime) || o.mime === 'model/gltf-binary') ?? out[0];
   let assetName: string | null = null;
   let state = t.state === 'done' ? 'done' : t.state;
   if (t.state === 'done' && pick && user) {
@@ -190,7 +195,7 @@ const SCHEMA = {
         type: 'object', additionalProperties: false, required: ['kind', 'name', 'prompt', 'community'],
         properties: {
           kind: { type: 'string', enum: Object.keys(KINDS) },
-          name: { type: 'string', description: 'File name the scripts use, with extension: sprite/image/texture .png, sky .jpg, model .glb, sfx/voice/music .mp3' },
+          name: { type: 'string', description: 'File name the scripts use, with extension: sprite/image/texture .png, sky .jpg, model .glb, sfx/voice/music .mp3, video .mp4' },
           prompt: { type: 'string', description: 'What to generate: subject, style, mood. For voice: the exact line.' },
           community: { type: 'string', description: 'The id (a_...) of the community library thing that fits best, from the list you were given, or "". The people choose: that one, another match, or making their own.' },
         },
