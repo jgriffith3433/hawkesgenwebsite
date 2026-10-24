@@ -750,7 +750,7 @@
       if (!r) { setTimeout(() => p.control('walk'), 0); return; }
       ctx.state.r = r;
       r.ridden = p; r.goal = null; r.path = null; r.command = null; r.attack = null; r.state = 'idle'; r.tame = true;
-      p.ghost = true; p.gravity = 0;
+      p.ghost = true; p.gravity = 0; p.held = true; // carried: the character controller lets the mount move them
       if (H.sync && H.sync.claim) H.sync.claim(m);
       seat(p, r);
       if (G()) G().ui.message(`Riding the ${r.name}: WASD, shift to gallop, E to get off`, 2);
@@ -771,7 +771,7 @@
     idle(p, ctx) { const r = ctx.state.r; if (r && r.e.alive) { r.e.walk({ x: 0, z: 0 }, 0); seat(p, r); } p._walked = true; },
     exit(p, ctx) {
       const r = ctx.state.r;
-      p.ghost = false;
+      p.ghost = false; p.held = false;
       p.gravity = p.baseGravity ?? 1;
       if (!r) return;
       r.ridden = null; r.state = 'idle'; r.act = 'idle'; r.until = now() + 3;

@@ -205,7 +205,7 @@
         const [tw, tl, up] = [sp.tail[0] * s, sp.tail[1] * s, sp.tail[2]];
         const tail = joint(scene, vis, [0, bodyY + Ht * 0.1, -L / 2 + 0.02], 'lv-tail');
         tail.rotation.x = -up * RAD;
-        part(scene, tail, sp.dino ? 'cone' : 'box', c.body, sp.dino ? [tw * 2, tl, tw * 2] : [tw * 1.4, tw * 0.25, tl], sp.dino ? [0, 0, -tl / 2] : [0, 0, -tl / 2], sp.dino ? [-90, 0, 0] : null);
+        part(scene, tail, sp.dino ? 'cone' : 'box', c.body, sp.dino ? [tw * 1.2, tl, tw * 1.2] : [tw * 1.4, tw * 0.25, tl], sp.dino ? [0, 0, -tl / 2] : [0, 0, -tl / 2], sp.dino ? [-90, 0, 0] : null);
         rig.tail = tail; rig.tailBase = tail.rotation.x;
       }
       rig.height = upright ? legH + Ht + hh : bodyY + Ht / 2 + hh * 0.7;
