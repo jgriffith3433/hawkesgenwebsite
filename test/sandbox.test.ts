@@ -51,7 +51,15 @@ test('the sandbox page is the game page, served unsandboxed (our template only);
   const scene = JSON.parse(t.body.files['scene.json']);
   for (const k of ['terrain', 'water', 'player', 'mayhem']) assert.ok(scene.config[k], k);
   const types = new Set(Object.values(scene.entities).map((e: any) => e.type));
-  for (const k of ['truck', 'boat', 'herd', 'barrel', 'tool-pickup', 'friend']) assert.ok(types.has(k), k);
+  for (const k of ['truck', 'boat', 'helicopter', 'herd', 'tool-pickup', 'friend']) assert.ok(types.has(k), k);
+  // The fuel barrels are the library's, and they still go off (Mayhem's explosive behavior).
+  assert.ok((scene.entities.barrel_1.behaviors || []).some((b: any) => b.use === 'explosive'), 'barrels explode');
+  // It's a new game's world: the round planet (an ocean round it), the Overseer's intro every time, Pip's tour.
+  assert.equal(scene.config.planet.sphere, true);
+  assert.equal(scene.config.overseer.intro, 'always');
+  assert.ok(scene.config.quests.some((q: any) => q.id === 'tour' && q.giver === 'Pip'));
+  // Its art and sound are community things, served with the template.
+  assert.ok(Object.keys(t.body.assets).length === 0 || Object.values(t.body.assets).every((a: any) => /^\/v1\/community\/a_/.test(a.url)));
   // No paid AI talk: the friends use the free phrasebook.
   assert.equal(scene.config.friends, undefined);
   assert.equal((await fetch(`${base}/play/guest.js`)).status, 200);

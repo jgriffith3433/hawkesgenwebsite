@@ -28,7 +28,7 @@
 
   // ------------------------------------------------------------------ the frame
   // O: where the frame's origin is on the planet (planet meters, double precision); Q: how it's turned (local -> planet).
-  const F = { on: false, R: 50000, O: [0, 0, 0], Q: new B.Quaternion(0, 0, 0, 1), Qi: new B.Quaternion(0, 0, 0, 1), rebases: 0 };
+  const F = { on: false, R: 50000, seabed: 0, O: [0, 0, 0], Q: new B.Quaternion(0, 0, 0, 1), Qi: new B.Quaternion(0, 0, 0, 1), rebases: 0 };
   const listeners = [];
   function reset() { F.O = [0, 0, 0]; F.Q.set(0, 0, 0, 1); F.Qi.set(0, 0, 0, 1); }
 
@@ -101,7 +101,7 @@
   /** Edits already in the world file's frame (undo, redo): nothing to change. */
   function mark(ops) { for (const op of ops || []) if (op && typeof op === 'object') done.add(op); return ops; }
   /** Fell through the ground (well under the planet's surface). */
-  const below = (e) => P.heightOf(e.position) < -40;
+  const below = (e) => P.heightOf(e.position) < Math.min(0, P.seabed) - 40;
   const space = { fromScene, toScene, mark, below, toPlanet, toLocal, dirToPlanet };
 
   // ------------------------------------------------------------------ moving the frame under you
@@ -242,9 +242,11 @@
   }
   /** The patch: rings round the middle, close together near it (a metre) and wider out to its edge (the planet's
    *  curve is exact at every vertex; between them the sag is a few mm near you). Its middle is the frame's origin. */
+  /** How far round you the ground patch reaches (m); past it, the ball in the far layer. */
+  const reachOf = (R) => Math.min(3000, R * 0.6);
   function groundMesh(scene, R) {
     const rings = PHONE ? 52 : 72, segs = PHONE ? 112 : 160;
-    const edge = Math.min(3000, R * 0.6), a = 5.4, ea = Math.exp(a) - 1;
+    const edge = reachOf(R), a = 5.4, ea = Math.exp(a) - 1;
     const pos = [0, 0, 0], nor = [0, 1, 0], idx = [];
     for (let i = 1; i <= rings; i++) {
       const r = edge * (Math.exp((a * i) / rings) - 1) / ea;
@@ -269,6 +271,11 @@
     vd.applyToMesh(m);
     return m;
   }
+  /** The ground's colours: the planet's lands, or under an ocean planet's sea its sandy floor. */
+  function groundColors(cf) {
+    const b = cf.biome || P.BIOMES.earth;
+    return P.biomeColors(cf.seabed < 0 ? { ...b, land: b.sand, rock: b.sand, snow: b.sand } : b);
+  }
   let ground = null;
   function makeGround(w) {
     const scene = w.scene;
@@ -279,12 +286,14 @@
     mat.backFaceCulling = false;
     mat.hpNoCurve = true;
     const plug = new GroundPlugin(mat);
-    plug.st = { colors: P.biomeColors(P.config.biome || P.BIOMES.earth) };
+    plug.st = { colors: groundColors(P.config) };
     mesh.material = mat;
     mesh.receiveShadows = true;
     const e = new L.Entity(mesh, { physics: 'static', name: 'The ground', tag: 'ground', grab: false, friction: 0.8 }, 'planet');
     e.temporary = true; e.keep = true; e.noCull = true; e._frameFixed = true; e.grabbable = false;
-    L.place(e, { position: [0, 0, 0], shadow: false });
+    // An ocean planet (planet.seabed): the ground is the sea floor, that deep under the sea everywhere.
+    F.seabed = Math.min(0, P.seabed);
+    L.place(e, { position: [0, F.seabed, 0], shadow: false });
     H.physics.setShape(e, H.physics.shapes.mesh(e));
     ground = { e, mesh, mat, plug, R: F.R };
     return ground;
@@ -322,9 +331,9 @@
       if (!w || !(ops || []).some((o) => o && o.op === 'config' && o.patch && 'planet' in o.patch)) return;
       const cf = P.config;
       const on = Boolean(cf && cf.on && cf.round);
-      // Round or flat, or a new size: the world starts again (where things are means something else now).
-      if (on !== F.on || (on && cf.radius !== F.R)) { w.restartAsked = true; return; }
-      if (ground && ground.plug) ground.plug.st = { colors: P.biomeColors(cf.biome || P.BIOMES.earth) };
+      // Round or flat, a new size or a new seabed: the world starts again (where things are means something else now).
+      if (on !== F.on || (on && (cf.radius !== F.R || Math.min(0, cf.seabed || 0) !== F.seabed))) { w.restartAsked = true; return; }
+      if (ground && ground.plug) ground.plug.st = { colors: groundColors(cf) };
     },
     leave() { ground = null; },
   });
@@ -354,7 +363,7 @@
       title: 'A round planet', group: 'World features',
       what: 'The whole world is a planet: walk, fly and build all the way round it. Gravity pulls to its middle, things stand up wherever they are, and from high up (fly up: faster the higher you are) you see the ball you were standing on. New games start on one, 50 km across. Here, a tiny one.',
       value: { sphere: true, radius: 400, biome: 'earth' },
-      fields: [['sphere', 'true: the world is round (walk, fly and build all the way round)', 'false'], ['radius', 'meters (a new game: 50000; at least 200)', '50000'], ['biome', 'its lands: earth, forest, desert, ice, alien...', 'earth'], ['clouds', '0-1, seen from high up', 'by biome'], ['air', "the air's scale height (m): space begins about 10 km up", '1800']],
+      fields: [['sphere', 'true: the world is round (walk, fly and build all the way round)', 'false'], ['radius', 'meters (a new game: 50000; at least 200)', '50000'], ['biome', 'its lands: earth, forest, desert, ice, alien...', 'earth'], ['clouds', '0-1, seen from high up', 'by biome'], ['air', "the air's scale height (m): space begins about 10 km up", '1800'], ['seabed', 'meters under sea level the ground is: an ocean planet (with config.water), terrain an island in it', '0']],
     },
   });
 
@@ -376,6 +385,8 @@
     /** Moves the frame now (to the player, or to a point around you). */
     rebase(at) { const w = W(); rebaseTo(at || (w && w.player ? w.player.position : [0, 0, 0])); },
     get limit() { return F.limit; },
+    /** How far round you the ground patch reaches (m): the sea is drawn that far too. */
+    get reach() { return reachOf(F.R); },
     get far() { return F.far; },
   };
 })();

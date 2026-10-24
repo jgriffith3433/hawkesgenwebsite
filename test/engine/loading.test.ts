@@ -200,7 +200,7 @@ const bundleOf = (scene: any, files: Record<string, string> = {}) => ({ files: {
 test('which lazy modules a game needs: its kinds, config, tools and the words its scripts use', async () => {
   const needs = await loaderNeeds();
   const { SANDBOX } = await import('../../src/templates.ts');
-  assert.deepEqual(needs(bundleOf({ config: SANDBOX.config, entities: SANDBOX.entities() })), ['vehicles'], 'the island: a 4x4 and a boat');
+  assert.deepEqual(needs(bundleOf({ config: SANDBOX.config, entities: SANDBOX.entities() })), ['vehicles', 'events'], 'the island: its vehicles, and Pip\'s tour (quests and the dock\'s zone)');
   assert.deepEqual(needs(bundleOf({ config: {}, entities: { a: { type: 'box' } } })), [], 'boxes need none');
   assert.deepEqual(needs(bundleOf({ config: {}, entities: { tv: { type: 'tv' } } })), ['homes']);
   assert.deepEqual(needs(bundleOf({ config: { events: [] }, entities: {} })), ['vehicles', 'events'], 'events bring what they use');
