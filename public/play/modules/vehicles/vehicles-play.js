@@ -209,6 +209,14 @@
   function useOffer(p) {
     const w = W();
     if (!w || H.mode !== 'play' || !p || !p.alive) return null;
+    // The ride is over if the player is no longer driving (got out into the water, was moved by a script...): never
+    // keep offering "Get out" for it.
+    if (local && p === w.player && (p.controller !== 'drive' || !p._vehRider)) {
+      const v = local.v;
+      leaveLocal(false, true);
+      const s = v.seats.find((x) => V.isMe(x.who));
+      if (s) { s.who = null; if (s.i === 0) v.input = { ...X.ZERO_INPUT }; }
+    }
     if (local) return { entity: local.v.e, label: `Get out of the ${local.v.def.title.toLowerCase()}`, key: 'e', priority: 100, act: () => { if (W().time - lastSwitch > 0.25) exit(false); } };
     if (!p.controls || p.controller !== 'walk' || p._view === 'rts') return null;
     const e = nearest(p, REACH);
