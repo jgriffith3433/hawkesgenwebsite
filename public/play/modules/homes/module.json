@@ -1,0 +1,7 @@
+{
+  "title": "Homes and media",
+  "order": 65,
+  "scripts": ["homes.js", "plan.js", "furniture.js", "screens.js", "house.js"],
+  "editor": ["editor.js"],
+  "kinds": ["house", "room", "wall", "chair", "sofa", "bed", "table", "desk", "shelf", "plant", "rug", "fridge", "cupboard", "door", "lamp", "switch", "sink", "bathtub", "shower", "toilet", "oven", "clock", "piano", "tv", "computer", "projector", "cctv", "radio", "remote", "phone"]
+}
