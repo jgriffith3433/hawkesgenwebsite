@@ -245,6 +245,50 @@ test('the codex spec of every vehicle builds and runs cleanly', () => {
   }
 });
 
+test('with the Water module: boats float on its water (H.water.buoyancy), subs dive in it', () => {
+  const pond = { type: 'water', name: 'Lake', shape: { size: [120, 8, 120] }, transform: { position: [0, 4, 0] } };
+  world(H, sceneOf({ floor, start, pond, boat: { type: 'boat', transform: { position: [0, 9, 0] } }, sub: { type: 'submarine', transform: { position: [20, 8.5, 0] } } }));
+  assert.ok(H.water && typeof H.water.buoyancy === 'function', 'the Water module is loaded');
+  H.tick(5);
+  const boat = H.game.entity('boat'), sub = H.game.entity('sub');
+  const s = H.water.surfaceAt(boat.x, boat.z);
+  assert.ok(Math.abs(boat.y - s) < 0.9, `the boat floats on its surface (y ${boat.y.toFixed(2)}, surface ${s.toFixed(2)})`);
+  H.game.vehicles.enter(boat);
+  hold(['w'], 3);
+  assert.ok(boat.speed > 10 && Math.abs(boat.y - H.water.surfaceAt(boat.x, boat.z)) < 1.2, `it speeds over it (${boat.speed.toFixed(1)} m/s)`);
+  H.game.vehicles.exit();
+  H.tick(0.2);
+  const top = sub.y;
+  H.game.vehicles.enter(sub);
+  hold(['c'], 3);
+  H.tick(2);
+  assert.ok(sub.y < top - 1.5, `C dives (${top.toFixed(2)} → ${sub.y.toFixed(2)})`);
+  hold(['space'], 3);
+  H.tick(4);
+  assert.ok(sub.y > top - 1, `space surfaces (${sub.y.toFixed(2)})`);
+});
+
+test('for other modules: near, nearest (a point too), board with { driver }', () => {
+  world(H, sceneOf({ floor, start, car: { type: 'car', transform: { position: [0, rest('car'), 6] } } }));
+  H.tick(0.5);
+  const car = H.game.entity('car');
+  assert.equal(H.vehicles.near([0, 1, 8], 3), car);
+  assert.equal(H.vehicles.nearest([0, 1, 30], 3), null);
+  assert.equal(H.vehicles.nearest([0, 1, 30], 50), car);
+  assert.ok(H.vehicles.kinds.includes('truck'));
+  const friend = H.game.capsule({ x: 2, y: 1, z: 6, physics: 'dynamic', name: 'Max' });
+  assert.ok(H.vehicles.board(car, friend, { driver: true }));
+  assert.equal(car.driver, friend);
+  const other = H.game.capsule({ x: 3, y: 1, z: 6, physics: 'dynamic', name: 'Sam' });
+  assert.ok(H.vehicles.board(car, other, { driver: true }), 'a passenger when the wheel is taken');
+  assert.notEqual(car.driver, other);
+  assert.equal(H.vehicles.useOffer(H.game.player), null, 'too far to get in');
+  H.game.player.position = [1.5, 1, 6];
+  H.tick(0.1);
+  const o2 = H.vehicles.useOffer(H.game.player);
+  assert.ok(o2 && /Ride in the car/.test(o2.label), 'E offers a ride (the friend drives)');
+});
+
 test('no errors were reported along the way', () => {
   assert.deepEqual(errors, []);
 });

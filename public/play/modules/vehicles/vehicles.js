@@ -425,8 +425,11 @@
     if (v.wheels.length) contacts = wheelForces(v, inp, dt, g);
     v.grounded = contacts > 0;
     if (!v.wheels.length) v.grounded = Boolean(cast(v, v.pos, new B.Vector3(0, -1, 0), V.restHeight(D) + 0.25));
-    // Water: things float (boats well, cars a little), water slows everything in it.
-    buoyancy(v, dt, g);
+    // Water: things float (boats well, cars a little), water slows everything in it. The Water module floats real
+    // bodies (waterBuoyancy, before this); otherwise ours.
+    if (!v.waterDone) buoyancy(v, dt, g);
+    else waterSettle(v, dt);
+    v.waterDone = false;
     // What each class does with its input.
     if (D.class === 'wheeled') wheeledControl(v, inp, dt, contacts);
     else if (D.class === 'boat') boatControl(v, inp, dt);
@@ -470,6 +473,7 @@
     v.w.set(av[0] * RAD, av[1] * RAD, av[2] * RAD);
     v.M = null;
     axes(v);
+    waterBuoyancy(v);
     applyPending(v);
     forces(v, dt, false);
     integrate(v, dt, v.grounded ? 0.5 : 0.1);
@@ -663,6 +667,32 @@
       v.w.addInPlace(axis.scale(Math.min(1, dt * 3 * sub * (D.class === 'boat' || D.class === 'sub' ? 3 : 1))));
       v.w.scaleInPlace(Math.max(0, 1 - dt * 1.5 * sub));
     }
+  }
+
+  /** The Water module's buoyancy (H.water.buoyancy, its waves and currents) for a real body: hull points, a density
+   *  per vehicle (a boat floats high, a sub's ballast sets its own, a car sinks slowly). Returns true if it ran. */
+  const DENSITY = { boat: 0.38, plane: 0.75, heli: 0.85, wheeled: 1.35 };
+  function waterBuoyancy(v) {
+    const Wm = H.water;
+    if (!Wm || typeof Wm.buoyancy !== 'function' || v.e.physics !== 'dynamic') return false;
+    const D = v.def;
+    const lo = v.e._loff || [0, 0, 0];
+    const points = floatPoints(v).slice(0, 4).map((p) => [p[0] - lo[0], p[1] - lo[1], p[2] - lo[2]]);
+    const density = D.class === 'sub' ? 1 / (1 + 0.35 * v.ballast) : DENSITY[D.class] || 1;
+    let r = null;
+    try { r = Wm.buoyancy(v.e, { density, drag: D.class === 'boat' ? 0.22 : D.class === 'sub' ? 0.5 : 1.6, points, always: D.class === 'sub' }); } catch (err) { H.report(err, 'vehicles water'); }
+    v.submerged = r ? r.submerged : 0;
+    v.nearWater = Boolean(r);
+    v.waterDone = Boolean(r); // (no water of the module's here: things tagged "water" still float it, ours)
+    return true;
+  }
+  /** With the Water module floating it: the hull stays upright and stops rocking. */
+  function waterSettle(v, dt) {
+    const sub = v.submerged;
+    if (sub <= 0.02) return;
+    const keel = v.def.class === 'boat' || v.def.class === 'sub' ? 3 : 1;
+    v.w.addInPlace(B.Vector3.Cross(v.up, UP).scale(Math.min(1, dt * 3 * sub * keel)));
+    v.w.scaleInPlace(Math.max(0, 1 - dt * 1.5 * sub));
   }
 
   function boatControl(v, inp, dt) {
