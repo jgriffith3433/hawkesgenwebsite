@@ -195,7 +195,6 @@
         if (H.sync && H.sync.online && v.e.sceneId && !H.sync.mine(v.e) && (local.claimT = (local.claimT || 0) + dt) > 0.5) { local.claimT = 0; H.sync.claim(v.e); }
       }
       if (input.pressed('v')) { local.cam = local.cam === 'chase' ? 'far' : local.cam === 'far' ? 'cockpit' : 'chase'; local.camPos = null; }
-      if (input.pressed('e') && W().time - lastSwitch > 0.25) exit(false);
     },
     exit(p) {
       // Switched away by a script (game.player.control('walk')) while still seated: get out properly.
@@ -204,24 +203,26 @@
   });
 
   // ------------------------------------------------------------------ walking up to one: the prompt, E to get in
-  // All of getting in is this one offer: what E (or a tap on the prompt) does for a player right here, or null.
-  // (When the engine has a shared 'use' registry, this is what goes in it.)
+  // All of getting in and out is this one offer: what E (or a tap on the hint) does for a player right here, or null.
+  // It goes in the engine's use registry (H.use), which picks between it, a horse to ride, a friend to talk to...
   function useOffer(p) {
     const w = W();
-    if (!w || H.mode !== 'play' || !p || !p.alive || !p.controls || local || p.controller !== 'walk' || p._view === 'rts') return null;
+    if (!w || H.mode !== 'play' || !p || !p.alive) return null;
+    if (local) return { entity: local.v.e, label: `Get out of the ${local.v.def.title.toLowerCase()}`, key: 'e', priority: 100, act: () => { if (W().time - lastSwitch > 0.25) exit(false); } };
+    if (!p.controls || p.controller !== 'walk' || p._view === 'rts') return null;
     const e = nearest(p, REACH);
     if (!e) return null;
     const v = e.vehicle;
     const verb = v.seats[0].who ? 'Ride in' : v.def.class === 'plane' || v.def.class === 'heli' ? 'Fly' : v.def.twoWheels ? 'Ride' : 'Drive';
-    return { entity: e, label: `${verb} the ${e.name && e.name !== v.def.title ? e.name : v.def.title.toLowerCase()}`, key: 'e', priority: 10, act: () => enter(e) };
+    const d = Math.hypot(p.x - e.x, p.y - e.y, p.z - e.z) - Math.max(v.def.size[0], v.def.size[2]) / 2;
+    return { entity: e, label: `${verb} the ${e.name && e.name !== v.def.title ? e.name : v.def.title.toLowerCase()}`, key: 'e', distance: Math.max(0, d), act: () => { if (W().time - lastSwitch > 0.25) enter(e); } };
   }
   let near = null;
+  H.use.register('vehicles:enter', { near: (p) => useOffer(p) });
   H.hooks.step.push(() => {
-    const w = W(), g = G();
-    const offer = w && g ? useOffer(w.player) : null;
-    near = offer ? offer.entity : null;
-    prompt(offer);
-    if (offer && g.input.pressed('e') && w.time - lastSwitch > 0.25) offer.act();
+    const w = W();
+    const offer = w ? useOffer(w.player) : null;
+    near = offer && !local ? offer.entity : null;
   });
   /** The closest vehicle with a free seat to a thing or a point ([x, y, z]), within reach (meters from its side). */
   function nearest(from, reach = REACH) {
@@ -509,14 +510,14 @@ body.veh-touching #veh-hud .hint{display:none}
   let ac = null, master = null;
   const voices = new Map(); // vehicle entity -> voice
   function startAudio() {
+    // The engine's audio (H.audio): one context, and everything through its master (water muffles it under water).
     if (ac) { if (ac.state === 'suspended') ac.resume().catch(() => {}); return; }
     try {
-      const C = window.AudioContext || window.webkitAudioContext;
-      if (!C) return;
-      ac = new C();
+      ac = H.audio.context;
+      if (!ac) return;
       master = ac.createGain();
       master.gain.value = 0.32;
-      master.connect(ac.destination);
+      master.connect(H.audio.master);
     } catch { ac = null; }
   }
   /** An asset named for this vehicle's sound, if the game has one: shape.sounds.<what>, else "<type>-<what>.*", else "<what>.*". */
@@ -649,7 +650,7 @@ body.veh-touching #veh-hud .hint{display:none}
 
   // ------------------------------------------------------------------ worlds come and go
   H.hooks.world.push({
-    enter() { local = null; near = null; promptFor = null; ensureNet(); const g = G(); if (g) g.on('explosion', (d) => { if (d) V.blast(d.at || d.position || d.pos || d.point || [0, 0, 0], d); }); },
+    enter() { local = null; near = null; promptFor = null; ensureNet(); },
     leave() {
       local = null;
       prompt(null);
@@ -688,21 +689,8 @@ body.veh-touching #veh-hud .hint{display:none}
       types: Object.keys(V.types),
     };
   }
-  // game.vehicles exists for every game: added the moment the engine makes the game object (window.game), before the
-  // scripts run. (Chains with anyone else watching window.game; installed again once every module has loaded, in case
-  // a later one replaced the watch without chaining. Hook request: H.hooks.game(g).)
-  const attachGame = (g) => { if (g && typeof g === 'object' && !Object.prototype.hasOwnProperty.call(g, 'vehicles')) Object.defineProperty(g, 'vehicles', { value: api(), enumerable: true, configurable: true }); };
-  function watchGame() {
-    const desc = Object.getOwnPropertyDescriptor(window, 'game');
-    if (desc && desc.set && desc.set.__vehicles) return;
-    let cur = desc && !desc.get ? desc.value : undefined;
-    const set = function (g) { if (desc && desc.set) desc.set.call(window, g); else cur = g; attachGame(g); };
-    set.__vehicles = true;
-    Object.defineProperty(window, 'game', { configurable: true, enumerable: true, get() { return desc && desc.get ? desc.get.call(window) : cur; }, set });
-    attachGame(H.game);
-  }
-  watchGame();
-  Promise.resolve(H.ready).then(watchGame, watchGame);
+  // game.vehicles for every game object, before the scripts run (H.hooks.game).
+  H.hooks.game.push((g) => { g.vehicles = api(); });
 
   Object.assign(V, {
     enter, exit, board, unboard, nearest, useOffer,

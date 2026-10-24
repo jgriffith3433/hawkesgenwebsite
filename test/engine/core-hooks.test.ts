@@ -67,6 +67,30 @@ test('H.use: E does the best thing on offer (priority, then the nearest); offers
   offA(); offB();
   assert.ok(!H.use.list().includes('test:far'));
 });
+test('H.use: E picks between a car, a horse and a friend (the nearest), and getting out comes first', () => {
+  world(H, sceneOf({
+    floor, start,
+    star: { type: 'creature', name: 'Star', shape: { species: 'horse' }, physics: 'static', transform: { position: [10, 1, 0] } },
+    max: { type: 'friend', name: 'Max', shape: { follow: false }, physics: 'static', transform: { position: [-10, 1, 0] } },
+  }));
+  const p = H.game.player;
+  const car = H.game.vehicles.make('car', { x: 0, z: 10 });
+  const horse = H.game.entity('star');
+  horse.living.statue = false; horse.living.rideable = true;
+  H.tick(0.5);
+  const at = (x: number, z: number) => { p.position = [x, 1, z]; H.tick(1 / 30); return H.use.offers()[0]; };
+  assert.match(at(0, 7.4).label, /car/i, 'next to the car');
+  assert.match(at(8.6, 0).label, /Ride the horse/, 'next to the horse');
+  assert.match(at(-8.2, 0).label, /Talk to Max/, 'next to Max');
+  at(0, 7.4);
+  press('e');
+  assert.ok(H.game.vehicles.current === car, 'in the car');
+  assert.match(H.use.offers()[0].label, /Get out/);
+  H.tick(0.3);
+  press('e');
+  assert.ok(!H.game.vehicles.current, 'out again');
+});
+
 // A key press as the page makes one (a touch button: pressed for the next step, held until let go).
 function press(k: string) {
   const b: any = { addEventListener(t: string, f: Function) { b[t] = f; }, style: {} };

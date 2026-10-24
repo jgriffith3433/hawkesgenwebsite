@@ -1025,8 +1025,8 @@
     for (const m of Object.values(fresh)) m.dispose();
     if (v.smoke) { v.smoke.dispose(); v.smoke = null; }
   }
-  /** An explosion near vehicles: thrown (by the one who simulates each) and hurt. Comes from H.physics.explode and the
-   *  Mayhem module's 'explosion' event (whichever arrives; never twice). */
+  /** An explosion near vehicles: thrown (by the one who simulates each) and hurt. Comes from the engine's one
+   *  'explosion' event (H.physics.on): where it was decided (authoritative) Havok already threw the bodies. */
   let lastBlast = null;
   function blast(at, o = {}) {
     const p = v3(at);
@@ -1061,11 +1061,7 @@
     }
     return hit;
   }
-  if (H.physics && typeof H.physics.explode === 'function' && !H.physics.explode.__vehicles) {
-    const orig = H.physics.explode;
-    H.physics.explode = function (at, o) { const r = orig.call(this, at, o); try { blast(at, { ...(o || {}), _fromExplode: true }); } catch (err) { H.report(err, 'vehicles'); } return r; };
-    H.physics.explode.__vehicles = true;
-  }
+  H.physics.on('explosion', (d) => { try { blast(d.position, { ...d, _fromExplode: Boolean(d.authoritative) }); } catch (err) { H.report(err, 'vehicles'); } });
 
   function flipUpright(v) {
     const e = v.e;
