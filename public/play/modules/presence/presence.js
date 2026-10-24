@@ -390,7 +390,8 @@
         seen.add(e);
         const self = pr.kind === 'me';
         // My own body shows only when I can see myself (third person, top view); the capsule is the collider only.
-        const show = self ? e._view !== 'first' && e._view !== 'rts' && e.visible !== false : e.visible !== false;
+        const show = self ? e._view !== 'first' && e._view !== 'rts' && e.visible !== false && !e._seatHidden : e.visible !== false;
+        e._rigged = true;
         if (self) { if (e._visor) e._visor.setEnabled(false); }
         e.node.visibility = 0;
         rig.root.setEnabled(show);
@@ -402,6 +403,7 @@
       disposeRig(rig);
       rigs.delete(e);
       if (e.alive) {
+        e._rigged = false;
         // Looks turned off: the plain capsule again.
         for (const c of e.node.getChildMeshes(true)) if (c.name === 'visor') c.setEnabled(true);
         if (e === w.player) { e.node.visibility = e._view === 'first' || e._view === 'rts' ? 0 : 1; if (e._visor) e._visor.setEnabled(e._view !== 'first' && e._view !== 'rts'); }
