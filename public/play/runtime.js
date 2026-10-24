@@ -1177,7 +1177,8 @@
     if (!c) return;
     const ctx = controlCtx(p, c);
     try {
-      if (hooks.canMove && !hooks.canMove()) { if (c.def.idle) c.def.idle(p, ctx); else { p.velocity = [0, 0, 0]; p._walked = true; } return; }
+      // (p._holdStill: a tool keeps the player where they are, the fishing rod while its line is out; looking around still works.)
+      if ((hooks.canMove && !hooks.canMove()) || p._holdStill) { if (c.def.idle) c.def.idle(p, ctx); else { p.velocity = [0, 0, 0]; p._walked = true; } return; }
       c.def.update(p, dt, ctx);
     } catch (err) { report(err, `controller ${c.name}`); }
   }

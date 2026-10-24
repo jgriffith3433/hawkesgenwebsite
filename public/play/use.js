@@ -32,7 +32,9 @@
     return out;
   }
   function player() { const w = H.world; const p = w && w.player; return p && p.alive && p.controls !== false ? p : null; }
-  function run(o) { try { o.act(); } catch (err) { H.report(err, `use ${o.name}`); } current = null; shownKey = ''; }
+  // (After doing it the line is drawn again, whatever is offered next: null, never '', which means "nothing offered"; with
+  // '' a done "Get out of the submarine" stayed on screen when nothing else was near enough to take its place.)
+  function run(o) { try { o.act(); } catch (err) { H.report(err, `use ${o.name}`); } current = null; shownKey = null; }
 
   // Every step: E (or an offer's own key) does it. One action per press.
   H.hooks.step.push(() => {
@@ -70,7 +72,7 @@
     if (key === shownKey) return;
     shownKey = key;
     if (!ui()) return;
-    el.textContent = '';
+    el.innerHTML = '';
     if (!best) return;
     const b = document.createElement('button');
     b.innerHTML = '<kbd></kbd><span></span>';

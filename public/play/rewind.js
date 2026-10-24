@@ -24,6 +24,10 @@
   const online = () => Boolean(H.sync && H.sync.online);
   const host = () => !online() || Boolean(H.sync.isHost);
   const allowed = () => { const w = W(); return Boolean(w && w.config && w.config.rewind !== false); };
+  // The player's controls (◀◀ ⟲, Backspace, the D-pad) are off for now (J, 2026-10-24): only a world with
+  // config.rewind { controls: true }, or H.rewind.controls = true in the console, shows them. Rewinding itself
+  // (game.rewind, game.resetWorld) works as before.
+  const controls = () => { const w = W(); return Boolean(H.rewind && H.rewind.controls) || Boolean(w && w.config && w.config.rewind && w.config.rewind.controls === true); };
 
   // ------------------------------------------------------------------ what's kept
   const keeps = (e, w) => e.alive && !e.remotePlayer && e !== w.player && e.physics === 'dynamic' && !e.isTerrain && !e.isScatter && !e.temporaryFx;
@@ -189,9 +193,9 @@
   H.hooks.frame.push((dt) => {
     const w = W();
     if (!w) return;
-    show(H.mode === 'play' && allowed() && !H.hooks.codex); // (no on-screen controls on the codex)
-    gamepad();
-    keys();
+    const on = controls();
+    show(on && H.mode === 'play' && allowed() && !H.hooks.codex); // (no on-screen controls on the codex)
+    if (on) { gamepad(); keys(); }
     if (scrub) {
       const low = frames.length ? frames[0].t : w.time;
       scrub.cursor = Math.max(low, scrub.cursor - dt * SPEED);

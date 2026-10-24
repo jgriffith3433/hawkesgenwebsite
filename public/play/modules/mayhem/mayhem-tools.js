@@ -135,8 +135,9 @@
     if (!hud.cross || !hud.cross.isConnected) { hud.cross = document.createElement('div'); hud.cross.className = 'mh-cross'; ui().appendChild(hud.cross); }
     hud.cross.hidden = !on;
   }
-  /** Phone buttons while holding a mayhem tool: Fire, the tool's second thing, and next tool. */
-  function touchButtons(alt) {
+  /** Phone buttons while holding a mayhem tool: Fire, the tool's second thing, and next tool. nextOnly: just ⇄ (holding
+   *  another module's tool, the fishing rod or the bucket, which bring their own buttons). */
+  function touchButtons(alt, nextOnly = false) {
     if (!H.touchUi) return;
     X.styles();
     if (!hud.touch || !hud.touch.isConnected) {
@@ -150,11 +151,12 @@
       hud.touch = el;
     }
     hud.touch.hidden = false;
-    const key = `${alt}|${belt.length > 1}`;
+    const key = `${alt}|${belt.length > 1}|${nextOnly}`;
     if (hud.touchKey === key) return;
     hud.touchKey = key;
+    hud.touch.querySelector('.mh-fire').hidden = nextOnly;
     const a = hud.touch.querySelector('.mh-alt');
-    a.textContent = alt || ''; a.hidden = !alt;
+    a.textContent = alt || ''; a.hidden = !alt || nextOnly;
     hud.touch.querySelector('.mh-next').hidden = belt.length < 2;
   }
   // The belt: Q (or ⇄) switches to the next tool you have.
@@ -172,7 +174,9 @@
     if (hud.tip && hud.tipT > 0) { hud.tipT -= dt; if (hud.tipT <= 0) hud.tip.classList.add('out'); }
     const p = W().player;
     const held = p && MAYHEM_TOOLS.includes(toolName(p.tool)) && H.mode !== 'build';
-    if (!held) hideHud();
+    // Holding another tool (the rod, the bucket) with more on the belt: a phone still gets ⇄ to switch (J, 2026-10-24).
+    if (!held && H.touchUi && p && p.alive && p.tool && !p._vehRider && H.mode !== 'build' && belt.length > 1) { if (hud.cross) hud.cross.hidden = true; touchButtons(null, true); }
+    else if (!held) hideHud();
   });
 
   // ------------------------------------------------------------------ the belt: the tools you have
