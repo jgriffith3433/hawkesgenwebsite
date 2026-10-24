@@ -42,12 +42,14 @@
       e.measure();
       return e;
     }
-    // Level of detail: a low-detail copy (opts.low, or "<name>_low.glb" when the game has one) loads first and is
-    // shown far away; the full model takes over up close. lodDistance is where they swap (meters).
+    // Level of detail: a low-detail copy (opts.low, or "<name>_low.glb" when the game has one) is shown far away and
+    // the full model up close (lodDistance, meters). Only the copy that's needed loads: far away, just the low one (small,
+    // fast); the full one when you come near and the texture budget has room. Far again while memory is tight, the full
+    // copy is let go (its textures too) and comes back when you return.
     const named = (L.assetEntry(name) || { name }).name; // (an id: its name, for the low copy beside it)
     const lowName = opts.low !== undefined ? opts.low : (/\.glb$/i.test(named) && hasAsset(named.replace(/\.glb$/i, '_low.glb')) ? named.replace(/\.glb$/i, '_low.glb') : null);
-    const load = (assetName, isLow) => B.SceneLoader.ImportMeshAsync('', '', assetName === name ? url : assetUrl(assetName), W.scene, null, '.glb').then((r) => {
-      if (!e.alive || world !== H.world) { for (const m of r.meshes) m.dispose(); return null; }
+    const load = (assetName, isLow) => queued(e, () => B.SceneLoader.ImportMeshAsync('', '', assetName === name ? url : assetUrl(assetName), W.scene, null, '.glb')).then((r) => {
+      if (!e.alive || world !== H.world) { for (const m of r.meshes) m.dispose(); for (const g of r.animationGroups || []) g.dispose(); return null; }
       const holder = new B.TransformNode(isLow ? 'lod-low' : 'holder', W.scene);
       for (const m of r.meshes) if (!m.parent) m.parent = holder;
       for (const t of r.transformNodes) if (!t.parent) t.parent = holder;
@@ -64,41 +66,122 @@
       if (opts.color) for (const m of r.meshes) if (m.material && m.material.albedoColor) m.material.albedoColor = hex(opts.color);
       if (W.shadows && opts.shadow !== false) for (const m of r.meshes) if (m.getTotalVertices() > 0) { W.shadows.addShadowCaster(m); (e._casters ||= new Set()).add(m); m.receiveShadows = true; }
       for (const m of r.meshes) m.metadata = { entity: e };
-      return { holder, r };
+      const groups = r.animationGroups || [];
+      for (const a of groups) a.stop();
+      return { holder, r, groups };
     });
     const ready = () => { if (!e._loaded) { e._loaded = true; e.measure(); for (const f of H.hooks.world) if (f.loaded) f.loaded(e); } };
-    if (lowName) {
-      e._lod = { low: null, high: null, d: Number(opts.lodDistance) || 25 };
-      load(lowName, true).then((x) => { if (!x) return; e._lod.low = x.holder; if (!e._lod.high) ready(); }).catch(() => {});
-    }
-    e.ready = load(name, false).then((x) => {
-      if (!x) return e;
-      const { r, holder } = x;
-      if (e._lod) { e._lod.high = holder; }
-      e.animations = r.animationGroups || [];
-      for (const a of e.animations) a.stop();
-      if (opts.animation && !e.play(opts.animation)) { if (e.animations[0]) e.animations[0].start(true); } else if (!opts.animation && opts.autoplay !== false && e.animations[0]) e.animations[0].start(true);
-      ready();
-      e.measure();
+    const animate = (groups) => {
+      e.animations = groups;
+      if (opts.animation && !e.play(opts.animation)) { if (groups[0]) groups[0].start(true); } else if (!opts.animation && opts.autoplay !== false && groups[0]) groups[0].start(true);
+    };
+    const fail = (err) => { H.report(new Error(`Could not load ${name}: ${err.message || err}`)); return e; };
+    if (!lowName) {
+      e.ready = load(name, false).then((x) => { if (!x) return e; animate(x.groups); ready(); e.measure(); return e; }).catch(fail);
       return e;
-    }).catch((err) => { H.report(new Error(`Could not load ${name}: ${err.message || err}`)); return e; });
+    }
+    // With a low copy: whichever this distance needs first; updateLods brings the other when it's needed.
+    const lod = e._lod = { low: null, high: null, d: Number(opts.lodDistance) || 25, far: undefined, loading: {}, groups: {}, farFor: 0, lowName, name, animation: opts.animation, autoplay: opts.autoplay };
+    lod.fetch = (which) => {
+      if (lod[which] || lod.loading[which]) return lod.loading[which] || Promise.resolve();
+      lod.loading[which] = load(which === 'low' ? lowName : name, which === 'low').then((x) => {
+        lod.loading[which] = null;
+        if (!x) return;
+        lod[which] = x.holder; lod.groups[which] = x.groups;
+        x.holder.setEnabled(false);
+        lodShow(e);
+        if (!e._loaded) ready();
+      }, (err) => { lod.loading[which] = null; if (which === 'high' || !lod.high) fail(err); lod.broken = lod.broken || {}; lod.broken[which] = true; });
+      return lod.loading[which];
+    };
+    lod.far = !nearFor(e, lod.d);
+    e.ready = lod.fetch(lod.far ? 'low' : 'high').then(() => (lod.low || lod.high ? null : lod.fetch(lod.far ? 'high' : 'low'))).then(() => { e.measure(); return e; });
     return e;
   }
 
-  /** Each frame: models with a low-detail copy show the one that fits how far away they are. */
+  // ------------------------------------------------------------------ loading: nearest first, a few at a time
+  // Models load through one queue: at most H.budget.loads at once, the nearest to the camera first, so what's around you
+  // arrives first and the far things stream in after the world is already playable.
+  const waiting = [];
+  let active = 0;
+  function queued(e, start) {
+    return new Promise((resolve, reject) => { waiting.push({ e, start, resolve, reject }); pump(); });
+  }
+  function camAt() { const w = H.world; const c = w && w.scene && w.scene.activeCamera; return c ? (c.globalPosition || c.position) : null; }
+  function pump() {
+    const max = Math.max(1, Number(H.budget && H.budget.loads) || 4);
+    if (active >= max || !waiting.length) return;
+    const c = camAt();
+    if (c && waiting.length > 1) waiting.sort((a, b) => ((a.e.x - c.x) ** 2 + (a.e.z - c.z) ** 2) - ((b.e.x - c.x) ** 2 + (b.e.z - c.z) ** 2));
+    while (active < max && waiting.length) {
+      const job = waiting.shift();
+      if (!job.e.alive) { job.resolve(NOTHING()); continue; }
+      active++;
+      let p;
+      try { p = Promise.resolve(job.start()); } catch (err) { p = Promise.reject(err); }
+      p.then(job.resolve, job.reject).finally(() => { active--; pump(); });
+    }
+  }
+  const NOTHING = () => ({ meshes: [], transformNodes: [], animationGroups: [] });
+  H.hooks.world.push({ leave() { for (const j of waiting.splice(0)) j.resolve(NOTHING()); } });
+
+  const nearFor = (e, d) => { const c = camAt(); if (!c) return true; return B.Vector3.Distance(c, e.node.getAbsolutePosition()) <= d; };
+  /** Shows the copy this distance wants (or the one that's there), keeping its animation going. */
+  function lodShow(e) {
+    const l = e._lod;
+    const want = l.far ? (l.low ? 'low' : 'high') : (l.high ? 'high' : 'low');
+    if (!l[want] || l.shown === want) return;
+    const prev = l.shown;
+    const playing = (e.animations || []).find((a) => a.isPlaying);
+    for (const w of ['low', 'high']) if (l[w]) l[w].setEnabled(w === want);
+    // The hidden copy's animations stop (nobody sees them); the shown one plays what was playing.
+    for (const a of (prev && l.groups[prev]) || []) a.stop();
+    l.shown = want;
+    const groups = l.groups[want] || [];
+    e.animations = groups;
+    const pick = playing ? groups.find((a) => a.name === playing.name) : null;
+    if (pick) pick.start(playing.loopAnimation, playing.speedRatio, pick.from, pick.to, false);
+    else if (!prev && l.animation) { if (!e.play(l.animation) && groups[0]) groups[0].start(true); }
+    else if (!prev && l.autoplay !== false && groups[0]) groups[0].start(true);
+  }
+  /** The full copy goes (its meshes, materials and textures): far away while memory is tight. */
+  function dropHigh(e) {
+    const l = e._lod;
+    if (!l || !l.high || l.shown === 'high') return;
+    for (const a of l.groups.high || []) a.dispose();
+    if (e._casters) for (const m of l.high.getChildMeshes(false)) e._casters.delete(m);
+    l.high.dispose(false, true);
+    l.high = null; l.groups.high = null;
+  }
+
+  /** Each frame: models with a low-detail copy show the one that fits how far away they are (and fetch it when needed). */
   function updateLods() {
     const cam = W.scene.activeCamera;
     if (!cam) return;
+    const T = H.textures;
     for (const e of W.entities) {
       const l = e._lod;
-      if (!l || !l.low) continue;
-      if (!l.high) { l.low.setEnabled(true); continue; }
-      const d = B.Vector3.Distance(cam.position, e.node.getAbsolutePosition());
+      if (!l) continue;
+      const d = B.Vector3.Distance(cam.globalPosition || cam.position, e.node.getAbsolutePosition());
       // A little either way of the swap distance, so it doesn't flicker at the edge.
       const far = l.far ? d > l.d * 0.9 : d > l.d * 1.1;
-      if (far !== l.far || l.far === undefined) { l.far = far; l.low.setEnabled(far); l.high.setEnabled(!far); }
+      l.far = far;
+      // Coming near: the full copy, when the texture budget has room (else the low one stays a while longer).
+      if (!far && !l.high && !(l.broken && l.broken.high) && (!T || T.headroom() > 0 || d < l.d * 0.5)) l.fetch('high');
+      if (far && !l.low && !(l.broken && l.broken.low)) l.fetch('low');
+      lodShow(e);
+      l.farFor = far && l.shown === 'low' ? l.farFor + 1 : 0;
     }
   }
+  // Memory tight: models far away let their full copies go (the farthest first).
+  if (H.textures) H.textures.onPressure(() => {
+    const w = H.world;
+    if (!w) return;
+    const c = camAt();
+    const far = [...w.entities].filter((e) => e._lod && e._lod.high && e._lod.shown === 'low' && e._lod.farFor > 60);
+    if (c) far.sort((a, b) => B.Vector3.Distance(c, b.node.getAbsolutePosition()) - B.Vector3.Distance(c, a.node.getAbsolutePosition()));
+    for (const e of far.slice(0, 4)) dropHigh(e);
+  });
 
   function sprite(name, opts = {}) {
     const height = Number(opts.size) || 1;

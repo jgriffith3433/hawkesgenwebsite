@@ -2,5 +2,9 @@
   "title": "Events and quests",
   "order": 80,
   "scripts": ["events.js", "disasters.js", "quests.js"],
-  "kinds": ["zone"]
+  "kinds": ["zone"],
+  "lazy": true,
+  "config": ["events", "quests"],
+  "words": ["events", "quests", "disaster"],
+  "needs": ["vehicles"]
 }

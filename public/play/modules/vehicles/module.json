@@ -2,5 +2,7 @@
   "title": "Vehicles",
   "order": 50,
   "scripts": ["vehicles-types.js", "vehicles.js", "vehicles-play.js"],
-  "kinds": ["car", "truck", "bicycle", "motorbike", "boat", "submarine", "airplane", "helicopter", "vehicle"]
+  "kinds": ["car", "truck", "bicycle", "motorbike", "boat", "submarine", "airplane", "helicopter", "vehicle"],
+  "lazy": true,
+  "words": ["vehicles", "vehicle", "drive"]
 }
