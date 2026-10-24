@@ -18,7 +18,8 @@ const labels = (kind: string, tag: string, name: string, words = '') => ({ pack:
 // A model (concept, cutout, the raw mesh and the two exported GLBs), a song saved as several files, a sky, a texture.
 const crate = labels('model', 'props', 'Wooden crate', 'box container');
 put({ id: 'a_m1', job: 'j_crate', title: 'front', mime: 'image/png', labels: crate });
-put({ id: 'a_m2', job: 'j_crate', title: 'cutout', mime: 'image/png', labels: crate });
+put({ id: 'a_m2', job: 'j_crate', title: 'cutout.cutout', mime: 'image/png', labels: crate });
+put({ id: 'a_m2b', job: 'j_crate', title: 'cutout.mask', mime: 'image/png', labels: crate });
 put({ id: 'a_m3', job: 'j_crate', title: 'raw.save-3d-advanced', mime: 'model/gltf-binary', bytes: 5_000_000, labels: crate });
 put({ id: 'a_m4', job: 'j_crate', title: 'model.lod1', mime: 'model/gltf-binary', bytes: 80_000, labels: crate });
 put({ id: 'a_m5', job: 'j_crate', title: 'model.high', mime: 'model/gltf-binary', bytes: 900_000, labels: crate });
@@ -61,7 +62,7 @@ test('every page is read: things filed long ago are listed even past the first 5
   assert.equal(community.search({ q: 'crate' }).items[0]?.title, 'Wooden crate');
 });
 
-test('a model: the exported high GLB, its LOD as the low copy, the cut-out as its picture; never the raw mesh', () => {
+test('a model: the exported high GLB, its LOD as the low copy, the cut-out (not its mask) as its picture; never the raw mesh', () => {
   const crate = community.search({ q: 'crate' }).items[0];
   assert.equal(crate.id, 'a_m5');
   assert.equal(crate.low, true);
