@@ -374,7 +374,7 @@
     const e = panel.friend;
     for (const c of extraChips) {
       let on = false, label = '';
-      try { on = !c.show || c.show(e); label = typeof c.label === 'function' ? c.label(e) : c.label; } catch (err) { H.report(err, 'friend chat'); }
+      try { on = !c.show || c.show(e); if (on) label = typeof c.label === 'function' ? c.label(e) : c.label; } catch (err) { H.report(err, 'friend chat'); }
       if (!on || !label) continue;
       const b = document.createElement('button');
       b.type = 'button'; b.className = `lv-extra ${c.className || ''}`; b.textContent = String(label);

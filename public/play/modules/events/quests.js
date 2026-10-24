@@ -648,7 +648,7 @@
   if (H.living && H.living.chat) H.living.chat.addChip({
     className: 'qs-chip', style: 'border-color:rgba(255,216,74,.7)',
     show: (e) => bizOf(e).length > 0,
-    label: (e) => { const biz = bizOf(e); return biz[0].kind === 'offer' ? `📜 ${biz[0].d.title}` : '📜 About the quest'; },
+    label: (e) => { const biz = bizOf(e); if (!biz.length) return ''; return biz[0].kind === 'offer' ? `📜 ${biz[0].d.title}` : '📜 About the quest'; },
     act: (e) => { if (H.living.openChat) H.living.openChat(null); openDialog(e); },
   });
   // (Redrawn when what the open chat's friend has for you changes.)
