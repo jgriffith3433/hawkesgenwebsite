@@ -29,7 +29,7 @@ onto the ground: the terrain's height is `game.terrain.heightAt(x, z)`).
 | `colors` | `{ "grass": "#5f8f3e", "dirt": ..., "rock": ..., "snow": ..., "sand": ... }` stand-in colors | |
 | `textures` | `{ "grass": "<asset>", ... }`: image assets (ids) per ground layer (also used automatically: the game's images for "terrain grass", "terrain rock", ... by word) | |
 | `tile` | meters one texture repeat covers | 4 |
-| `scatter` | `{ "trees": 260, "rocks": 120, "bushes": 220, "seed": 3, "models": { "tree": "<asset>", "rock": "<asset>" } }` or `false`. Models also by word: "terrain tree"/"tree", "terrain rock"/"rock", "terrain bush"/"bush" (several tree models: `config.assets.tree` with `mix`) | by shape |
+| `scatter` | `{ "trees": 260, "rocks": 120, "bushes": 220, "seed": 3, "models": { "tree": "<asset>", "rock": "<asset>" } }` or `false`. Models also by word: "terrain tree"/"tree", "terrain rock"/"rock", "terrain bush"/"bush" (`config.assets.tree` picks which one). Scatter draws that one model hundreds of times from its lowest level of detail (Gen's), so keep counts in the hundreds | by shape |
 | `add` | extra shapes placed on top: `[{ "type": "mountain", "at": [x, z], "radius": 100, "height": 60, "road": true }]`. Types: `mountain`, `volcano`, `hill`, `plateau` (`height`), `crater`, `hole`, `lake` (a bowl, `depth`), `flat` (level an area at `height`), `ridge` (`at`, `to`, `width`, `height`) | |
 | `edits` | the brush's strokes, in order (the editor writes these): `[op, radius, amount, x1, z1, x2, z2, ...]`, op one of `raise`, `lower`, `dig`, `hole`, `crater` (amount = depth), `flatten` (amount = height), `smooth` (0-1), `paint` (0 grass, 1 dirt, 2 rock, 3 snow, 4 sand, -1 erase) | |
 | `craters` | `false`: explosions don't mark the ground | true |
