@@ -578,7 +578,7 @@
     st.goals.forEach((g, gi) => {
       if ((s.prog[st.id] && s.prog[st.id][gi] || 0) >= g.count) return;
       const at = (ref) => { const list = E.things(ref).filter((e) => !(e.data && e.data.found)); if (p) list.sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z)); return list; };
-      if (st.marker) { const pos = E.posOf(st.marker); if (pos) out.push(pos); return; }
+      if (st.marker) { const ride = H.vehicles && H.vehicles.current; if (ride && typeof st.marker === 'string' && E.things(st.marker).includes(ride)) return; const pos = E.posOf(st.marker); if (pos) out.push(pos); return; }
       if (g.type === 'reach' || g.type === 'bring' || g.type === 'deliver' || (g.type === 'drive' && g.to)) {
         if (g.type === 'bring' && p) { const loose = at(g.what).filter((e) => !E.inside([e.x, e.y, e.z], g.to, 0.5) && !(e.data && e.data.found)); if (loose.length) { for (const e of loose.slice(0, 2)) out.push([e.x, e.y + e.half[1], e.z]); } }
         const z = Array.isArray(g.what) && typeof g.what[0] === 'number' ? E.posOf(g.what) : at(g.type === 'reach' ? g.what : g.to)[0];
