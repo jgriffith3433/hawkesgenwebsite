@@ -113,6 +113,13 @@ aircraft ceilings are as always; a rocket or a space ship reaches space.
 | `biome` | its lands: `earth`, `forest`, `desert`, `ice`, `alien`... (meadows, woods, dry plains, rock, snow at the poles) | earth |
 | `clouds` | 0-1, seen from high up | by biome |
 | `air` | the air's scale height (m) | 1800 |
+| `seabed` | an **ocean planet**: meters under sea level its ground sits, everywhere (e.g. `-20`). The world's sea (`config.water`) then covers the whole ball, `config.terrain` is an island (or a continent) rising out of it, and from high up you see that island in an ocean on a planet | 0 (no sea) |
+
+**An ocean planet.** A round world's sea is a ball round the planet's middle at the sea's level, so with the ground at
+0 it would sit flush on it everywhere: give the planet a `seabed` and it's an ocean. Terrain on a round world stands on
+the planet at its `center` (upright there, following the curve) and its edges ease down to the planet's ground (the
+seabed), so an `island` terrain is an island in that ocean: `{ "planet": { "sphere": true, "radius": 50000, "seabed":
+-20 }, "water": { "level": 0 }, "terrain": { "shape": "island", "size": 260 } }` (the guest sandbox is this).
 
 **Where things are on a round planet.** Positions in scene.json are on the planet: its middle is `[0, -radius, 0]` and
 the start is on top at `[0, 0, 0]`, where up is +y. Near the start (within a few hundred meters) that's just like flat
@@ -143,6 +150,9 @@ dropped fall to the ground under them.
   (keep the biome if one is set). The world restarts round.
 - "Make the planet bigger" → a bigger `radius` (e.g. 100000; "smaller" 20000; "a tiny planet" 1000: you walk round it in
   a few minutes). Keep `sphere: true` and the other fields: `{ "planet": { "sphere": true, "radius": 100000, ... } }`.
+- "Make it an island in an ocean" / "a water world" (round) → `{ "planet": { "sphere": true, "radius": 50000, "seabed": -20 },
+  "water": { "level": 0 }, "terrain": { "shape": "island", "size": 260 } }` (keep the other planet fields; the world
+  restarts). The player and things at the start go on the island: y = its ground there (about 4 in the middle).
 - "A desert planet" on a round world → `{ "planet": { "sphere": true, "radius": 50000, "biome": "desert" } }`.
 - "Put a tower on the other side of the planet" → its position is the very opposite point, `[0, -2 * radius, 0]` (with
   its lift: `[0, -2 * radius - lift, 0]`, since up there is -y), rotation `[0, 0, 0]`: it stands up there by itself.

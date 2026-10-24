@@ -111,6 +111,7 @@
     const op = st.tool;
     const a = op === 'flatten' ? q(p[1]) : amount();
     st.stroke = { op, r: q(st.size), a, pts: [], last: null, ev };
+    if (op === 'flatten' && H.terrain.fieldPoint) st.stroke.fa = q(H.terrain.fieldPoint(p)[1]);
     dab(p);
     return true;
   }
@@ -121,14 +122,16 @@
     if (s.last && Math.hypot(x - s.last[0], z - s.last[1]) < Math.max(0.3, s.r * 0.3)) return;
     if (s.pts.length >= 400) return;
     s.last = [x, z];
-    s.pts.push(x, z);
+    // (Saved in the terrain's own coordinates: on a round world the frame may have moved it.)
+    const fp = H.terrain.fieldPoint ? H.terrain.fieldPoint(p) : p;
+    s.pts.push(q(fp[0]), q(fp[2]));
     H.terrain._applyLocal([[s.op, s.r, s.a, x, z]]);
   }
   function finish() {
     const s = st.stroke;
     st.stroke = null;
     if (!s || !s.pts.length) return;
-    const editOne = [s.op, s.r, s.a, ...s.pts];
+    const editOne = [s.op, s.r, s.fa ?? s.a, ...s.pts];
     const c = terrainCfg() || {};
     const list = [...(c.edits || []), editOne];
     if (JSON.stringify({ ...c, edits: list }).length > BUDGET) { toast('The terrain is full of edits: undo some, or ask the assistant for a new shape'); return; }

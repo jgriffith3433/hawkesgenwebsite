@@ -47,6 +47,9 @@ are saved in the game. The terrain should be about 120 KB of edits at most (the 
   things below the new ground are put on top of it. Leave it, or delete it to be rid of it for good; never move it.
   Things standing on it (steps, buildings) stay where they are: move them onto the terrain if they're buried.
 - "make an island with a beach": `config` patch `{ "terrain": { "shape": "island" } }`.
+- On a round planet (`config.planet.sphere`) the terrain stands on the planet at its `center` and follows the ball's
+  curve, and its edges ease down to the planet's ground (an ocean planet's seabed: Overseer "An ocean planet"), so an
+  `island` there is an island in the planet's ocean. Positions on it are the planet's, as for every thing.
   Add `"water": {...}` too if the world has the Water module, for real waves; the terrain draws a plain sea otherwise.
 - "spawn a mountain and a 4x4 so I can drive up it": `{ "terrain": { "shape": "mountain" } }`,
   then the 4x4 at the foot of the road: the road starts near (0, 0) and winds up the mountain ahead (+z). A script can

@@ -286,6 +286,10 @@
     const e = v.e, scene = W().scene, world = W();
     let url;
     try { url = L.assetUrl(name); } catch (err) { if (!o.lenient) throw err; e._waiting = name; return; }
+    // (Its most detailed level of detail whose textures fit the device, 1024 px at most: seen from a few meters, a body
+    // needs no more, and a world with four vehicles keeps its texture memory for the rest. A phone takes the lightest.)
+    const levels = H.kinds.modelLevels && L.assetEntry ? H.kinds.modelLevels(L.assetEntry(name), 1024) : null;
+    if (levels && levels.near) url = H.device && H.device.tier === 'phone' && levels.low ? levels.low : levels.near;
     e._loaded = false;
     e.ready = B.SceneLoader.ImportMeshAsync('', '', url, scene, null, '.glb').then((r) => {
       if (!e.alive || world !== W()) { for (const m of r.meshes) m.dispose(); return e; }

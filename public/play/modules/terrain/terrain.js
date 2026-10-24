@@ -270,7 +270,7 @@
     if (!plan) return;
     const scene = t.scene;
     const mat = (name, color) => { const m = new B.StandardMaterial(name, scene); m.diffuseColor = L.hex(color); m.specularColor = new B.Color3(0.03, 0.03, 0.03); return m; };
-    const part = (mesh, material, offset) => { mesh.material = material; mesh.isPickable = false; mesh.metadata = { decor: true }; mesh.receiveShadows = true; mesh.parent = null; return { mesh, offset }; };
+    const part = (mesh, material, offset) => { mesh.material = material; mesh.isPickable = false; mesh.metadata = { decor: true }; mesh.receiveShadows = true; mesh.parent = t.root; return { mesh, offset }; };
     const kinds = {
       trees: () => [
         part(B.MeshBuilder.CreateCylinder('tree-trunk', { diameterTop: 0.35, diameterBottom: 0.55, height: 2.6, tessellation: 6 }, scene), mat('tree-trunk', '#6b4a2f'), 1.3),
@@ -289,7 +289,7 @@
       if (kind === 'trees') pts.forEach((p, i) => addTrunk(t, group, i));
       // A model by name (config.terrain.scatter.models.tree, or an asset called tree / rock / bush).
       const one = kind.slice(0, -1);
-      const name = plan.models[one] || plan.models[kind] || H.assets.pick(`terrain ${one}`, { kind: 'model' }) || H.assets.pick(one, { kind: 'model' });
+      const name = plan.models[one] || plan.models[kind] || pickModel(one, t.cfg);
       if (name && isMesh(name)) useModel(t, group, name);
     }
   }
@@ -299,21 +299,49 @@
     if (!t.scatter.grid.has(key)) t.scatter.grid.set(key, []);
     t.scatter.grid.get(key).push({ group, i });
   }
+  // A group wearing a model draws the model near you and its light stand-ins farther off (each copy is a few thousand
+  // triangles; a phone draws the few round you, a desktop most of an island): 30 m on a phone, 60 on a tablet, 150.
+  const nearOf = () => { const d = Number(H.budget && H.budget.drawDistance) || 700; return d <= 220 ? 30 : d <= 320 ? 60 : 150; };
   function placeGroup(t, group) {
-    const n = group.pts.length;
-    for (const part of group.parts) {
-      const buf = new Float32Array(n * 16);
-      const tmp = B.Matrix.Identity();
-      group.pts.forEach((p, i) => {
-        const y = T.heightAt(t.f, p[0], p[1]) ?? 0;
-        const s = group.alive[i] ? p[2] : 0;
-        const sy = group.kind === 'rocks' ? s * (0.5 + p[4] * 0.5) : s;
-        B.Matrix.ComposeToRef(new B.Vector3(s, sy, s), B.Quaternion.RotationYawPitchRoll(p[3], group.kind === 'rocks' ? p[4] * 0.5 : 0, 0), new B.Vector3(p[0], y + part.offset * sy - (group.kind === 'trees' ? 0.15 : 0), p[1]), tmp);
-        tmp.copyToArray(buf, i * 16);
-      });
-      part.buf = buf;
-      part.mesh.thinInstanceSetBuffer('matrix', buf, 16, false);
-      part.mesh.thinInstanceRefreshBoundingInfo(false);
+    const cx = t.cfg.center[0], cz = t.cfg.center[1];
+    let near = null;
+    if (group.far) {
+      const c = H.world && H.world.scene && H.world.scene.activeCamera, at = c ? toField(t, c.globalPosition.x, c.globalPosition.y, c.globalPosition.z) : [cx, 0, cz];
+      const r2 = nearOf() ** 2;
+      near = group.pts.map((p) => (p[0] - at[0]) ** 2 + (p[1] - at[2]) ** 2 < r2);
+      group.placedAt = at;
+    }
+    const tmp = B.Matrix.Identity();
+    const put = (parts, which) => {
+      for (const part of parts) {
+        const idx = group.pts.map((p, i) => i).filter((i) => !near || near[i] === which);
+        const buf = new Float32Array(Math.max(1, idx.length) * 16);
+        idx.forEach((i, j) => {
+          const p = group.pts[i];
+          const y = T.heightAt(t.f, p[0], p[1]) ?? 0;
+          const s = group.alive[i] ? p[2] : 0;
+          const sy = group.kind === 'rocks' ? s * (0.5 + p[4] * 0.5) : s;
+          B.Matrix.ComposeToRef(new B.Vector3(s, sy, s), B.Quaternion.RotationYawPitchRoll(p[3], group.kind === 'rocks' ? p[4] * 0.5 : 0, 0), new B.Vector3(p[0] - cx, y + part.offset * sy - (group.kind === 'trees' ? 0.15 : 0), p[1] - cz), tmp);
+          tmp.copyToArray(buf, j * 16);
+        });
+        part.buf = buf;
+        part.mesh.thinInstanceSetBuffer('matrix', buf, 16, false);
+        part.mesh.thinInstanceCount = idx.length;
+        part.mesh.setEnabled(idx.length > 0);
+        part.mesh.thinInstanceRefreshBoundingInfo(false);
+      }
+    };
+    put(group.parts, true);
+    if (group.far) put(group.far, false);
+  }
+  /** Near and far swap as you move (every few meters). */
+  function regroup(t) {
+    const c = H.world && H.world.scene && H.world.scene.activeCamera;
+    if (!c || !t.scatter) return;
+    for (const g of t.scatter.groups) {
+      if (!g.far) continue;
+      const at = toField(t, c.globalPosition.x, c.globalPosition.y, c.globalPosition.z);
+      if (!g.placedAt || (at[0] - g.placedAt[0]) ** 2 + (at[2] - g.placedAt[2]) ** 2 > 64) placeGroup(t, g);
     }
   }
   /** A real model instead of the stand-in primitives (loaded once, merged, drawn as thin instances). */
@@ -336,7 +364,9 @@
       merged.position.y = -bb.minimum.y * k;
       merged.bakeCurrentTransformIntoVertices();
       merged.isPickable = false; merged.metadata = { decor: true }; merged.receiveShadows = true;
-      for (const p of group.parts) p.mesh.dispose();
+      merged.parent = t.root; // (with the ground: a round world's frame moves it)
+      // (The stand-ins stay for the far copies.)
+      group.far = group.parts;
       group.parts = [{ mesh: merged, offset: 0 }];
       placeGroup(t, group);
     } catch (err) { console.warn('terrain scatter model', name, err); }
@@ -372,6 +402,12 @@
   function makeEntity(t) {
     const root = new B.TransformNode('terrain', t.scene);
     root.position.set(t.cfg.center[0], 0, t.cfg.center[1]);
+    // A round world: the terrain is a thing on the planet, upright where its middle is (the frame moves it from there).
+    if (t.round && H.planet.frame.fromScene) {
+      const at = H.planet.frame.fromScene({ position: [t.cfg.center[0], 0, t.cfg.center[1]], rotation: 0 });
+      root.position.set(at.position[0], at.position[1], at.position[2]);
+      root.rotation.set(at.rotation[0] * Math.PI / 180, at.rotation[1] * Math.PI / 180, at.rotation[2] * Math.PI / 180);
+    }
     t.root = root;
     const e = new L.Entity(root, { name: 'Terrain', tag: 'terrain', physics: 'static', grab: false }, 'terrain');
     e.isTerrain = true;
@@ -382,10 +418,72 @@
     t.entity = e;
   }
 
+  // ------------------------------------------------------------------ where the terrain is (a round world moves it)
+  // On flat ground the field's coordinates are the world's. On a round world the frame moves and turns the terrain
+  // (round.js) like every other thing, so a point in the world goes into the field's own space before its heights are
+  // read, and a height comes back out. Everything that asks about the ground from the world goes through these.
+  /** The planet the terrain stands on ({ radius, floor }: its ground's height at the edges), or null on flat ground. */
+  function roundOf() {
+    const cf = H.planet && H.planet.configure ? H.planet.configure() : null;
+    return cf && cf.on && cf.round ? { radius: cf.radius, floor: Math.min(0, Number(cf.seabed) || 0) } : null;
+  }
+  const VA = new B.Vector3();
+  function frameOf(t) {
+    if (!t.round || !t.root) return null;
+    const n = H.planet.frame.rebases;
+    if (t.m && t.mAt === n) return t.m;
+    t.root.computeWorldMatrix(true);
+    const m = t.root.getWorldMatrix().clone();
+    t.m = { m, inv: m.clone().invert() };
+    t.mAt = n;
+    return t.m;
+  }
+  /** A world point -> the field's [x, y, z] (heights in the field are along its own up). */
+  function toField(t, x, y, z) {
+    const fr = frameOf(t);
+    if (!fr) return [x, y, z];
+    B.Vector3.TransformCoordinatesFromFloatsToRef(x, y, z, fr.inv, VA);
+    return [VA.x + t.cfg.center[0], VA.y, VA.z + t.cfg.center[1]];
+  }
+  /** A field point -> the world. */
+  function toWorld(t, x, y, z) {
+    const fr = frameOf(t);
+    if (!fr) return [x, y, z];
+    B.Vector3.TransformCoordinatesFromFloatsToRef(x - t.cfg.center[0], y, z - t.cfg.center[1], fr.m, VA);
+    return [VA.x, VA.y, VA.z];
+  }
+  /** How far a world point is under the ground (negative: over it), or null where there is no terrain. */
+  function under(t, x, y, z) {
+    const p = toField(t, x, y, z);
+    const g = T.heightAt(t.f, p[0], p[2]);
+    return g === null ? null : g - p[1];
+  }
+  /** The ground's height (world y) under a world point. */
+  function groundY(t, x, z, y = 0) {
+    if (!t.round) return T.heightAt(t.f, x, z);
+    const p = toField(t, x, y, z);
+    const g = T.heightAt(t.f, p[0], p[2]);
+    return g === null ? null : toWorld(t, p[0], g, p[2])[1];
+  }
+  /** Edits made in the world ([op, r, a, x, z, ...]) -> the field's (what is saved and shared). */
+  function editsToField(t, list) {
+    if (!t || !t.round) return list;
+    return list.map((e) => {
+      const out = e.slice();
+      for (let k = 3; k + 1 < e.length; k += 2) {
+        const y = e[0] === 'flatten' ? e[2] : groundY(t, e[k], e[k + 1]) ?? 0;
+        const p = toField(t, e[k], y, e[k + 1]);
+        out[k] = p[0]; out[k + 1] = p[2];
+        if (e[0] === 'flatten' && k === 3) out[2] = p[1];
+      }
+      return out;
+    });
+  }
+
   function build(value, ctx) {
     const t0 = performance.now();
-    const t = { ctx, scene: ctx.scene, cfg: T.normalize(value), shared: [], preview: new Map(), version: 0, id: ++ids };
-    t.f = T.generate(value);
+    const t = { ctx, scene: ctx.scene, cfg: T.normalize(value), shared: [], preview: new Map(), version: 0, id: ++ids, round: roundOf() };
+    t.f = T.generate(value, { round: t.round });
     const n = t.f.n;
     t.normals = new Float32Array(n * n * 3);
     t.weights = new Float32Array(n * n * 5);
@@ -410,6 +508,7 @@
       // The trunks' collider (Havok): a thing of its own, so the ground's body stays one heightfield.
       const node = new B.TransformNode('terrain-trunks', t.scene);
       node.position.copyFrom(t.root.position);
+      node.rotation.copyFrom(t.root.rotation);
       const e = new L.Entity(node, { name: 'Trees', tag: 'terrain', physics: 'static', grab: false }, 'terrain');
       e.measure = () => {}; e.box = () => FAR; e.isScatter = true; e.data.terrain = true;
       t.trunks = e;
@@ -426,7 +525,7 @@
     showGrounds(t);
     if (t.entity && t.entity.alive) t.entity.destroy();
     if (t.trunks && t.trunks.alive) t.trunks.destroy();
-    for (const g of (t.scatter && t.scatter.groups) || []) for (const p of g.parts) p.mesh.dispose();
+    for (const g of (t.scatter && t.scatter.groups) || []) for (const p of [...g.parts, ...(g.far || [])]) p.mesh.dispose();
     if (t.sea) t.sea.dispose();
     if (t.material) t.material.dispose(true, true);
     for (const tx of t.textures || []) tx.dispose();
@@ -463,10 +562,10 @@
   function depthIn(t, e) {
     const r = e.node.rotation, lh = e._lhalf, lo = e._loff;
     // A vehicle keeps itself on the ground (its wheels, its hull): only one sunk to its middle is put back on top.
-    if (e.vehicle && lh && lo) { const g = T.heightAt(t.f, e.x, e.z); return g === null || g < e.y ? null : g - e.y + lh[1] - lo[1] - 0.02; }
+    if (e.vehicle && lh && lo) { const u = under(t, e.x, e.y, e.z); return u === null || u < 0 ? null : u + lh[1] - lo[1] - 0.02; }
     if (e.isPlayer || !lh || !lo || e.kind === 'sphere' || e.node.rotationQuaternion || (!r.x && !r.z)) {
-      const g = T.heightAt(t.f, e.x, e.z);
-      return g === null ? null : g - e.bottom - 0.02;
+      const u = under(t, e.x, e.y, e.z);
+      return u === null ? null : u + e.y - e.bottom - 0.02;
     }
     B.Matrix.RotationYawPitchRollToRef(r.y, r.x, r.z, TURN);
     const m = TURN.m; // (rows: where the local x, y, z axes point)
@@ -474,8 +573,8 @@
     let deep = null;
     for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
       const p = [0, 1, 2].map((i) => c[i] + m[i] * lh[0] * sx + m[4 + i] * lh[1] * sy + m[8 + i] * lh[2] * sz);
-      const g = T.heightAt(t.f, p[0], p[2]);
-      if (g !== null) deep = Math.max(deep ?? -Infinity, g - p[1]);
+      const u = under(t, p[0], p[1], p[2]);
+      if (u !== null) deep = Math.max(deep ?? -Infinity, u);
     }
     return deep === null ? null : deep - 0.1; // (resting on it is touching: Havok keeps it out of the ground)
   }
@@ -571,7 +670,7 @@
   }
   /** Back to the saved terrain, then these shared edits (a late joiner catching up). */
   function rebuildWith(t, shared) {
-    const fresh = T.generate(t.cfg.raw);
+    const fresh = T.generate(t.cfg.raw, { round: t.round });
     t.f.heights.set(fresh.heights); t.f.paintLayer.set(fresh.paintLayer); t.f.paintAmt.set(fresh.paintAmt);
     t.f.min = fresh.min; t.f.max = fresh.max;
     for (const e of shared) T.applyEdit(t.f, e);
@@ -733,7 +832,7 @@
   /** Starts moving the ground to `value`'s shape. Returns false when there's nothing to animate (rebuild instead). */
   function growTo(t, value, o = {}) {
     if (t.grow) endGrow(t);
-    const target = T.generate(value);
+    const target = T.generate(value, { round: t.round });
     if (target.n !== t.f.n || target.x0 !== t.f.x0 || target.z0 !== t.f.z0) return false;
     for (const e of t.shared) T.applyEdit(target, e);
     const f = t.f, n = f.n, from = f.heights, to = target.heights;
@@ -801,7 +900,7 @@
   /** Runs edits here (and, with share: true, for everyone). */
   function edit(edits, o = {}) {
     if (off()) { H.report(new Error('There is no terrain in this world: turn it on with config.terrain first'), 'terrain'); return false; }
-    const list = edits.filter(T.validEdit).map(T.compact);
+    const list = editsToField(cur, edits.filter(T.validEdit)).map(T.compact);
     if (!list.length) return false;
     if (o.share) shareEdits(list, o);
     else applyEdits(cur, list, o);
@@ -811,13 +910,19 @@
   const api = {
     get active() { return Boolean(cur); },
     /** Ground height (world y) at x, z, or null where there is no terrain. */
-    heightAt(x, z) { if (off()) return null; const p = xz(x, z); return T.heightAt(cur.f, p[0], p[1]); },
+    heightAt(x, z) { if (off()) return null; const p = xz(x, z); return groundY(cur, p[0], p[1]); },
     /** The ground's up direction at x, z: [nx, ny, nz], or null. */
-    normalAt(x, z) { if (off()) return null; const p = xz(x, z); return T.normalAt(cur.f, p[0], p[1]); },
+    normalAt(x, z) {
+      if (off()) return null;
+      const p = xz(x, z), f = toField(cur, p[0], 0, p[1]), n = T.normalAt(cur.f, f[0], f[2]);
+      if (!n || !cur.round) return n;
+      const a = toWorld(cur, f[0], 0, f[2]), b = toWorld(cur, f[0] + n[0], n[1], f[2] + n[2]);
+      return [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    },
     /** Steepness in degrees (0 flat, 90 a wall), or null. */
     slopeAt(x, z) { const n = api.normalAt(x, z); return n ? Math.acos(n[1]) * 180 / Math.PI : null; },
     /** What the ground is made of there: 'grass', 'dirt', 'rock', 'snow' or 'sand' (or null). */
-    materialAt(x, z) { if (off()) return null; const p = xz(x, z); return T.layerAt(cur.f, p[0], p[1]); },
+    materialAt(x, z) { if (off()) return null; const p = xz(x, z), f = toField(cur, p[0], 0, p[1]); return T.layerAt(cur.f, f[0], f[2]); },
     /** A hole: radius and depth in meters (a flat bottom, steep sides). dig(x, z, 20, 15) is a giant one. */
     dig(x, z, radius = 3, depth = 2, o = {}) {
       const r = Math.max(0.5, num(radius, 3)), d = num(depth, 2);
@@ -851,17 +956,18 @@
     /** Puts a thing (or [x, y, z]) on the ground; returns the ground height. */
     place(thing, lift = 0) {
       if (off()) return null;
-      if (thing && thing.__entity) { const g = T.heightAt(cur.f, thing.x, thing.z); if (g !== null) { thing.node.position.y += g + lift - thing.bottom; thing.velocity = [0, 0, 0]; } return g; }
-      const p = xz(thing); return T.heightAt(cur.f, p[0], p[1]);
+      if (thing && thing.__entity) { const g = groundY(cur, thing.x, thing.z, thing.y); if (g !== null) { thing.node.position.y += g + lift - thing.bottom; thing.velocity = [0, 0, 0]; } return g; }
+      const p = xz(thing); return groundY(cur, p[0], p[1]);
     },
     /** A random spot on the ground [x, y, z] (o: { near: [x, z], radius, maxSlope: 30, avoidWater: true }). */
     randomPoint(o = {}) {
       if (off()) return null;
-      const f = cur.f, c = o.near ? xz(o.near) : cur.cfg.center, R = num(o.radius, cur.cfg.size * 0.45);
+      const f = cur.f, mid = toWorld(cur, cur.cfg.center[0], 0, cur.cfg.center[1]);
+      const c = o.near ? xz(o.near) : [mid[0], mid[2]], R = num(o.radius, cur.cfg.size * 0.45);
       for (let k = 0; k < 60; k++) {
         const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * R;
         const x = c[0] + Math.cos(a) * d, z = c[1] + Math.sin(a) * d;
-        const h = T.heightAt(f, x, z);
+        const h = groundY(cur, x, z);
         if (h === null) continue;
         if ((api.slopeAt(x, z) ?? 0) > num(o.maxSlope, 30)) continue;
         const sea = H.water && H.water.surfaceAt ? H.water.surfaceAt(x, z) : cur.cfg.sea !== false ? f.y + cur.cfg.sea : null;
@@ -879,7 +985,10 @@
     get field() { return cur ? cur.f : null; },
     core: T,
     _share: shareEdits,
-    _applyLocal: (edits) => (cur ? applyEdits(cur, edits.filter(T.validEdit)) : null),
+    _applyLocal: (edits) => (cur ? applyEdits(cur, editsToField(cur, edits.filter(T.validEdit))) : null),
+    /** A world point [x, y, z] in the terrain's own coordinates (config.terrain's edits, center and stamps): the same
+     *  numbers on flat ground; on a round world, where it is on the terrain however far the frame has moved. */
+    fieldPoint(p) { const v = L.vec(p); return cur ? toField(cur, v[0], v[1], v[2]) : v; },
     get _cur() { return cur; },
   };
   H.terrain = api;
@@ -898,9 +1007,12 @@
     for (const e of H.world.entities) e.wake();
   }
   /** Which ground textures and scatter models the game has now (a change rebuilds the looks). */
+  /** The scatter's model for a word (a world that mixes several picks one by its seed: the same every time, or the
+   *  ground would see a new one every second and rebuild). */
+  const pickModel = (word, cfg) => H.assets.pick(`terrain ${word}`, { kind: 'model', seed: `${cfg.seed}:${word}` }) || H.assets.pick(word, { kind: 'model', seed: `${cfg.seed}:${word}` });
   function assetSig(cfg) {
     const s = cfg.scatter && typeof cfg.scatter === 'object' ? (cfg.scatter.models || cfg.scatter.model || {}) : {};
-    const models = ['tree', 'rock', 'bush'].map((k) => (s[k] && isMesh(s[k]) ? s[k] : null) || H.assets.pick(`terrain ${k}`, { kind: 'model' }) || H.assets.pick(k, { kind: 'model' }) || '');
+    const models = ['tree', 'rock', 'bush'].map((k) => (s[k] && isMesh(s[k]) ? s[k] : null) || pickModel(k, cfg) || '');
     const url = (r) => H.assets.url(r) || '';
     return JSON.stringify([layerAssets(cfg), models].flat().map((x) => (typeof x === 'string' ? x + url(x) : JSON.stringify(Object.entries(x).map(([k, v]) => [k, v, url(v)])))));
   }
@@ -925,11 +1037,12 @@
         if (cur !== t || !d || !d.authoritative || (t.cfg.raw && t.cfg.raw.craters === false)) return;
         const p = d.position;
         if (!p) return;
-        const g = T.heightAt(t.f, p[0], p[2]);
+        const u = under(t, p[0], p[1], p[2]);
         const R = Math.max(1, Number(d.radius) || 4);
-        if (g === null || p[1] - g > R * 0.8) return; // high in the air: no mark on the ground
+        if (u === null || -u > R * 0.8) return; // high in the air: no mark on the ground
         const r = Math.min(30, R * 0.7), depth = Math.min(12, r * 0.35 * Math.max(0.5, Math.min(2, (Number(d.force) || 15) / 15)));
-        shareEdits([['crater', r, depth, p[0], p[2]], ['paint', r * 0.85, 1, p[0], p[2]]], { clear: [p[0], p[2], r * 0.9] });
+        const f = toField(t, p[0], p[1], p[2]);
+        shareEdits([['crater', r, depth, f[0], f[2]], ['paint', r * 0.85, 1, f[0], f[2]]], { clear: [f[0], f[2], r * 0.9] });
       });
     },
     change(value, old, ctx) {
@@ -955,6 +1068,7 @@
     },
     update(dt, ctx) {
       if (ctx.state.t && ctx.state.t.grow) stepGrow(ctx.state.t, dt);
+      if (ctx.state.t && (ctx.state.t.regroupT = (ctx.state.t.regroupT || 0) + dt) > 0.5) { ctx.state.t.regroupT = 0; regroup(ctx.state.t); }
       // A texture or model arrived (generated, or added in the Assets panel): the ground picks it up.
       const t = ctx.state.t;
       if (!t || (t.assetCheck = (t.assetCheck || 0) + dt) < 1) return;

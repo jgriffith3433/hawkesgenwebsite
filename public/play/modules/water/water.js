@@ -56,6 +56,7 @@ uniform mat4 viewProjection;
 uniform float time;
 uniform vec3 wave;
 uniform vec3 curve;
+uniform vec3 camPos;
 varying vec3 vW;
 varying vec3 vN;
 varying float vH;
@@ -77,6 +78,9 @@ void main(void) {
     wv(vec2(${WAVES[1].x.toFixed(6)}, ${WAVES[1].z.toFixed(6)}), 0.57, 0.5, wp.xz, h, d);
     wv(vec2(${WAVES[2].x.toFixed(6)}, ${WAVES[2].z.toFixed(6)}), 0.31, 0.25, wp.xz, h, d);
   }
+  // Waves far from you are smaller than the grid can draw (and than a pixel): they fade out instead of aliasing.
+  float fade = 1.0 - smoothstep(160.0, 700.0, length(wp.xyz - camPos));
+  h *= fade; d *= fade;
   wp.y += h;
   vW = wp.xyz;
   // The planet's curve (H.planet): far water sinks below the horizon.
@@ -107,6 +111,10 @@ void main(void) {
   vec3 N = normalize(vN);
   vec3 V = normalize(camPos - vW);
   float under = camPos.y < vW.y ? 1.0 : 0.0;
+  // Far away (and seen from high up) the waves are smaller than a pixel: the surface calms to one sheen instead of
+  // shimmering noise, and the foam goes.
+  float calm = clamp((length(camPos - vW) - 80.0) / 520.0, 0.0, 1.0);
+  N = normalize(mix(N, vec3(0.0, 1.0, 0.0), calm * 0.85));
   if (under > 0.5) N = -N;
   float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 4.0);
   vec3 col = mix(deep, shallow, clamp(0.4 + vH * 0.45, 0.0, 1.0));
@@ -115,7 +123,7 @@ void main(void) {
   float sp = pow(max(dot(R, V), 0.0), 90.0) * (1.0 - under);
   col += vec3(1.0, 0.97, 0.9) * sp * 0.8;
   float pat = 0.5 + 0.5 * sin(vW.x * 1.7 + time * 1.3) * sin(vW.z * 1.9 - time * 1.1);
-  float f = foam * (smoothstep(0.55, 0.95, vH) * pat * 0.8 + smoothstep(0.0, 1.0, vShore) * (0.45 + 0.55 * pat));
+  float f = foam * (smoothstep(0.55, 0.95, vH) * pat * 0.8 * (1.0 - calm) + smoothstep(0.0, 1.0, vShore) * (0.45 + 0.55 * pat) * (1.0 - calm * 0.9));
   col = mix(col, vec3(0.95, 0.98, 1.0), clamp(f, 0.0, 0.9));
   float a = mix(alpha, 1.0, max(fres * 0.7, clamp(f, 0.0, 1.0)));
   if (under > 0.5) { col = mix(col, shallow * 1.3 + vec3(0.15), 0.35); a = 0.75; }
@@ -157,7 +165,9 @@ void main(void) {
       e.setFloat('time', now());
       e.setFloat3('wave', b.amp, b.len, b.speed);
       if (cam) e.setFloat3('camPos', cam.globalPosition.x, cam.globalPosition.y, cam.globalPosition.z);
-      e.setFloat3('curve', cam ? cam.globalPosition.x : 0, cam ? cam.globalPosition.z : 0, H.planet && H.planet.on ? 1 / (2 * H.planet.radius) : 0);
+      // (A round world's sea is a ball round its middle, under the frame's origin; elsewhere the curve is from you.)
+      const round = Boolean(H.planet && H.planet.round);
+      e.setFloat3('curve', cam && !round ? cam.globalPosition.x : 0, cam && !round ? cam.globalPosition.z : 0, H.planet && H.planet.on ? 1 / (2 * (H.planet.radius + (round ? b.level : 0))) : 0);
       e.setColor3('deep', cl.deep);
       e.setColor3('shallow', cl.shallow);
       const cc = s.clearColor;
@@ -231,10 +241,19 @@ void main(void) {
       alpha: clamp(num(o.opacity, 0.94), 0.2, 1),
     };
   }
+  /** An ocean planet (a round world with planet.seabed): its ground is the sea floor, so there is no floor of our own,
+   *  and the sea reaches as far as the ground round you does. */
+  function onOceanPlanet(s) {
+    if (!(H.planet && H.planet.round && H.planet.seabed < 0)) return s;
+    return { ...s, floor: false, depth: Math.max(1, s.level - H.planet.seabed) };
+  }
   function makeSea(v) {
-    const s = readSea(v);
+    const s = onOceanPlanet(readSea(v));
     const b = { id: 'sea', kind: 'ocean', world: W(), ...s, alpha: s.alpha };
-    b.surface = gridMesh('sea', 1600, 1600, PHONE ? 56 : 104, PHONE ? 56 : 104, 2.2);
+    const size = H.planet && H.planet.round && H.planet.seabed < 0 && H.planet.frame.reach ? 2 * H.planet.frame.reach : 1600;
+    b.surface = gridMesh('sea', size, size, PHONE ? 56 : 104, PHONE ? 56 : 104, size > 1600 ? 2.6 : 2.2);
+    b.size = size;
+    b.oceanPlanet = size > 1600;
     b.surface.material = surfaceMaterial(b);
     b.surface.position.y = s.level;
     b.surface.alwaysSelectAsActiveMesh = true;
@@ -254,7 +273,7 @@ void main(void) {
     b.floorEntity = e;
   }
   function changeSea(b, v) {
-    const s = readSea(v);
+    const s = onOceanPlanet(readSea(v));
     const floorChanged = s.level - s.depth !== b.level - b.depth || s.floor !== b.floor || s.floorColor !== b.floorColor;
     Object.assign(b, s);
     b.surface.position.y = b.level;
@@ -780,7 +799,16 @@ void main(void) {
     if (!w) return;
     const cam = w.scene.activeCamera;
     for (const b of live()) {
-      if (b.kind === 'ocean' && cam) { const p = cam.globalPosition; b.surface.position.x = Math.round(p.x / 2) * 2; b.surface.position.z = Math.round(p.z / 2) * 2; }
+      if (b.kind === 'ocean' && cam) {
+        const p = cam.globalPosition;
+        b.surface.position.x = Math.round(p.x / 2) * 2; b.surface.position.z = Math.round(p.z / 2) * 2;
+        // An ocean planet's sea reaches the horizon as you climb (up to 12 km round you; past that, the ball's sea).
+        if (b.oceanPlanet) {
+          const h = Math.max(0, H.planet.heightOf([p.x, p.y, p.z]) - b.level), R = H.planet.radius;
+          const k = Math.max(1, Math.min(12000, Math.sqrt(2 * R * h + h * h) * 1.1) / (b.size / 2));
+          b.surface.scaling.x = k; b.surface.scaling.z = k;
+        }
+      }
       if (b.kind === 'box') placeBasin(b);
       if (H.terrain && b.foam && w.time - (b.shoreAt || -99) > (b.kind === 'ocean' ? 0.6 : 3)) {
         const key = b.kind === 'ocean' ? `${b.surface.position.x},${b.surface.position.z},${b.level}` : `${b.entity.x},${b.entity.y},${b.entity.z}`;

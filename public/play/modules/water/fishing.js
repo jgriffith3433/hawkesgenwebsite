@@ -130,7 +130,9 @@
       root.metadata = { tail };
     }
     const asset = modelFor(sp);
-    if (asset) B.SceneLoader.ImportMeshAsync('', '', L.assetUrl(asset), sc, null, '.glb').then((r) => {
+    // (A fish is small: its lightest level of detail, when the model has them, is plenty and costs a fraction.)
+    const lv = asset && H.kinds.modelLevels && L.assetEntry ? H.kinds.modelLevels(L.assetEntry(asset), 256) : null;
+    if (asset) B.SceneLoader.ImportMeshAsync('', '', (lv && (lv.low || lv.near)) || L.assetUrl(asset), sc, null, '.glb').then((r) => {
       if (root.isDisposed()) { for (const m of r.meshes) m.dispose(); return; }
       for (const c of root.getChildMeshes()) c.setEnabled(false);
       const holder = new B.TransformNode('fish-model', sc); holder.parent = root;
