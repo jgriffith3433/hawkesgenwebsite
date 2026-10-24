@@ -21,8 +21,12 @@
       const e = L.shape('barrel', () => B.MeshBuilder.CreateCylinder('barrel', { diameter: r * 2, height: h, tessellation: 20 }, W().scene), { ...o, color: o.color || '#c0392b' });
       const sc = W().scene;
       // Rings and a hazard band (decor: the collider is the drum).
-      const ringMat = new B.StandardMaterial('barrel-ring', sc); ringMat.diffuseColor = new B.Color3(0.18, 0.12, 0.1);
-      const band = new B.StandardMaterial('barrel-band', sc); band.diffuseColor = hexc('#f4c430'); band.emissiveColor = hexc('#3a2a00');
+      // (The rings' and the band's materials are shared by every barrel in the world.)
+      const shared = sc._barrelMats || (sc._barrelMats = {
+        ring: (() => { const m = new B.StandardMaterial('barrel-ring', sc); m.diffuseColor = new B.Color3(0.18, 0.12, 0.1); return m; })(),
+        band: (() => { const m = new B.StandardMaterial('barrel-band', sc); m.diffuseColor = hexc('#f4c430'); m.emissiveColor = hexc('#3a2a00'); return m; })(),
+      });
+      const ringMat = shared.ring, band = shared.band;
       const parts = [];
       for (const y of [-h * 0.32, h * 0.32]) {
         const ring = B.MeshBuilder.CreateTorus('barrel-ring', { diameter: r * 2 + 0.02, thickness: 0.05, tessellation: 24 }, sc);
@@ -31,10 +35,10 @@
       const stripe = B.MeshBuilder.CreateCylinder('barrel-band', { diameter: r * 2 + 0.012, height: h * 0.16, tessellation: 20 }, sc);
       stripe.material = band; parts.push(stripe);
       for (const m of parts) { m.parent = e.node; m.isPickable = true; m.metadata = { decor: true }; }
+      if (H.mergeParts) H.mergeParts(parts); // (the two rings: one mesh)
       e.data.explosive = { radius: num(sh.power, 6), force: num(sh.force, 22), damage: num(sh.damage, 60), fire: sh.fire !== false, strength: num(sh.strength, 16) };
       e.data.barrel = true;
       if (e.hp === undefined) e.maxHp = e.hp = num(sh.hp, 20);
-      e.onDestroy(() => { ringMat.dispose(); band.dispose(); });
       return e;
     },
     editor: {

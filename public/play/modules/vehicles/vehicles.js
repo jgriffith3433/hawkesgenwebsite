@@ -80,10 +80,9 @@
 
   // ------------------------------------------------------------------ rays: what the wheels and the hull touch
   const ray = new B.Ray(B.Vector3.Zero(), new B.Vector3(0, -1, 0), 1);
-  function makePredicate(v) {
-    return (m) => {
-      if (!m.isEnabled() || m.isPickable === false || (m.metadata && m.metadata.decor)) return false;
-      const en = H.entityOf(m);
+  /** What a vehicle's rays stand on: solid things, never itself, its riders, water, or light loose things. */
+  function makeSolid(v) {
+    return (en) => {
       if (!en || !en.alive || en === v.e || en.isPlayer || en.remotePlayer || en.ghost || en._vehRider) return false;
       const ph = en.physics;
       if (ph === 'none' || ph === 'trigger') return false;
@@ -92,15 +91,25 @@
       return true;
     };
   }
-  /** The first solid thing along a ray (and the terrain, when the Terrain module is on): { dist, point, normal, entity }. */
+  function makePredicate(v) {
+    v.solid = makeSolid(v);
+    return (m) => m.isEnabled() && m.isPickable !== false && !(m.metadata && m.metadata.decor) && v.solid(H.entityOf(m));
+  }
+  /** The first solid thing along a ray (and the terrain, when the Terrain module is on): { dist, point, normal, entity }.
+   *  On Havok against the colliders (a few shapes, not every triangle of every mesh in the world); else what's drawn. */
   function cast(v, from, dir, len) {
     const w = W();
-    ray.origin.copyFrom(from); ray.direction.copyFrom(dir); ray.length = len;
     let out = null;
-    const hit = w.scene.pickWithRay(ray, v.pred);
-    if (hit && hit.hit && hit.pickedPoint) {
-      const n = hit.getNormal(true, true) || UP.clone();
-      out = { dist: hit.distance, point: hit.pickedPoint.clone(), normal: n, entity: H.entityOf(hit.pickedMesh) };
+    if (havokOn()) {
+      const hit = H.physics.raycast([from.x, from.y, from.z], [dir.x, dir.y, dir.z], len, { filter: v.solid, characters: false });
+      if (hit) out = { dist: hit.distance, point: v3(hit.point), normal: v3(hit.normal), entity: hit.entity };
+    } else {
+      ray.origin.copyFrom(from); ray.direction.copyFrom(dir); ray.length = len;
+      const hit = w.scene.pickWithRay(ray, v.pred);
+      if (hit && hit.hit && hit.pickedPoint) {
+        const n = hit.getNormal(true, true) || UP.clone();
+        out = { dist: hit.distance, point: hit.pickedPoint.clone(), normal: n, entity: H.entityOf(hit.pickedMesh) };
+      }
     }
     const T = H.terrain;
     if (T && typeof T.heightAt === 'function' && dir.y < -0.3) {
@@ -202,6 +211,16 @@
     if (type === 'helicopter') { blades([0, 1.35, 0], 7.6, 'y'); blades([0.12, 0.85, -5.05], 1.4, 'x'); }
     if (type === 'airplane') blades([0, 0, 3.8], 2.2, 'z');
     if (type === 'submarine') blades([0, 0, -4.15], 1.3, 'z');
+    // The body's parts drawn as one mesh per material (a car's 24 boxes in a handful of draw calls); the lamps
+    // together, the flames on their own (they flicker). Wheels and rotors keep their own nodes: they turn.
+    const flames = ctx.flames || [];
+    const lamps = H.mergeParts ? H.mergeParts(lampMeshes) : lampMeshes;
+    const fixed = ctx.made.filter((m) => !lampMeshes.includes(m) && !flames.includes(m));
+    const drawn = [...(H.mergeParts ? H.mergeParts(fixed) : fixed), ...lamps, ...flames];
+    lampMeshes.length = 0;
+    lampMeshes.push(...lamps);
+    ctx.made.length = 0;
+    ctx.made.push(...drawn);
 
     const v = {
       type, def, e, root, body, mats, wheels, lampMeshes, spinners, parts: ctx.made,
