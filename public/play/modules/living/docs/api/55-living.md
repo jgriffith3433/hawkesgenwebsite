@@ -17,7 +17,7 @@ but only once the world is running: in updates, events and timers, not at the to
 | `living.ride(e)`, `living.dismount()` | puts the player on a creature and off it (the `ride` controller) |
 | `living.path(from, to)` | a way around obstacles: `[[x, z], ...]` or null |
 | `living.pickUp(e, thing)`, `living.drop(e)` | a creature carries something (in its mouth or its arms) |
-| `living.talk(friend, text)` | says something to an AI friend: a promise of `{ say, action }` (the action happens) |
+| `living.talk(friend, text)` | says something to an AI friend: a promise of `{ say, action }` (the action happens). Friends answer from a free phrasebook (personality, species voice); there is no paid AI talk |
 | `living.act(friend, action, say)` | makes a friend do and say something: `living.act(max, 'dance', 'Watch this!')` |
 | `living.openChat(friend)` | opens the chat with a friend (`null` closes it) |
 | `living.species.add(name, def)` | a new species: `living.species.add('goat', { ...living.species.get('sheep'), colors: { body: '#eee', head: '#eee', legs: '#555', accent: '#555' } })` |
