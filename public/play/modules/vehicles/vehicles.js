@@ -1140,8 +1140,12 @@
       st: r2(v.steer), t: r2(v.throttleNow || v.throttle || 0), sp: r2(v.spool), hp: Math.round(v.health), x: v.wrecked ? 1 : 0,
     };
   }
-  function applyRemote(v, s) {
-    if (s.p && s.q) v.net = { p: v3(s.p), q: new B.Quaternion(s.q[0], s.q[1], s.q[2], s.q[3]), v: v3(s.v || [0, 0, 0]), at: performance.now() };
+  function applyRemote(v, s, meta) {
+    if (s.p && s.q) {
+      // Played back smoothly (H.sync.track: interpolated a little behind, turns slerped).
+      if (H.sync.track) { const vv = s.v || [0, 0, 0]; (v.trk || (v.trk = H.sync.track({ quat: [3, 4, 5, 6], vel: [7, 8, 9] }))).push(meta && meta.at, [s.p[0], s.p[1], s.p[2], s.q[0], s.q[1], s.q[2], s.q[3], vv[0], vv[1], vv[2]], meta && meta.from); v.net = { trk: true }; }
+      else v.net = { p: v3(s.p), q: new B.Quaternion(s.q[0], s.q[1], s.q[2], s.q[3]), v: v3(s.v || [0, 0, 0]), at: performance.now() };
+    }
     if (s.v) v.vel.copyFrom(v3(s.v));
     if (s.w) v.w.copyFrom(v3(s.w));
     if (s.s && !v.seatEvents) s.s.forEach((who, i) => { if (v.seats[i]) v.seats[i].who = who || null; });
@@ -1160,12 +1164,17 @@
     const n = v.net;
     if (!n) { const fs = B.Vector3.Dot(new B.Vector3(v.e._v ? v.e._v[0] : 0, v.e._v ? v.e._v[1] : 0, v.e._v ? v.e._v[2] : 0), B.Vector3.TransformNormal(B.Axis.Z, v.e.node.getWorldMatrix()).normalize()); for (const w of v.wheels) w.spinRate = fs / w.r; return; }
     const n2 = v.e.node;
-    const ahead = Math.min(0.25, (performance.now() - n.at) / 1000);
-    const target = n.p.add(n.v.scale(ahead));
-    const k = 1 - Math.exp(-dt * 14);
-    if (B.Vector3.Distance(target, n2.position) > 6) n2.position.copyFrom(target);
-    else n2.position.copyFrom(B.Vector3.Lerp(n2.position, target, k));
-    v.q = B.Quaternion.Slerp(v.q, n.q, k);
+    if (n.trk && v.trk) {
+      const s = v.trk.sample();
+      if (s) { n2.position.set(s[0], s[1], s[2]); v.q = new B.Quaternion(s[3], s[4], s[5], s[6]); }
+    } else {
+      const ahead = Math.min(0.25, (performance.now() - n.at) / 1000);
+      const target = n.p.add(n.v.scale(ahead));
+      const k = 1 - Math.exp(-dt * 14);
+      if (B.Vector3.Distance(target, n2.position) > 6) n2.position.copyFrom(target);
+      else n2.position.copyFrom(B.Vector3.Lerp(n2.position, target, k));
+      v.q = B.Quaternion.Slerp(v.q, n.q, k);
+    }
     n2.rotation.copyFrom(v.q.toEulerAngles());
     v.euler = n2.rotation.clone();
     v.posW = n2.position.clone();
@@ -1179,7 +1188,7 @@
   function register(v) {
     if (!H.sync || !v.e.alive) return;
     if (v.sync) v.sync.remove();
-    v.sync = H.sync.state(`veh:${v.key}`, { rate: 20, owner: () => v.e.alive && simulatedByMe(v), get: () => snapshot(v), set: (s) => applyRemote(v, s) });
+    v.sync = H.sync.state(`veh:${v.key}`, { rate: 20, important: true, where: () => (v.e.alive ? [v.e.x, v.e.y, v.e.z] : null), owner: () => v.e.alive && simulatedByMe(v), get: () => snapshot(v), set: (s, changed, from, meta) => applyRemote(v, s, meta) });
   }
   function unregister(v) {
     if (v.sync) { v.sync.remove(); v.sync = null; }
@@ -1198,7 +1207,7 @@
         const mine = simulatedByMe(v);
         // Not ours: on Havok its body follows where it's said to be (a scene thing's remote flag is the engine's).
         if (!engineSynced(v) && havokOn()) e.remote = !mine;
-        if (mine) { simulate(v, dt); v.net = null; } else if (!havokOn()) { e.vx = e.vy = e.vz = 0; }
+        if (mine) { simulate(v, dt); v.net = null; v.trk = null; } else if (!havokOn()) { e.vx = e.vy = e.vz = 0; }
       } catch (err) { H.report(err, `vehicle ${e.name || v.type}`); }
     }
   });

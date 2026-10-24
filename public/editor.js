@@ -993,6 +993,12 @@ document.addEventListener('keydown', (e) => {
     else if ($('drawer').classList.contains('open') && !e.target.closest?.('.CodeMirror')) closeDrawer();
   }
   if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveFile(); }
+  // Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y on this page (not in a text field or the code): the world's undo, in the game.
+  const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'y') && !/INPUT|TEXTAREA|SELECT/.test(e.target.tagName || '') && !e.target.isContentEditable && !e.target.closest?.('.cm-editor, .CodeMirror')) {
+    e.preventDefault();
+    toStage({ type: k === 'y' || e.shiftKey ? 'redo' : 'undo' });
+  }
   if ((e.ctrlKey || e.metaKey) && e.key === 'e') { e.preventDefault(); $('drawer').classList.contains('open') ? closeDrawer() : openDrawer('code'); }
 });
 setInterval(() => { if (connId && openPath) post(`${API}/games/${gameId}/presence`, { file: openPath }).catch(() => {}); }, 15000);
