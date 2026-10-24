@@ -111,9 +111,9 @@
   }
 
   function light(ctx, s, flash = 0) {
-    const w = W(), cfg = L.effectiveConfig();
-    if (w.hemi) w.hemi.intensity = (cfg.ambient ?? 0.7) * (1 - s.dark * 0.45) + flash * 1.5;
-    if (w.sun) w.sun.intensity = (cfg.sun ?? 0.9) * (1 - s.dark * 0.75) + flash;
+    const cfg = L.effectiveConfig();
+    // The sky works out the light (H.sky): a darker sky in the rain, the flash of lightning.
+    if (H.sky) H.sky.set('weather', { dark: s.dark, flash, weather: true });
     // A grey haze when the world has no fog of its own (and your head isn't under water).
     if (!cfg.fog && !(H.water && H.water.underwater) && s.rain > 0.05) {
       const sc = ctx.scene, bg = L.hex(cfg.background, '#9fd3f0');
@@ -203,9 +203,8 @@
       if (ctx.state.ps) ctx.state.ps.dispose();
       for (const r of ctx.state.rings || []) r.m.dispose();
       stopSound(ctx);
-      const w = W(), cfg = L.effectiveConfig();
-      if (w && w.hemi) w.hemi.intensity = cfg.ambient ?? 0.7;
-      if (w && w.sun) w.sun.intensity = cfg.sun ?? 0.9;
+      const w = W();
+      if (H.sky) H.sky.set('weather', null);
       if (ctx.state.haze && w && w.scene === ctx.scene) X.restoreFog(ctx.scene);
       state.on = false; state.rain = 0;
     },

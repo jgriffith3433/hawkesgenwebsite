@@ -28,6 +28,11 @@
   const r3 = (n) => Math.round(n * 1000) / 1000;
   const r4 = (n) => Math.round(n * 10000) / 10000;
   const gravity = () => { const g = W() && W().config ? Number(W().config.gravity ?? -24) : -24; return isFinite(g) ? g : -24; };
+  /** The air where a vehicle is (1 at the planet's surface, thinning with height: H.planet). Wings, rotors and engines
+   *  that breathe it lose their grip as it thins; rockets and space ships don't need it. */
+  const airAt = (y) => (H.planet && H.planet.air ? H.planet.air(y) : 1);
+  /** Fastest a vehicle goes (m/s): the engine's physics allows 200. */
+  const SPEED_CAP = { rocket: 198, ship: 198 };
 
   // ------------------------------------------------------------------ the world's vehicles
   const list = () => { const w = W(); if (!w) return []; if (!w.vehicles) w.vehicles = new Set(); return [...w.vehicles].filter((e) => e.alive); };
@@ -210,7 +215,9 @@
       autopilot: (spec && spec.data && spec.data.autopilot) || (o.data && o.data.autopilot) || null,
       sleeping: false, still: 0, airTime: 0, flipT: 0, grounded: false, submerged: 0, stalled: false, aoa: 0,
       key: null, net: null, seatEvents: false, lastCrash: 0, light: null, smoke: null,
+      flames: ctx.flames || null, fuel: def.engine.fuel || 0, heat: 0, chute: false, air: 1,
     };
+    if (v.flames) for (const f of v.flames) { f._len = f.scaling.y; f.setEnabled(false); }
     v.pred = makePredicate(v);
     e.vehicle = v;
     e.handlers.enter = [];
@@ -416,6 +423,7 @@
     if (v.extForce) { v.F.addInPlace(v.extForce); v.extForce = null; }
     const inp = inputOf(v);
     v.cur = inp;
+    v.air = airAt(v.pos.y);
     // Boost: a tank that empties while you hold it and fills back up.
     v.boosting = Boolean(inp.boost) && v.boostFuel > 0.02 && !v.wrecked;
     v.boostFuel = clamp(v.boostFuel + (v.boosting ? -0.32 : 0.14) * dt, 0, 1);
@@ -436,9 +444,12 @@
     else if (D.class === 'sub') subControl(v, inp, dt, g);
     else if (D.class === 'plane') planeControl(v, inp, dt, g, contacts);
     else if (D.class === 'heli') heliControl(v, inp, dt, g);
-    // A little air drag.
+    else if (D.class === 'rocket') rocketControl(v, inp, dt, g);
+    else if (D.class === 'ship') shipControl(v, inp, dt, g);
+    heating(v, dt);
+    // A little air drag (less as the air thins).
     const sp = v.vel.length();
-    if (sp > 0.01) v.F.addInPlace(v.vel.scale(-v.mass * 0.0012 * sp));
+    if (sp > 0.01) v.F.addInPlace(v.vel.scale(-v.mass * 0.0012 * sp * v.air));
     return contacts;
   }
   function integrate(v, dt, damping) {
@@ -446,7 +457,8 @@
     v.w.addInPlace(iinv(v, v.T).scale(dt));
     v.w.scaleInPlace(Math.max(0, 1 - dt * damping));
     if (v.w.length() > 12) v.w.normalize().scaleInPlace(12);
-    if (v.vel.length() > 160) v.vel.normalize().scaleInPlace(160);
+    const cap = SPEED_CAP[v.def.class] || 160;
+    if (v.vel.length() > cap) v.vel.normalize().scaleInPlace(cap);
   }
   /** Upside down and stuck: it rights itself after a moment (R does it at once). */
   function selfRight(v, dt) {
@@ -767,15 +779,17 @@
     v.stalled = !onGround && Math.abs(alpha) > stall && speed > 3;
     if (Math.abs(alpha) > stall) cl = (A.cl0 + A.clA * stall * Math.sign(alpha)) * Math.max(0.15, 1 - (Math.abs(alpha) - stall) * 3);
     v.aoa = alpha;
-    const lift = A.lift * vf * vf * cl;
+    // Thin air: past a couple of km the wings lift less and the engine (it breathes the air) pulls less: a ceiling.
+    const rho = clamp(v.air / 0.32, 0, 1);
+    const lift = A.lift * vf * vf * cl * rho;
     v.F.addInPlace(v.up.scale(v.mass * lift));
-    if (speed > 0.5) v.F.addInPlace(vel.scale(-v.mass * A.drag * speed * (A.cd0 + A.induced * cl * cl)));
-    v.F.addInPlace(v.right.scale(-v.mass * vb.x * 1.4 * clamp(speed / 10, 0, 1)));
-    v.F.addInPlace(v.fwd.scale(v.mass * D.engine.accel * v.throttle * (v.boosting ? D.engine.boost : 1)));
+    if (speed > 0.5) v.F.addInPlace(vel.scale(-v.mass * A.drag * speed * (A.cd0 + A.induced * cl * cl) * rho));
+    v.F.addInPlace(v.right.scale(-v.mass * vb.x * 1.4 * clamp(speed / 10, 0, 1) * Math.max(0.2, rho)));
+    v.F.addInPlace(v.fwd.scale(v.mass * D.engine.accel * v.throttle * (v.boosting ? D.engine.boost : 1) * rho));
     v.throttleNow = v.throttle;
     // Controls: S pulls the nose up, W pushes it down, A/D roll. They bite with speed.
-    const eff = clamp(speed / 25, 0, 1);
-    const effv = clamp(speed / 15, 0, 1);
+    const eff = clamp(speed / 25, 0, 1) * Math.min(1, 0.25 + rho);
+    const effv = clamp(speed / 15, 0, 1) * Math.min(1, 0.25 + rho);
     const pitchIn = onGround && fwdSpeedNow < 18 ? 0 : -inp.y;
     const beta = Math.atan2(vb.x, Math.max(1, vf));
     // Pulling up eases off near the stall (it still stalls when slow: gravity wins).
@@ -799,17 +813,20 @@
     // The rotor spins up when someone's flying it (or an autopilot is), down when not.
     const flown = (v.seats[0].who || v.autopilot) && !v.wrecked;
     v.spool = clamp(v.spool + (flown ? dt / 2 : -dt / 4), 0, 1);
-    const hover = G / (2 * G * Math.max(0.5, v.up.y));
+    // The rotor pushes on the air: in thin air it needs more collective to hover, and past ~1.2 km it can't.
+    const rho = Math.max(0.02, v.air);
+    const hover = G / (2 * G * Math.max(0.5, v.up.y) * rho);
     let c = hover - v.vel.y * 0.12;
     if (inp.up) c = hover + 0.28;
     else if (inp.down) c = hover - 0.3;
     if (v.grounded && !inp.up) c = Math.min(c, hover * 0.6);
     v.collective = clamp(c, 0, 1);
-    v.F.addInPlace(v.up.scale(v.mass * 2 * G * v.collective * v.spool));
+    v.F.addInPlace(v.up.scale(v.mass * 2 * G * v.collective * v.spool * rho));
+    v.ceiling = hover > 0.97;
     // Drag, more so sideways and up and down.
     const h = new B.Vector3(v.vel.x, 0, v.vel.z);
-    v.F.addInPlace(h.scale(-v.mass * (v.boosting ? 0.25 : 0.38)));
-    v.F.y -= v.vel.y * v.mass * 0.9;
+    v.F.addInPlace(h.scale(-v.mass * (v.boosting ? 0.25 : 0.38) * Math.max(0.3, rho)));
+    v.F.y -= v.vel.y * v.mass * 0.9 * rho;
     // Attitude: W tips the nose down and you fly forward; A/D turn; no input levels it.
     const tilt = (v.boosting ? 35 : 24) * RAD;
     const pitchDown = Math.asin(clamp(-v.fwd.y, -1, 1));
@@ -821,6 +838,77 @@
       steerRate(v, UP, inp.x * D.engine.turn * v.spool, 3, dt);
     }
     v.throttleNow = v.collective;
+  }
+
+  /** A rocket: thrust along its length (space up, C down: the throttle), W/S pitch and A/D lean it (its little
+   *  thrusters work in vacuum), a tank of fuel that fills on the ground, a parachute when it falls back into the air. */
+  function rocketControl(v, inp, dt) {
+    const D = v.def;
+    if (inp.up) v.throttle += dt * 0.7;
+    if (inp.down) v.throttle -= dt * 0.9;
+    v.throttle = clamp(v.wrecked ? 0 : v.throttle, 0, 1);
+    const full = D.engine.fuel || 150;
+    if (v.grounded && v.throttle < 0.05) v.fuel = Math.min(full, v.fuel + dt * full / 6);
+    const burning = v.throttle > 0.01 && v.fuel > 0;
+    if (burning) v.fuel = Math.max(0, v.fuel - dt * v.throttle * (v.boosting ? 1.6 : 1));
+    const thrust = burning ? D.engine.accel * v.throttle * (v.boosting ? D.engine.boost : 1) : 0;
+    v.F.addInPlace(v.up.scale(v.mass * thrust));
+    v.throttleNow = burning ? v.throttle : 0;
+    // Air drag on the body (thin up high), and the parachute on the way down.
+    const sp = v.vel.length(), rho = v.air;
+    if (sp > 0.5) v.F.addInPlace(v.vel.scale(-v.mass * 0.0008 * sp * rho));
+    const alt = H.planet ? H.planet.altitude(v.pos.y) : v.pos.y;
+    if (!burning && v.vel.y < -22 && rho > 0.3 && alt < 3000 && !v.grounded) v.chute = true;
+    if (v.grounded || burning) v.chute = false;
+    if (v.chute) v.F.y += v.vel.y * v.vel.y * v.mass * 0.02 * rho;
+    // Steering: the nose follows W/S and A/D; let go and it holds where it points. On the pad it stays put.
+    if (!(v.grounded && !burning)) {
+      steerRate(v, v.right, -inp.y * 0.9, 4, dt);
+      steerRate(v, v.fwd, -inp.x * 0.9, 4, dt);
+      steerRate(v, v.up, 0, 3, dt);
+    }
+  }
+  /** A space ship: thrusters, not wings. Space climbs and C descends (let go and it holds its height: hover assist),
+   *  W/S thrust forward and back, A/D turn, shift boosts. It flies the same in the air and in space (the air only
+   *  drags on it), and lands softly. */
+  function shipControl(v, inp, dt, g) {
+    const D = v.def, G = Math.abs(g);
+    const flown = (v.seats[0].who || v.autopilot) && !v.wrecked;
+    v.spool = clamp(v.spool + (flown ? dt / 1.2 : -dt / 2), 0, 1);
+    const boost = v.boosting ? D.engine.boost : 1;
+    const climb = D.engine.climb || 60;
+    const want = inp.up ? climb * boost : inp.down ? -climb * 0.7 : 0;
+    // Hover assist: the thrusters hold it up and chase the climb rate you ask for (gently near the ground).
+    let wantV = want;
+    if (inp.down) { const near = heightAboveGround(v); if (near < 8) wantV = -Math.max(1.2, near * 0.8); }
+    const lift = G + clamp((wantV - v.vel.y) * 2.2, -G, D.engine.accel * 2.2);
+    v.F.y += v.mass * lift * v.spool;
+    // Forward and back along where it points (level), turning with A/D.
+    const fwd = new B.Vector3(v.fwd.x, 0, v.fwd.z);
+    if (fwd.lengthSquared() > 1e-6) fwd.normalize();
+    const push = inp.y > 0 ? D.engine.accel * inp.y * boost : inp.y < 0 ? D.engine.reverse * inp.y : 0;
+    v.F.addInPlace(fwd.scale(v.mass * push * v.spool));
+    // Flight assist: sideways slip and coasting die away (more in the air), so it flies where it points.
+    const h = new B.Vector3(v.vel.x, 0, v.vel.z);
+    const along = fwd.scale(B.Vector3.Dot(h, fwd));
+    const side = h.subtract(along);
+    v.F.addInPlace(side.scale(-v.mass * 1.6 * v.spool));
+    if (Math.abs(inp.y) < 0.05) v.F.addInPlace(along.scale(-v.mass * (0.35 + 0.5 * v.air) * v.spool));
+    if (h.length() > 0.5) v.F.addInPlace(h.scale(-v.mass * 0.003 * h.length() * v.air));
+    // Attitude (its little thrusters): level, leaning into the way it goes.
+    const pitchDown = Math.asin(clamp(-v.fwd.y, -1, 1));
+    const rollRight = Math.asin(clamp(-v.right.y, -1, 1));
+    const wantPitch = inp.y * 8 * RAD, wantRoll = inp.x * 16 * RAD;
+    steerRate(v, v.right, (wantPitch - pitchDown) * 3 * v.spool, 4, dt);
+    steerRate(v, v.fwd, -(wantRoll - rollRight) * 3 * v.spool, 4, dt);
+    steerRate(v, UP, inp.x * D.engine.turn * v.spool, 3, dt);
+    v.throttleNow = v.spool * (0.25 + 0.75 * clamp(Math.abs(push) / D.engine.accel + Math.max(0, wantV) / climb, 0, 1));
+  }
+  /** Fast through thick air: it glows (re-entry); coming down from space it's bright orange. */
+  function heating(v, dt) {
+    const sp = v.vel.length();
+    const want = clamp((sp - 85) / 90, 0, 1) * clamp(v.air * 6, 0, 1) * (v.def.class === 'rocket' || v.def.class === 'ship' ? 1 : 0.4);
+    v.heat += (want - v.heat) * Math.min(1, dt * 1.5);
   }
 
   // ------------------------------------------------------------------ collisions
@@ -1122,6 +1210,20 @@
       w.spinNode.rotation.x = w.spin;
     }
     if (v.modelWheels) for (const n of v.modelWheels) n.rotation.x = (v.wheels[0] && v.wheels[0].spin) || 0;
+    // Engine flames: as long as the thrust, flickering; the heat of re-entry on the paint.
+    if (v.flames) {
+      const k = clamp(v.throttleNow || 0, 0, 1.3) * (v.boosting ? 1.25 : 1);
+      for (const f of v.flames) {
+        f.setEnabled(k > 0.02);
+        if (k > 0.02) { const fl = 0.85 + Math.random() * 0.3; f.scaling.y = (f._len || 1) * (0.25 + 0.75 * k) * fl; f.scaling.x = f.scaling.z = 0.6 + 0.4 * k; }
+      }
+    }
+    if (v.heat > 0.02 || v.heatShown) {
+      const h = v.heat;
+      v.mats.paint.emissiveColor = new B.Color3(1, 0.42, 0.12).scale(h * 0.95);
+      v.mats.trim.emissiveColor = new B.Color3(1, 0.5, 0.15).scale(h * 0.8);
+      v.heatShown = h > 0.02;
+    }
     const t = v.def.class;
     for (const s of v.spinners) {
       const rate = t === 'heli' ? v.spool * (s.axis === 'x' ? 70 : 28) : t === 'plane' ? (v.seats[0].who || v.autopilot ? 8 + v.throttle * 55 : 0) : (v.throttleNow || 0) * 25;
@@ -1153,7 +1255,7 @@
     if (s.h !== undefined) v.horn = Boolean(s.h);
     if (s.b !== undefined) v.boosting = Boolean(s.b);
     if (s.st !== undefined) v.steer = s.st;
-    if (s.t !== undefined) { v.throttleNow = s.t; if (v.def.class === 'plane') v.throttle = s.t; }
+    if (s.t !== undefined) { v.throttleNow = s.t; if (v.def.class === 'plane' || v.def.class === 'rocket') v.throttle = s.t; }
     if (s.sp !== undefined) v.spool = s.sp;
     if (s.hp !== undefined) v.health = s.hp;
     if (s.x && !v.wrecked) wreck(v);
@@ -1242,7 +1344,14 @@
     boat: { what: 'A speedboat: floats on water (the Water module\'s, or anything tagged "water"), planes over waves.' },
     submarine: { what: 'A submarine: C dives, space rises, W/S thrust, A/D turn. Let go deep and it holds its depth.' },
     airplane: { what: 'An airplane: hold W to roll down the runway, S lifts the nose at speed. In the air: W/S pitch, A/D roll, space/C throttle. Too slow and it stalls.' },
-    helicopter: { what: 'A helicopter: space climbs, C descends (it hovers by itself), W/S tilt to fly forward and back, A/D turn.', auto: { hover: 2.5 } },
+    helicopter: { what: 'A helicopter: space climbs, C descends (it hovers by itself), W/S tilt to fly forward and back, A/D turn. Its rotor needs air: it tops out around 1.2 km.', auto: { hover: 2.5 } },
+    rocket: { what: 'A rocket: space opens the throttle, C closes it, W/S pitch, A/D lean. It burns its fuel (it fills on the ground) and works in vacuum: fly it to space and the Overseer. A parachute opens if it falls back into the air.' },
+    spaceship: { what: "A space ship: space climbs, C descends (it hovers by itself), W/S thrust, A/D turn, shift boosts. It flies in the air and in space, and docks in the Overseer's hangar." },
+  };
+  const HOTBAR = {
+    car: { order: 120, icon: '🚗', label: 'Car' }, truck: { order: 121, icon: '🛻', label: '4x4' },
+    helicopter: { order: 122, icon: '🚁', label: 'Helicopter' }, airplane: { order: 123, icon: '✈', label: 'Airplane' },
+    rocket: { order: 124, icon: '🚀', label: 'Rocket' }, spaceship: { order: 125, icon: '🛸', label: 'Space ship' },
   };
   function codexSpec(type) {
     const c = CODEX[type] || {};
@@ -1273,8 +1382,7 @@
         word: `a ${def.title.toLowerCase()}`,
         lift: (spec) => V.restHeight(tuned(type, (spec && spec.shape) || {}, spec && spec.transform && typeof spec.transform.scale === 'number' ? spec.transform.scale : 1)) + 0.05,
         motion: [['dynamic', 'Drives'], ['static', 'Parked']],
-        hotbar: type === 'car' ? [{ order: 120, icon: '🚗', label: 'Car', make: () => ({ type: 'car', name: 'Car', material: { color: def.color } }) }]
-          : type === 'truck' ? [{ order: 121, icon: '🛻', label: '4x4', make: () => ({ type: 'truck', name: '4x4', material: { color: def.color } }) }] : [],
+        hotbar: HOTBAR[type] ? [{ ...HOTBAR[type], make: () => ({ type, name: HOTBAR[type].label, material: { color: def.color } }) }] : [],
       },
       codex: { group: 'Vehicles', what: (CODEX[type] || {}).what || def.title, spec: codexSpec(type), fields: FIELDS },
     });

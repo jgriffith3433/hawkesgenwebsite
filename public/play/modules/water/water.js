@@ -55,6 +55,7 @@ uniform mat4 world;
 uniform mat4 viewProjection;
 uniform float time;
 uniform vec3 wave;
+uniform vec3 curve;
 varying vec3 vW;
 varying vec3 vN;
 varying float vH;
@@ -78,6 +79,9 @@ void main(void) {
   }
   wp.y += h;
   vW = wp.xyz;
+  // The planet's curve (H.planet): far water sinks below the horizon.
+  vec2 cd = wp.xz - curve.xy;
+  wp.y -= dot(cd, cd) * curve.z;
   vN = normalize(vec3(-d.x, 1.0, -d.y));
   vH = wave.x > 0.0 ? h / (wave.x * 1.75) : 0.0;
   vShore = shore;
@@ -141,7 +145,7 @@ void main(void) {
     const sc = W().scene;
     const m = new B.ShaderMaterial('water-surface', sc, { vertex: 'hawkesWater', fragment: 'hawkesWater' }, {
       attributes: ['position', 'shore'],
-      uniforms: ['world', 'viewProjection', 'time', 'wave', 'camPos', 'deep', 'shallow', 'skyCol', 'sunDir', 'alpha', 'foam', 'fog', 'fogCol'],
+      uniforms: ['world', 'viewProjection', 'time', 'wave', 'camPos', 'deep', 'shallow', 'skyCol', 'sunDir', 'alpha', 'foam', 'fog', 'fogCol', 'curve'],
       needAlphaBlending: true,
     });
     m.backFaceCulling = false;
@@ -153,6 +157,7 @@ void main(void) {
       e.setFloat('time', now());
       e.setFloat3('wave', b.amp, b.len, b.speed);
       if (cam) e.setFloat3('camPos', cam.globalPosition.x, cam.globalPosition.y, cam.globalPosition.z);
+      e.setFloat3('curve', cam ? cam.globalPosition.x : 0, cam ? cam.globalPosition.z : 0, H.planet && H.planet.on ? 1 / (2 * H.planet.radius) : 0);
       e.setColor3('deep', cl.deep);
       e.setColor3('shallow', cl.shallow);
       const cc = s.clearColor;
