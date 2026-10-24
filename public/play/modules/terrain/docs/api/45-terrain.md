@@ -30,8 +30,8 @@ theirs already. Script edits aren't saved in the world (they're part of playing)
 crater sized by the radius, unless `config.terrain.craters` is false or the blast was high in the air.
 
 **The shovel** is a tool: `game.player.tool = 'shovel'` (or `{ type: 'shovel', radius: 2.5, depth: 1.2 }` for a big
-one). Click digs where you look and throws the dirt beside the hole; shift+click (or R) piles dirt; G digs too. On a
-phone: Dig and Pile buttons.
+one). Click digs where you look and throws the dirt beside the hole; shift+click (or R) piles dirt; holding G or R keeps going. On a
+phone: hold the Dig and Pile buttons.
 
 ```js
 // Dig a giant hole in front of the player when they press H, for everyone.
