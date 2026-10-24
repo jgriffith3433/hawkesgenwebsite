@@ -32,6 +32,9 @@ export const AVATAR = {
   extras: ['glasses', 'shades', 'scarf', 'backpack', 'cape', 'bowtie', 'wings', 'tail'],
   faces: ['visor', 'eyes', 'smile', 'none'],
   maxExtras: 3,
+  // What you are (public/play/modules/presence/presence-core.js WHATS: keep the ids in step) and your character's name.
+  whats: ['person', 'robot', 'tvbot', 'rollbot', 'dog', 'cat', 'fox', 'pig', 'bear', 'rabbit', 'penguin', 'chicken', 'cow', 'sheep', 'horse', 'dinosaur', 'fish', 'shoe', 'toaster', 'cactus', 'cone', 'teapot', 'banana', 'mushroom', 'potato', 'duck'],
+  nameMax: 24,
 };
 const HEX = /^#[0-9a-f]{6}$/i;
 const FRIEND_REQUESTS_PER_DAY = 60;
@@ -51,6 +54,9 @@ export function cleanAvatar(v: unknown) {
     body: color('body', '#4a9eff'), head: color('head', '#f2c9a0'), accent: color('accent', '#ffffff'),
     shape: one('shape', AVATAR.shapes, 'normal'), hat: one('hat', AVATAR.hats, 'none'), face: one('face', AVATAR.faces, 'visor'),
     extras: [...new Set(extras as string[])], model,
+    what: one('what', AVATAR.whats, 'person'),
+    // A name is only words over your head: one line, no markup, short (anything else is dropped, not refused).
+    name: typeof a.name === 'string' ? a.name.replace(/[\u0000-\u001f\u007f<>]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, AVATAR.nameMax) || null : null,
   };
 }
 

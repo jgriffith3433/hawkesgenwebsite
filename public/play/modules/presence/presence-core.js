@@ -20,6 +20,43 @@
     palette: ['#4a9eff', '#a855f7', '#34d399', '#fbbf24', '#ef4444', '#f97316', '#22d3ee', '#ec4899', '#f5f5f4', '#1f2937', '#84cc16', '#8b5cf6'],
     skins: ['#f2c9a0', '#e0ac69', '#c68642', '#8d5524', '#5c3a1e', '#ffdbac', '#9ad0ff', '#b4f8c8'],
   };
+
+  // What you are (the mirror's first question: modules/mirror). Each: its word, an icon, a group, the body it's drawn
+  // with (`body`: 'person', a Living species, or a thing in presence-bodies.js), its height in meters, its own colors
+  // [body, accent, detail] and what the Overseer says when you pick it. Keep the ids in step with src/presence.ts.
+  const WHATS = [
+    { id: 'person', label: 'A person', icon: '🧍', group: 'people', body: 'person', h: 1.8, colors: ['#4a9eff', '#ffffff', '#f2c9a0'], line: 'A person. Classic. Nobody will suspect a thing.' },
+    { id: 'robot', label: 'A robot', icon: '🤖', group: 'people', body: 'robot', h: 1.8, colors: ['#aab4c3', '#3ee6ff', '#c9d2df'], line: 'A robot. Beep. I will assume that means hello.' },
+    { id: 'tvbot', label: 'A TV robot', icon: '📺', group: 'people', body: 'tvbot', h: 1.75, colors: ['#3a3f4b', '#7dd3fc', '#e5e7eb'], line: 'A television with legs. Finally, something worth watching.' },
+    { id: 'rollbot', label: 'A roll-bot', icon: '🔵', group: 'people', body: 'rollbot', h: 1.35, colors: ['#f4c430', '#22d3ee', '#3a3f4b'], line: 'A ball with ambitions. Roll with it.' },
+    { id: 'dog', label: 'A dog', icon: '🐶', group: 'animals', body: 'dog', h: 0.95, colors: ['#c98f4f', '#3a2a1c', '#c98f4f'], line: 'Who is a good dog? You are. Obviously.' },
+    { id: 'cat', label: 'A cat', icon: '🐱', group: 'animals', body: 'cat', h: 0.8, colors: ['#5d5d66', '#f2f2f2', '#5d5d66'], line: 'A cat. You were going to ignore me anyway.' },
+    { id: 'fox', label: 'A fox', icon: '🦊', group: 'animals', body: 'wolf', h: 1, colors: ['#e2742b', '#f7f1e6', '#e2742b'], line: 'A fox. Clever. Suspiciously clever.' },
+    { id: 'pig', label: 'A pig', icon: '🐷', group: 'animals', body: 'pig', h: 0.95, colors: ['#f2a7b0', '#c96f7c', '#f2a7b0'], line: 'A pig. Clean, clever, and deeply misunderstood.' },
+    { id: 'bear', label: 'A bear', icon: '🐻', group: 'animals', body: 'bear', h: 1.4, colors: ['#5a3a24', '#2a1a12', '#5a3a24'], line: 'A bear. Please do not eat Pip.' },
+    { id: 'rabbit', label: 'A bunny', icon: '🐰', group: 'animals', body: 'rabbit', h: 0.8, colors: ['#c8b6a0', '#ffffff', '#c8b6a0'], line: 'A bunny. Hop responsibly.' },
+    { id: 'penguin', label: 'A penguin', icon: '🐧', group: 'animals', body: 'penguin', h: 1.1, colors: ['#1e2430', '#f4f4f4', '#1e2430'], line: 'A penguin. Dressed for a party that has not started yet.' },
+    { id: 'chicken', label: 'A chicken', icon: '🐔', group: 'animals', body: 'chicken', h: 0.9, colors: ['#f6f1e6', '#d62f2f', '#f6f1e6'], line: 'A chicken. Brave of you, all things considered.' },
+    { id: 'cow', label: 'A cow', icon: '🐮', group: 'animals', body: 'cow', h: 1.5, colors: ['#f2efe8', '#2a2522', '#f2efe8'], line: 'A cow. Moo is a complete sentence.' },
+    { id: 'sheep', label: 'A sheep', icon: '🐑', group: 'animals', body: 'sheep', h: 1.1, colors: ['#efe9da', '#3b332d', '#3b332d'], line: 'A sheep. Fluffy, and following no one.' },
+    { id: 'horse', label: 'A horse', icon: '🐴', group: 'animals', body: 'horse', h: 1.8, colors: ['#8a5a36', '#2a1d14', '#8a5a36'], line: 'A horse. Neigh-ver change.' },
+    { id: 'dinosaur', label: 'A dinosaur', icon: '🦖', group: 'animals', body: 'dinosaur', h: 1.9, colors: ['#4d7a3a', '#e9d8a6', '#4d7a3a'], line: 'A dinosaur. Extinction was only ever a rumor.' },
+    { id: 'fish', label: 'A fish', icon: '🐟', group: 'animals', body: 'fish', h: 0.9, colors: ['#f08a2c', '#ffffff', '#f08a2c'], line: 'A fish. On land. Bold. Very bold.' },
+    { id: 'shoe', label: 'A shoe', icon: '👟', group: 'things', body: 'shoe', h: 0.95, colors: ['#ef4444', '#f5f5f5', '#1f2937'], line: 'A shoe. Bold. The universe has never seen a shoe with ambition.' },
+    { id: 'toaster', label: 'A toaster', icon: '🍞', group: 'things', body: 'toaster', h: 1.15, colors: ['#b8bfcc', '#d9a35f', '#2b2f3a'], line: 'A toaster. Warm, reliable, and never allowed near the bath.' },
+    { id: 'cactus', label: 'A cactus', icon: '🌵', group: 'things', body: 'cactus', h: 1.7, colors: ['#3f9a4a', '#f472b6', '#c2703d'], line: 'A cactus. Hugs are off the table, then.' },
+    { id: 'cone', label: 'A traffic cone', icon: '🚧', group: 'things', body: 'cone', h: 1.4, colors: ['#f97316', '#f5f5f5', '#1f2937'], line: 'A traffic cone. You will direct traffic. Or stand there. Either way.' },
+    { id: 'teapot', label: 'A teapot', icon: '🫖', group: 'things', body: 'teapot', h: 1.05, colors: ['#e9e4d8', '#4a9eff', '#b07a45'], line: 'A teapot. Short and stout, I am told.' },
+    { id: 'banana', label: 'A banana', icon: '🍌', group: 'things', body: 'banana', h: 1.6, colors: ['#f4d03f', '#5b4636', '#8a6d1f'], line: 'A banana. Please, nobody slip.' },
+    { id: 'mushroom', label: 'A mushroom', icon: '🍄', group: 'things', body: 'mushroom', h: 1.35, colors: ['#e04f5f', '#ffffff', '#f2e6d0'], line: 'A mushroom. A fun guy, I hear.' },
+    { id: 'potato', label: 'A potato', icon: '🥔', group: 'things', body: 'potato', h: 1, colors: ['#b98a52', '#7a5a34', '#f2e6d0'], line: 'A potato. Humble. Versatile. Mashed, eventually.' },
+    { id: 'duck', label: 'A rubber duck', icon: '🦆', group: 'things', body: 'duck', h: 0.95, colors: ['#facc15', '#f97316', '#111827'], line: 'A rubber duck. Squeak with purpose.' },
+  ];
+  const WHAT = new Map(WHATS.map((w) => [w.id, w]));
+  LOOK.whats = WHATS.map((w) => w.id);
+  const NAME_MAX = 24;
+  /** A character's name as it will show: one line, no markup or control characters, at most NAME_MAX ('' if none). */
+  const cleanName = (v) => (typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f<>]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, NAME_MAX) : '');
   const HEX = /^#[0-9a-f]{6}$/i;
   /** A look anyone sent, made safe: anything unknown becomes the default (never throws: it's for drawing). */
   function cleanLook(v) {
@@ -31,6 +68,7 @@
       body: color(a.body, '#4a9eff'), head: color(a.head, '#f2c9a0'), accent: color(a.accent, '#ffffff'),
       shape: one(a.shape, LOOK.shapes, 'normal'), hat: one(a.hat, LOOK.hats, 'none'), face: one(a.face, LOOK.faces, 'visor'),
       extras, model: typeof a.model === 'string' && /^a_[0-9a-f]{6,40}$/.test(a.model) ? a.model : null,
+      what: WHAT.has(a.what) ? a.what : 'person', name: cleanName(a.name) || null,
     };
   }
   /** A random fun look (guests get one): the same seed gives the same look. */
@@ -157,5 +195,5 @@
     };
   }
 
-  P.core = { LOOK, cleanLook, randomLook, seedOf, EMOTES, emote, TAGS, layoutTags, BUBBLES, bubbleSeconds, wrap, bubbles, CHAT, cleanLine, limiter };
+  P.core = { LOOK, WHATS, WHAT, cleanName, NAME_MAX, cleanLook, randomLook, seedOf, EMOTES, emote, TAGS, layoutTags, BUBBLES, bubbleSeconds, wrap, bubbles, CHAT, cleanLine, limiter };
 })();

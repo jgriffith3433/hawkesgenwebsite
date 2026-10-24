@@ -408,6 +408,13 @@ export const STARTER = [
     ['Overseer destruction', '[a little amused] Destruction is a kind of freedom too.', 'overseer guide explosion'],
     ['Overseer ask and I will send it', '[generous] Ask, [pause] and I will send it down.', 'overseer guide spawn'],
     ['Overseer your world', '[slowly, proud] That is your world. [pause] All of it.', 'overseer guide planet'],
+    // The mirror (modules/mirror): who you are, right after the intro. "Done" is said after the caption's name.
+    ['Overseer mirror open', '[warm, slow] Before you go anywhere: look. [pause] That is you. [amused] For now.', 'overseer mirror beginning'],
+    ['Overseer mirror what', '[curious] First question. [pause] What are you?', 'overseer mirror what'],
+    ['Overseer mirror look', '[warm] Now. [pause] How do you look?', 'overseer mirror look'],
+    ['Overseer mirror name', '[gently] And what are you called?', 'overseer mirror name'],
+    ['Overseer mirror view', '[calm] How will you see the world? [pause] Through your own eyes, or over your shoulder?', 'overseer mirror view'],
+    ['Overseer mirror done', '[pleased] I will remember that. [pause] Go on, then.', 'overseer mirror done'],
   ] },
 ];
 

@@ -644,6 +644,7 @@
       ${e.kind === 'text' ? `<div class="card-row"><label>Words</label><input class="card-in" id="cText" value="${esc((spec.shape && spec.shape.text) || '')}"></div>` : ''}
       ${e.kind !== 'spawn' ? `<div class="card-row"><label>What it does</label><div class="chips">${behaviors || '<span class="muted">Nothing on its own yet</span>'}<select id="cAdd" aria-label="Add a behavior"><option value="">+ Add…</option>${menu}</select></div></div>` : ''}
       </div>` : ''}
+      ${kindCardButton(e)}
       <div class="card-foot">
         <button type="button" class="card-btn" id="cMore">${popup.full ? 'Less' : 'More…'}</button>
         <button type="button" class="card-btn" id="cCopy">Copy</button>
@@ -655,6 +656,7 @@
     const q = (id) => el.querySelector(`#${id}`);
     q('cClose').onclick = closePopup;
     q('cMore').onclick = () => { popup.full = !popup.full; renderCard(); };
+    wireKindCard(el, e);
     q('cName').onchange = (ev) => { const v = ev.target.value.trim().slice(0, 60); if (v && v !== e.name) update(e, { name: v }, 'renaming'); };
     q('cName').onkeydown = (ev) => { if (ev.key === 'Enter') ev.target.blur(); };
     const motion = q('cMotion');
@@ -708,6 +710,21 @@
     if (gz) gz.onclick = () => toggleGizmo(W().byId.get(e.sceneId) || e);
     function refresh() { setTimeout(() => { if (popup) { popup.e = W().byId.get(e.sceneId) || popup.e; renderCard(); } }, 0); }
   }
+  /** A kind's own settings (its editor.card: { label, open(ctx) }, e.g. the mirror's questions): a button on its card
+   *  that opens them; ctx is { entity, spec, update(patch, label), close() } (close: the card). */
+  function kindCardButton(e) {
+    const c = editorOf(e.kind).card;
+    return c && c.label ? `<div class="card-row"><button type="button" class="card-btn hot" id="cKind">${esc(c.label)}</button></div>` : '';
+  }
+  function wireKindCard(el, e) {
+    const c = editorOf(e.kind).card;
+    const b = el.querySelector('#cKind');
+    if (!c || !b || typeof c.open !== 'function') return;
+    b.onclick = () => {
+      const live = W().byId.get(e.sceneId) || e;
+      try { c.open({ entity: live, spec: specOf(live) || {}, update: (patch, label) => update(W().byId.get(e.sceneId) || live, patch, label || 'settings'), close: closePopup }); } catch (err) { H.report(err, `${e.kind} settings`); }
+    };
+  }
   /** The first card: just the name, a color wheel, a size slider and a round More button, floating with no box. */
   function renderSimple(e, el, spec, isLight, color) {
     el.className = 'card simple';
@@ -723,10 +740,11 @@
           <input type="range" class="sc-range" id="${isLight ? 'cBright' : 'cSize'}" min="${isLight ? 0 : 0.2}" max="4" step="${isLight ? 0.1 : 0.05}" value="${isLight ? bright : scaleNow.toFixed(2)}">
         </div>
         <button type="button" class="sc-more" id="cMore" title="More: how it moves, what it does, copy, remove…" aria-label="More"><span></span><span></span><span></span></button>
-      </div>`;
+      </div>${kindCardButton(e)}`;
     const q = (id) => el.querySelector(`#${id}`);
     q('cClose').onclick = closePopup;
     q('cMore').onclick = () => { popup.full = true; renderCard(); };
+    wireKindCard(el, e);
     const live = () => W().byId.get(e.sceneId);
     const setColor = (c, save) => {
       q('cDot').style.background = c;

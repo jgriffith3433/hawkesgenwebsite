@@ -14,7 +14,7 @@
 | `text` | a floating sign | `text`, `size` (letter height) |
 | `light` | a light (also: `light: { type: point / spot / sun, color, intensity, range }`) | |
 | `video` | a screen playing a video asset (muted until clicked) | `asset`, `width`, `height` (default 16:9), `loop` |
-| `mirror` | a framed mirror | `width`, `height` |
+| `mirror` | a framed mirror; players change who they are in front of it ("The mirror", below) | `width`, `height`, `character` |
 | `spawn` | where players start (`data.role`, default "player"); invisible when playing | |
 | `waypoint` | a glowing orb over a ring: `data.role` "waypoint" (a stop on a route), "checkpoint" (players come back here after falling), "finish" (wins, `data.message`) or "start"; `data.next` is the next one's id (a dotted line shows the way). Players reach it by coming within `shape.radius` | `radius` (1.6) |
 | `trigger` | an invisible zone things can enter | `size` |

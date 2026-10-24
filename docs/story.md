@@ -21,6 +21,10 @@ that's it. That's the whole story."*
   and above the atmosphere there is space, the planet below, and the Overseer.
 - **The beginning:** the Overseer beams you down, and while you look up at it in the sky it tells you: *"I have given you
   the power of free will. Do with it what you will."* That is the whole story. Everything after that is the player's.
+- **The mirror (J, 2026-10-24):** the first thing a player does with free will is decide who they are. Right after the
+  beginning, before anyone greets them, they stand in front of a mirror and the Overseer asks: *"What are you?"* (an
+  animal, a robot, a shoe, a toaster...), *"How do you look?"* and *"What are you called?"*. It's funny on purpose, and
+  the Overseer is amused by every answer. Then the world meets them (in the sandbox, Pip comes over).
 
 ## Design (how the story becomes the game)
 
@@ -37,3 +41,5 @@ that's it. That's the whole story."*
   rocket or a space ship reaches space and the Overseer. Players can build all four.
 - **The intro:** plays the first time a player enters a world (the sandbox, their first game), short and skippable; after
   that, being beamed in is enough. A game can turn the intro off, or always play it.
+- **Mirrors:** a key thing in every game (modules/mirror). Each mirror decides its questions (a game might only allow
+  robots, or ask first or third person), who players may be, and whether it opens by itself when they arrive.

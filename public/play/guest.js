@@ -349,8 +349,8 @@
         const r = await api('POST', `/v1/games/${game.id}/scene`, { ops: part });
         if (r && r.errors && r.errors.length) notApplied.push(...r.errors);
       }
-      // Their island, from now on: the Overseer's beginning only the first time (they've seen it here).
-      await api('POST', `/v1/games/${game.id}/scene`, { ops: [{ op: 'config', patch: { overseer: { intro: 'first' } } }] }).catch(() => {});
+      // Their island, from now on: the Overseer's beginning and the mirror only the first time (they've seen them here).
+      await api('POST', `/v1/games/${game.id}/scene`, { ops: [{ op: 'config', patch: { overseer: { intro: 'first' } } }, { op: 'update', id: 'mirror', patch: { shape: { character: { start: 'first' } } } }] }).catch(() => {});
       if (notApplied.length) console.warn('sandbox: some changes were not kept', notApplied);
       store.clear();
       track('sandbox_claimed', { intent, changes: ops.length, skipped: notApplied.length, user: user ? 'yes' : 'no' });

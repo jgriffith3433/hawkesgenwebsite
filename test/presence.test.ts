@@ -48,10 +48,15 @@ test('a look is saved per player, validated and size-limited; the game reaches i
   const look = { body: '#22C55E', head: '#e0ac69', accent: '#ffffff', shape: 'tall', hat: 'crown', face: 'smile', extras: ['cape', 'cape', 'glasses'], model: null, extra: 'dropped' };
   const saved = await call('/v1/users/me/avatar', { cookie: sam.cookie, body: { avatar: look } });
   assert.equal(saved.status, 200);
-  assert.deepEqual(saved.body.avatar, { body: '#22c55e', head: '#e0ac69', accent: '#ffffff', shape: 'tall', hat: 'crown', face: 'smile', extras: ['cape', 'glasses'], model: null });
+  assert.deepEqual(saved.body.avatar, { body: '#22c55e', head: '#e0ac69', accent: '#ffffff', shape: 'tall', hat: 'crown', face: 'smile', extras: ['cape', 'glasses'], model: null, what: 'person', name: null });
+  // What you are (the mirror) and your character's name: kept; a name is cleaned, never refused.
+  const shoe = await call('/v1/users/me/avatar', { cookie: sam.cookie, body: { avatar: { ...saved.body.avatar, what: 'shoe', name: '  Sir <b>Laces</b>\n' + 'x'.repeat(40) } } });
+  assert.equal(shoe.body.avatar.what, 'shoe');
+  assert.ok(shoe.body.avatar.name.startsWith('Sir b Laces') && shoe.body.avatar.name.length <= 24 && !/[<>\n]/.test(shoe.body.avatar.name), shoe.body.avatar.name);
+  await call('/v1/users/me/avatar', { cookie: sam.cookie, body: { avatar: saved.body.avatar } });
   assert.equal((await call('/v1/users/me/avatar', { cookie: sam.cookie })).body.avatar.hat, 'crown', 'it stays');
 
-  for (const bad of [{ hat: 'sombrero-of-doom' }, { body: 'red' }, { extras: ['cape', 'wings', 'tail', 'scarf'] }, { model: 'https://evil.example/x.glb' }, ['not', 'an', 'object']]) {
+  for (const bad of [{ hat: 'sombrero-of-doom' }, { what: 'unicorn' }, { body: 'red' }, { extras: ['cape', 'wings', 'tail', 'scarf'] }, { model: 'https://evil.example/x.glb' }, ['not', 'an', 'object']]) {
     const r = await call('/v1/users/me/avatar', { cookie: sam.cookie, body: { avatar: bad } });
     assert.equal(r.status, 400, `refused: ${JSON.stringify(bad)} (${r.body.error})`);
   }
