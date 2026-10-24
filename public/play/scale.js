@@ -198,6 +198,32 @@
   }
   H.hooks.step.push(each);
 
+  // The GPU governor: a desktop's budget doesn't know how fast its graphics card is. When the frame rate stays low the
+  // most expensive full-screen extras go, one step at a time (never back up: it would only flap): the bloom and the
+  // soft shadow's blur passes, then the screen is drawn at a lower resolution (1.25x, then 1.5x coarser).
+  const gov = { slow: 0, step: 0, base: 0, set: 0 };
+  H.hooks.world.push({ enter() { gov.slow = 0; gov.step = 0; gov.base = 0; gov.set = 0; } });
+  H.hooks.frame.push((dt) => {
+    const w = H.world;
+    const eng = w && w.scene && w.scene.getEngine();
+    if (!eng || gov.step >= 3 || (typeof document !== 'undefined' && document.hidden) || dt > 0.25) return;
+    if (eng.getFps() < 36) gov.slow += dt; else gov.slow = Math.max(0, gov.slow - dt * 2);
+    if (gov.slow < 4) return;
+    gov.slow = 0;
+    gov.step++;
+    if (gov.step === 1) {
+      if (w.look) w.look.bloomEnabled = false;
+      const sg = w.shadows;
+      if (sg && sg.useBlurExponentialShadowMap) { sg.useBlurExponentialShadowMap = false; sg.useExponentialShadowMap = true; }
+    } else {
+      const now = eng.getHardwareScalingLevel();
+      if (!gov.base) gov.base = now;
+      if (gov.set && Math.abs(now - gov.set) > 1e-6) return; // (photo mode or a module has it for a moment)
+      gov.set = gov.base * (gov.step === 2 ? 1.25 : 1.5);
+      eng.setHardwareScalingLevel(gov.set);
+    }
+  });
+
   // The shadow map is drawn every frame from its casters, and Babylon doesn't cull them (looking at the sky still drew
   // every caster in the world). Each frame it draws only the near ones (above) whose shadow can fall where the camera
   // looks: the thing and the shadow it throws along the sun (about twice its size) in the camera's view.
