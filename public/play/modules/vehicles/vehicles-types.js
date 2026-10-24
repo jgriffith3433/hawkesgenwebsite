@@ -117,7 +117,7 @@
       size: [0.3, 0.7, 1.7],
       wheels: [{ at: [0, -0.05, 0.56], r: 0.34, w: 0.06, steer: 1 }, { at: [0, -0.05, -0.56], r: 0.34, w: 0.06, steer: 0, drive: true, rear: true }],
       suspension: { travel: 0.12 },
-      engine: { accel: 7, top: 13, reverse: 3, boost: 1.3 }, grip: 1.1, drift: 0.5, steer: 38, hop: 7,
+      engine: { accel: 7, top: 13, reverse: 3, boost: 1.3 }, grip: 1.1, drift: 0.5, steer: 26, hop: 7,
       seats: [seat(0, 0.95, -0.15, true)],
       eye: [0, 1.75, 0.05], cam: { distance: 4.5, height: 1.9 },
       body(c) {
@@ -135,7 +135,7 @@
       size: [0.5, 0.7, 2.0],
       wheels: [{ at: [0, -0.1, 0.74], r: 0.34, w: 0.16, steer: 1 }, { at: [0, -0.1, -0.72], r: 0.36, w: 0.2, steer: 0, drive: true, rear: true }],
       suspension: { travel: 0.2 },
-      engine: { accel: 18, top: 48, reverse: 4, boost: 1.4 }, grip: 1.15, drift: 0.4, steer: 30,
+      engine: { accel: 18, top: 48, reverse: 4, boost: 1.4 }, grip: 1.15, drift: 0.4, steer: 22,
       seats: [seat(0, 0.95, -0.2, true), seat(0, 1.05, -0.7, true)],
       eye: [0, 1.75, 0.0], cam: { distance: 5, height: 2 }, exhaust: [0.22, -0.15, -0.95], lamps: { front: 0.95, back: -1.0, x: 0, y: 0.3 },
       body(c) {
@@ -193,6 +193,7 @@
       aero: { lift: 0.0306, cl0: 0.4, clA: 4.5, stall: 15, drag: 0.095, cd0: 0.02, induced: 0.05 },
       seats: [seat(0, 0.35, 0.7), seat(0, 0.35, -0.3)],
       eye: [0, 0.85, 0.9], cam: { distance: 13, height: 3.2 }, lamps: { front: 3.6, back: -3.6, x: 0, y: -0.2 },
+      collider: [{ size: [1.2, 1.2, 7], at: [0, 0, 0] }, { size: [9.2, 0.16, 1.6], at: [0, 0.05, 0.3] }, { size: [3.2, 0.12, 0.9], at: [0, 0.2, -3.6] }, { size: [0.14, 1.2, 1.0], at: [0, 0.75, -3.75] }],
       contacts: [[-4.6, 0, 0.2], [4.6, 0, 0.2], [0, -0.6, 3.4], [0, 0.6, 3.2], [0, 0.6, -3.4], [0, 1.6, -3.5], [-1.6, 0.1, -3.4], [1.6, 0.1, -3.4], [0, -0.6, -3.3]],
       body(c) {
         c.part('cyl', { top: 0.7, bottom: 1.2, h: 5.4 }, 'paint', [0, 0, 0.6], [90, 0, 0]);
@@ -214,6 +215,7 @@
       engine: { accel: 0, top: 50, reverse: 0, boost: 1.4, turn: 1.7 }, grip: 0.6,
       seats: [seat(-0.4, 0.05, 0.55), seat(0.4, 0.05, 0.55), seat(-0.4, 0.05, -0.5), seat(0.4, 0.05, -0.5)],
       eye: [-0.4, 0.6, 0.9], cam: { distance: 12, height: 3.5 }, lamps: { front: 1.95, back: -5.2, x: 0, y: -0.5 },
+      collider: [{ size: [1.8, 1.7, 3.8], at: [0, 0, 0] }, { size: [2.0, 0.14, 2.8], at: [0, -1.3, 0.05] }, { size: [0.5, 0.5, 3.6], at: [0, 0.35, -3.4] }],
       contacts: [[-0.95, -1.35, 1.1], [0.95, -1.35, 1.1], [-0.95, -1.35, -1.0], [0.95, -1.35, -1.0], [0, 0.4, -5.3], [0, 1.4, 0], [0, 0.85, 1.9], [0, -0.85, 1.9]],
       body(c) {
         c.part('sphere', [1.8, 1.7, 3.8], 'paint');

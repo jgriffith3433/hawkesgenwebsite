@@ -102,7 +102,10 @@
       saved: { physics: p.physics === 'trigger' ? 'dynamic' : p.physics, gravity: p.gravity, fov: cam ? cam.fov : 1 },
     };
     p._vehRider = true;
+    p.held = true; // (its character controller rests while it sits)
     p.physics = 'trigger';
+    // The driver simulates the vehicle (no lag at the wheel): they take it over from whoever had it.
+    if (seat === 0 && H.sync && H.sync.online && v.e.sceneId) H.sync.claim(v.e);
     p.velocity = [0, 0, 0];
     p.flying = false;
     if (p.controller !== 'drive') p.control('drive', { vehicle: v.e, seat });
@@ -128,7 +131,9 @@
     if (cam) { cam.upVector = new B.Vector3(0, 1, 0); cam.fov = saved.fov || 1; }
     if (!p || !p.alive) return;
     p._vehRider = false;
+    p.held = false;
     p.physics = saved.physics || 'dynamic';
+    if (H.sync && H.sync.online && v.e.sceneId) H.sync.release(v.e);
     p.gravity = saved.gravity ?? 1;
     if (!quiet) {
       const at = exitSpot(v, p);
@@ -186,6 +191,8 @@
         if (input.pressed('l')) X.setLights(v, !v.lights);
         if (input.pressed('r')) X.flipUpright(v);
         if (honk || v.cur && (v.cur.y || v.cur.x)) X.wake(v);
+        // Still the one simulating it? (Someone bumping it can take it over: take it back.)
+        if (H.sync && H.sync.online && v.e.sceneId && !H.sync.mine(v.e) && (local.claimT = (local.claimT || 0) + dt) > 0.5) { local.claimT = 0; H.sync.claim(v.e); }
       }
       if (input.pressed('v')) { local.cam = local.cam === 'chase' ? 'far' : local.cam === 'far' ? 'cockpit' : 'chase'; local.camPos = null; }
       if (input.pressed('e') && W().time - lastSwitch > 0.25) exit(false);
@@ -211,7 +218,7 @@
     let best = null, bd = Infinity;
     for (const e of V.list()) {
       const v = e.vehicle;
-      if (v.wrecked || e.physics !== 'kinematic' || !e.visible) continue;
+      if (v.wrecked || e.physics === 'static' || e.physics === 'none' || !e.visible) continue;
       if (!v.seats.some((s) => !s.who)) continue;
       const d = Math.hypot(from.x - e.x, from.y - e.y, from.z - e.z) - Math.max(v.def.size[0], v.def.size[2]) / 2;
       if (d < reach && d < bd) { bd = d; best = e; }
