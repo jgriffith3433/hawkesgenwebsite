@@ -519,7 +519,7 @@
     e.wake();
     if (speed) {
       const r = aimRay();
-      e.velocity = [r.dir[0] * speed, r.dir[1] * speed + 1, r.dir[2] * speed];
+      X.launch(e, [r.dir[0] * speed, r.dir[1] * speed + 1, r.dir[2] * speed]);
       X.tumble(e, 1.5);
       e._thrownAt = performance.now();
       X.sound('throw', { at: e.position });

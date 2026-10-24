@@ -428,27 +428,31 @@
       tb.t += dt;
       const r = e.node.rotation;
       const speed = Math.hypot(e.vx, e.vy, e.vz);
-      const resting = e.grounded && speed < 0.8 && tb.t > 0.25;
+      // Havok turns things for real (and knows when they rest); the first physics only turns what you see.
+      const resting = tb.t > 0.3 && (e.sleeping || (speed < 0.7 && (havok() ? Math.hypot(...e.angularVelocity) < 40 : e.grounded)));
       if (!havok()) {
         if (!resting) { r.x += tb.spin[0] * dt; r.y += tb.spin[1] * dt; r.z += tb.spin[2] * dt; if (e.grounded) tb.spin = tb.spin.map((x) => x * 0.9); }
         else tb.spin = [0, 0, 0];
       }
       if (resting) tb.rest += dt; else tb.rest = 0;
       const getsUp = Boolean(e.data && (e.data.critter || e.data.upright)) || e._wasUpright;
+      if (havok() && !getsUp && tb.rest > 0.2) { e._tumble = null; tumbling.delete(e); continue; } // blocks lie as they fell
       if (tb.rest > (getsUp ? 0.9 : 0.15)) {
-        // Lying still: creatures get back on their feet; blocks settle on a face.
+        // Lying still: creatures get back on their feet (upright again, so they don't tip while they do); blocks
+        // settle on a face.
+        if (havok() && e._wasUpright !== undefined) { e.upright = true; }
         const k = Math.min(1, dt * (getsUp ? 5 : 10));
         const tx = getsUp ? 0 : Math.round(r.x / (Math.PI / 2)) * (Math.PI / 2);
         const tz = getsUp ? 0 : Math.round(r.z / (Math.PI / 2)) * (Math.PI / 2);
         r.x += (tx - r.x) * k; r.z += (tz - r.z) * k;
         if (Math.abs(tx - r.x) < 0.01 && Math.abs(tz - r.z) < 0.01) {
           r.x = tx; r.z = tz;
-          if (havok() && e._wasUpright !== undefined) { e.upright = e._wasUpright; e._wasUpright = undefined; }
+          if (havok() && e._wasUpright !== undefined) { e.upright = e._wasUpright; e._wasUpright = undefined; e.wake(); }
           e._tumble = null; tumbling.delete(e);
           if (getsUp && e.data.critter) G().emit('landed', { entity: e });
         }
       }
-      if (tb.t > 12) { e._tumble = null; tumbling.delete(e); }
+      if (tb.t > 12) { if (havok() && e._wasUpright !== undefined) { e.upright = e._wasUpright; e._wasUpright = undefined; } e._tumble = null; tumbling.delete(e); }
     }
   }
 
@@ -500,9 +504,9 @@
       const d = [p.x - from[0], p.y - from[1], p.z - from[2]];
       const l = Math.hypot(...d) || 1;
       const k = force * (0.6 + Math.random() * 0.6);
-      p.velocity = [(d[0] / l) * k + (Math.random() - 0.5) * 2, Math.abs(d[1] / l) * k * 0.6 + 2 + Math.random() * 3, (d[2] / l) * k + (Math.random() - 0.5) * 2];
+      launch(p, [(d[0] / l) * k + (Math.random() - 0.5) * 2, Math.abs(d[1] / l) * k * 0.6 + 2 + Math.random() * 3, (d[2] / l) * k + (Math.random() - 0.5) * 2]);
       tumble(p, 0.6 + Math.random() * 0.8);
-      p._born = now();
+      p._born = W().time; // game time: pieces wait while the game is paused
       p._life = (cfg.debrisLife || 8) * (quality.level ? 0.5 : 1) * (0.8 + Math.random() * 0.4);
       debris.push(p);
       made.push(p);
@@ -531,11 +535,11 @@
     for (const p of pieces) p.onDestroy(() => { if (--left <= 0) mat.dispose(); });
   }
   function runDebris() {
-    const t = now();
+    const t = W().time;
     for (let i = debris.length - 1; i >= 0; i--) {
       const p = debris[i];
       if (!p.alive) { debris.splice(i, 1); continue; }
-      const age = (t - p._born) / 1000;
+      const age = t - p._born;
       if (age > p._life) {
         // Shrink away, then go.
         const k = 1 - (age - p._life) / 0.6;
@@ -592,9 +596,11 @@
   // Hits hard enough break breakables and set off explosives. Speed is the impact speed (Havok gives it; on the
   // first physics it's how fast the two were closing when they touched).
   const watched = new Set();
-  function impact({ a, b, speed }) {
+  const before = (e) => (e._pv && e._pvAt === stepNo ? e._pv : e._v || [e.vx || 0, e.vy || 0, e.vz || 0]);
+  function impact({ a, b }) {
     if (!a || !b) return;
-    const s = speed || Math.hypot((a.vx || 0) - (b.vx || 0), (a.vy || 0) - (b.vy || 0), (a.vz || 0) - (b.vz || 0));
+    const va = a.physics === 'dynamic' ? before(a) : [0, 0, 0], vb = b.physics === 'dynamic' ? before(b) : [0, 0, 0];
+    const s = Math.hypot(va[0] - vb[0], va[1] - vb[1], va[2] - vb[2]);
     check(a, s, b); check(b, s, a);
   }
   function check(e, s, other) {
@@ -604,6 +610,14 @@
     else if (e.data && e.data.explosive && s >= e.data.explosive.strength) blowUp(e);
   }
   H.physics.on('collision', impact);
+  // How fast things were going before each step (what an impact is measured by).
+  let stepNo = 0;
+  H.physics.beforeStep(() => {
+    stepNo++;
+    const w = W();
+    if (!w) return;
+    for (const e of w.entities) if (e.physics === 'dynamic' && !e.sleeping) { const v = e._v || [e.vx, e.vy, e.vz]; e._pv = [v[0], v[1], v[2]]; e._pvAt = stepNo; }
+  });
 
   // ------------------------------------------------------------------ explosions
   /** An explosive thing goes off (barrels, bombs): once, a moment later for a chain. */
@@ -645,7 +659,7 @@
     knockPlayer(at, R * 1.1, F);
     if (authoritative) {
       // Real pushes and damage (H.physics: mass-aware impulses on Havok), then tumbling, breaking and burning.
-      const hit = H.physics.explode(at, { radius: R, force: F, damage: d.damage || 0, owner: d.owner || null, up: 0.8 }) || [];
+      const hit = H.physics.explode(at, { radius: R, force: F, damage: d.damage || 0, owner: d.owner || null, up: 0.8, push: false }) || [];
       let pushed = 0;
       for (const e of hit) {
         if (!e.alive || e.isPlayer || e.remotePlayer) continue;
@@ -772,9 +786,15 @@
       if (b.tick <= 0) { b.tick = 0.5; if (e.hp !== undefined) G().damage(e, 4, null); }
       if (e.data && (e.data.explosive || e.data.barrel) && b.t > 2.2) { blowUp(e); continue; }
       if (cfg.spread && b.spread <= 0) {
-        b.spread = 0.8 + Math.random() * 0.6;
+        // Things close by heat up and catch (the closer, the sooner): about a second and a half next to a fire.
+        b.spread = 0.4;
         const r = Math.max(...e.half) + 0.9;
-        for (const o of H.physics.overlap(H.physics.shapes.sphere(r), [e.x, e.y, e.z], { ignore: e })) if (!burning.has(o) && flammable(o) && Math.random() < 0.45) ignite(o);
+        for (const o of H.physics.overlap(H.physics.shapes.sphere(r), [e.x, e.y, e.z], { ignore: e })) {
+          if (burning.has(o) || !flammable(o)) continue;
+          const gap = Math.max(0, o.distanceTo(e) - Math.max(...e.half) - Math.max(...o.half));
+          o._heat = (o._heat || 0) + 0.4 * (1.2 - Math.min(1, gap)) * (0.8 + Math.random() * 0.4);
+          if (o._heat >= 1.5) { o._heat = 0; ignite(o); }
+        }
       }
       if (b.t > b.life) extinguish(e);
     }
@@ -872,7 +892,7 @@
       e.spawned = true;
       // Who moves it: whoever threw it (grenades), or the host; everyone else follows what they send.
       e.remote = isOnline && (d.owner ? d.owner !== me() : !H.sync.isHost);
-      if (d.v) e.velocity = d.v;
+      if (d.v) launch(e, d.v);
       if (d.data) Object.assign(e.data, JSON.parse(JSON.stringify(d.data)));
       spawned.add(e);
       e.onDestroy(() => spawned.delete(e));
@@ -925,10 +945,17 @@
   }
   const clearAction = H.sync.action('mayhem:clear', () => { for (const e of [...spawned]) e.destroy(); for (const p of [...debris]) if (p.alive) p.destroy(); debris.length = 0; });
 
+  // A velocity for something whose body is being made this step (just spawned, just let go): Havok makes the body
+  // without it, so it's given again after the step. (Hook request: physics.js could keep _vSet across a remade body.)
+  const launches = [];
+  function launch(e, v) { e.velocity = v; launches.push([e, vec(v)]); }
+  function runLaunches() { for (const [e, v] of launches.splice(0)) if (e.alive && e.physics === 'dynamic' && !e.held) e.velocity = v; }
+
   // ------------------------------------------------------------------ every step and frame
   H.hooks.step.push((dt) => { runKnock(dt); });
   H.physics.afterStep((dt) => {
     if (!W()) return;
+    runLaunches();
     runTumble(dt);
     runFire(dt);
     runDebris();
@@ -964,7 +991,7 @@
   // ------------------------------------------------------------------ the API
   H.mayhem = {
     explode, shatter, ignite, extinguish, tumble, spawnMany, specFor, slowMotion, sound, shake, flash, smoke, sparks,
-    addScore, blowUp, panic,
+    addScore, blowUp, panic, launch,
     clear: () => clearAction({}),
     isBurning: (e) => burning.has(e),
     flammable,
