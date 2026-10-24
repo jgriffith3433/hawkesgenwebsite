@@ -1,0 +1,7 @@
+{
+  "title": "Sharing and the cinematic camera",
+  "order": 85,
+  "scripts": ["share-math.js", "share.js", "photo.js", "cinematic.js"],
+  "editor": ["camera-editor.js"],
+  "kinds": []
+}
