@@ -322,13 +322,15 @@
     }).catch((err) => { e._loaded = true; H.report(new Error(`Could not load ${name}: ${err.message || err}`)); return e; });
   }
 
-  /** A helicopter model usually has its rotor baked into one mesh, so it can't turn (and a generated one is often bent).
-   *  The blades are the triangles high up and wider than the cabin: cut them out and let the stand-in rotor (the
-   *  spinner built with the vehicle) turn in their place, over the model's mast, as wide as they were. A model whose
-   *  rotor isn't found as that is left as it is. */
+  /** A helicopter model usually has its rotors baked into one mesh, so they can't turn (and a generated one is often bent,
+   *  its blades at different heights and pitches). The main rotor is every triangle high up and wider than the cabin
+   *  (blades across), plus the high ones along the cabin (blades fore and aft, and the cap of the mast); the tail
+   *  rotor is the triangles at the tail's end to the sides of the fin. They are cut out, and the stand-in rotors (the
+   *  spinners built with the vehicle) turn in their place, as wide as the blades were. A rotor not found this way is
+   *  left as it is. */
   function spinModelRotor(v, holder, meshes) {
-    const spin = v.spinners.find((s) => s.axis === 'y');
-    if (!spin) return;
+    const main = v.spinners.find((s) => s.axis === 'y'), tail = v.spinners.find((s) => s.axis === 'x');
+    if (!main && !tail) return;
     v.root.computeWorldMatrix(true);
     holder.computeWorldMatrix(true);
     const toRoot = v.root.getWorldMatrix().clone().invert();
@@ -344,35 +346,61 @@
         P.push(p);
         y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); z0 = Math.min(z0, p.z); z1 = Math.max(z1, p.z);
       }
-      const high = y0 + (y1 - y0) * 0.4, cabin = (z1 - z0) * 0.08;
-      const keep = [], cut = [], near = [];
-      let xm = 0;
+      const len = z1 - z0, hgt = y1 - y0, cabin = len * 0.1;
+      const C = [];
       for (let t = 0; t < idx.length; t += 3) {
         const a = P[idx[t]], b = P[idx[t + 1]], c = P[idx[t + 2]];
-        const x = (a.x + b.x + c.x) / 3, y = (a.y + b.y + c.y) / 3;
-        if (Math.abs(x) > cabin && y > high) { near.push(t); xm = Math.max(xm, Math.abs(x)); } else keep.push(t);
+        C.push({ x: (a.x + b.x + c.x) / 3, y: (a.y + b.y + c.y) / 3, z: (a.z + b.z + c.z) / 3 });
       }
-      // Only the blades, at the hub's depth (not the tail's fins, which are as high and as wide as the cabin).
+      // The blades across, at the hub's depth only (the hub sits toward the nose, so the tail is the far end).
+      const wide = [], across = [], along = [], fins = [];
+      let xm = 0;
+      for (let k = 0; k < C.length; k++) if (Math.abs(C[k].x) > cabin && C[k].y > y0 + hgt * 0.25) { wide.push(k); xm = Math.max(xm, Math.abs(C[k].x)); }
       let hz = 0, hc = 0;
-      const zOf = (t) => (P[idx[t]].z + P[idx[t + 1]].z + P[idx[t + 2]].z) / 3;
-      for (const t of near) if (Math.abs((P[idx[t]].x + P[idx[t + 1]].x + P[idx[t + 2]].x) / 3) > xm * 0.6) { hz += zOf(t); hc++; }
+      for (const k of wide) if (Math.abs(C[k].x) > xm * 0.6) { hz += C[k].z; hc++; }
       hz = hc ? hz / hc : 0;
-      for (const t of near) (Math.abs(zOf(t) - hz) < (z1 - z0) * 0.1 ? cut : keep).push(t);
-      if (cut.length < 20) continue;
-      let x0 = Infinity, x1 = -Infinity, cz0 = Infinity, cz1 = -Infinity, hy = 0, hn = 0;
-      for (const t of cut) for (let k = 0; k < 3; k++) {
-        const p = P[idx[t + k]];
-        x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); cz0 = Math.min(cz0, p.z); cz1 = Math.max(cz1, p.z);
-        if (Math.abs(p.x) < (z1 - z0) * 0.15) { hy += p.y; hn++; }
+      const tailEnd = hz > (z0 + z1) / 2 ? -1 : 1, away = (z) => (z - (z0 + z1) / 2) * tailEnd;
+      for (let k = 0; k < C.length; k++) {
+        const c = C[k];
+        if (away(c.z) > len * 0.33) { if (Math.abs(c.x) > len * 0.025) fins.push(k); continue; }
+        if (Math.abs(c.z - hz) < len * 0.15 && Math.abs(c.x) > cabin && c.y > y0 + hgt * 0.25) across.push(k);
+        else if (Math.abs(c.x) <= cabin && c.y > y0 + hgt * 0.7 && away(c.z) < len * 0.3) along.push(k);
       }
-      const span = Math.max(x1 - x0, cz1 - cz0);
+      const cuts = [];
+      if (main && across.length >= 20) cuts.push({ spin: main, tris: across.concat(along), across: true });
+      if (tail && fins.length >= 20) cuts.push({ spin: tail, tris: fins });
+      if (!cuts.length) continue;
+      const gone = new Set();
+      for (const c of cuts) {
+        let x0 = Infinity, x1 = -Infinity, y2 = Infinity, y3 = -Infinity, cz0 = Infinity, cz1 = -Infinity;
+        const ys = [];
+        for (const k of c.tris) {
+          gone.add(k);
+          for (let j = 0; j < 3; j++) {
+            const p = P[idx[k * 3 + j]];
+            x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y2 = Math.min(y2, p.y); y3 = Math.max(y3, p.y); cz0 = Math.min(cz0, p.z); cz1 = Math.max(cz1, p.z);
+          }
+          ys.push(C[k].y);
+        }
+        c.at = [(x0 + x1) / 2, (y2 + y3) / 2, (cz0 + cz1) / 2];
+        if (c.across) {
+          // Across the blades' width, around the hub's depth, up on the mast's cap.
+          let ax0 = Infinity, ax1 = -Infinity;
+          for (const k of across) for (let j = 0; j < 3; j++) { const p = P[idx[k * 3 + j]]; ax0 = Math.min(ax0, p.x); ax1 = Math.max(ax1, p.x); }
+          ys.sort((a, b) => a - b);
+          c.at = [(ax0 + ax1) / 2, along.length ? ys[Math.floor(ys.length * 0.85)] : (y2 + y3) / 2, hz];
+          c.span = ax1 - ax0;
+        } else c.span = Math.max(y3 - y2, cz1 - cz0);
+      }
       const out = [];
-      for (const t of keep) out.push(idx[t], idx[t + 1], idx[t + 2]);
+      for (let k = 0; k < C.length; k++) if (!gone.has(k)) out.push(idx[k * 3], idx[k * 3 + 1], idx[k * 3 + 2]);
       mesh.setIndices(out);
-      spin.node.parent = v.root;
-      spin.node.position.set((x0 + x1) / 2, hn ? hy / hn : (y0 + y1) / 2, (cz0 + cz1) / 2);
-      spin.node.scaling.setAll(span / 7.6);
-      for (const m of spin.node.getChildMeshes()) m.setEnabled(true);
+      for (const c of cuts) {
+        c.spin.node.parent = v.root;
+        c.spin.node.position.set(c.at[0], c.at[1], c.at[2]);
+        c.spin.node.scaling.setAll(c.span / (c.across ? 7.6 : 1.4));
+        for (const m of c.spin.node.getChildMeshes()) m.setEnabled(true);
+      }
       return;
     }
   }
