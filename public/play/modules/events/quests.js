@@ -643,24 +643,21 @@
     }
   }
   // Friend chat (Living things): a quest chip in the chat's quick buttons when the friend has one for you.
+  const bizOf = (e) => (e && W() && isGiver(e) ? giverBusiness(e) : []);
+  let chipShown = '';
+  if (H.living && H.living.chat) H.living.chat.addChip({
+    className: 'qs-chip', style: 'border-color:rgba(255,216,74,.7)',
+    show: (e) => bizOf(e).length > 0,
+    label: (e) => { const biz = bizOf(e); return biz[0].kind === 'offer' ? `📜 ${biz[0].d.title}` : '📜 About the quest'; },
+    act: (e) => { if (H.living.openChat) H.living.openChat(null); openDialog(e); },
+  });
+  // (Redrawn when what the open chat's friend has for you changes.)
   function friendChip() {
-    if (typeof document === 'undefined' || !document.querySelector) return;
-    const chat = document.querySelector('.lv-chat');
-    if (!chat || !chat.querySelector) return;
-    const nameEl = chat.querySelector('header b'), chips = chat.querySelector('.lv-chips');
-    if (!nameEl || !chips || !chips.appendChild) return;
-    const name = nameEl.textContent;
-    const e = [...W().entities].find((x) => x.alive && x.kind === 'friend' && x.name === name);
-    const biz = e && isGiver(e) ? giverBusiness(e) : [];
-    const old = chips.querySelector && chips.querySelector('.qs-chip');
-    if (!biz.length) { if (old && old.remove) old.remove(); return; }
-    if (old) return;
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'qs-chip';
-    b.textContent = biz[0].kind === 'offer' ? `📜 ${biz[0].d.title}` : '📜 About the quest';
-    b.style.borderColor = 'rgba(255,216,74,.7)';
-    b.onclick = () => { if (H.living && H.living.openChat) H.living.openChat(null); openDialog(e); };
-    chips.insertBefore ? chips.insertBefore(b, chips.firstChild) : chips.appendChild(b);
+    const c = H.living && H.living.chat;
+    if (!c || !c.friend) { chipShown = ''; return; }
+    const biz = bizOf(c.friend);
+    const key = biz.length ? `${biz[0].kind}:${biz[0].d.title}` : '';
+    if (key !== chipShown) { chipShown = key; c.refresh(); }
   }
 
   // ------------------------------------------------------------------ every step and frame

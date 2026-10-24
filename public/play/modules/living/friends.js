@@ -352,10 +352,42 @@
     renderPanel();
   }
   function close() { if (!panel) return; panel.el.remove(); panel = null; }
+  // Other modules' buttons in the chat (a quest to give, a shop...): H.living.chat.addChip({ label, show, act }).
+  const extraChips = [];
+  living.chat = {
+    /** A button in a friend's chat: label (text, or fn(friend) -> text), show(friend) -> true when it belongs there,
+     *  act(friend) when tapped. Returns a function that takes it away. */
+    addChip(def) {
+      if (!def || typeof def.act !== 'function') throw new Error('H.living.chat.addChip({ label, show(friend), act(friend) })');
+      extraChips.push(def);
+      renderPanel();
+      return () => { const i = extraChips.indexOf(def); if (i >= 0) extraChips.splice(i, 1); renderPanel(); };
+    },
+    /** Redraws the open chat's buttons (when what show() says has changed). */
+    refresh: () => renderPanel(),
+    get friend() { return panel ? panel.friend : null; },
+  };
+  function renderExtras() {
+    const box = panel.el.querySelector('.lv-chips');
+    if (!box) return;
+    for (const b of [...box.querySelectorAll('.lv-extra')]) b.remove();
+    const e = panel.friend;
+    for (const c of extraChips) {
+      let on = false, label = '';
+      try { on = !c.show || c.show(e); label = typeof c.label === 'function' ? c.label(e) : c.label; } catch (err) { H.report(err, 'friend chat'); }
+      if (!on || !label) continue;
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = `lv-extra ${c.className || ''}`; b.textContent = String(label);
+      if (c.style) b.setAttribute('style', c.style);
+      b.onclick = () => { try { c.act(e); } catch (err) { H.report(err, 'friend chat'); } };
+      if (box.insertBefore) box.insertBefore(b, box.firstChild); else box.appendChild(b);
+    }
+  }
   function renderPanel() {
     if (!panel) return;
     const r = panel.friend.living;
     if (!r) return;
+    renderExtras();
     const s = living.status(panel.friend);
     panel.el.querySelector('header span').textContent = s ? `${{ follow: 'following you', stay: 'waiting', sit: 'sitting', sleep: 'asleep', dance: 'dancing', fetch: 'playing fetch', carry: 'carrying', chase: 'on the attack', flee: 'running!', goto: 'on the way', come: 'coming', wander: 'exploring', idle: s.following ? 'with you' : 'hanging out' }[s.act] || s.act}${s.carrying ? ` · holding ${s.carrying}` : ''}` : '';
     const log = panel.el.querySelector('.lv-log');

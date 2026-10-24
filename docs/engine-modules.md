@@ -274,7 +274,12 @@ H.use.register('vehicles:enter', {
 The engine picks one offer: the highest `priority` (0 by default; getting off/out of what you're on uses 100), then the
 smallest `distance`. It shows it as one line ("E Ride the horse"; tapping it does it on phones) and E does it, once per
 press. `build: true` (on the offer or the registration) offers it while building too. `H.use.offers()` lists what's on
-offer, `H.use.act()` does the best one. Living things registers `living:ride` and `living:talk` (T too).
+offer, `H.use.act()` does the best one. Living things registers `living:ride` and `living:talk` (T too), vehicles
+`vehicles:enter`, homes `homes:use`, events `events` (quest givers: priority 6). `noKey: true`: shown and tapped, but
+E doesn't do it.
+
+A friend's chat (Living things) takes your buttons: `H.living.chat.addChip({ label, show(friend), act(friend) })`
+(events adds its quest chip this way); `H.living.chat.refresh()` redraws them.
 
 ## 7c. Sound (`H.audio`)
 
@@ -282,7 +287,15 @@ Every sound goes through one output: `H.audio.master` (a GainNode), never `conte
 engine's AudioContext (one for everything; it starts running at the first click, tap or key; null without WebAudio, as
 in tests). `H.audio.effect(name, node)` puts a filter between everything and the speakers (water muffles the world
 under water: `effect('water', lowpass)`, `null` takes it out); `H.audio.media(audioElement)` routes an `<audio>` (music,
-loops) through it; `H.audio.volume` is the master volume. `game.sound(name)` and `game.music(name)` already use it.
+loops) through it; `H.audio.volume` is the master volume; `H.audio.output` is what reaches the speakers (after the
+effects: record from it, as share's clips do). `game.sound(name)` and `game.music(name)` already use it.
+
+## 7c2. Slow motion (`H.timeScale`, `H.slow`)
+
+`H.slow('mine', 0.35)` slows the world (fewer fixed steps a second: physics, behaviors, scripts' updates and every step
+hook together; frame hooks still run once a frame in real time), `H.slow('mine', null)` lets go; the slowest owner wins,
+`0` stops it. `H.timeScale` reads it (setting it is the 'default' owner). Never fake it by pausing and calling `H.tick`.
+A new world starts at 1.
 
 ## 7e. Art: assets by id, found by word (`H.assets`)
 
