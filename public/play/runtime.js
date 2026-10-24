@@ -52,7 +52,7 @@
   window.addEventListener('resize', () => engine.resize());
 
   // Extension points for net.js and build.js (and anything else layered on the engine).
-  const hooks = { world: [], step: [], afterStep: [], frame: [], push: [], destroy: [], contact: [], quietErrors: false };
+  const hooks = { world: [], scene: [], step: [], afterStep: [], frame: [], push: [], destroy: [], contact: [], physics: null, quietErrors: false };
 
   // ------------------------------------------------------------------ registries: how modules extend the engine
   // Every module (its own file, listed in public/play/modules/<name>/module.json) adds to the engine through these, never
@@ -259,7 +259,7 @@
       this.friction = Number(opts.friction ?? body.friction ?? 0.6);
       this.mass = Math.max(0.05, Number(opts.mass ?? body.mass) || 1);
       this.grabbable = opts.grab ?? body.grab;
-      this.vx = 0; this.vy = 0; this.vz = 0;
+      this._v = [0, 0, 0]; // velocity (vx, vy, vz); physics.js sends it to the body when it changes
       this.grounded = false;
       this.standing = null;
       this.alive = true;
@@ -286,6 +286,9 @@
     get z() { return this.node.position.z; } set z(v) { this.node.position.z = Number(v) || 0; this.wake(); }
     get position() { return [this.x, this.y, this.z]; }
     set position(v) { const p = vec(v); this.node.position.set(p[0], p[1], p[2]); this.wake(); }
+    get vx() { return this._v[0]; } set vx(n) { this._v[0] = Number(n) || 0; this._vSet = true; }
+    get vy() { return this._v[1]; } set vy(n) { this._v[1] = Number(n) || 0; this._vSet = true; }
+    get vz() { return this._v[2]; } set vz(n) { this._v[2] = Number(n) || 0; this._vSet = true; }
     get velocity() { return [this.vx, this.vy, this.vz]; }
     set velocity(v) { const p = vec(v); this.vx = p[0]; this.vy = p[1]; this.vz = p[2]; this.wake(); }
     get rotation() { return this.node.rotation.y / RAD; }
@@ -311,7 +314,7 @@
     get solid() { return this.alive && (this.physics === 'static' || this.physics === 'dynamic' || this.physics === 'kinematic') && this.node.isEnabled() && !this.ghost; }
     get size() { return [this.half[0] * 2, this.half[1] * 2, this.half[2] * 2]; }
     get bottom() { return this.y + this.offset[1] - this.half[1]; }
-    wake() { this.sleeping = false; this._still = 0; }
+    wake() { this.sleeping = false; this._still = 0; this._wakeBody = true; }
 
     /** The collider: a box (half extents and center offset) around the node as it is now. */
     measure() {
@@ -324,6 +327,22 @@
       if (!min || !isFinite(min.x) || max.x - min.x < 1e-6 && max.y - min.y < 1e-6) return;
       this.half = [Math.max(0.01, (max.x - min.x) / 2), Math.max(0.01, (max.y - min.y) / 2), Math.max(0.01, (max.z - min.z) / 2)];
       this.offset = [(max.x + min.x) / 2 - n.position.x, (max.y + min.y) / 2 - n.position.y, (max.z + min.z) / 2 - n.position.z];
+      this.measureLocal();
+    }
+    /** Its box when it isn't turned (half extents and center, scaled): what physics shapes are made from. */
+    measureLocal() {
+      const n = this.node, r = n.rotation.clone(), q = n.rotationQuaternion;
+      n.rotationQuaternion = null; n.rotation.set(0, 0, 0);
+      n.computeWorldMatrix(true);
+      const { min, max } = n.getHierarchyBoundingVectors(true, (m) => !(m.metadata && m.metadata.decor));
+      n.rotation.copyFrom(r); n.rotationQuaternion = q;
+      n.computeWorldMatrix(true);
+      if (!isFinite(min.x)) return;
+      const lh = [Math.max(0.01, (max.x - min.x) / 2), Math.max(0.01, (max.y - min.y) / 2), Math.max(0.01, (max.z - min.z) / 2)];
+      const lo = [(max.x + min.x) / 2 - n.position.x, (max.y + min.y) / 2 - n.position.y, (max.z + min.z) / 2 - n.position.z];
+      const same = this._lhalf && lh.every((v, i) => Math.abs(v - this._lhalf[i]) < 1e-3) && lo.every((v, i) => Math.abs(v - this._loff[i]) < 1e-3);
+      this._lhalf = lh; this._loff = lo;
+      if (!same) this._mv = (this._mv || 0) + 1; // its shape changed: physics remakes the collider
     }
     box(pad = 0) {
       const c = [this.x + this.offset[0], this.y + this.offset[1], this.z + this.offset[2]];
@@ -374,6 +393,7 @@
       this.vx = (d.x || 0) * k * speed;
       this.vz = (d.z || 0) * k * speed;
       this._walked = true;
+      if (this._upright === undefined && this.physics === 'dynamic') this._upright = true; // things that walk stay on their feet
       if (len > 0.05 && this !== W.player) this.node.rotation.y = Math.atan2(d.x, d.z);
       if (this.physics !== 'dynamic') this.move(this.vx * W.dt, 0, this.vz * W.dt);
       else if (len > 0.01) this.wake();
@@ -1408,6 +1428,28 @@
     for (const f of hooks.step) f(dt);
     toolTick('step', dt);
     runFeatures(dt);
+    // Kinematic things with a velocity move by it (stopping at solid things).
+    for (const e of W.entities) if (e.physics === 'kinematic' && e.alive && !e.remote && (e.vx || e.vy || e.vz)) e.move(e.vx * dt, e.vy * dt, e.vz * dt);
+    // The physics step: Havok (physics.js) when it's loaded, the first box physics otherwise.
+    if (hooks.physics && hooks.physics.ready) hooks.physics.step(dt);
+    else legacyStep(dt);
+    for (const e of [...W.entities]) {
+      if (!e.alive) continue;
+      if (e.physics === 'dynamic' && !e.remote && !e.held && e.y < W.catchY) caught(e);
+      if (e._sheet && e._sheet.fps > 0) {
+        const s = e._sheet;
+        s.t += dt * s.fps;
+        let f = s.from + Math.floor(s.t);
+        if (f > s.to) { if (s.loop) { s.t = 0; f = s.from; } else f = s.to; }
+        if (f !== s.frame) { s.frame = f; setFrame(e, f); }
+      }
+    }
+    contacts();
+    for (const f of hooks.afterStep) f(dt);
+  }
+
+  /** The first physics: boxes that don't turn, swept along each axis. It runs until Havok is ready (or if it can't load). */
+  function legacyStep(dt) {
     const g = W.config.gravity ?? -24;
     // How far each non-falling thing moved this step: whatever stands on it rides along.
     for (const e of W.entities) {
@@ -1419,85 +1461,87 @@
     const probing = W.probe > 0.5;
     if (probing) W.probe = 0;
     for (const e of [...W.entities]) {
-      if (!e.alive) continue;
-      if (e.physics === 'dynamic' && !e.remote && !e.held) {
-        if (e.sleeping) {
-          // Still held up? (Its floor might have been moved or deleted, or started moving.)
-          if (e.standing && e.standing._delta) e.wake();
-          else {
-            if (!probing) continue;
-            e.node.position.y -= 0.05;
-            let supported = false;
-            for (const o of W.entities) if (o !== e && o.solid && e.overlaps(o)) { supported = true; break; }
-            e.node.position.y += 0.05;
-            if (supported) continue;
-            e.wake();
-          }
+      if (!e.alive || e.physics !== 'dynamic' || e.remote || e.held) continue;
+      if (e._force) { const f = e._force; e._force = null; e.vx += (f[0] / e.mass) * dt; e.vy += (f[1] / e.mass) * dt; e.vz += (f[2] / e.mass) * dt; e.wake(); }
+      if (e.sleeping) {
+        // Still held up? (Its floor might have been moved or deleted, or started moving.)
+        if (e.standing && e.standing._delta) e.wake();
+        else {
+          if (!probing) continue;
+          e.node.position.y -= 0.05;
+          let supported = false;
+          for (const o of W.entities) if (o !== e && o.solid && e.overlaps(o)) { supported = true; break; }
+          e.node.position.y += 0.05;
+          if (supported) continue;
+          e.wake();
         }
-        const st = e.standing;
-        if (st && st.alive && st._delta && e.grounded) { e.node.position.x += st._delta[0]; e.node.position.y += st._delta[1]; e.node.position.z += st._delta[2]; }
-        e.vy = Math.max(-60, e.vy + g * dt * e.gravity);
-        const was = e.grounded;
-        e.grounded = false;
-        const hx = e.sweep(0, e.vx * dt);
-        if (hx) collide(e, hx, 0);
-        const hz = e.sweep(2, e.vz * dt);
-        if (hz) collide(e, hz, 2);
-        const hy = e.sweep(1, e.vy * dt);
-        if (hy) {
-          if (e.vy < 0) {
-            if (e.bounce > 0 && -e.vy > 2.5) { e.vy = -e.vy * e.bounce; e.standing = null; }
-            else { e.grounded = true; e.standing = hy; e.vy = 0; }
-          } else e.vy = 0;
-        } else if (was && e.vy <= 0 && e.gravity > 0) {
-          // Stay on the ground over small steps and slopes instead of bouncing off them.
-          const y = e.y;
-          const under = e.sweep(1, -0.06);
-          if (under) { e.grounded = true; e.standing = under; e.vy = 0; } else { e.node.position.y = y; e.standing = null; }
-        } else if (!e.grounded) e.standing = null;
-        // Friction on the ground, a little air drag otherwise.
-        if (!e._walked) {
-          const k = e.grounded ? Math.max(0, 1 - e.friction * 10 * dt) : Math.max(0, 1 - 0.15 * dt);
-          e.vx *= k; e.vz *= k;
-          if (Math.abs(e.vx) < 0.01) e.vx = 0;
-          if (Math.abs(e.vz) < 0.01) e.vz = 0;
-        }
-        if (e.kind === 'sphere' && e.grounded) {
-          // Balls roll.
-          const sp = Math.hypot(e.vx, e.vz);
-          if (sp > 0.05) { const r = e.half[0] || 0.5; e.node.rotation.x += (e.vz / r) * dt; e.node.rotation.z -= (e.vx / r) * dt; }
-        }
-        if (e.grounded && !e._walked && e !== W.player && Math.abs(e.vx) + Math.abs(e.vz) < 0.03 && (!st || !st._delta)) {
-          e._still += dt;
-          if (e._still > 0.6) e.sleeping = true;
-        } else e._still = 0;
-        if (e.y < W.catchY) caught(e);
-      } else if (e.physics === 'kinematic' && (e.vx || e.vy || e.vz) && !e.remote) {
-        e.move(e.vx * dt, e.vy * dt, e.vz * dt);
       }
-      if (e._sheet && e._sheet.fps > 0) {
-        const s = e._sheet;
-        s.t += dt * s.fps;
-        let f = s.from + Math.floor(s.t);
-        if (f > s.to) { if (s.loop) { s.t = 0; f = s.from; } else f = s.to; }
-        if (f !== s.frame) { s.frame = f; setFrame(e, f); }
+      const st = e.standing;
+      if (st && st.alive && st._delta && e.grounded) { e.node.position.x += st._delta[0]; e.node.position.y += st._delta[1]; e.node.position.z += st._delta[2]; }
+      e.vy = Math.max(-60, e.vy + g * dt * e.gravity);
+      const was = e.grounded;
+      e.grounded = false;
+      const hx = e.sweep(0, e.vx * dt);
+      if (hx) collide(e, hx, 0);
+      const hz = e.sweep(2, e.vz * dt);
+      if (hz) collide(e, hz, 2);
+      const hy = e.sweep(1, e.vy * dt);
+      if (hy) {
+        if (e.vy < 0) {
+          if (e.bounce > 0 && -e.vy > 2.5) { e.vy = -e.vy * e.bounce; e.standing = null; }
+          else { e.grounded = true; e.standing = hy; e.vy = 0; }
+        } else e.vy = 0;
+      } else if (was && e.vy <= 0 && e.gravity > 0) {
+        // Stay on the ground over small steps and slopes instead of bouncing off them.
+        const y = e.y;
+        const under = e.sweep(1, -0.06);
+        if (under) { e.grounded = true; e.standing = under; e.vy = 0; } else { e.node.position.y = y; e.standing = null; }
+      } else if (!e.grounded) e.standing = null;
+      // Friction on the ground, a little air drag otherwise.
+      if (!e._walked) {
+        const k = e.grounded ? Math.max(0, 1 - e.friction * 10 * dt) : Math.max(0, 1 - 0.15 * dt);
+        e.vx *= k; e.vz *= k;
+        if (Math.abs(e.vx) < 0.01) e.vx = 0;
+        if (Math.abs(e.vz) < 0.01) e.vz = 0;
       }
+      if (e.kind === 'sphere' && e.grounded) {
+        // Balls roll.
+        const sp = Math.hypot(e.vx, e.vz);
+        if (sp > 0.05) { const r = e.half[0] || 0.5; e.node.rotation.x += (e.vz / r) * dt; e.node.rotation.z -= (e.vx / r) * dt; }
+      }
+      if (e.grounded && !e._walked && e !== W.player && Math.abs(e.vx) + Math.abs(e.vz) < 0.03 && (!st || !st._delta)) {
+        e._still += dt;
+        if (e._still > 0.6) e.sleeping = true;
+      } else e._still = 0;
     }
-    // Contacts: new touches fire hit (triggers included), ended ones are forgotten.
-    const list = [...W.entities].filter((e) => e.alive && e.physics !== 'none' && e.node.isEnabled());
-    for (let i = 0; i < list.length; i++) {
-      const a = list[i];
-      for (let j = i + 1; j < list.length; j++) {
-        const b = list[j];
+  }
+
+  /** Touching: new touches fire hit (triggers included), ended ones leave. Only things someone listens to are checked
+   *  against everything (players, things with behaviors or hit handlers), each pair once, with each box worked out once. */
+  function contacts() {
+    const list = [];
+    for (const e of W.entities) if (e.alive && e.physics !== 'none' && e.node.isEnabled()) { e._bb = e.box(); list.push(e); }
+    const listens = (e) => e.handlers.hit.length || e.handlers.leave.length || e.behaviors.length || e === W.player || e.isPlayer;
+    const watched = list.filter(listens);
+    watched.forEach((e, i) => { e._wi = i; });
+    const near = (a, b) => { const p = a._bb, q = b._bb; return p.min[0] - TOUCH < q.max[0] && p.max[0] + TOUCH > q.min[0] && p.min[1] - TOUCH < q.max[1] && p.max[1] + TOUCH > q.min[1] && p.min[2] - TOUCH < q.max[2] && p.max[2] + TOUCH > q.min[2]; };
+    const leave = (a, b) => { a._touching.delete(b); b._touching.delete(a); for (const h of a.handlers.leave) h(b); for (const h of b.handlers.leave) h(a); };
+    for (const a of watched) {
+      for (const b of list) {
+        if (b === a || (b._wi !== undefined && b._wi < a._wi && listens(b))) continue; // each pair once
         if (a.physics === 'static' && b.physics === 'static') continue;
         if (a.sleeping && b.sleeping) continue;
-        const watch = a.handlers.hit.length || b.handlers.hit.length || a.behaviors.length || b.behaviors.length || a === W.player || b === W.player;
-        if (!watch && !a._touching.has(b)) continue;
-        if (a.overlaps(b, TOUCH)) a._contact(b);
-        else if (a._touching.has(b)) { a._touching.delete(b); b._touching.delete(a); for (const h of a.handlers.leave) h(b); for (const h of b.handlers.leave) h(a); }
+        if (!a.alive || !b.alive) continue;
+        if (near(a, b)) a._contact(b);
+        else if (a._touching.has(b)) leave(a, b);
       }
     }
-    for (const f of hooks.afterStep) f(dt);
+    // Pairs nobody listens to any more still end.
+    for (const a of list) {
+      if (!a._touching.size || listens(a)) continue;
+      for (const b of [...a._touching]) if (!listens(b) && b._bb && !near(a, b)) leave(a, b);
+    }
+    for (const e of watched) e._wi = undefined;
   }
 
   /** A falling thing ran into something sideways: bounce off it, or push it if it can move. */
@@ -1725,6 +1769,7 @@
     if (!graph.config || typeof graph.config !== 'object') graph.config = {};
     const scene = new B.Scene(engine);
     W = { scene, config: { ...graph.config, ...gameJson }, gameJson, graph, entities: new Set(), byId: new Map(), starts: [], updates: [], timers: [], time: 0, dt: STEP, paused: false, restartAsked: false, state: {}, pixelated: Boolean(gameJson.pixelated), file: null, skybox: null, player: null, netHandlers: new Map(), events: new Map(), catchY: -25, keepPose, started: false };
+    for (const f of hooks.scene) try { f(scene, W); } catch (err) { report(err); } // physics.js: the scene's physics world
     W.ui = ui();
     uiLayer.removeAttribute('style');
     if (gameJson.ui && typeof gameJson.ui === 'object') W.ui.theme(gameJson.ui);
@@ -1793,7 +1838,7 @@
     if (loading) loading.hidden = true;
     // Warm the sound cache so the first effect plays on time.
     for (const [, a] of Object.entries(b.assets || {})) if (/^audio\//.test(a.mime || '') && a.url) fetch(a.url).catch(() => {});
-    try { start(); } catch (e) { report(e); }
+    try { start({ newScene: true }); } catch (e) { report(e); } // a new bundle: its own world
     if (!looping && o.loop !== false) {
       looping = true;
       engine.runRenderLoop(() => { try { advance(true); } catch (e) { report(e); if (W) W.paused = true; } });
