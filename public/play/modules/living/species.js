@@ -93,6 +93,8 @@
     aliases: ALIAS,
   };
   living.species = species;
+  // Other words for the same animals find the same assets (a "puppy" asset is a dog's).
+  if (H.assets) for (const [w, s] of Object.entries(ALIAS)) H.assets.synonym(w, s);
 
   // ------------------------------------------------------------------ shared meshes: one source per shape and color
   const pools = new WeakMap(); // scene -> { src: Map, mats: Map }
@@ -301,12 +303,12 @@
     return rig;
   }
 
-  // ------------------------------------------------------------------ models: by asset name, loaded once, copied per animal
+  // ------------------------------------------------------------------ models: by asset id (H.assets), loaded once, copied per animal
+  /** The model for this animal: shape.model (an id or a name), else the game's asset for its species' word
+   *  (H.assets.pick: the world's choice, mixed over a herd when the word mixes, the same for the same animal). */
   function modelName(sp, name, o) {
-    const want = o.model || null;
-    if (want) return want;
-    const def = `${name}.glb`;
-    return H.lib.hasAsset(def) ? def : null;
+    if (o.model) return o.model;
+    return H.assets ? H.assets.pick(name, { kind: 'model', seed: o.pickSeed }) : null;
   }
   /** Loads a model once per world (an AssetContainer) and puts a copy under `vis`, scaled to `height`. */
   function loadModel(scene, vis, name, height, rig) {
@@ -353,6 +355,7 @@
     rig.standIn = vis.getChildren();
     rig.modelYaw = Number(o.modelYaw) || 0;
     const name = modelName(sp, spName, o);
+    rig.modelRef = name;
     if (name) {
       if (!loadModel(scene, vis, name, (o.modelHeight || rig.height), rig) && o.model) e._waiting = o.model; // made later: the engine rebuilds it
     }

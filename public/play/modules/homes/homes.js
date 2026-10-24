@@ -22,23 +22,17 @@
   /** A URL for an asset reference (an id, a name, an https URL), or null if there's none (yet). */
   function assetUrl(ref) {
     if (!ref) return null;
-    const a = A();
-    if (a && typeof a.url === 'function') { try { const u = a.url(ref); if (u) return u; } catch { /* not by id */ } }
     if (/^https:\/\//.test(String(ref))) return String(ref);
-    return L.hasAsset(ref) ? L.assetUrl(ref) : null;
+    return A().url(ref);
   }
   const hasAssetRef = (ref) => Boolean(assetUrl(ref));
   /** A sound by reference, or by its word ("flush.mp3" also finds the asset made for "flush"). */
   const soundUrl = (ref) => (ref ? assetUrl(ref) || assetUrl(assetFor(String(ref).replace(/\.[a-z0-9]+$/i, ''), 'sound')) : null);
   /** The asset for a word ("sofa" a model, "cartoons" a video, "flush" a sound), or null: H.assets.for(word, kind), else a
    *  name the game has ("sofa.glb"). */
-  const EXT = { model: ['glb'], video: ['mp4', 'webm'], sound: ['mp3', 'ogg', 'wav'], music: ['mp3', 'ogg'], texture: ['png', 'jpg', 'webp'], image: ['png', 'jpg', 'webp'] };
-  function assetFor(word, kind) {
+  function assetFor(word, kind, seed) {
     if (!word) return null;
-    const a = A();
-    if (a && typeof a.for === 'function') { try { const r = a.for(word, kind); if (r) return typeof r === 'string' ? r : r.id || r.name || null; } catch { /* no index match */ } }
-    for (const x of EXT[kind] || []) if (L.hasAsset(`${word}.${x}`)) return `${word}.${x}`;
-    return null;
+    return A().pick(String(word).replace(/[_-]+/g, ' '), { kind, seed }); // (H.assets: the world's choice, labels, then names)
   }
 
   // ------------------------------------------------------------------ materials (shared per world for details)

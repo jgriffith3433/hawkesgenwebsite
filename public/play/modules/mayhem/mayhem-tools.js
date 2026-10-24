@@ -461,9 +461,8 @@
   function spawnItems(o) {
     const list = Array.isArray(o.items) && o.items.length ? o.items.map(String) : [...SPAWN_ITEMS];
     if (o.what) { const w = String(o.what); const i = list.indexOf(w); if (i >= 0) list.splice(i, 1); list.unshift(w); }
-    // The game's own models too.
-    const assets = (H.bundle && H.bundle.assets) || {};
-    for (const n of Object.keys(assets)) if (/\.glb$/i.test(n) && !/_low\.glb$/i.test(n) && list.length < 20 && !list.includes(n)) list.push(n);
+    // The game's own models too (by their word: a word with several models spawns a mix).
+    for (const a of H.assets.list()) { const w = a.type === 'model' && (a.words[0] || a.name); if (w && list.length < 20 && !list.includes(w)) list.push(w); }
     return list;
   }
   const label = (w) => String(w).replace(/\.glb$/i, '').replace(/[-_]/g, ' ').replace(/^./, (c) => c.toUpperCase());

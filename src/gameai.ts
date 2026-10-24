@@ -143,8 +143,10 @@ async function finish(row: GenRow, t: Task) {
   let state = t.state === 'done' ? 'done' : t.state;
   if (t.state === 'done' && pick && user) {
     try {
-      assetName = (await addAsset(user, row.game_id, { asset: pick.asset, name: freeName(row.game_id, row.name, pick.mime) }, { project: user.project })).name;
-      if (low && assetName.endsWith('.glb')) await addAsset(user, row.game_id, { asset: low.asset, name: assetName.replace(/\.glb$/, '_low.glb') }, { project: user.project }).catch(() => null);
+      // Its words: the name the assistant gave it (and so what it is), e.g. "cow.glb" -> cow.
+      const words = [row.name];
+      assetName = (await addAsset(user, row.game_id, { asset: pick.asset, name: freeName(row.game_id, row.name, pick.mime) }, { project: user.project, words, title: row.name.replace(/\.[a-z0-9]+$/i, '') })).name;
+      if (low && assetName.endsWith('.glb')) await addAsset(user, row.game_id, { asset: low.asset, name: assetName.replace(/\.glb$/, '_low.glb') }, { project: user.project, words }).catch(() => null);
     } catch (e: any) {
       state = 'failed';
       db.prepare('UPDATE tasks SET error = ? WHERE id = ?').run(`Made, but not added to the game: ${e.message}`, t.id);
@@ -225,6 +227,7 @@ Rules:
 - Menus, popups, shops, inventories, dialog and HUDs are game.ui (panel, menu, popup, ask, attach, theme, style) in scripts, styled to the game with game.ui.theme or game.json "ui". Title screens only when game.mode === 'play'; a Start button calls game.input.capture(); see "A game's own screens".
 - The community library is everything other builders and Hawkes have shared (models, textures, skies, sprites, music, ambience, sound effects). When they ask for a thing ("a ball", "rain sounds", "a grass floor"), list it in "assets" as usual and set "community" to the best match from the community list if there is one: they are shown the community matches next to "make our own", and pick. Meanwhile put it in the world already, using the asset name (a "model" with that asset, a material texture, the config sky): the engine shows a waiting stand-in until the asset arrives, then the real thing.
 - Asset names: only use assets that are listed, or ones you list in "assets" so the people can generate them. Until an asset exists, scripts must not crash: prefer adding an asset in the same message and using a shape as a stand-in, or check with game.find / try.
+- Assets by id: every asset has an id (a_...) and words ("cow", "spotted cow"). In world ops write ids (shape.model, shape.asset, material.texture take an id or a name), never invent file names. config.assets says which assets a word uses: { "cow": { "ids": ["a_1", "a_2"], "mix": true } } (the first is the default; mix spreads them over many things, e.g. a herd). "Use the spotted cow instead" = config op { "assets": { "cow": { "ids": ["<its id>"], "mix": false } } }; "mix in some brown cows" = add the brown one's id to that word's ids with "mix": true (from the community list: "community" in "assets", or the game's own assets). Modules find assets for a word by themselves (WORLD.md "Assets by id").
 - If the request is unclear or impossible, change nothing and say what you need.
 - Reply in a few plain sentences: what changed and how to try it (which keys). No markdown headings.
 
@@ -276,7 +279,10 @@ function context(gameId: string, focus?: string) {
     budget -= block.length;
     parts.push(block);
   }
-  const assets = listAssets(gameId).map((a) => `${a.name} (${a.mime ?? a.kind ?? 'file'})`);
+  // The game's assets by id, with their words and titles, and the world's own choices per word (config.assets).
+  const assets = listAssets(gameId).filter((a) => !/_low\.glb$/.test(a.name)).map((a) => `${a.asset} ${a.name}${a.title ? ` "${String(a.title).slice(0, 40)}"` : ''} [${(a.words as string[]).slice(0, 5).join(', ')}]`);
+  const chosen = (parseScene(scene?.content).config as any)?.assets;
+  if (chosen && typeof chosen === 'object') for (const [w, v] of Object.entries(chosen).slice(0, 40)) assets.push(`config.assets.${w} = ${JSON.stringify(v)}`);
   const chat = (db.prepare("SELECT role, text, user_id FROM game_chat WHERE game_id = ? AND role != 'system' ORDER BY created DESC LIMIT 12").all(gameId) as { role: string; text: string; user_id: string | null }[]).reverse();
   return { files: parts.join('\n'), assets, world: describeScene(parseScene(scene?.content)), chat: chat.map((m) => `${m.role === 'ai' ? 'Assistant' : getUser(m.user_id ?? '')?.name ?? 'Someone'}: ${m.text.slice(0, 1500)}`).join('\n') };
 }
@@ -311,7 +317,7 @@ export async function askAssistant(user: User, gameId: string, body: { message?:
   const view = playerView(body.context, body.mention);
   const shared = searchCommunity({ q: message, limit: 16 }).items;
   const communityList = shared.length ? `\nCommunity library things that match what they said (id, kind, title, tags):\n${shared.map((c) => `${c.id} ${c.kind} "${c.title}" [${c.tags.join(' ')}]`).join('\n')}\n` : '';
-  const prompt = `Game: ${game.title}\n${game.description ? `About: ${game.description}\n` : ''}\nAssets in the game: ${ctx.assets.length ? ctx.assets.join(', ') : '(none yet)'}\n\nThe world (scene.json), one line per thing:\n${ctx.world || '(empty)'}\n\nFiles (scripts and behaviors):\n${ctx.files}\n\nRecent conversation:\n${ctx.chat || '(none)'}\n${errors}${communityList}\n${view}\n${user.name ?? 'Someone'} asks: ${message}`;
+  const prompt = `Game: ${game.title}\n${game.description ? `About: ${game.description}\n` : ''}\nAssets in the game (id name "title" [words]; then config.assets, the world's choice per word):\n${ctx.assets.length ? ctx.assets.join('\n') : '(none yet)'}\n\nThe world (scene.json), one line per thing:\n${ctx.world || '(empty)'}\n\nFiles (scripts and behaviors):\n${ctx.files}\n\nRecent conversation:\n${ctx.chat || '(none)'}\n${errors}${communityList}\n${view}\n${user.name ?? 'Someone'} asks: ${message}`;
   thinking.add(game.id);
   broadcast(game.id, 'thinking', { on: true, by: user.name });
   let job: any;

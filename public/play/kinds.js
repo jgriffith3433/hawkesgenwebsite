@@ -44,7 +44,8 @@
     }
     // Level of detail: a low-detail copy (opts.low, or "<name>_low.glb" when the game has one) loads first and is
     // shown far away; the full model takes over up close. lodDistance is where they swap (meters).
-    const lowName = opts.low !== undefined ? opts.low : (/\.glb$/i.test(name) && hasAsset(name.replace(/\.glb$/i, '_low.glb')) ? name.replace(/\.glb$/i, '_low.glb') : null);
+    const named = (L.assetEntry(name) || { name }).name; // (an id: its name, for the low copy beside it)
+    const lowName = opts.low !== undefined ? opts.low : (/\.glb$/i.test(named) && hasAsset(named.replace(/\.glb$/i, '_low.glb')) ? named.replace(/\.glb$/i, '_low.glb') : null);
     const load = (assetName, isLow) => B.SceneLoader.ImportMeshAsync('', '', assetName === name ? url : assetUrl(assetName), W.scene, null, '.glb').then((r) => {
       if (!e.alive || world !== H.world) { for (const m of r.meshes) m.dispose(); return null; }
       const holder = new B.TransformNode(isLow ? 'lod-low' : 'holder', W.scene);

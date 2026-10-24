@@ -18,6 +18,7 @@ import { TEMPLATES, featured } from './templates.ts';
 import { broadcast, kick } from './live.ts';
 import { addFriend } from './friends.ts';
 import { applyOps, parseScene, sceneText } from './scene.ts';
+import { wordsOf } from './words.ts';
 import { editToken, kickFromRooms, liveCounts } from './rooms.ts';
 
 db.exec(`
@@ -94,11 +95,18 @@ CREATE INDEX IF NOT EXISTS game_chat_game ON game_chat (game_id, created);
 `);
 // Columns added later. visitors: what signed-in people who aren't members may do in the live game (play, or build).
 if (!(db.prepare('PRAGMA table_info(games)').all() as { name: string }[]).some((c) => c.name === 'visitors')) db.exec("ALTER TABLE games ADD COLUMN visitors TEXT NOT NULL DEFAULT 'play'");
+// Assets by id, with words as labels (src/words.ts): what an asset is ("cow", "spotted cow"), so the engine can find
+// every cow a game has (H.assets.for('cow')), and its title (a community thing's, or Gen's).
+{
+  const cols = (db.prepare('PRAGMA table_info(game_assets)').all() as { name: string }[]).map((c) => c.name);
+  if (!cols.includes('words')) db.exec("ALTER TABLE game_assets ADD COLUMN words TEXT NOT NULL DEFAULT '[]'");
+  if (!cols.includes('title')) db.exec('ALTER TABLE game_assets ADD COLUMN title TEXT');
+}
 
 export type Game = { id: string; slug: string; title: string; description: string; owner_id: string; visibility: 'public' | 'unlisted'; visitors?: 'play' | 'build'; live_version: number | null; cover: string | null; plays: number; created: number; updated: number };
 export type Role = 'owner' | 'editor' | 'builder' | 'player';
 export type FileRow = { path: string; content: string; rev: number; updated: number; updated_by: string | null };
-export type AssetRow = { name: string; asset: string; project: string; kind: string | null; mime: string | null; added_by: string | null; created: number };
+export type AssetRow = { name: string; asset: string; project: string; kind: string | null; mime: string | null; added_by: string | null; created: number; words?: string[] | string | null; title?: string | null };
 
 // Limits that keep one game a reasonable size for the browser and the database.
 export const LIMITS = { files: 150, fileBytes: 256 * 1024, totalBytes: 3 * 1024 * 1024, assets: 300 };
@@ -362,7 +370,16 @@ export function renameFile(user: User, gameId: string, body: { from?: unknown; t
 }
 
 // ------------------------------------------------------------------ assets
-export const listAssets = (gameId: string) => db.prepare('SELECT name, asset, project, kind, mime, added_by, created FROM game_assets WHERE game_id = ? ORDER BY name').all(gameId) as AssetRow[];
+export const listAssets = (gameId: string) => (db.prepare('SELECT name, asset, project, kind, mime, added_by, created, words, title FROM game_assets WHERE game_id = ? ORDER BY name').all(gameId) as AssetRow[]).map((a) => ({ ...a, words: wordList(a) }));
+/** An asset row's words (stored as JSON; old rows and old saves have none: then its name's). */
+export function wordList(a: AssetRow): string[] {
+  let w: unknown = a.words;
+  if (typeof w === 'string') { try { w = JSON.parse(w); } catch { w = []; } }
+  const list = Array.isArray(w) ? w.map(String) : [];
+  return list.length ? list : wordsOf(a.name.replace(/_low\.glb$/, '.glb'));
+}
+/** What kind of file it is, for finding by word: model, image, sound, video (or null). */
+export const typeOf = (mime: string | null | undefined) => { const m = String(mime ?? ''); return m === 'model/gltf-binary' || /gltf|glb/.test(m) ? 'model' : m.startsWith('image/') ? 'image' : m.startsWith('audio/') ? 'sound' : m.startsWith('video/') ? 'video' : null; };
 
 const EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif', 'audio/mpeg': 'mp3', 'audio/wav': 'wav', 'audio/x-wav': 'wav', 'audio/ogg': 'ogg', 'model/gltf-binary': 'glb', 'video/mp4': 'mp4', 'video/webm': 'webm', 'application/json': 'json' };
 
@@ -376,7 +393,7 @@ export function freeName(gameId: string, wanted: string, mime?: string | null) {
 }
 
 /** Puts an asset into the game: one of the member's own (their Gen project), under a name scripts use. */
-export async function addAsset(user: User, gameId: string, body: { asset?: unknown; name?: unknown }, o: { project?: string; quiet?: boolean } = {}) {
+export async function addAsset(user: User, gameId: string, body: { asset?: unknown; name?: unknown; words?: unknown; title?: unknown }, o: { project?: string; quiet?: boolean; words?: unknown[]; title?: string | null } = {}) {
   memberGame(user, gameId);
   const assetId = String(body.asset ?? '').replace(/^asset:/, '');
   if (!/^a_[0-9a-f]+$/.test(assetId)) throw new PortalError('asset is "asset:a_..." from your library');
@@ -387,8 +404,11 @@ export async function addAsset(user: User, gameId: string, body: { asset?: unkno
   const wanted = body.name ? String(body.name) : String(a.title ?? a.filename ?? a.tool ?? 'asset');
   if (body.name && !NAME_RE.test(String(body.name).replace(/\.[a-z0-9]{2,4}$/i, ''))) throw new PortalError('Asset names are letters, numbers, - and _');
   const name = freeName(gameId, wanted, a.mime);
-  const row: AssetRow = { name, asset: assetId, project, kind: a.kind ?? null, mime: a.mime ?? null, added_by: user.id, created: Date.now() };
-  db.prepare('INSERT INTO game_assets (game_id, name, asset, project, kind, mime, added_by, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(gameId, row.name, row.asset, row.project, row.kind, row.mime, row.added_by, row.created);
+  // Its words: what the caller knows (a community thing's title, category and tags; the assistant's name), its name's.
+  const title = String(o.title ?? body.title ?? a.title ?? '').slice(0, 120) || null;
+  const words = wordsOf(o.words ?? [], Array.isArray(body.words) ? body.words : [], wanted, name.replace(/_low\.glb$/, '.glb'));
+  const row: AssetRow = { name, asset: assetId, project, kind: a.kind ?? null, mime: a.mime ?? null, added_by: user.id, created: Date.now(), words, title };
+  db.prepare('INSERT INTO game_assets (game_id, name, asset, project, kind, mime, added_by, created, words, title) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(gameId, row.name, row.asset, row.project, row.kind, row.mime, row.added_by, row.created, JSON.stringify(words), title);
   touch(gameId);
   broadcast(gameId, 'asset', { ...row, by: nameOf(user.id) });
   return row;
@@ -400,6 +420,20 @@ export function removeAsset(user: User, gameId: string, name: string) {
   touch(gameId);
   broadcast(gameId, 'asset-removed', { name, by: nameOf(user.id) });
   return { ok: true };
+}
+
+/** Changes an asset's words (what it is: "cow", "spotted cow"): the engine finds it for those words. */
+export function setAssetWords(user: User, gameId: string, name: string, body: { words?: unknown; title?: unknown }) {
+  memberGame(user, gameId);
+  const raw = Array.isArray(body.words) ? body.words : typeof body.words === 'string' ? String(body.words).split(',') : null;
+  if (!raw) throw new PortalError('words is a list of words ("cow", "spotted cow")');
+  const words = wordsOf(raw.map(String));
+  const sets = ['words = ?'], args: unknown[] = [JSON.stringify(words)];
+  if (body.title !== undefined) { sets.push('title = ?'); args.push(String(body.title ?? '').slice(0, 120) || null); }
+  if (!db.prepare(`UPDATE game_assets SET ${sets.join(', ')} WHERE game_id = ? AND name = ?`).run(...(args as any[]), gameId, name).changes) throw new PortalError('No such asset', { status: 404 });
+  touch(gameId);
+  broadcast(gameId, 'asset-words', { name, words, by: nameOf(user.id) });
+  return { ok: true, name, words };
 }
 
 export function renameAsset(user: User, gameId: string, from: string, to: unknown) {
@@ -418,7 +452,9 @@ export function renameAsset(user: User, gameId: string, from: string, to: unknow
 const draftAssetUrl = (gameId: string, a: AssetRow) => `/play-asset/d/${sign({ g: gameId, a: a.asset, p: a.project }, 6 * 3600)}/${a.name}`;
 const releaseAssetUrl = (g: Game, version: number, name: string) => `/play-asset/${g.slug}/${version}/${encodeURIComponent(name)}`;
 const liveAssetUrl = (g: Game, name: string) => `/play-asset/${g.slug}/live/${encodeURIComponent(name)}`;
-const assetMap = (rows: AssetRow[], url: (a: AssetRow) => string) => Object.fromEntries(rows.map((a) => [a.name, { url: url(a), mime: a.mime, kind: a.kind }]));
+/** The bundle's assets: by name (scripts and old games use names), each with its identity: id (Gen's asset id), type
+ *  (model, image, sound, video), kind (Gen's), title and words (public/play/assets.js finds them by id or word). */
+const assetMap = (rows: AssetRow[], url: (a: AssetRow) => string) => Object.fromEntries(rows.map((a) => [a.name, { url: url(a), mime: a.mime, kind: a.kind, id: a.asset, type: typeOf(a.mime), title: a.title ?? null, words: wordList(a) }]));
 
 /** The draft as the runtime takes it: every file, every asset with a link. Members only. */
 export function draftBundle(user: User, gameId: string) {
@@ -458,7 +494,7 @@ export function remix(user: User, body: { slug?: unknown }) {
     db.prepare("INSERT INTO game_members (game_id, user_id, role, added) VALUES (?, ?, 'owner', ?)").run(gameId, user.id, now);
     for (const [path, content] of Object.entries(files)) db.prepare('INSERT INTO game_files (game_id, path, content, rev, updated, updated_by) VALUES (?, ?, ?, 1, ?, ?)').run(gameId, path, content, now, user.id);
     // The assets stay the original maker's files in Gen; the remix points at them, the way a release does.
-    for (const a of assets) db.prepare('INSERT OR IGNORE INTO game_assets (game_id, name, asset, project, kind, mime, added_by, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(gameId, a.name, a.asset, a.project, a.kind ?? null, a.mime ?? null, user.id, now);
+    for (const a of assets) db.prepare('INSERT OR IGNORE INTO game_assets (game_id, name, asset, project, kind, mime, added_by, created, words, title) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(gameId, a.name, a.asset, a.project, a.kind ?? null, a.mime ?? null, user.id, now, JSON.stringify(wordList(a)), a.title ?? null);
   });
   systemNote(gameId, `Remixed from "${g.title}" by ${nameOf(g.owner_id)}.`);
   return summary(getGame(gameId)!, user.id);
@@ -468,7 +504,7 @@ export function remix(user: User, body: { slug?: unknown }) {
 export function saveGame(user: User, gameId: string, body: { notes?: unknown; auto?: boolean } = {}) {
   const { game } = memberGame(user, gameId);
   const files = db.prepare('SELECT path, content FROM game_files WHERE game_id = ?').all(game.id) as { path: string; content: string }[];
-  const assets = listAssets(game.id).map(({ name, asset, project, kind, mime }) => ({ name, asset, project, kind, mime }));
+  const assets = listAssets(game.id).map(({ name, asset, project, kind, mime, words, title }) => ({ name, asset, project, kind, mime, words, title }));
   const version = tx(() => {
     const v = Number((db.prepare('SELECT COALESCE(MAX(version), 0) AS v FROM game_releases WHERE game_id = ?').get(game.id) as { v: number }).v) + 1;
     db.prepare('INSERT INTO game_releases (game_id, version, notes, files, assets, created, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
@@ -504,7 +540,7 @@ export function restoreRelease(user: User, gameId: string, version: number) {
   const before = saveGame(user, game.id, { notes: `Before bringing back save ${version}`, auto: true });
   tx(() => {
     db.prepare('DELETE FROM game_assets WHERE game_id = ?').run(game.id);
-    for (const a of assets) db.prepare('INSERT INTO game_assets (game_id, name, asset, project, kind, mime, added_by, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(game.id, a.name, a.asset, a.project, a.kind ?? null, a.mime ?? null, a.added_by ?? user.id, a.created ?? Date.now());
+    for (const a of assets) db.prepare('INSERT INTO game_assets (game_id, name, asset, project, kind, mime, added_by, created, words, title) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(game.id, a.name, a.asset, a.project, a.kind ?? null, a.mime ?? null, a.added_by ?? user.id, a.created ?? Date.now(), JSON.stringify(wordList(a)), a.title ?? null);
     // Revisions keep counting up, so an editor still holding an older one is told to merge.
     const revs = new Map((db.prepare('SELECT path, rev FROM game_files WHERE game_id = ?').all(game.id) as { path: string; rev: number }[]).map((f) => [f.path, f.rev]));
     db.prepare('DELETE FROM game_files WHERE game_id = ?').run(game.id);

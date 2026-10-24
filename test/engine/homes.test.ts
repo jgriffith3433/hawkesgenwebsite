@@ -247,13 +247,17 @@ test('a bath fills with real water (Water module) and the rubber duck floats', (
   assert.deepEqual(errors(), []);
 });
 
-test('assets are found in one place: by id through the engine\'s asset index when there is one, else by name', () => {
-  const had = H.assets;
-  H.assets = { url: (ref: string) => (ref === 'a_sofa1' ? 'https://example.test/sofa.glb' : null), for: (word: string, kind: string) => (word === 'cartoons' && kind === 'video' ? { id: 'a_cart' } : null) };
-  try {
-    assert.equal(H.homes.assetUrl('a_sofa1'), 'https://example.test/sofa.glb');
-    assert.equal(H.homes.assetFor('cartoons', 'video'), 'a_cart');
-    assert.equal(H.homes.assetFor('nothing', 'model'), null);
-    assert.equal(H.homes.assetUrl('missing.glb'), null);
-  } finally { H.assets = had; }
+test('assets are found in one place: by id or name, and by word (H.assets)', () => {
+  world(H, sceneOf({ floor }));
+  H.setAssets({
+    'sofa.glb': { url: 'https://example.test/sofa.glb', mime: 'model/gltf-binary', id: 'a_sofa1', type: 'model', words: ['sofa'] },
+    'saturday-cartoons.mp4': { url: 'https://example.test/c.mp4', mime: 'video/mp4', id: 'a_cart', type: 'video', words: ['saturday cartoon', 'cartoon'] },
+  });
+  assert.equal(H.homes.assetUrl('a_sofa1'), 'https://example.test/sofa.glb', 'by id');
+  assert.equal(H.homes.assetUrl('sofa.glb'), 'https://example.test/sofa.glb', 'by name');
+  assert.equal(H.homes.assetFor('cartoons', 'video'), 'a_cart', 'by word (a plural too), as an id');
+  assert.equal(H.homes.assetFor('cartoons', 'model'), null, 'of the kind asked');
+  assert.equal(H.homes.assetFor('nothing', 'model'), null);
+  assert.equal(H.homes.assetUrl('missing.glb'), null);
+  H.setAssets({});
 });
