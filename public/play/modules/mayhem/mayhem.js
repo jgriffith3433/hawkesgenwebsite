@@ -418,7 +418,8 @@
   function runTumble(dt) {
     for (const e of [...tumbling]) {
       const tb = e._tumble;
-      if (!e.alive || !tb) { tumbling.delete(e); continue; }
+      // (Gone, or Juice's ragdoll took it over: that gets it up. Upright again either way.)
+      if (!e.alive || !tb || tb.ragdoll) { if (havok() && e._wasUpright !== undefined) { e.upright = e._wasUpright; e._wasUpright = undefined; } tumbling.delete(e); continue; }
       tb.t += dt;
       const r = e.node.rotation;
       const speed = Math.hypot(e.vx, e.vy, e.vz);
