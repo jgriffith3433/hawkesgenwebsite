@@ -195,8 +195,8 @@ test('an airplane takes off and flies; a helicopter climbs, hovers and lands', (
   assert.ok(hi > 12, `space climbs (${hi.toFixed(1)})`);
   H.tick(2);
   const held = heli.y;
-  H.tick(2);
-  assert.ok(Math.abs(heli.y - held) < 1.5, `it hovers by itself (${held.toFixed(1)} → ${heli.y.toFixed(1)})`);
+  H.tick(1);
+  assert.ok(heli.y < held - 2, `let go, it coasts down (${held.toFixed(1)} → ${heli.y.toFixed(1)})`);
   hold(['w'], 2);
   assert.ok(heli.vehicle.vel.length() > 6, 'W flies it forward');
   hold(['c'], 4);

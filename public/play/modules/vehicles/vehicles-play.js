@@ -453,7 +453,7 @@ body.veh-touching #veh-hud .hint{display:none}
   function hintFor(D) {
     const t = H.touchUi;
     if (D.class === 'plane') return t ? 'Stick: pitch and roll. ⤒ throttle up, ▼ down. Push up on the ground to roll, pull back at speed to lift off.' : 'Hold W to roll, S lifts off at speed. W/S pitch, A/D roll, space/C throttle, shift boost, E out.';
-    if (D.class === 'heli') return t ? 'Stick: tilt and turn. ⤒ climbs, ▼ descends; it hovers by itself.' : 'Space climbs, C descends (it hovers), W/S tilt, A/D turn, E out.';
+    if (D.class === 'heli') return t ? 'Stick: tilt and turn. ⤒ climbs, ▼ descends; it coasts down when you let go.' : 'Space climbs, C descends (let go and it sinks), W/S tilt, A/D turn, E out.';
     if (D.class === 'sub') return t ? '▼ dives, ⤒ rises, the stick drives.' : 'C dives, space rises, W/S thrust, A/D turn, L lights, E out.';
     if (D.class === 'rocket') return t ? '⤒ more thrust, ▼ less; the stick pitches and leans. Fuel fills on the ground.' : 'Space: more thrust, C: less. W/S pitch, A/D lean, shift boosts. Fuel fills on the ground. E out.';
     if (D.class === 'ship') return t ? '⤒ climbs, ▼ descends (it hovers); the stick flies and turns.' : 'Space climbs, C descends (it hovers), W/S thrust, A/D turn, shift boost, E out.';
