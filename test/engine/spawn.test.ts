@@ -126,7 +126,8 @@ test('search: by name and other words, best first; every word has to match', () 
   assert.equal(S.search('cow')[0].id, 'species:cow');
   assert.equal(S.search('cows')[0].id, 'species:cow', 'plurals');
   assert.equal(S.search('4x4')[0].kind, 'truck');
-  assert.equal(S.search('rocket')[0].id, 'tool:rocket-launcher');
+  assert.equal(S.search('rocket')[0].id, 'kind:rocket:rocket', 'the rocket you fly (the story)');
+  assert.equal(S.search('rocket launcher')[0].id, 'tool:rocket-launcher');
   assert.ok(S.search('farm').some((i: any) => i.id === 'species:pig'), 'by category name');
   assert.ok(S.search('tornado').some((i: any) => i.id === 'disaster:tornado'));
   assert.deepEqual(S.search('xyzzy'), []);
