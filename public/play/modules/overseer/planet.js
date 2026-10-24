@@ -56,7 +56,7 @@
       return {
         on: true, round: true,
         biome: { ...colors, name: biomeName },
-        radius: clamp(num(o.radius, 50000), 2000, 2e6),
+        radius: clamp(num(o.radius, 50000), 200, 2e6),
         surface: 0, airBase: 0,
         scale: clamp(num(o.air, 1800), 200, 20000),
         land: 1,
