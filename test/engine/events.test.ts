@@ -295,7 +295,7 @@ test('a quest from a friend: offer, find the sheep, bring them to the barn, talk
   offer.act(); // opens the dialog (in Node: accepts through the host)
   if (Q.state('sheep') !== 'active') Q.start('sheep');
   assert.equal(Q.state('sheep'), 'active');
-  H.tick(0.3);
+  H.tick(4); // (they come down from the Overseer first: dropped from the sky, one by one)
   const sheep = [...H.world.entities].filter((e: any) => e.alive && e.data && e.data.tag === 'lost-sheep');
   assert.equal(sheep.length, 3, 'the sheep are out there');
   assert.equal(Q.step('sheep'), 'find');

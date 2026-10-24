@@ -905,7 +905,9 @@
       e.onDestroy(() => spawned.delete(e));
       out.push(e);
     }
-    if (d.fx !== false && out.length) {
+    // The Overseer brings them in (H.arrive: dropped from the sky, grown, beamed); without it, a pop.
+    const arriving = Boolean(out.length && H.arrive && H.arrive.spawned(out, d));
+    if (!arriving && d.fx !== false && out.length) {
       const pts = out.length > 24 ? out.filter((_, i) => i % Math.ceil(out.length / 24) === 0) : out;
       for (const e of pts) g.burst([e.x, e.y, e.z], { color: '#c8f0ff', count: q(10), speed: 2.5, size: 0.25, life: 0.5 });
       sound('pop', { at: out[0].position });
@@ -917,7 +919,8 @@
   /** Makes `count` of something at once: a kind or a word ("cow", "barrel", "crate", "ball"), an asset name
    *  ("tree.glb"), or a scene spec ({ type, shape, material, ... }). opts: { at ([x, y, z]; default in front of you),
    *  area (radius, or [width, depth]), pattern ('scatter' | 'grid' | 'circle' | 'line' | 'pile' | 'stack' | 'rain'),
-   *  spacing, size, height (rain: how high), velocity, owner (who simulates them: H.sync.me), data }.
+   *  spacing, size, height (rain: how high), velocity, owner (who simulates them: H.sync.me), data, arrive ('drop',
+   *  'grow', 'beam', 'none', or { how, delay, gap }: how the Overseer brings them; by default by what they are) }.
    *  Online, everyone gets the same things (the host moves them). Returns them. */
   function spawnMany(what, count = 10, o = {}) {
     const g = G();
@@ -943,6 +946,7 @@
       owner: o.owner || null,
       data: o.data || null,
       fx: o.effects !== false,
+      arrive: o.arrive || null,
     };
     built = null;
     spawnAction(d);

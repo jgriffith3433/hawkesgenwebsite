@@ -222,13 +222,17 @@
     const pearl = L.hex(O.cfg.color, DEFAULTS.color), glow = L.hex(O.cfg.glow, DEFAULTS.glow), hor = sky.horizon;
     O.mats.hull.diffuseColor = pearl.scale(1 - hz * 0.7);
     O.mats.hull.emissiveColor = B.Color3.Lerp(pearl.scale(0.05 + 0.2 * night), hor, hz * 0.75);
-    const shine = 0.75 + 0.9 * night + 0.25 * sky.space;
+    const shine = 0.75 + 0.9 * night + 0.25 * sky.space + flareK * 1.6;
     O.mats.seam.emissiveColor = B.Color3.Lerp(glow.scale(shine), hor, hz * 0.4);
     O.mats.ring.emissiveColor = B.Color3.Lerp(B.Color3.Lerp(glow, new B.Color3(1, 1, 1), 0.45).scale(0.65 + 0.7 * night), hor, hz * 0.5);
-    O.mats.halo.alpha = clamp(0.18 + 0.5 * night + 0.15 * sky.space - hz * 0.1, 0.08, 0.85);
+    O.mats.halo.alpha = clamp(0.18 + 0.5 * night + 0.15 * sky.space - hz * 0.1 + flareK * 0.35, 0.08, 0.95);
   }
+  /** The emitter flares as the ship sends something down (arrive.js): seams and halo brighten, then settle. */
+  let flareK = 0;
+  function flare(k = 0.5) { flareK = Math.min(1.5, flareK + Math.max(0, Number(k) || 0)); }
   // The rings turn slowly (game time: they slow down with the world's slow motion, and stop when it stops).
   H.hooks.step.push((dt) => {
+    if (flareK > 0.001) flareK *= Math.exp(-dt * 2.2); else flareK = 0;
     if (!O) return;
     O.t += dt;
     O.ringA.rotation.y += dt * 0.035;
@@ -357,8 +361,10 @@ void main(void) {
     if (ent && ent.alive && !opts.noGrow) { grow = { s: ent.node.scaling.clone(), done: false }; ent.node.scaling.scaleInPlace(0.01); }
     let tgt = target;
     const b = {
-      t: 0, seconds, hold: Boolean(opts.hold), radius, ended: false, endT: 0, alive: true, near, far, ring, nm, fm, color,
+      t: 0, seconds, hold: Boolean(opts.hold), radius, ended: false, endT: 0, alive: true, near, far, ring, nm, fm, color, boost: 0,
       move(t) { tgt = t; return b; },
+      /** A surge down the shaft (something is being sent): brighter for a moment. */
+      pulse(k = 1) { b.boost = Math.min(3, b.boost + k); return b; },
       end(ok = true) { if (b.ended) return; b.ended = true; b.endT = b.t; if (ok !== false && G()) { const p = posOfTarget(tgt); if (p) G().burst([p[0], p[1] + 0.5, p[2]], { color: '#e8f6ff', count: PHONE ? 14 : 30, speed: 4 }); } },
       kill() {
         if (!b.alive) return;
@@ -371,6 +377,7 @@ void main(void) {
       },
       frame(dt, cam) {
         b.t += dt;
+        if (b.boost) b.boost = b.boost > 0.01 ? b.boost * Math.exp(-dt * 3.5) : 0;
         const p = posOfTarget(tgt) || at0;
         const top = emitterSeen() || new B.Vector3(p[0], p[1] + 400, p[2]);
         const P = H.planet;
@@ -422,7 +429,7 @@ void main(void) {
         e.setFloat3('camPos', cp.x, cp.y, cp.z);
         e.setColor3('color', b.color);
         const k = mm._hp ? mm._hp.k : 0;
-        e.setFloat4('p', k * (0.55 + 0.5 * (1 - Math.min(1, b.radius / 30))), b.t, nearPass ? 0 : reach, nearPass ? reach : 1e9);
+        e.setFloat4('p', k * (0.55 + 0.5 * (1 - Math.min(1, b.radius / 30))) * (1 + b.boost), b.t, nearPass ? 0 : reach, nearPass ? reach : 1e9);
       });
     }
     // The shaft leans from the target out to the emitter: its top is wider than its bottom.
@@ -529,6 +536,7 @@ void main(void) {
       const w = W();
       if (!w) return;
       if ((ops || []).some((x) => x && x.op === 'config' && x.patch && 'overseer' in x.patch)) { reconfigure(); return; }
+      if (H.arrive) { H.arrive.ops(ops, touched, o); return; } // (arrive.js: dropped, grown or beamed in by what it is)
       if (!(o.fx === 'materialize' || o.fx === 'arrive' || (o.remote && o.by))) return;
       const made = touched.filter((e) => e && e.alive && ops.some((x) => (x.op === 'create' || (o.fx === 'arrive' && x.op === 'replace')) && x.entity && x.entity.id === e.sceneId));
       if (made.length) materialize(made.length === 1 ? made[0] : made);
@@ -564,6 +572,7 @@ void main(void) {
   // Spawn guns and spawnMany: one beam over the batch (thrown grenades are not beamed: they're thrown).
   H.hooks.game.push((game) => {
     game.on('spawned', (d) => {
+      if (H.arrive) return; // (Mayhem hands its batches to arrive.js itself, for everyone)
       const list = d && Array.isArray(d.things) ? d.things.filter((e) => e && e.alive && !(e.data && (e.data.grenade || e.data.sticky))) : [];
       if (list.length) materialize(list);
     });
@@ -611,9 +620,9 @@ void main(void) {
     apply() {}, change() {}, dispose() {},
     codex: {
       title: 'The Overseer', group: 'World features',
-      what: 'The giant sphere-shaped ship in the sky of every game: everything that appears is beamed down from it, the assistant speaks as it, and a rocket or a space ship can fly up and dock in its hangar. Here, a small one close by.',
+      what: 'The giant sphere-shaped ship in the sky of every game: everything that appears comes down from it (dropped out of the sky to land where asked, or on the roof over it; plants grow up out of the ground; mountains rise over five seconds; lights and signs are beamed in), the assistant speaks as it, and a rocket or a space ship can fly up and dock in its hangar. Here, a small one close by.',
       value: { position: [0, 16, 0], radius: 9, intro: false },
-      fields: [['position', '[x, y, z] meters', '[-2600, 5200, 8200]'], ['radius', 'meters', '560'], ['color', 'the hull', '#eef1f6'], ['glow', 'seams, rings, beams', '#8fd8ff'], ['intro', '"first", "always" or false', 'first'], ['beams', 'false: things just appear', 'true'], ['(false)', 'no Overseer in this game', '']],
+      fields: [['position', '[x, y, z] meters', '[-2600, 5200, 8200]'], ['radius', 'meters', '560'], ['color', 'the hull', '#eef1f6'], ['glow', 'seams, rings, beams', '#8fd8ff'], ['intro', '"first", "always" or false', 'first'], ['beams', 'false: things just appear', 'true'], ['arrive', 'how things come in: auto (dropped from the sky, plants grown, lights beamed), drop, grow, beam, none', 'auto'], ['(false)', 'no Overseer in this game', '']],
     },
   });
 
@@ -627,7 +636,7 @@ void main(void) {
     get lod() { return O ? O.lod : null; },
     /** The emitter (the lowest point), in world meters. */
     emitter() { return O ? [O.cfg.position[0], O.cfg.position[1] - O.r * 0.99, O.cfg.position[2]] : null; },
-    emitterSeen, beam, materialize, growIn, say, setLod,
+    emitterSeen, beam, materialize, growIn, say, setLod, flare,
     get beams() { return beams.length; },
     MAX_BEAMS,
     onEnter(fn) { enterListeners.push(fn); },
