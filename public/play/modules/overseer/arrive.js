@@ -33,7 +33,7 @@
 
   // ------------------------------------------------------------------ down and up (the planet work swaps these)
   /** The way things fall at a point: [x, y, z] unit. */
-  function down(at) { void at; return [0, -1, 0]; }
+  function down(at) { const P = H.planet; if (P && P.round) { const u = P.up(at); return [-u[0], -u[1], -u[2]]; } return [0, -1, 0]; } // (a round world: toward its middle)
   function up(at) { const d = down(at); return [-d[0], -d[1], -d[2]]; }
   const along = (p, dir, k) => [p[0] + dir[0] * k, p[1] + dir[1] * k, p[2] + dir[2] * k];
   /** How far `p` is above `base` along up. */
@@ -369,6 +369,13 @@
     if (rec.lift !== 0) hide(rec);
     if (o.planned && !exact) rec.roof = true;
   }
+  // A round world: the frame moved under the player (round.js moved the things); where each arrival is going goes too.
+  if (H.planet && H.planet.frame && H.planet.frame.onRebase) H.planet.frame.onRebase((tr) => {
+    for (const rec of list) {
+      if (rec.target) rec.target = tr.point(rec.target);
+      if (rec.rest) rec.rest = tr.point(rec.rest);
+    }
+  });
   function hide(rec) {
     const e = rec.e;
     e.node.setEnabled(false);

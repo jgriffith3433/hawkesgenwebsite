@@ -84,7 +84,8 @@ in config hides the stars.
 
 ### The planet: `config.planet`
 
-Every world is on a planet (on by default). Physics stays flat; the world is drawn curving away, with the planet beyond it.
+Every world is on a planet (on by default). On an ordinary world physics stays flat and the world is drawn curving away,
+with the planet beyond it; with `"sphere": true` the world is the round planet itself (below).
 
 | field | what | default |
 |---|---|---|
@@ -95,6 +96,32 @@ Every world is on a planet (on by default). Physics stays flat; the world is dra
 | `air` | the air's scale height (m): bigger = thicker air higher up | 1800 |
 | `surface` | sea level (m) | the sea's level, or 150 m below a world with no ground (it floats over the planet) |
 | `false` instead | a flat world, no thin air | |
+
+### A round planet: `config.planet.sphere`
+
+**New games start on one**: an empty round planet 50 km across the middle (`"planet": { "sphere": true, "radius":
+50000 }`), with the Overseer's intro every time the game opens. The world isn't flat with a curve drawn on it: the ground
+is the whole planet. You walk all the way round it, gravity pulls everything to its middle, things stand up wherever
+they are, and from high up you see the ball you were standing on (build mode flies faster the higher you are: 100 m/s at
+100 m, 10 km/s at 10 km, the whole planet below from about 30 km; space begins about 10 km up). Playing, the air and
+aircraft ceilings are as always; a rocket or a space ship reaches space.
+
+| field | what | default |
+|---|---|---|
+| `sphere` | `true`: the world is round (`"round": true` and `"planet": "sphere"` mean the same) | false |
+| `radius` | meters, at least 200 (a new game: 50000; bigger is flatter underfoot and farther round) | 50000 |
+| `biome` | its lands: `earth`, `forest`, `desert`, `ice`, `alien`... (meadows, woods, dry plains, rock, snow at the poles) | earth |
+| `clouds` | 0-1, seen from high up | by biome |
+| `air` | the air's scale height (m) | 1800 |
+
+**Where things are on a round planet.** Positions in scene.json are on the planet: its middle is `[0, -radius, 0]` and
+the start is on top at `[0, 0, 0]`, where up is +y. Near the start (within a few hundred meters) that's just like flat
+ground: put things at y = 0 + their lift. Farther round, "up" at a point is away from the middle: a point on the
+ground is `middle + radius * direction`. The player's context gives `player.at` (on the planet) and `player.up` (the
+direction away from the middle there): to put a thing 5 m ahead of the player on the ground, start from `player.at`, go
+5 m along `player.facing` (flattened against `player.up`), and stay at the same distance from the middle. A rotation is
+turned from standing upright where the thing is: `[0, 90, 0]` stands it up turned 90°, anywhere on the planet. Things
+dropped fall to the ground under them.
 
 ### In words
 
@@ -110,4 +137,12 @@ Every world is on a planet (on by default). Physics stays flat; the world is dra
   "sunset" → `{ "time": "dusk" }`.
 - "Move the Overseer closer / make it bigger" → `{ "overseer": { "position": [...], "radius": 800 } }` (keep it
   several km up).
-- "A flat world" → `{ "planet": false }`.
+- "A flat world" → `{ "planet": false }` (on a round planet things keep their numbers, so what was far round lands
+  somewhere odd: say so first).
+- "Make the world a round planet" / "a real planet I can walk around" → `{ "planet": { "sphere": true, "radius": 50000 } }`
+  (keep the biome if one is set). The world restarts round.
+- "Make the planet bigger" → a bigger `radius` (e.g. 100000; "smaller" 20000; "a tiny planet" 1000: you walk round it in
+  a few minutes). Keep `sphere: true` and the other fields: `{ "planet": { "sphere": true, "radius": 100000, ... } }`.
+- "A desert planet" on a round world → `{ "planet": { "sphere": true, "radius": 50000, "biome": "desert" } }`.
+- "Put a tower on the other side of the planet" → its position is the very opposite point, `[0, -2 * radius, 0]` (with
+  its lift: `[0, -2 * radius - lift, 0]`, since up there is -y), rotation `[0, 0, 0]`: it stands up there by itself.

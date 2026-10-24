@@ -204,7 +204,8 @@ void main(void) {
     dome.material = m;
     dome.alwaysSelectAsActiveMesh = true;
     s.bg.add(dome, 0);
-    s.onBg.push((main, cam) => { dome.position.copyFrom(cam.position); });
+    // (Big enough to lie past the far camera's near plane, which moves out as you climb: high up it would clip the corners.)
+    s.onBg.push((main, cam) => { dome.position.copyFrom(cam.position); dome.scaling.setAll(Math.max(1, (cam.minZ * 3) / 1000)); });
     return dome;
   }
 

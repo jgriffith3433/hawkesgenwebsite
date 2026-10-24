@@ -24,7 +24,17 @@
       // (E is always "use"; holding Q is the spawn wheel: neither moves you.)
       if (p.flying) {
         p.gravity = 0;
-        const sp = input.key('shift') ? 16 : 8;
+        let sp = input.key('shift') ? 16 : 8;
+        // A round world, building: the higher you are, the faster you fly (8 m/s at the ground, 100 m/s 100 m up, 10 km/s 10 km up:
+        // 150 km up in about 10 s, 5 holding shift), so you can climb until you see the whole planet and cross it in seconds. No ceiling.
+        const P = H.planet;
+        p._fast = false;
+        if (building && P && P.round) {
+          const h = Math.max(0, P.heightOf([p.x, p.bottom, p.z]));
+          sp *= 1 + Math.min(h, P.radius * 20) / 8; // (no ceiling; the speed stops growing 20 radii out)
+          // High and fast: moved straight (no collision casts that far a step); never more than a fraction of the height.
+          p._fast = h > 40 && sp > 60;
+        }
         // Forward and back go where the camera looks, up and down too (look down and press W to dive); sideways stays
         // level. Space and C (or Ctrl) still rise and sink straight up and down.
         const ax = input.axis();
@@ -42,6 +52,7 @@
         return;
       }
       p.gravity = p.baseGravity ?? 1;
+      p._fast = false;
       p.walk(a, (p.speed || 6) * (sprint ? 1.6 : 1));
       // Facing where you walk when you can see yourself.
       if (p._view !== 'first' && Math.hypot(a.x, a.z) > 0.1) { const want = Math.atan2(a.x, a.z); let d = want - p.node.rotation.y; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; p.node.rotation.y += d * Math.min(1, dt * 12); }

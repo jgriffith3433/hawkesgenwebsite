@@ -288,6 +288,23 @@ game.onStart(() => {
 `,
     }),
   },
+  // A new game: a whole planet, round and empty (J: "an empty world... a literal world"), and the Overseer's intro every
+  // time it opens. 50 km across the middle: fly up (faster the higher you are) and you see the ball you stood on.
+  {
+    id: 'planet',
+    name: 'A new planet',
+    blurb: 'An empty round planet, all yours: walk all the way round it, fly up until you see the whole ball, and build anything anywhere.',
+    files: (title) => ({
+      'README.md': readme(title, 'An empty planet, 50 km across the middle. Walk with WASD, double-tap space (or F) to fly: the higher you go the faster you fly, up to space and the whole planet below. Hold Q for the spawn wheel, hold click to grab things, double-click anything to change it, Enter to ask the assistant.'),
+      'scene.json': sceneJson(
+        { background: '#8fc4ea', ambient: 0.7, sun: 0.95, gravity: -24, planet: { sphere: true, radius: 50000, biome: 'earth' }, overseer: { intro: 'always' }, fog: { color: '#a9d2ee', start: 300, end: 1600 } },
+        { start: thing('start', 'spawn', 'Player start', [0, 0.05, 0], { data: { role: 'player' }, transform: { position: [0, 0.05, 0], rotation: [0, -18, 0] } }) },
+      ),
+      'scripts/main.js': `// Game rules go here. The world itself is scene.json (build it by walking around in it).
+// It's a round planet: up is away from its middle wherever you are (game.player is you).
+`,
+    }),
+  },
   {
     id: 'sandbox',
     name: 'Island sandbox',

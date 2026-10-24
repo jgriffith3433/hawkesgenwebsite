@@ -458,6 +458,23 @@ opts a material out. `H.planet.air(y)` is the air (1 at sea level, thinning with
 uses it (vehicles: rotors, wings, air-breathing engines). Things beyond the world's own camera reach (the planet, the
 ship, beams) go in the sky's far layer: `H.sky.bg.add(mesh, group)` and `H.sky.onBg((camera, farCamera) => ...)`.
 
+**A round world** (`config.planet.sphere`, every new game; `modules/overseer/round.js`). The ground is a whole planet
+(50 km across by default). scene.json keeps things on the planet (its middle at `[0, -radius, 0]`, rotations turned from
+standing upright where the thing is); the engine runs in a **frame around the player**: up is +y under them, they stay
+near x = z = 0, so physics, the camera, the controllers, building and your module work as on flat ground and float32 stays
+precise. Every ~100 m round the frame moves (a rebase): the engine moves and turns every entity, body, character, the
+camera and the Overseer by one small rotation. **If your module keeps positions of its own** (goals, homes, its own
+integrator's pose and velocity), turn them in `H.planet.frame.onRebase((tr) => ...)` with `tr.point`, `tr.dir`, `tr.quat`
+(Living things and Vehicles do), or they jump 100 m. Gravity points to the middle (Havok's -y is exact under the player;
+`physics.js roundGravity` adds the rest for bodies away from them); dynamic things and characters more than 1.5 km off rest
+(`e._far`: skip simulating them yourself, as vehicles do). Scene edits made here go through `H.applyOps(ops, { local:
+true })` (or the editor's `edit`), which put them on the planet; never write a world-file position from a local one
+yourself. The ground is a curved patch round the player (`kind: 'planet'`, `_frameFixed`) and the ball in the far layer.
+Things still assuming flat ground: Terrain (a flat heightfield at the start), Water (a flat sea that curves in the shader:
+fine near you), Living things' navigation grid (flat cells near the creature), Mayhem's and Events' spawn heights (y
+near 0 under you is right).
+
+
 Whatever appears comes down from the Overseer, through **arrivals** (`H.arrive`, `modules/overseer/arrive.js`), chosen
 by what the thing is: **drop** (most things: high in the beam, then a fall; real physics while playing, so online the
 host or owner decides it; building, an exact fall onto the op's spot), **grow** (plants, up out of the ground), **beam**

@@ -81,8 +81,8 @@ async function load() {
   const r = await api('/v1/games');
   if (!r.games.length && !inviteCode) {
     try {
-      const g = await api('/v1/games', { body: { title: 'My Game', template: 'blank' } });
-      track('game_create', { template: 'blank', auto: true });
+      const g = await api('/v1/games', { body: { title: 'My Game', template: 'planet' } });
+      track('game_create', { template: 'planet', auto: true });
       enterGame(`/app/g/${g.id}`);
       return;
     } catch (err) {
@@ -274,8 +274,8 @@ $('quickCreate').onclick = async () => {
   $('quickCreate').disabled = true;
   $('newError').hidden = true;
   try {
-    const g = await api('/v1/games', { body: { title: 'Untitled Game', template: 'blank' } });
-    track('game_create', { template: 'blank' });
+    const g = await api('/v1/games', { body: { title: 'Untitled Game', template: 'planet' } });
+    track('game_create', { template: 'planet' });
     enterGame(`/app/g/${g.id}`);
   } catch (err) {
     $('newError').textContent = err.message + (err.status === 402 ? ' You need more credits.' : '');

@@ -19,7 +19,8 @@ const TYPES = (window.HawkesPlay ? HawkesPlay.kinds.list() : []).filter((k) => !
 })
   // World features (H.features with a codex): a config key, shown live with its example value.
   .concat((window.HawkesPlay ? HawkesPlay.features.list() : []).filter((f) => f.codex).map((f) => ({
-    type: f.name, feature: f.name, group: 'World features', what: f.codex.what || `config.${f.name}`, uses: `config.${f.name} in scene.json (a world setting): { "op": "config", "patch": { "${f.name}": ... } }`,
+    // (codex.key: the config key a page shows, when it isn't the feature's own name: \A round planet\ is config.planet.)
+    type: f.name, feature: f.codex.key || f.name, group: 'World features', what: f.codex.what || `config.${f.codex.key || f.name}`, uses: `config.${f.codex.key || f.name} in scene.json (a world setting): { "op": "config", "patch": { "${f.codex.key || f.name}": ... } }`,
     spec: f.codex.value, fields: f.codex.fields || [], noFloor: true, props: true, config: false,
   })))
   .sort((a, b) => rank(a) - rank(b));
@@ -116,7 +117,7 @@ function show(t) {
   for (const b of document.querySelectorAll('.types button')) b.classList.toggle('on', b.dataset.type === t.type);
   const open = document.querySelector(`.types details[data-group="${t.group}"]`);
   if (open) open.open = true;
-  $('hudType').textContent = t.feature ? `config.${t.type}` : t.type;
+  $('hudType').textContent = t.feature ? `config.${t.feature}` : t.type;
   const phys = t.spec && t.spec.physics;
   $('hudPhys').hidden = !phys;
   if (phys) $('hudPhys').querySelector('b').textContent = phys;
