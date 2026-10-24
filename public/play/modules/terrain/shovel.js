@@ -82,9 +82,10 @@
       s.cool = Math.max(0, s.cool - dt);
       if (s.cool > 0 || H.world.paused) return;
       const click = input.mouse.pressed && (input.mouse.locked || (H.world.player && H.world.player.mouse === 'free'));
-      const pile = input.pressed.has('r') || (click && input.held.has('shift'));
-      const dig = input.pressed.has('g') || (click && !input.held.has('shift'));
-      if ((pile || dig) && use(ctx, pile)) s.cool = 0.3;
+      // Holding G / R (or the phone's Dig / Pile) keeps digging, a shovelful at a time.
+      const pile = input.held.has('r') || (click && input.held.has('shift'));
+      const dig = input.held.has('g') || (click && !input.held.has('shift'));
+      if ((pile || dig) && use(ctx, pile)) s.cool = 0.35;
     },
     frame(dt, ctx) {
       const s = ctx.state, w = H.world;
