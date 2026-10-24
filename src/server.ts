@@ -33,6 +33,7 @@ const engineVersion = () => manifest().version;
 import * as community from './community.ts';
 import { upgrade as joinRoom, broadcastOps, markHere, liveCounts } from './rooms.ts';
 import * as shares from './shares.ts';
+import { relayAnalytics, playIds, playIdsScript } from './analytics.ts';
 import type { Duplex } from 'node:stream';
 
 const PUBLIC = path.join(ROOT, 'public');
@@ -109,7 +110,10 @@ function servePlayPage(res: ServerResponse, req: IncomingMessage, o: { guest?: b
   // scripts, and signs the guest up on this site: it is served without the play sandbox (play/guest.js).
   const open = devOpenPlay(req) || o.guest === true;
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', ...(open ? {} : { 'Content-Security-Policy': PLAY_SANDBOX }), 'X-Content-Type-Options': 'nosniff' });
-  fs.createReadStream(path.join(PUBLIC, 'play', 'play.html')).pipe(res);
+  // A signed-in player's analytics ids (src/analytics.ts): the sandboxed page has no storage to keep its own.
+  const ids = o.guest ? null : playIds(users.authenticate(req));
+  if (!ids) return void fs.createReadStream(path.join(PUBLIC, 'play', 'play.html')).pipe(res);
+  res.end(fs.readFileSync(path.join(PUBLIC, 'play', 'play.html'), 'utf8').replace('</head>', `${playIdsScript(ids)}</head>`));
 }
 
 /** A game's asset file, from Gen, for anyone playing it (open CORS: the game's sandbox has no origin). */
@@ -239,6 +243,8 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     }
 
     // ------------------------------------------------------------ open to everyone
+    // Player analytics from game pages that have no origin of their own: passed on to Gen (src/analytics.ts).
+    if (route === '/v1/analytics/collect' && (method === 'POST' || method === 'OPTIONS')) return await relayAnalytics(req, res, clientIp(req));
     if (route === '/v1/health') return send(res, 200, { ok: true, service: 'hawkesgen-portal', gen: Boolean(genKey()), payments: stripeStatus().configured, google: google.googleEnabled() });
     // What Gen makes for a game, with its price (the codex reads it, so it never drifts from gameai.ts KINDS).
     if (route === '/v1/asset-kinds' && method === 'GET') return send(res, 200, Object.fromEntries(Object.entries(KINDS).map(([k, v]) => [k, { title: v.title, credits: v.credits }])));

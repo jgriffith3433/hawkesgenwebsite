@@ -22,11 +22,14 @@
     return m ? { file: m[1], line: Math.max(1, Number(m[2]) - 2) } : {};
   }
   let reported = 0;
-  function report(err, file) {
+  /** A game's error: to the editor (when inside one), on screen, and to the player analytics (play/analytics.js, which
+   *  sends it only where no editor does; `uncaught` ones the page's own SDK already has). */
+  function report(err, file, uncaught = false) {
     const w = where(err);
     const message = String(err && err.message || err);
     if (++reported > 200) return;
     post({ type: 'error', message, file: w.file || file || null, line: w.line || null });
+    if (!uncaught) try { window.HawkesPlay?.track?.error?.(message, err && err.stack, 'script', { file: w.file || file || undefined, line: w.line || undefined }); } catch { /* never */ }
     showError(`${w.file || file || 'script'}${w.line ? `:${w.line}` : ''}: ${message}`);
   }
   const safe = (fn, file) => (...args) => { try { return fn(...args); } catch (e) { report(e, file); } };
@@ -2174,6 +2177,6 @@
     /** The engine's building blocks, for modules that make kinds of things (kinds.js uses them). */
     lib: { Entity, shape, place, material, size3, hex, vec, clone, assetUrl, hasAsset, assetEntry, setFrame, showBubble, roundRect, posOf, attachBehaviors, runBehaviorHit, applyPlayerSettings, useController, effectiveConfig, STEP, RAD, get clockOffset() { return clockOffset; } },
   };
-  window.addEventListener('error', (e) => report(e.error || e.message));
-  window.addEventListener('unhandledrejection', (e) => report(e.reason));
+  window.addEventListener('error', (e) => report(e.error || e.message, null, true));
+  window.addEventListener('unhandledrejection', (e) => report(e.reason, null, true));
 })();

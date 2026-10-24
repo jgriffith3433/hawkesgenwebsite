@@ -36,8 +36,10 @@ function bindAuth() {
       const body = { email: $('email').value.trim(), password: $('password').value };
       if (mode === 'signup') body.name = $('name').value.trim();
       await api(mode === 'signup' ? '/v1/users/signup' : '/v1/users/login', { body });
-      track(mode === 'signup' ? 'signup' : 'login', { via: 'builder' });
+      // signup itself (and the account's id from now on) is told by site-analytics.js, the same for email and Google.
+      if (mode === 'login') track('login', { via: 'builder' });
       await load();
+      try { window.hgAnalytics?.refresh(); } catch {}
     } catch (err) {
       $('authError').textContent = err.message;
       $('authError').hidden = false;

@@ -4,8 +4,11 @@
 //   (the editor relays { type: 'analytics' } to its SDK). Published games' sandboxed pages have neither, so nothing goes.
 // - What: `game_ready` (with ms), the first time each kind of fun happens in a session (`feature`, name below, with `ms`
 //   since the game was ready), `first_fun` once (the first of them, with `ms`), and `progress` at 1, 3, 5, 10, 20 and
-//   30 minutes of play (step = minutes, label 'minutes_played'). Context on every event: `tier` (phone, tablet,
-//   desktop), `input` (touch, mouse, gamepad: what they used last) and `mode` (play or build).
+//   30 minutes of play (step = minutes, label 'minutes_played'), `engage` (seconds spent on each activity: play,
+//   build, drive, fly, boat, photo; only while the player is active, sent each minute and when the page hides), the
+//   script errors the runtime caught (on a game's own page; in the editor's frame the editor reports them), and in the
+//   frame the player's input (`activity`, so the editor counts time spent in the game as active). Context on every event: `tier` (phone, tablet, desktop),
+//   `input` (touch, mouse, gamepad: what they used last) and `mode` (play or build).
 // It watches what the modules already do (game events, H.vehicles.current, the sky's altitude, rewind, photo mode,
 // sharing) instead of each module sending its own, so a module never needs an analytics line. Nothing on the codex.
 (() => {
@@ -17,11 +20,15 @@
   let readyAt = 0, played = 0, nextMinute = 0, firstFun = false;
   const seen = new Set();
 
+  const own = () => Boolean(window.hawkesAnalytics && window.hawkesAnalytics.track);
+  const framed = () => { try { return window.parent !== window; } catch { return true; } };
   function send(name, props) {
     if (H.hooks.codex) return;
     const a = window.hawkesAnalytics;
     if (a && a.track) { try { a.track(name, props || {}); } catch { /* never break the game */ } return; }
-    try { if (window.parent !== window) window.parent.postMessage({ source: 'hawkes-play', type: 'analytics', name, props: props || {}, ctx: { ...ctx } }, '*'); } catch { /* no parent */ }
+    if (framed()) { try { window.parent.postMessage({ source: 'hawkes-play', type: 'analytics', name, props: props || {}, ctx: { ...ctx } }, '*'); } catch { /* no parent */ } return; }
+    // A game's own page whose SDK is still loading (play.html adds it): its early-calls queue, played back when it runs.
+    (window.hawkesAnalyticsQ = window.hawkesAnalyticsQ || []).push(['setContext', { ...ctx }], ['track', name, props || {}]);
   }
   function context(patch) {
     let changed = false;
@@ -42,12 +49,48 @@
   H.track.feature = feature;
   H.track.FEATURES = FEATURES;
 
-  // Input: what they used last (a phone with a gamepad is a gamepad player).
-  const input = (k) => context({ input: k });
+  // Input: what they used last (a phone with a gamepad is a gamepad player). Any input is activity: the page around
+  // the game can't see it, so it's told (at most every 2 s) to keep its active time going.
+  let lastInput = performance.now(), lastTold = 0;
+  const active = () => {
+    lastInput = performance.now();
+    if (own() || !framed() || lastInput - lastTold < 2000) return;
+    lastTold = lastInput;
+    try { window.parent.postMessage({ source: 'hawkes-play', type: 'analytics-activity' }, '*'); } catch { /* no parent */ }
+  };
+  const input = (k) => { context({ input: k }); active(); };
   window.addEventListener('touchstart', () => input('touch'), { passive: true, capture: true });
   window.addEventListener('mousedown', () => input('mouse'), { passive: true, capture: true });
-  window.addEventListener('keydown', () => { if (ctx.input !== 'touch') input('mouse'); }, { passive: true, capture: true });
+  window.addEventListener('keydown', () => { if (ctx.input !== 'touch') input('mouse'); else active(); }, { passive: true, capture: true });
+  window.addEventListener('wheel', active, { passive: true, capture: true });
+  let moved = 0;
+  window.addEventListener('pointermove', () => { const t = performance.now(); if (t - moved > 2000) { moved = t; active(); } }, { passive: true, capture: true });
   window.addEventListener('gamepadconnected', () => input('gamepad'));
+  H.track.active = active; // gamepad play (polled by the controllers) can say so too
+
+  // The game's script errors the runtime caught (runtime.js report): in the editor's frame the editor reports them (the
+  // runtime tells it), so only on a page of its own; the page's SDK has the uncaught ones. Each once, 25 a page at most.
+  const errSeen = new Set();
+  function gameError(message, stack, source, extra) {
+    if (framed() || H.hooks.codex) return;
+    message = String(message || 'Error').slice(0, 1000);
+    const key = message + '|' + String(stack || '').split(/\r?\n/).slice(0, 2).join('|');
+    if (errSeen.has(key) || errSeen.size >= 25) return;
+    errSeen.add(key);
+    send('error', Object.assign({ message, stack: stack ? String(stack).slice(0, 4000) : undefined, source }, extra || {}));
+  }
+  H.track.error = gameError;
+
+  // Time on each activity: counted while the game runs, the tab shows and the player was active in the last minute.
+  const spent = {};
+  let sinceSent = 0;
+  function sendTime() {
+    for (const [name, sec] of Object.entries(spent)) if (sec >= 1) send('engage', { name, seconds: Math.round(sec) });
+    for (const k of Object.keys(spent)) delete spent[k];
+    sinceSent = 0;
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') sendTime(); });
+  window.addEventListener('pagehide', sendTime);
 
   // The game's own events (every new game: a reload makes a new one).
   H.hooks.game.push((game) => {
@@ -81,18 +124,23 @@
     const dt = Math.min(5, (t - last) / 1000);
     last = t;
     if (!H.world || H.hooks.codex) return;
-    if (document.visibilityState === 'visible' && readyAt) {
+    const going = document.visibilityState === 'visible' && readyAt;
+    if (going) {
       played += dt;
       if (nextMinute < MINUTES.length && played >= MINUTES[nextMinute] * 60) { send('progress', { step: MINUTES[nextMinute], label: 'minutes_played' }); nextMinute++; }
     }
+    const counting = going && t - lastInput < 60_000;
+    const spend = (what) => { if (counting) spent[what] = (spent[what] || 0) + dt; };
+    spend(H.mode === 'build' ? 'build' : 'play');
+    if (counting && (sinceSent += dt) >= 60) sendTime();
     try {
       const v = H.vehicles && H.vehicles.current;
-      if (v) { const k = kindOf(v); feature(AIR.test(k) ? 'fly' : WATER.test(k) ? 'boat' : 'drive', { vehicle: k.slice(0, 24) }); }
+      if (v) { const k = kindOf(v); const how = AIR.test(k) ? 'fly' : WATER.test(k) ? 'boat' : 'drive'; feature(how, { vehicle: k.slice(0, 24) }); spend(how); }
       const sky = H.world._sky;
       if (sky && sky.space > 0.9) feature('space');
       if (H.rewind && H.rewind.rewinding) feature('rewind');
       const S = H.share;
-      if (S && S.photo && S.photo.on) feature('photo');
+      if (S && S.photo && S.photo.on) { feature('photo'); spend('photo'); }
       if (S && S.share && !S.share._tracked) {
         const orig = S.share;
         S.share = function (...a) { feature('share'); return orig.apply(this, a); };

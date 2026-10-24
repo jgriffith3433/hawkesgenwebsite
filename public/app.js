@@ -431,18 +431,10 @@ function track(name, props) {
   try { window.hawkesAnalytics?.track(name, props); } catch {}
 }
 
-/** The funnel's server-side moments, told once from this page: a new account (email or Google, with where it came
- *  from) and a finished purchase (after Stripe sends them back here). Remembered per account in localStorage. */
+/** Sign-ups and purchases are told by site-analytics.js (from the account's ledger, for every page and every way in);
+ *  this page only asks it to look again now that we know who this is. */
 async function funnelOnLoad() {
-  const u = state.user;
-  const once = (key) => { try { if (localStorage.getItem(key)) return false; localStorage.setItem(key, '1'); } catch {} return true; };
-  if (Date.now() - (u.created ?? 0) < 15 * 60_000 && once(`hg_signup_${u.id}`)) track('signup', { source: u.source || 'direct' });
-  if (new URLSearchParams(location.search).get('checkout') === 'success') {
-    const r = await fetch('/v1/billing/ledger?limit=10').catch(() => null);
-    const entries = r && r.ok ? (await r.json()).entries ?? [] : [];
-    const buy = entries.find((e) => e.kind === 'stripe_purchase');
-    if (buy && once(`hg_buy_${buy.id}`)) track('purchase', { credits: buy.delta, pack: buy.detail, first: !entries.some((e) => e.kind === 'stripe_purchase' && e.id !== buy.id) });
-  }
+  try { window.hgAnalytics?.refresh(); } catch {}
 }
 
 /** The invite card: the customer's link (GET /v1/referral), what a friend gets, what they've earned. */

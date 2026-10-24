@@ -301,6 +301,20 @@
         document.head.appendChild(gs);
         return;
       }
+      // Player analytics (play/analytics.js reports through it): a game page has no origin or storage of its own, so the
+      // SDK sends to this site, which passes it on to Gen (src/analytics.ts), and a signed-in player's ids come with the
+      // page (HAWKES_PLAY_IDS). In the editor's frame the editor's page reports instead.
+      if (window.parent === window) {
+        var sa = document.createElement('script');
+        sa.src = 'https://gen.hawkesgen.com/sdk/analytics@1.js';
+        sa.async = true;
+        sa.setAttribute('data-product', 'hawkesgen');
+        sa.setAttribute('data-endpoint', '/v1/analytics/collect');
+        // First in the SDK's early-calls queue, so what the game reports while it loads has the ids and the context.
+        var ids = window.HAWKES_PLAY_IDS || {};
+        window.hawkesAnalyticsQ = [['init', { anon: ids.anon, user: ids.user || null, context: { entry: slug === 't' ? 'template' : 'published', account: ids.user ? 'user' : 'guest', game: parts[3] && slug === 't' ? 't/' + parts[3] : slug } }]].concat(window.hawkesAnalyticsQ || []);
+        document.head.appendChild(sa);
+      }
       var q = new URLSearchParams(location.search);
       var corner = document.getElementById('corner');
       corner.hidden = false;
