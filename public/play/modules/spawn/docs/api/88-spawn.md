@@ -7,6 +7,7 @@ game.spawnWheel.allowed();                 // building, or config.spawn lets pla
 await game.spawnWheel.spawn('cow', 10);    // as the wheel would: by word or id ("4x4", "species:cow", "tool:lasso")
 game.spawnWheel.search('boat');            // [{ id, name, type, category }], best first
 game.on('spawn', ({ item, count, ids }) => { /* someone used the wheel: item { id, name, type, category } */ });
+game.on('spawn-wheel', ({ state, as }) => { /* the player opened it (state 'open'; as 'wheel', or 'sheet' on phones) */ });
 ```
 
 - While playing, `spawn` makes runtime things (not saved; shared online through Mayhem's spawning) and only when the
