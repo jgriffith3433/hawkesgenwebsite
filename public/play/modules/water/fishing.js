@@ -96,8 +96,8 @@
 
   // ------------------------------------------------------------------ fish you can see (stand-ins, or a model by name)
   function modelFor(sp) {
-    const names = [sp.model, `fish-${sp.id}`, sp.id, sp.rarity !== 'junk' ? 'fish' : null].filter(Boolean);
-    for (const n of names) { const a = BK.modelNamed(String(n).toLowerCase().replace(/\.glb$/i, '')); if (a) return a; }
+    if (sp.model && H.assets.has(sp.model)) return sp.model;
+    for (const n of [`fish ${sp.id}`, sp.id, sp.rarity !== 'junk' ? 'fish' : null].filter(Boolean)) { const a = BK.modelNamed(n, sp.id); if (a) return a; }
     return null;
   }
   /** A fish (length in meters, facing +z): a body, a tail, fins and eyes in its colors, or its model. */
@@ -220,7 +220,7 @@
     s.reelMesh = reel;
     const tip = new B.TransformNode('rod-tip', sc); tip.parent = root; tip.position.y = 1.5;
     s.tip = tip;
-    const asset = BK.modelNamed('fishing-rod') || BK.modelNamed('rod');
+    const asset = BK.modelNamed('fishing rod') || BK.modelNamed('rod');
     if (asset) B.SceneLoader.ImportMeshAsync('', '', L.assetUrl(asset), sc, null, '.glb').then((r) => {
       if (root.isDisposed()) { for (const m of r.meshes) m.dispose(); return; }
       pole.setEnabled(false); reel.setEnabled(false);

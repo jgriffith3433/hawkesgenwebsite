@@ -598,11 +598,9 @@ void main(void) {
     if (on && !muffle) { muffle = ctx.createBiquadFilter(); muffle.type = 'lowpass'; muffle.frequency.value = 520; muffle.Q.value = 0.7; H.audio.effect('water', muffle); }
     else if (!on && muffle) { H.audio.effect('water', null); muffle = null; }
   }
+  /** The game's sound for a word ("splash", "rain"): an asset id or name (H.assets), or null. */
   function assetNamed(word) {
-    const assets = (H.bundle && H.bundle.assets) || {};
-    const want = String(word).toLowerCase();
-    for (const [name, a] of Object.entries(assets)) if (/^audio\//.test(a.mime || 'audio/') && name.toLowerCase().replace(/\.[a-z0-9]+$/, '') === want) return name;
-    return null;
+    return H.assets.pick(String(word), { kind: 'sound', mix: true });
   }
   function noiseBuffer(ctx) {
     if (noise && noise.sampleRate === ctx.sampleRate) return noise;

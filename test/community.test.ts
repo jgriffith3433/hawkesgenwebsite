@@ -128,6 +128,55 @@ test('using a community thing in a game: the asset from its owner, under the nam
   assert.equal((await call(`/v1/games/${gid}/community`, { cookie: other.cookie, body: { id: 'a_b2' } })).status, 404, 'not their game');
 });
 
+test('assets by id, with words: three cows from the library, replace or add a variant, words edited, saves and old saves', async () => {
+  const maker = await account('Rancher');
+  const cows = [['a_e1', 'Spotted cow'], ['a_e2', 'Brown cow'], ['a_e3', 'Highland cow']];
+  for (const [id, title] of cows) {
+    put({ id, project: maker.project, job: `j_${id}`, title: 'model', kind: 'mesh', mime: 'model/gltf-binary', labels: {} });
+    assert.equal((await call('/v1/community', { cookie: maker.cookie, body: { asset: `asset:${id}`, title, tags: 'farm animal cows' } })).status, 200);
+  }
+  const me = maker; // (one account: sign-ups per address are limited)
+  const g = (await call('/v1/games', { cookie: me.cookie, body: { title: 'Farm' } })).body;
+  const gid = g.id ?? g.game?.id;
+  const scene = async () => JSON.parse((await call(`/v1/games/${gid}/bundle`, { cookie: me.cookie })).body.files['scene.json']);
+  // The old body ({ id }): a variant, for the word its title names (cow).
+  const a = await call(`/v1/games/${gid}/community`, { cookie: me.cookie, body: { id: 'a_e1' } });
+  assert.equal(a.status, 200, JSON.stringify(a.body));
+  assert.equal(a.body.word, 'cow');
+  assert.deepEqual((await scene()).config.assets.cow, { ids: ['a_e1'], mix: false });
+  // A second one as a variant: both, mixed.
+  await call(`/v1/games/${gid}/community`, { cookie: me.cookie, body: { id: 'a_e2', mode: 'variant' } });
+  assert.deepEqual((await scene()).config.assets.cow, { ids: ['a_e1', 'a_e2'], mix: true });
+  // The bundle carries identity: ids, types, titles, words (from the title, the category and the tags, singular).
+  const bundle = (await call(`/v1/games/${gid}/bundle`, { cookie: me.cookie })).body;
+  const spotted = Object.values(bundle.assets).find((x: any) => x.id === 'a_e1') as any;
+  assert.equal(spotted.type, 'model');
+  assert.equal(spotted.title, 'Spotted cow');
+  assert.ok(spotted.words.includes('cow') && spotted.words.includes('spotted cow') && spotted.words.includes('farm'), JSON.stringify(spotted.words));
+  assert.ok(!spotted.words.includes('cows'), 'plurals become singular');
+  // "Use the highland cow instead": replace.
+  const r = await call(`/v1/games/${gid}/community`, { cookie: me.cookie, body: { id: 'a_e3', word: 'cows', mode: 'replace' } });
+  assert.equal(r.body.word, 'cow');
+  assert.deepEqual((await scene()).config.assets.cow, { ids: ['a_e3'], mix: false });
+  // Words can be edited.
+  const name = (Object.entries(bundle.assets).find(([, x]: any) => x.id === 'a_e2') as any)[0];
+  const w = await call(`/v1/games/${gid}/assets/${encodeURIComponent(name)}/words`, { cookie: me.cookie, body: { words: ['Brown cows', 'calf'] } });
+  assert.deepEqual(w.body.words, ['brown cow', 'brown', 'cow', 'calf']);
+  // A save keeps ids and words; a save from before words still loads (its words come from the names).
+  const saved = (await call(`/v1/games/${gid}/save`, { cookie: me.cookie, body: {} })).body;
+  const slug = saved.url.split('/').pop();
+  const v1 = (await call(`/v1/play/${slug}?v=${saved.version}`)).body;
+  assert.ok(Object.values(v1.assets).some((x: any) => x.id === 'a_e2' && x.words.includes('calf')), 'the save has ids and words');
+  const { db } = await import('../src/db.ts');
+  const row = db.prepare('SELECT assets FROM game_releases WHERE game_id = ? AND version = ?').get(gid, saved.version) as { assets: string };
+  db.prepare('UPDATE game_releases SET assets = ? WHERE game_id = ? AND version = ?').run(JSON.stringify(JSON.parse(row.assets).map(({ name, asset, project, kind, mime }: any) => ({ name, asset, project, kind, mime }))), gid, saved.version);
+  const old = (await call(`/v1/play/${slug}?v=${saved.version}`)).body;
+  const oldCow = Object.entries(old.assets).find(([, x]: any) => x.id === 'a_e1') as any;
+  assert.ok(oldCow && oldCow[1].words.includes('spotted cow') && oldCow[1].type === 'model', JSON.stringify(oldCow));
+  // Live (no version) too.
+  assert.ok(Object.values((await call(`/v1/play/${slug}`)).body.assets).every((x: any) => x.id && Array.isArray(x.words)));
+});
+
 test('sharing: only your own things, others find and use them, unsharing hides them', async () => {
   const maker = await account('Maker');
   put({ id: 'a_d1', project: maker.project, job: 'j_duck', title: 'duck', kind: 'mesh', mime: 'model/gltf-binary', labels: {} });

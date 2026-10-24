@@ -45,12 +45,14 @@
     tex.wrapU = tex.wrapV = B.Texture.WRAP_ADDRESSMODE;
     return tex;
   }
-  const isImage = (name) => { const a = H.bundle && H.bundle.assets && H.bundle.assets[name]; return Boolean(a && (/^image\//.test(a.mime || '') || /\.(png|jpe?g|webp)(\?|$)/i.test(a.url || ''))); };
-  const isMesh = (name) => { const a = H.bundle && H.bundle.assets && H.bundle.assets[name]; return Boolean(a && (a.kind === 'mesh' || /model\/|gltf|glb/.test(a.mime || '') || /\.glb(\?|$)/i.test(a.url || ''))); };
-  /** The asset each ground layer uses, if the game has one: config.terrain.textures.<layer>, or terrain-<layer>. */
+  // Assets by id or name, and by word (H.assets): the ground's textures and the scatter's models.
+  const isImage = (ref) => { const a = H.assets.get(ref); return Boolean(a && a.type === 'image'); };
+  const isMesh = (ref) => { const a = H.assets.get(ref); return Boolean(a && a.type === 'model'); };
+  /** The asset each ground layer uses, if the game has one: config.terrain.textures.<layer> (an id or a name), or the
+   *  game's image for "terrain <layer>" / "<layer>" ("grass", "sand"...). */
   function layerAssets(cfg) {
     const out = {};
-    for (const l of T.LAYERS) { const n = cfg.textures[l] || `terrain-${l}`; if (isImage(n)) out[l] = n; }
+    for (const l of T.LAYERS) { const n = (cfg.textures[l] && isImage(cfg.textures[l]) ? cfg.textures[l] : null) || H.assets.pick(`terrain ${l}`, { kind: 'image' }); if (n) out[l] = n; }
     return out;
   }
 
@@ -287,7 +289,7 @@
       if (kind === 'trees') pts.forEach((p, i) => addTrunk(t, group, i));
       // A model by name (config.terrain.scatter.models.tree, or an asset called tree / rock / bush).
       const one = kind.slice(0, -1);
-      const name = plan.models[one] || plan.models[kind] || (isMesh(`terrain-${one}`) ? `terrain-${one}` : isMesh(one) ? one : null);
+      const name = plan.models[one] || plan.models[kind] || H.assets.pick(`terrain ${one}`, { kind: 'model' }) || H.assets.pick(one, { kind: 'model' });
       if (name && isMesh(name)) useModel(t, group, name);
     }
   }
@@ -803,9 +805,9 @@
   /** Which ground textures and scatter models the game has now (a change rebuilds the looks). */
   function assetSig(cfg) {
     const s = cfg.scatter && typeof cfg.scatter === 'object' ? (cfg.scatter.models || cfg.scatter.model || {}) : {};
-    const models = ['tree', 'rock', 'bush'].map((k) => [s[k], `terrain-${k}`, k].find((n) => n && isMesh(n)) || '');
-    const a = H.bundle && H.bundle.assets ? H.bundle.assets : {};
-    return JSON.stringify([layerAssets(cfg), models].flat().map((x) => (typeof x === 'string' ? x + (a[x] ? a[x].url : '') : JSON.stringify(Object.entries(x).map(([k, v]) => [k, v, a[v] && a[v].url])))));
+    const models = ['tree', 'rock', 'bush'].map((k) => (s[k] && isMesh(s[k]) ? s[k] : null) || H.assets.pick(`terrain ${k}`, { kind: 'model' }) || H.assets.pick(k, { kind: 'model' }) || '');
+    const url = (r) => H.assets.url(r) || '';
+    return JSON.stringify([layerAssets(cfg), models].flat().map((x) => (typeof x === 'string' ? x + url(x) : JSON.stringify(Object.entries(x).map(([k, v]) => [k, v, url(v)])))));
   }
   const rawOf = (v) => (v && typeof v === 'object' ? JSON.parse(JSON.stringify(v)) : typeof v === 'string' ? { shape: v } : {});
   H.features.register('terrain', {

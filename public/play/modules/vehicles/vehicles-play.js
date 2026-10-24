@@ -520,15 +520,13 @@ body.veh-touching #veh-hud .hint{display:none}
       master.connect(H.audio.master);
     } catch { ac = null; }
   }
-  /** An asset named for this vehicle's sound, if the game has one: shape.sounds.<what>, else "<type>-<what>.*", else "<what>.*". */
+  /** The game's sound for this vehicle (an asset id or name): shape.sounds.<what>, else its word ("car engine", then
+   *  "engine": H.assets finds them by their words). */
   function soundAsset(v, what) {
     const sh = (v.e.spec && v.e.spec.shape) || {};
     const named = sh.sounds && sh.sounds[what];
-    if (named && H.lib.hasAsset(named)) return named;
-    const assets = (H.bundle && H.bundle.assets) || {};
-    const names = Object.keys(assets);
-    const re1 = new RegExp(`^${v.type}[-_ ]?${what}\\.(mp3|ogg|wav|m4a)$`, 'i'), re2 = new RegExp(`^${what}\\.(mp3|ogg|wav|m4a)$`, 'i');
-    return names.find((n) => re1.test(n)) || names.find((n) => re2.test(n)) || null;
+    if (named && H.assets.has(named)) return named;
+    return H.assets.pick(`${v.type} ${what}`, { kind: 'sound' }) || H.assets.pick(what, { kind: 'sound' });
   }
   const buffers = new Map();
   function buffer(name) {

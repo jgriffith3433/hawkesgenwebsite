@@ -92,11 +92,10 @@
     rope: ['rope', 'lasso', 'whip'],
     moo: ['moo', 'cow'],
   };
-  const EXT = ['', '.mp3', '.wav', '.ogg', '.m4a'];
-  /** The first asset the game has for a sound (by name), or null. */
+  /** The game's sound for a mayhem sound (an id or a name; H.assets by word: "explosion", "boom"...), or null. */
   function soundAsset(kind, own) {
-    const names = [].concat(own || [], SOUND_NAMES[kind] || [kind]);
-    for (const n of names) for (const x of EXT) { if (n && L.hasAsset(n + x)) return n + x; }
+    if (own && H.assets.has(own)) return own;
+    for (const w of [].concat(own || [], SOUND_NAMES[kind] || [kind])) { const id = H.assets.pick(w, { kind: 'sound', mix: true }); if (id) return id; }
     return null;
   }
   /** Plays a mayhem sound: the game's asset when it has one (explosion.mp3, ...), else a synthesized one. `at` makes
@@ -830,14 +829,15 @@
     const raw = String(what || 'box').trim();
     // An asset by its exact name ("tree.glb"), or a word with a model ("cow" -> cow.glb).
     const word = single(raw.toLowerCase().replace(/\.glb$/, '').replace(/[^a-z0-9 _-]/g, '').trim()) || 'box';
-    const glb = [raw, `${raw}.glb`, `${word}.glb`].find((n) => /\.glb$/i.test(n) && L.hasAsset(n));
+    // A model the game has: by id or name ("a_12", "tree.glb"), or for the word (H.assets: "tree" finds every tree).
+    const glb = (H.assets.get(raw) && H.assets.get(raw).type === 'model' ? H.assets.idOf(raw) : null) || H.assets.pick(word, { kind: 'model' });
     const size = Number(o.size) || 0;
     if ((isAnimal(word) || isAnimal(raw.toLowerCase())) && H.kinds.has('creature')) {
       // Animals are Living things' creatures (they graze, flee, tumble when blown up and get back up).
       const species = ANIMALS.includes(word) ? 'cow' : H.living.species.name(word) || word;
       return { type: 'creature', name: cap(species), shape: { species, ...(size ? { size } : {}) }, physics: 'dynamic' };
     }
-    if (glb) return { type: 'model', name: cap(word), shape: { asset: glb, size: size || 1.5 }, physics: 'dynamic' };
+    if (glb) return { type: 'model', name: cap(word), shape: { asset: glb, size: size || 1.5, word: H.assets.get(raw) ? null : word }, physics: 'dynamic' };
     const alias = { ball: 'sphere', cube: 'box', block: 'box', bomb: 'barrel', explosive: 'barrel', tnt: 'barrel', pillar: 'cylinder', can: 'cylinder', crates: 'crate' }[word] || word;
     const color = COLORS[M.hashSeed(word) % COLORS.length];
     if (alias === 'sphere') return { type: 'sphere', name: 'Ball', shape: { radius: size ? size / 2 : 0.4 }, material: { color }, physics: 'dynamic', body: { bounce: 0.6 } };
@@ -883,6 +883,8 @@
     for (let i = 0; i < offs.length; i++) {
       const spec = JSON.parse(JSON.stringify(base));
       spec.id = `${d.id}~${i}`;
+      // A model for a word: each one picks its variant (by its id: the same for everyone), and its spec keeps the id.
+      if (spec.type === 'model' && spec.shape && spec.shape.word) spec.shape.asset = H.assets.pick(spec.shape.word, { kind: 'model', seed: spec.id }) || spec.shape.asset;
       const off = offs[i];
       const x = at[0] + off[0], z = at[2] + off[2];
       let y;

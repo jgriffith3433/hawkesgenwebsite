@@ -375,11 +375,15 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
         const b = await readJson(req);
         const r = await community.useInGame(user, gid, b);
         if (b.messageId && Number.isInteger(b.suggestion)) markSuggestion(String(b.messageId), b.suggestion, null, r.item);
-        return send(res, 200, r);
+        // config.assets changed: every engine in the game (the sender's too) hears the op.
+        if (r.applied.length) broadcastOps(gid, r.applied, user.name ?? 'Someone', null, undefined);
+        const { applied: _a, ...out } = r;
+        return send(res, 200, out);
       }
-      const an = /^assets\/([^/]+)(\/rename)?$/.exec(sub);
+      const an = /^assets\/([^/]+)(\/rename|\/words)?$/.exec(sub);
       if (an && method === 'DELETE' && !an[2]) return send(res, 200, games.removeAsset(user, gid, decodeURIComponent(an[1])));
-      if (an && method === 'POST' && an[2]) return send(res, 200, games.renameAsset(user, gid, decodeURIComponent(an[1]), (await readJson(req)).name));
+      if (an && method === 'POST' && an[2] === '/rename') return send(res, 200, games.renameAsset(user, gid, decodeURIComponent(an[1]), (await readJson(req)).name));
+      if (an && method === 'POST' && an[2] === '/words') return send(res, 200, games.setAssetWords(user, gid, decodeURIComponent(an[1]), await readJson(req)));
       if (sub === 'bundle' && method === 'GET') return send(res, 200, games.draftBundle(user, gid));
       if (sub === 'scene' && method === 'POST') {
         const b = await readJson(req);

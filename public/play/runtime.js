@@ -288,11 +288,28 @@
   let mode = 'play'; // 'play' (as players see it) or 'build' (the editor: markers, grabbing, popups)
   let clockOffset = 0; // shared time across players (net.js sets it), for behaviors that must line up
 
-  const hasAsset = (name) => Boolean(bundle && bundle.assets && bundle.assets[name]);
-  function assetUrl(name) {
-    if (/^https:\/\//.test(String(name))) return name;
-    const a = bundle && bundle.assets && bundle.assets[name];
-    if (!a) throw new Error(`No asset named "${name}". Add it in the Assets panel, or check the spelling.`);
+  // Assets by reference: an asset id (a_..., what specs store) or a name the game has (what scripts and old games use).
+  // The bundle's assets are keyed by name and carry their id (src/games.ts assetMap); assets.js (H.assets) finds them by
+  // word.
+  let idIndex = new Map(), idIndexOf = null;
+  function assetEntry(ref) {
+    const assets = bundle && bundle.assets;
+    if (!assets || ref === undefined || ref === null || ref === '') return null;
+    const r = String(ref).replace(/^asset:/, '');
+    if (assets[r]) return { name: r, ...assets[r] };
+    if (idIndexOf !== assets) {
+      idIndex = new Map();
+      for (const [n, a] of Object.entries(assets)) if (a && a.id && (!idIndex.has(a.id) || /_low\.glb$/i.test(idIndex.get(a.id)))) idIndex.set(a.id, n);
+      idIndexOf = assets;
+    }
+    const n = idIndex.get(r);
+    return n ? { name: n, ...assets[n] } : null;
+  }
+  const hasAsset = (ref) => Boolean(assetEntry(ref));
+  function assetUrl(ref) {
+    if (/^https:\/\//.test(String(ref))) return ref;
+    const a = assetEntry(ref);
+    if (!a) throw new Error(`No asset "${ref}". Add it in the Assets panel, or check the spelling.`);
     return a.url;
   }
   const hex = (c, fallback = '#cccccc') => { try { return B.Color3.FromHexString(/^#[0-9a-f]{6}$/i.test(String(c)) ? c : fallback); } catch { return B.Color3.FromHexString(fallback); } };
@@ -549,7 +566,7 @@
         const t = new B.Texture(assetUrl(opts.texture), W.scene, false, true, W.pixelated ? B.Texture.NEAREST_SAMPLINGMODE : B.Texture.TRILINEAR_SAMPLINGMODE);
         const tile = vec(opts.tile, [1, 1, 0]);
         t.uScale = tile[0] || 1; t.vScale = tile[1] || 1;
-        t.hasAlpha = /png|webp|gif/.test(String(bundle.assets[opts.texture]?.mime || opts.texture));
+        t.hasAlpha = /png|webp|gif/.test(String(assetEntry(opts.texture)?.mime || opts.texture));
         m.diffuseTexture = t;
         m.useAlphaFromDiffuseTexture = t.hasAlpha;
         if (!opts.color) m.diffuseColor = new B.Color3(1, 1, 1);
@@ -1984,7 +2001,9 @@
     if (!W) return;
     for (const e of [...W.entities]) {
       const want = e._waiting || (e.spec && e.spec.material && e.spec.material.texture);
-      if (e.sceneId && want && assets[want] && (!before[want] || before[want].url !== assets[want].url)) applyOps([{ op: 'replace', entity: W.graph.entities[e.sceneId] }], { fx: 'arrive' });
+      const now = want && assetEntry(want);
+      const old = now && (before[now.name] || Object.values(before).find((a) => a && a.id && a.id === now.id));
+      if (e.sceneId && now && (!old || old.url !== now.url)) applyOps([{ op: 'replace', entity: W.graph.entities[e.sceneId] }], { fx: 'arrive' });
     }
   }
   /** Building or playing. Playing starts the game over from the top, as a player would: the world as built, every
@@ -2032,7 +2051,7 @@
       mouse.dx = 0; mouse.dy = 0; mouse.wheel = 0;
     },
     /** The engine's building blocks, for modules that make kinds of things (kinds.js uses them). */
-    lib: { Entity, shape, place, material, size3, hex, vec, clone, assetUrl, hasAsset, setFrame, showBubble, roundRect, posOf, attachBehaviors, runBehaviorHit, applyPlayerSettings, useController, effectiveConfig, STEP, RAD, get clockOffset() { return clockOffset; } },
+    lib: { Entity, shape, place, material, size3, hex, vec, clone, assetUrl, hasAsset, assetEntry, setFrame, showBubble, roundRect, posOf, attachBehaviors, runBehaviorHit, applyPlayerSettings, useController, effectiveConfig, STEP, RAD, get clockOffset() { return clockOffset; } },
   };
   window.addEventListener('error', (e) => report(e.error || e.message));
   window.addEventListener('unhandledrejection', (e) => report(e.reason));

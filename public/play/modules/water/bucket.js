@@ -259,10 +259,9 @@
     }).catch(() => {});
     return root;
   }
-  function modelNamed(word) {
-    const assets = (H.bundle && H.bundle.assets) || {};
-    for (const [name, a] of Object.entries(assets)) if ((/model|gltf|glb/.test(a.mime || '') || /\.glb$/i.test(name)) && name.toLowerCase().replace(/\.[a-z0-9]+$/, '') === word) return name;
-    return null;
+  /** The game's model for a word ("bucket", "fishing rod", "trout"): an asset id or name (H.assets), or null. */
+  function modelNamed(word, seed) {
+    return H.assets.pick(String(word).replace(/-/g, ' '), { kind: 'model', seed });
   }
   function useButton(state, icon, label) {
     if (!H.touchUi) return;

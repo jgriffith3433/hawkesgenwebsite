@@ -88,7 +88,15 @@
     e.living = r;
     e.data.species = name;
     e.rig = null;
-    r.rig = body.make(e, sp, name, { size, color: shape.color, colors: shape.colors, model: shape.model, modelHeight: shape.modelHeight, modelYaw: shape.modelYaw, seed });
+    // Its model: shape.model, or the game's asset for the species (H.assets: picked per animal by its id, so a herd
+    // can mix the game's cows and a reload keeps each the same).
+    const pickSeed = shape.pickSeed ?? (spec && spec.id) ?? `${o.name || name}:${seed}`;
+    r.rig = body.make(e, sp, name, { size, color: shape.color, colors: shape.colors, model: shape.model, modelHeight: shape.modelHeight, modelYaw: shape.modelYaw, seed, pickSeed });
+    if (!shape.model && r.rig.modelRef) {
+      e._assetPick = name; // (a change of config.assets rebuilds it: assets.js)
+      // A new thing (spawned, not in the world file): its spec names the id it got.
+      if (spec && spec.shape && !(spec.id && H.world.graph && H.world.graph.entities[spec.id])) spec.shape.model = r.rig.modelRef;
+    }
     r.rig.vis.position.y = r.visY;
     H.lib.place(e, { ...o, shadow: false });
     e.upright = true;
@@ -192,7 +200,7 @@
       const rr = spacing * Math.sqrt(i + 0.5) * 0.9, th = i * 2.399963 + Math.random() * 0.3;
       const x = at[0] + Math.cos(th) * rr, z = at[2] + Math.sin(th) * rr;
       const y = groundAt(x, z, at[1]) + tall / 2 + 0.02;
-      const m = makeCreature({ ...shape, species: name, size: shape.size, count: undefined, seed: seedOf(`${rec.key}:${i}`) }, { name: null, tag: o.tag || name, data: { herd: rec.key }, position: [x, y, z], rotation: Math.random() * 360, physics: 'dynamic', lenient: true }, null);
+      const m = makeCreature({ ...shape, species: name, size: shape.size, count: undefined, seed: seedOf(`${rec.key}:${i}`), pickSeed: `${rec.key}:${i}` }, { name: null, tag: o.tag || name, data: { herd: rec.key }, position: [x, y, z], rotation: Math.random() * 360, physics: 'dynamic', lenient: true }, null);
       m.living.herd = rec;
       m.living.index = i;
       m.living.home = [at[0], at[2]];
@@ -200,6 +208,7 @@
       rec.members.push(m);
     }
     rec.sync = herdSync(rec);
+    if (rec.members.some((m) => m._assetPick)) e._assetPick = name;
     return e;
   }
   const plural = (n) => ({ sheep: 'sheep', fish: 'fish', deer: 'deer', person: 'people', wolf: 'wolves', fox: 'foxes' }[n] || `${n}s`);

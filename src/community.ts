@@ -4,7 +4,9 @@
 // the owner's project), so nothing is copied and nothing is paid twice. Only rows marked community are ever listed.
 import { db } from './db.ts';
 import { gen, genFetch } from './gen.ts';
-import { addAsset, freeName, memberGame } from './games.ts';
+import { addAsset, freeName, memberGame, sceneOps } from './games.ts';
+import { headWord, singular, wordsOf } from './words.ts';
+import { parseScene } from './scene.ts';
 import { getUser, type User } from './users.ts';
 import { PortalError } from './util.ts';
 
@@ -161,21 +163,39 @@ export function mine(user: User) {
   return { items: (db.prepare('SELECT * FROM community_assets WHERE by_user = ? AND hidden = 0 ORDER BY created DESC').all(user.id) as Row[]).map(view) };
 }
 
-/** Puts a community thing in a game, under the name its scripts use (and a model's low-detail copy beside it). */
-export async function useInGame(user: User, gameId: string, body: { id?: unknown; name?: unknown }) {
+/**
+ * Puts a community thing in a game (and a model's low-detail copy beside it), with words from its title, category and
+ * tags, and says what it's for in the world's config.assets: `{ id, word?, mode: 'replace' | 'variant' }`. 'replace'
+ * makes it the only one used for the word (config.assets[word].ids = [id]); 'variant' (the default) adds it to the
+ * word's list and mixes them. `word` defaults to what the thing is (the head word of its title: "Spotted cow" -> cow).
+ * The old body ({ id, name }) still works (a variant).
+ */
+export async function useInGame(user: User, gameId: string, body: { id?: unknown; name?: unknown; word?: unknown; mode?: unknown }) {
   memberGame(user, gameId);
   const r = db.prepare('SELECT * FROM community_assets WHERE id = ? AND hidden = 0').get(String(body.id ?? '')) as Row | undefined;
   if (!r) throw new PortalError('That is no longer in the community library', { status: 404 });
-  const existing = db.prepare('SELECT * FROM game_assets WHERE game_id = ? AND asset = ?').get(gameId, r.id) as any;
-  if (existing && !body.name) return { asset: existing, item: view(r) };
-  const want = String(body.name ?? '').trim() || r.title;
-  const row = await addAsset(user, gameId, { asset: r.id, name: freeName(gameId, want, r.mime) }, { project: r.project });
-  if (r.low && row.name.endsWith('.glb')) await addAsset(user, gameId, { asset: r.low, name: row.name.replace(/\.glb$/, '_low.glb') }, { project: r.project }).catch(() => null);
-  db.prepare('UPDATE community_assets SET uses = uses + 1 WHERE id = ?').run(r.id);
-  // A like: someone else (once per account) found it good enough to use.
-  if (r.by_user !== user.id && db.prepare('INSERT OR IGNORE INTO community_uses (asset, user_id, game_id, created) VALUES (?, ?, ?, ?)').run(r.id, user.id, gameId, Date.now()).changes)
-    db.prepare('UPDATE community_assets SET likes = likes + 1 WHERE id = ?').run(r.id);
-  return { asset: row, item: view(r) };
+  const mode = body.mode === 'replace' ? 'replace' : 'variant';
+  const word = singular(String(body.word ?? '').toLowerCase().replace(/[^a-z0-9 -]+/g, '').trim()) || headWord(r.title, r.category) || 'thing';
+  const words = wordsOf(word, r.title, r.category, r.tags ? r.tags.split(' ') : []);
+  let row: any = db.prepare('SELECT * FROM game_assets WHERE game_id = ? AND asset = ?').get(gameId, r.id);
+  if (!row || body.name) {
+    const want = String(body.name ?? '').trim() || r.title;
+    row = await addAsset(user, gameId, { asset: r.id, name: freeName(gameId, want, r.mime) }, { project: r.project, words, title: r.title });
+    if (r.low && row.name.endsWith('.glb')) await addAsset(user, gameId, { asset: r.low, name: row.name.replace(/\.glb$/, '_low.glb') }, { project: r.project, words, title: r.title }).catch(() => null);
+    db.prepare('UPDATE community_assets SET uses = uses + 1 WHERE id = ?').run(r.id);
+    // A like: someone else (once per account) found it good enough to use.
+    if (r.by_user !== user.id && db.prepare('INSERT OR IGNORE INTO community_uses (asset, user_id, game_id, created) VALUES (?, ?, ?, ?)').run(r.id, user.id, gameId, Date.now()).changes)
+      db.prepare('UPDATE community_assets SET likes = likes + 1 WHERE id = ?').run(r.id);
+  }
+  // What the world uses for the word: config.assets (the game's own choice and order).
+  const scene = db.prepare("SELECT content FROM game_files WHERE game_id = ? AND path = 'scene.json'").get(gameId) as { content: string } | undefined;
+  const cur = (parseScene(scene?.content).config as any)?.assets?.[word] ?? null;
+  const ids: string[] = Array.isArray(cur?.ids) ? cur.ids.map(String) : [];
+  const all = ids.includes(r.id) ? ids : [...ids, r.id];
+  // A variant added to others turns mixing on (the editor's switch turns it off again).
+  const next = mode === 'replace' ? { ids: [r.id], mix: false } : { ids: all, mix: all.length > ids.length && all.length > 1 ? true : Boolean(cur?.mix) };
+  const ops = sceneOps(user, gameId, [{ op: 'config', patch: { assets: { [word]: next } } }], { by: user.name ?? undefined });
+  return { asset: row, item: view(r), word, mode, assets: { [word]: next }, rev: ops.rev, applied: ops.applied };
 }
 
 /** Streams a community file (a listed thing, its thumb or low copy), from its owner's project. */
