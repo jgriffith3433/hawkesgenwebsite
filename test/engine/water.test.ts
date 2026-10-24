@@ -66,8 +66,10 @@ test('water: the sea has a surface with waves, and things float or sink by densi
   const crate = game.box({ size: 1, x: 30, y: 3, z: 0, physics: 'dynamic', name: 'Crate' });
   const rock = game.sphere({ radius: 0.4, x: 33, y: 3, z: 0, physics: 'dynamic', name: 'Rock' });
   const heavy = game.box({ size: 1, x: 36, y: 3, z: 0, physics: 'dynamic', name: 'Thing', data: { density: 3 } });
+  const flipped = game.box({ size: 0.8, x: 30, y: 3, z: 6, rotation: [180, 0, 0], physics: 'dynamic', name: 'Crate' });
   H.tick(8);
   near(crate.y, game.water.surfaceAt(crate.x, crate.z) - 0.1, 0.4, 'a crate floats a little under half in');
+  near(flipped.y, game.water.surfaceAt(flipped.x, flipped.z) - 0.08, 0.4, 'an upside-down crate floats too');
   assert.ok(Math.abs(crate.vy) < 1.5, `the crate settles (vy ${crate.vy})`);
   near(rock.bottom, -1 - 20, 0.2, 'a rock sinks to the sea floor');
   near(heavy.bottom, -21, 0.2, 'data.density over 1 sinks');
