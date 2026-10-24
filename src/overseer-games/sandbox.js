@@ -104,9 +104,13 @@ const MOMENTS = {
   spawn: { sound: 'teleport.mp3', pip: 'It came from the Overseer! Last one: the helicopter on the hill. Go up, way up.', overseer: 'Ask, and I will send it down.', voice: 'overseer-ask.mp3' },
   fly: { sound: 'victory.mp3', pip: 'Look down! That speck in the sea is our island. The spawn gun and the gravity gun are yours too.', overseer: 'That is your world. All of it.', voice: 'overseer-your-world.mp3', seconds: 6, give: ['spawn-gun', 'gravity-gun'] },
 };
+// Each moment plays once: a step the quest enters again (a restored or re-synced quest state, a second blast of the
+// same barrels) must not make the Overseer say its line again.
+const played = new Set();
 game.on('tour', (d) => {
   const m = d && MOMENTS[d.step];
-  if (!m) return;
+  if (!m || played.has(d.step)) return;
+  played.add(d.step);
   sfx(m.sound, { volume: 0.55 });
   confetti();
   game.camera.shake(0.08, 0.2);
