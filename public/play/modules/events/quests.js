@@ -421,6 +421,8 @@
       '.qs-btn{position:fixed;left:12px;top:62px;z-index:26;font:700 15px system-ui,sans-serif;color:#fff;background:rgba(10,14,24,.75);border:1px solid rgba(255,216,74,.55);border-radius:14px;padding:8px 12px;min-height:44px;cursor:pointer;backdrop-filter:blur(4px)}',
       '.qs-btn .qs-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#ffd84a;margin-left:6px;vertical-align:middle}',
       '.qs-track{position:fixed;left:12px;top:114px;z-index:25;max-width:min(300px,calc(100vw - 24px));font:600 14px/1.35 system-ui,sans-serif;color:#fff;background:rgba(10,14,24,.62);border-radius:12px;padding:8px 11px;pointer-events:auto;cursor:pointer}',
+      '.qs-edge{position:fixed;z-index:24;width:46px;height:46px;margin:-23px 0 0 -23px;pointer-events:none;display:none;filter:drop-shadow(0 2px 6px rgba(0,0,0,.55))}.qs-edge i{position:absolute;inset:0;background:#ffd84a;clip-path:polygon(50% 0,100% 100%,50% 76%,0 100%)}.qs-edge span{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font:800 11px system-ui,sans-serif;color:#16130a;white-space:nowrap;margin-top:6px}',
+      '.qs-dist{position:fixed;z-index:24;pointer-events:none;display:none;transform:translate(-50%,-100%);font:800 12px system-ui,sans-serif;color:#ffd84a;text-shadow:0 1px 3px rgba(0,0,0,.8)}',
       '.qs-track b{color:#ffd84a;display:block;font-size:13px;letter-spacing:.02em}.qs-track .opt{opacity:.75;font-size:12.5px}.qs-track:empty{display:none}',
       '.qs-panel{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:45;width:min(440px,calc(100vw - 24px));max-height:min(78vh,620px);overflow:auto;background:rgba(14,18,30,.95);color:#eef2ff;border:1px solid rgba(255,216,74,.4);border-radius:18px;font:15px/1.45 system-ui,sans-serif;box-shadow:0 14px 50px rgba(0,0,0,.55);padding:14px 16px 16px}',
       '.qs-panel h2{margin:0 0 2px;font:800 20px system-ui,sans-serif;color:#ffd84a}.qs-panel h3{margin:14px 0 4px;font:700 13px system-ui;text-transform:uppercase;letter-spacing:.08em;opacity:.65}',
@@ -437,6 +439,8 @@
     closeDialog();
     const p = document.createElement('div');
     p.className = 'qs-panel';
+    // A dialog: the engine frees the mouse while it's open and doesn't take it back on a click (runtime.js MODAL).
+    p.setAttribute('role', 'dialog'); p.setAttribute('aria-modal', 'true');
     for (const t of ['pointerdown', 'wheel', 'touchstart', 'keydown']) p.addEventListener(t, (ev) => { if (ev.key === 'Escape' || ev.key === 'Tab') { closeDialog(); ev.preventDefault && ev.preventDefault(); } ev.stopPropagation(); }, { passive: t !== 'keydown' });
     document.body.appendChild(p);
     Q.dialog = p;
@@ -585,6 +589,45 @@
     });
     return out.slice(0, 3);
   }
+  /** The target nearest the player (of targets()). */
+  function nearestOf(pts, p) {
+    let near = null, nd = Infinity;
+    if (p) for (const at of pts) { const dd = Math.hypot(at[0] - p.x, at[1] - p.y, at[2] - p.z); if (dd < nd) { nd = dd; near = at; } }
+    return near ? { at: near, d: nd } : null;
+  }
+  /** Where to go, on screen: the distance over the target when you can see it, an arrow at the screen's edge pointing
+   *  to it when you can't (behind you, off to the side), so the next objective is never lost. */
+  function edgeMark(near) {
+    const edge = uiEl('edge', 'qs-edge'), dist = uiEl('dist', 'qs-dist');
+    if (!edge || !dist) return;
+    if (!edge.firstChild) edge.innerHTML = '<i></i><span></span>';
+    const sc = W().scene, cam = sc && sc.activeCamera;
+    if (!near || !cam || near.d < 4) { edge.style.display = 'none'; dist.style.display = 'none'; return; }
+    const eng = sc.getEngine(), w = eng.getRenderWidth(), h = eng.getRenderHeight();
+    const canvas = eng.getRenderingCanvas(), r = canvas ? canvas.getBoundingClientRect() : { left: 0, top: 0, width: w, height: h };
+    const v = B.Vector3.Project(new B.Vector3(near.at[0], near.at[1] + 2.2, near.at[2]), B.Matrix.Identity(), sc.getTransformMatrix(), cam.viewport.toGlobal(w, h));
+    const label = near.d >= 1000 ? `${(near.d / 1000).toFixed(1)} km` : `${Math.round(near.d)} m`;
+    const sx = r.width / w, sy = r.height / h;
+    const inView = v.z > 0 && v.z < 1 && v.x > w * 0.06 && v.x < w * 0.94 && v.y > h * 0.08 && v.y < h * 0.92;
+    if (inView) {
+      edge.style.display = 'none';
+      dist.style.display = 'block';
+      dist.textContent = label;
+      dist.style.left = `${r.left + v.x * sx}px`; dist.style.top = `${r.top + v.y * sy - 6}px`;
+      return;
+    }
+    dist.style.display = 'none';
+    // Off screen: from the middle toward it (behind you flips it), clamped to the edge.
+    let dx = v.x - w / 2, dy = v.y - h / 2;
+    if (v.z < 0 || v.z > 1) { dx = -dx; dy = -dy; }
+    if (!dx && !dy) dy = 1;
+    const m = 34, k = Math.min((w / 2 - m) / Math.abs(dx || 1e-6), (h / 2 - m) / Math.abs(dy || 1e-6));
+    const x = w / 2 + dx * k, y = h / 2 + dy * k;
+    edge.style.display = 'block';
+    edge.style.left = `${r.left + x * sx}px`; edge.style.top = `${r.top + y * sy}px`;
+    edge.firstChild.style.transform = `rotate(${Math.atan2(dy, dx) + Math.PI / 2}rad)`;
+    edge.lastChild.textContent = label;
+  }
   function updateMarks(t) {
     const w = W(), sc = w.scene, p = w.player;
     const show = E.playing() && p && p.alive;
@@ -624,6 +667,7 @@
         Q.marks.arrow.rotation.set(Math.PI / 2, yaw, 0);
       }
     }
+    edgeMark(show ? nearestOf(pts, p) : null);
     // "!" over givers with a quest for you, "?" over people a step needs.
     const want = new Map();
     if (show) for (const e of w.entities) {
@@ -673,7 +717,8 @@
     if (!live()) return;
     const t = W().time;
     try {
-      if (E.playing() && pressed && pressed.has && pressed.has('tab')) { if (Q.open === 'log') closeDialog(); else openLog(); }
+      // (Tab opens the log in a game; in the editor Tab switches building and playing, so there the button opens it.)
+      if (E.playing() && !window.HawkesBuild && pressed && pressed.has && pressed.has('tab')) { if (Q.open === 'log') closeDialog(); else openLog(); }
       updateMarks(t);
       if (t >= Q.nextUi || t < Q.nextUi - 1) { Q.nextUi = t + 0.2; renderUi(); }
       if (t - chipAt > 0.3 || t < chipAt) { chipAt = t; friendChip(); }

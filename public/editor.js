@@ -187,6 +187,8 @@ window.addEventListener('message', async (e) => {
       try {
         const r = await post(`${API}/games/${gameId}/scene`, { ops: m.ops, fx: m.fx }, roomConn ? { 'X-Room-Conn': roomConn } : {});
         builderDid('build_edit');
+        if ((m.ops || []).some((o) => o && (o.op === 'create' || o.op === 'replace'))) tourDone('create');
+        else if ((m.ops || []).some((o) => o && o.op === 'update')) tourDone('move');
         toStage({ type: 'ack', seq: m.seq, errors: r.errors, created: r.created });
         markUnsaved();
       } catch (err) {
@@ -394,6 +396,7 @@ function backToGame() { $('chatInput').blur(); stage.focus(); }
 
 async function sendChat(text, about, ctx) {
   builderDid('assistant');
+  tourDone('ask');
   const input = $('chatInput');
   const message = (text ?? input.value).trim();
   if (!message) return;
@@ -698,10 +701,72 @@ $('deleteGameBtn').onclick = async () => {
   if (!confirm(`Delete "${game.title}" for everyone? This cannot be undone.`)) return;
   try { await del(`${API}/games/${gameId}`); location.href = '/app'; } catch (err) { alert(err.message); }
 };
+// ------------------------------------------------------------------ the building tour (?welcome=build)
+// A world saved from the guest sandbox opens here with a short tour of building: look around, drop something in from
+// the Overseer, move it, ask the assistant, then Tab back to playing (their island, without the Overseer's beginning
+// again). Each step moves on by itself when it's done; once finished (or skipped) it doesn't come back.
+const TOUR_KEY = 'hg_build_tour';
+const TOUR = [
+  { id: 'look', text: '<b>You are building now.</b> Fly around: WASD to move, double-tap Space to fly, and you go where you look.', next: 'Got it' },
+  { id: 'create', text: '<b>Bring something in.</b> Hold <kbd>Q</kbd> (or the ➕) and pick anything: the Overseer drops it in.' },
+  { id: 'move', text: '<b>Move it.</b> Hold click on it, drag it somewhere, let go. Double-click anything to change it.' },
+  { id: 'ask', text: '<b>Ask for anything.</b> Type an idea in the box below, like <i>a volcano behind the hut</i>, and the Overseer builds it.', next: 'Maybe later' },
+  { id: 'play', text: '<b>Now play it.</b> Press <kbd>Tab</kbd> to go back to your island. Tab again brings you back here.' },
+];
+let tourAt = -1;
+function tourStart() {
+  try { if (localStorage.getItem(TOUR_KEY)) return; } catch { /* fine */ }
+  tourAt = 0;
+  tourShow();
+  builderDid('build_tour_start');
+}
+function tourShow() {
+  let el = document.getElementById('buildTour');
+  const st = TOUR[tourAt];
+  if (!st) { if (el) el.remove(); return; }
+  if (!el) {
+    if (!document.getElementById('buildTourCss')) {
+      const css = document.createElement('style');
+      css.id = 'buildTourCss';
+      css.textContent = '#buildTour{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);z-index:60;width:min(460px,calc(100vw - 24px));background:rgba(12,16,28,.94);color:#eef2ff;border:1px solid rgba(255,216,74,.55);border-radius:14px;padding:12px 14px;font:14px/1.45 system-ui,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.45)}#buildTour .n{font:700 11px system-ui;letter-spacing:.08em;text-transform:uppercase;color:#ffd84a;margin-bottom:4px}#buildTour kbd{font:700 12px ui-monospace,monospace;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:5px;padding:1px 6px}#buildTour .row{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}#buildTour button{font:700 13px system-ui;border-radius:9px;padding:7px 12px;cursor:pointer;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:#fff}#buildTour button.go{background:#ffd84a;color:#16130a;border-color:#ffd84a}';
+      document.head.appendChild(css);
+    }
+    el = document.createElement('div');
+    el.id = 'buildTour';
+    el.setAttribute('role', 'status');
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `<div class="n">Building · ${tourAt + 1} of ${TOUR.length}</div><div>${st.text}</div><div class="row"><button type="button" data-skip>Skip the tour</button>${st.next ? `<button type="button" class="go" data-next>${st.next}</button>` : ''}</div>`;
+  el.querySelector('[data-skip]').onclick = () => tourEnd(true);
+  const nx = el.querySelector('[data-next]');
+  if (nx) nx.onclick = () => tourDone(st.id);
+}
+/** A step happened: the tour moves on if it was the one shown (or a later one: they skipped ahead). */
+function tourDone(id) {
+  if (tourAt < 0) return;
+  const i = TOUR.findIndex((s) => s.id === id);
+  if (i < tourAt) return;
+  builderDid(`build_tour_${id}`);
+  tourAt = i + 1;
+  if (tourAt >= TOUR.length) tourEnd(false); else tourShow();
+}
+function tourEnd(skipped) {
+  tourAt = -1;
+  const el = document.getElementById('buildTour');
+  if (el) el.remove();
+  try { localStorage.setItem(TOUR_KEY, String(Date.now())); } catch { /* fine */ }
+  builderDid(skipped ? 'build_tour_skipped' : 'build_tour_done');
+}
+if (new URLSearchParams(location.search).get('welcome') === 'build') {
+  history.replaceState(null, '', location.pathname);
+  setTimeout(tourStart, 2500);
+}
+
 // ------------------------------------------------------------------ playing: the building UI steps away
 let playing = false;
 function setPlaying(on) {
   playing = on;
+  if (on) tourDone('play');
   document.body.classList.toggle('playing', on);
   const item = $('menu').querySelector('[data-act="mode"]');
   if (item) item.textContent = on ? 'Back to building' : 'Play the game';

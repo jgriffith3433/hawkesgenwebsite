@@ -32,12 +32,14 @@ export function problems() {
     if (!KINDS.includes(g.kind)) out.push(`unknown kind "${g.kind}"`);
     if (!/^[a-z][a-z0-9-]{1,23}$/.test(g.tag)) out.push(`${g.kind}: category "${g.tag}" is not one lowercase word`);
     if (g.tag === g.kind) out.push(`${g.kind}: category "${g.tag}" just repeats the kind (pick a shelf people browse by)`);
-    if (g.items.length !== 5) out.push(`${g.kind}/${g.tag}: ${g.items.length} things (five per category)`);
+    // Five per shelf; a voice shelf is a set of lines (as many as the script has).
+    if (g.kind !== 'voice' && g.items.length !== 5) out.push(`${g.kind}/${g.tag}: ${g.items.length} things (five per category)`);
     for (const [name, what, words] of g.items) {
       const k = `${g.kind}/${slug(name)}`;
       if (seen.has(k)) out.push(`${k}: two things share the name "${name}"`);
       seen.add(k);
       if (!what || what.length < 8) out.push(`${k}: no description`);
+      if (g.kind === 'voice' && what.length > 300) out.push(`${k}: a voice line over 300 characters`);
       if (!words?.trim()) out.push(`${k}: no search words`);
     }
   }

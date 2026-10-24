@@ -39,19 +39,37 @@ function startSound() {
   if (sounding || game.mode !== 'play') return;
   sounding = true;
   if (game.hasAsset('meadow.mp3')) game.music('meadow.mp3', { volume: 0.28 });
-  loop('ocean-waves.mp3', 0.45);
-  loop('forest.mp3', 0.18);
+  loop('ocean-waves.mp3', 0);
+  loop('forest.mp3', 0.12);
 }
-// The sea is louder by the shore and quieter up high; the birds stay over the land. (A loop the browser held back
-// starts as soon as sound is allowed: after the first click or key.)
-game.every(0.5, () => {
+// The sea is heard by the shore: quiet, and fading out as you walk inland (silent ~70 m from the water) or go up; the
+// birds stay over the land. (A loop the browser held back starts as soon as sound is allowed: the first click or key.)
+const SEA = -0.5; // config.water.level
+const SEA_MAX = 0.12;
+/** How far the nearest sea is (meters, 0 over it), from the ground's height in rings around you. */
+function seaDistance(x, z) {
+  const ground = (px, pz) => { const t = game.terrain && game.terrain.heightAt ? game.terrain.heightAt(px, pz) : null; return t === null || t === undefined ? -99 : t; };
+  if (ground(x, z) < SEA + 0.3) return 0;
+  for (const d of [6, 12, 20, 30, 45, 70]) for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    if (ground(x + Math.cos(a) * d, z + Math.sin(a) * d) < SEA + 0.3) return d;
+  }
+  return Infinity;
+}
+let seaVol = 0;
+game.every(0.25, () => {
   if (!loops.length || !game.player) return;
   if (H.audio.context && H.audio.context.state === 'running') for (const a of loops) if (a.paused) a.play().catch(() => {});
-  const h = game.planet ? game.planet.height(game.player.position) : game.player.y;
-  const t = game.terrain && game.terrain.heightAt ? game.terrain.heightAt(game.player.x, game.player.z) : null;
-  const onLand = t !== null && t > 0.5;
-  if (loops[0]) loops[0].volume = Math.max(0.05, Math.min(0.55, 0.55 - Math.max(0, h - 6) / 400) * (onLand ? 0.75 : 1));
-  if (loops[1]) loops[1].volume = onLand && h < 60 ? 0.18 : 0.02;
+  const p = game.player;
+  const h = game.planet ? game.planet.height(p.position) : p.y;
+  const d = seaDistance(p.x, p.z);
+  const near = d === Infinity ? 0 : Math.pow(Math.max(0, 1 - d / 70), 1.6);
+  const up = Math.max(0, 1 - Math.max(0, h - 8) / 120);
+  const want = SEA_MAX * near * up;
+  seaVol += (want - seaVol) * 0.35; // (eased: no jumps as you walk)
+  if (loops[0]) loops[0].volume = Math.max(0, Math.min(1, seaVol));
+  const onLand = d > 0;
+  if (loops[1]) loops[1].volume = onLand && h < 60 ? 0.12 : 0.01;
 });
 
 // ------------------------------------------------------------------ the beginning: Pip offers the tour
@@ -77,21 +95,24 @@ window.addEventListener('pointerdown', startSound, { once: true });
 window.addEventListener('keydown', startSound, { once: true });
 
 // ------------------------------------------------------------------ each step done: its moment
+// The Overseer speaks each moment (the community library's Overseer voice, by name), and its words show as a caption.
+// "Do with it what you will" is the beginning's alone: said once, in the intro.
 const MOMENTS = {
-  drive: { sound: 'level-up.mp3', pip: 'Nice driving! The rod is at the end of the pier. Hold click to cast, click when the bobber dips.', overseer: 'You took the wheel. Good.' },
-  fish: { sound: 'power-up.mp3', pip: 'A fish! See the barrels up the beach? Tap Q for the rocket launcher. Go on.', overseer: 'The sea gives. Remember that.' },
-  boom: { sound: 'level-up.mp3', pip: 'BOOM! Now ask the Overseer for something: hold Q and pick anything.', overseer: 'Destruction is a kind of freedom too.' },
-  spawn: { sound: 'teleport.mp3', pip: 'It came from the Overseer! Last one: the helicopter on the hill. Go up, way up.', overseer: 'Ask, and I will send it down.' },
-  fly: { sound: 'victory.mp3', pip: 'Look down! That speck in the sea is our island.', overseer: 'That is your world. All of it. Do with it what you will.', seconds: 7 },
+  drive: { sound: 'level-up.mp3', pip: 'You made it! The rod is at the end of the pier. Hold click to cast, click when the bobber dips.', overseer: 'You found your way. Good.', voice: 'overseer-found-your-way.mp3' },
+  fish: { sound: 'power-up.mp3', pip: 'A fish! Here, take the rocket launcher. See the barrels up the beach? Go on.', overseer: 'The sea gives. Remember that.', voice: 'overseer-the-sea-gives.mp3', give: ['rocket-launcher'] },
+  boom: { sound: 'level-up.mp3', pip: 'BOOM! Now ask the Overseer for something: hold Q and pick anything.', overseer: 'Destruction is a kind of freedom too.', voice: 'overseer-destruction.mp3' },
+  spawn: { sound: 'teleport.mp3', pip: 'It came from the Overseer! Last one: the helicopter on the hill. Go up, way up.', overseer: 'Ask, and I will send it down.', voice: 'overseer-ask.mp3' },
+  fly: { sound: 'victory.mp3', pip: 'Look down! That speck in the sea is our island. The spawn gun and the gravity gun are yours too.', overseer: 'That is your world. All of it.', voice: 'overseer-your-world.mp3', seconds: 6, give: ['spawn-gun', 'gravity-gun'] },
 };
 game.on('tour', (d) => {
   const m = d && MOMENTS[d.step];
   if (!m) return;
-  sfx(m.sound, { volume: 0.7 });
+  sfx(m.sound, { volume: 0.55 });
   confetti();
   game.camera.shake(0.08, 0.2);
   game.after(0.6, () => say(m.pip, 6));
-  game.after(1.4, () => overseer(m.overseer, m.seconds || 5));
+  game.after(1.4, () => { overseer(m.overseer, m.seconds || 5); sfx(m.voice, { volume: 1 }); });
+  if (m.give && game.mayhem && game.mayhem.giveTool) game.after(1, () => { for (const t of m.give) game.mayhem.giveTool(t); });
 });
 
 // ------------------------------------------------------------------ the last step: high enough to see the planet

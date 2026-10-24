@@ -398,6 +398,17 @@ export const STARTER = [
     ['Bird chirp', 'small bird chirping', 'bird'],
     ['Zombie groan', 'zombie groan', 'undead'],
   ] },
+  // ------------------------------------------------------------ the Overseer's voice (docs/story.md: calm, vast, a little amused)
+  // Spoken lines every game can use: the intro (overseer-intro: the words of the beginning, word for word) and the guide's
+  // moments in the sandbox. One voice (OVERSEER_VOICE); what's in [brackets] is eleven_v3's delivery, not spoken.
+  { kind: 'voice', tag: 'overseer', items: [
+    ['Overseer intro', '[slowly, warmly, vast] I have given you the power of free will. [long pause] Do with it what you will.', 'overseer intro beginning free will'],
+    ['Overseer you found your way', '[calm, approving] You found your way. Good.', 'overseer guide dock'],
+    ['Overseer the sea gives', '[softly] The sea gives. [pause] Remember that.', 'overseer guide fish'],
+    ['Overseer destruction', '[a little amused] Destruction is a kind of freedom too.', 'overseer guide explosion'],
+    ['Overseer ask and I will send it', '[generous] Ask, [pause] and I will send it down.', 'overseer guide spawn'],
+    ['Overseer your world', '[slowly, proud] That is your world. [pause] All of it.', 'overseer guide planet'],
+  ] },
 ];
 
 /**
@@ -410,6 +421,9 @@ export const STYLE = 'clean stylized 3D game art, bright readable colors, soft e
  * The asset.make params for one starter thing. Pictures are made three times and Claude keeps the best (pickAt the
  * first step, against the brief and STYLE); a model only starts its 3D from the picked picture. Sounds are made once.
  */
+/** The Overseer's voice (ElevenLabs "George": warm, mature, a storyteller), the voice lines' speaker. */
+export const OVERSEER_VOICE = 'JBFqnCBsd6RMkjVDRZzb';
+
 export function paramsFor(kind, what) {
   const steps = stepsFor(kind, what);
   const visual = ['model', 'texture', 'sprite'].includes(kind);
@@ -441,6 +455,7 @@ export function stepsFor(kind, what) {
     case 'music': return [{ tool: 'audio.music', params: { prompt: what, seconds: /jingle|fanfare/.test(what) ? 12 : 60 }, save: 'music' }];
     case 'ambience': return [{ tool: 'audio.sfx', params: { text: what, duration: 20, loop: true, count: 1 }, save: 'ambience' }];
     case 'sfx': return [{ tool: 'audio.sfx', params: { text: what, duration: 2, loop: false, count: 1 }, save: 'sfx' }];
+    case 'voice': return [{ tool: 'audio.voice', params: { text: what, voice: OVERSEER_VOICE, model: 'eleven_v3' }, save: 'voice' }];
     default: throw new Error(`no recipe for ${kind}`);
   }
 }

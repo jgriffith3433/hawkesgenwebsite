@@ -27,6 +27,8 @@
     const r = e.living;
     r.friend = { name, personality: String(shape.personality || '').slice(0, 400), lines: Array.isArray(shape.lines) ? shape.lines.map(String).slice(0, 30) : null, talk: shape.talk !== false, log: [], greeted: false, key: spec && spec.id ? spec.id : `friend:${name}` };
     if (shape.follow === false) r.follow = null;
+    // A friend who stays (a guide at their post): never follows, comes, rides along or wanders off, whatever you say.
+    r.friend.stays = shape.stays === true;
     // A name tag over the head.
     const tag = H.textPlane(name, { size: 0.2, color: '#ffffff' });
     tag.parent = e.node; tag.position.y = r.tall / 2 + 0.32; tag.isPickable = false; tag.metadata = { decor: true };
@@ -169,10 +171,12 @@
   function friendByKey(key) { for (const r of friends()) if (r.friend.key === key) return r; return null; }
   function asker(d) { return d.by ? `net:${d.by}` : 'player'; }
   const askedHere = (d) => !d.by || !H.sync || !H.sync.online || d.by === H.sync.me;
+  const STAY_LINES = ["I'll stay right here. Off you go!", "I'm not going anywhere: this is my spot.", "You go ahead, I'll wait here!", "I'll be right here when you get back."];
   function apply(d, o) {
     const r = friendByKey(d.key);
     if (!r) return;
     const e = r.e;
+    if (r.friend.stays && ['follow', 'come', 'drive', 'wander', 'flee'].includes(d.action)) d = { ...d, action: 'none', say: pick(STAY_LINES) };
     if (d.say) { e.say(d.say, Math.min(8, 2.5 + d.say.length / 18)); remember(r, r.friend.name, d.say); }
     const who = living._resolve(asker(d));
     if (who && d.action === 'none') e.lookAt(who);
@@ -333,11 +337,12 @@
     r.awake = true;
     const el = document.createElement('div');
     el.className = 'lv-chat';
+    el.setAttribute('role', 'dialog'); // (the engine frees the mouse while you talk)
     el.innerHTML = '<header><b></b><span></span><button type="button" aria-label="Close">✕</button></header><div class="lv-log"></div><div class="lv-chips"></div><form><input maxlength="300" autocomplete="off"><button type="submit">Send</button></form>';
     el.querySelector('b').textContent = r.friend.name;
     const input = el.querySelector('input');
     input.placeholder = `Say something to ${r.friend.name}...`;
-    for (const [label, text] of CHIPS) { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.onclick = () => send(text); el.querySelector('.lv-chips').appendChild(b); }
+    for (const [label, text] of CHIPS) { if (r.friend.stays && /^(Follow me|Come here|Get in)$/.test(label)) continue; const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.onclick = () => send(text); el.querySelector('.lv-chips').appendChild(b); }
     const send = (text) => { if (!text.trim()) return; talk(e, text); input.value = ''; };
     el.querySelector('form').onsubmit = (ev) => { ev.preventDefault(); send(input.value); };
     el.querySelector('header button').onclick = close;
