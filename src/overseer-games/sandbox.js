@@ -120,6 +120,24 @@ game.on('tour', (d) => {
   if (m.give && game.mayhem && game.mayhem.giveTool) game.after(1, () => { for (const t of m.give) game.mayhem.giveTool(t); });
 });
 
+// ------------------------------------------------------------------ the barrels: teach the switch to the launcher
+// On the "boom" step, a player who isn't holding the rocket launcher (they picked something else, or can't tell what
+// they hold) is told how to switch: Q cycles the belt (⇄ on a phone). Said again every 20 s while it's still not out.
+const toolOf = (t) => (typeof t === 'string' ? t : t && (t.type || t.name)) || null;
+let teachT = 4;
+game.every(0.5, () => {
+  const p = game.player;
+  const q = game.events && game.events.quests;
+  if (!p || game.mode !== 'play' || !q || q.state('tour') !== 'active' || q.step('tour') !== 'boom') { teachT = Math.max(teachT, 4); return; }
+  if (toolOf(p.tool) === 'rocket-launcher') { teachT = 4; return; }
+  teachT -= 0.5;
+  if (teachT > 0) return;
+  teachT = 20;
+  const belt = (game.mayhem && game.mayhem.belt) || [];
+  if (belt.includes('rocket-launcher')) say(`Press ${H && H.touchUi ? 'the ⇄ button' : 'Q'} to switch to the rocket launcher, then click to fire.`, 6);
+  else if (game.mayhem && game.mayhem.giveTool) game.mayhem.giveTool('rocket-launcher'); // (lost or never given: back in hand)
+});
+
 // ------------------------------------------------------------------ the last step: high enough to see the planet
 let high = false;
 game.onUpdate(() => {
