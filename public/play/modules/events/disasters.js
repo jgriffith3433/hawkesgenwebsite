@@ -63,7 +63,7 @@
   /** An explosion decided by the host (Mayhem's when there is one: fire, smoke, craters; else the engine's). */
   function boom(at, o) {
     if (!E.net.host) return;
-    if (H.mayhem && H.mayhem.explode) { H.mayhem.explode(at, { radius: o.radius, force: o.force, damage: o.damage, fire: o.fire }); return; }
+    if (H.mayhem && H.mayhem.explode) { H.mayhem.explode(at, { radius: o.radius, force: o.force, damage: o.damage, fire: o.fire, by: 'world' }); return; }
     if (H.sync && H.sync.explode) H.sync.explode(at, { radius: o.radius, force: o.force });
     if (H.physics && H.physics.explode) H.physics.explode(at, { radius: o.radius, damage: o.damage, force: 0 });
   }

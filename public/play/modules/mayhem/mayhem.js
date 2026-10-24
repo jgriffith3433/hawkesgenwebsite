@@ -635,7 +635,9 @@
     const w = W(), g = G();
     if (!w || !g) return;
     const at = vec(d.at), R = Number(d.radius) || 5, F = Number(d.force ?? 18);
-    const byMe = !online() || d.by === me();
+    // A world-made blast (by: 'world': a meteor, a volcano) counts for nobody's score.
+    const world = d.by === 'world';
+    const byMe = !world && (!online() || d.by === me());
     if (byMe) myMayhemAt = now();
     // Something exploding goes away for everyone.
     if (d.remove) { const x = g.entity(d.remove); if (x && x.alive) { x._exploded = true; if (x.temporary) x.destroy(); else { x.visible = false; x.ghost = true; x.dead = true; x.hp = undefined; } } }
@@ -668,20 +670,21 @@
       // (Creatures run from it by themselves: Living things hears the event.)
       if (byMe && pushed) addScore('hit', Math.min(pushed, 12));
     }
-    if (byMe || credit()) addScore('boom');
+    if (!world && (byMe || credit())) addScore('boom');
     if (cfg.slowmo && (R >= 8 || chain >= 2)) slowMotion(R >= 8 ? 1.1 : 0.7);
     H.physics.announce({ position: at, radius: R, force: F, damage: d.damage || 0, fire: Boolean(d.fire), authoritative, by: d.by || null, chain, mayhem: true });
   }
   /** Blows up at a point: real pushes, damage that falls off with distance, a fireball, a shockwave, smoke, debris,
    *  a shake and a boom. opts: { radius (5), force (18), damage (40), fire (sets things alight), color, sound (an asset
-   *  name), effects: false (no visuals), owner (an entity: who gets the kill) }. Online, the host decides it. */
+   *  name), effects: false (no visuals), owner (an entity: who gets the kill), by: 'world' (a blast nobody set off:
+   *  meteors, volcanoes; no one's score or combo) }. Online, the host decides it. */
   function explode(pos, o = {}) {
     const at = posOf(pos);
     const d = {
       at: r2v(at), radius: clamp(Number(o.radius) || 5, 0.5, 60), force: clamp(Number(o.force ?? 18), 0, 200), damage: clamp(Number(o.damage ?? 40), 0, 10000),
-      fire: Boolean(o.fire), by: me(), color: o.color || null, sound: o.sound || null, effects: o.effects !== false, remove: o.remove || null,
+      fire: Boolean(o.fire), by: o.by === 'world' ? 'world' : me(), color: o.color || null, sound: o.sound || null, effects: o.effects !== false, remove: o.remove || null,
     };
-    if (!o.chain) myMayhemAt = now();
+    if (!o.chain && o.by !== 'world') myMayhemAt = now();
     // The owner (an entity, for the kill) only when playing alone: actions travel as JSON.
     if (o.owner && !online()) d.owner = o.owner;
     boomAction(d);

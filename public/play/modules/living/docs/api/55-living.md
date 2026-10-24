@@ -20,6 +20,7 @@ but only once the world is running: in updates, events and timers, not at the to
 | `living.talk(friend, text)` | says something to an AI friend: a promise of `{ say, action }` (the action happens). Friends answer from a free phrasebook (personality, species voice); there is no paid AI talk |
 | `living.act(friend, action, say)` | makes a friend do and say something: `living.act(max, 'dance', 'Watch this!')` |
 | `living.openChat(friend)` | opens the chat with a friend (`null` closes it) |
+| `living.chat.addChip({ label, show(friend), act(friend) })` | a button of your own in friends' chats (shown when `show` says so); returns a function that removes it |
 | `living.species.add(name, def)` | a new species: `living.species.add('goat', { ...living.species.get('sheep'), colors: { body: '#eee', head: '#eee', legs: '#555', accent: '#555' } })` |
 | `living.count`, `living.max` | how many creatures there are, and the world's limit |
 | `living.on('startle' / 'hurt' / 'act', fn)` | hear about it |

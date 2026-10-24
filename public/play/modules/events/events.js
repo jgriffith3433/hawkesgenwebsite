@@ -931,7 +931,7 @@
       const at = posOf(a.explode === true ? a.at ?? 'player' : a.explode, ctx);
       if (!at) return;
       const o = { radius: num(a.radius, 6), force: num(a.force, 20), damage: num(a.damage, 40), fire: Boolean(a.fire) };
-      if (H.mayhem && H.mayhem.explode) H.mayhem.explode(at, o);
+      if (H.mayhem && H.mayhem.explode) H.mayhem.explode(at, { by: 'world', ...o }); // (a world-made blast: no one's score)
       else { if (H.sync && H.sync.explode) H.sync.explode(at, { radius: o.radius, force: o.force }); if (H.physics && H.physics.explode) H.physics.explode(at, { radius: o.radius, damage: o.damage, force: 0 }); perform({ burst: at, color: '#ffb347', count: 40 }, ctx); }
     },
   });
@@ -1302,7 +1302,7 @@
     }
     if (!best) return null;
     const label = fill(best.tr.label || `Use the ${(best.e.name || String(best.tr.use)).toLowerCase()}`, { who: meWho() });
-    return { label, distance: best.d, priority: num(best.tr.priority, 1), act: () => trigger(best.r, { entity: best.e }, true) };
+    return { label, distance: best.d, priority: num(best.tr.priority, 0), act: () => trigger(best.r, { entity: best.e }, true) };
   }
   E.useOffer = useOffer;
   // The engine's "E near things" (H.use) when it has one; otherwise a small prompt of our own.
@@ -1315,7 +1315,8 @@
   }
   E.bestOffer = bestOffer;
   function installUse() {
-    if (H.use && typeof H.use.register === 'function') { H.use.register('events', { near: (p) => bestOffer(p) }); return true; }
+    // (keys: T also does a quest giver's offer, as it talks to a friend.)
+    if (H.use && typeof H.use.register === 'function') { H.use.register('events', { keys: ['t'], near: (p) => bestOffer(p) }); return true; }
     return false;
   }
   if (!installUse()) {
@@ -1492,19 +1493,8 @@
     for (const f of E.teardownHooks) try { f(S); } catch (err) { report(err); }
   }
   E.teardownHooks = E.teardownHooks || [];
-  // game.events exists for every game, before its scripts run: H.hooks.game when the engine has it, otherwise by
-  // watching window.game (runtime.js sets it right after making the game). Temporary until H.hooks.game is on beta.
-  function watchGame() {
-    if (Array.isArray(H.hooks.game)) { if (!H.hooks.game.includes(setup)) H.hooks.game.push(setup); return; }
-    const prior = Object.getOwnPropertyDescriptor(window, 'game');
-    if (prior && prior.set && prior.set.__events) return;
-    let cur = prior && !prior.get ? prior.value : undefined;
-    const set = function (g) { if (prior && prior.set) prior.set.call(window, g); else cur = g; try { setup(g, W()); } catch (err) { report(err); } };
-    set.__events = true;
-    Object.defineProperty(window, 'game', { configurable: true, enumerable: true, get() { return prior && prior.get ? prior.get.call(window) : cur; }, set });
-    if (H.game) setup(H.game, W());
-  }
-  watchGame();
+  // game.events exists for every game, before its scripts run (H.hooks.game).
+  H.hooks.game.push(setup);
   H.hooks.world.push({
     enter() {
       if (!S || S.w !== W()) setup(G(), W());

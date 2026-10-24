@@ -213,3 +213,21 @@ test('H.timeScale / H.slow: slow motion is fewer fixed steps (nothing runs twice
   assert.equal(H.timeScale, 1);
   H.hooks.frame.pop();
 });
+
+test('a world-made blast (by: "world") counts for nobody; friend chat takes other modules\' chips', () => {
+  world(H, sceneOf({ floor, start, max: { type: 'friend', name: 'Max', transform: { position: [2, 1, -6] } } }));
+  H.tick(0.2);
+  const before = H.mayhem.score;
+  H.mayhem.explode([10, 0.5, 10], { radius: 4, force: 10, by: 'world' });
+  H.tick(0.2);
+  assert.equal(H.mayhem.score, before, 'no score, no combo');
+  H.mayhem.explode([10, 0.5, 10], { radius: 4, force: 10 });
+  assert.ok(H.mayhem.score > before, 'the player\'s own blast scores');
+  let tapped: any = null;
+  const off = H.living.chat.addChip({ label: (f: any) => `Hi ${f.name}`, show: (f: any) => f.name === 'Max', act: (f: any) => { tapped = f; } });
+  H.living.openChat(H.game.entity('max'));
+  assert.equal(H.living.chat.friend, H.game.entity('max'));
+  off();
+  H.living.openChat(null);
+  void tapped;
+});
