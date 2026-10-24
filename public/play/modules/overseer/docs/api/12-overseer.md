@@ -6,6 +6,14 @@ game.overseer.beam(game.find('Crate'), { radius: 2 });
 // Beam something in: it grows out of the light.
 const gift = game.box({ x: 0, y: 0.5, z: 6, color: '#ffd166' });
 game.overseer.materialize(gift);
+// Arrivals: things made by spawnMany come down by themselves (dropped, grown or beamed, by what they are).
+game.spawnMany('car', 1, { at: [0, 0, 10] });              // out of the sky onto that spot (on the roof if there is one)
+game.spawnMany('cow', 20, { at: game.player, area: 10 });  // a herd rains down one by one
+game.spawnMany('crate', 4, { arrive: 'beam' });            // or say how: 'drop', 'grow', 'beam', 'none'
+// Things a script makes with game.box, game.model... just appear; bring one in from the sky yourself:
+const prize = game.box({ x: 0, y: 0.5, z: 6, color: '#ffd166', physics: 'dynamic' });
+game.arrive(prize, 'drop');
+game.on('landed', ({ thing, at, weight }) => { if (weight > 0.6) game.ui.message('THUD', 1); });
 // The Overseer speaks (words over the picture).
 game.overseer.say('You found the key. Do with it what you will.', 4);
 // The time of day.
@@ -22,6 +30,9 @@ game.on('docked', () => game.ui.message('Welcome aboard'));
 | `game.overseer.beam(target, opts)` | A beam from the emitter to a thing or `[x, y, z]`. `opts`: `radius` (m, at the bottom), `seconds` (1.6), `hold: true` (stays until `.end()`), `color`, `entity` (grows in), `ring`, `sound`. Returns `{ end(), move(target) }` |
 | `game.overseer.materialize(thing or [things], opts)` | Beams it in (one wide beam for several) |
 | `game.overseer.say(text, seconds)` | Words from the Overseer over the picture |
+| `game.arrive(thing or [things], how)` | Brings it in from the Overseer where it is now: `'drop'` (from high in the beam; real physics while playing; lands on a roof over it), `'grow'` (up out of the ground), `'beam'`, `'auto'` (by what it is). Several drop one by one |
+| `game.spawnMany(what, n, { arrive })` | `arrive`: `'drop'`, `'grow'`, `'beam'`, `'none'`, or `{ how, delay, gap }` (seconds before the first, between each). Default: by what it is. Online the host's copies fall for real and everyone sees the same |
+| `game.on('landed', ({ thing, at, weight, on }) => ...)` | A dropped thing came down (`weight` 0-1: how heavy it felt; `on`: what it landed on) |
 | `game.overseer.intro()` | Plays the intro now (a promise: `{ skipped }`) |
 | `game.overseer.position`, `.radius` | Where it is (`null` when the game has none) |
 | `game.sky(colorOrAsset)` | As before: a sky picture or colour |
@@ -62,4 +73,6 @@ Modules: `H.sky` (the one owner of the clock and the light: report what you want
 weather })`, never write the lights yourself; `H.sky.bg` is the far layer, `H.sky.onBg(fn)` places far things each
 frame), `H.planet` (`air(y)`, `altitude(y)`, `drop(d)`, `space`, `radius`, `surface`; every standard/PBR material curves
 with the planet; a custom shader adds `y -= |xz - camera.xz|² / 2R` itself), `H.overseer` (`beam`, `materialize`,
-`emitter()`, `hangar`, `docked`, `intro`).
+`emitter()`, `flare(k)`, `hangar`, `docked`, `intro`; a beam's `pulse(k)`), `H.arrive` (`bring(things, { how, exact })`,
+`how(entity)`, `plan(specs)` (building: a drop's spot, roof and all, before the op), `landing(at, { lift, half })`,
+`quake(at, { radius, rise, seconds })` (the ground moving), `down(at)` / `up(at)`, `of(entity)`, `active`).

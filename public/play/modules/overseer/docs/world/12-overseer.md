@@ -13,8 +13,32 @@ building stays fast and clear.
 ### The Overseer: `config.overseer`
 
 On in every game by default (nothing to add). It sits about 5 km up, off to one side so it's in the sky ahead of the
-spawn; hazy by day, glowing at night. Beams come from the emitter at its lowest point (a shaft of light, a ring on the
-ground, the thing growing out of the light: automatic for things you create; spawnMany batches get one wide beam).
+spawn; hazy by day, glowing at night. Beams come from the emitter at its lowest point, and it flares as it sends.
+
+### How things arrive (automatic; an op's `"arrive"` picks)
+
+Everything you create comes down from the Overseer, by what it is:
+
+| arrive | what happens | chosen by itself for |
+|---|---|---|
+| `"drop"` | The beam locks on, the thing appears high up in it and falls: it lands with a thud by what it's made of, dust, a ring of light, a shake for heavy things. **Under a roof it lands on the roof** (that's the point). Several at once (a herd, ×10) rain down one by one under one wide beam. While building, the fall ends exactly where the op put it; while playing it's real physics | vehicles, props, furniture, crates, barrels, creatures, herds, friends, models; a house or a wall falls onto its spot |
+| `"grow"` | Comes up out of the ground over ~2 s, softly | trees, bushes, flowers, plants, crystals, mushrooms |
+| `"beam"` | Beamed in where it is: the shaft, a ring, it grows out of the light. Precise: it goes through roofs | lights, text, signs, zones, spawn points, waypoints, triggers, water, things floating in the air or attached to another (`parent`), things as big as the ground |
+| `"none"` | Just appears | |
+
+Put `"arrive"` in a new thing's JSON to choose (it's passed on, not saved in the thing). **Inside a house, use
+`"arrive": "beam"`** (furniture, a car in a garage, a cat on the sofa): a drop would land on the roof. Terrain added with
+`config.terrain.add` (a mountain, a hill, a volcano, a crater, a lake) grows: the ground rises (or sinks) over ~5 s with
+a deep rumble, dust and rocks tumbling, and whatever stands there rides up with it. `config.overseer.arrive` sets it for
+the whole game (`"none"`: things just appear; `"beam"`: nothing falls).
+
+- "Drop a car here" → create the `car` where they're looking (it falls out of the sky onto that spot).
+- "Put a sofa in the living room" / "a car in the garage" → the create's JSON has `"arrive": "beam"`.
+- "Rain 20 sheep on me" → a `herd` of 20 sheep around the player (they drop one by one); while playing, a script:
+  `game.spawnMany('cow', 30, { at: game.player, area: 12 })`.
+- "A mountain over there" → add `{ "type": "mountain", "at": [x, z], "radius": 70, "height": 55 }` to
+  `config.terrain.add` (keep the rest of `config.terrain`): it rises over 5 seconds.
+- "Things should just appear, no beams" → `{ "op": "config", "patch": { "overseer": { "arrive": "none" } } }`.
 
 ```json
 { "op": "config", "patch": { "overseer": { "position": [-2600, 5200, 8200], "radius": 560, "color": "#eef1f6", "glow": "#8fd8ff", "intro": "first", "beams": true } } }
@@ -26,7 +50,8 @@ ground, the thing growing out of the light: automatic for things you create; spa
 | `radius` | its size, meters | 560 |
 | `color`, `glow` | the hull; the seams, rings and beams | white pearl, pale blue |
 | `intro` | `"first"` (the first time a player enters any world, remembered on their device), `"always"`, or `false` | `"first"` |
-| `beams` | `false`: things just appear (no beam) | true |
+| `beams` | `false`: things just appear (no beam, nothing falls) | true |
+| `arrive` | how things you create come in, for the whole game: `"auto"` (by what they are, above), `"drop"`, `"grow"`, `"beam"`, `"none"` | `"auto"` |
 | `false` instead of an object | no Overseer in this game (it's in every game unless a game really wants none) | |
 
 The intro's voice: a sound asset named `overseer-intro` if the game has one (the caption shows either way). A model for

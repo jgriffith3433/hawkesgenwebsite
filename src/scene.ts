@@ -13,10 +13,14 @@ export const SCENE_LIMITS = { entities: 500, bytes: 240 * 1024, opsPerCall: 200 
 
 export type Entity = { id: string; type: string; name?: string | null; tag?: string | null; parent?: string | null; [k: string]: any };
 export type Scene = { version: number; config: Record<string, any>; entities: Record<string, Entity>; nextId: number };
+/** How a new thing comes into the world (the engine's arrivals: public/play/modules/overseer/arrive.js). An op may say;
+ *  it is passed on to everyone, never saved in the thing. */
+export const ARRIVALS = ['drop', 'grow', 'beam', 'none'] as const;
+const arrival = (raw: any) => (ARRIVALS.includes(raw?.arrive) ? { arrive: raw.arrive as string } : {});
 export type Op =
-  | { op: 'create'; entity: Partial<Entity> }
+  | { op: 'create'; entity: Partial<Entity>; arrive?: string }
   | { op: 'update'; id: string; patch: Record<string, any> }
-  | { op: 'replace'; entity: Entity }
+  | { op: 'replace'; entity: Entity; arrive?: string }
   | { op: 'delete'; id: string }
   | { op: 'config'; patch: Record<string, any> };
 
@@ -94,12 +98,13 @@ export function applyOps(scene: Scene, ops: unknown): { scene: Scene; applied: O
         if (Object.keys(s.entities).length >= SCENE_LIMITS.entities) throw new SceneError(`A world holds up to ${SCENE_LIMITS.entities} things`);
         const spec = clone(raw.entity ?? {});
         if (!spec || typeof spec !== 'object') throw new SceneError('create needs an entity');
+        delete spec.arrive;
         const id = spec.id && ID.test(spec.id) && !s.entities[spec.id] ? spec.id : freeId(s, spec.id || spec.name || spec.type);
         const e: Entity = { ...spec, id, type: spec.type ?? 'box' };
         checkEntity(e);
         s.entities[id] = e;
         created.push(id);
-        applied.push({ op: 'create', entity: e });
+        applied.push({ op: 'create', entity: e, ...arrival(raw) });
       } else if (raw.op === 'update') {
         const e = s.entities[raw.id];
         if (!e) throw new SceneError(`nothing called ${raw.id}`);
@@ -112,10 +117,11 @@ export function applyOps(scene: Scene, ops: unknown): { scene: Scene; applied: O
       } else if (raw.op === 'replace') {
         const e = clone(raw.entity);
         if (!e || !ID.test(e.id)) throw new SceneError('replace needs an entity with an id');
+        delete e.arrive;
         if (!s.entities[e.id] && Object.keys(s.entities).length >= SCENE_LIMITS.entities) throw new SceneError(`A world holds up to ${SCENE_LIMITS.entities} things`);
         checkEntity(e);
         s.entities[e.id] = e;
-        applied.push({ op: 'replace', entity: e });
+        applied.push({ op: 'replace', entity: e, ...arrival(raw) });
       } else if (raw.op === 'delete') {
         if (!s.entities[raw.id]) throw new SceneError(`nothing called ${raw.id}`);
         const gone = new Set([raw.id]);

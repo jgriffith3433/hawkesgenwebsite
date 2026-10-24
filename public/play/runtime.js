@@ -1754,13 +1754,16 @@
     last = now;
     if (!W.paused) {
       acc += elapsed * timeScale; // (slow motion: fewer fixed steps a second; 0 stops the world, frames still draw)
+      // (A frame catches up at most H.budget.catchUp steps: past that a slow device plays in slow motion instead of
+      // spending ever longer frames catching up.)
+      const most = Math.max(1, Number(window.HawkesPlay.budget && window.HawkesPlay.budget.catchUp) || 8);
       let n = 0;
-      while (acc >= STEP && n < 8) {
+      while (acc >= STEP && n < most) {
         step(STEP); acc -= STEP; n++;
         // "Went down this frame" means once, however many steps the frame takes.
         if (n === 1) { pressedNow = new Set(); releasedNow = new Set(); mouse.pressed = false; }
       }
-      if (n === 8) acc = 0;
+      if (n === most) acc = 0;
     }
     W.camera.update(elapsed);
     if (W.motes && W.scene.activeCamera) W.motes.emitter = W.scene.activeCamera.position;
@@ -2016,8 +2019,9 @@
       W.sun.diffuse = new B.Color3(1, 0.96, 0.88);
       if (cfg.shadows !== false) {
         const sg = new B.ShadowGenerator(touchUi ? 512 : 1024, W.sun);
-        sg.useBlurExponentialShadowMap = true;
-        sg.blurKernel = 24;
+        // (Phones: filtered in one pass, without the soft shadows' two blur passes over the map every frame.)
+        if (touchUi && engine.webGLVersion > 1) { sg.usePercentageCloserFiltering = true; sg.filteringQuality = B.ShadowGenerator.QUALITY_LOW; }
+        else { sg.useBlurExponentialShadowMap = true; sg.blurKernel = 24; }
         sg.bias = 0.0005;
         sg.darkness = 0.35;
         W.shadows = sg;

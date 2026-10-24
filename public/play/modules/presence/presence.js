@@ -249,7 +249,10 @@
     rig.meshes.push(m);
     return m;
   }
-  const box = (w, h, d) => (s) => B.MeshBuilder.CreateBox('b', { width: w, height: h, depth: d }, s);
+  // Body parts are soft boxes (Living things' rounded shape), small details stay crisp boxes.
+  const box = (w, h, d) => (s) => (Math.min(w, h, d) >= 0.07 && H.living && H.living.body && H.living.body.softBox
+    ? H.living.body.softBox('b', { width: w, height: h, depth: d }, s)
+    : B.MeshBuilder.CreateBox('b', { width: w, height: h, depth: d }, s));
   const cyl = (top, bottom, h, n = 14) => (s) => B.MeshBuilder.CreateCylinder('c', { diameterTop: top, diameterBottom: bottom, height: h, tessellation: n }, s);
   const ball = (d, n = 10) => (s) => B.MeshBuilder.CreateSphere('s', { diameter: d, segments: n }, s);
   const ring = (d, t) => (s) => B.MeshBuilder.CreateTorus('t', { diameter: d, thickness: t, tessellation: 18 }, s);
@@ -269,20 +272,25 @@
     const body = look.body || color, head = look.head, acc = look.accent;
     const joint = (name, at) => { const t = new B.TransformNode(`pr-${name}`, scene); t.parent = pose; t.position.set(at[0], at[1], at[2]); return t; };
     rig.hipL = joint('hipL', [0.11, -0.36, 0]); rig.hipR = joint('hipR', [-0.11, -0.36, 0]);
-    part(rig, 'legL', box(0.17, 0.54, 0.19), rig.hipL, [0, -0.27, 0], shade(body, -0.35));
-    part(rig, 'legR', box(0.17, 0.54, 0.19), rig.hipR, [0, -0.27, 0], shade(body, -0.35));
-    rig.torso = part(rig, 'torso', box(0.5, 0.64, 0.3), pose, [0, -0.03, 0], body);
+    // A soft figure, not blocks: capsule limbs, a tapered rounded torso, a round head, round hands and little shoes.
+    const capsule = (r, h) => (sc) => B.MeshBuilder.CreateCapsule('c', { radius: r, height: h, tessellation: 12, subdivisions: 2 }, sc);
+    part(rig, 'legL', capsule(0.085, 0.56), rig.hipL, [0, -0.27, 0], shade(body, -0.35));
+    part(rig, 'legR', capsule(0.085, 0.56), rig.hipR, [0, -0.27, 0], shade(body, -0.35));
+    part(rig, 'footL', box(0.15, 0.08, 0.24), rig.hipL, [0, -0.53, 0.04], shade(body, -0.6));
+    part(rig, 'footR', box(0.15, 0.08, 0.24), rig.hipR, [0, -0.53, 0.04], shade(body, -0.6));
+    rig.torso = part(rig, 'torso', (sc) => { const m = B.MeshBuilder.CreateCylinder('t', { diameterTop: 0.5, diameterBottom: 0.38, height: 0.62, tessellation: 16 }, sc); m.scaling.z = 0.62; m.bakeCurrentTransformIntoVertices(); return m; }, pose, [0, -0.03, 0], body);
+    part(rig, 'shoulders', (sc) => { const m = B.MeshBuilder.CreateSphere('s', { diameter: 0.5, segments: 12 }, sc); m.scaling.set(1, 0.36, 0.62); m.bakeCurrentTransformIntoVertices(); return m; }, pose, [0, 0.27, 0], body);
     rig.neck = joint('neck', [0, 0.29, 0]);
-    rig.head = part(rig, 'head', box(0.42, 0.42, 0.4), rig.neck, [0, 0.22, 0], head);
-    rig.shL = joint('shL', [0.33, 0.24, 0]); rig.shR = joint('shR', [-0.33, 0.24, 0]);
-    part(rig, 'armL', box(0.14, 0.54, 0.15), rig.shL, [0, -0.26, 0], body);
-    part(rig, 'armR', box(0.14, 0.54, 0.15), rig.shR, [0, -0.26, 0], body);
-    part(rig, 'handL', box(0.15, 0.12, 0.16), rig.shL, [0, -0.56, 0], head);
-    part(rig, 'handR', box(0.15, 0.12, 0.16), rig.shR, [0, -0.56, 0], head);
+    rig.head = part(rig, 'head', (sc) => { const m = B.MeshBuilder.CreateSphere('h', { diameter: 0.42, segments: 16 }, sc); m.scaling.set(1, 1.06, 0.98); m.bakeCurrentTransformIntoVertices(); return m; }, rig.neck, [0, 0.22, 0], head);
+    rig.shL = joint('shL', [0.31, 0.24, 0]); rig.shR = joint('shR', [-0.31, 0.24, 0]);
+    part(rig, 'armL', capsule(0.07, 0.54), rig.shL, [0, -0.26, 0], body);
+    part(rig, 'armR', capsule(0.07, 0.54), rig.shR, [0, -0.26, 0], body);
+    part(rig, 'handL', ball(0.15, 10), rig.shL, [0, -0.56, 0], head);
+    part(rig, 'handR', ball(0.15, 10), rig.shR, [0, -0.56, 0], head);
     // The face: which way they look.
     const hd = rig.neck, fy = 0.24, fz = 0.205;
     if (look.face === 'visor') part(rig, 'visor', box(0.36, 0.11, 0.03), hd, [0, fy, fz], acc === '#ffffff' ? '#d8f3ff' : acc, true);
-    if (look.face === 'eyes' || look.face === 'smile') { part(rig, 'eyeL', box(0.07, 0.09, 0.02), hd, [0.09, fy + 0.03, fz], '#111827'); part(rig, 'eyeR', box(0.07, 0.09, 0.02), hd, [-0.09, fy + 0.03, fz], '#111827'); }
+    if (look.face === 'eyes' || look.face === 'smile') { part(rig, 'eyeL', ball(0.07, 8), hd, [0.08, fy + 0.03, fz - 0.03], '#111827'); part(rig, 'eyeR', ball(0.07, 8), hd, [-0.08, fy + 0.03, fz - 0.03], '#111827'); }
     if (look.face === 'smile') part(rig, 'mouth', box(0.16, 0.03, 0.02), hd, [0, fy - 0.09, fz], '#7f1d1d');
     hat(rig, look.hat, acc, body);
     for (const x of look.extras) extra(rig, x, acc, body);

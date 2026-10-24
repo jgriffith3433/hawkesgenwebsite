@@ -77,6 +77,46 @@ mid (490 KB, 1024 px: 5.6 MB instead of 22). The 4096 px chair gets a high level
 Scripts: `measure.mjs` and `battery.mjs` in the session's scratchpad (`lodm/`), with `setup.mjs` (the heavy world) and
 `fakegen.mjs` (the before side).
 
+## Frame rate: what a frame costs (2026-10-24)
+
+J's report: a herd, a rocket, a house, a truck, a mountain, a TV and a cliff made his desktop play at 18 fps (911 draw
+calls, 10 lights, the fixed step 8.6 ms) and only 40 fps looking at the empty sky (251 draw calls for 8 meshes). A CPU
+profile (Chrome DevTools protocol, `perf.mjs` and `tree.mjs` in the session's scratchpad) found:
+
+1. **Vehicles' wheel rays picked every triangle in the world**: `scene.pickWithRay` per wheel per step, through the
+   terrain's 115k triangles: 420 of every 1000 ms with two vehicles. They now cast against Havok's colliders
+   (`H.physics.raycast` with `filter`): 20 ms a second. (That was most of "the physics step"; Havok's own solve is
+   about 0.7 ms a step with ~140 bodies.)
+2. **The shadow map drew every caster in the world every frame** (Babylon doesn't cull them): 300 casters looking at
+   the sky. Now only near casters whose shadow can fall in the camera's view, not tiny ones, and the map is drawn again
+   only when one of those moved. Phones filter shadows in one pass (PCF) instead of two blur passes.
+3. **Lamps lit every mesh in the world**: a point light with a range now lights only the meshes in it; house materials
+   take `H.budget.lights` (4 on phones).
+4. **Stand-ins of many parts**: a car's ~24 boxes, a barrel's rings, a bookshelf's boards and a house's 55 walls are
+   drawn as one mesh per material (`H.mergeParts`; the house's pieces stay as bodies); barrels share their materials.
+5. **Per-frame rays**: homes asked "what is the player looking at" with a scene pick every frame (40 ms a second); now
+   10 times a second, or at once when you turn or move. Impact sounds stopped looking up sound assets that don't exist.
+6. **Per-step bookkeeping** in physics.js: still things are skipped without working out their pose, settings compared
+   as they are instead of building strings for every body every step. Dynamic `mesh` colliders become convex hulls.
+
+Measured headless on J's laptop (Core Ultra 7 155U, Intel graphics through D3D11, 1920x1031; the machine was running
+other agents' work, so fps varies by tens of percent between runs; draw calls and the profile's milliseconds are
+steadier). The sandbox with herd, rocket, house, truck, TV and rock spawned (a mountain and a cliff need building mode):
+
+| | beta (fd0a8dd + 4ff989c) | this branch |
+|---|---|---|
+| J's scene, looking at it: fps / draw calls / step | 7.8 / 479 / 18.3 ms | **29.7 / 180 / 4.4 ms** |
+| J's scene, looking at the sky | 10.1 / 317 / 12.3 ms | **44.1 / 47 / 5.8 ms** |
+| J's scene, CPU per second in the fixed step (profile) | 646 ms (10.4 ms a step) | **242 ms (4.0 ms a step)** |
+| the sandbox alone, looking at it / the sky: draw calls | 149 / 56 | 170 (another view) / **34** |
+| the sandbox alone: fps at it / at the sky | 45 / 55 | 49 / 54 (headless caps near 60) |
+| phone (`?touch=1`, 390x844 at 3x, CPU 4x slower): J's scene, at it | 0.7 / 636 / 147 ms | 2.1 / 374 / 59 ms |
+| the same phone, at the sky | 0.6 / 124 / 159 ms | 3.0 / 28 / 53 ms |
+
+A second run of this branch with the house in view: 18.9 fps, 482 draw calls, step 5.6 ms (the machine busier). The
+phone numbers are an emulated slow phone on a busy laptop (a 4x slower CPU makes each step about 4x longer): far better,
+not yet playable; `catchUp` (3 steps a frame on phones) keeps it from spending ever longer frames catching up.
+
 ## What's left
 
 - **KTX2/Basis** (GPU-compressed textures: 4-8x less GPU memory than WebP's RGBA) isn't made yet. It needs an encoder on
@@ -88,6 +128,9 @@ Scripts: `measure.mjs` and `battery.mjs` in the session's scratchpad (`lodm/`), 
   Babylon (an ES-module build with only what the engine uses: a big job of its own). Second visits load no engine at all.
 - Textures inside models aren't managed by `textures.js` (a model's levels are what keep far models cheap); they count
   against the budget as they are.
-- Vehicles cast scene-wide rays every step (`vehicles.js` `cast`): the biggest CPU cost in a world with many meshes
-  after shaders.
+- Frame rate: the render is now most of a frame (~200 draw calls with ~150 materials in view: furniture and
+  vehicles each have their own materials, so they share no batches); sharing materials by look across things (a copy
+  made when one is recolored) would cut more. `game.raycast` still picks triangles (scripts and tools, not every frame).
+  On a phone-class CPU the fixed step (creatures, Havok, impacts) is still the limit: fewer steps a second on phones
+  (30, interpolated) would halve it.
 - Video posters have no levels (videos aren't images; a poster is made by the share window).

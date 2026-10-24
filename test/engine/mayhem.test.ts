@@ -83,9 +83,10 @@ test('spawn 100 cows: all of them, on the ground, smooth enough, and an explosio
   const cows = g.spawnMany('cows', 100, { at: [0, 0, 0], area: 14 });
   assert.equal(cows.length, 100);
   assert.ok(cows.every((c: any) => c.kind === 'creature' && c.data.species === 'cow' && c.living && c.temporary && c.sceneId), 'Living things\' cows');
+  // They rain down from the Overseer one by one (~4.5 s for a hundred): the cost while they fall and land.
   const t0 = performance.now();
-  H.tick(2);
-  const ms = (performance.now() - t0) / 120;
+  H.tick(5);
+  const ms = (performance.now() - t0) / 300;
   assert.ok(ms < 40, `a step with 100 cows takes ${ms.toFixed(1)} ms`);
   const low = cows.filter((c: any) => c.bottom < 0.4 && c.bottom > -0.2).length;
   assert.ok(low > 80, `most cows stand on the floor (${low})`);

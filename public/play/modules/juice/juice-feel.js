@@ -171,7 +171,7 @@
   const recoilK = { v: 0 };
   /** Kicks the view up (a gun going off): amount 0-1. */
   function recoil(amount = 0.3) { if (J.allowed('recoil')) recoilK.v = clamp(recoilK.v + amount * 0.035, 0, 0.12); }
-  const applied = { cam: null, x: 0, y: 0, z: 0, rx: 0, rz: 0, fov: 0 };
+  const applied = { cam: null, x: 0, y: 0, z: 0, rx: 0, up: null, fov: 0 };
   let speedT = { last: null, v: 0 };
   function watchPlayer(dt) {
     const p = W() && W().player;
@@ -212,6 +212,7 @@
     recoilK.v = Math.max(0, recoilK.v - dt * recoilK.v * 9 - dt * 0.01);
     fov.punch = Math.max(0, fov.punch - dt * 0.4);
     if (!render || !cam || shareOwns() || codex() || !cam.position || !cam.rotation) return;
+    if (applied.cam) undo(); // (last frame's was never drawn: off before adding this one's)
     if (J.feel.cameraOverride) { try { J.feel.cameraOverride(cam, dt); } catch (err) { H.report(err, 'juice camera'); } }
     const motion = J.motion;
     const p = w.player;
@@ -242,9 +243,16 @@
     const df = (fov.k + fov.punch) * motion;
     if (!dx && !dy && !dz && !rx && !rz && !df) return;
     cam.position.x += dx; cam.position.y += dy; cam.position.z += dz;
-    cam.rotation.x += rx; cam.rotation.z += rz;
+    cam.rotation.x += rx;
+    // The roll tilts the up vector about the view, never rotation.z: Babylon turns its up vector with rotation.z
+    // whenever that changes and keeps it, so a roll put back still left the view dutch once you looked around.
+    const up = rz && cam.upVector ? cam.upVector.clone() : null;
+    if (up) {
+      const f = new B.Vector3(Math.sin(cam.rotation.y) * Math.cos(cam.rotation.x), -Math.sin(cam.rotation.x), Math.cos(cam.rotation.y) * Math.cos(cam.rotation.x));
+      cam.upVector = up.rotateByQuaternionToRef(B.Quaternion.RotationAxis(f, rz), new B.Vector3());
+    }
     if (typeof cam.fov === 'number') cam.fov += df;
-    Object.assign(applied, { cam, x: dx, y: dy, z: dz, rx, rz, fov: df });
+    Object.assign(applied, { cam, x: dx, y: dy, z: dz, rx, up, fov: df });
   }
   // What was added for this frame's picture comes off again after it's drawn: the engine's camera (and vehicles' chase
   // camera, which eases from where it was) keeps its own state.
@@ -253,7 +261,8 @@
     if (!a.cam) return;
     try {
       a.cam.position.x -= a.x; a.cam.position.y -= a.y; a.cam.position.z -= a.z;
-      a.cam.rotation.x -= a.rx; a.cam.rotation.z -= a.rz;
+      a.cam.rotation.x -= a.rx;
+      if (a.up) a.cam.upVector = a.up;
       if (typeof a.cam.fov === 'number') a.cam.fov -= a.fov;
     } catch { /* gone */ }
     a.cam = null;

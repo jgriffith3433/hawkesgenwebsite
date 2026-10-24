@@ -252,7 +252,9 @@
 
   function createBody(e, motion, w) {
     const { plugin, scene } = w.havok;
-    const want = shapeWanted(e, motion);
+    let want = shapeWanted(e, motion);
+    // (Triangles are for things that stay put: a moving one gets their convex hull, which Havok handles cheaply.)
+    if (motion === DYNAMIC && want.type === 'mesh') want = { ...want, type: 'convex' };
     let shape;
     try { shape = makeShape(e, want, scene); } catch (err) { H.report(new Error(`${e.name || e.kind}: its collider (${want.type}) could not be made: ${err.message || err}`)); shape = makeShape(e, { type: 'box' }, scene); }
     const n = e.node;
@@ -265,7 +267,7 @@
     body.disablePreStep = true;
     body.disableSync = true;
     body.shape = shape;
-    const pb = e._pb = { body, shape, plugin, motion, key: shapeKey(e, motion), pose: nodePose(e), moved: e._pb ? e._pb.moved : false, moving: false, id: body._pluginData.hpBodyId, matKey: '', filterKey: '', massKey: '', gravity: null };
+    const pb = e._pb = { body, shape, plugin, motion, mv: e._mv || 0, dyn: motion === DYNAMIC, spec: specKey(e), pose: nodePose(e), moved: e._pb ? e._pb.moved : false, moving: false, id: body._pluginData.hpBodyId, matKey: '', filterKey: '', massKey: '', gravity: null, fr: UNSET, bo: UNSET, ly: UNSET, cw: UNSET, hd: UNSET };
     hp(pb).HP_Body_SetQTransform(pb.id, qt(pb.pose));
     refresh(e, pb);
     if (motion === DYNAMIC) {
@@ -312,21 +314,35 @@
     e._shapeKeyCache = { d, v: d.version, key };
     return key;
   }
-  const shapeKey = (e, motion) => `${e._mv || 0}|${motion === DYNAMIC ? 'd' : 's'}|${specKey(e)}`;
+  // (A body is remade when its entity's shape version (_mv), dynamic or not, or its body.shape description changes.)
   /** Material, filters, mass and gravity: kept in step with the entity's settings. */
+  // (Every solid thing, every step: the settings are compared as they are, and keys made only when one changed.)
+  const UNSET = Symbol('unset');
   function refresh(e, pb) {
-    const mk = `${e.friction}|${e.bounce}`;
-    if (mk !== pb.matKey) { pb.matKey = mk; pb.shape.material = { friction: Math.max(0, Number(e.friction) || 0), restitution: Math.max(0, Math.min(0.98, Number(e.bounce) || 0)), restitutionCombine: B.PhysicsMaterialCombineMode.MAXIMUM }; }
-    const fk = `${e.layer}|${JSON.stringify(e.collidesWith)}|${e.held ? 1 : 0}`;
-    if (fk !== pb.filterKey) { pb.filterKey = fk; pb.shape.filterMembershipMask = layer(e.layer); pb.shape.filterCollideMask = e.held ? 0 : maskOf(e.collidesWith); }
+    const fr = e.friction, bo = e.bounce;
+    if (fr !== pb.fr || bo !== pb.bo) {
+      const mk = `${fr}|${bo}`;
+      pb.fr = fr; pb.bo = bo;
+      if (mk !== pb.matKey) { pb.matKey = mk; pb.shape.material = { friction: Math.max(0, Number(fr) || 0), restitution: Math.max(0, Math.min(0.98, Number(bo) || 0)), restitutionCombine: B.PhysicsMaterialCombineMode.MAXIMUM }; }
+    }
+    const ly = e.layer, cw = e.collidesWith, held = Boolean(e.held);
+    if (ly !== pb.ly || cw !== pb.cw || held !== pb.hd) {
+      const fk = `${ly}|${JSON.stringify(cw)}|${held ? 1 : 0}`;
+      pb.ly = ly; pb.cw = cw; pb.hd = held;
+      if (fk !== pb.filterKey) { pb.filterKey = fk; pb.shape.filterMembershipMask = layer(ly); pb.shape.filterCollideMask = held ? 0 : maskOf(cw); }
+    }
     if (pb.motion !== DYNAMIC) return;
-    const sk = `${e.mass}|${e.upright ? 1 : 0}`;
-    if (sk !== pb.massKey) {
-      pb.massKey = sk;
-      const mp = pb.plugin.computeMassProperties(pb.body);
-      // (Havok's inertia is per kilogram: it stays as computed whatever the mass.)
-      pb.body.setMassProperties({ mass: e.mass, centerOfMass: mp.centerOfMass, inertia: e.upright ? B.Vector3.Zero() : mp.inertia, inertiaOrientation: mp.inertiaOrientation });
-      if (e.upright) pb.plugin.setAngularVelocity(pb.body, B.Vector3.Zero());
+    const mass = e.mass, up = Boolean(e.upright);
+    if (!pb.massKey || mass !== pb.ms || up !== pb.up) {
+      pb.ms = mass; pb.up = up;
+      const sk = `${mass}|${up ? 1 : 0}`;
+      if (sk !== pb.massKey) {
+        pb.massKey = sk;
+        const mp = pb.plugin.computeMassProperties(pb.body);
+        // (Havok's inertia is per kilogram: it stays as computed whatever the mass.)
+        pb.body.setMassProperties({ mass: e.mass, centerOfMass: mp.centerOfMass, inertia: e.upright ? B.Vector3.Zero() : mp.inertia, inertiaOrientation: mp.inertiaOrientation });
+        if (e.upright) pb.plugin.setAngularVelocity(pb.body, B.Vector3.Zero());
+      }
     }
     if (pb.gravity !== e.gravity) { pb.gravity = e.gravity; pb.body.setGravityFactor(Number(e.gravity)); }
   }
@@ -347,17 +363,33 @@
   }
   const wakeBody = (pb) => { try { hp(pb).HP_Body_SetActivationState(pb.id, hk.ActivationState.ACTIVE); } catch {} };
 
+  // Most things don't move: a node exactly where and as it was last step (no parent, Euler angles) is still, without
+  // working out its pose again. (afterStep forgets it when Havok moves the node.)
+  function stillAt(n, pb) {
+    const s = pb.at;
+    if (!s || n.parent || n.rotationQuaternion) return false;
+    const p = n.position, r = n.rotation;
+    return p.x === s[0] && p.y === s[1] && p.z === s[2] && r.x === s[3] && r.y === s[4] && r.z === s[5];
+  }
+  function remember(n, pb) {
+    if (n.parent || n.rotationQuaternion) { pb.at = null; return; }
+    const s = pb.at || (pb.at = [0, 0, 0, 0, 0, 0]);
+    s[0] = n.position.x; s[1] = n.position.y; s[2] = n.position.z; s[3] = n.rotation.x; s[4] = n.rotation.y; s[5] = n.rotation.z;
+  }
+
   /** Before Havok steps: bodies for what should have them, where they were put, with the velocities scripts set. */
   function beforeStep(dt, w) {
     for (const e of w.entities) {
       if (!wantsBody(e)) { if (e._pb) dropBody(e); e._vSet = false; continue; }
       const motion = motionFor(e);
       let pb = e._pb;
-      if (!pb || pb.key !== shapeKey(e, motion)) { dropBody(e); pb = createBody(e, motion, w); e._vSet = false; }
+      if (!pb || pb.mv !== (e._mv || 0) || pb.dyn !== (motion === DYNAMIC) || pb.spec !== specKey(e)) { dropBody(e); pb = createBody(e, motion, w); e._vSet = false; }
       else if (pb.motion !== motion && !(pb.motion === ANIMATED && motion === STATIC)) setMotion(e, pb, motion);
       refresh(e, pb);
-      const pose = nodePose(e);
-      const moved = !samePose(pose, pb.pose);
+      const still = stillAt(e.node, pb);
+      const pose = still ? pb.pose : nodePose(e);
+      const moved = !still && !samePose(pose, pb.pose);
+      if (!still) remember(e.node, pb);
       if (pb.motion === DYNAMIC) {
         if (moved) { hp(pb).HP_Body_SetQTransform(pb.id, qt(pose)); wakeBody(pb); }
         if (e._force) { const f = e._force; e._force = null; e._v[0] += (f[0] / e.mass) * dt; e._v[1] += (f[1] / e.mass) * dt; e._v[2] += (f[2] / e.mass) * dt; e._vSet = true; }
@@ -405,6 +437,7 @@
       const v = k.HP_Body_GetLinearVelocity(pb.id)[1];
       e._v[0] = v[0]; e._v[1] = v[1]; e._v[2] = v[2];
       pb.pose = nodePose(e);
+      pb.at = null;
       turnedBox(e);
       // Standing on something (jumping, hopping and walking need to know): a short look down.
       if (e.upright || e.behaviors.length || e.handlers.hit.length || e._walked) {
@@ -696,30 +729,33 @@
 
   // ------------------------------------------------------------------ queries
   /** The first thing a ray hits: { entity, point, normal, distance } or null. Havok's colliders (and characters' boxes)
-   *  when it runs; what you see ('legacy'). o.ignore: an entity (or list), o.layers: what it can hit. */
+   *  when it runs; what you see ('legacy'). o.ignore: an entity (or list), o.layers: what it can hit, o.filter(entity):
+   *  false to look past it, o.characters: false to leave characters out. */
   function raycast(from, dir, dist = 100, o = {}) {
     if (!havokOn()) return H.game ? H.game.raycast(from, dir, dist, o) : null;
     const w = W();
     const a = vec(from), d0 = Array.isArray(dir) ? vec(dir) : [dir.x || 0, dir.y || 0, dir.z || 0];
     const len = Math.hypot(...d0) || 1;
     const d = d0.map((x) => x / len);
-    const ignore = new Set([].concat(o.ignore || []));
+    const ignore = o.ignore ? new Set([].concat(o.ignore)) : null;
+    const skip = (e) => (ignore && ignore.has(e)) || (o.filter && !o.filter(e));
     const r = new B.PhysicsRaycastResult();
-    let start = V(a), travelled = 0, best = null;
+    const start = new B.Vector3(a[0], a[1], a[2]), end = new B.Vector3(a[0] + d[0] * dist, a[1] + d[1] * dist, a[2] + d[2] * dist);
+    const q = { collideWith: maskOf(o.layers), shouldHitTriggers: false };
+    let travelled = 0, best = null;
     for (let i = 0; i < 6 && travelled < dist; i++) {
-      const end = new B.Vector3(a[0] + d[0] * dist, a[1] + d[1] * dist, a[2] + d[2] * dist);
-      w.havok.plugin.raycast(start, end, r, { collideWith: maskOf(o.layers), shouldHitTriggers: false });
+      w.havok.plugin.raycast(start, end, r, q);
       if (!r.hasHit) break;
       const e = entityOfBody(r.body);
       const hitAt = r.hitPointWorld;
-      const along = B.Vector3.Distance(V(a), hitAt);
-      if (e && !ignore.has(e)) { best = { entity: e, point: [hitAt.x, hitAt.y, hitAt.z], normal: [r.hitNormalWorld.x, r.hitNormalWorld.y, r.hitNormalWorld.z], distance: along }; break; }
+      const along = Math.hypot(hitAt.x - a[0], hitAt.y - a[1], hitAt.z - a[2]);
+      if (e && !skip(e)) { best = { entity: e, point: [hitAt.x, hitAt.y, hitAt.z], normal: [r.hitNormalWorld.x, r.hitNormalWorld.y, r.hitNormalWorld.z], distance: along }; break; }
       travelled = along + 0.01;
-      start = new B.Vector3(a[0] + d[0] * travelled, a[1] + d[1] * travelled, a[2] + d[2] * travelled);
+      start.set(a[0] + d[0] * travelled, a[1] + d[1] * travelled, a[2] + d[2] * travelled);
     }
     // Characters have no body: their boxes.
-    for (const e of w.entities) {
-      if (!e._cc || !e.alive || ignore.has(e) || !e.node.isEnabled()) continue;
+    if (o.characters !== false) for (const e of w.entities) {
+      if (!e._cc || !e.alive || skip(e) || !e.node.isEnabled()) continue;
       const t = rayBox(a, d, e.box());
       if (t !== null && t <= dist && (!best || t < best.distance)) best = { entity: e, point: [a[0] + d[0] * t, a[1] + d[1] * t, a[2] + d[2] * t], normal: [-d[0], -d[1], -d[2]], distance: t };
     }

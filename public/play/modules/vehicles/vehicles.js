@@ -95,10 +95,9 @@
 
   // ------------------------------------------------------------------ rays: what the wheels and the hull touch
   const ray = new B.Ray(B.Vector3.Zero(), new B.Vector3(0, -1, 0), 1);
-  function makePredicate(v) {
-    return (m) => {
-      if (!m.isEnabled() || m.isPickable === false || (m.metadata && m.metadata.decor)) return false;
-      const en = H.entityOf(m);
+  /** What a vehicle's rays stand on: solid things, never itself, its riders, water, or light loose things. */
+  function makeSolid(v) {
+    return (en) => {
       if (!en || !en.alive || en === v.e || en.isPlayer || en.remotePlayer || en.ghost || en._vehRider) return false;
       const ph = en.physics;
       if (ph === 'none' || ph === 'trigger') return false;
@@ -107,15 +106,25 @@
       return true;
     };
   }
-  /** The first solid thing along a ray (and the terrain, when the Terrain module is on): { dist, point, normal, entity }. */
+  function makePredicate(v) {
+    v.solid = makeSolid(v);
+    return (m) => m.isEnabled() && m.isPickable !== false && !(m.metadata && m.metadata.decor) && v.solid(H.entityOf(m));
+  }
+  /** The first solid thing along a ray (and the terrain, when the Terrain module is on): { dist, point, normal, entity }.
+   *  On Havok against the colliders (a few shapes, not every triangle of every mesh in the world); else what's drawn. */
   function cast(v, from, dir, len) {
     const w = W();
-    ray.origin.copyFrom(from); ray.direction.copyFrom(dir); ray.length = len;
     let out = null;
-    const hit = w.scene.pickWithRay(ray, v.pred);
-    if (hit && hit.hit && hit.pickedPoint) {
-      const n = hit.getNormal(true, true) || UP.clone();
-      out = { dist: hit.distance, point: hit.pickedPoint.clone(), normal: n, entity: H.entityOf(hit.pickedMesh) };
+    if (havokOn()) {
+      const hit = H.physics.raycast([from.x, from.y, from.z], [dir.x, dir.y, dir.z], len, { filter: v.solid, characters: false });
+      if (hit) out = { dist: hit.distance, point: v3(hit.point), normal: v3(hit.normal), entity: hit.entity };
+    } else {
+      ray.origin.copyFrom(from); ray.direction.copyFrom(dir); ray.length = len;
+      const hit = w.scene.pickWithRay(ray, v.pred);
+      if (hit && hit.hit && hit.pickedPoint) {
+        const n = hit.getNormal(true, true) || UP.clone();
+        out = { dist: hit.distance, point: hit.pickedPoint.clone(), normal: n, entity: H.entityOf(hit.pickedMesh) };
+      }
     }
     const T = H.terrain;
     if (T && typeof T.heightAt === 'function' && dir.y < -0.3) {
@@ -217,6 +226,16 @@
     if (type === 'helicopter') { blades([0, 1.35, 0], 7.6, 'y'); blades([0.12, 0.85, -5.05], 1.4, 'x'); }
     if (type === 'airplane') blades([0, 0, 3.8], 2.2, 'z');
     if (type === 'submarine') blades([0, 0, -4.15], 1.3, 'z');
+    // The body's parts drawn as one mesh per material (a car's 24 boxes in a handful of draw calls); the lamps
+    // together, the flames on their own (they flicker). Wheels and rotors keep their own nodes: they turn.
+    const flames = ctx.flames || [];
+    const lamps = H.mergeParts ? H.mergeParts(lampMeshes) : lampMeshes;
+    const fixed = ctx.made.filter((m) => !lampMeshes.includes(m) && !flames.includes(m));
+    const drawn = [...(H.mergeParts ? H.mergeParts(fixed) : fixed), ...lamps, ...flames];
+    lampMeshes.length = 0;
+    lampMeshes.push(...lamps);
+    ctx.made.length = 0;
+    ctx.made.push(...drawn);
 
     const v = {
       type, def, e, root, body, mats, wheels, lampMeshes, spinners, parts: ctx.made,
@@ -492,6 +511,10 @@
       if (busy || !e.sleeping) wake(v);
       else return;
     }
+    // How fast it really moved last step. (Its velocity is no measure of resting: what it's given holds it up against
+    // Havok's gravity, a step's worth of g, even standing still.)
+    const moved = v.lastPos ? B.Vector3.Distance(n.position, v.lastPos) / dt : Infinity;
+    v.lastPos = n.position.clone();
     v.pos = n.position.clone();
     v.q = B.Quaternion.FromEulerAngles(n.rotation.x, n.rotation.y, n.rotation.z);
     v.vel.set(e._v[0], e._v[1], e._v[2]);
@@ -507,9 +530,9 @@
     integrate(v, dt, v.grounded ? 0.5 : 0.1);
     selfRight(v, dt);
     // Parked and still: the body sleeps (and wakes when something hits it).
-    const still = !busy && v.vel.length() < 0.08 && v.w.length() < 0.08 && v.grounded;
+    const still = !busy && moved < 0.08 && v.w.length() < 0.08 && v.grounded;
     v.still = still ? v.still + dt : 0;
-    if (v.still > 0.6) { v.sleeping = true; v.gave = null; v.vel.setAll(0); v.w.setAll(0); e.vx = 0; e.vy = 0; e.vz = 0; e.angularVelocity = [0, 0, 0]; e.sleep(); return; }
+    if (v.still > 0.6) { v.sleeping = true; v.gave = null; v.lastPos = null; v.vel.setAll(0); v.w.setAll(0); e.vx = 0; e.vy = 0; e.vz = 0; e.angularVelocity = [0, 0, 0]; e.sleep(); return; }
     e.vx = v.vel.x; e.vy = v.vel.y; e.vz = v.vel.z;
     e.angularVelocity = [v.w.x / RAD, v.w.y / RAD, v.w.z / RAD];
     v.gave = v.vel.clone();
@@ -581,7 +604,12 @@
     const spd = Math.abs(fwdSpeed);
     const want = inp.x * D.steer * RAD / (1 + spd / (D.twoWheels ? 14 : 20));
     v.steer += (want - v.steer) * Math.min(1, dt * 8);
-    const parking = throttle === 0 && brake === 0 && spd < 0.6 && (!plane || v.throttle < 0.05);
+    // Stopped (or nobody in it: the handbrake is on): the tires hold it where it is, on a slope too.
+    const parking = throttle === 0 && brake === 0 && (spd < 0.6 || !(occupiedOf(v) || v.autopilot)) && (!plane || v.throttle < 0.05);
+    // Where it stopped: the tires' static grip pulls it back there (no creeping down a hill). Pushed far off, a new spot.
+    if (!parking || spd > 0.6 || (v.park && B.Vector3.Distance(v.park, v.pos) > 0.5)) v.park = null;
+    if (parking && spd <= 0.6 && !v.park) v.park = v.pos.clone();
+    const off = v.park ? v.pos.subtract(v.park) : null;
     let count = 0;
     v.loadSum = 0;
     for (const w of v.wheels) {
@@ -608,12 +636,15 @@
       const per = v.mass / n;
       const mu = D.grip * (handbrake && w.rear ? D.drift : 1);
       const maxF = mu * fs;
-      let lat = -vlat * per / dt * 0.5;
+      // Gravity along the ground, this wheel's share of it (by its load): what the tire must push back to stand still
+      // on a slope. Without it a parked vehicle never rests there (it creeps, and slides sideways across a hill).
+      const hold = fs / Math.max(0.2, N.y);
+      let lat = -vlat * per / dt * 0.5 + hold * sg.y - (off ? B.Vector3.Dot(off, sg) * per * 60 : 0);
       let lon = 0;
       if (w.drive) lon += drive / driven;
       if (brake > 0) lon += -Math.sign(vlong) * Math.min(Math.abs(vlong) * per / dt, v.mass * 30 * brake / n);
       if (handbrake && w.rear) lon = -vlong * per / dt * 0.3;
-      else if (parking) lon = -vlong * per / dt * 0.6;
+      else if (parking) lon = -vlong * per / dt * 0.6 + hold * fg.y - (off ? B.Vector3.Dot(off, fg) * per * 60 : 0);
       else lon += -vlong * per * (plane ? 0.02 : throttle === 0 ? 0.5 : 0.08); // (a plane's wheels roll free)
       const mag = Math.hypot(lat, lon);
       if (mag > maxF && mag > 0) { lat *= maxF / mag; lon *= maxF / mag; }
