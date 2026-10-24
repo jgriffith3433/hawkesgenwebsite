@@ -25,7 +25,7 @@ const sign = game.text('Danger!', { y: 2, size: 0.4 });         // floating word
 | `game.torus(opts)` | `radius`, `thickness` |
 | `game.plane(opts)` | `size: [w, d]`: flat on the ground |
 | `game.model(name, opts)` | A `.glb` asset. `size` scales it to that height. `entity.ready` is a promise. |
-| `game.sprite(name, opts)` | An image asset. `size` is its height. `frames: { cols, rows }` for a sprite sheet. |
+| `game.sprite(name, opts)` | An image asset. `size` is its height. `frames: { cols, rows, fps }` for a sprite sheet (`fps` plays it on a loop; `e.animate(from, to, fps)` picks frames). |
 | `game.text(words, opts)` | `size` (letter height), `color`, `billboard: false` keeps it flat |
 | `game.light(opts)` | `type: 'point' / 'spot' / 'sun'`, `color`, `intensity`, `range`, `position` |
 

@@ -117,7 +117,12 @@
     e._tex = t;
     if (opts.billboard !== false) plane.billboardMode = B.Mesh.BILLBOARDMODE_Y;
     const frames = opts.frames || null;
-    if (frames && t) { e._sheet = { cols: Math.max(1, frames.cols | 0), rows: Math.max(1, frames.rows | 0), from: 0, to: 0, fps: 0, loop: true, t: 0, frame: 0 }; setFrame(e, 0); }
+    if (frames && t) {
+      const cols = Math.max(1, frames.cols | 0), rows = Math.max(1, frames.rows | 0);
+      // fps in the spec plays every frame on a loop; scripts can still pick frames (e.animate, e.frame).
+      e._sheet = { cols, rows, from: 0, to: Number(frames.fps) > 0 ? cols * rows - 1 : 0, fps: Number(frames.fps) || 0, loop: true, t: 0, frame: 0 };
+      setFrame(e, 0);
+    }
     plane.scaling.set(height, height, 1);
     if (t) t.onLoadObservable.addOnce(() => {
       const sz = t.getSize();
@@ -276,6 +281,7 @@
     const frame = new B.TransformNode('mirror', W.scene);
     const surface = B.MeshBuilder.CreatePlane('mirror-surface', { width: w, height: h }, W.scene);
     surface.parent = frame;
+    surface.rotation.y = Math.PI; // a plane shows its -z side; turned, the mirror faces +z (forward), like everything else
     const mat = new B.StandardMaterial('mirror', W.scene);
     const tex = new B.MirrorTexture('mirror-tex', 512, W.scene, true);
     tex.mirrorPlane = new B.Plane(0, 0, 1, 0);
@@ -289,6 +295,9 @@
       const seg = B.MeshBuilder.CreateBox('mirror-edge', { width: sw, height: sht, depth: 0.05 }, W.scene);
       seg.parent = frame; seg.position.set(sx, sy, 0); seg.material = bm;
     }
+    // A solid back, so from behind it's the back of a mirror, not a hole.
+    const back = B.MeshBuilder.CreatePlane('mirror-back', { width: w + 0.12, height: h + 0.12 }, W.scene);
+    back.parent = frame; back.position.z = -0.02; back.material = bm;
     const e = new Entity(frame, o, 'mirror');
     e._mat = bm;
     for (const c of frame.getChildMeshes()) c.metadata = { entity: e };
@@ -449,9 +458,9 @@
       asset: { kind: 'image', make: (a, o) => ({ type: 'sprite', name: o.title || 'Picture', shape: { image: a.name, size: 1.6, billboard: false }, transform: { rotation: [0, o.yaw, 0] }, lift: 1.2 }) },
     },
     codex: {
-      group: 'World', what: 'A picture: an image from your library, facing you (or flat, like a poster). Shows as a wireframe until its picture exists.',
-      spec: { type: 'sprite', name: 'Poster', transform: { position: [0, 1.2, 0] }, shape: { image: 'poster.png', size: 1.6, billboard: false } },
-      fields: [['shape.image', 'an image asset in the game', ''], ['shape.size', 'height in meters', '1'], ['shape.frames', '{ cols, rows } for a sprite sheet', ''], ['shape.billboard', 'false keeps it flat', 'true']],
+      group: 'World', what: 'A picture: an image from your library, facing you (or flat, like a poster). A sprite sheet animates: here, our Knight walking. Shows as a wireframe until its picture exists.',
+      spec: { type: 'sprite', name: 'Knight', transform: { position: [0, 1, 0] }, shape: { image: 'knight-walk.webp', size: 2, frames: { cols: 4, rows: 2, fps: 8 } } },
+      fields: [['shape.image', 'an image asset in the game', ''], ['shape.size', 'height in meters', '1'], ['shape.frames', '{ cols, rows, fps } for a sprite sheet (fps plays it on a loop)', ''], ['shape.billboard', 'false keeps it flat', 'true']],
     },
   });
 
@@ -495,7 +504,7 @@
     },
     codex: {
       group: 'World', what: 'A screen playing a video from your library, muted until someone clicks it. Shows as a wireframe until its video exists.',
-      spec: { type: 'video', name: 'Screen', transform: { position: [0, 1.5, 0] }, shape: { asset: 'trailer.mp4', width: 3.2 } },
+      spec: { type: 'video', name: 'Screen', transform: { position: [0, 1.5, 0] }, shape: { asset: 'knight-walk.mp4', width: 3.2 } },
       fields: [['shape.asset', 'a video asset in the game', ''], ['shape.width', 'meters', '3.2'], ['shape.height', 'meters', '16:9 of the width'], ['shape.loop', 'false plays it once', 'true']],
     },
   });

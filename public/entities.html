@@ -24,7 +24,12 @@
     .win-title { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border-bottom: 1px solid var(--border); font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--fg-3); background: var(--surface-2); flex: none; }
     .win-title .grow { flex: 1; }
     .types { overflow: auto; border-right: 1px solid var(--border); flex: 1; }
-    .types h4 { font: 500 10.5px/1 var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--fg-3); margin: 14px 12px 6px; }
+    .types summary { display: flex; align-items: center; gap: 8px; font: 500 10.5px/1 var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--fg-3); padding: 12px 12px 8px; cursor: pointer; list-style: none; user-select: none; }
+    .types summary::-webkit-details-marker { display: none; }
+    .types summary::before { content: '▸'; font-size: 11px; transition: transform .15s; }
+    .types details[open] > summary::before { transform: rotate(90deg); }
+    .types summary:hover { color: var(--heading); }
+    .types summary .n { margin-left: auto; letter-spacing: 0; opacity: .7; }
     .types button { display: flex; align-items: center; gap: 9px; width: 100%; padding: 7px 12px; border: 0; background: transparent; color: var(--fg-2); font: 13px/1.2 var(--mono); text-align: left; cursor: pointer; border-left: 2px solid transparent; }
     .types button:hover { color: var(--heading); background: var(--surface-2); }
     .types button.on { color: var(--heading); background: var(--accent-glow); border-left-color: var(--accent); }
@@ -100,10 +105,14 @@
       .page h1 { font-size: 32px; }
       .engine-win { grid-template-columns: 1fr; grid-template-rows: auto 320px auto; }
       .types { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; border-right: 0; border-bottom: 1px solid var(--border); }
-      .types h4 { display: none; }
+      .types details { width: 100%; }
+      .types details[open] { display: flex; flex-wrap: wrap; gap: 4px; }
+      .types summary { width: 100%; padding: 8px 4px 4px; }
       .types button { width: auto; border-left: 0; border-radius: var(--r); padding: 6px 9px; }
       .inspector-col { grid-column: auto; }
     }
+    /* The codex shows things, not the game: the modules' on-screen controls (share dock, photo mode, spawn wheel, quests, name tags) stay hidden on this page. */
+    .sh-dock, .sh-bars, .sh-caption, .sh-toast, .sh-skip, .ph-panel, .ph-show, .ph-frame, .ph-sticks, .ph-look, .sw-fab, .qs-btn, .qs-track, .pr-hud { display: none !important; }
   </style>
   <script src="/sitenav.js" defer></script>
 </head>
