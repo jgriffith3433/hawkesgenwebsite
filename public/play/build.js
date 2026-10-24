@@ -746,6 +746,8 @@
   function poof(at) { const g = G(); if (g) g.burst(at, { color: '#c8d8ff', count: 18, speed: 3 }); }
   function materialize(e, by) {
     if (!e || !e.alive) return;
+    // The Overseer beams it in (H.overseer: its module beams every created thing itself); only the label is ours.
+    if (H.overseer) { if (by) floatLabel(e, `${by} added ${e.name || KIND[e.kind] || 'something'}`); return; }
     const n = e.node;
     const s = n.scaling.clone();
     n.scaling.scaleInPlace(0.01);
@@ -777,7 +779,7 @@
     ops(ops, touched, o) {
       if (popup) setTimeout(() => { if (popup && W().byId.get(popup.e.sceneId)) { popup.e = W().byId.get(popup.e.sceneId); if (!popup.el.contains(document.activeElement)) renderCard(); } else closePopup(); }, 0);
       if (o.fx === 'materialize' || o.remote && o.by) for (const e of touched) if (ops.some((x) => x.op === 'create' && x.entity && x.entity.id === e.sceneId)) materialize(e, o.remote ? o.by : null);
-      if (o.fx === 'arrive') for (const e of touched) { G().burst(e.position, { color: '#ffffff', count: 40, speed: 5 }); floatLabel(e, `${e.name || 'It'} arrived`); }
+      if (o.fx === 'arrive') for (const e of touched) { if (!H.overseer) G().burst(e.position, { color: '#ffffff', count: 40, speed: 5 }); floatLabel(e, `${e.name || 'It'} arrived`); }
     },
     net(s, info) {
       const el = $('hudNet');
@@ -804,15 +806,19 @@
     if (row.state === 'done' || row.state === 'failed') { b.log(row.state === 'done' ? 'done' : 'failed'); b.progress(1); setTimeout(() => { b.end(row.state === 'done'); beams.delete(row.task_id); }, 700); }
     else b.progress(Math.min(0.9, (b.p || 0.05) + 0.12));
   }
-  /** A light from the sky while Hawkes Gen makes something, with its progress written in the air. */
+  /** The Overseer's beam while Hawkes Gen makes something (H.overseer.beam, held until it's done), with its progress
+   *  written in the air. */
   function makeBeam(at, label) {
     const scene = W().scene;
     const p = new B.Vector3(at[0], at[1], at[2]);
-    const beam = B.MeshBuilder.CreateCylinder('beam', { diameterTop: 0.05, diameterBottom: 0.5, height: 60, tessellation: 12 }, scene);
-    beam.position = p.add(new B.Vector3(0, 30, 0));
-    const bm = new B.StandardMaterial('beam', scene);
-    bm.emissiveColor = new B.Color3(0.6, 0.8, 1); bm.disableLighting = true; bm.alpha = 0.25;
-    beam.material = bm; beam.isPickable = false; beam.metadata = { decor: true };
+    const shaft = H.overseer ? H.overseer.beam([at[0], at[1] - 0.6, at[2]], { radius: 0.7, hold: true, ring: true }) : null;
+    const beam = shaft ? null : B.MeshBuilder.CreateCylinder('beam', { diameterTop: 0.05, diameterBottom: 0.5, height: 60, tessellation: 12 }, scene);
+    const bm = shaft ? null : new B.StandardMaterial('beam', scene);
+    if (beam) {
+      beam.position = p.add(new B.Vector3(0, 30, 0));
+      bm.emissiveColor = new B.Color3(0.6, 0.8, 1); bm.disableLighting = true; bm.alpha = 0.25;
+      beam.material = bm; beam.isPickable = false; beam.metadata = { decor: true };
+    }
     const ghost = B.MeshBuilder.CreateBox('beam-ghost', { size: 1 }, scene);
     ghost.position = p.clone();
     const gm = new B.StandardMaterial('beam-ghost', scene);
@@ -823,14 +829,15 @@
     const draw = () => { if (lbl) lbl.dispose(); lbl = H.textPlane(`${label}\n${'▮'.repeat(Math.round(st.p * 12))}${'▯'.repeat(12 - Math.round(st.p * 12))}\n${st.lines.slice(-2).join('\n')}`, { size: 0.16 }); lbl.isPickable = false; lbl.metadata = { decor: true }; lbl.position = p.add(new B.Vector3(0, 1.6, 0)); };
     draw();
     const t0 = performance.now();
-    const obs = scene.onBeforeRenderObservable.add(() => { const t = (performance.now() - t0) / 1000; bm.alpha = 0.18 + 0.12 * Math.sin(t * 5) + st.p * 0.2; ghost.rotation.y = t; ghost.scaling.setAll(0.9 + 0.1 * Math.sin(t * 3)); });
+    const obs = scene.onBeforeRenderObservable.add(() => { const t = (performance.now() - t0) / 1000; if (bm) bm.alpha = 0.18 + 0.12 * Math.sin(t * 5) + st.p * 0.2; ghost.rotation.y = t; ghost.scaling.setAll(0.9 + 0.1 * Math.sin(t * 3)); });
     return {
       get p() { return st.p; },
       log(s) { st.lines.push(String(s).slice(0, 40)); draw(); },
       progress(v) { st.p = Math.max(st.p, Math.min(1, v)); draw(); },
       end(ok) {
         scene.onBeforeRenderObservable.remove(obs);
-        if (ok) G().burst(at, { color: '#ffffff', count: 50, speed: 6 });
+        if (ok && !shaft) G().burst(at, { color: '#ffffff', count: 50, speed: 6 });
+        if (shaft) shaft.end(ok);
         for (const m of [beam, ghost, lbl]) if (m) m.dispose();
       },
     };

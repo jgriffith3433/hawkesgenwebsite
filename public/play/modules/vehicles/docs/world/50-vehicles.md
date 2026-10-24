@@ -1,4 +1,4 @@
-## Vehicles (`car`, `truck`, `bicycle`, `motorbike`, `boat`, `submarine`, `airplane`, `helicopter`, `vehicle`)
+## Vehicles (`car`, `truck`, `bicycle`, `motorbike`, `boat`, `submarine`, `airplane`, `helicopter`, `rocket`, `spaceship`, `vehicle`)
 
 Things players get into and drive, ride or fly. Walk up and press **E** (on a phone, tap the prompt or **B**) to get in;
 E again gets out. The first one in drives; friends who get in after ride along (multiplayer). Every vehicle works with no
@@ -13,8 +13,10 @@ crash into walls, throw crates and animals out of the way, roll over, get thrown
 | `motorbike` | a motorbike: fast, leans, a passenger behind | 2 | like the car |
 | `boat` | a speedboat: floats on water (the Water module's, or anything tagged `water`), bounces on waves | 4 | W/S throttle, A/D steer |
 | `submarine` | dives and surfaces in water | 4 | C dives, space rises (let go deep: it holds its depth), W/S, A/D |
-| `airplane` | rolls down a runway, takes off at about 90 km/h, flies, stalls when too slow | 2 | hold W to roll, S lifts the nose; flying: W/S pitch, A/D roll, space/C throttle |
-| `helicopter` | hovers by itself, climbs and descends | 4 | space up, C down, W/S tilt forward/back, A/D turn |
+| `airplane` | rolls down a runway, takes off at about 90 km/h, flies, stalls when too slow. Past ~2 km the thin air weakens wings and engine: it tops out around 3 km | 2 | hold W to roll, S lifts the nose; flying: W/S pitch, A/D roll, space/C throttle |
+| `helicopter` | hovers by itself, climbs and descends. Its rotor needs air: it tops out around 1.3 km | 4 | space up, C down, W/S tilt forward/back, A/D turn |
+| `rocket` | stands on its legs, burns fuel (refills on the ground), works in vacuum: reaches space (~10 km) in about a minute and a half, and the Overseer. A parachute opens if it falls back into the air. Rest y ≈ 4.75 | 1 | space more thrust, C less, W/S pitch, A/D lean, shift boost |
+| `spaceship` | a space ship ("space ship", "starship", "ufo", "saucer"): thrusters, not wings; hovers by itself anywhere, climbs fast (70 m/s), flies in air and in space, glows on re-entry, docks in the Overseer's hangar. Rest y ≈ 1.35 | 3 | space climbs, C descends, W/S thrust, A/D turn, shift boost |
 | `vehicle` | any of these by name, usually wearing a model: `shape.vehicle` is `car`, `truck` (or `4x4`), `bicycle`, `motorbike`, `boat`, `submarine`, `airplane`, `helicopter` | | |
 
 Everyone in any vehicle: **V** changes the camera (chase, far chase, cockpit), **H** horn, **L** headlights, **R** flips it
