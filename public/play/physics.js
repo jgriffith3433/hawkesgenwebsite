@@ -679,7 +679,8 @@
         c.cc._position.copyFrom(e.node.position);
         if (c.last) c.last.copyFrom(e.node.position);
         c.cc._manifold = [];
-        if (c.onAt) c.onAt = tr.point(c.onAt);
+        // (What it stands on is where it is now, moved or not: the ground stays under you.)
+        if (c.on && c.on.alive) { const op = whereIs(c.on.node); c.onAt = [op.x, op.y, op.z]; c.onYaw = c.on.node.rotation.y; }
         if (c.cc._velocity) { const v = tr.dir([c.cc._velocity.x, c.cc._velocity.y, c.cc._velocity.z]); c.cc._velocity.set(v[0], v[1], v[2]); }
       }
     }

@@ -97,11 +97,19 @@ test('the player: up is away from the middle anywhere, the frame follows, positi
   // Walk a few hundred meters: the frame keeps moving, the player stays near its origin.
   const r0 = F().rebases;
   H.world.camera.yaw = 0; H.world.camera.pitch = 0;
+  // Every step on the way: feet on the ground (no hop when the frame moves).
+  // (Measured against where the feet start: the character controller rests a few cm up after a fall, flat or round.)
+  const h0 = H.planet.heightOf([p.x, p.bottom, p.z]);
+  let worst = 0, at = '', n = 0;
+  const watch = () => { n++; const h = Math.abs(H.planet.heightOf([p.x, p.bottom, p.z]) - h0); if (h > worst) { worst = h; at = `step ${n}, rebases ${F().rebases}`; } };
+  H.hooks.afterStep.push(watch);
   hold('w', 30);
+  H.hooks.afterStep.splice(H.hooks.afterStep.indexOf(watch), 1);
+  assert.ok(worst < 0.03, `feet as high over the ground all the way, through every rebase (worst ${worst.toFixed(3)} m at ${at})`);
   const pp = F().toPlanet(p.position);
   const walked = Math.acos(dot(upAt(pp), upAt(onPlanet(150)))) * R;
   assert.ok(walked > 150, `walked ${walked.toFixed(0)} m`);
-  assert.ok(F().rebases > r0, 'rebased on the way');
+  assert.ok(F().rebases > r0 && F().rebases - r0 <= Math.ceil(walked / 100) + 1, `rebased on the way, once per ~100 m (${F().rebases - r0} for ${walked.toFixed(0)} m)`);
   assert.ok(Math.hypot(p.x, p.z) < 120, `still near the origin (${Math.hypot(p.x, p.z).toFixed(1)} m)`);
   assert.ok(p.grounded && Math.abs(H.planet.heightOf([p.x, p.bottom, p.z])) < 0.3, `on the ground all the way (feet ${H.planet.heightOf([p.x, p.bottom, p.z]).toFixed(3)} m up, grounded ${p.grounded})`);
 });
