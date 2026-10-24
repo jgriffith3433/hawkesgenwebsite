@@ -179,6 +179,7 @@ window.addEventListener('message', async (e) => {
       return;
     case 'library': toggleLibrary(); return;
     case 'basics': basics = m.list || []; if (libKind === 'basics' && $('library').classList.contains('open')) loadLibrary(); return;
+    case 'words': if (libKind === 'game' && $('library').classList.contains('open')) renderWords(m.words || {}, m.assets || []); return;
   }
 });
 /** What the player can see right now, for the assistant (asked from the game, quickly). */
@@ -869,8 +870,10 @@ async function loadLibrary() {
   $('libSearchRow').hidden = libKind !== 'community';
   $('libNote').textContent = libKind === 'basics' ? "Click one to put it where you're looking. Then double-click it to change it, or tell the assistant what it should do."
     : libKind === 'community' ? 'Things other builders shared, and the Hawkes starter pack. Free to use in your game. Textures go on what you point at.'
+    : libKind === 'game' ? 'Each word and the assets it uses (a herd of cows, the trees). The first is the default; Mix spreads them all.'
     : 'Everything you make with Hawkes Gen is yours, here and in the Asset studio. ⇪ shares one with the community.';
   if (libKind === 'community') return loadCommunity(grid);
+  if (libKind === 'game') { grid.innerHTML = '<div class="st-lib-empty">Loading…</div>'; toStage({ type: 'words?' }); return; }
   if (libKind === 'basics') {
     if (!basics.length) { toStage({ type: 'basics?' }); grid.innerHTML = '<div class="st-lib-empty">Loading…</div>'; return; }
     grid.innerHTML = '';
@@ -914,6 +917,39 @@ async function loadLibrary() {
       b.appendChild(sh);
     }
     grid.appendChild(b);
+  }
+}
+/** "In this game": every word the game's assets answer to, and the ones it uses: use only this one, add as a
+ *  variant, remove, mix them (config.assets, changed through the game: undoable, live for everyone). */
+function renderWords(words, list) {
+  const grid = $('libGrid');
+  const byId = new Map(list.map((a) => [a.id || a.name, a]));
+  const entries = Object.entries(words).filter(([, w]) => w.ids.length).sort((a, b) => (b[1].from === 'config') - (a[1].from === 'config') || b[1].ids.length - a[1].ids.length || a[0].localeCompare(b[0]));
+  grid.innerHTML = entries.length ? '' : '<div class="st-lib-empty">No assets in this game yet. Use something from Community or Yours, or ask the assistant.</div>';
+  const set = (word, value) => toStage({ type: 'assetsConfig', word, value });
+  for (const [word, w] of entries.slice(0, 60)) {
+    const chosen = w.chosen || [];
+    const row = document.createElement('div');
+    row.className = 'st-words';
+    row.innerHTML = `<div class="st-words-head"><b>${esc(word)}</b><span class="muted small">${w.ids.length} ${w.ids.length === 1 ? 'asset' : 'assets'}${chosen.length ? '' : ' · by label'}</span>${w.ids.length > 1 ? `<label class="small"><input type="checkbox" ${w.mix ? 'checked' : ''}> Mix</label>` : ''}</div><div class="st-words-row"></div>`;
+    const mix = row.querySelector('input');
+    if (mix) mix.onchange = () => set(word, { ids: chosen.length ? chosen : w.ids, mix: mix.checked });
+    const strip = row.querySelector('.st-words-row');
+    w.ids.forEach((id, i) => {
+      const a = byId.get(id) || { id, name: id, type: null };
+      const t = document.createElement('div');
+      t.className = 'st-lib-item st-word-item';
+      const inUse = chosen.includes(id);
+      const thumb = a.type === 'image' ? `<img src="${esc(a.url)}" alt="" loading="lazy">` : a.type === 'video' ? `<video src="${esc(a.url)}" muted loop playsinline preload="metadata"></video>` : `<span>${a.type === 'sound' ? '♪' : '◆'}</span>`;
+      t.innerHTML = `${thumb}<span class="kind">${i === 0 ? 'DEFAULT' : inUse ? 'IN USE' : ''}</span><span class="t">${esc(a.title || a.name)}<small>${esc(a.id || '')}</small></span><span class="st-word-acts"><button type="button" data-a="only">Use only this</button>${inUse ? '<button type="button" data-a="remove">Remove</button>' : '<button type="button" data-a="variant">Add as a variant</button>'}</span>`;
+      t.querySelector('[data-a=only]').onclick = () => set(word, { ids: [id], mix: false });
+      const v = t.querySelector('[data-a=variant]');
+      if (v) v.onclick = () => set(word, { ids: [...(chosen.length ? chosen : [w.ids[0]]).filter((x) => x !== id), id], mix: true });
+      const r = t.querySelector('[data-a=remove]');
+      if (r) r.onclick = () => { const left = chosen.filter((x) => x !== id); set(word, left.length ? { ids: left, mix: w.mix && left.length > 1 } : null); };
+      strip.appendChild(t);
+    });
+    grid.appendChild(row);
   }
 }
 /** Puts a library asset into the game (if it isn't yet) and a thing that uses it where you're looking. */
