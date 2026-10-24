@@ -380,7 +380,7 @@
       const rec = S.recent.list().filter((it) => !it.build || H.mode === 'build').slice(0, 8);
       if (rec.length) html += `<h4>Recent</h4><div class="sw-row">${rec.map((it) => add({ kind: 'item', id: it.id, label: it.name, icon: it.icon, thumb: it.thumb, item: it, lib: it.source === 'library' })).join('')}</div><h4>Everything</h4>`;
     }
-    html += list.length ? `<div class="sw-grid">${list.map(add).join('')}</div>` : `<div class="sw-empty">${nav.layer === 'search' ? `Nothing called “${esc(nav.q)}” yet. Ask the assistant to make one.` : nav.layer === 2 ? 'Loading…' : 'Nothing here yet.'}</div>`;
+    html += list.length ? `<div class="sw-grid">${list.map(add).join('')}</div>` : `<div class="sw-empty">${nav.layer === 'search' ? `Nothing called “${esc(nav.q)}” yet. Ask the Overseer to make one.` : nav.layer === 2 ? 'Loading…' : 'Nothing here yet.'}</div>`;
     if (nav.layer === 2 || nav.layer === 'search') html += `<div class="sw-empty" style="padding:12px 4px 0;font-size:12px">${phone() ? 'Tap to spawn · hold for ×10 · ☆ favorite' : 'Click to spawn · Shift+click or hold for ×10 · ☆ favorite'}${H.mode === 'build' ? ' · saved with the world (Ctrl+Z undoes)' : ''}</div>`;
     sheet.querySelector('.sw-body').innerHTML = html;
   }

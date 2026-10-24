@@ -20,6 +20,7 @@ import { handleMcp } from './mcp.ts';
 import { serveDownload, receiveUpload, uploadLink } from './files.ts';
 import { resumeTasks, recentTasks, getTask, results } from './tasks.ts';
 import { publicUrl } from './config.ts';
+import * as mail from './mail.ts';
 import * as google from './google.ts';
 import { PLANS, subscription, choosePlan, setCancel, billingPortal } from './plans.ts';
 import * as games from './games.ts';
@@ -319,6 +320,13 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       const r = users.login(await readJson(req));
       users.setSessionCookie(res, req, r.sessionToken);
       return send(res, 200, { user: r.user });
+    }
+    // "Forgot your password?": a reset link by email. The same answer whether or not there's an account (mail: false
+    // when this server sends no email, so the page can say to ask support instead).
+    if (route === '/v1/users/forgot' && method === 'POST') {
+      const r = users.forgotPassword((await readJson(req)).email, clientIp(req), publicUrl());
+      if (r && mail.mailOn()) mail.sendReset(r.user.email, r.user.name, r.url);
+      return send(res, 200, { ok: true, mail: mail.mailOn() });
     }
     if (route === '/v1/users/password' && method === 'POST') {
       limitLogins(clientIp(req));

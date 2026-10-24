@@ -81,7 +81,7 @@ function arena(): Things {
   out.tower = thing('tower', 'box', 'Sniper tower', [0, 4, 18], { shape: { size: [6, 0.6, 6] }, material: { color: '#c7b8ff', texture: ARENA.hex, tile: [2, 2] } });
   [[-2.6, 15.4], [2.6, 15.4], [-2.6, 20.6], [2.6, 20.6]].forEach(([x, z], i) => { out[`tower_leg_${i}`] = thing(`tower_leg_${i}`, 'cylinder', 'Tower leg', [x, 1.85, z], { shape: { radius: 0.22, height: 3.7 }, material: { color: '#3a4256' } }); });
   out.tower_trim = thing('tower_trim', 'box', 'Tower light', [0, 4.32, 18], { shape: { size: [6.05, 0.06, 6.05] }, material: { color: '#a855f7', emissive: '#a855f7' }, physics: 'none' });
-  out.pad = thing('pad', 'cylinder', 'Launch pad', [0, 0.1, 12], { shape: { radius: 1.2, height: 0.16 }, material: { color: '#22d3ee', texture: ARENA.grid, emissive: '#0b5a6a' }, behaviors: [{ use: 'launch', power: 19 }, { use: 'glow', color: '#22d3ee', speed: 2 }] });
+  out.pad = thing('pad', 'cylinder', 'Launch pad', [0, 0.1, 12], { shape: { radius: 1.2, height: 0.16 }, material: { color: '#22d3ee', texture: ARENA.grid, emissive: '#0b5a6a' }, behaviors: [{ use: 'launch', power: 16, to: [0, 4.3, 17.2] }, { use: 'glow', color: '#22d3ee', speed: 2 }] });
   out.launcher = model('launcher', 'Rocket launcher', ARENA.launcher, [0, 4.6, 18], 1.3, { physics: 'none', shadow: false, transform: { rotation: [0, 0, 75] }, behaviors: [{ use: 'pickup', gives: 'weapon', weapon: 'launcher', respawn: 30 }] });
   // The shotgun in a crate on a pedestal; health and power cores around the edge.
   out.shotgun_stand = thing('shotgun_stand', 'cylinder', 'Pedestal', [-18, 0.45, -6], { shape: { radius: 0.55, height: 0.9 }, material: { color: '#3a4256', emissive: '#3a1a08' } });

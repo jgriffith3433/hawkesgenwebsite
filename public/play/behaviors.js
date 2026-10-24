@@ -149,18 +149,38 @@
     },
   });
 
+  // `to`: where it throws you (a thing's id or [x, y, z]): up at `power` and across, landing there (the walking player
+  // keeps that momentum in the air, steering a little). Without it, straight up.
+  /** The sideways speed that lands something thrown up at `vy` from `from` on `to`, under the world's gravity. */
+  function across(from, to, vy, game) {
+    const g = Math.abs(game.config.gravity ?? 24);
+    const dh = to[1] - from[1];
+    const disc = vy * vy - 2 * g * dh;
+    if (disc < 0) return null;
+    const t = (vy + Math.sqrt(disc)) / g; // (coming down onto it)
+    return t > 0.05 ? [(to[0] - from[0]) / t, (to[2] - from[2]) / t] : null;
+  }
+  function launch(e, other, o, game) {
+    other.vy = o.power; other.grounded = false; other.standing = null;
+    let at = null;
+    if (Array.isArray(o.to)) at = o.to.map(Number);
+    else if (o.to) { const t = game.find(String(o.to)); if (t) at = [t.x, t.y + (t.half ? t.half[1] : 0), t.z]; }
+    const v = at && across([other.x, other.bottom ?? other.y, other.z], at, o.power, game);
+    if (v) { other.vx = v[0]; other.vz = v[1]; other._flung = { vx: v[0], vz: v[1] }; }
+    other.wake();
+  }
   def(['launch', 'jump-pad', 'launch-pad', 'trampoline'], {
-    title: 'Launches you up', says: (o) => `launches you up (${o.power} m/s)`,
+    title: 'Launches you up', says: (o) => (o.to ? `launches you up (${o.power} m/s) and over to ${Array.isArray(o.to) ? o.to.join(', ') : o.to}` : `launches you up (${o.power} m/s)`),
     defaults: { power: 18 },
     hit(e, other, o, s, game) {
       if (other.physics !== 'dynamic') return;
-      other.vy = o.power; other.grounded = false; other.wake();
+      launch(e, other, o, game);
       game.burst([other.x, other.bottom, other.z], { color: '#22d3ee', count: 16 });
     },
     update(e, dt, o, s, game) {
       // Touching from above while standing on it counts too.
       const p = game.player;
-      if (p && p.standing === e && p.vy <= 0) { p.vy = o.power; p.grounded = false; p.standing = null; }
+      if (p && p.standing === e && p.vy <= 0) launch(e, p, o, game);
     },
   });
 

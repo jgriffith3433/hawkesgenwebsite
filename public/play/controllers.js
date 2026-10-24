@@ -53,7 +53,14 @@
       }
       p.gravity = p.baseGravity ?? 1;
       p._fast = false;
-      p.walk(a, (p.speed || 6) * (sprint ? 1.6 : 1));
+      // Thrown by a launch pad (p._flung): the throw carries on through the air, the keys steer a little; landing ends it.
+      if (p._flung && !p.grounded) {
+        const sp = (p.speed || 6) * 0.35;
+        p.vx = p._flung.vx + a.x * sp; p.vz = p._flung.vz + a.z * sp; p._walked = true;
+      } else {
+        if (p._flung && p.grounded) p._flung = null;
+        p.walk(a, (p.speed || 6) * (sprint ? 1.6 : 1));
+      }
       // Facing where you walk when you can see yourself.
       if (p._view !== 'first' && Math.hypot(a.x, a.z) > 0.1) { const want = Math.atan2(a.x, a.z); let d = want - p.node.rotation.y; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; p.node.rotation.y += d * Math.min(1, dt * 12); }
       if (p.grounded) p._doubled = false;

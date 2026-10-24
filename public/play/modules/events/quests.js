@@ -625,7 +625,7 @@
     const x = w / 2 + dx * k, y = h / 2 + dy * k;
     edge.style.display = 'block';
     edge.style.left = `${r.left + x * sx}px`; edge.style.top = `${r.top + y * sy}px`;
-    edge.firstChild.style.transform = `rotate(${Math.atan2(dy, dx) + Math.PI / 2}rad)`;
+    if (edge.firstChild) edge.firstChild.style.transform = `rotate(${Math.atan2(dy, dx) + Math.PI / 2}rad)`;
     edge.lastChild.textContent = label;
   }
   function updateMarks(t) {

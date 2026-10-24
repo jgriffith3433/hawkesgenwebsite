@@ -78,3 +78,21 @@ test('sandbox: guest snapshot turns the changed world into scene ops', () => {
   // Grenades in the air are not things to keep.
   assert.ok(!Object.values(snap.entities).some((e: any) => e.data && (e.data.grenade || e.data.sticky)));
 });
+
+test('sandbox: the tour asks for the Overseer in the chat, and passes that step by itself where there is no chat', () => {
+  const game = start();
+  H.tick(1);
+  const q = game.events.quests;
+  const steps = (scene.config.quests[0].steps as any[]).map((st) => st.id);
+  assert.deepEqual(steps.slice(-3), ['spawn', 'ask', 'fly'], 'asking the Overseer comes after spawning, before the helicopter');
+  if (q.state('tour') !== 'active') q.start('tour');
+  H.tick(0.5);
+  for (const id of ['drive', 'rod', 'fish', 'boom', 'spawn']) { if (q.step('tour') === id) q.advance('tour'); H.tick(0.3); }
+  assert.equal(q.step('tour'), 'ask');
+  // No editor here (window.HawkesBuild): the step passes by itself within a couple of seconds.
+  for (let i = 0; i < 40 && q.step('tour') === 'ask'; i++) H.tick(0.1);
+  assert.equal(q.step('tour'), 'fly');
+  // (The quest tracker draws its panel and arrow from innerHTML, which this harness's page doesn't parse: those lines
+  // are the harness's, not the game's.)
+  assert.deepEqual([...errors, ...errorBox()].filter((e) => !/^quests: Cannot (read|set) properties of (null|undefined)/.test(e)), []);
+});

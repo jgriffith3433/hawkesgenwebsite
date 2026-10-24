@@ -82,6 +82,8 @@ game.every(0.25, () => {
 let began = false;
 function begin() {
   if (began || game.mode !== 'play') return;
+  // The guest page (/play/sandbox): the account comes first, then the tour goes on in the editor (public/play/guest.js).
+  if (window.HawkesGuest && window.HawkesGuest.accountFirst) return void game.after(2, begin);
   began = true;
   startSound();
   // Pip walks over to meet you (and stays put after: the tour sends you places, Pip waves you on).
@@ -119,7 +121,9 @@ const MOMENTS = {
   fish: { sound: 'power-up.mp3', pip: 'A fish! Here, take the rocket launcher. See the barrels up the beach? Go on.', overseer: 'The sea gives. Remember that.', voice: 'overseer-the-sea-gives.mp3', give: ['rocket-launcher'] },
   boom: { sound: 'level-up.mp3', pip: 'BOOM! Now ask the Overseer for something: hold Q and pick anything.', overseer: 'Destruction is a kind of freedom too.', voice: 'overseer-destruction.mp3' },
   // (The Overseer's "Ask, and I will send it down" is said when they first hold Q: below.)
-  spawn: { sound: 'teleport.mp3', pip: 'It came from the Overseer! Last one: the helicopter on the hill. Go up, way up.' },
+  spawn: { sound: 'teleport.mp3', pip: 'It came from the Overseer! It listens, too: tell it what you want in the chat. Anything!' },
+  // The Overseer in the chat: what you ask for, it makes (on the player's credits). Its answer is in the chat too.
+  ask: { sound: 'teleport.mp3', pip: 'It heard you! Last one: the helicopter on the hill. Go up, way up.', overseer: 'I heard you. Watch the sky.' },
   fly: { sound: 'victory.mp3', pip: 'Look down! That speck in the sea is our island. The spawn gun and the gravity gun are yours too.', overseer: 'That is your world. All of it.', voice: 'overseer-your-world.mp3', seconds: 6, give: ['spawn-gun', 'gravity-gun'] },
 };
 // Each moment plays once: a step the quest enters again (a restored or re-synced quest state, a second blast of the
@@ -162,6 +166,15 @@ game.every(0.5, () => {
   const belt = (game.mayhem && game.mayhem.belt) || [];
   if (belt.includes('rocket-launcher')) say(`Press ${H && H.touchUi ? 'the ⇄ button' : 'Q'} to switch to the rocket launcher, then click to fire.`, 6);
   else if (game.mayhem && game.mayhem.giveTool) game.mayhem.giveTool('rocket-launcher'); // (lost or never given: back in hand)
+});
+
+// ------------------------------------------------------------------ asking the Overseer in the chat
+// The editor tells the game when you send the Overseer a message (game.on('asked')). Where there's no chat (a published
+// copy of the island, the guest page), the step passes by itself.
+game.every(1, () => {
+  const q = game.events && game.events.quests;
+  if (window.HawkesBuild || !q || q.state('tour') !== 'active' || q.step('tour') !== 'ask') return;
+  game.emit('asked', { skipped: true });
 });
 
 // ------------------------------------------------------------------ the last step: high enough to see the planet

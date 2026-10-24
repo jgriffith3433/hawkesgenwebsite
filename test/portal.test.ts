@@ -109,6 +109,16 @@ test('sign up, sign in, keys, sign out', async () => {
   assert.equal((await call('/v1/users/login', { body: { email: c.user.email, password: 'wrong-password' } })).status, 401);
   const login = await call('/v1/users/login', { body: { email: c.user.email, password: 'password123' } });
   assert.equal(login.status, 200);
+  // "Forgot your password?" (the sandbox's account sheet): the same answer for an account and for nobody, no email
+  // from a server without mail, a few an hour per email; the link it makes sets the password.
+  const forgot = (email: string, ip = '10.9.9.9') => call('/v1/users/forgot', { body: { email }, headers: { 'X-Forwarded-For': ip } });
+  assert.deepEqual((await forgot(c.user.email)).body, { ok: true, mail: false });
+  assert.deepEqual((await forgot('nobody-here@example.com')).body, { ok: true, mail: false });
+  assert.equal((await forgot('not an email')).status, 400);
+  await forgot(c.user.email, '10.9.9.8'); await forgot(c.user.email, '10.9.9.7');
+  assert.equal((await forgot(c.user.email, '10.9.9.6')).status, 429, 'three an hour per email');
+  const { forgotPassword } = await import('../src/users.ts');
+  assert.equal(forgotPassword('nobody-else@example.com', '10.9.9.5', 'https://x'), null);
 
   const minted = await call('/v1/users/api-key', { cookie: c.cookie, method: 'POST' });
   assert.match(minted.body.apiKey, /^hg_/);

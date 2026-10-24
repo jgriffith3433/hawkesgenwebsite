@@ -105,6 +105,7 @@ const QUEST = {
     { id: 'fish', text: 'Cast the rod into the sea and catch a fish', goal: { catch: 'any' }, done: [{ emit: 'tour', data: { step: 'fish' } }] },
     { id: 'boom', text: 'Blow up the fuel barrels on the beach with the rocket launcher', marker: 'barrel_1', goal: { event: 'explosion' }, done: [{ emit: 'tour', data: { step: 'boom' } }] },
     { id: 'spawn', text: 'Spawn something (hold Q, or the ➕ button): the Overseer beams it down', goal: { event: 'spawned' }, done: [{ emit: 'tour', data: { step: 'spawn' } }] },
+    { id: 'ask', text: 'Tell the Overseer what you want: type it in the chat (try "a castle on the hill")', goal: { event: 'asked' }, done: [{ emit: 'tour', data: { step: 'ask' } }] },
     { id: 'fly', text: 'Take the helicopter up high and look down at the planet', marker: 'heli', goal: { event: 'sandbox-high' }, done: [{ emit: 'tour', data: { step: 'fly' } }] },
   ],
   reward: { score: 100, text: 'The whole planet is yours' },
