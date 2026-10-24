@@ -35,7 +35,7 @@ Options every maker takes: `x, y, z` (or `position: [x, y, z]`), `rotation` (deg
 
 **physics:** `'static'` (stays put, solid; the default), `'dynamic'` (falls, bounces, gets pushed and thrown),
 `'kinematic'` (solid, moves only when you move it; things on it ride along), `'trigger'` (not solid, reports `hit`),
-`'none'` (decoration). Colliders are boxes around the shape.
+`'none'` (decoration). Things collide by their real shape (a ball rolls, a crate tumbles, a ring can be flown through) and turn as they fall.
 
 ## Entities
 
