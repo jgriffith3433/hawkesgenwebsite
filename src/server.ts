@@ -267,7 +267,9 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       res.setHeader('Access-Control-Allow-Origin', '*');
       return send(res, 200, { ...b, assets: games.templateAssets(b.template) });
     }
-    // The community library is public: what's shared is for everyone (searching, browsing, its files).
+    // The community library is public: what's shared is for everyone (searching, browsing, its files). Open CORS: the
+    // spawn wheel searches it from inside the play sandbox (origin null).
+    if (method === 'GET' && (route === '/v1/community' || route === '/v1/community/categories' || route === '/v1/community/tags')) res.setHeader('Access-Control-Allow-Origin', '*');
     if (route === '/v1/community' && method === 'GET') {
       const p = (k: string) => url.searchParams.get(k);
       return send(res, 200, community.search({ q: p('q'), kind: p('kind'), tag: p('tag'), category: p('category'), limit: p('limit'), offset: p('offset'), sort: p('sort'), exact: p('exact') === '1' }));

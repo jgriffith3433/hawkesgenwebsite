@@ -404,7 +404,9 @@
     root.position.set(t.cfg.center[0], 0, t.cfg.center[1]);
     // A round world: the terrain is a thing on the planet, upright where its middle is (the frame moves it from there).
     if (t.round && H.planet.frame.fromScene) {
-      const at = H.planet.frame.fromScene({ position: [t.cfg.center[0], 0, t.cfg.center[1]], rotation: 0 });
+      // (Its middle on the ground: [x, 0, z] lifted onto the ball, so a terrain far from the top doesn't float.)
+      const R = t.round.radius, cx = t.cfg.center[0], cz = t.cfg.center[1], l = Math.hypot(cx, R, cz);
+      const at = H.planet.frame.fromScene({ position: [cx * R / l, R * R / l - R, cz * R / l], rotation: 0 });
       root.position.set(at.position[0], at.position[1], at.position[2]);
       root.rotation.set(at.rotation[0] * Math.PI / 180, at.rotation[1] * Math.PI / 180, at.rotation[2] * Math.PI / 180);
     }

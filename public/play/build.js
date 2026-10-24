@@ -195,7 +195,7 @@
     </div>
     <div class="hud-toast" id="hudToast"></div>
     <button class="hud-control" id="hudControl" type="button" title="Take control: move and look around (Esc to stop)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.2" stroke="currentColor" stroke-width="1.4"/><path d="M8 1v3M8 12v3M1 8h3M12 8h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span>Take control</span></button>
-    <div class="hud-controlling" id="hudControlling" hidden><b>CONTROLLING</b> · WASD MOVE · E/C UP & DOWN · HOLD Q: SPAWN · <kbd>ESC</kbd> TO RELEASE</div>
+    <div class="hud-controlling" id="hudControlling" hidden><b>CONTROLLING</b> · WASD FLY · SPACE/C UP & DOWN · F: WALK · HOLD Q: SPAWN · <kbd>ESC</kbd> TO RELEASE</div>
     <svg class="hud-leader" id="hudLeader"><line id="hudLine"/><circle id="hudDot" r="4"/></svg>
     <div class="hud-touch" id="hudTouch" hidden>
       <button class="tbtn" id="tGrab" type="button">✋<span>Grab</span></button>

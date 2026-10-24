@@ -111,8 +111,12 @@
     // Looking around: with the pointer locked (click the game), or by dragging with the right button.
     // Looking around: with the pointer captured (click the game), or by dragging (right button, or left on nothing).
     // (hooks.lookAlways: control without capture, where the browser won't capture the mouse.)
+    // (Not just as the capture starts or ends, and never one jump: browsers report the cursor's leap back to where it
+    // was as one big movement then, which turned the camera to the sky.)
+    if (performance.now() < lookQuietUntil || Math.abs(e.movementX || 0) > 250 || Math.abs(e.movementY || 0) > 250) return;
     if (mouse.locked || (e.pointerType === 'mouse' && (mouse.look || (mouse.dragLook && (e.buttons & 1)) || (hooks.lookAlways && hooks.lookAlways()) || (softLook && mode !== 'build')))) { mouse.dx += e.movementX || 0; mouse.dy += e.movementY || 0; }
   });
+  let lookQuietUntil = 0;
   canvas.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'mouse' && e.button === 2) { mouse.look = !hooks.dragLook || hooks.dragLook(e); return; }
     if (e.pointerType !== 'mouse') return;
@@ -122,7 +126,11 @@
   window.addEventListener('pointerup', (e) => { if (e.button === 2) mouse.look = false; else if (e.pointerType === 'mouse') { mouse.down = false; mouse.dragLook = false; } });
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   canvas.addEventListener('wheel', (e) => { mouse.wheel += Math.sign(e.deltaY); e.preventDefault(); }, { passive: false });
-  document.addEventListener('pointerlockchange', () => { mouse.locked = document.pointerLockElement === canvas; for (const f of lockWatchers) f(mouse.locked); });
+  document.addEventListener('pointerlockchange', () => {
+    mouse.locked = document.pointerLockElement === canvas;
+    mouse.dx = 0; mouse.dy = 0; lookQuietUntil = performance.now() + 120;
+    for (const f of lockWatchers) f(mouse.locked);
+  });
   const lockWatchers = [];
   // Any dialog over the game (a sign-up sheet, a share window, a module's panel, one added later) gets the mouse at
   // once: the pointer is freed as it appears, and a click while one is open doesn't capture it again.
@@ -1011,7 +1019,8 @@
     if (s.tool !== undefined) p.tool = s.tool || null;
     else if (s.weapon !== undefined) p.weapon = s.weapon || null;
     p.gravity = p.flying ? 0 : p.baseGravity;
-    setView(p, s.view || p.view || 'first', s.distance);
+    // (Building, you are a flying eye: first person, whatever view the game plays in.)
+    setView(p, mode === 'build' ? 'first' : s.view || p.view || 'first', s.distance);
   }
 
   // ------------------------------------------------------------------ controllers: how the player moves (H.controllers)
@@ -1072,7 +1081,7 @@
     p.control = (name, opts) => { useController(p, name, opts); return p; };
     const yaw = W.camera.yaw;
     applyPlayerSettings(p);
-    if (W.keepPose) { p.position = W.keepPose.p; W.camera.yaw = W.keepPose.yaw; W.camera.pitch = W.keepPose.pitch; p.flying = W.keepPose.flying; W.keepPose = null; }
+    if (W.keepPose) { p.position = W.keepPose.p; W.camera.yaw = W.keepPose.yaw; W.camera.pitch = W.keepPose.pitch; p.flying = mode === 'build' || (W.keepPose.flying && p.canFly); W.keepPose = null; }
     else W.camera.yaw = yaw || (spawnYaw() ?? 0);
     buildTouch();
     return p;
@@ -2057,7 +2066,7 @@
     // Nobody set up a camera: you get the first-person player. Building, you are always that player.
     if ((mode === 'build' && cfg.player !== false) || (!W.camera.claimed && cfg.player !== false)) {
       const p = ensurePlayer();
-      if (mode === 'build') { p.controls = true; p.gravity = p.baseGravity ?? 1; }
+      if (mode === 'build') { p.controls = true; p.flying = true; p.vy = 0; p.gravity = 0; } // (building: you fly; F lands)
       if (W.camera.target !== p || !['fps', 'third', 'top'].includes(W.camera.mode)) setView(p, p._view || 'first');
     } else if (W.player) W.camera.internal(() => { if (W.camera.mode === 'fixed') W.camera.api.firstPerson(W.player, { height: 1.6 }); });
     for (const f of hooks.world) if (f.enter) f.enter(W);

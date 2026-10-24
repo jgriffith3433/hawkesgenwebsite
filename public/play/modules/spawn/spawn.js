@@ -205,15 +205,44 @@
   }
 
   // ------------------------------------------------------------------ the world: terrain, water, weather, disasters
+  /** A point around you in the terrain's own coordinates ([x, z]). On a round world the terrain is a patch of the
+   *  planet: a point outside it (less `margin` from its edge) grows it to hold both (up to 1024 m across), or else, when
+   *  there's none yet or it is far, moves it to be round you (`cfg`, the terrain's config, is changed in place). */
+  S.terrainPoint = terrainPoint;
+  function terrainPoint(cfg, x, y, z, margin) {
+    const fr = H.planet && H.planet.frame;
+    if (!fr || !fr.on || !fr.toPlanet) return [r2(x), r2(z)];
+    const t = H.terrain && H.terrain.info;
+    if (t) {
+      const f = H.terrain.fieldPoint([x, y, z]);
+      const half = t.size / 2;
+      const dx = Math.abs(f[0] - t.center[0]), dz = Math.abs(f[2] - t.center[1]);
+      if (dx < half - margin && dz < half - margin) return [r2(f[0]), r2(f[2])];
+      const lo = [Math.min(t.center[0] - half, f[0] - margin), Math.min(t.center[1] - half, f[2] - margin)];
+      const hi = [Math.max(t.center[0] + half, f[0] + margin), Math.max(t.center[1] + half, f[2] + margin)];
+      const size = Math.ceil(Math.max(hi[0] - lo[0], hi[1] - lo[1]) / 64) * 64;
+      if (size <= 1024) {
+        cfg.center = [r2((lo[0] + hi[0]) / 2), r2((lo[1] + hi[1]) / 2)];
+        cfg.size = size;
+        return [r2(f[0]), r2(f[2])];
+      }
+    }
+    // ([x, 0, z] on the ball is the field's middle, as terrain.js puts it: the planet point's direction, at height 0.)
+    const R = H.planet.configure().radius;
+    const onBall = (p) => { const q = fr.toPlanet(p); const k = R / (q[1] + R); return [r2(q[0] * k), r2(q[2] * k)]; };
+    const v = S.viewer();
+    cfg.center = onBall([v.x, v.y, v.z]);
+    return onBall([x, y, z]);
+  }
   function world(it, w, pre) {
     const building = H.mode === 'build';
     const at = pre.center;
     const c = (() => { try { return H.lib.effectiveConfig() || {}; } catch { return {}; } })();
     if (w.terrainAdd) {
-      const v = (() => { const p = S.viewer(); return p; })();
+      const v = S.viewer();
       const dist = (w.radius || 20) + 8;
-      const x = r2(v.x + v.dx * dist), z = r2(v.z + v.dz * dist);
       const cur = c.terrain && typeof c.terrain === 'object' ? clone(c.terrain) : { shape: 'flat' };
+      const [x, z] = terrainPoint(cur, v.x + v.dx * dist, v.y, v.z + v.dz * dist, (w.radius || 20) + 10);
       const add = { type: w.terrainAdd, at: [x, z], radius: w.radius };
       if (w.height) add.height = w.height;
       if (w.depth) add.depth = w.depth;
@@ -223,6 +252,8 @@
       say(`${it.name.replace(/ here$/, '')} ✓ · Ctrl+Z takes it back`);
     } else if (w.terrain) {
       const cur = c.terrain && typeof c.terrain === 'object' ? clone(c.terrain) : {};
+      const v = S.viewer();
+      terrainPoint(cur, v.x, v.y, v.z, Number(cur.size || 512) * 0.3); // (round: around you, not at the planet's top)
       edit([{ op: 'config', patch: { terrain: { ...cur, shape: w.terrain } } }], 'the ground');
       say(`${it.name} ✓ · Ctrl+Z takes it back`);
     } else if (w.water) {
