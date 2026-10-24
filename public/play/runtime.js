@@ -303,12 +303,32 @@
     get scale() { const s = this.node.scaling; return s.x === s.y && s.y === s.z ? s.x : [s.x, s.y, s.z]; }
     set scale(v) { if (typeof v === 'number') this.node.scaling.setAll(v); else { const p = vec(v, [1, 1, 1]); this.node.scaling.set(p[0], p[1], p[2]); } this.measure(); }
     get forward() { const a = this.node.rotation.y; return { x: Math.sin(a), z: Math.cos(a) }; }
-    get color() { return this._mat && this._mat.diffuseColor ? this._mat.diffuseColor.toHexString() : null; }
-    set color(c) { if (this._mat && this._mat.diffuseColor) this._mat.diffuseColor = hex(c); }
+    get color() {
+      const ic = this.node.instancedBuffers && this.node.instancedBuffers.color;
+      if (ic) return new B.Color3(ic.r, ic.g, ic.b).toHexString();
+      return this._mat && this._mat.diffuseColor ? this._mat.diffuseColor.toHexString() : null;
+    }
+    set color(c) {
+      // A copy (instanced) has its own color; anything else gets its own material before it changes.
+      if (this.node.instancedBuffers && this.node.instancedBuffers.color) { const k = hex(c); this.node.instancedBuffers.color = new B.Color4(k.r, k.g, k.b, 1); return; }
+      if (this.ownMaterial() && this._mat.diffuseColor) this._mat.diffuseColor = hex(c);
+    }
     get emissive() { return this._mat && this._mat.emissiveColor ? this._mat.emissiveColor.toHexString() : null; }
-    set emissive(c) { if (this._mat) this._mat.emissiveColor = hex(c, '#000000'); }
+    set emissive(c) { if (this.ownMaterial()) this._mat.emissiveColor = hex(c, '#000000'); }
     get opacity() { return this._mat ? this._mat.alpha : 1; }
-    set opacity(v) { if (this._mat) this._mat.alpha = Math.max(0, Math.min(1, Number(v))); }
+    set opacity(v) { if (this.ownMaterial()) this._mat.alpha = Math.max(0, Math.min(1, Number(v))); }
+    /** Things that look alike share one material; call this before changing e._mat yourself, so only this one changes.
+     *  (Instanced copies share their look for good: their color is their own, the rest is all the copies'.) Returns
+     *  the material, or null. */
+    ownMaterial() {
+      const m = this._mat;
+      if (!m || !m._shared || this._instanced) return m;
+      const mine = m.clone(`${m.name}-own`);
+      mine._shared = false;
+      for (const x of [this.node, ...(this.node.getChildMeshes ? this.node.getChildMeshes() : [])]) if (x.material === m) x.material = mine;
+      this._mat = mine;
+      return mine;
+    }
     get visible() { return this.node.isEnabled(); }
     set visible(v) { this.node.setEnabled(Boolean(v)); }
     get solid() { return this.alive && (this.physics === 'static' || this.physics === 'dynamic' || this.physics === 'kinematic') && this.node.isEnabled() && !this.ghost; }
@@ -458,8 +478,13 @@
     }
   }
 
+  /** A material for a look. Plain looks (a color, a glow, an opacity: no texture) are shared by everything that has
+   *  them, so a world of a thousand crates has a few materials; changing one thing's look gives it its own (ownMaterial). */
   function material(opts, name) {
+    const key = !opts.texture && opts.share !== false ? `${hex(opts.color, '#cfcfcf').toHexString()}|${opts.emissive ? hex(opts.emissive).toHexString() : ''}|${opts.opacity ?? ''}` : null;
+    if (key && W.mats && W.mats.has(key)) return W.mats.get(key);
     const m = new B.StandardMaterial(name || 'm', W.scene);
+    if (key && W.mats) { m._shared = true; W.mats.set(key, m); }
     m.diffuseColor = hex(opts.color, '#cfcfcf');
     m.specularColor = new B.Color3(0.08, 0.08, 0.08);
     if (opts.emissive) m.emissiveColor = hex(opts.emissive);
@@ -485,17 +510,44 @@
     if (opts.scale !== undefined && opts.scale !== null) { if (typeof opts.scale === 'number') e.node.scaling.setAll(opts.scale); else { const s = vec(opts.scale, [1, 1, 1]); e.node.scaling.set(s[0] || 1, s[1] || 1, s[2] || 1); } }
     if (opts.visible === false) e.node.setEnabled(false);
     if (opts.velocity) e.velocity = opts.velocity;
-    if (W.shadows && opts.shadow !== false && e.kind !== 'sprite' && e.kind !== 'text') { for (const m of [e.node, ...e.node.getChildMeshes()]) if (m.getTotalVertices && m.getTotalVertices() > 0 && !(m.metadata && m.metadata.decor)) { W.shadows.addShadowCaster(m); m.receiveShadows = true; } }
+    if (W.shadows && opts.shadow !== false && e.kind !== 'sprite' && e.kind !== 'text') { for (const m of [e.node, ...e.node.getChildMeshes()]) if (m.getTotalVertices && m.getTotalVertices() > 0 && !(m.metadata && m.metadata.decor)) { W.shadows.addShadowCaster(m); (e._casters ||= new Set()).add(m); m.receiveShadows = true; } }
     e.measure();
     return e;
   }
 
-  function shape(kind, make, opts = {}) {
-    const mesh = make();
+  /** An entity made of one mesh. `geometry` (a key for its shape and size) lets copies be instances of one mesh: one
+   *  draw call for a hundred crates. Things are instanced when asked (opts.instanced, spec "instanced": true,
+   *  game.many) and look plain (no texture). */
+  function shape(kind, make, opts = {}, geometry) {
+    const inst = opts.instanced && geometry && !opts.texture ? instanceOf(kind, make, opts, geometry) : null;
+    const mesh = inst || make();
     const e = new Entity(mesh, opts, kind);
-    mesh.material = e._mat = material(opts, kind);
+    if (inst) {
+      e._instanced = true;
+      e._mat = inst.sourceMesh.material;
+      const c = hex(opts.color, '#cfcfcf');
+      inst.instancedBuffers.color = new B.Color4(c.r, c.g, c.b, 1);
+    } else mesh.material = e._mat = material(opts, kind);
     mesh.receiveShadows = true;
     return place(e, opts);
+  }
+  /** The hidden mesh a kind of copy is an instance of (one per shape, glow and opacity, per world). */
+  function instanceOf(kind, make, opts, geometry) {
+    const key = `${kind}|${geometry}|${opts.emissive || ''}|${opts.opacity ?? ''}`;
+    let src = W.sources.get(key);
+    if (!src || src.isDisposed()) {
+      src = make();
+      src.name = `${kind}-copies`;
+      src.material = material({ color: '#ffffff', emissive: opts.emissive, opacity: opts.opacity, share: false }, kind);
+      src.registerInstancedBuffer('color', 4);
+      src.instancedBuffers.color = new B.Color4(1, 1, 1, 1);
+      src.isPickable = false;
+      src.isVisible = false;
+      src.receiveShadows = true;
+      src.metadata = { decor: true, source: true };
+      W.sources.set(key, src);
+    }
+    return src.createInstance(kind);
   }
   const size3 = (s, d) => (Array.isArray(s) ? [s[0] ?? d, s[1] ?? d, s[2] ?? d] : [Number(s) || d, Number(s) || d, Number(s) || d]);
 
@@ -564,7 +616,7 @@
       position: t.position, rotation: t.rotation, scale: t.scale,
       color: m.color, emissive: m.emissive, opacity: m.opacity, texture: m.texture, tile: m.tile,
       bounce: body.bounce, friction: body.friction, mass: body.mass, grab: body.grab,
-      shadow: spec.shadow, visible: spec.visible, lenient: true,
+      shadow: spec.shadow, visible: spec.visible, instanced: spec.instanced, lenient: true,
     };
   }
 
@@ -1237,6 +1289,19 @@
       load(k, fallback = null) { const v = saved.get(String(k)); return v === undefined ? fallback : JSON.parse(v); },
 
       // game.box(), game.model(), ...: every kind's maker (H.kinds), added below.
+      /** Many of a thing at once, as copies of one mesh (one draw call): game.many(100, (i) => ({ type: 'box', x: i, color })).
+       *  `make` is the options (or a function of the index giving them), with `type` the kind (box by default). The
+       *  spawn budget (H.budget.entities) keeps the world playable: past it, the oldest made things make room. */
+      many(count, make = {}) {
+        const out = [];
+        for (let i = 0; i < Math.max(0, Math.floor(Number(count) || 0)); i++) {
+          const o = { instanced: true, ...(typeof make === 'function' ? make(i) : make) };
+          const k = kindDefs.get(o.type || 'box');
+          if (!k) throw new Error(`game.many: no kind "${o.type}"`);
+          out.push(typeof k.maker === 'function' && k.name !== 'plane' ? k.maker(o.asset || o.image || o.text || o, o) : k.build(o, o, null));
+        }
+        return out;
+      },
 
       find: (name) => { for (const e of W.entities) if (e.name === name || (e.sceneId && e.sceneId === name)) return e; return null; },
       all: (tag) => [...W.entities].filter((e) => !tag || e.tag === tag || e.name === tag),
@@ -1768,7 +1833,7 @@
     if (!graph.entities || typeof graph.entities !== 'object') graph.entities = {};
     if (!graph.config || typeof graph.config !== 'object') graph.config = {};
     const scene = new B.Scene(engine);
-    W = { scene, config: { ...graph.config, ...gameJson }, gameJson, graph, entities: new Set(), byId: new Map(), starts: [], updates: [], timers: [], time: 0, dt: STEP, paused: false, restartAsked: false, state: {}, pixelated: Boolean(gameJson.pixelated), file: null, skybox: null, player: null, netHandlers: new Map(), events: new Map(), catchY: -25, keepPose, started: false };
+    W = { scene, config: { ...graph.config, ...gameJson }, gameJson, graph, entities: new Set(), byId: new Map(), starts: [], updates: [], timers: [], time: 0, dt: STEP, paused: false, restartAsked: false, state: {}, pixelated: Boolean(gameJson.pixelated), file: null, skybox: null, player: null, netHandlers: new Map(), events: new Map(), catchY: -25, keepPose, started: false, mats: new Map(), sources: new Map() };
     for (const f of hooks.scene) try { f(scene, W); } catch (err) { report(err); } // physics.js: the scene's physics world
     W.ui = ui();
     uiLayer.removeAttribute('style');
@@ -1785,7 +1850,7 @@
       W.sun.position = new B.Vector3(20, 40, -20);
       W.sun.diffuse = new B.Color3(1, 0.96, 0.88);
       if (cfg.shadows !== false) {
-        const sg = new B.ShadowGenerator(1024, W.sun);
+        const sg = new B.ShadowGenerator(touchUi ? 512 : 1024, W.sun);
         sg.useBlurExponentialShadowMap = true;
         sg.blurKernel = 24;
         sg.bias = 0.0005;
