@@ -591,7 +591,8 @@
   function ensureClock(v) {
     if (!S) return;
     const o = v && typeof v === 'object' ? v : typeof v === 'number' ? { hour: v } : {};
-    if (!S.clock) S.clock = { hour: 8, day: 720, light: true, run: true };
+    // One clock for the world: the sky's (H.sky owns the time of day; config.time and this are the same clock).
+    if (!S.clock) S.clock = H.sky ? H.sky.clock(true) : { hour: 8, day: 720, light: true, run: true };
     if (o.hour !== undefined || o.start !== undefined) S.clock.hour = ((num(o.hour ?? o.start, 8) % 24) + 24) % 24;
     if (o.day !== undefined) S.clock.day = Math.max(10, num(o.day, 720));
     if (o.minutes !== undefined) S.clock.day = Math.max(10, num(o.minutes, 12) * 60);
@@ -601,36 +602,10 @@
   function setHour(h) { ensureClock(); S.clock.hour = ((Number(h) % 24) + 24) % 24; S.clock.jumped = true; }
   const crossed = (a, b, h) => (b >= a ? a < h && h <= b : h > a || h <= b);
   function daylight(h) { if (h >= 7 && h <= 18) return 1; if (h < 5 || h > 20) return 0.12; return h < 7 ? 0.12 + (h - 5) / 2 * 0.88 : 1 - (h - 18) / 2 * 0.88; }
+  /** The dark (disasters, zombie nights) goes to the sky, which works out the light with the clock (H.sky). */
   function applyLight() {
-    const w = W();
-    if (!S || !w || !w.scene) return;
-    const dark = S.dark.v;
-    const usesClock = S.clock && S.clock.light;
-    if (!usesClock && dark < 0.003) { if (S.lit) restoreLight(); return; }
-    if (!S.base) S.base = { hemi: w.hemi ? w.hemi.intensity : null, sun: w.sun ? w.sun.intensity : null, clear: w.scene.clearColor.clone(), fog: w.scene.fogColor ? w.scene.fogColor.clone() : null };
-    S.lit = true;
-    const f = (usesClock ? daylight(S.clock.hour) : 1) * (1 - 0.85 * Math.min(1, dark));
-    const weather = w.features && w.features.get && w.features.get('weather');
-    const k = Math.max(0.1, f);
-    if (w.hemi && S.base.hemi !== null) w.hemi.intensity = (weather ? w.hemi.intensity : S.base.hemi) * Math.max(0.2, k);
-    if (w.sun && S.base.sun !== null) w.sun.intensity = (weather ? w.sun.intensity : S.base.sun) * k;
-    const night = new B.Color4(0.03, 0.04, 0.1, 1);
-    const c = S.base.clear;
-    w.scene.clearColor = new B.Color4(night.r + (c.r - night.r) * f, night.g + (c.g - night.g) * f, night.b + (c.b - night.b) * f, 1);
-    if (w.scene.fogMode && S.base.fog) w.scene.fogColor = B.Color3.Lerp(new B.Color3(0.03, 0.04, 0.1), S.base.fog, f);
-    const dome = w.dome && (w.dome.mesh || w.dome);
-    if (dome && 'visibility' in dome) dome.visibility = 0.05 + 0.95 * f;
-  }
-  function restoreLight() {
-    const w = W();
-    if (!S || !S.base || !w) return;
-    if (w.hemi && S.base.hemi !== null) w.hemi.intensity = S.base.hemi;
-    if (w.sun && S.base.sun !== null) w.sun.intensity = S.base.sun;
-    w.scene.clearColor = S.base.clear.clone();
-    if (S.base.fog && w.scene.fogMode) w.scene.fogColor = S.base.fog.clone();
-    const dome = w.dome && (w.dome.mesh || w.dome);
-    if (dome && 'visibility' in dome) dome.visibility = 1;
-    S.lit = false;
+    if (!S || !H.sky) return;
+    H.sky.set('events', S.dark.v > 0.003 ? { dark: S.dark.v } : null);
   }
   /** Darkens the world (0 to 1) over `fade` seconds, for `seconds` if given (then back). Disasters and zombie nights. */
   function setDark(v, fade = 2, seconds = null) { if (!S) return; S.dark.to = Math.max(0, Math.min(1, Number(v) || 0)); S.dark.rate = 1 / Math.max(0.05, fade); S.dark.until = seconds ? now() + seconds : null; }
@@ -1025,7 +1000,7 @@
       weatherSeen(typeof v === 'string' ? lower(v) : name);
     },
   });
-  defineAction('sky', { scope: 'all', run(a) { try { G().sky(a.sky); if (S.base) S.base.clear = W().scene.clearColor.clone(); } catch (err) { report(err, 'events sky'); } } });
+  defineAction('sky', { scope: 'all', run(a) { try { G().sky(a.sky); } catch (err) { report(err, 'events sky'); } } });
   defineAction('time', {
     scope: 'all',
     run(a) {
@@ -1136,13 +1111,15 @@
     if (!s) return;
     s.actionsThisStep = 0;
     const w = W();
-    // The clock runs everywhere (the host's is sent to everyone).
+    // The clock (the sky's: it runs it, and sends the host's to everyone); time rules fire as it crosses their hour.
+    if (!s.clock && H.sky && H.sky.clock(false)) s.clock = H.sky.clock(false);
     if (s.clock && s.clock.run !== false && playing()) {
-      const prev = s.clock.hour;
-      s.clock.hour = (s.clock.hour + dt * 24 / s.clock.day) % 24;
+      const prev = s.lastHour ?? s.clock.hour;
+      if (!H.sky) s.clock.hour = (s.clock.hour + dt * 24 / s.clock.day) % 24;
       if (net.host && active() && !s.clock.jumped) for (const r of [...s.rules]) for (const t of r.when) if (t.type === 'time' && crossed(prev, s.clock.hour, ((t.time % 24) + 24) % 24)) { trigger(r, { hour: t.time }, false); break; }
       s.clock.jumped = false;
     }
+    s.lastHour = s.clock ? s.clock.hour : null;
     // The dark comes and goes.
     if (s.dark.until !== null && now() >= s.dark.until) { s.dark.to = 0; s.dark.until = null; }
     if (s.dark.v !== s.dark.to) { const d = s.dark.to - s.dark.v; s.dark.v += Math.sign(d) * Math.min(Math.abs(d), dt * s.dark.rate); }
@@ -1366,14 +1343,13 @@
   if (H.sync && H.sync.state) {
     H.sync.state('events', {
       rate: 6,
-      get: () => (live() ? { v: S.vars, p: S.pvars, i: S.inv, n: S.names, h: S.clock ? r2(S.clock.hour) : null, r: S.rules.filter((r) => !r.enabled).map((r) => r.id) } : null),
+      get: () => (live() ? { v: S.vars, p: S.pvars, i: S.inv, n: S.names, r: S.rules.filter((r) => !r.enabled).map((r) => r.id) } : null),
       set: (st) => {
         if (!live()) return;
         if (st.v) S.vars = st.v;
         if (st.p) S.pvars = st.p;
         if (st.i) S.inv = st.i;
         if (st.n) S.names = st.n;
-        if (st.h !== null && st.h !== undefined) { ensureClock(); if (Math.abs(S.clock.hour - st.h) > 0.08 && Math.abs(S.clock.hour - st.h) < 23.9) S.clock.hour = st.h; }
         if (Array.isArray(st.r)) for (const r of S.rules) r.enabled = !st.r.includes(r.id);
       },
     });

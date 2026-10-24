@@ -1,7 +1,7 @@
 ## Vehicles (`game.car()`, `game.vehicles`)
 
 Every vehicle kind has a maker that returns the vehicle (an entity): `game.car(opts)`, `game.truck(opts)` (the 4x4),
-`game.bicycle`, `game.motorbike`, `game.boat`, `game.submarine`, `game.airplane`, `game.helicopter`. Options are the
+`game.bicycle`, `game.motorbike`, `game.boat`, `game.submarine`, `game.airplane`, `game.helicopter`, `game.rocket`, `game.spaceship`. Options are the
 spec's: `x, y, z` (or `position`; no `y` puts it on the floor at 0), `rotation`, `color`, `name`, `scale`, `speed`,
 `power`, `grip`, `handling`, `mass`, `health`, `model`, `data`.
 

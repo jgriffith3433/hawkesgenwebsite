@@ -232,6 +232,8 @@
     window.addEventListener('pointerdown', (e) => { if (!inUi(e)) firstAction(e.pointerType === 'touch' ? 'touch' : 'click'); }, true);
     const game = H.game;
     const on = (ev, f) => { try { game.on(ev, f); } catch { /* an event this build doesn't have */ } };
+    // The Overseer's intro (modules/overseer/intro.js) plays first here: did they watch it?
+    on('intro', (d) => { if (d && d.state === 'end') track('sandbox_intro', { skipped: Boolean(d.skipped) }); });
     on('explosion', () => tick('boom'));
     on('cast', () => tick('fish'));
     on('catch', () => tick('fish'));

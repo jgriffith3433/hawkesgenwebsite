@@ -114,6 +114,8 @@ if (navigator.userAgentData && typeof navigator.userAgentData.mobile === 'boolea
 const toStage = (m) => { try { stage.contentWindow.postMessage(m, '*'); } catch {} };
 async function loadStage() {
   const bundle = await get(`${API}/games/${gameId}/bundle`);
+  // Whether this player has seen the Overseer's intro (the stage is sandboxed: it has no storage of its own).
+  try { if (localStorage.getItem('hg_overseer_intro')) bundle.overseen = true; } catch {}
   const send = () => toStage({ type: 'bundle', bundle, mode: 'build' });
   if (stageReady) send(); else stageBundle = send;
   toStage({ type: 'advanced', on: $('advTools').checked });
@@ -125,6 +127,9 @@ window.addEventListener('message', async (e) => {
   const m = e.data || {};
   if (m.source !== 'hawkes-play') return;
   switch (m.type) {
+    case 'overseer-seen':
+      try { localStorage.setItem('hg_overseer_intro', String(Date.now())); } catch {}
+      return;
     case 'ready':
       stageReady = true;
       if (stageBundle) { stageBundle(); stageBundle = null; }
@@ -279,7 +284,7 @@ function renderChat(fresh) {
   for (const msg of chatHistory.slice(-6)) {
     const div = document.createElement('div');
     div.className = `msg ${msg.role === 'user' ? 'user' : msg.role === 'system' ? 'system' : 'ai'}${msg === fresh ? ' new' : ''}`;
-    if (msg.role !== 'system') div.innerHTML = `<span class="who">${esc(msg.role === 'ai' ? 'Assistant' : msg.name || 'Someone')}</span>`;
+    if (msg.role !== 'system') div.innerHTML = msg.role === 'ai' ? '<span class="who"><i class="ov-orb" aria-hidden="true"></i>Overseer</span>' : `<span class="who">${esc(msg.name || 'Someone')}</span>`;
     div.appendChild(document.createTextNode(String(msg.text).length > 280 ? `${String(msg.text).slice(0, 280)}…` : msg.text));
     const d = msg.data || {};
     const did = [];

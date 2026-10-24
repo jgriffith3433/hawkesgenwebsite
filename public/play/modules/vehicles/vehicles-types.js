@@ -37,6 +37,8 @@
       seat: m('seat', new B.Color3(0.18, 0.16, 0.15)),
       green: m('nav-g', new B.Color3(0.1, 0.9, 0.3), { glow: new B.Color3(0.1, 0.8, 0.3) }),
       red: m('nav-r', new B.Color3(0.9, 0.1, 0.1), { glow: new B.Color3(0.8, 0.1, 0.1) }),
+      nav: m('nav-c', new B.Color3(0.5, 0.85, 1), { glow: new B.Color3(0.45, 0.8, 1) }),
+      flame: (() => { const f = m('flame', new B.Color3(0, 0, 0), { glow: new B.Color3(1, 0.62, 0.22), alpha: 0.85 }); f.disableLighting = true; f.alphaMode = B.Engine.ALPHA_ADD; f.backFaceCulling = false; return f; })(),
     };
   }
 
@@ -231,9 +233,56 @@
         c.part('cyl', { d: 0.25, h: 0.5 }, 'dark', [0, 1.05, 0], [0, 0, 0], { decor: true });
       },
     },
+    // The two that leave the air (the Overseer module's planet thins it with height): thrust works in vacuum.
+    rocket: {
+      title: 'Rocket', icon: '🚀', class: 'rocket', mass: 3000, color: '#f3f3f0',
+      size: [2.2, 9, 2.2],
+      engine: { accel: 36, top: 198, reverse: 0, boost: 1.3, turn: 1.1, fuel: 150 },
+      grip: 0.5,
+      seats: [seat(0, 2.4, 0.35)],
+      eye: [0, 3.1, 0.9], cam: { distance: 24, height: 5 }, lamps: null,
+      contacts: [[-1.7, -4.7, -1.7], [1.7, -4.7, -1.7], [-1.7, -4.7, 1.7], [1.7, -4.7, 1.7], [0, 5.3, 0], [-1.1, 0, 0], [1.1, 0, 0], [0, 0, -1.1], [0, 0, 1.1]],
+      collider: [{ size: [2.2, 9, 2.2], at: [0, 0, 0] }, { size: [3.8, 0.6, 3.8], at: [0, -4.3, 0] }],
+      body(c) {
+        c.part('cyl', { d: 2.2, h: 7.4, t: 24 }, 'paint', [0, -0.6, 0]);
+        c.part('cyl', { top: 0.05, bottom: 2.2, h: 2.6, t: 24 }, 'paint', [0, 4.4, 0]);
+        c.part('cyl', { d: 2.26, h: 0.35, t: 24 }, 'trim', [0, 1.6, 0], [0, 0, 0], { decor: true });
+        c.part('cyl', { d: 2.26, h: 0.25, t: 24 }, 'trim', [0, -3.4, 0], [0, 0, 0], { decor: true });
+        c.part('sphere', [0.7, 0.7, 0.3], 'glass', [0, 2.5, 1.05], [0, 0, 0], { decor: true });
+        for (let i = 0; i < 4; i++) {
+          const a = i * Math.PI / 2, x = Math.sin(a), z = Math.cos(a);
+          c.part('box', [0.12, 2.0, 1.3], 'trim', [x * 1.45, -3.6, z * 1.45], [0, a * 180 / Math.PI, 0], { decor: true });
+          c.part('cyl', { d: 0.14, h: 1.8 }, 'metal', [x * 1.4, -4.1, z * 1.4], [z * 28, 0, -x * 28], { decor: true });
+        }
+        c.part('cyl', { top: 1.1, bottom: 1.5, h: 0.8, t: 18 }, 'dark', [0, -4.7, 0], [0, 0, 0], { decor: true });
+        c.flames = [c.part('cyl', { top: 1.25, bottom: 0.05, h: 6, t: 14 }, 'flame', [0, -8.1, 0], [0, 0, 0], { decor: true })];
+      },
+    },
+    spaceship: {
+      title: 'Space ship', icon: '🛸', class: 'ship', mass: 2400, color: '#c9d4e6',
+      size: [6.4, 1.6, 9],
+      engine: { accel: 30, top: 198, reverse: 16, boost: 1.6, turn: 1.4, climb: 70 },
+      grip: 0.6,
+      seats: [seat(0, 0.45, 1.3), seat(-1.1, 0.45, 0.1), seat(1.1, 0.45, 0.1)],
+      eye: [0, 1.15, 2.2], cam: { distance: 17, height: 4.6 }, lamps: { front: 4.5, back: -4.4, x: 1.3, y: -0.1 },
+      contacts: [[-2.2, -1.35, -2.4], [2.2, -1.35, -2.4], [0, -1.35, 3.1], [-3.2, 0, -2], [3.2, 0, -2], [0, 0.8, 0], [0, 0, 4.5], [0, 0, -4.5]],
+      collider: [{ size: [6.4, 1.6, 9], at: [0, 0, 0] }, { size: [3, 0.5, 6], at: [0, -1.0, 0] }],
+      body(c) {
+        c.part('sphere', [6.4, 1.6, 9], 'paint');
+        c.part('sphere', [2.4, 1.3, 3.4], 'glass', [0, 0.55, 1.4], [0, 0, 0], { decor: true });
+        for (const s of [-1, 1]) {
+          c.part('cyl', { top: 0.9, bottom: 1.1, h: 3.6, t: 16 }, 'trim', [s * 2.35, -0.05, -2.6], [90, 0, 0]);
+          c.part('cyl', { d: 0.9, h: 0.1, t: 16 }, 'dark', [s * 2.35, -0.05, -4.42], [90, 0, 0], { decor: true });
+          c.part('box', [0.08, 0.08, 6.5], 'nav', [s * 2.95, 0.12, -0.2], [0, s * 6, 0], { decor: true });
+          c.part('cyl', { d: 0.1, h: 1.2 }, 'metal', [s * 2.2, -0.95, -2.4], [0, 0, 0], { decor: true });
+        }
+        c.part('cyl', { d: 0.1, h: 1.2 }, 'metal', [0, -0.95, 3.1], [0, 0, 0], { decor: true });
+        c.flames = [-1, 1].map((s) => c.part('cyl', { top: 0.85, bottom: 0.05, h: 3.4, t: 12 }, 'flame', [s * 2.35, -0.05, -6.1], [90, 0, 0], { decor: true }));
+      },
+    },
   };
   // The 4x4 answers to its other names in scripts and words.
-  V.aliases = { '4x4': 'truck', jeep: 'truck', pickup: 'truck', bike: 'bicycle', motorcycle: 'motorbike', plane: 'airplane', heli: 'helicopter', chopper: 'helicopter', sub: 'submarine', speedboat: 'boat' };
+  V.aliases = { '4x4': 'truck', jeep: 'truck', pickup: 'truck', bike: 'bicycle', motorcycle: 'motorbike', plane: 'airplane', heli: 'helicopter', chopper: 'helicopter', sub: 'submarine', speedboat: 'boat', 'space ship': 'spaceship', 'space-ship': 'spaceship', starship: 'spaceship', spacecraft: 'spaceship', ufo: 'spaceship', shuttle: 'spaceship', 'flying saucer': 'spaceship', saucer: 'spaceship', rocketship: 'rocket', 'rocket ship': 'rocket', missile: 'rocket' };
 
   /** The resting height of the body's center above the ground (for placing a vehicle on the floor). */
   function restHeight(def) {

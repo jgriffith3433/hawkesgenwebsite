@@ -42,6 +42,7 @@ body.studio input, body.studio textarea, body.studio .CodeMirror { -webkit-user-
 .msg { pointer-events: auto; max-width: 100%; }
 .msg .who { font: 700 11px var(--display); letter-spacing: .14em; text-transform: uppercase; margin-right: 8px; }
 .msg.ai .who { color: #7cc8ff; text-shadow: 0 0 10px rgba(74,158,255,.8); }
+.msg .who .ov-orb { display: inline-block; width: 10px; height: 10px; margin: 0 6px -1px 0; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff 0, #e8f4ff 30%, #9fd8ff 70%, #4a9eff 100%); box-shadow: 0 0 8px rgba(143,216,255,.9), 0 0 0 1.5px rgba(143,216,255,.35); }
 .msg.user .who { color: #d8b4fe; }
 .msg.system { color: rgba(200,225,255,.75); font-style: italic; }
 .msg .changed { display: block; font: 600 11px var(--hud); letter-spacing: .1em; text-transform: uppercase; color: rgba(140,200,255,.8); }

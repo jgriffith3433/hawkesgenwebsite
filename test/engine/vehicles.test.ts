@@ -211,7 +211,7 @@ test('scripts: makers, make(), seats, passengers, NPC drivers and autopilot', ()
   const car = H.game.state.car, jeep = H.game.state.jeep;
   assert.ok(car.vehicle && car.vehicle.type === 'car' && car.name === 'Blue');
   assert.equal(jeep.vehicle.type, 'truck');
-  assert.throws(() => H.game.vehicles.make('spaceship'), /No vehicle called/);
+  assert.throws(() => H.game.vehicles.make('zeppelin'), /No vehicle called/);
   H.tick(1);
   // An NPC drives; the player gets the passenger seat.
   const npc = H.game.capsule({ x: 3, y: 1, z: 6, physics: 'dynamic', name: 'Friend' });
