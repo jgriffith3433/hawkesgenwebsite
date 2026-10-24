@@ -33,16 +33,10 @@ space jumps, E gets off.
 
 **AI friends** follow you, stay, come, sit, sleep, dance, cheer, play fetch, carry things, build blocks with you (in the
 editor their blocks are real edits), ride along in vehicles (and drive, with the Vehicles module), flee explosions and
-cheer when you win (finish, checkpoint, kill, gate, goal, score, win events). They understand plain commands for free.
-**For real conversations** set `config.friends`:
-
-| `config.friends` | |
-|---|---|
-| `talk` | `"owner"`: Claude speaks for the friends, **paid with the game owner's credits** (a few credits a line). Anything else: the free phrasebook |
-| `daily` | the most credits AI talk may spend a day in this game (100 by default, 2000 at most); after that the friends use the phrasebook until tomorrow |
-
-Turn `talk` on only when the person asking is the owner (or says they're fine paying), and tell them what it costs.
-Friends remember a little of what was said (per game, per friend).
+cheer when you win (finish, checkpoint, kill, gate, goal, score, win events). They understand plain commands and
+answer in character from a phrasebook (their `personality`, their species' voice: a dog woofs, a robot beeps), free and
+offline. There is **no paid AI conversation** for friends: never offer one or mention credits for them. To have a friend
+say particular things, give it `lines`.
 
 `config.living.max`: the most creatures a world may hold (400; 160 on phones).
 
@@ -55,8 +49,8 @@ Friends remember a little of what was said (per game, per friend).
 - "give me a dog that follows me" → `{ "type": "creature", "name": "Rex", "shape": { "species": "dog", "follow": "player" } }`
   near the player. Dogs fetch: give the player `{ "tool": "ball" }` (config.player) or the friend chat's Fetch button.
 - "an AI friend named Max who helps me build" → `{ "type": "friend", "name": "Max", "shape": { "personality": "a
-  cheerful builder who loves towers and bad puns" } }`; if they want him to really talk, `{ "op": "config", "patch":
-  { "friends": { "talk": "owner", "daily": 100 } } }` (tell them it uses their credits).
+  cheerful builder who loves towers and bad puns" } }`. Players talk to him with T (or a click): the quick buttons and
+  plain words ("follow me", "build a tower", "dance") just work.
 - "a farm" → herds of 8 sheep and 10 chickens, 3 cows, a horse to ride, a dog that follows, inside fences (boxes).
 - "a wolf pack hunting deer" → a `herd` of 4 wolves and a `herd` of 12 deer 30 m apart.
 - "a T-rex that chases me" → `{ "type": "creature", "shape": { "species": "dinosaur", "size": 1.5 } }` (angry by default).

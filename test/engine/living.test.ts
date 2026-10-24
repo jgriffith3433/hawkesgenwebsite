@@ -1,6 +1,6 @@
 // Living things (public/play/modules/living): creatures, herds, brains, paths, riding and AI friends, run in the real
-// engine in Node (test/engine/harness.ts: NullEngine + Havok). AI friends' words here are the free phrasebook (no
-// server); src/companions.ts has its own test.
+// engine in Node (test/engine/harness.ts: NullEngine + Havok). AI friends' words are the free phrasebook (there is no
+// paid AI talk).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { load, world, sceneOf } from './harness.ts';
@@ -153,7 +153,7 @@ test('riding a horse: E (or living.ride), WASD moves it, E gets off', () => {
   assert.ok(!p.held && p.bottom < 0.4, `back on their feet (${flat(p.bottom)})`);
 });
 
-test('an AI friend without AI talk: understands plain words, follows, stays, builds a tower, dances', async () => {
+test('an AI friend (the free phrasebook): understands plain words, follows, stays, builds a tower, dances', async () => {
   world(H, sceneOf({ floor, start, max: { type: 'friend', name: 'Max', shape: { personality: 'cheerful builder', follow: false }, transform: { position: [3, 1, -3] } } }));
   const max = H.game.entity('max'), p = H.game.player;
   p.controls = false;

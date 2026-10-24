@@ -30,7 +30,6 @@ import { templateBundle } from './templates.ts';
 import { loaderScript, engineDoc } from './engine.ts';
 import * as community from './community.ts';
 import { upgrade as joinRoom, broadcastOps, markHere, liveCounts } from './rooms.ts';
-import { companionTalk } from './companions.ts';
 import type { Duplex } from 'node:stream';
 
 const PUBLIC = path.join(ROOT, 'public');
@@ -252,8 +251,6 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     const cf = /^\/v1\/community\/(a_[0-9a-f]+)\/file$/.exec(route);
     if (cf && method === 'GET') return relay(await community.file(cf[1]), res);
     if (route === '/v1/gallery' && method === 'GET') { const so = url.searchParams.get('sort'); return send(res, 200, games.gallery(so === 'new' ? 'new' : so === 'popular' ? 'popular' : 'live', Number(url.searchParams.get('limit')) || 60)); }
-    // AI friends in a game (src/companions.ts): open (the game is sandboxed), paid by the owner only if they turned it on.
-    const cmp = /^\/v1\/companion\/([\w-]+)$/.exec(route); if (cmp && method === 'POST') { res.setHeader('Access-Control-Allow-Origin', '*'); return send(res, 200, await companionTalk(cmp[1], await readJson(req), clientIp(req))); }
     // A play page says it's there (every 30 s), so games show how many people are playing.
     const ph = /^\/v1\/play\/(t\/[a-z0-9-]+|[a-z0-9-]+)\/here$/.exec(route);
     if (ph && method === 'POST') {

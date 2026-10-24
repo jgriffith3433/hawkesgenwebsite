@@ -3,10 +3,8 @@
 // buttons (Follow me, Stay, Dance, Fetch, Build a tower...). They follow you, carry things, sit, dance, play fetch,
 // build with you, ride along (and drive, when the Vehicles module lets them), flee explosions and cheer when you win.
 //
-// Their words: when the game's owner turns AI talk on (config.friends.talk = "owner"), each line goes to Claude
-// through the portal (/v1/companion/<game>, src/companions.ts), paid with the owner's credits up to a daily limit, with
-// a short memory per friend. Otherwise (or when the credits run out) they still understand plain commands and answer
-// in character from a phrasebook: free, offline, never broken.
+// Their words: a phrasebook. They understand plain commands and answer in character (personality, species voices):
+// free, offline, never broken. (There is no paid AI talk: J's decision, 2026-10-23.)
 /* global HawkesPlay, BABYLON */
 (function () {
   'use strict';
@@ -48,9 +46,9 @@
     },
     codex: {
       group: 'Living things',
-      what: 'An AI friend you talk to (T, or click them): follows you, carries things, sits, dances, plays fetch, builds with you, rides along, cheers. With AI talk on (config.friends.talk "owner") Claude speaks for them, paid with the owner\'s credits; without it they understand plain commands for free.',
+      what: 'An AI friend you talk to (T, or click them): follows you, carries things, sits, dances, plays fetch, builds with you, rides along, cheers. They understand plain commands and answer in character (their personality, their species\' voice), for free.',
       spec: { type: 'friend', name: 'Max', shape: { species: 'person', personality: 'cheerful, loves building things and bad puns' }, transform: { position: [2, 1, 2] } },
-      fields: [['name', 'what they\'re called', 'Max'], ['shape.personality', 'who they are, in words', ''], ['shape.species', 'person, robot, dog, cat, dinosaur... (any creature)', 'person'], ['shape.follow', 'false: stays put (a villager); "player" or a name', 'player'], ['shape.lines', 'things they say when you come near (no AI needed)', ''], ['shape.talk', 'false: no chat', 'true'], ['shape.color', 'their shirt (people) or body', '']],
+      fields: [['name', 'what they\'re called', 'Max'], ['shape.personality', 'who they are, in words', ''], ['shape.species', 'person, robot, dog, cat, dinosaur... (any creature)', 'person'], ['shape.follow', 'false: stays put (a villager); "player" or a name', 'player'], ['shape.lines', 'things they say when you come near', ''], ['shape.talk', 'false: no chat', 'true'], ['shape.color', 'their shirt (people) or body', '']],
     },
   });
 
@@ -138,22 +136,9 @@
     return s;
   }
 
-  // ------------------------------------------------------------------ talking: the AI (paid by the owner) or the phrasebook
-  const gameId = () => { const b = H.bundle; return b && b.id && !String(b.id).startsWith('t:') ? b.id : null; };
-  const aiOn = () => { try { const c = H.lib.effectiveConfig().friends; return Boolean(c && c.talk === 'owner'); } catch { return false; } };
-  /** What the friend can see: the nearest things and players, for the AI. */
-  function seen(e) {
-    const w = W(), out = [];
-    for (const o of w.entities) {
-      if (o === e || !o.alive || o.kind === 'light' || o.kind === 'spawn' || !o.visible || (o.living && o.living.herd && out.length > 6)) continue;
-      const d = Math.hypot(o.x - e.x, o.z - e.z);
-      if (d > 25) continue;
-      out.push({ name: o.name || (o.living ? o.living.name : o.kind), kind: o.living ? o.living.name : o.kind, d: Math.round(d), loose: o.physics === 'dynamic' && !o.living && !o.isPlayer });
-    }
-    return out.sort((a, b) => a.d - b.d).slice(0, 14);
-  }
+  // ------------------------------------------------------------------ talking: the phrasebook (free)
   /** Says something to a friend: their answer and what they do (a promise of { say, action }). */
-  async function talk(e, text, o = {}) {
+  async function talk(e, text) {
     const r = e && e.living;
     if (!r || !r.friend) return null;
     const f = r.friend;
@@ -163,30 +148,7 @@
     f.greeted = true;
     remember(r, 'you', msg);
     const local = understand(msg);
-    let reply = null;
-    const id = gameId();
-    if (o.ai !== false && aiOn() && id && f.talk !== false && !(f.offlineUntil > Date.now())) {
-      f.thinking = true;
-      e.say('...', 30);
-      renderPanel();
-      try {
-        const res = await fetch(`/v1/companion/${encodeURIComponent(id)}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify({ friend: e.sceneId || null, name: f.name, personality: f.personality, species: r.name, message: msg, player: H.hooks.myName || 'Player', seen: seen(e), doing: r.act, carrying: r.carrying ? r.carrying.name || r.carrying.kind : null, mode: H.mode }),
-          signal: AbortSignal.timeout ? AbortSignal.timeout(50000) : undefined,
-        });
-        const j = await res.json().catch(() => null);
-        if (j && !j.offline && j.say !== undefined) reply = { say: String(j.say || ''), action: ACTIONS.includes(j.action) ? j.action : 'none', target: j.target || null, thing: j.thing || null };
-        else if (j && j.offline) { f.offlineUntil = Date.now() + (j.retry ? Number(j.retry) * 1000 : 60000); if (j.reason) note(r, j.reason); }
-      } catch { f.offlineUntil = Date.now() + 30000; }
-      f.thinking = false;
-      if (r.e.alive && r.e._bubble) { r.e._bubble.dispose(); r.e._bubble = null; }
-    } else if (H.mode === 'build' && !aiOn() && !f.tipped) {
-      f.tipped = true;
-      note(r, 'Simple talk (free). For real conversations, ask the assistant to turn on AI talk for friends: each line then costs a few of your credits.');
-    }
-    if (!reply) reply = { say: line(r, local.action === 'none' ? (/\b(hi|hello|hey|yo)\b/i.test(msg) ? 'hello' : 'chat') : local.action), action: local.action, target: local.target, thing: local.thing };
+    const reply = { say: line(r, local.action === 'none' ? (/\b(hi|hello|hey|yo)\b/i.test(msg) ? 'hello' : 'chat') : local.action), action: local.action, target: local.target, thing: local.thing };
     if (reply.action === 'build' && !reply.thing) reply.thing = understand(msg).thing || { kind: 'box', count: 1 };
     const p = G().player;
     // Where they're looking (for building in front of them).
@@ -391,7 +353,7 @@
     const r = panel.friend.living;
     if (!r) return;
     const s = living.status(panel.friend);
-    panel.el.querySelector('header span').textContent = r.friend.thinking ? 'thinking...' : s ? `${{ follow: 'following you', stay: 'waiting', sit: 'sitting', sleep: 'asleep', dance: 'dancing', fetch: 'playing fetch', carry: 'carrying', chase: 'on the attack', flee: 'running!', goto: 'on the way', come: 'coming', wander: 'exploring', idle: s.following ? 'with you' : 'hanging out' }[s.act] || s.act}${s.carrying ? ` · holding ${s.carrying}` : ''}` : '';
+    panel.el.querySelector('header span').textContent = s ? `${{ follow: 'following you', stay: 'waiting', sit: 'sitting', sleep: 'asleep', dance: 'dancing', fetch: 'playing fetch', carry: 'carrying', chase: 'on the attack', flee: 'running!', goto: 'on the way', come: 'coming', wander: 'exploring', idle: s.following ? 'with you' : 'hanging out' }[s.act] || s.act}${s.carrying ? ` · holding ${s.carrying}` : ''}` : '';
     const log = panel.el.querySelector('.lv-log');
     log.textContent = '';
     for (const m of r.friend.log.slice(-10)) {

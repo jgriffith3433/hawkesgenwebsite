@@ -66,7 +66,7 @@ run in CI.
 | **B. Mayhem** | Tools: rocket launcher, grenade, spawn gun, gravity gun, lasso. Explosions with real impulses, fire, smoke, debris; breakable things that shatter into pieces; ragdoll-ish tumbling animals; spawn 100 of anything at once ("spawn 100 cows") within the scale budget |
 | **C. Terrain** | Heightmap terrain: spawn a mountain, hills, an island, a canyon from words; dig a giant hole and pile dirt (shovel, explosions leave craters via an event); paint ground textures; physics heightfield; synced edits |
 | **D. Water** | Oceans, lakes and pools with waves; swimming and diving; buoyancy for anything; underwater look; a bucket of water dumped on someone (splash, wet, knock-down); rain; **fishing** (rod, cast, bite, reel-in minigame, fish species, a catch log) |
-| **E. Living things** | Creatures and NPCs with goals: herds, flee, follow, sleep, eat; pathfinding over terrain; **AI friends** you talk to (an LLM through the portal, paid with credits, with memory) who follow you, help, drive, play; animated models (Gen rigs and motions) |
+| **E. Living things** | Creatures and NPCs with goals: herds, flee, follow, sleep, eat; pathfinding over terrain; **AI friends** you talk to (a free phrasebook with personalities; J decided against paid LLM talk, 2026-10-23) who follow you, help, drive, play; animated models (Gen rigs and motions) |
 | **F. Homes & media** | Build houses room by room; furniture that works (sit on chairs and sofas, lie in beds, open fridges and doors, flick lights, run taps); **TVs that play shows** (video assets: add a `video` kind to Gen's KINDS), radios, phones, computers with screens |
 
 Rules for every workstream:
