@@ -366,9 +366,18 @@
         if (Math.abs(c.z - hz) < len * 0.15 && Math.abs(c.x) > cabin && c.y > y0 + hgt * 0.25) across.push(k);
         else if (Math.abs(c.x) <= cabin && c.y > y0 + hgt * 0.7 && away(c.z) < len * 0.3) along.push(k);
       }
+      // The tail rotor is a disc on one side of the fin, thin across; the other side's fins (the stabilizer, wide
+      // across) stay as the model has them: cutting both made one big stand-in rotor in the middle of the tail.
+      const flat = (ks) => {
+        const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+        for (const k of ks) for (let j = 0; j < 3; j++) { const p = P[idx[k * 3 + j]]; lo[0] = Math.min(lo[0], p.x); hi[0] = Math.max(hi[0], p.x); lo[1] = Math.min(lo[1], p.y); hi[1] = Math.max(hi[1], p.y); lo[2] = Math.min(lo[2], p.z); hi[2] = Math.max(hi[2], p.z); }
+        return (hi[0] - lo[0]) / Math.max(1e-6, hi[1] - lo[1], hi[2] - lo[2]);
+      };
+      const finL = fins.filter((k) => C[k].x < 0), finR = fins.filter((k) => C[k].x > 0);
+      const rotor = finL.length >= 20 && finR.length >= 20 ? (flat(finL) <= flat(finR) ? finL : finR) : fins;
       const cuts = [];
       if (main && across.length >= 20) cuts.push({ spin: main, tris: across.concat(along), across: true });
-      if (tail && fins.length >= 20) cuts.push({ spin: tail, tris: fins });
+      if (tail && fins.length >= 20) cuts.push({ spin: tail, tris: rotor });
       if (!cuts.length) continue;
       const gone = new Set();
       for (const c of cuts) {
