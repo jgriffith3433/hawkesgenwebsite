@@ -254,11 +254,44 @@ boom({ at: [x, y, z], radius: 6, force: 20 });      // from anyone
 - `H.sync.explode(at, { radius, force, up, damage, info })`: the engine's own host-authoritative explosion (the rocket launcher uses
   it): the host throws things and takes them over, everyone's own player is pushed where they stand. Do the damage
   yourself with `H.physics.explode(at, { radius, damage, force: 0, owner })` so kills are credited to whoever fired.
-- Moving scene things are sent by their simulator 10 times a second, delta-encoded (only the fields that changed, all
-  of them once a second); things scripts make (game.many) are not synced: every player's scripts make their own.
-- `H.sync.mine(e)`, `H.sync.claim(e)` (take over simulating it: do this before pushing a thing someone else owns),
-  `H.sync.release(e)`, `H.sync.isHost`, `H.sync.online`, `H.sync.me`.
-- Scripts' own messages stay `game.net.send / on` (API.md).
+- Moving scene things are sent by their simulator 10 times a second (20 for important ones: driven, held), stamped
+  with the shared clock and delta-encoded; things scripts make (game.many) are not synced: every player's scripts make
+  their own.
+- **What others see is a replay of the data.** Every remote thing (scene things, players' avatars, herds, vehicles that
+  aren't scene things) is drawn from a buffer of snapshots, about one send interval plus the network's delay and
+  jitter behind (adaptive), interpolated (positions lerped, turns slerped), with velocity-based extrapolation only for
+  short gaps. Your own player and what you drive or hold are simulated on your machine: no lag at any ping. When
+  authority over a thing changes (you claim it, someone else does, the host leaves) the change is blended out over
+  ~0.15 s, and the new authority starts from the newest snapshot carried on to now (things in flight keep flying; a
+  host explosion whose result never arrived is applied by whoever takes the things over).
+- `H.sync.mine(e)`, `H.sync.claim(e, { hold })` (take over simulating it: do this before pushing a thing someone else
+  owns; false if someone holds it), `H.sync.release(e)`, `H.sync.holder(e)`, `H.sync.isHost`, `H.sync.online`,
+  `H.sync.me`, `H.sync.host`, `H.sync.onHost(fn(newHost, oldHost))`, `H.sync.now()` (the shared clock, ms),
+  `H.sync.stats()` (bytes, messages, corrections, extrapolated frames).
+- **Held things stay yours.** Something you carry (`e.held`), drive (a vehicle whose driver's seat is yours) or mark
+  `e.netHold = true` is locked to you: bumping into it, blasting it or claiming it never takes it from you. The owner
+  pushes it in a host explosion.
+- **Your own synced things, smooth:** `set(state, changed, from, meta)` gets `meta.at` (the sender's shared-clock
+  stamp) and `meta.from`; keep a `H.sync.track(opts)` per thing, `push(meta.at, values, meta.from)` in set and
+  `sample()` each frame (opts: `pos`, `vel`, `euler`, `yaw`, `quat`: which values are what). Living's herds and
+  vehicles do this.
+- **Interest:** the server sends each player what's near them at full rate and far things less often (4 a second past
+  45 m, once a second past 130 m, every 3 s past 320 m), important and moving things first, within ~96 KB/s per
+  player. A state that says where it is (`where: () => [x, y, z]`) gets the same; `important: true` sends it first.
+  Measured (test/engine/net.multi.ts): 100 stampeding cows, three vehicles, crates and 4 players: the host sends
+  ~27 KB/s in ~21 messages a second, each player gets 26-33 KB/s (the room allows 90 messages a second).
+- Scripts' own messages stay `game.net.send / on` (API.md). Tests: `test/engine/netsim.ts` runs 2-4 engines in workers
+  with the real relay and links with latency, jitter and loss (`test/engine/net.multi.ts`); `test/relay.test.ts`.
+
+## 7a. Time: rewind and reset (`H.rewind`, rewind.js)
+
+The world keeps its last 10 s (every moving thing's pose, velocity and health, 10 times a second) while playing. Hold
+◀◀ (Backspace, D-pad left) and it plays backwards; let go and it carries on from there (broken scene things come back
+from the world file, things made since go). ⟲ (Shift+Backspace, D-pad down) resets the world to how it loaded.
+Together, the host decides: the host's rewind takes everyone 10 s back (players keep their places), others ask the
+host. `config.rewind: false` turns both off. `H.rewind.back(s)`, `.hold(on)`, `.reset()`, `.seconds`; scripts:
+`game.rewind(s)`, `game.resetWorld()`. Build mode has undo/redo instead (↶ ↷, Ctrl+Z, D-pad left/right): only your own
+edits, field by field, keeping what others changed since.
 
 ## 7b. E near things (`H.use`)
 

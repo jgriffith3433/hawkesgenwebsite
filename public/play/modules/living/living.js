@@ -233,20 +233,28 @@
   });
 
   // ------------------------------------------------------------------ playing together
-  // Herd animals: the host sends where they are (in chunks of 25, only chunks that changed), everyone else follows.
+  // Herd animals: the host sends where they are and where they're going (in chunks of 25, only chunks that changed),
+  // everyone else plays that back smoothly (H.sync.track: interpolated, a little behind); far players get it less
+  // often (where). A new host carries on with each animal's goal.
   function herdSync(rec) {
     if (!H.sync || !H.sync.state) return null;
     return H.sync.state(`living:herd:${rec.key}`, {
-      rate: 6,
+      rate: 8,
+      where() { return rec.center || null; },
       get() {
         const out = {};
+        let sx = 0, sy = 0, sz = 0, n = 0;
         rec.members.forEach((m, i) => {
           const k = `c${Math.floor(i / 25)}`;
-          (out[k] || (out[k] = [])).push(m.alive && !m.dead ? [Math.round(m.x * 20), Math.round(m.y * 20), Math.round(m.z * 20), Math.round(m.node.rotation.y / RAD), STATES.indexOf(m.living.state)] : 0);
+          const r = m.living;
+          const g = r && r.goal && !r.goal.ent ? [Math.round(r.goal.x * 20), Math.round(r.goal.z * 20), r.goal.how === 'run' ? 1 : 0] : [];
+          if (m.alive && !m.dead) { sx += m.x; sy += m.y; sz += m.z; n++; }
+          (out[k] || (out[k] = [])).push(m.alive && !m.dead ? [Math.round(m.x * 20), Math.round(m.y * 20), Math.round(m.z * 20), Math.round(m.node.rotation.y / RAD), STATES.indexOf(m.living.state), ...g] : 0);
         });
+        rec.center = n ? [sx / n, sy / n, sz / n] : null;
         return out;
       },
-      set(state, changed) {
+      set(state, changed, from, meta) {
         for (const k of changed) {
           const c = Number(k.slice(1)) * 25;
           (state[k] || []).forEach((v, j) => {
@@ -254,8 +262,10 @@
             if (!m || !m.alive) return;
             if (!v) { G().burst([m.x, m.y, m.z], { color: '#ff6040', count: 24, speed: 5 }); m.destroy(); return; }
             const r = m.living;
-            r.net = { p: [v[0] / 20, v[1] / 20, v[2] / 20], yaw: v[3] * RAD, at: performance.now() };
+            if (H.sync.track) (r.trk || (r.trk = H.sync.track({ yaw: [3] }))).push(meta && meta.at, [v[0] / 20, v[1] / 20, v[2] / 20, v[3] * RAD], meta && meta.from);
+            else r.net = { p: [v[0] / 20, v[1] / 20, v[2] / 20], yaw: v[3] * RAD, at: performance.now() };
             r.state = STATES[v[4]] || 'idle';
+            r.netGoal = v.length > 6 ? { x: v[5] / 20, z: v[6] / 20, how: v[7] ? 'run' : 'walk' } : null;
           });
         }
       },
@@ -656,7 +666,12 @@
       think(r);
     }
     for (const r of list) {
-      if (r.herd) r.e.remote = online && !host;
+      if (r.herd) {
+        const remote = online && !host;
+        // Just became the host's (the host left): carry on where it was going.
+        if (r.e.remote && !remote) { r.trk = null; if (r.netGoal && !r.goal && r.e.alive && !r.e.dead) { r.goal = { x: r.netGoal.x, z: r.netGoal.z, ent: null, how: r.netGoal.how, near: 0.8 }; r.act = 'goto'; r.path = null; } }
+        r.e.remote = remote;
+      }
       if (!mine(r)) continue;
       if (building && !r.awake) { if (r.goal) stop(r); continue; }
       steer(r, dt, t);
@@ -702,8 +717,16 @@
     for (const r of list) {
       const e = r.e;
       if (!e.alive) continue;
-      // Herd animals another player simulates: glide to where they say.
-      if (r.net && e.remote) {
+      // Herd animals another player simulates: played back from their snapshots (interpolated, a little behind).
+      if (r.trk && e.remote) {
+        const s = r.trk.sample();
+        if (s) {
+          const px = e.x, pz = e.z;
+          e.node.position.set(s[0], s[1], s[2]);
+          e.node.rotation.y = s[3];
+          e.vx = (e.x - px) / Math.max(1e-3, dt); e.vz = (e.z - pz) / Math.max(1e-3, dt);
+        }
+      } else if (r.net && e.remote) {
         const n = r.net, px = e.x, pz = e.z;
         const far = Math.abs(n.p[0] - px) + Math.abs(n.p[2] - pz) > 6;
         e.node.position.set(far ? n.p[0] : px + (n.p[0] - px) * k, far ? n.p[1] : e.y + (n.p[1] - e.y) * k, far ? n.p[2] : pz + (n.p[2] - pz) * k);

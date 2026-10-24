@@ -2067,6 +2067,7 @@
     /** Steps the world by `seconds` (whole fixed steps) and runs one frame without drawing: for tests and tools. */
     tick(seconds = STEP) {
       if (!W) return;
+      if (W.restartAsked) { start(); return; } // (game.restart(), as a frame does)
       // `seconds` of real time: at a time scale other than 1, that many seconds of game time fewer (or more) steps.
       let n;
       if (timeScale === 1) { n = Math.max(1, Math.round(seconds / STEP)); tickAcc = 0; }

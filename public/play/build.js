@@ -66,33 +66,112 @@
     const b = String(base || 'thing').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 24) || 'thing';
     for (;;) { const id = `${b}_${Math.random().toString(36).slice(2, 6)}`; if (!W().graph.entities[id]) return id; }
   }
-  /** The ops that put things back the way they are now (for undo). */
-  function inverse(ops) {
+  // Undo and redo are yours alone: each step remembers exactly which fields you changed (from what, to what), and
+  // undoing puts back only the ones still as you left them, so a change someone else made since (another builder, a
+  // friend playing) is never undone by you. Things you made are taken away, things you removed come back (with what
+  // was inside them), unless someone has already done that. A step that the server refused is dropped from the list.
+  const plain = (v) => Boolean(v) && typeof v === 'object' && !Array.isArray(v);
+  const stable = (v) => JSON.stringify(v, (k, x) => (plain(x) ? Object.fromEntries(Object.keys(x).sort().map((y) => [y, x[y]])) : x));
+  const same = (a, b) => stable(a) === stable(b);
+  const getAt = (o, path) => { let x = o; for (const k of path) { if (!plain(x)) return undefined; x = x[k]; } return x; };
+  const setAt = (o, path, v) => { let x = o; path.slice(0, -1).forEach((k) => { if (!plain(x[k])) x[k] = {}; x = x[k]; }); x[path[path.length - 1]] = v; };
+  /** The fields a patch changes on `base`, as paths (patches merge: objects into objects, anything else replaces). */
+  function leaves(patch, base, path = [], out = []) {
+    for (const [k, v] of Object.entries(patch || {})) {
+      if (plain(v) && plain(base && base[k])) leaves(v, base[k], [...path, k], out);
+      else out.push([...path, k]);
+    }
+    return out;
+  }
+  /** The patch that turns `a` into `b` (keys gone from b are null). */
+  function diff(a, b) {
+    const p = {};
+    for (const k of new Set([...Object.keys(a || {}), ...Object.keys(b || {})])) {
+      if (k === 'id') continue;
+      if (same(a[k], b[k])) continue;
+      p[k] = b[k] === undefined ? null : plain(a[k]) && plain(b[k]) ? diff(a[k], b[k]) : clone(b[k]);
+    }
+    return p;
+  }
+  const mergeCopy = (base, patch) => H.merge(clone(base || {}), patch);
+  /** What one edit did, kept for undoing it (taken before it's applied). */
+  function remember(ops) {
     const g = W().graph;
-    const back = [];
+    const steps = [];
     for (const op of ops) {
-      if (op.op === 'create') back.unshift({ op: 'delete', id: op.entity.id });
-      else if (op.op === 'update' || op.op === 'replace') { const id = op.id || op.entity.id; if (g.entities[id]) back.unshift({ op: 'replace', entity: clone(g.entities[id]) }); else back.unshift({ op: 'delete', id }); }
-      else if (op.op === 'delete') {
+      if (op.op === 'create') steps.push({ kind: 'create', id: op.entity.id, spec: clone(op.entity) });
+      else if (op.op === 'update' || op.op === 'replace') {
+        const id = op.id || op.entity.id;
+        const before = g.entities[id];
+        if (!before) { if (op.op === 'replace') steps.push({ kind: 'create', id, spec: clone(op.entity) }); continue; }
+        const patch = op.op === 'replace' ? diff(before, op.entity) : clone(op.patch);
+        steps.push({ kind: 'update', id, before: clone(before), after: mergeCopy(before, patch), paths: leaves(patch, before) });
+      } else if (op.op === 'delete') {
         const gone = [op.id];
         for (let i = 0; i < gone.length; i++) for (const s of Object.values(g.entities)) if (s.parent === gone[i] && !gone.includes(s.id)) gone.push(s.id);
-        for (const id of gone) if (g.entities[id]) back.unshift({ op: 'create', entity: clone(g.entities[id]) });
-      } else if (op.op === 'config') { const was = {}; for (const k of Object.keys(op.patch)) was[k] = g.config[k] === undefined ? null : clone(g.config[k]); back.unshift({ op: 'config', patch: was }); }
+        steps.push({ kind: 'delete', specs: gone.filter((id) => g.entities[id]).map((id) => clone(g.entities[id])) });
+      } else if (op.op === 'config') {
+        const before = clone(g.config || {});
+        steps.push({ kind: 'config', before, after: mergeCopy(before, op.patch), paths: leaves(op.patch, before) });
+      }
     }
-    return back;
+    return steps;
+  }
+  /** The ops that take steps back (dir -1) or forward again (dir 1), only where things are still as they were left. */
+  function replay(steps, dir) {
+    const g = W().graph;
+    const ops = [];
+    let kept = 0;
+    const list = dir < 0 ? [...steps].reverse() : steps;
+    for (const s of list) {
+      if (s.kind === 'create') {
+        if (dir < 0) { if (g.entities[s.id]) ops.push({ op: 'delete', id: s.id }); }
+        else if (!g.entities[s.id]) ops.push({ op: 'create', entity: clone(s.spec) });
+      } else if (s.kind === 'delete') {
+        if (dir < 0) { for (const sp of s.specs) if (!g.entities[sp.id]) ops.push({ op: 'create', entity: clone(sp) }); }
+        else if (s.specs[0] && g.entities[s.specs[0].id]) ops.push({ op: 'delete', id: s.specs[0].id });
+      } else {
+        const now = s.kind === 'config' ? g.config : g.entities[s.id];
+        if (!now) continue; // (someone removed it since)
+        const [from, to] = dir < 0 ? [s.after, s.before] : [s.before, s.after];
+        const patch = {};
+        let any = false;
+        for (const path of s.paths) {
+          if (!same(getAt(now, path), getAt(from, path))) { kept++; continue; } // changed by someone else since: theirs
+          const v = getAt(to, path);
+          setAt(patch, path, v === undefined ? null : clone(v));
+          any = true;
+        }
+        if (any) ops.push(s.kind === 'config' ? { op: 'config', patch } : { op: 'update', id: s.id, patch });
+      }
+    }
+    return { ops, kept };
   }
   /** Changes the world: here first, then saved and shared. */
   function edit(ops, o = {}) {
     if (!ops.length) return;
-    const undo = o.undo === false ? null : inverse(ops);
+    const steps = o.undo === false ? null : remember(ops);
     H.applyOps(ops, { local: true, fx: o.fx });
     const id = ++seq;
     pending.set(id, ops);
     toParent({ type: 'ops', ops, seq: id, fx: o.fx || null });
-    if (undo) { undoStack.push({ redo: ops, undo, label: o.label || '' }); if (undoStack.length > 100) undoStack.shift(); redoStack.length = 0; }
+    if (steps && steps.length) { undoStack.push({ steps, label: o.label || '', seq: id }); if (undoStack.length > 100) undoStack.shift(); redoStack.length = 0; }
+    return id;
   }
-  function undo() { const u = undoStack.pop(); if (!u) return toast('Nothing to undo'); edit(u.undo, { undo: false }); redoStack.push(u); toast(`Undid ${u.label || 'that'}`); }
-  function redo() { const u = redoStack.pop(); if (!u) return; edit(u.redo, { undo: false }); undoStack.push(u); toast(`Redid ${u.label || 'that'}`); }
+  function travel(from, to, dir) {
+    const u = from.pop();
+    if (!u) { toast(dir < 0 ? 'Nothing to undo' : 'Nothing to redo'); return false; }
+    const { ops, kept } = replay(u.steps, dir);
+    if (ops.length) u.seq = edit(ops, { undo: false });
+    to.push(u);
+    const what = u.label || 'that';
+    toast(!ops.length ? `Nothing left to ${dir < 0 ? 'undo' : 'redo'} in ${what}: someone changed it since` : `${dir < 0 ? 'Undid' : 'Redid'} ${what}${kept ? ' (kept the changes others made since)' : ''}`);
+    return true;
+  }
+  function undo() { return travel(undoStack, redoStack, -1); }
+  function redo() { return travel(redoStack, undoStack, 1); }
+  /** The server refused an edit: it never happened, so it isn't on the list. */
+  function refused(seqNo) { for (const s of [undoStack, redoStack]) { const i = s.findIndex((u) => u.seq === seqNo); if (i >= 0) s.splice(i, 1); } }
   const specOf = (e) => (e && e.sceneId ? W().graph.entities[e.sceneId] : null);
   const transformOf = (e) => ({ position: [r2(e.x), r2(e.y), r2(e.z)], rotation: e.rotation3.map((n) => Math.round(n * 10) / 10), scale: (() => { const s = e.node.scaling; return [r2(s.x), r2(s.y), r2(s.z)]; })() });
   function update(e, patch, label) { if (e && e.sceneId) edit([{ op: 'update', id: e.sceneId, patch }], { label }); }
@@ -105,7 +184,9 @@
     <div class="hud-look" id="hudLook" hidden><div class="hud-look-name" id="hudLookName"></div><div class="hud-look-bits" id="hudLookBits"></div></div>
     <div class="hud-hint" id="hudHint"></div>
     <div class="hud-top">
+      <button class="hud-undo" id="hudUndo" type="button" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
       <button class="hud-mode" id="hudMode" type="button" title="Tab"><span class="on">Building</span><span>Playing</span></button>
+      <button class="hud-undo" id="hudRedo" type="button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
       <span class="hud-net" id="hudNet"></span>
     </div>
     <div class="hud-toast" id="hudToast"></div>
@@ -126,6 +207,20 @@
     return all.map((h, i) => ({ ...h, k: i < 10 ? String((i + 1) % 10) : `#${i}` }));
   }
   $('hudMode').onclick = () => setMode(H.mode === 'build' ? 'play' : 'build');
+  $('hudUndo').onclick = (ev) => { ev.stopPropagation(); undo(); };
+  $('hudRedo').onclick = (ev) => { ev.stopPropagation(); redo(); };
+  // A gamepad while building: D-pad left undoes, right redoes.
+  let padUndo = { l: false, r: false };
+  H.hooks.frame.push(() => {
+    if (H.mode !== 'build' || !navigator.getGamepads) return;
+    let gp = null;
+    try { gp = [...navigator.getGamepads()].find((g) => g && g.connected); } catch { return; }
+    if (!gp || !gp.buttons) return;
+    const l = Boolean(gp.buttons[14] && gp.buttons[14].pressed), r = Boolean(gp.buttons[15] && gp.buttons[15].pressed);
+    if (l && !padUndo.l) undo();
+    if (r && !padUndo.r) redo();
+    padUndo = { l, r };
+  });
   // Building: the mouse is a pointer until you take control (the click has to happen in this frame to capture it).
   // If the browser won't capture the mouse, control still works: the cursor hides and moving the mouse looks around.
   let soft = false;
@@ -292,12 +387,7 @@
     const t = transformOf(e);
     const was = before && before.transform || {};
     if (JSON.stringify(t.position) === JSON.stringify(was.position) && JSON.stringify(t.rotation) === JSON.stringify(was.rotation || [0, 0, 0])) return;
-    const ops = [{ op: 'update', id: e.sceneId, patch: { transform: t } }];
-    H.applyOps(ops, { local: true });
-    const id = ++seq;
-    pending.set(id, ops);
-    toParent({ type: 'ops', ops, seq: id });
-    if (before) { undoStack.push({ redo: ops, undo: [{ op: 'replace', entity: before }], label: `moving ${e.name || 'it'}` }); redoStack.length = 0; }
+    edit([{ op: 'update', id: e.sceneId, patch: { transform: t } }], { label: `moving ${e.name || 'it'}`, undo: before ? undefined : false });
     e.home = { position: e.position, rotation: e.rotation3 };
   }
   /** A thrown thing is saved where it comes to rest. */
@@ -867,7 +957,7 @@
       case 'ack': {
         const ops = pending.get(m.seq);
         pending.delete(m.seq);
-        if (m.errors && m.errors.length) { toast(m.errors[0]); if (ops) toParent({ type: 'resync' }); }
+        if (m.errors && m.errors.length) { toast(m.errors[0]); refused(m.seq); if (ops) toParent({ type: 'resync' }); }
         return;
       }
       case 'context?': return toParent({ type: 'context', id: m.id, context: context() });
@@ -876,6 +966,8 @@
       case 'select': { const e = W().byId.get(m.id); if (e) { openPopup(e); } return; }
       case 'mode': return setMode(m.mode);
       case 'toast': return toast(m.text);
+      case 'undo': return void undo();
+      case 'redo': return void redo();
       case 'place': return placeAsset(m.asset);
       case 'placeBasic': return placeFromHotbar(m.k);
       case 'basics?': return toParent({ type: 'basics', list: hotbarList().map((h) => ({ k: h.k, icon: h.icon, label: h.label })) });
@@ -893,5 +985,5 @@
   H.hooks.frame.push(() => { look(); placeCard(); });
   H.hooks.autoLock = () => H.mode !== 'build'; // building never captures the mouse: you look by dragging
   H.hooks.quietErrors = true; // the editor shows errors itself
-  window.HawkesBuild = { context, openPopup, edit, undo, redo, describe, get target() { return target; } };
+  window.HawkesBuild = { context, openPopup, edit, undo, redo, refused, describe, get target() { return target; } };
 })();
