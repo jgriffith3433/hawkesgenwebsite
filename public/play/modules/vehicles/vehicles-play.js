@@ -126,6 +126,7 @@
     lastSwitch = W() ? W().time : 0;
     const g = G();
     const p = g && W().player;
+    if (g && W().player) W().player._seatHidden = false;
     showHud(false);
     const cam = W() && W().scene.activeCamera;
     if (cam) { cam.upVector = new B.Vector3(0, 1, 0); cam.fov = saved.fov || 1; }
@@ -370,7 +371,9 @@
     if (local && p && p.alive) {
       const s = local.v.seats[local.seat];
       const showMe = s.show && local.cam !== 'cockpit';
-      p.node.visibility = showMe ? 1 : 0;
+      // With the looks on, the figure is the body and the capsule stays hidden (presence.js); only the plain capsule is shown here.
+      p._seatHidden = !showMe;
+      if (!p._rigged) p.node.visibility = showMe ? 1 : 0;
       if (p._visor) p._visor.setEnabled(showMe);
       placeRiders();
     }
