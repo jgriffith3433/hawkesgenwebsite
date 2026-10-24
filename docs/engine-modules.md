@@ -175,7 +175,7 @@ and the numbers are never compared.
 
 | | |
 |---|---|
-| `H.physics.raycast(from, dir, dist, { ignore, layers, all })` | `{ entity, point, normal, distance }` or null |
+| `H.physics.raycast(from, dir, dist, { ignore, layers, all, filter, characters })` | `{ entity, point, normal, distance }` or null; `filter(entity)` false looks past a thing, `characters: false` skips characters' boxes. Against the colliders: use it for anything cast every step (wheels, feet), never `scene.pickWithRay` (every triangle of every mesh in the world) |
 | `H.physics.shapeCast(shape, from, to, { ignore, layers })` | `{ entity, point, normal, fraction }` or null |
 | `H.physics.overlap(shape, at, { ignore, all })` | the entities inside |
 
@@ -226,8 +226,24 @@ teleport(p), grounded, standing, normal, remove() }`: walks over slopes up to `m
   touch `e._mat` yourself, call `e.ownMaterial()` first (or every thing of that look changes).
 - `H.budget` (scale.js, per device; `config.budget` overrides): `entities` (past it the oldest script-made things are
   removed: mark yours `e.keep = true` to protect them), `bodies` (the farthest dynamic things rest, `e._frozen`),
-  `shadows` (nearest casters only), `detail` (fewer sides on round things on phones). Spawning 100 of anything is fine;
-  test your module's worst case with the 200-body scenario in `test/engine/runtime.test.ts`.
+  `shadows` (nearest casters only), `detail` (fewer sides on round things on phones), `lights` (the most lights one
+  material takes). Spawning 100 of anything is fine; test your module's worst case with the 200-body scenario in
+  `test/engine/runtime.test.ts`.
+- **What a frame costs** (`test/engine/frame.test.ts`; `docs/performance.md` has the numbers):
+  - **Draw calls**: a thing built from many parts is drawn as one mesh per material: `H.mergeParts(meshes, { keep })`
+    after building a stand-in (vehicles' bodies, furniture, barrels' rings; a house's pieces stay as bodies but are
+    drawn together). Leave out what moves against its parent (wheels, doors, rotors, flames) or mark it
+    `metadata.keep`; keep a reference only to parts you left out (merged ones are disposed). Share materials by look.
+  - **Shadows**: add casters with `W.shadows.addShadowCaster(m)` as before; each frame only the near ones (`shadows`,
+    `shadowDistance`) whose shadow can fall in the camera's view, and not tiny ones, are drawn into the map, and the map
+    is drawn again only when one of those moved (nothing at all looking at the sky). Don't replace the shadow map's
+    `getCustomRenderList` or `refreshRate`.
+  - **Lights**: a point or spot light with a `range` lights only the meshes in it (scale.js sets `includedOnlyMeshes`
+    twice a second); set `includedOnlyMeshes` yourself to choose (a house's rooms do). Give every light you make a range.
+  - **Rays every frame or step**: `H.physics.raycast` (colliders), never a scene pick per frame; work out what the
+    player looks at a few times a second (homes' "what E does" does it 10 times a second).
+  - **Bodies**: moving things never get a triangle collider (a dynamic `mesh` shape becomes its convex hull);
+    still things cost almost nothing per step (a node exactly where it was is skipped).
 
 ## 6c. Loading and memory (phones first)
 
@@ -238,8 +254,10 @@ too much). `docs/performance.md` has the measured numbers and how to measure.
   and `H.budget` per tier (`H.budgetsFor(device)`): besides entities, bodies, shadows and detail, `textureMB` (iPhone 64,
   Android phone 96, iPad 128, desktop 512, or 256 with 4 GB), `maxTexture` (1024 on phones), `pixelRatio` (phones draw a
   3x screen at 2x; desktop 0: never capped), `drawDistance` (meters drawn per meter of a mesh's radius: 220 phone, 700
-  desktop; never past the fog's end for fogged meshes), `shadowDistance` and `loads` (models and textures loading at
-  once). Phones get less; desktop is never capped to a phone's numbers.
+  desktop; never past the fog's end for fogged meshes), `shadowDistance`, `loads` (models and textures loading at
+  once), `lights` (4 phone, 6 tablet, 8 desktop) and `catchUp` (the most fixed steps a frame runs to catch up: 3
+  phone, 4 tablet, 8 desktop; past it a slow device plays in slow motion). Phones get less (and a one-pass filtered shadow instead of the
+  blurred one); desktop is never capped to a phone's numbers.
 - **Draw distance** puts a Babylon LOD level with nothing at the far end on every entity mesh (`m._cullAt`). A mesh with
   its own LOD levels is left alone; `e.noCull = true` draws a thing at any distance (a planet; a mesh with
   `applyFog = false` or a material with `fogEnabled = false` is drawn past the fog).
