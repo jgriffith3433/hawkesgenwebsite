@@ -165,7 +165,33 @@ Measured by `tools/avatar-stats.ts`:
 
 Face: eyes 0.115 wide with big pupils and a highlight, lids, brows, a mouth with five numbers; seven expressions; blinks every
 2.5 to 6 s. Poses: idle (breathes, looks around, shifts weight), walk, run, jump (crouch, stretch, tuck, landing squash with an
-overshoot), fall, swim, drive, with hair and shirt on springs. The other bodies are unchanged.
+overshoot), fall, swim, drive, with hair and shirt on springs. The things are rebuilt in 5c; the animals are unchanged.
+
+## 5c. The things, after
+
+`presence-things.js` rebuilds the eleven things (`shoe toaster cactus cone teapot banana mushroom potato duck tvbot rollbot`) as toys: the object's own
+shape in vertex-colored meshes under the one rim-lit material (the TV and the roll-bot add a lit screen), tones from `core.tones()`, painted
+details (stripes, spots, freckles, a glaze band), a **face drawn on the object** (eyes that follow the camera and blink, a mouth and brows
+from the five expression numbers, cheeks; on the TV and the roll-bot a lit screen with hearts), tiny arms and feet. Each moves its own way, has an idle
+gag after about 3 s of standing still (then every 6 to 11 s) and a signature reaction to any emote (not sit or sleep). `/avatars?body=<id>&pose=gag`
+and `pose=react` play them on a loop. Before/after pictures: `docs/characters-things/` (software renders of the real presence code, `tools/avatar-preview.ts`,
+`WHAT=<id>`; the lit and rim-lit picture is `/avatars`). Test `test/engine/things.test.ts`.
+
+| Body | Triangles | Draws | Locomotion | Idle gag | Signature (any emote) |
+|---|---|---|---|---|---|
+| `shoe` | 2,556 | 8 | rocks heel to toe on stubby legs, tongue and laces swing | three impatient toe taps, tongue lolling | heel click: hop, spin, tongue out |
+| `toaster` | 2,592 | 9 | hops, a slice of toast bobbing up from each slot | ding: toast shoots up, the lever clicks | both slices launch, tumble and drop back in |
+| `cactus` | 2,097 | 7 | lumbers on pot feet, arms swinging | the flower blooms, a little sway | "no hugs": arms cross, flower pops |
+| `cone` | 1,756 | 4 | pogo hops on its base, squashing on landing | directs traffic: stern face, one arm stop, one waving | spins like a top, leaping |
+| `teapot` | 1,658 | 8 | waddle; spout and handle on springs, lid chatters | whistles: lid rattles, steam | pours: leans over to the spout side, steam |
+| `banana` | 1,692 | 10 | swaggering sway over short legs | about to slip: foot kicks, peel flutters | peels: three strips open, ta-da |
+| `mushroom` | 1,778 | 9 | bouncy, the cap squashing on the stem | deep breath, pfff: spores puff | boing: crouch and leap, cap bouncing |
+| `potato` | 1,722 | 7 | rocks along; at a jog it tucks and rolls | the sprout grows, eyes roll up to it | a full forward roll |
+| `duck` | 1,860 | 9 | waddle, rolling foot to foot, paddle feet slapping | two squeaks, beak open, bubbles | squeaky spin with wings wide |
+| `tvbot` | 2,216 | 9 | stiff walk, antennas on springs | static rolls over the screen | hearts in its eyes, bouncing |
+| `rollbot` | 1,390 | 7 | the ball rolls with its speed, leaning in | scans: the head looks left and right | wheelie leap, the head spins a full turn |
+
+All are over the 3-draw target (each moving piece is a mesh) but inside the hard limit for triangles; the person is the one in the doc's hero budget.
 
 ## 6. Not decided here
 
