@@ -1,0 +1,10 @@
+{
+  "title": "Races: lit gates, a countdown, a lap clock and a ghost",
+  "order": 56,
+  "scripts": ["race-core.js", "race.js"],
+  "kinds": [],
+  "lazy": true,
+  "config": ["race"],
+  "words": ["race", "racing"],
+  "needs": ["vehicles"]
+}

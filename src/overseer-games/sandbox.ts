@@ -115,6 +115,24 @@ const QUEST = {
   reward: { score: 100, text: 'The whole planet is yours' },
 };
 
+// ------------------------------------------------------------------ the races (modules/race, config.race)
+// Two loops of lit gates that start by the dock. The first gate of each is the start and the finish line; the gates
+// face the way you drive (from the one before to the one after). Heights come from the island's own ground (land) or
+// the sea's level (water), so the pillars stand on it. Pip's `par` is the time to beat until you have your own.
+// (Lengths: Ridge Run ~330 m a lap in the 4x4 (top 32 m/s, bends and hills: ~21 s a lap); Harbour Run ~600 m a lap in the
+// speedboat (top 26 m/s: ~33 s a lap).)
+const RIDGE: number[][] = [[46, 6], [52, 22], [34, 46], [0, 50], [-30, 42], [-52, 14], [-56, -14], [-40, -44], [-10, -52], [18, -46], [28, -26], [32, -6]];
+const HARBOUR: number[][] = [[108, 0], [95, 46], [58, 80], [8, 92], [-42, 80], [-79, 46], [-92, 0], [-79, -46], [-42, -80], [8, -92], [58, -80], [95, -46]];
+const SEA_LEVEL = -1.5;
+export const RACES = {
+  courses: [
+    { id: 'ridge', name: 'Ridge Run', vehicle: 'wheeled', laps: 3, width: 14, color: '#34d399', par: 80000, rival: 'Pip', gates: RIDGE.map(([x, z]) => [x, z, r2(groundAt(x, z))]) },
+    { id: 'harbour', name: 'Harbour Run', vehicle: 'boat', laps: 2, width: 24, color: '#38bdf8', par: 72000, rival: 'Pip', gates: HARBOUR.map(([x, z]) => [x, z, SEA_LEVEL]) },
+  ],
+  // (Sounds: the library's own where the island has them; the module beeps by itself otherwise.)
+  sounds: { go: 'power-up.mp3', finish: 'level-up.mp3', best: 'victory.mp3' },
+};
+
 /** The guest sandbox's world. The island (an `island` terrain 260 m across, in a planet-wide ocean 20 m deep) is flat
  *  at y 4 within ~14 m of the start; the path runs east to the dock (the beach at x ~62, the pier out to x 82). */
 export const SANDBOX = {
@@ -134,6 +152,7 @@ export const SANDBOX = {
       // The blast's sound is the explosion alone: the Overseer's "Destruction is..." voice is labelled "explosion" too, and a word's mix would play it with every blast.
       explosion: { ids: [A.explosion], only: true } },
     quests: [QUEST],
+    race: RACES,
   },
   entities(): Things {
     const out: Things = {};
@@ -189,6 +208,9 @@ export const SANDBOX = {
     add(thing('harbour_desk', 'box', "Harbour desk", [62.5, groundAt(62.5, 5.6) + 0.45, 5.6], { shape: { size: [1.3, 0.9, 0.75] }, material: { color: '#8a6a4a', texture: A.oldWood, tile: [1, 1] }, transform: yaw(90) }));
     add(thing('logbook', 'box', 'Logbook', [62.5, groundAt(62.5, 5.6) + 0.95, 5.6], { shape: { size: [0.4, 0.07, 0.3] }, material: { color: '#3b2a1c' }, transform: yaw(90), shadow: false }));
     add(thing('catch_board_post', 'cylinder', 'Board post', [58.5, groundAt(58.5, 3.6) + 0.5, 3.66], { shape: { radius: 0.07, height: 1.1 }, material: { color: '#6b4a2f', texture: A.oldWood } }));
+    // The race board: the best times of the Ridge Run and Harbour Run on this device (modules/race: E reads it, the sign shows the top).
+    add(thing('race_board', 'box', 'Race board', [58.5, groundAt(58.5, 7.6) + 1.5, 7.6], { shape: { size: [1.9, 1.05, 0.08] }, material: { color: '#6b4a2f', texture: A.oldWood, tile: [1, 1] }, transform: yaw(-90), data: { raceBoard: 'ridge' } }));
+    add(thing('race_board_post', 'cylinder', 'Board post', [58.5, groundAt(58.5, 7.6) + 0.5, 7.66], { shape: { radius: 0.07, height: 1.1 }, material: { color: '#6b4a2f', texture: A.oldWood } }));
     add({ id: 'rod', type: 'tool-pickup', name: 'Fishing rod', shape: { tool: 'rod', respawn: 5 }, transform: { position: [86.5, pierY + 0.2, -0.4] } });
     add({ id: 'boat', type: 'boat', name: 'Speedboat', shape: { model: A.speedboat }, material: { color: '#e5e7eb' }, transform: { position: [73, -1.2, 4.4], rotation: [0, 90, 0] } });
     add(thing('duck', 'model', 'Rubber duck', [77, -1.35, -4], { shape: { asset: A.duck, size: 0.45 }, physics: 'dynamic', data: { density: 0.3 } }));

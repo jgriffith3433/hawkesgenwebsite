@@ -72,6 +72,7 @@ export function cleanAvatar(v: unknown) {
 export const MEMORY = {
   maxBytes: 4096,
   fishMax: 48,
+  raceMax: 8,
   deeds: ['fish', 'boom', 'build', 'dock', 'high', 'space', 'drive', 'ask', 'fall'],
   counts: ['fish', 'boom', 'build', 'dock', 'high', 'space', 'ask', 'fall'],
   recent: 8,
@@ -85,6 +86,16 @@ function cleanFish(f: unknown) {
     if (!/^[a-z0-9-]{1,32}$/.test(id) || !Array.isArray(e)) continue;
     const n = int(e[0], 100000);
     if (n) out[id] = [n, int(e[1], 1e7), int(e[2], 2000)];
+  }
+  return out;
+}
+function cleanRace(r: unknown) {
+  const out: Record<string, number> = {};
+  if (!r || typeof r !== 'object' || Array.isArray(r)) return out;
+  for (const [id, v] of Object.entries(r as Record<string, unknown>)) {
+    if (Object.keys(out).length >= MEMORY.raceMax) break;
+    const ms = Math.floor(Number(v));
+    if (/^[a-z0-9-]{1,32}$/.test(id) && Number.isFinite(ms) && ms > 0) out[id] = Math.min(ms, 1e7);
   }
   return out;
 }
@@ -105,6 +116,8 @@ export function cleanMemory(v: unknown) {
     driveS: int(a.driveS, 1e8), playS: int(a.playS, 1e8),
     // The catch log (fishing): species id -> [times caught, heaviest in kg x 100, longest in cm].
     fish: cleanFish(a.fish), fishPts: int(a.fishPts, 1e9),
+    // The race bests (race module): course id -> best time in ms.
+    race: cleanRace(a.race),
     greet: { last: id(g.last), recent: Array.isArray(g.recent) ? g.recent.map(id).filter((x): x is string => x !== null).slice(-MEMORY.recent) : [] },
   };
 }
