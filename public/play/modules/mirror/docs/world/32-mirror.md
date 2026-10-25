@@ -12,6 +12,13 @@ one question at a time:
 3. **"What are you called?"**: their character's name, shown over their head (🎲 suggests a funny one).
 4. (Only if the mirror asks it) **"How do you see the world?"**: first or third person, for this game.
 
+At a mirror it is staged like a little show: the player steps up to the glass and waves, a warm key light and a cool rim
+light (on their body only) light the reflection, the camera eases closer as the questions go on (the look, then the
+name), and choosing a different body squashes and springs the character with sparkles while the Overseer says its line
+for that body. The reflection is small while nobody is there and sharper, redrawn often and only from what is near the
+glass, while someone is; on a slow phone the effects step down by themselves (the rim light, then the reflection's size,
+then the sparkles) to keep about 30 fps.
+
 Then the Overseer names them ("Sir Laces the shoe. I will remember that.") and the game goes on. The choices are the
 player's look everywhere (their account keeps it; everyone in the room sees it). Their body is still a 1.8 m capsule to
 physics: a tiny cat and a tall horse collide the same.
