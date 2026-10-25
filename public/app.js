@@ -451,12 +451,13 @@ async function loadInvite() {
 
 async function checkSession() {
   try {
-    const res = await fetch('/v1/users/me', { headers: { Accept: 'application/json' } });
+    const res = await fetch('/v1/users/me?soft=1', { headers: { Accept: 'application/json' } });
     if (!res.ok) {
       showInlineAuth();
       return;
     }
     const data = await res.json();
+    if (!data.user) { showInlineAuth(); return; }
     state.user = data.user;
     showStudioApp();
     updateWalletUI(state.user.credits);

@@ -31,6 +31,7 @@
   <script>document.documentElement.classList.add("js")</script>
   <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
   <script src="/site-analytics.js"></script>
+  <script defer src="/google-gate.js"></script>
   <script>if("serviceWorker"in navigator&&!navigator.webdriver)addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))</script>
   <script src="/sitenav.js" defer></script>
   <script>/* Studio's playtest (public/playtest/portal.js): only a browser under automation loads it */
@@ -546,7 +547,7 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
         if (!pics.length) return;
         const esc = (s) => String(s).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
         const peek = document.getElementById('libPeek');
-        peek.innerHTML = pics.map((x) => '<a href="/community?open=' + encodeURIComponent(x.id) + '"><img src="' + esc(x.thumb) + '" alt="" loading="lazy"><span>' + esc(x.title) + '</span></a>').join('');
+        peek.innerHTML = pics.map((x) => '<a href="/community?open=' + encodeURIComponent(x.id) + '"><img src="' + esc(x.thumb) + '" alt="' + esc(x.title) + '" loading="lazy" onerror="this.parentNode.remove()"><span>' + esc(x.title) + '</span></a>').join('');
         peek.hidden = false;
       } catch {}
     })();

@@ -6,7 +6,7 @@ let sort = 'live';
 // ===================================================================== load
 let me = null;
 (async () => {
-  me = await get(`${API}/users/me`).then((r) => r.user).catch(() => null);
+  me = await get(`${API}/users/me?soft=1`).then((r) => r.user).catch(() => null);
   setupAuth();
   loadGames();
 })();

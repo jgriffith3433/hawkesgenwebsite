@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/site.css">
   <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
   <script src="/site-analytics.js"></script>
+  <script defer src="/google-gate.js"></script>
   <script type="module" src="https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
 </head>
 <body class="landing">
@@ -84,7 +85,7 @@
         <a class="btn btn-secondary btn-sm" href="/connect" id="editorsPill">Connect your editor</a>
         <script>
           // The studio's top bar says which editors are connected (or offers to connect one).
-          fetch('/v1/connections').then((r) => (r.ok ? r.json() : null)).then((d) => {
+          fetch('/v1/users/me?soft=1').then((r) => (r.ok ? r.json() : null)).then((m) => (m && m.user ? fetch('/v1/connections') : null)).then((r) => (r && r.ok ? r.json() : null)).then((d) => {
             const list = d?.connections ?? [];
             if (!list.length) return;
             const short = (n) => (/visual studio code/i.test(n) ? 'VS Code' : n);

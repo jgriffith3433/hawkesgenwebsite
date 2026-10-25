@@ -395,7 +395,24 @@
   const verb = () => (H.touchUi ? 'Tap 🎣' : 'Click');
   const holdVerb = () => (H.touchUi ? 'Hold 🎣' : 'Hold the mouse');
 
+  // A first catch is made easy (J, 2026-10-25: the first bite must be quick and reliable): until this player has caught
+  // anything, or while a script asks (`game.water.fish.assist(true)`, the playtest bot's hook), the first bite comes 2.5 to 4.5 s
+  // after the bobber lands (never later than FIRST_BITE_MAX), it is a common fish, the bite stays 3 s, and the line can
+  // not snap: holding the reel is enough. `fishing: { firstCatch: false }` in the rod's options turns it off.
+  const FIRST_BITE = [2.5, 4.5], FIRST_BITE_MAX = 5, FIRST_BITE_WINDOW = 3, FIRST_TENSION_CAP = 0.78;
+  let assisted = false;
+  const easyNow = (ctx) => assisted || (ctx.opts.firstCatch !== false && journal().total === 0);
+  /** A common, non-junk fish of this water (the first fish of all); falls back to a normal roll. */
+  function rollFirst(body) {
+    const list = candidates(body).filter((x) => x.rarity === 'common');
+    return list.length ? sized(list[Math.floor(Math.random() * list.length)]) : roll(body, { junk: false });
+  }
   function newWait(s, ctx, k = 1) {
+    if (s.easy) {
+      const base = Math.min(FIRST_BITE_MAX, rand(FIRST_BITE[0], FIRST_BITE[1]) * k);
+      s.wait = base; s.waited = 0; s.nibbles = [base * 0.45, base * 0.75];
+      return;
+    }
     const base = rand(3, 11) * k / Math.max(0.2, Number(ctx.opts.bite) || 1) * (1 - (H.water.rain || 0) * 0.3);
     s.wait = base; s.waited = 0; s.nibbles = [base * rand(0.35, 0.55), base * rand(0.65, 0.85)];
   }
@@ -488,6 +505,7 @@
             H.water.splash([next.x, wa.surface, next.z], 0.25, { sound: false });
             H.water.sound('plop', { at: [next.x, wa.surface, next.z] });
             s.phase = 'waiting';
+            s.easy = easyNow(ctx);
             newWait(s, ctx);
             if (!candidates(wa.body).length) { s.wait = Infinity; g.ui.message('No fish in this water', 1.6); }
             break;
@@ -506,10 +524,10 @@
             lure.at = s.waited > s.wait * 0.5 ? [s.anchor[0], X.surfaceOf(s.body, s.anchor[0], s.anchor[1]), s.anchor[1]] : null;
             while (s.nibbles.length && s.waited >= s.nibbles[0]) { s.nibbles.shift(); s.dip = -0.09; H.water.ripple(s.anchor[0], s.anchor[1], 0.15); H.water.sound('plop', { at: s.bob, volume: 0.35 }); }
             if (s.waited >= s.wait) {
-              s.fish = roll(s.body, { ...ctx.opts, depth: s.lineDepth });
+              s.fish = (s.easy && rollFirst(s.body)) || roll(s.body, { ...ctx.opts, depth: s.lineDepth });
               if (!s.fish) { s.wait = Infinity; break; }
               s.phase = 'bite';
-              s.biteLeft = s.fish.rarity === 'legendary' ? 0.95 : s.fish.rarity === 'rare' ? 1.15 : 1.4;
+              s.biteLeft = s.easy ? FIRST_BITE_WINDOW : s.fish.rarity === 'legendary' ? 0.95 : s.fish.rarity === 'rare' ? 1.15 : 1.4;
               s.dip = -0.3;
               H.water.splash(s.bob, 0.3, { sound: false });
               H.water.sound('bite', { volume: 0.9 });
@@ -589,7 +607,7 @@
     r.pull += (r.pullTo - r.pull) * Math.min(1, dt * 4);
     const holding = BK.using(true);
     r.tension += (holding ? 0.42 + str * 0.3 : -0.85) * dt + r.pull * str * 0.8 * dt;
-    r.tension = clamp(r.tension, 0, 1.2);
+    r.tension = clamp(r.tension, 0, s.easy ? FIRST_TENSION_CAP : 1.2);
     const zone = r.tension > 0.3 && r.tension < 0.8;
     if (holding) r.progress -= dt * (0.12 + 0.07 * (1 - Math.min(1, str))) * (zone ? 1.5 : 0.7) * (1 - r.pull * 0.6);
     else r.progress += dt * r.pull * str * 0.07;
@@ -756,6 +774,13 @@
       const total = ws.reduce((a, c) => a + c, 0) || 1;
       return list.map((s, i) => ({ id: s.id, p: ws[i] / total }));
     },
+    /** For scripts and the playtest bot: assist(true) makes every cast the player's first (a bite 2.5 to 4.5 s after the bobber
+     *  lands, a common fish, a bite that waits 3 s, a line that cannot snap while the reel is held), so a catch is the same
+     *  every time; assist(false) goes back to the normal tables. Without an argument it says whether it is on. A player with
+     *  no catch yet gets the same help without calling it. */
+    assist(on) { if (on !== undefined) assisted = Boolean(on); return assisted; },
+    /** Where the rod is: 'ready', 'charge', 'flying', 'waiting', 'bite', 'reel', 'retract', 'show', or null with no rod in hand. */
+    phase() { const h = H.tools.held; return h && h.ctx && h.ctx.state && (h.name === 'rod' || h.name === 'fishing-rod') ? h.ctx.state.phase || null : null; },
     /** Opens or closes the catch log on screen (log(true), log(false), or log() to toggle). */
     log: (open) => showLog(open),
     clear() { keep({ fish: {}, total: 0, points: 0 }); refreshBoards(); },

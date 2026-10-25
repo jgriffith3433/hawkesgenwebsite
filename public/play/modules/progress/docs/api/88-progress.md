@@ -15,3 +15,7 @@ Adding an unlock is one line in `progress-core.js` `UNLOCKS`: `[level, kind, id,
 from `presence-core.js`), `col` (a hex color without #) or `tool` (an `H.tools` name). The line is the Overseer's own words when
 given; otherwise its kind's line is used. Points are earned only after a world has settled (3 s) and the Overseer's intro and
 mirror are over.
+
+The level pill moves in the frame of an award: it counts up to the new total over about half a second and the bar flashes.
+A level-up's Overseer line is said in the same call unless another line is being spoken; then it follows that line
+within one frame (`H.progress.waiting` is how many wait). `H.progress.hud` gives `{ shown, target, flashes }`.

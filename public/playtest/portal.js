@@ -659,13 +659,14 @@ async function stageFish(t, ctx) {
     if (!heldRod()) throw new Error('timed out: the rod is not in hand after picking it up');
     await lookAt(t, Math.PI / 2); // out to sea, east
     t.scene('Island: fishing');
-    let bit = false;
-    G().on('bite', () => { bit = true; });
+    // The rod's documented hook (game.water.fish.assist, docs/api/60-water.md): every cast is a first cast, so the bite comes
+    // in 2.5 to 4.5 s, as a new player's first does; the casting, hooking and reeling below are still real input.
+    try { G().water.fish.assist(true); t.event('setup-shortcut', 'fishing assist on: a quick, common first bite'); } catch { /* the player's own first-catch help applies */ }
+    const biting = () => { try { return G().water.fish.phase() === 'bite'; } catch { return false; } };
     for (let cast = 1; cast <= 4 && step() === 'fish'; cast++) {
-      bit = false;
       await holdMouse(t, 900 + cast * 150);
       t.event('cast', `cast ${cast}`);
-      const bitten = await t.until(() => bit || step() !== 'fish', 22000, 'a bite').then(() => bit, () => false);
+      const bitten = await t.until(() => biting() || step() !== 'fish', 22000, 'a bite').then(() => biting(), () => false);
       if (!bitten) { t.event('no-bite', `cast ${cast}`); continue; }
       t.event('bite');
       pointer('pointerdown', canvas()); await t.wait(90); pointer('pointerup', window); // hook it
@@ -1166,7 +1167,24 @@ async function stageProgress(t, ctx) {
   // A level: quests done are earned by a named shortcut (the quest line itself is another scenario's).
   const lvl0 = PG().state.level;
   t.event('setup-shortcut', 'quests done: the points of a few quests, earned through the same table');
+  // The HUD must move in the frame of the award, with a count-up (not all at once), and the level's line must not wait.
+  const hudPts = () => (PG().hud || {}).shown;
+  const shownBefore = hudPts(), t0 = performance.now();
+  let gotQ = 0;
+  while (!gotQ) { gotQ = PG().earn('quest'); if (!gotQ) await t.wait(300); }
+  const shownNow = hudPts(), ms = Math.round(performance.now() - t0);
+  t.event('hud-updated', `+${gotQ}: HUD ${shownBefore} -> ${shownNow} of ${PG().state.pts} in the same call (${ms} ms incl. waiting to count)`);
+  if (!(shownNow > shownBefore)) t.problem('error', 'the HUD did not move in the frame of the award');
+  await t.wait(120);
+  const mid = hudPts();
+  await t.wait(700);
+  t.event('hud-count-up', `${shownNow} -> ${mid} -> ${hudPts()} (target ${PG().state.pts}); flashes ${(PG().hud || {}).flashes}`);
+  if (hudPts() !== PG().state.pts) t.problem('error', 'the HUD count-up did not reach the points earned');
+  const lvlAt = performance.now();
   while (PG().state.level < 2) { if (!PG().earn('quest')) await t.wait(300); }
+  const speaking = HP().speech && HP().speech.busy;
+  t.event('level-moment-timing', `level ${PG().state.level} reached; moments waiting ${PG().waiting}${PG().waiting ? ' (another line was speaking)' : ' (said at once)'}; ${Math.round(performance.now() - lvlAt)} ms`);
+  layoutCheck('level pill and wish note after a level-up');
   await t.until(() => PG().waiting === 0, 40000, 'the Overseer\'s moment');
   t.event('level-reached', `level ${lvl0} -> ${PG().state.level}; HUD: ${hudText()}`);
   t.scene('Progress: level up');
@@ -1624,12 +1642,12 @@ async function stageTouch(t, ctx) {
     await t.until(() => $('.water-use'), 8000, 'the fish button');
     t.scene('Touch: fishing');
     audit('fishing');
-    let bit = false; G().on('bite', () => { bit = true; });
+    try { G().water.fish.assist(true); } catch { /* the first-catch help applies */ }
+    const biting = () => { try { return G().water.fish.phase() === 'bite'; } catch { return false; } };
     for (let cast = 1; cast <= 4 && step() === 'fish'; cast++) {
-      bit = false;
       const up = press($('.water-use')); await t.wait(900 + cast * 150); up(); // hold to cast
       t.event('touch-cast', `cast ${cast}`);
-      const bitten = await t.until(() => bit || step() !== 'fish', 22000, 'a bite').then(() => bit, () => false);
+      const bitten = await t.until(() => biting() || step() !== 'fish', 22000, 'a bite').then(() => biting(), () => false);
       if (!bitten) continue;
       await tapButton(t, $('.water-use'), 90); // hook it
       const reel = press($('.water-use')); // and reel while held

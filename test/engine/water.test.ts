@@ -251,6 +251,74 @@ test('water: fish live by water kind; custom species; a cast, a bite, the reel-i
   H.tick(0.1);
 });
 
+// A first catch is easy: a bite within about 8 s of the cast, a common fish, and holding the reel is enough.
+function castAndWait(game: any) {
+  const p = game.player;
+  p.position = [19, 0.95, 0];
+  H.world.camera.yaw = Math.PI / 2;
+  H.world.camera.pitch = -0.1;
+  p.tool = 'fishing-rod';
+  H.tick(0.3);
+  const st = () => H.tools.held.ctx.state;
+  key('keydown', 'wateruse');
+  H.tick(0.7);
+  key('keyup', 'wateruse');
+  let flight = 0;
+  while (st().phase !== 'waiting' && flight < 6) { H.tick(1 / 60); flight += 1 / 60; }
+  assert.equal(st().phase, 'waiting', 'the bobber landed in the water');
+  return { st, p };
+}
+test('water: the first bite comes within 8 s of the bobber landing, whatever the roll, and is a common fish', () => {
+  for (let i = 0; i < 8; i++) {
+    const game = world({ water: { level: -0.5, waves: 0.1 } });
+    game.water.fish.clear();
+    const { st, p } = castAndWait(game);
+    assert.ok(st().easy && st().wait >= 2.5 && st().wait <= 5, `first bite wait ${st().wait}`);
+    let t = 0;
+    while (st().phase === 'waiting' && t < 8) { H.tick(1 / 60); t += 1 / 60; }
+    assert.equal(st().phase, 'bite', `a bite by ${t.toFixed(1)} s`);
+    assert.ok(t <= 5.1, `bite after ${t.toFixed(2)} s`);
+    assert.equal(st().fish.rarity, 'common', 'the first fish is a common one');
+    assert.ok(st().biteLeft >= 2.9, 'the bite waits about 3 s');
+    p.tool = null; H.tick(0.1);
+  }
+});
+test('water: the first fish lands by holding the reel (the line cannot snap), and the next casts are normal', () => {
+  const game = world({ water: { level: -0.5, waves: 0.1 } });
+  game.water.fish.clear();
+  let caught: any = null;
+  game.on('catch', (d: any) => { caught = d; });
+  const { st, p } = castAndWait(game);
+  st().waited = st().wait; H.tick(1 / 60);
+  assert.equal(st().phase, 'bite');
+  press('wateruse');
+  H.tick(1 / 60);
+  assert.equal(st().phase, 'reel');
+  key('keydown', 'wateruse');
+  let peak = 0;
+  for (let i = 0; i < 3600 && st().phase === 'reel'; i++) { H.tick(1 / 60); peak = Math.max(peak, st().reel ? st().reel.tension : 0); }
+  key('keyup', 'wateruse');
+  assert.equal(st().phase, 'show', 'landed it by only holding');
+  assert.ok(peak < 1, `tension stayed under the snap (${peak.toFixed(2)})`);
+  assert.ok(caught && caught.mine && caught.fish.name, 'the catch event fired (it passes the tour\'s fish step)');
+  assert.equal(game.water.fish.journal().total, 1);
+  // With a catch on record the help is gone, until a script asks for it.
+  H.tick(3);
+  assert.equal(st().phase, 'ready');
+  key('keydown', 'wateruse'); H.tick(0.7); key('keyup', 'wateruse');
+  for (let i = 0; i < 400 && st().phase !== 'waiting'; i++) H.tick(1 / 60);
+  assert.equal(st().easy, false, 'normal casts after the first catch');
+  assert.ok(st().wait >= 3, `normal wait ${st().wait}`);
+  p.tool = null; H.tick(0.1);
+  assert.equal(game.water.fish.assist(), false);
+  game.water.fish.assist(true);
+  const again = castAndWait(game);
+  assert.ok(again.st().easy && again.st().wait <= 5, 'assist(true) is the bot\'s hook for a quick bite');
+  game.water.fish.assist(false);
+  again.p.tool = null; H.tick(0.1);
+  clean();
+});
+
 // ------------------------------------------------------------------ weather
 test('water: rain turns on and off with config.weather', () => {
   const game = world({ water: { level: -1 }, weather: 'storm' });
