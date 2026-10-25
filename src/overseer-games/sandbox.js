@@ -205,3 +205,113 @@ game.on('wrecked', (d) => {
     overseer('A new one, from me.', 4, 'overseer-a-new-one.mp3');
   });
 });
+
+// ------------------------------------------------------------------ the tour's tracker
+// Pip's line is gone in a few seconds; this stays: the step in one line, "2 of 7", a flourish when one is done, a hint with
+// the controls after 20 s without progress, and a marker over the place (it fades as you get there). Top left, under the
+// safe area, clear of the stick and buttons at the bottom. The quest list's own tracker would say the same thing twice.
+const STEPS = ['drive', 'rod', 'fish', 'boom', 'spawn', 'ask', 'fly'];
+const SHORT = {
+  drive: 'Drive the 4x4 to the dock', rod: 'Grab the fishing rod at the end of the pier', fish: 'Catch a fish',
+  boom: 'Blow up the fuel barrels', spawn: 'Spawn something', ask: 'Ask the Overseer for something', fly: 'Fly the helicopter up high',
+};
+// What to press, for the step, on a keyboard and on a phone.
+const HINTS = {
+  drive: ['Walk with WASD, or press E at the 4x4 to get in. Follow the yellow arrow.', 'Use the stick to walk, or tap B at the 4x4 to get in. Follow the yellow arrow.'],
+  rod: ['Walk out along the pier (WASD). The rod is at the far end: walk into it.', 'Use the stick to walk out along the pier. The rod is at the far end: walk into it.'],
+  fish: ['Hold click to cast, release to throw. Click again when the bobber dips.', 'Hold the screen to cast, let go to throw. Tap again when the bobber dips.'],
+  boom: ['Press Q until the rocket launcher is in your hands, then click to fire at the barrels.', 'Tap ⇄ until the rocket launcher is in your hands, then tap the screen to fire at the barrels.'],
+  spawn: ['Hold Q and pick anything from the wheel.', 'Tap the ➕ button and pick anything.'],
+  ask: ['Type what you want in the chat at the bottom (try "a castle on the hill").', 'Type what you want in the chat (try "a castle on the hill").'],
+  fly: ['Get in the helicopter with E. Hold W to climb, or use the mouse to tilt up.', 'Tap B at the helicopter. Push the stick up and keep going up.'],
+};
+const NAMES = { drive: 'Dock', rod: 'Fishing rod', fish: 'Fishing rod', boom: 'Fuel barrel', fly: 'Helicopter' };
+const HINT_AFTER = 20; // seconds without progress
+const FADE_NEAR = 14; // the marker is gone by here (meters), fully there from FADE_FAR
+const FADE_FAR = 30;
+
+if (typeof document !== 'undefined' && !document.getElementById('tour-style')) {
+  const st = document.createElement('style');
+  st.id = 'tour-style';
+  st.textContent = [
+    'body.tour-on .qs-track{display:none!important}',
+    '.tour-track{position:fixed;left:12px;top:max(10px,env(safe-area-inset-top));z-index:25;width:min(300px,calc(100vw - 24px));box-sizing:border-box;padding:8px 11px;border-radius:12px;background:rgba(10,14,24,.7);border:1px solid rgba(255,216,74,.45);color:#fff;font:600 14px/1.3 system-ui,sans-serif;pointer-events:none;backdrop-filter:blur(4px)}',
+    '.tour-track[hidden]{display:none}',
+    '.tour-track .n{display:block;font:800 11px system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#ffd84a}',
+    '.tour-track .t{display:block}',
+    '.tour-track .h{display:none;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.18);font-weight:500;font-size:13px;color:#dbe7ff}',
+    '.tour-track.hint .h{display:block;animation:tour-in .3s ease-out}',
+    '.tour-track.flash{animation:tour-flash .9s ease-out}',
+    '@keyframes tour-flash{0%{transform:scale(1);box-shadow:0 0 0 0 rgba(255,216,74,.9);background:rgba(60,48,8,.9)}25%{transform:scale(1.07)}100%{transform:scale(1);box-shadow:0 0 0 18px rgba(255,216,74,0)}}',
+    '@keyframes tour-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}',
+    '.tour-mark{padding:0!important;border:0!important;background:none!important;font-size:26px;line-height:1;color:#ffd84a;text-shadow:0 2px 6px rgba(0,0,0,.7);transition:opacity .25s;animation:tour-bob 1.1s ease-in-out infinite alternate}',
+    '@keyframes tour-bob{from{margin-top:0}to{margin-top:-8px}}',
+  ].join('\n');
+  document.head.appendChild(st);
+}
+
+const tour = { step: null, since: 0, shown: null, markFor: null, mark: null };
+const clearMark = () => { if (tour.mark) { try { tour.mark.close(); } catch { /* gone */ } } tour.mark = null; tour.markFor = null; };
+const tracker = () => {
+  let el = tour.n ? game.ui.el('tour-track') : null; // (a script that runs again builds its own)
+  if (!el) {
+    game.ui.remove('tour-track');
+    tour.shown = null;
+    el = game.ui.html('tour-track', '', { class: 'tour-track' });
+    el.removeAttribute('style'); // (its own place: CSS above)
+    for (const k of ['n', 't', 'h']) { const s = document.createElement('span'); s.className = k; el.appendChild(s); tour[k] = s; }
+  }
+  return el;
+};
+const markTarget = (step) => {
+  const list = (game.all(NAMES[step]) || []).filter((e) => e && e.alive && !(e.vehicle && e.vehicle.wrecked));
+  const p = game.player;
+  if (p) list.sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z));
+  return list[0] || null;
+};
+function drawTour() {
+  const q = game.events && game.events.quests;
+  const active = Boolean(q && game.mode === 'play' && q.state('tour') === 'active');
+  const step = active ? q.step('tour') : null;
+  if (typeof document !== 'undefined' && document.body) document.body.classList.toggle('tour-on', active && !!step);
+  if (!active || !step || !STEPS.includes(step)) {
+    const el = game.ui.el('tour-track');
+    if (el) el.hidden = true;
+    clearMark();
+    return;
+  }
+  const el = tracker();
+  el.hidden = false;
+  const now = game.time;
+  if (tour.step !== step) {
+    const first = tour.step === null;
+    tour.step = step; tour.since = now;
+    el.classList.remove('hint');
+    if (!first) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } // (a short flourish: the step before is done)
+  }
+  const i = STEPS.indexOf(step) + 1;
+  if (tour.shown !== step) {
+    tour.shown = step;
+    tour.n.textContent = `The tour · ${i} of ${STEPS.length}`;
+    tour.t.textContent = SHORT[step];
+    tour.h.textContent = (HINTS[step] || [])[H && H.touchUi ? 1 : 0] || '';
+  }
+  el.classList.toggle('hint', now - tour.since >= HINT_AFTER);
+  // The marker over the place; fades as the player arrives.
+  const target = NAMES[step] ? markTarget(step) : null;
+  if (!target) { clearMark(); return; }
+  if (tour.markFor !== target) {
+    clearMark();
+    tour.markFor = target;
+    tour.mark = game.ui.attach('tour-mark', target, { html: '▼', class: 'tour-mark', offset: step === 'drive' ? 3 : 1.2 });
+  }
+  const m = game.ui.el('tour-mark');
+  const p = game.player;
+  if (m && p) {
+    const d = Math.hypot(target.x - p.x, target.z - p.z);
+    m.style.opacity = String(Math.max(0, Math.min(1, (d - FADE_NEAR) / (FADE_FAR - FADE_NEAR))));
+  }
+}
+game.every(0.2, drawTour);
+// A step done: draw at once, so the flourish is on the same beat as the confetti.
+game.on('quest', (d) => { if (d && d.id === 'tour') drawTour(); });
