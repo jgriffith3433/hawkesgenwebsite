@@ -3,16 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Hawkes Gen — Build games with friends and AI</title>
+  <title>Hawkes Gen — Say what should exist</title>
   <meta name="description" content="Create browser games collaboratively in real-time with your friends and an AI assistant. No downloads, no setup. Start building in seconds.">
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/public.css">
   <link rel="stylesheet" href="/site.css">
+  <link rel="stylesheet" href="/overseer-sky.css">
+  <script>document.documentElement.classList.add("js")</script>
   <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
   <script src="/site-analytics.js"></script>
   <script src="/sitenav.js" defer></script>
 </head>
-<body class="landing">
+<body class="landing at-sky">
   <header class="hg-navbar">
     <div class="wrap hg-navbar-inner">
       <a href="/" class="hg-brand"><span class="wordmark">Hawkes Gen</span></a>
@@ -25,72 +27,48 @@
   </header>
 
   <main>
-    <section class="hero">
-      <div class="wrap hero-grid">
-        <div>
-          <div class="label">Build games with AI</div>
-          <h1 style="margin-top:18px;">Just describe<br><em>what you want to build.</em></h1>
-          <p class="lede">Tell the AI what game you want, and it builds it with you. Invite friends to build together in real-time. Generate art and sounds by asking. Your game is live on the web from the first minute: people play it while you build. No coding knowledge required—the AI handles it.</p>
-          <div class="actions">
-            <a class="btn btn-primary btn-lg" href="/play/sandbox" data-play-now>Play now (no sign-up)</a>
-            <button type="button" class="btn btn-secondary btn-lg" data-open-auth="signup">Start building</button>
-          </div>
-          <div class="fine">Play now drops you on an island in your browser: a 4x4, a boat, exploding barrels, a fishing rod. Like it? Save it and it becomes your game. Free to start, no card needed. Or <a href="/games">play the games people made</a>.</div>
-          <div class="label" style="margin:28px 0 10px">How it works</div>
-          <div style="display:flex;flex-direction:column;gap:8px;max-width:420px">
-            <div style="display:flex;align-items:center;gap:12px">
-              <span style="font:600 14px var(--sans);color:var(--accent)">1</span>
-              <span style="font:14px var(--sans)">Choose a template or start from scratch</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:12px">
-              <span style="font:600 14px var(--sans);color:var(--accent)">2</span>
-              <span style="font:14px var(--sans)">Tell the AI: "Add enemies" or "Make the player jump higher"</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:12px">
-              <span style="font:600 14px var(--sans);color:var(--accent)">3</span>
-              <span style="font:14px var(--sans)">Ask for art and music, or grab free models, textures and sounds from the <a href="/community">community library</a></span>
-            </div>
-            <div style="display:flex;align-items:center;gap:12px">
-              <span style="font:600 14px var(--sans);color:var(--accent)">4</span>
-              <span style="font:14px var(--sans)">Invite friends to build with you in real-time</span>
-            </div>
+    <section class="sky" data-sky aria-label="The Overseer over a planet">
+      <canvas aria-hidden="true"></canvas>
+      <div class="sky-say" data-sky-say aria-live="polite"></div>
+      <div class="sky-cards" data-sky-cards></div>
+      <div class="sky-inner">
+        <div class="sky-eyebrow">Hawkes Gen</div>
+        <h1>Say what<br><em>should exist.</em></h1>
+        <p class="lede">Above every world you build hangs the Overseer. Tell it what you want, in plain words, and it beams it down: the game, the art, the sound. Build with friends, live, while people play.</p>
+        <form class="sky-wish" data-sky-wish autocomplete="off">
+          <input type="text" maxlength="48" aria-label="Something that should exist" enterkeyhint="send">
+          <button type="submit">Beam it in</button>
+        </form>
+        <div class="sky-reply" data-sky-reply hidden aria-live="polite"><span></span> <a href="/play/sandbox" data-play-now-inline>Go where it can build it &rarr;</a></div>
+        <div class="actions">
+          <a class="btn btn-play btn-lg" href="/play/sandbox" data-play-now>Play now (no sign-up)</a>
+          <button type="button" class="btn btn-ghostlight btn-lg" data-open-auth="signup">Start building</button>
+        </div>
+        <div class="fine">The box above is a preview of the beam. In the world itself the Overseer really builds it. Play now drops you on an island in your browser: a 4x4, a boat, exploding barrels, a fishing rod. Like it? Save it and it becomes your game. Free to start, no card needed. Or <a href="/games">play the games people made</a>.</div>
+      </div>
+    </section>
+
+    <section class="section descent" id="how-it-works">
+      <div class="wrap">
+        <div class="section-head beam-in">
+          <div class="label">How a thing appears</div>
+          <div>
+            <h2>You ask. It arrives.</h2>
+            <p>Every world is a planet with the Overseer in its sky. The assistant speaks as the Overseer, and whatever it makes is beamed in.</p>
           </div>
         </div>
-        <div class="hero-demo" aria-label="AI building a game">
-          <div class="sheet">
-            <div class="sheet-head"><span class="label">💬 Chat with AI</span><span class="label">▶ Live Preview</span></div>
-            <div style="padding:24px;background:#1a1a1a">
-              <div style="margin-bottom:16px;padding:12px;background:#2d2d2d;border-radius:8px;border-left:3px solid #4a9eff">
-                <div style="font:13px var(--sans);color:#aaa;margin-bottom:6px">You:</div>
-                <div style="font:14px var(--sans);color:#fff">"Add a jump mechanic"</div>
-              </div>
-              <div style="margin-bottom:16px;padding:12px;background:#2d2d2d;border-radius:8px;border-left:3px solid #a855f7">
-                <div style="font:13px var(--sans);color:#aaa;margin-bottom:6px">AI Assistant:</div>
-                <div style="font:14px var(--sans);color:#fff;margin-bottom:8px">Added jump! Press spacebar.</div>
-                <div style="display:inline-block;padding:4px 8px;background:rgba(74,158,255,0.2);border-radius:4px;font:12px var(--mono);color:#4a9eff">✓ Updated controls</div>
-              </div>
-              <div style="padding:12px;background:#2d2d2d;border-radius:8px;border-left:3px solid #4a9eff">
-                <div style="font:13px var(--sans);color:#aaa;margin-bottom:6px">You:</div>
-                <div style="font:14px var(--sans);color:#fff">"Generate a pixel art hero sprite"</div>
-              </div>
-            </div>
-            <div style="padding:12px 24px;background:#0f0f0f;border-top:1px solid #333;display:flex;gap:8px;align-items:center;font-size:12px;color:#888">
-              <span style="width:8px;height:8px;background:#4a9eff;border-radius:50%"></span>
-              <span>You</span>
-              <span style="width:8px;height:8px;background:#f59e42;border-radius:50%;margin-left:8px"></span>
-              <span>Friend</span>
-              <span style="width:8px;height:8px;background:#a855f7;border-radius:50%;margin-left:8px"></span>
-              <span>AI</span>
-            </div>
-          </div>
-          <div class="fine" style="margin-top:10px">Describe what you want in plain English. The AI builds it.</div>
+        <div class="steps beam-in">
+          <div class="step"><b>Pick a world</b><span>Choose a template or start from scratch. Every game is on its own planet.</span></div>
+          <div class="step"><b>Say it</b><span>"Add enemies." "Make the player jump higher." The assistant changes the game while you stand in it.</span></div>
+          <div class="step"><b>Ask for art and sound</b><span>Or take free models, textures and sounds from the <a href="/community">community library</a>.</span></div>
+          <div class="step"><b>Bring friends</b><span>Build together in real time. People can already be playing.</span></div>
         </div>
       </div>
     </section>
 
     <section class="section" id="features">
       <div class="wrap">
-        <div class="section-head">
+        <div class="section-head beam-in">
           <div class="label">01 — Features</div>
           <div>
             <h2>Everything you need to build games together.</h2>
@@ -138,7 +116,7 @@
 
     <section class="section" id="community">
       <div class="wrap">
-        <div class="section-head">
+        <div class="section-head beam-in">
           <div class="label">02 — Community library</div>
           <div>
             <h2>Start with a whole library. Free.</h2>
@@ -197,7 +175,7 @@
 
     <section class="section" id="tools">
       <div class="wrap">
-        <div class="section-head">
+        <div class="section-head beam-in">
           <div class="label">04 — Tools</div>
           <div>
             <h2>One account, every kind of asset.</h2>
@@ -222,7 +200,7 @@
 
     <section class="section" id="how">
       <div class="wrap">
-        <div class="section-head">
+        <div class="section-head beam-in">
           <div class="label">05 — Billing</div>
           <div><h2>Your credits work hard.</h2></div>
         </div>
@@ -236,7 +214,7 @@
 
     <section class="section" id="work">
       <div class="wrap">
-        <div class="section-head">
+        <div class="section-head beam-in">
           <div class="label">06 — Work</div>
           <div>
             <h2>Built with it.</h2>
@@ -274,7 +252,7 @@
 
     <section class="section" id="pricing">
       <div class="wrap">
-        <div class="section-head">
+        <div class="section-head beam-in">
           <div class="label">07 — Pricing</div>
           <div>
             <h2>Plans for every creator.</h2>
@@ -312,7 +290,7 @@
 
     <section class="section" id="api">
       <div class="wrap">
-        <div class="section-head">
+        <div class="section-head beam-in">
           <div class="label">08 — API</div>
           <div>
             <h2>Your pipeline, not ours.</h2>
@@ -445,6 +423,16 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
         btn.replaceWith(a);
       });
     }).catch(() => {});
+  </script>
+  <script src="/overseer-sky.js"></script>
+  <script>
+    (function () {
+      var els = document.querySelectorAll('.beam-in');
+      if (!('IntersectionObserver' in window)) { els.forEach(function (e) { e.classList.add('in'); }); return; }
+      var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }); }, { threshold: 0.15 });
+      els.forEach(function (e) { io.observe(e); });
+      setTimeout(function () { els.forEach(function (e) { e.classList.add('in'); }); }, 6000);
+    })();
   </script>
   <script src="/enter.js"></script>
   <script>
