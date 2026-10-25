@@ -155,7 +155,7 @@
     const sp = H.hooks.space;
     if (sp) { if (o.scene) sp.mark(ops); else sp.toScene(ops); }
     const steps = o.undo === false ? null : remember(ops);
-    H.applyOps(ops, { local: true, fx: o.fx });
+    H.applyOps(ops, { local: true, fx: o.fx, short: o.short });
     const id = ++seq;
     pending.set(id, ops);
     toParent({ type: 'ops', ops, seq: id, fx: o.fx || null });
@@ -166,7 +166,9 @@
     const u = from.pop();
     if (!u) { toast(dir < 0 ? 'Nothing to undo' : 'Nothing to redo'); return false; }
     const { ops, kept } = replay(u.steps, dir);
-    if (ops.length) u.seq = edit(ops, { undo: false, scene: true });
+    // A removal taken back (undo of a delete, redo of a create) beams the thing in again, a short beam.
+    const back = ops.some((x) => x.op === 'create');
+    if (ops.length) u.seq = edit(ops, { undo: false, scene: true, fx: back && H.arrive ? 'beam' : undefined, short: back });
     to.push(u);
     const what = u.label || 'that';
     toast(!ops.length ? `Nothing left to ${dir < 0 ? 'undo' : 'redo'} in ${what}: someone changed it since` : `${dir < 0 ? 'Undid' : 'Redid'} ${what}${kept ? ' (kept the changes others made since)' : ''}`);
