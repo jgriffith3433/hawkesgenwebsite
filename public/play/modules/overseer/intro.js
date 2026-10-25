@@ -224,6 +224,7 @@
     window.addEventListener('pointerdown', onKey, true);
     playing = { started: t0 };
     const stopScore = score();
+    if (H.speech) H.speech.hold('intro');
     g.emit('intro', { state: 'start' });
     // The beam: the player appears in it.
     later(1.3, () => {
@@ -233,8 +234,8 @@
       fadeIn();
     });
     later(2.7, () => { audio = voice(); if (audio) audio.play().catch(() => {}); });
-    later(3.0, () => OV.say(LINES[0], 3.1));
-    later(6.2, () => OV.say(LINES[1], 3.6));
+    later(3.0, () => OV.say(LINES[0], 3.1, { owner: 'intro', priority: 'important', external: true }));
+    later(6.2, () => OV.say(LINES[1], 3.6, { owner: 'intro', priority: 'important', external: true }));
     let r = { skipped: true };
     try {
       r = await g.cinematic.path(keys, { seconds: SECONDS, fade: { in: 0.9, out: 0.6 }, letterbox: true, skippable: true, ease: 'inOut' });
@@ -244,7 +245,7 @@
     window.removeEventListener('pointerdown', onKey, true);
     if (audio && r.skipped) try { audio.pause(); } catch { /* fine */ }
     stopScore(r.skipped ? 0.4 : 2.5);
-    if (r.skipped) OV.say('', 0.01);
+    if (H.speech) { H.speech.hold('intro', false); if (r.skipped) H.speech.clear('intro'); }
     playing = null;
     if (W() === w && p.alive) {
       p.node.visibility = vis;

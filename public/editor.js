@@ -31,7 +31,8 @@ let errors = [];
 let mention = null;
 let stageReady = false;
 let aiCredits = 8;
-let voiceEnabled = (() => { try { return localStorage.getItem('hg_voice') === '1'; } catch { return false; } })();
+// The Overseer's captions and volumes (the game's speech desk, modules/overseer/speech.js, applies them; the frame has no storage).
+const speechSettings = (() => { try { const m = JSON.parse(localStorage.getItem('hg_overseer_speech') || '{}') || {}; const v = (x) => (Number.isFinite(Number(x)) ? Math.max(0, Math.min(1, Number(x))) : 1); return { captions: m.captions !== false, voice: v(m.voice), music: v(m.music) }; } catch { return { captions: true, voice: 1, music: 1 }; } })();
 
 // ===================================================================== start
 (async () => {
@@ -181,6 +182,7 @@ window.addEventListener('message', async (e) => {
       stageReady = true;
       if (stageBundle) { stageBundle(); stageBundle = null; }
       toStage({ type: 'advanced', on: $('advTools').checked });
+      toStage({ type: 'speech-settings', ...speechSettings });
       return;
     case 'started': {
       clearErrors();
@@ -1272,18 +1274,17 @@ async function bootSequence() {
   try { localStorage.setItem(key, '1'); } catch {}
 }
 
-// ------------------------------------------------------------------ reading replies aloud
+// ------------------------------------------------------------------ the Overseer's captions, voice and music
+// The assistant speaks as the Overseer: its replies are always captions (the chat). They are also spoken only where the
+// Overseer has a clip with those very words (the game's speech desk decides); never the browser's own voice.
 function initVoice() {
-  const t = $('voiceToggle');
-  t.checked = voiceEnabled;
-  t.onchange = () => { voiceEnabled = t.checked; try { localStorage.setItem('hg_voice', voiceEnabled ? '1' : '0'); } catch {} if (!voiceEnabled && window.speechSynthesis) speechSynthesis.cancel(); };
+  const save = () => { try { localStorage.setItem('hg_overseer_speech', JSON.stringify(speechSettings)); } catch {} toStage({ type: 'speech-settings', ...speechSettings }); };
+  $('speechCaptions').checked = speechSettings.captions;
+  $('speechVoice').value = Math.round(speechSettings.voice * 100);
+  $('speechMusic').value = Math.round(speechSettings.music * 100);
+  $('speechCaptions').onchange = () => { speechSettings.captions = $('speechCaptions').checked; save(); };
+  $('speechVoice').oninput = () => { speechSettings.voice = Number($('speechVoice').value) / 100; save(); };
+  $('speechMusic').oninput = () => { speechSettings.music = Number($('speechMusic').value) / 100; save(); };
+  $('speechReplay').onclick = () => toStage({ type: 'speech-replay' });
 }
-function speak(text) {
-  if (!voiceEnabled || !window.speechSynthesis) return;
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text.slice(0, 400));
-  u.rate = 1;
-  const v = speechSynthesis.getVoices().find((x) => x.lang.startsWith('en'));
-  if (v) u.voice = v;
-  speechSynthesis.speak(u);
-}
+function speak(text) { toStage({ type: 'assistant-reply', text: String(text || '').slice(0, 400) }); }

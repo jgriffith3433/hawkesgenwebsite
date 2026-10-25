@@ -29,8 +29,10 @@ game.on('docked', () => game.ui.message('Welcome aboard'));
 |---|---|
 | `game.overseer.beam(target, opts)` | A beam from the emitter to a thing or `[x, y, z]`. `opts`: `radius` (m, at the bottom), `seconds` (1.6), `hold: true` (stays until `.end()`), `color`, `entity` (grows in), `ring`, `sound`. Returns `{ end(), move(target) }` |
 | `game.overseer.materialize(thing or [things], opts)` | Beams it in (one wide beam for several) |
-| `game.overseer.say(text, seconds)` | Words from the Overseer over the picture |
-| `game.overseer.speak(text, voice, seconds)` | The same, spoken in its voice: `voice` is one of its lines (`HawkesPlay.overseer.VOICES`: the intro, the mirror's questions and remarks, `overseer-welcome-aboard.mp3`...) or a sound asset of the game's. A new line needs a voice made first (ask J) |
+| `game.overseer.say(text, seconds, opts)` | Words from the Overseer: a line in the game's chat, through the speech desk (below). `seconds` is the least time it holds the desk; `opts.priority`: `'low'`, `'normal'` (default) or `'important'` |
+| `game.overseer.speak(text, voice, seconds)` | The same, spoken in its voice: `voice` is one of its lines (`HawkesPlay.overseer.VOICES`: the intro, the mirror's questions and remarks, `overseer-welcome-aboard.mp3`...) or a sound asset of the game's. A new line needs a voice made first (ask J). Same `opts` as `say` |
+| `game.speech` / `HawkesPlay.speech` | The speech desk, below |
+| `game.on('overseer-speech', ({ state, text, voice, caption, voiced, priority, seconds, interrupted }) => ...)` | A line starts (`state: 'start'`: `caption` says whether its words are shown, `voiced` whether its clip plays) or ends (`'end'`), or the settings change (`'settings'`) |
 | `game.arrive(thing or [things], how)` | Brings it in from the Overseer where it is now: `'drop'` (from high in the beam; real physics while playing; lands on a roof over it), `'grow'` (up out of the ground), `'beam'`, `'auto'` (by what it is). Several drop one by one |
 | `game.spawnMany(what, n, { arrive })` | `arrive`: `'drop'`, `'grow'`, `'beam'`, `'none'`, or `{ how, delay, gap }` (seconds before the first, between each). Default: by what it is. Online the host's copies fall for real and everyone sees the same |
 | `game.on('landed', ({ thing, at, weight, on }) => ...)` | A dropped thing came down (`weight` 0-1: how heavy it felt; `on`: what it landed on) |
@@ -81,3 +83,20 @@ with the planet; a custom shader adds `y -= |xz - camera.xz|² / 2R` itself), `H
 The Overseer's first-time lines (`lines.js`): `H.lines.say(id)`, `.seen(id)`, `.blocked()`, `.reset()`; ids `build`, `fish`, `death`, `dock`, `space`, `boom`, `friend`, `return`. Each is said once per device, in the chat (`game.on('overseer-line', ({ id, text, voice }))` hears it), and waits while the intro, the mirror or a tour moment is on or another Overseer line is being read.
 
 The Overseer's free phrasebook (`talk.js`): in every game, published ones too, Enter (or the 💬 button on a phone) opens the chat box and plain talk is answered in the Overseer's voice at no cost (no model: keyword rules, several variants each). Where the builder's assistant is attached (the editor, the signed-in sandbox) typing goes to it instead. Requests to make or change things are explained, with a Get started link; questions about its motives are turned away kindly. `H.talk.reply(text)` gives `{ intent, text, action? }`, `H.talk.say(text)` says it in the chat, `game.on('overseer-talk', ({ intent, said, text }))` hears it. With other players here, typing also goes to them and the Overseer answers only when its name is said.
+
+**The Overseer's speech desk** (`HawkesPlay.speech`, `modules/overseer/speech.js`): every Overseer line, whoever asks (`say`, `speak`, its first-time lines, the mirror, the tour, talk), goes through one desk, one line at a time.
+
+- Lines never overlap. A later line of the same or lower priority waits its turn (a `low` one gives up after 20 s, a `normal` one after 45 s); an `important` one (the answer to what you typed, the mirror's questions, the intro) cuts in gently: the voice fades in a quarter of a second, the words showing finish at once, then it speaks.
+- A line lasts as long as its voice clip, else as long as it takes to read (about a second and 0.3 s a word). Its words type out in the chat over that time.
+- **Captions.** With captions on (the default) every line is shown. Off, a line is hidden only while its voice is really heard (it has a clip, the voice is up, sound is running): with sound off, the voice at 0 or no clip, it is always shown. Sound off never loses a line.
+- **Settings** (kept per device; the chat's ⚙, the editor's menu): captions on/off, the Overseer's voice volume and the music volume, each apart (`audio.voiceVolume`, `audio.musicVolume`). The chat's ⟲ (the editor's menu) replays the last line.
+- The editor's assistant replies are captions in its chat. They are spoken only when the Overseer has a clip with those very words; never the browser's voice.
+
+```js
+const s = HawkesPlay.speech;
+s.say({ text: 'The tide is in.', priority: 'normal' });          // queues behind what is being said
+s.say({ text: 'Look up.', voice: 'overseer-ask.mp3', priority: 'important' }); // cuts in gently
+s.set({ captions: false, voice: 0.6, music: 0.3 });             // the player's choices
+s.replay();                                                      // the last line again
+s.current; s.waiting; s.busy; s.log;                             // what is said, what waits, what was said
+```
