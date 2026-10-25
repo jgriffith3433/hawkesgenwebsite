@@ -57,7 +57,7 @@ function puppetRoots(prefix = 'mixamorig:') {
 const world3 = (node: any) => { const chain: any[] = []; for (let n = node; n; n = n.parent) chain.unshift(n); chain.forEach((n) => n.computeWorldMatrix(true)); return node.getAbsolutePosition().clone(); };
 const at = (b: any, bone: string) => world3(b.bones.get(bone).n);
 
-const MIXAMO = ['person', 'robot', 'tvbot', 'cat', 'pig', 'bear', 'rabbit', 'penguin', 'chicken']; // the files on the standard Mixamo skeleton
+const MIXAMO = ['person', 'robot', 'tvbot', 'cat', 'pig', 'bear', 'rabbit', 'penguin', 'chicken', 'cow']; // the files on the standard Mixamo skeleton
 const TEMPLATE_BIPED = ['person', 'robot', 'tvbot', 'dinosaur', 'penguin', 'chicken', 'cat', 'pig', 'bear', 'cow', 'rabbit'];
 const QUADS = ['dog', 'fox', 'sheep', 'horse'];
 const OBJECTS = ['toaster', 'shoe', 'teapot', 'cactus', 'cone', 'banana', 'mushroom', 'potato', 'duck', 'rollbot', 'fish'];

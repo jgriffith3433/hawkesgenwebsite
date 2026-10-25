@@ -51,7 +51,7 @@ function run(t: any, seconds: number, speed = 0, em: any = null) {
 
 const PILOT = ['person', 'dog', 'shoe']; // the pilot's three
 // Every model on the standard Mixamo skeleton (docs/characters.md "Mixamo models"); dinosaur and cow are listed there when they are done or not standard yet.
-const MIXAMO = ['person', 'robot', 'tvbot', 'cat', 'pig', 'bear', 'rabbit', 'penguin', 'chicken'];
+const MIXAMO = ['person', 'robot', 'tvbot', 'cat', 'pig', 'bear', 'rabbit', 'penguin', 'chicken', 'cow'];
 const MADE = ['robot', 'tvbot', 'rollbot', 'cat', 'fox', 'pig', 'bear', 'rabbit', 'penguin', 'chicken', 'cow', 'sheep', 'horse', 'dinosaur', 'fish', 'toaster', 'cactus', 'cone', 'teapot', 'banana', 'mushroom', 'potato', 'duck']; // made through Hawkes Gen after it
 const MODELS = [...PILOT, ...MADE]; // every type whose Gen model is in public/play/models (a type left out here keeps its procedural body and is named in docs/characters.md)
 test('the Gen models: each filled row names a file that is there, a near level within the phone budget and a low level', () => {

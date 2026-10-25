@@ -122,7 +122,7 @@ export async function runAvatarAnimations(t, options = {}) {
   // ---- the Mixamo models: the person and the robot, the real files (mesh.rig's 52-bone skeleton), not the stand-in puppet
   if (options.mixamo !== false) {
     const MX = ['mixamorig:Hips', 'mixamorig:Head', 'mixamorig:LeftFoot', 'mixamorig:LeftToeBase', 'mixamorig:LeftUpLeg', 'mixamorig:RightUpLeg', 'mixamorig:LeftArm', 'mixamorig:LeftHand', 'mixamorig:RightHand'];
-    for (const id of (Array.isArray(options.mixamoBodies) && options.mixamoBodies.length ? options.mixamoBodies : ['person', 'robot', 'tvbot', 'cat', 'pig', 'bear', 'rabbit', 'penguin', 'chicken'])) {
+    for (const id of (Array.isArray(options.mixamoBodies) && options.mixamoBodies.length ? options.mixamoBodies : ['person', 'robot', 'tvbot', 'cat', 'pig', 'bear', 'rabbit', 'penguin', 'chicken', 'cow'])) {
       const f = await openFrame(t, `/avatars?body=${id}&bg=studio&pose=walk&t=0.25`, `${id} on the Mixamo skeleton`);
       await t.until(() => f.win.hawkesAvatars.anim() && f.win.hawkesAvatars.probe(MX), 20000, `${id}'s model`);
       const info = f.win.hawkesAvatars.anim();
