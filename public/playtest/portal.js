@@ -22,9 +22,9 @@
 import { installPlaytest } from './hawkes-playtest.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks'];
+const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
+const ORDERS = { 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
 const SCENARIOS = [
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
   {
@@ -61,6 +61,11 @@ const SCENARIOS = [
     id: 'sandbox-observatory', title: 'Docking, the lift to the Observatory: the first arrival (windows, music, the pearl, a gift by name), the quick return, and the way back to the bay', seconds: 330, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first-minutes path to the sign-up sheet, then the Observatory with real input (E at the lift, walking in the room, E again); docking itself is a named setup shortcut (the rocket put on the pad, the player beside the lift); options as sandbox-first-minutes, plus again (false: skip the quick return)',
+  },
+  {
+    id: 'observatory-wardrobe', title: 'The Observatory mirror and wardrobe: redo the three questions at the mirror, browse and wear what you own with a live preview, ask the Overseer for more (the price shown first); kept and sent to the room; with touch too', seconds: 420, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the sign-up sheet, then docking (a named setup shortcut) and the lift; in the room, a named walk to the mirror, then E ("Change who you are") and the three questions answered again (the look and name change); a named walk to the wardrobe, E, the panel (the accessories and colors owned, every button 48 px or more, the price of a message to the Overseer), a different accessory and color tapped on (the look changes at once; the account holds it: look-kept), Put it back, Done. options as sandbox-first-minutes, plus touch (true: ?touch=1, taps as touch pointers)',
   },
   {
     id: 'sandbox-travel-board', title: 'The Observatory travel board: three featured games as planets with live counts; beam down into each with your character and name, and Return to the Observatory from its pause menu', seconds: 600, tags: ['full'],
@@ -778,6 +783,119 @@ async function stageChapter(t, ctx) {
   t.progress(1);
 }
 
+/** The Observatory's mirror and wardrobe (touch: true taps with touch pointers, on the context button and the panel). Docking is
+ *  a named setup shortcut, as in stageObservatory; the rest is played: E (or a tap) at the lift, a named walk to the mirror, E
+ *  ("Change who you are") and the three questions answered again, a named walk to the wardrobe, E, the panel (every accessory
+ *  and color owned, the price of asking), wearing a different accessory and color (the look changes at once, is saved to the
+ *  account, and is what the room is sent), "Put it back", and Done. */
+async function stageWardrobe(t, ctx) {
+  const OB = () => HP().overseer && HP().overseer.observatory;
+  const PR = () => HP().presence;
+  const touch = Boolean(ctx.options.touch);
+  const hit = async (el) => { if (touch) await tapButton(t, el); else { el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' })); el.click(); } };
+  const useBtn = (label) => [...document.querySelectorAll('.hp-use button')].find((b) => b.textContent.includes(label));
+  const useAt = async (label, state) => { // E, or a tap on the context button, until the state is reached
+    for (let i = 0; i < 5 && !state(); i++) { const b = useBtn(label); if (touch && b) await tapButton(t, b); else await tap(t, 'e'); await t.wait(700); }
+  };
+  G().on('wardrobe', (d) => { if (['open', 'wear', 'keep', 'restore', 'price', 'close', 'ask'].includes(d.state)) t.event(`wardrobe-${d.state}`, [d.accessory, d.color, d.credits].filter((x) => x != null).join(' ')); });
+  releaseAll();
+  await t.until(() => W() && W().player && W().player.alive && OB() && OB().on, 60000, 'the Overseer\'s hangar and lift');
+  if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
+  const hg = HP().overseer.hangar, rocket = G().entity('rocket'), l = OB().lift;
+  if (rocket) { rocket.position = [hg.pad[0], hg.pad[1] + 3, hg.pad[2]]; rocket.velocity = [0, 0, 0]; }
+  W().player.position = [l[0], l[1] + 1.2, l[2] - 1];
+  t.event('setup-shortcut', 'docked: the rocket on the pad, the player by the lift in the hangar');
+  await t.wait(2500);
+  await useAt('lift up', () => OB().state !== 'bay');
+  await t.until(() => OB().state === 'inside', 15000, 'the lift to reach the Observatory');
+  t.scene('The Observatory');
+  await t.until(() => OB().gift || !OB().first, 60000, 'the gift');
+  if (OB().scene) { t.event('setup-shortcut', 'the first-arrival scene skipped (the gift is still given)'); OB().skip(); }
+  await t.wait(1500);
+  // 1. The mirror: it is in the room, E at it, the three questions again.
+  if (!OB().mirror) throw new Error('the Observatory has no mirror');
+  const look0 = { ...PR().look };
+  const m = OB().mirror.at;
+  t.event('setup-shortcut', 'the walk across the room to the mirror');
+  W().player.position = [m[0], m[1] - 1.8, m[2]]; // (the mirror module stands them in front of the glass)
+  await t.wait(800);
+  await useAt('Change who you are', () => $('.mr .mr-q'));
+  await t.until(() => $('.mr .mr-q'), 10000, 'the mirror to open in the Observatory');
+  t.scene('Observatory mirror: what are you' + (touch ? ' (touch)' : ''));
+  t.event('observatory-mirror-open', ($('.mr .mr-q') || {}).textContent || '');
+  await t.wait(1200);
+  const question = () => ($('.mr .mr-q') || {}).textContent || '';
+  const card = $('.mr [data-what="cactus"]') || $('.mr [data-what]');
+  const chosen = card.dataset.what;
+  await hit(card);
+  t.event('mirror-answer', `what: ${chosen}`);
+  await t.wait(900);
+  const next = async (from) => { await hit($('.mr [data-a="next"]')); await t.until(() => question() !== from, 8000, `the mirror to leave "${from}"`); };
+  await next(question());
+  const dice = $('.mr [data-a="randomLook"]');
+  if (dice) { await hit(dice); t.event('mirror-answer', 'look: surprise me'); await t.wait(900); }
+  await next(question());
+  const field = await t.until(() => $('.mr .mr-name:not(.mr-model)'), 8000, 'the name field').then(() => $('.mr .mr-name:not(.mr-model)'));
+  const who = `Redo ${rand(3)}`;
+  field.focus(); field.value = who; field.dispatchEvent(new Event('input', { bubbles: true }));
+  await t.wait(900);
+  field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  await t.until(() => !$('.mr'), 10000, 'the mirror to close');
+  const now = PR().look;
+  t.event('observatory-mirror-redone', `${look0.what || '?'} "${look0.name || ''}" -> ${now.what} "${now.name}"`);
+  if (now.what !== chosen || now.name !== who) t.problem('error', `the mirror's answers did not become the look (${now.what}, ${now.name})`);
+  await t.wait(1500);
+  // 2. The wardrobe.
+  const w = OB().wardrobe;
+  if (!w) throw new Error('the Observatory has no wardrobe');
+  t.event('setup-shortcut', 'the walk across the room to the wardrobe');
+  W().player.position = [w[0], w[1] + 0.4, w[2]];
+  await t.wait(800);
+  await useAt('Open the wardrobe', () => HP().wardrobe && HP().wardrobe.isOpen);
+  await t.until(() => $('.ow'), 10000, 'the wardrobe panel');
+  t.scene('Observatory wardrobe' + (touch ? ' (touch)' : ''));
+  const mine = HP().wardrobe.owned();
+  t.event('wardrobe-owned', `${mine.acc.length} accessories (${mine.acc.join(', ')}), ${mine.col.length} colors`);
+  if (mine.acc.length < 2) t.problem('error', 'the wardrobe holds nothing but "none": the first gift should be there');
+  // every button is a comfortable target
+  const small = [...document.querySelectorAll('.ow button')].filter((b) => { const r = b.getBoundingClientRect(); return r.width < 47.5 || r.height < 47.5; });
+  t.event('wardrobe-targets', small.length ? `${small.length} buttons under 48 px` : 'every button is 48 px or more');
+  if (small.length) t.problem('error', `${small.length} wardrobe buttons are under 48 px`);
+  await t.until(() => HP().wardrobe.price !== undefined || !HP().assistant, 8000, 'the price of asking').catch(() => {});
+  const price = HP().wardrobe.price;
+  t.event('wardrobe-price', price ? `a message costs ${price.credits} credits` : 'no price shown (no account on this page)');
+  await t.wait(800);
+  const before = PR().look.accessory;
+  const other = [...document.querySelectorAll('.ow [data-acc]')].find((b) => b.dataset.acc !== before && b.dataset.acc !== 'none') || [...document.querySelectorAll('.ow [data-acc]')].find((b) => b.dataset.acc !== before);
+  await hit(other);
+  await t.wait(700);
+  const swatch = [...document.querySelectorAll('.ow [data-col]')].find((b) => b.dataset.col !== String(PR().look.accessoryColor).toLowerCase());
+  if (swatch) { await hit(swatch); await t.wait(700); }
+  const worn = { ...PR().look };
+  t.event('wardrobe-worn', `${worn.accessory} in ${worn.accessoryColor} (it was ${before})`);
+  if (worn.accessory !== other.dataset.acc) t.problem('error', `tapping ${other.dataset.acc} did not put it on (${worn.accessory})`);
+  t.scene('Observatory wardrobe: the live preview');
+  await t.wait(1500);
+  // kept: the look saved to the account (what the room is sent is the same look: presence.setLook saves and resends together)
+  await t.wait(1500);
+  const saved = await fetch('/v1/users/me/avatar', { credentials: 'include' }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  const sv = saved && (saved.avatar || saved);
+  if (sv && sv.accessory) {
+    t.event('look-kept', `the account holds ${sv.accessory} in ${sv.accessoryColor}`);
+    if (sv.accessory !== worn.accessory) t.problem('error', `the account has ${sv.accessory}, the player wears ${worn.accessory}`);
+  } else t.event('look-kept', 'no account answer (a guest page keeps it on this device)');
+  await hit($('.ow [data-a="restore"]'));
+  await t.wait(600);
+  t.event('wardrobe-restored', `back to ${PR().look.accessory}`);
+  await hit($('.ow [data-a="done"]'));
+  await t.until(() => !$('.ow'), 6000, 'the wardrobe to close');
+  if (W().player.controls === false) throw new Error('the player was left without controls after the wardrobe');
+  t.scene('Back in the room');
+  await t.wait(1500);
+  t.event('wardrobe-done', touch ? 'with touch' : 'with the keyboard and mouse');
+  t.progress(1);
+}
+
 /** The Observatory. Docking itself is a named setup shortcut (the rocket put on the pad, the player on foot beside the lift);
  *  the rest is played: E at the lift, the first arrival, walking in the room, E at the lift down, and later the quick return. */
 async function stageObservatory(t, ctx) {
@@ -1356,9 +1474,9 @@ async function stageTouch(t, ctx) {
 }
 
 const RUN = {
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, race: stageRace, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
 };
-const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'island-race': 'race', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2' };
+const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2' };
 
 // ---------------------------------------------------------------------------------------------- the contract
 let api = null;
@@ -1372,6 +1490,7 @@ export function install() {
     stallSeconds: 120,
     isReady: () => (onSandbox() || onGame() ? Boolean(W() && W().player) || document.readyState === 'complete' : document.readyState === 'complete'),
     async start(id, options, t) {
+      if (id === 'observatory-wardrobe' && options.touch) options = { at: 'sandbox', ...options }; // (touch: straight to the island with the phone controls)
       if (id === 'touch-controls') options = { at: 'sandbox', touch: true, ...options }; // (the phone controls, straight to the island)
       const events = [];
       // Everything the run says is kept, so the page that follows can carry the whole report.

@@ -87,7 +87,7 @@
         { at: 13, id: 'gift', say: `I made you something. Hold still: ${g.label}.`, gift: true },
         { at: 21, id: 'a-new-one', say: 'A new one, from me.', voice: 'overseer-a-new-one.mp3' },
         { at: 26, id: 'question', say: q.text },
-        { at: 34, id: 'look', say: 'The mirror, the wardrobe and the board are kept empty for now. Look around. The lift is where you came in.' },
+        { at: 34, id: 'look', say: 'The mirror and the wardrobe are yours, whenever you like. The board goes further. The lift is where you came in.' },
       ],
       length: 40,
     };
@@ -201,7 +201,56 @@
   /** How long a first arrival, and a return, last from the lift opening to the last word (seconds). */
   const durations = (s) => ({ first: s.length, quick: 6 });
 
-  const api = { ROOM, STATIONS, GIFTS, QUESTIONS, spot, segments, windowShare, gift, scene, quick, pearlStep, voiceLevel, glow, chordAt, CHORDS, durations, clean, hash, PLANETS, planetSpot, planetAt, travelHref, travelLook, returned, RETURN_HREF };
+
+  // ------------------------------------------------------------------ the wardrobe: what is theirs to wear
+  // A player owns the accessories and colors they have been given (the first gift, then one every third visit, and what
+  // the Overseer makes when asked) plus what they already wear. Nothing here is bought from the wardrobe itself: asking the
+  // Overseer for something new is a message to the assistant, paid from credits like any other (its price is shown first).
+  const START_COLORS = ['#f5f5f4', '#1f2937', '#ef4444', '#4a9eff']; // (what everyone starts with)
+  const PALETTE = ['#4a9eff', '#a855f7', '#34d399', '#fbbf24', '#ef4444', '#f97316', '#22d3ee', '#ec4899', '#f5f5f4', '#1f2937', '#84cc16', '#8b5cf6']; // (presence-core.js LOOK.palette)
+  const hexOf = (c) => { const h = String(c || '').toLowerCase(); return /^#[0-9a-f]{6}$/.test(h) ? h : null; };
+  /** What is theirs now: accessories (ids, 'none' first) and colors (hex), from the record plus what they wear. */
+  function owned(own, look) {
+    const acc = ['none'];
+    const col = [...START_COLORS];
+    for (const id of [...((own && own.acc) || []), look && look.accessory]) if (id && !acc.includes(id)) acc.push(id);
+    for (const c of [...((own && own.col) || []).map((x) => '#' + String(x).replace('#', '')), look && look.accessoryColor]) { const h = hexOf(c); if (h && !col.includes(h)) col.push(h); }
+    return { acc, col };
+  }
+  /** A later visit's gift: every third visit, a thing they do not own yet (none when they own them all). */
+  function laterGift(own, name, visit) {
+    const v = Number(visit) || 0;
+    if (v < 3 || v % 3 !== 0) return null;
+    const have = new Set((own && own.acc) || []);
+    const pool = GIFTS.filter((g) => !have.has(g.id));
+    if (!pool.length) return null;
+    const g = pool[hash(clean(name) + ':' + v) % pool.length];
+    return { kind: 'accessory', id: g.id, color: g.color, label: g.label };
+  }
+  /** The colors that come with a gift: its own and two palette colors they do not have, picked by the name. */
+  function giftColors(g, own, name) {
+    const have = new Set(owned(own, null).col);
+    const out = [];
+    const h = hexOf(g && g.color);
+    if (h && !have.has(h)) out.push(h);
+    const pool = PALETTE.filter((c) => !have.has(c) && !out.includes(c));
+    for (let i = 0; i < pool.length && out.length < 3; i++) out.push(pool[(hash(clean(name) + (g ? g.id : '')) + i * 5) % pool.length]);
+    return [...new Set(out)].slice(0, 3);
+  }
+  /** What is sent to the assistant for a request from the wardrobe: plain words, its own limits. */
+  function requestText(what) {
+    const w = String(what || '').replace(/[\u0000-\u001f\u007f<>]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
+    return w ? `Make me something to wear: ${w}. It is for my character in the Observatory wardrobe.` : '';
+  }
+  const WARDROBE_LINES = {
+    open: 'Take your time. Everything here is yours to wear.',
+    kept: 'That suits you.',
+    ask: 'Tell me what, and I will tell you what it costs first.',
+    sent: 'Asked. I will send it down when it is made.',
+    later: (g) => `I left something in the wardrobe for you: ${g.label}.`,
+  };
+
+  const api = { START_COLORS, PALETTE, owned, laterGift, giftColors, requestText, WARDROBE_LINES, ROOM, STATIONS, GIFTS, QUESTIONS, spot, segments, windowShare, gift, scene, quick, pearlStep, voiceLevel, glow, chordAt, CHORDS, durations, clean, hash, PLANETS, planetSpot, planetAt, travelHref, travelLook, returned, RETURN_HREF };
   if (typeof window !== 'undefined') window.HawkesObservatoryMath = api;
   const H = typeof window !== 'undefined' ? window.HawkesPlay : null;
   if (H) H.observatoryMath = api;

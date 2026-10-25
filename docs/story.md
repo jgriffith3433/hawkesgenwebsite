@@ -324,8 +324,8 @@ first place that is the Overseer's own rather than a landing place, and it is ke
 
 - **The room.** Curved walls that are mostly glass: tall windows onto the planet below and the stars. A model of the planet
   turns slowly on a stand in the middle. The lights are soft and rise a little while the Overseer speaks. A quiet music bed
-  (a slow chord and a low hum). Three places stand against the wall: **a mirror** and **a wardrobe** (empty for now: "hung soon", "filled soon") and **a travel
-  board** (lit: see below). Nothing is promised beyond that.
+  (a slow chord and a low hum). Three places stand against the wall: **a mirror**, **a wardrobe** and **a travel
+  board** (see below). Nothing is promised beyond that.
 - **The Overseer is here, and it is not a body.** It is a pearl of light that drifts over to the player and stops a few steps
   off, a little above head height. It does not follow like a pet and does not leave. It is the same voice as everywhere.
 - **The first time** (once per device; about forty seconds, skippable): it says the character's name from the mirror and asks
@@ -345,7 +345,21 @@ first place that is the Overseer's own rather than a landing place, and it is ke
   Observatory** (and a button in the corner), and a beam puts them down at the board with *"Name. You are back from Leap.
   The stars kept your place."* The sandbox stays home: the return skips the intro and the mirror.
 
-*Open for later tasks:* the mirror and the wardrobe are placeholders until their own tasks land. The cracked
+- **The mirror** (built). A real mirror hangs on the wall: the same one as on the island, with its reflection and its entrance.
+  E at it (*"Change who you are"*) asks the three questions again, any time: *What are you? How do you look? What are you
+  called?* The Overseer narrates as before. The answers are the player's look at once, saved to the account and sent to the
+  room, so others see it as it happens. It never opens by itself here.
+- **The wardrobe** (built). A tall cabinet with two lit doors. E opens a panel (a bottom sheet on a phone) with everything the
+  player owns to wear: accessories and colors. The camera comes round the front of them, and each tap is their look at once
+  (the room sees it too). *"Put it back"* returns the look they came with; *Done* keeps it. What they own: the first gift and
+  the colors that come with it, **one new thing on every third visit** (*"I left something in the wardrobe for you: a bell."*,
+  never a thing they own), and what they already wear. Kept in the Overseer's memory (`own`), so it follows the account. Under
+  the grid: **Ask the Overseer for something new**: a line to type, the price of a message (Gen's quote through the portal)
+  shown first, then the same paid message the chat sends. The Overseer never charges for the wardrobe itself and says what a
+  request costs before it is sent, as everywhere. *"Tell me what, and I will tell you what it costs first."*
+
+*Open for later tasks:* a thing the Overseer makes on request arrives through the usual asset flow; wearing a Gen-made model
+on the character's anchors (a made hat) comes with the Gen-model bodies (`presence-models.js`). The cracked
 mirror of Chapter Three is not here: it is in the hangar, facing the wall, and this room does not mention it.
 
 ### The "seems good" ledger

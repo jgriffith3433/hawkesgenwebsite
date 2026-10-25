@@ -738,6 +738,8 @@
     } catch (x) { console.warn('sandbox: no live room', x); }
     feed(id, user);
     if (H.chat) H.chat.attach({ send: (t) => ask(id, t), placeholder: isTouch() ? 'Talk to the Overseer…' : 'Press Enter to talk to the Overseer' });
+    // What the Observatory's wardrobe asks the Overseer with (modules/overseer/wardrobe.js): the price first, then the same paid message the chat sends.
+    H.assistant = { quote: async () => ({ credits: await askPrice(id), balance: session.credits == null ? null : session.credits }), ask: (t) => ask(id, t) };
     autosave();
     signedInButtons();
     ret.patch({ user: user.id });
