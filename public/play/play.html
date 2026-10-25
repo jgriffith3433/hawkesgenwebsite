@@ -44,8 +44,15 @@
     .ui-attach { position: absolute; left: 0; top: 0; pointer-events: none; white-space: nowrap; font: 600 13px var(--ui-font); color: var(--ui-fg); padding: 4px 8px; border-radius: 8px; background: var(--ui-panel); border: 1px solid var(--ui-border); }
     .ui-html { position: absolute; pointer-events: auto; }
     #error { position: fixed; left: 12px; right: 12px; bottom: 12px; background: #2a0d0d; color: #ffd9d9; border: 1px solid var(--bad); padding: 10px 12px; font: 12px/1.45 var(--mono); max-height: 30%; overflow: auto; z-index: 9; white-space: pre-wrap; border-radius: 8px; }
-    #loading { position: fixed; inset: 0; display: grid; place-content: center; color: var(--fg-2); font: 14px var(--mono); letter-spacing: .08em; }
+    html { background: #0a0a0f; }
+    #loading { position: fixed; inset: 0; z-index: 20; display: grid; place-content: center; justify-items: center; gap: 22px; padding: 0 20px; box-sizing: border-box; background: radial-gradient(ellipse at 50% 42%, #0f1a2c 0%, #0a0a0f 70%); color: #cfe6ff; font: 14px var(--mono); letter-spacing: .08em; text-align: center; transition: opacity .7s ease; }
+    #loading.fade { opacity: 0; pointer-events: none; }
     #loading[hidden], #error[hidden] { display: none; }
+    #loading canvas { width: min(46vw, 220px); height: min(46vw, 220px); display: block; }
+    #loading .ld-words { font: 600 15px/1.35 var(--sans, system-ui, sans-serif); letter-spacing: .04em; color: #e8f3ff; max-width: 300px; }
+    #loading .ld-bar { width: min(72vw, 280px); height: 3px; border-radius: 3px; background: rgba(160,210,255,.18); overflow: hidden; }
+    #loading .ld-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #6cf0ff, #cdeaff); box-shadow: 0 0 10px rgba(108,240,255,.7); transition: width .35s ease; }
+    @media (prefers-reduced-motion: reduce) { #loading, #loading .ld-bar i { transition: none; } }
     .corner { position: fixed; right: 10px; bottom: 10px; display: flex; gap: 6px; z-index: 6; }
     .corner[hidden] { display: none; }
     .corner a, .corner button { font: 500 12px/1 var(--sans); color: #fff; background: var(--glass); backdrop-filter: blur(10px); border: 1px solid var(--line); padding: 8px 10px; border-radius: 8px; text-decoration: none; cursor: pointer; }
@@ -251,7 +258,70 @@
 <body>
   <canvas id="stage" tabindex="0"></canvas>
   <div id="ui"></div>
-  <div id="loading">LOADING…</div>
+  <div id="loading" role="status" aria-live="polite">
+    <canvas id="ldPearl" width="440" height="440" aria-hidden="true"></canvas>
+    <div class="ld-words" id="ldWords">The Overseer is preparing your world</div>
+    <div class="ld-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="ldFill"></i></div>
+  </div>
+  <script>
+    // The loading screen: the Overseer's pearl with two turning rings (the idea of overseer-sky.js, canvas 2D), the words,
+    // and a bar that follows the real loads (loader.js counts scripts and the game's own fetch). Never goes backwards.
+    // HawkesLoadScreen.done() (runtime.js run) fades it out as the world becomes playable and the intro begins.
+    (function () {
+      var box = document.getElementById('loading'), cv = document.getElementById('ldPearl'), fill = document.getElementById('ldFill');
+      var bar = box.querySelector('.ld-bar'), ctx = cv.getContext('2d'), TAU = Math.PI * 2;
+      var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var shown = 0, over = false, raf = 0;
+      function ring(x, y, rx, ry, tilt, front, off) {
+        ctx.save(); ctx.translate(x, y); ctx.rotate(tilt);
+        ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, front ? 0 : Math.PI, front ? Math.PI : TAU); ctx.lineDashOffset = off; ctx.stroke(); ctx.restore();
+      }
+      function draw(t) {
+        var w = cv.width, x = w / 2, y = w / 2, r = w * 0.2, spin = reduce ? 0.6 : t * 0.00012;
+        ctx.clearRect(0, 0, w, w);
+        var h = ctx.createRadialGradient(x, y, r * 0.9, x, y, r * 3.2);
+        h.addColorStop(0, 'rgba(108,240,255,.4)'); h.addColorStop(0.4, 'rgba(108,240,255,.12)'); h.addColorStop(1, 'rgba(108,240,255,0)');
+        ctx.fillStyle = h; ctx.fillRect(0, 0, w, w);
+        var rings = [[1.42, 0.2, -0.22, 0.026, 0.26], [1.68, 0.36, 0.38, 0.018, -0.17]];
+        function set(k) { ctx.lineWidth = Math.max(1.5, r * rings[k][3]); ctx.strokeStyle = 'rgba(205,240,255,.85)'; ctx.setLineDash([r * 0.1, r * 0.06]); }
+        ctx.globalCompositeOperation = 'lighter';
+        for (var k = 0; k < 2; k++) { set(k); ring(x, y, r * rings[k][0], r * rings[k][1], rings[k][2], false, reduce ? 0 : -t * rings[k][4] * 0.05); }
+        ctx.globalCompositeOperation = 'source-over'; ctx.setLineDash([]);
+        ctx.save(); ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.clip();
+        var g = ctx.createRadialGradient(x - r * 0.38, y - r * 0.42, r * 0.08, x, y, r * 1.08);
+        g.addColorStop(0, '#fff'); g.addColorStop(0.45, '#e9eef5'); g.addColorStop(0.8, '#9db0c8'); g.addColorStop(1, '#4b6182');
+        ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+        ctx.strokeStyle = 'rgba(108,240,255,.8)'; ctx.lineWidth = Math.max(1, r * 0.012);
+        [-0.5, 0, 0.5].forEach(function (lat) { var half = Math.sqrt(1 - lat * lat) * r; ctx.beginPath(); ctx.ellipse(x, y + lat * r, half, half * 0.16, 0, 0, TAU); ctx.stroke(); });
+        for (var i = 0; i < 4; i++) { var a = spin * TAU + i * Math.PI / 4; ctx.beginPath(); ctx.ellipse(x, y, Math.abs(Math.cos(a)) * r + 0.01, r, 0, 0, TAU); ctx.stroke(); }
+        var sh = ctx.createRadialGradient(x - r * 0.5, y - r * 0.5, r * 0.4, x + r * 0.2, y + r * 0.2, r * 1.25);
+        sh.addColorStop(0, 'rgba(8,16,40,0)'); sh.addColorStop(1, 'rgba(8,16,40,.62)');
+        ctx.fillStyle = sh; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+        ctx.restore();
+        ctx.globalCompositeOperation = 'lighter';
+        for (k = 0; k < 2; k++) { set(k); ring(x, y, r * rings[k][0], r * rings[k][1], rings[k][2], true, reduce ? 0 : -t * rings[k][4] * 0.05); }
+        ctx.setLineDash([]); ctx.globalCompositeOperation = 'source-over';
+      }
+      function frame(t) { draw(t); if (!over && !reduce) raf = requestAnimationFrame(frame); }
+      draw(0);
+      if (!reduce) raf = requestAnimationFrame(frame);
+      function show(v) {
+        v = Math.max(shown, Math.min(1, v)); shown = v;
+        fill.style.width = (v * 100).toFixed(1) + '%'; bar.setAttribute('aria-valuenow', String(Math.round(v * 100)));
+      }
+      function update(done, total) { if (total > 0 && !over) show(Math.min(0.97, done / total)); }
+      function wire() { var M = window.HawkesModules; if (M) { M.onprogress = update; if (M.progress) update(M.progress.done, M.progress.total); } }
+      window.HawkesLoadScreen = {
+        progress: function (v) { show(Math.min(0.97, v)); },
+        done: function () {
+          if (over) return; over = true; show(1);
+          box.classList.add('fade');
+          setTimeout(function () { box.hidden = true; cancelAnimationFrame(raf); }, reduce ? 0 : 750);
+        },
+      };
+      window.HawkesLoadScreen.wire = wire;
+    })();
+  </script>
   <div id="error" hidden></div>
   <div class="corner" id="corner" hidden>
     <span class="here" id="hereCount" hidden></span>
@@ -273,6 +343,7 @@
     });
   </script>
   <script src="/play/modules.js"></script>
+  <script>HawkesLoadScreen.wire();</script>
   <script>
     // A game, not a page: no pinch or double-tap zoom, no ctrl+wheel zoom, no text selection or long-press menus.
     ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (t) { document.addEventListener(t, function (e) { e.preventDefault(); }, { passive: false }); });
@@ -292,7 +363,8 @@
       var parts = location.pathname.replace(/\/+$/, '').split('/');
       var slug = parts[2];
       var loading = document.getElementById('loading');
-      var failed = function (e) { loading.hidden = false; loading.textContent = (e && e.message) || 'The game engine did not load'; };
+      var words = document.getElementById('ldWords');
+      var failed = function (e) { loading.hidden = false; loading.classList.remove('fade'); words.textContent = (e && e.message) || 'The game engine did not load'; };
       if (slug === '_draft') {
         HawkesModules.load('editor').then(function () { window.parent.postMessage({ source: 'hawkes-play', type: 'ready' }, '*'); }, failed);
         window.addEventListener('message', function (e) {
@@ -378,7 +450,7 @@
           ping();
           setInterval(ping, 30000);
         }
-      }).catch(function (e) { loading.textContent = e.message; });
+      }).catch(function (e) { failed(e); });
     })();
   </script>
 </body>
