@@ -849,6 +849,31 @@ async function stageChapter(t, ctx) {
   t.progress(1);
 }
 
+/** Docking, as a named setup shortcut: the game's own dock path (H.overseer.dockShip: the rocket settles on the pad, the Docked
+ *  moment and `docked-pad` as a flown ship's), then the player on foot beside it. Walking from there is real input. */
+function dockRocket(t) {
+  const O = HP().overseer, rocket = G().entity('rocket');
+  if (!rocket || !O.dockShip || !O.dockShip(rocket, true)) throw new Error('the rocket could not be docked (no rocket or no hangar)');
+  t.event('setup-shortcut', 'docked: the rocket settled on the pad by the game\'s own dock path, the player on foot beside it');
+}
+/** The text of the lift's prompt on screen ("E Take the lift up to the Observatory"), or ''. */
+const liftPrompt = () => (([...document.querySelectorAll('.hp-use button')].map((b) => b.textContent).find((x) => /lift/i.test(x))) || '').trim();
+/** From beside the rocket to the lift with the keys: face the lift and hold W until the prompt shows (a named shortcut only
+ *  if that does not work in 12 s: the player is put at the lift). */
+async function walkToLift(t, OB) {
+  const t0 = performance.now();
+  while (!liftPrompt() && performance.now() - t0 < 12000 && OB().state === 'bay') {
+    const p = W().player, l = OB().lift;
+    await lookAt(t, Math.atan2(l[0] - p.position[0], l[2] - p.position[2]));
+    setKeys({ w: true }); await t.wait(400);
+  }
+  setKeys({});
+  if (!liftPrompt() && OB().state === 'bay') {
+    t.event('setup-shortcut', 'the walk to the lift (the keys did not reach it in 12 s): the player put beside it');
+    const l = OB().lift; W().player.position = [l[0], l[1] + 1.2, l[2] - 1]; await t.wait(800);
+  }
+}
+
 /** The Observatory's mirror and wardrobe (touch: true taps with touch pointers, on the context button and the panel). Docking is
  *  a named setup shortcut, as in stageObservatory; the rest is played: E (or a tap) at the lift, a named walk to the mirror, E
  *  ("Change who you are") and the three questions answered again, a named walk to the wardrobe, E, the panel (every accessory
@@ -867,11 +892,9 @@ async function stageWardrobe(t, ctx) {
   releaseAll();
   await t.until(() => W() && W().player && W().player.alive && OB() && OB().on, 60000, 'the Overseer\'s hangar and lift');
   if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
-  const hg = HP().overseer.hangar, rocket = G().entity('rocket'), l = OB().lift;
-  if (rocket) { rocket.position = [hg.pad[0], hg.pad[1] + 3, hg.pad[2]]; rocket.velocity = [0, 0, 0]; }
-  W().player.position = [l[0], l[1] + 1.2, l[2] - 1];
-  t.event('setup-shortcut', 'docked: the rocket on the pad, the player by the lift in the hangar');
+  dockRocket(t);
   await t.wait(2500);
+  await walkToLift(t, OB);
   await useAt('lift up', () => OB().state !== 'bay');
   await t.until(() => OB().state === 'inside', 15000, 'the lift to reach the Observatory');
   t.scene('The Observatory');
@@ -972,17 +995,17 @@ async function stageObservatory(t, ctx) {
   releaseAll();
   await t.until(() => W() && W().player && W().player.alive && OB() && OB().on, 60000, 'the Overseer\'s hangar and lift to exist');
   if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
-  const toBay = () => {
-    const hg = HP().overseer.hangar, rocket = G().entity('rocket'), l = OB().lift;
-    if (rocket) { rocket.position = [hg.pad[0], hg.pad[1] + 3, hg.pad[2]]; rocket.velocity = [0, 0, 0]; }
-    W().player.position = [l[0], l[1] + 1.2, l[2] - 1];
-  };
-  t.event('setup-shortcut', 'docked: the rocket on the pad, the player by the lift in the hangar');
+  const toBay = () => dockRocket(t);
   toBay();
   await t.wait(2500);
+  await walkToLift(t, OB);
   t.scene('The hangar: the lift');
+  const prompt = liftPrompt();
+  t.event('lift-prompt', prompt || 'NO prompt');
+  if (!prompt) t.problem('error', 'standing at the lift, no "Take the lift up" prompt is on screen');
   const t0 = performance.now();
   for (let i = 0; i < 4 && OB().state === 'bay'; i++) { await tap(t, 'e'); await t.wait(700); }
+  if (OB().state !== 'bay') t.event('lift-riding', `${OB().state} after E`);
   await t.until(() => OB().state === 'inside', 15000, 'the lift to reach the Observatory');
   t.event('observatory-reached', `${Math.round(performance.now() - t0)} ms after E`);
   t.scene('The Observatory: arrival');
@@ -1115,8 +1138,20 @@ async function stageProgress(t, ctx) {
   const driving = () => G().player && G().player.controller === 'drive';
   // Pip comes over after the sign-up and offers the tour in a modal card; while it is open E never reaches the 4x4: close it like a player (Not now).
   const closeCard = () => { const qs = G().events && G().events.quests; if (qs && qs.close) qs.close(); document.querySelectorAll('.qs-panel').forEach((n) => n.remove()); };
+  // The layout, as the player sees it: Pip's card (if it is up) with Accept / Not now whole on the screen, and no two top-left cards overlapping.
+  const layoutCheck = (label) => {
+    const TLY = HP().touchLayout, c = TLY && TLY.hudCheck ? TLY.hudCheck() : null;
+    if (!c) { t.problem('error', 'H.touchLayout.hudCheck is missing'); return; }
+    if (c.card) t.event('quest-card-fits', `${c.w}x${c.h}: card ${c.card.w}x${c.card.h} at ${c.card.x},${c.card.y}; ${c.card.buttons.map((b) => `${b.label} ${b.visible ? 'visible' : 'CUT OFF'}`).join(', ')}`);
+    t.event('hud-no-overlap', `${label} ${c.text}`);
+    if (!c.ok) t.problem('error', `layout (${label}): ${c.problems.join('; ')}`);
+  };
+  await t.wait(1500);
+  layoutCheck('with Pip\'s card');
   if (!driving()) {
     closeCard();
+    await t.wait(300);
+    layoutCheck('cards and Quests button');
     await walkTo(t, 'jeep', 3.2, 40000, 'the 4x4');
     for (let i = 0; i < 4 && !driving(); i++) { closeCard(); await tap(t, 'e'); await t.wait(700); }
   }
@@ -1244,11 +1279,9 @@ async function stageBoard(t, ctx) {
     if (visit >= games.length) { t.event('board-done', `${games.length} games visited and returned from`); t.progress(1); return; }
   } else {
     if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
-    const hg = HP().overseer.hangar, rocket = G().entity('rocket'), l = OB().lift;
-    if (rocket) { rocket.position = [hg.pad[0], hg.pad[1] + 3, hg.pad[2]]; rocket.velocity = [0, 0, 0]; }
-    W().player.position = [l[0], l[1] + 1.2, l[2] - 1];
-    t.event('setup-shortcut', 'docked: the rocket on the pad, the player by the lift in the hangar');
+    dockRocket(t);
     await t.wait(2500);
+    await walkToLift(t, OB);
     for (let i = 0; i < 4 && OB().state === 'bay'; i++) { await tap(t, 'e'); await t.wait(700); }
     await t.until(() => OB().state === 'inside', 15000, 'the lift to reach the Observatory');
     if (OB().scene) { t.event('setup-shortcut', 'the first-arrival scene skipped (its own scenario plays it)'); OB().skip(); }
