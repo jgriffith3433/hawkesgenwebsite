@@ -546,7 +546,7 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
         if (!pics.length) return;
         const esc = (s) => String(s).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
         const peek = document.getElementById('libPeek');
-        peek.innerHTML = pics.map((x) => '<a href="/community?open=' + encodeURIComponent(x.id) + '"><img src="' + esc(x.thumb) + '" alt="" loading="lazy"><span>' + esc(x.title) + '</span></a>').join('');
+        peek.innerHTML = pics.map((x) => '<a href="/community?open=' + encodeURIComponent(x.id) + '"><img src="' + esc(x.thumb) + '" alt="' + esc(x.title) + '" loading="lazy" onerror="this.parentNode.remove()"><span>' + esc(x.title) + '</span></a>').join('');
         peek.hidden = false;
       } catch {}
     })();
