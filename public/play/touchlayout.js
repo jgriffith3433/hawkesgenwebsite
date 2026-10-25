@@ -176,8 +176,98 @@
     } catch { return { t: 0, r: 0, b: 0, l: 0 }; }
   }
 
-  H.touchLayout = { compute, zoneOverlaps, cssVars, audit, insets, K, haptic, zones: ZONE_OF.map((z) => z[0]) };
+  // ------------------------------------------------------------------ the top-left cards and the quest card
+  /** The cards that live top left (the level pill, today's wish, the tracker, the Quests and Stuck? buttons). */
+  const TL_CARDS = [['level', '.pg-hud'], ['wish', '.wh-hud'], ['tracker', '.tour-track, .qs-track'], ['quests', '.qs-btn'], ['stuck', '.tour-stuck']];
+  /** Names of pairs of rects ({name, x, y, r, b}) that overlap by more than 6 px² (pure; test/engine/touchlayout.test.ts). */
+  function overlapPairs(items) {
+    const out = [];
+    for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
+      const area = intersect(items[i], items[j]);
+      if (area > 6) out.push(`${items[i].name} x ${items[j].name} (${Math.round(area)} px²)`);
+    }
+    return out;
+  }
+  /** Does the rect sit whole inside the safe area? (pure) */
+  const insideSafe = (r, safe) => r.x >= safe.x - 0.5 && r.y >= safe.y - 0.5 && r.r <= safe.r + 0.5 && r.b <= safe.b + 0.5;
+  const showing = (el) => {
+    if (!el || !el.getClientRects || !el.getClientRects().length) return null;
+    try { const cs = getComputedStyle(el); if (cs.visibility === 'hidden' || cs.display === 'none') return null; } catch { /* no styles */ }
+    const b = el.getBoundingClientRect();
+    return b.width < 1 || b.height < 1 ? null : rect(b.left, b.top, b.width, b.height);
+  };
+  /** Measures the real page: do two top-left cards overlap, and does the quest card (and its Accept / Not now) fit the screen?
+   *  { ok, w, h, cards, overlaps, card, problems, text }. */
+  function hudCheck() {
+    const w = innerWidth, h = innerHeight, ins = insets();
+    const safe = rect(ins.l, ins.t, w - ins.l - ins.r, h - ins.t - ins.b);
+    const cards = [];
+    for (const [name, sel] of TL_CARDS) document.querySelectorAll(sel).forEach((el) => { const r = showing(el); if (r) cards.push({ name, ...r }); });
+    const problems = overlapPairs(cards).map((o) => `top-left cards overlap: ${o}`);
+    let card = null;
+    const panel = document.querySelector('.qs-panel');
+    const pr = showing(panel);
+    if (pr) {
+      card = { x: Math.round(pr.x), y: Math.round(pr.y), w: Math.round(pr.w), h: Math.round(pr.h), buttons: [] };
+      if (!insideSafe(pr, safe)) problems.push(`the quest card sticks out of the screen (${card.x},${card.y} ${card.w}x${card.h} in ${w}x${h})`);
+      panel.querySelectorAll('.row button').forEach((b) => {
+        const r = showing(b);
+        card.buttons.push({ label: (b.textContent || '').trim(), visible: Boolean(r) && insideSafe(r, safe) });
+        if (!r) problems.push(`quest card button "${(b.textContent || '').trim()}" is not showing`);
+        else if (!insideSafe(r, safe)) problems.push(`quest card button "${(b.textContent || '').trim()}" is cut off by the screen`);
+        else if (r.b > pr.b + 0.5 || r.y < pr.y - 0.5) problems.push(`quest card button "${(b.textContent || '').trim()}" is cut off by the card`);
+        else for (const c of cards) if (intersect(r, c) > 6) problems.push(`quest card button "${(b.textContent || '').trim()}" is under ${c.name}`);
+      });
+      // (the HUD cards under a card that covers them are hidden by the card's own CSS on narrow screens: they are not in `cards`)
+    }
+    const ok = !problems.length;
+    return { ok, w, h, cards: cards.map((c) => ({ name: c.name, x: Math.round(c.x), y: Math.round(c.y), w: Math.round(c.w), h: Math.round(c.h) })), overlaps: overlapPairs(cards), card, problems, text: `${w}x${h}${ok ? ': ' : ' — '}${cards.length} cards${card ? ', quest card open' : ''}${problems.length ? `; ${problems.join('; ')}` : ''}` };
+  }
+
+  H.touchLayout = { compute, zoneOverlaps, cssVars, audit, hudCheck, overlapPairs, insideSafe, insets, K, haptic, zones: ZONE_OF.map((z) => z[0]) };
   if (!H.touchUi || typeof document === 'undefined' || !document.body) return;
+
+  // ------------------------------------------------------------------ the top left on a computer (and a narrow desktop window)
+  // The same idea as the phone's `tl` zone: the cards are adopted into one column that flows, so a tracker that grows a
+  // hint pushes the Quests button down instead of being covered by it. The stack scrolls inside if the window is short.
+  const STACK_CSS = `
+body:not(.tl) #dl-stack{position:fixed;z-index:26;left:max(12px,env(safe-area-inset-left));top:max(10px,env(safe-area-inset-top));display:flex;flex-direction:column;align-items:flex-start;gap:6px;box-sizing:border-box;width:min(300px,calc(100vw - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)));max-height:calc(100vh - 20px - env(safe-area-inset-top) - env(safe-area-inset-bottom));overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;pointer-events:none}
+body:not(.tl) #dl-stack::-webkit-scrollbar{display:none}
+body:not(.tl) #dl-stack :is(button,a){pointer-events:auto}
+body:not(.tl) #dl-stack .dl-in{position:static!important;inset:auto!important;transform:none!important;margin:0!important;box-sizing:border-box;flex:none;max-width:100%}
+body:not(.tl) #dl-stack .dl-in[hidden]{display:none!important}
+body:not(.tl) #dl-stack :is(.tour-track,.qs-track){order:1;width:100%!important}
+body:not(.tl) #dl-stack .qs-btn{order:2}
+body:not(.tl) #dl-stack .tour-stuck{order:3}
+body:not(.tl) #dl-stack .pg-hud{order:4}
+body:not(.tl) #dl-stack .wh-hud{order:5}
+@media (max-width:700px){body:not(.tl):has(.qs-panel) #dl-stack :is(.pg-hud,.wh-hud,.tour-track,.qs-track,.tour-stuck){visibility:hidden}}
+`;
+  function deskStack() {
+    let box = null, raf = 0;
+    const adopt = () => {
+      raf = 0;
+      if (!box) {
+        const css = document.createElement('style');
+        css.id = 'dl-css';
+        css.textContent = STACK_CSS;
+        document.head.appendChild(css);
+        box = document.createElement('div');
+        box.id = 'dl-stack';
+        document.body.appendChild(box);
+      }
+      for (const [, sel] of TL_CARDS) for (const el of document.querySelectorAll(sel)) {
+        if (el.parentNode === box) continue;
+        box.appendChild(el);
+        el.classList.add('dl-in');
+      }
+    };
+    const soon = () => { if (!raf) raf = (window.requestAnimationFrame || setTimeout)(adopt); };
+    adopt();
+    if (typeof MutationObserver === 'function') new MutationObserver(soon).observe(document.body, { childList: true });
+  }
+
+  if (!H.touchUi && typeof document !== 'undefined' && document.body) deskStack();
 
   // ------------------------------------------------------------------ the page part (phones and tablets only)
   const CSS = `
@@ -239,6 +329,9 @@ html body.tl #tl-mid :is(.hp-use,.mh-tip,.water-hud){order:1;width:auto;white-sp
 html body.tl #tl-mid .hp-use{flex-wrap:wrap;justify-content:center}
 html body.tl #tl-mid .hp-use button{min-height:48px}
 html body.tl #tl-mid #veh-prompt{order:1;min-height:48px;display:inline-flex;align-items:center;pointer-events:auto}
+
+/* the quest card is a modal over the world: the cards under it step aside (the Quests button stays, it closes the log) */
+html body.tl:has(.qs-panel) #tl-tl :is(.pg-hud,.wh-hud,.tour-track,.qs-track,.tour-stuck){visibility:hidden}
 
 /* hide the HUD: only the controls (and the toggle) stay */
 html body.tl.tl-hud-off :is(#tl-tr,#tl-mid){display:none}
