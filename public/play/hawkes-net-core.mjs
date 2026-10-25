@@ -17,13 +17,13 @@
 // synced states (only the keys that changed since that connection last got them).
 
 export const PROTOCOL = 3;
-export const VERSION = '1.0.0';
+export const VERSION = '1.1.0';
 
 /** Room defaults; a room's config and its ticket's limits narrow them. */
 export const DEFAULT_LIMITS = {
   playersPerRoom: 64,
   downBytesPerSec: 48 * 1024,
-  upBytesPerSec: 32 * 1024,
+  upBytesPerSec: 64 * 1024,
   msgsPerSec: 90,
   innerPerSec: 900,
   messageBytes: 64 * 1024,
@@ -37,6 +37,8 @@ export const FLUSH_MS = 33;
 const VALUES = 12;
 const IMPORTANT = 1 << 12;
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+// A peer's clock stamp: within ten minutes of the room's clock, else the room's (a stamp is never trusted to be sane).
+const stamp = (v, now) => (typeof v === 'number' && v > now - 600_000 && v < now + 600_000 ? v : now);
 
 // ===================================================================== bytes
 const te = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
@@ -57,11 +59,13 @@ export class Writer {
   u16(v) { this.need(2); this.b[this.n++] = v & 255; this.b[this.n++] = (v >>> 8) & 255; }
   uv(v) {
     this.need(8);
-    v = Math.max(0, Math.floor(v));
+    // Total: any number writes at most 8 bytes (NaN and negatives as 0, Infinity and anything past 2^53 as 2^53 - 1),
+    // so a peer's absurd value can't hang the loop below or overrun the 8 bytes reserved.
+    v = v > 0 ? (v < 9007199254740991 ? Math.floor(v) : 9007199254740991) : 0;
     while (v >= 128) { this.b[this.n++] = (v % 128) | 128; v = Math.floor(v / 128); }
     this.b[this.n++] = v;
   }
-  sv(v) { v = Math.round(v); this.uv(v >= 0 ? v * 2 : -v * 2 - 1); }
+  sv(v) { v = Math.round(v); if (!(v >= -4503599627370495 && v <= 4503599627370495)) v = v > 0 ? 4503599627370495 : v < 0 ? -4503599627370495 : 0; this.uv(v >= 0 ? v * 2 : -v * 2 - 1); }
   f64(v) { this.need(8); new DataView(this.b.buffer, this.b.byteOffset + this.n, 8).setFloat64(0, v, true); this.n += 8; }
   bytes(u8) { this.uv(u8.length); this.raw(u8); }
   raw(u8) { this.need(u8.length); this.b.set(u8, this.n); this.n += u8.length; }
@@ -91,27 +95,33 @@ export class Reader {
 // uv(i + 1) is entry i. Both ends add entries in the same order up to the same cap, so they always agree. A stream that
 // may lose messages (a p2p 'fast' channel) has no dictionary: strings always go in full.
 const DICT_CAP = 8192;
+// Only short strings go in a dictionary, and at most DICT_CHARS characters in all: a stream's memory stays small
+// whatever a peer sends (both ends apply the same rule, so they agree).
+const DICT_LONG = 256, DICT_CHARS = 262_144;
+const STATE_KEYS = 512;
+const BASE_CAP = 8192;
 export class Dict {
-  constructor() { this.map = new Map(); this.list = []; this.byKey = []; }
+  constructor() { this.map = new Map(); this.list = []; this.byKey = []; this.chars = 0; }
+  room(s) { if (this.list.length >= DICT_CAP || s.length > DICT_LONG || this.chars + s.length > DICT_CHARS) return false; this.chars += s.length; return true; }
   /** put(), with a number the caller already has for the string (a room's key): no string hashing on the hot path. */
   putK(w, s, k) {
     let i = this.byKey[k];
     if (i === undefined) { i = this.map.get(s); if (i !== undefined) this.byKey[k] = i; }
     if (i !== undefined) return w.uv(i + 1);
     w.uv(0); w.str(s);
-    if (this.list.length < DICT_CAP) { const n = this.list.length; this.map.set(s, n); this.list.push(s); this.byKey[k] = n; }
+    if (this.room(s)) { const n = this.list.length; this.map.set(s, n); this.list.push(s); this.byKey[k] = n; }
   }
   put(w, s) {
     const i = this.map.get(s);
     if (i !== undefined) return w.uv(i + 1);
     w.uv(0); w.str(s);
-    if (this.list.length < DICT_CAP) { this.map.set(s, this.list.length); this.list.push(s); }
+    if (this.room(s)) { this.map.set(s, this.list.length); this.list.push(s); }
   }
   get(r) {
     const v = r.uv();
     if (v) { const s = this.list[v - 1]; if (s === undefined) throw new RangeError('hawkes-net: unknown dictionary entry'); return s; }
     const s = r.str();
-    if (this.list.length < DICT_CAP) { this.map.set(s, this.list.length); this.list.push(s); }
+    if (this.room(s)) { this.map.set(s, this.list.length); this.list.push(s); }
     return s;
   }
 }
@@ -123,7 +133,9 @@ const getStr = (r, d) => { if (d) return d.get(r); const v = r.uv(); if (v) thro
 // null 0, false 1, true 2, integer 3 (zig-zag), float 4 (f64), string 5, array 6, map 7 (keys through the dictionary),
 // bytes 8, hundredths 9 (a number with two decimals, the portal's r2), thousandths 10 (r3).
 export function putValue(w, d, v, depth = 0) {
-  if (depth > 32) throw new RangeError('hawkes-net: value nested too deep');
+  // Never throws (it runs inside a flush, where a throw would leave this stream's dictionary and baselines ahead of
+  // what was sent): past 32 levels a value is sent as null. Received values are checked for depth before this.
+  if (depth > 32) return w.u8(0);
   if (v === null || v === undefined) return w.u8(0);
   if (v === false) return w.u8(1);
   if (v === true) return w.u8(2);
@@ -157,8 +169,8 @@ export function getValue(r, d, depth = 0) {
     case 3: return r.sv();
     case 4: return r.f64();
     case 5: return r.str();
-    case 6: { const n = r.uv(); if (n > 1e6) throw new RangeError('hawkes-net: array too long'); const a = new Array(n); for (let i = 0; i < n; i++) a[i] = getValue(r, d, depth + 1); return a; }
-    case 7: { const n = r.uv(); if (n > 1e6) throw new RangeError('hawkes-net: map too long'); const o = {}; for (let i = 0; i < n; i++) { const k = getStr(r, d); const val = getValue(r, d, depth + 1); if (k !== '__proto__') o[k] = val; } return o; }
+    case 6: { const n = r.uv(); if (n > r.left) throw new RangeError('hawkes-net: array too long'); const a = new Array(n); for (let i = 0; i < n; i++) a[i] = getValue(r, d, depth + 1); return a; }
+    case 7: { const n = r.uv(); if (n > r.left) throw new RangeError('hawkes-net: map too long'); const o = {}; for (let i = 0; i < n; i++) { const k = getStr(r, d); const val = getValue(r, d, depth + 1); if (k !== '__proto__') o[k] = val; } return o; }
     case 8: return r.bytes();
     case 9: return r.sv() / 100;
     case 10: return r.sv() / 1000;
@@ -202,12 +214,13 @@ export class Codec {
     this.dict = this.reliable ? new Dict() : null;
     this.base = new Map(); // thing id -> quantized values (what the other end has)
     this.baseK = []; // the same, by key (a room's numbers for its ids)
+    this.nBase = 0; // baselines kept (at most BASE_CAP)
     this.meBase = new Map(); // peer -> quantized position
     this.w = new Writer(2048);
     this.s = new Writer(256);
   }
   /** Forget every baseline (a 'clear': the other end forgot too). */
-  forget() { this.base.clear(); this.baseK = []; }
+  forget() { this.base.clear(); this.baseK = []; this.nBase = 0; }
 
   // ------------------------------------------------------------ encoding
   /** Encodes a list of core messages (the protocol 2 shapes) as one bundle frame. `toServer`: a page's own messages
@@ -275,7 +288,8 @@ export class Codec {
             s.sv(dv);
             nb[i] = base ? base[i] + dv : qv;
           }
-          if (this.reliable && !base) { if (keyed) this.baseK[xk] = nb; else this.base.set(id, nb); }
+          // At most BASE_CAP baselines a stream (the decoder keeps the same count): past it a thing goes whole each time.
+          if (this.reliable && !base && (this.nBase || 0) < BASE_CAP) { this.nBase = (this.nBase || 0) + 1; if (keyed) this.baseK[xk] = nb; else this.base.set(id, nb); }
         }
         break;
       }
@@ -394,7 +408,7 @@ export class Codec {
             if (i >= 3 && i < 6 && v > Math.PI) v = Math.round((v - 2 * Math.PI) * 1e6) / 1e6;
             entry.push(i < 3 ? Math.round(v * 1000) / 1000 : v);
           }
-          if (this.reliable) this.base.set(id, nb);
+          if (this.reliable && (!whole || this.base.has(id) || this.base.size < BASE_CAP)) this.base.set(id, nb);
           x.push(entry);
         }
         return fromServer ? { t: 'xf', c, at, x } : { t: 'xf', at, x };
@@ -589,8 +603,13 @@ export function receive(room, c, frame, now) {
   c.stats.inBytes += size; c.stats.inMsgs++;
   room.stats.inBytes += size; room.stats.inMsgs++;
   if (size > room.limits.messageBytes) return null;
-  if (now - c.rate.at > 1000) { c.rate.at = now; c.rate.n = 0; c.rate.inner = 0; }
+  if (now - c.rate.at > 1000) { c.rate.at = now; c.rate.n = 0; c.rate.inner = 0; c.rate.bytes = 0; }
   if (++c.rate.n > room.limits.msgsPerSec) return null;
+  // Bytes a second from one connection (what it sends is forwarded to everyone, so it is everyone's bill).
+  // (One message may go past it, so a big world message still passes; the ones after it in that second don't.)
+  const before = c.rate.bytes || 0;
+  c.rate.bytes = before + size;
+  if (before > (room.limits.upBytesPerSec || Infinity)) return null;
   let msgs;
   if (typeof frame === 'string') {
     let m;
@@ -627,12 +646,12 @@ function one(room, c, m, now) {
       const s = m.s && typeof m.s === 'object' ? m.s : null;
       if (!s) return;
       if (Array.isArray(s.p) && s.p.length >= 3 && num(s.p[0]) !== undefined && num(s.p[1]) !== undefined && num(s.p[2]) !== undefined) c.pos = [s.p[0], s.p[1], s.p[2]];
-      c.meS = s; c.meAt = num(m.at) ?? now; c.meVer = ++room.meClock;
+      c.meS = s; c.meAt = stamp(m.at, now); c.meVer = ++room.meClock;
       return;
     }
     case 'xf': {
       if (!Array.isArray(m.x)) return;
-      const at = num(m.at) ?? now;
+      const at = stamp(m.at, now);
       for (const x of m.x) {
         if (!Array.isArray(x) || typeof x[0] !== 'string' || typeof x[1] !== 'number') continue;
         const id = x[0].length > 64 ? x[0].slice(0, 64) : x[0];
@@ -677,6 +696,7 @@ function one(room, c, m, now) {
           // Held by someone else (they're driving it): it stays theirs; tell the asker who has it.
           return void c.out.rel.push({ t: 'own', id: eid, c: lockedBy, lock: 1 });
         }
+        if (!room.owners.has(eid) && room.owners.size >= room.limits.ents) return; // as many as things a room may hold
         room.owners.set(eid, c.id);
         if (m.lock) room.locks.set(eid, c.id); else room.locks.delete(eid);
       } else if (room.owners.get(eid) === c.id) { room.owners.delete(eid); room.locks.delete(eid); }
@@ -702,10 +722,11 @@ function syncState(room, c, data, now) {
     room.states.set(n, st);
   }
   if (data.f) st.copy = {};
-  const keys = Object.keys(data.d);
-  for (const k of keys) if (k !== '__proto__') st.copy[k] = data.d[k];
+  // A state keeps at most STATE_KEYS keys (it is sent whole to every joiner and new host).
+  const keys = Object.keys(data.d).filter((k) => k !== '__proto__' && (k in st.copy || Object.keys(st.copy).length < STATE_KEYS));
+  for (const k of keys) st.copy[k] = data.d[k];
   st.c = c.id;
-  st.at = num(data.at) ?? now;
+  st.at = stamp(data.at, now);
   st.w = Array.isArray(data.w) && num(data.w[0]) !== undefined && num(data.w[1]) !== undefined ? [data.w[0], data.w[1]] : null;
   st.imp = Boolean(data.i);
   for (const o of room.conns.values()) {

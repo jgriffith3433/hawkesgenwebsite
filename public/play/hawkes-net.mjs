@@ -244,6 +244,9 @@ class Room {
       this._connect(`t=${encodeURIComponent(t.ticket)}&want=${this.o.transport}`);
     } catch (e) {
       if (!this._wasReady) return this._refused?.(e);
+      // A real no (the game's server or Gen refused this player: removed, closed, expired): stop, don't ask forever.
+      const st = Number(e?.status) || 0;
+      if (st >= 400 && st < 500 && st !== 408 && st !== 429) { this._problem('refused', e?.message || String(st)); return void this.leave('refused'); }
       setTimeout(() => void this._rejoin(), 5000);
     }
   }
