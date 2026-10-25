@@ -188,14 +188,14 @@
     if (on('npcs')) {
       for (const e of w.entities) {
         if (!e.alive || e.isPlayer || e.remotePlayer) continue;
-        let kind = null, name = null, color = null;
+        let kind = null, name = null, color = null, look = null;
         if (e._prTag) { kind = e._prTag.kind || 'thing'; name = e._prTag.text; color = e._prTag.color || null; }
         else if (e.data && e.data.nametag === false) continue;
-        else if (e.kind === 'friend' && e.living && e.living.friend) { kind = 'ai'; name = e.living.friend.name; if (e.living.friend.tag) e.living.friend.tag.setEnabled(!on('tags')); }
+        else if (e.kind === 'friend' && e.living && e.living.friend) { kind = 'ai'; name = e.living.friend.name; look = e.living.friend.look ? C.cleanLook(e.living.friend.look) : null; if (e.living.friend.tag) e.living.friend.tag.setEnabled(!on('tags')); }
         else if (e.living && e.living.temper === 'pet' && (e.name || e.living.follow)) { kind = 'pet'; name = e.name || cap(e.living.name); }
         else if (e.name && (e.living || e.tag === 'npc' || (e.data && (e.data.npc || e.data.nametag)))) { kind = 'npc'; name = e.data && typeof e.data.nametag === 'string' ? e.data.nametag : e.name; }
         if (!kind || !name) continue;
-        out.push({ key: keyOf(e), kind, entity: e, name: String(name).slice(0, 40), color, hp: e.hp, mx: e.maxHp });
+        out.push({ key: keyOf(e), kind, entity: e, name: String(name).slice(0, 40), color, look, hp: e.hp, mx: e.maxHp });
       }
     }
     return out;
@@ -549,7 +549,7 @@
     if (looks) {
       const todo = [];
       for (const pr of people()) {
-        if (pr.kind !== 'me' && pr.kind !== 'player' && pr.kind !== 'friend') continue;
+        if (pr.kind !== 'me' && pr.kind !== 'player' && pr.kind !== 'friend' && !(pr.kind === 'ai' && pr.look)) continue;
         const e = pr.entity;
         if (!e || !e.alive) continue;
         const look = pr.look || C.randomLook(C.seedOf(pr.key + pr.name));
@@ -560,6 +560,7 @@
         // (At a mirror, or dressing up, I see myself whatever the view: modules/mirror sets e._mirrorShow.)
         const show = self ? (e._mirrorShow || (e._view !== 'first' && e._view !== 'rts')) && e.visible !== false && !e._seatHidden : e.visible !== false;
         e._rigged = true;
+        if (pr.kind === 'ai' && e.living && e.living.rig && e.living.rig.vis) e.living.rig.vis.setEnabled(false); // an islander shows its look, not the creature body
         if (self) { if (e._visor) e._visor.setEnabled(false); }
         e.node.visibility = 0;
         rig.root.setEnabled(show);
@@ -591,7 +592,7 @@
         // Looks turned off: the plain capsule again.
         for (const c of e.node.getChildMeshes(true)) if (c.name === 'visor') c.setEnabled(true);
         if (e === w.player) { e.node.visibility = e._view === 'first' || e._view === 'rts' ? 0 : 1; if (e._visor) e._visor.setEnabled(e._view !== 'first' && e._view !== 'rts'); }
-        else e.node.visibility = 1;
+        else { e.node.visibility = 1; if (e.living && e.living.friend && e.living.friend.look && e.living.rig && e.living.rig.vis) e.living.rig.vis.setEnabled(true); }
       }
     }
   }

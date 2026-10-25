@@ -105,6 +105,8 @@
   };
   window.HawkesGuestCore = Core;
   if (typeof document === 'undefined') return;
+  // Studio's playtest (public/playtest/portal.js): only a browser under automation loads it.
+  try { if (navigator.webdriver || /[?&]playtest=/.test(location.search) || sessionStorage.getItem('hg_playtest_run')) import('/playtest/portal.js').catch(function () {}); } catch { /* never breaks the game */ }
 
   // ------------------------------------------------------------------ analytics
   const queue = [];

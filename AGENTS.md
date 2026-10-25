@@ -93,6 +93,37 @@ Some test browsers (the Claude app's own) refuse scripts from a sandboxed page o
 in a local `.env` serves games unsandboxed, only to localhost / 127.0.0.1 requests (`server.ts devOpenPlay`). Never set it
 on the box. `?touch=1` / `?touch=0` on a play page forces the phone controls on or off.
 
+## Playtest scenarios (Hawkes Studio)
+
+`public/playtest/portal.js` implements the playtest contract (`window.hawkesPlaytest`, `hawkesstudio/docs/playtest.md`;
+`hawkes-playtest.js` and `hawkes-perf.js` next to it are Studio's shared copies: change them there, never here). It is
+loaded only by a browser under automation (`navigator.webdriver`, a `?playtest=` URL, or a run under way): by a loader in
+`public/index.html` and by `public/play/guest.js` on `/play/sandbox`, so a visitor never fetches it. Test: `test/playtest.test.ts`.
+
+- **`sandbox-first-minutes`** (full, about 3 minutes, `starts: ['sandbox']`) plays the first minutes as a player does, with
+  real input (keys, clicks and mouse drags into the game's input layer; nothing teleports): the landing page's Play click >
+  the click-to-enter veil > the intro (watched 8 s, then skipped with a key) > the mirror's three questions (a toaster, a
+  surprise look, a name) > the account sheet (a throwaway sign-up, `playtest-…@example.com`) > Pip's tour: walk to the 4x4,
+  E, drive to the dock (steering by the 4x4's heading) > out, along the pier to the rod, aim out to sea, cast, hook, reel.
+  Each stage is a `scene()` (a screenshot: `Landing`, `Entry veil`, `Intro`, `Mirror: what are you`, `Account sheet`,
+  `Island: driving`, `Island: at the dock`, `Island: fishing`...) and an `event()` (`play-click`, `veil-passed`,
+  `intro-skipped`, `mirror-answer`, `signup-ok`, `dock-reached`, `fish-caught`...).
+- **`smoke`** (about 45 s): landing, Play click, the veil, the intro skipped.
+- **Options** (`studio_playtest` `options`): `to` (`veil`, `intro`, `mirror`, `sheet`, `drive`, `fish`: stop after that stage),
+  `signup: false`, `fish: "strict"` (otherwise a fishing failure is a warning: the criteria end at the first tour step),
+  `watch` (seconds of intro to watch), `name`, `what` (a mirror body id), `at: "sandbox"` (open `/play/sandbox` directly).
+- **Run it:** `studio_playtest { product: "hawkesgenwebsite", scenario: "sandbox-first-minutes", wait: true }`, on beta (the
+  playtest config in `products.json` can point it at the beta host). By hand: open `/?playtest=sandbox-first-minutes`, then
+  `hawkesPlaytest.report()` in the console (the report survives the page change; `sessionStorage.hg_playtest_run` holds it).
+- **No real mail, no live sign-ups:** the scenario reads `/v1/health` (`mail`), refuses to sign up where mail is on, uses an
+  `example.com` address (reserved, never deliverable) and never signs up on `hawkesgen.com` (it ends `done` at the sheet).
+- **Fails clearly:** every stage is wrapped, so a broken one ends the run `stuck` (timeout) or `error` with
+  `stage "<name>": timed out waiting for <what>` in the problems and log. The page changes once, at the Play click; the
+  sandbox page replays the landing page's events (`page-changed`) so one report covers the path.
+- The selectors it relies on are the game's own: `[data-play-now]`, `.hp-enter button`, `.mr` (`[data-what]`, `[data-a]`,
+  `.mr-name`), `#gsEmail`, `#gsPw`, `#gsGo`, `#gsSwap [data-swap]`, the quest `tour` (`drive`, `rod`, `fish`) and the entities
+  `jeep`, `dock`, `rod`. Change one of those and update the scenario.
+
 ## Beta (Hawkes Studio)
 
 Work goes to the `beta` branch (agents open pull requests into it; `.github/workflows/hawkes-studio.yml` tells Studio

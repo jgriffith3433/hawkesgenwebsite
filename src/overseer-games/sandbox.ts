@@ -146,6 +146,16 @@ export const SANDBOX = {
     const mx = -6 + (ship[0] / sl) * 2.3, mz = (ship[1] / sl) * 2.3;
     add(thing('mirror', 'mirror', 'The mirror', [r2(mx), r2(groundAt(mx, mz) + 1.28), r2(mz)], { shape: { width: 1.5, height: 2.4, character: { steps: ['what', 'look', 'name'], start: 'always', voice: true } }, transform: yaw(Math.round(Math.atan2(-ship[0], -ship[1]) * 180 / Math.PI)) }));
     add({ id: 'pip', type: 'friend', name: 'Pip', shape: { personality: 'a cheerful island guide who loves explosions and fishing', species: 'person', color: '#f59e0b', follow: false, stays: true, lines: ['What a day for it!', 'The 4x4 is right there: walk up and press E.', 'Those fuel barrels on the beach go BOOM.', 'The pier is east, down the path. The rod is at the end of it.', 'There is a helicopter on the hill. From up there you can see the whole planet!'] }, physics: 'dynamic', transform: { position: [-1, r2(groundAt(-1, 2.2) + 0.6), 2.2], rotation: [0, -110, 0] } });
+    // The islanders (islanders.js talks for them): friends that stay at their posts, in the mirror's own bodies, text in the chat only.
+    const islander = (id: string, name: string, personality: string, what: string, body: string, accent: string, head: string, x: number, z: number, face: number, lift = 0) => add({
+      id, type: 'friend', name, physics: 'dynamic', transform: { position: [x, r2(groundAt(x, z) + 1 + lift), z], rotation: [0, face, 0] },
+      shape: { personality, species: 'person', follow: false, stays: true, talk: false, look: { what, name, body, accent, head } },
+    });
+    islander('bobbin', 'Admiral Bobbin', 'a very small, very proud rubber duck, harbourmaster of a harbour with one boat', 'duck', '#facc15', '#f97316', '#111827', 66, -1, 180, 1.2);
+    islander('ember', 'Mrs Ember', 'a dry, motherly toaster who runs the post and the weather', 'toaster', '#b8bfcc', '#d9a35f', '#2b2f3a', -10.5, 15, 110);
+    islander('rolo', 'Rolo', 'a mild, kind roll-bot who fixes things and will not ask for help', 'rollbot', '#f4c430', '#22d3ee', '#3a3f4b', -34, -27, 200);
+    islander('dolores', 'Dolores', 'a blunt, deadpan cactus on the hill who asks for nothing', 'cactus', '#3f9a4a', '#f472b6', '#c2703d', 36, 24, 230);
+    islander('channel', 'Channel', 'a fast-talking TV robot, the island\'s one reporter', 'tvbot', '#3a3f4b', '#7dd3fc', '#e5e7eb', 55, -12, 90);
     // The 4x4, ready on the path.
     add({ id: 'jeep', type: 'truck', name: '4x4', shape: { model: A.truck }, material: { color: '#3f7d3a' }, transform: { position: [4, r2(groundAt(4, 6.5) + 1.4), 6.5], rotation: [0, 90, 0] } });
     // Pip's hut and yard, up the slope behind the start.
@@ -195,5 +205,5 @@ export const SANDBOX = {
   },
 };
 
-/** The guide (Pip, the rewards, the Overseer's words, music and the sea): src/overseer-games/sandbox.js. */
-export const sandboxScript = () => fs.readFileSync(path.join(HERE, 'sandbox.js'), 'utf8').replace(/\r\n/g, '\n');
+/** The guide (Pip, the rewards, the Overseer's words, music and the sea): src/overseer-games/sandbox.js; the islanders' lines: islanders.js. */
+export const sandboxScript = () => ['sandbox.js', 'islanders.js'].map((f) => fs.readFileSync(path.join(HERE, f), 'utf8').replace(/\r\n/g, '\n')).join('\n');
