@@ -13,6 +13,8 @@
   <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
   <script src="/site-analytics.js"></script>
   <script src="/sitenav.js" defer></script>
+  <script>/* Studio's playtest (public/playtest/portal.js): only a browser under automation loads it */
+  try { if (navigator.webdriver || /[?&]playtest=/.test(location.search) || sessionStorage.getItem('hg_playtest_run')) import('/playtest/portal.js').catch(function () {}); } catch (e) {}</script>
 </head>
 <body class="landing at-sky">
   <header class="hg-navbar">

@@ -249,7 +249,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     // ------------------------------------------------------------ open to everyone
     // Player analytics from game pages that have no origin of their own: passed on to Gen (src/analytics.ts).
     if (route === '/v1/analytics/collect' && (method === 'POST' || method === 'OPTIONS')) return await relayAnalytics(req, res, clientIp(req));
-    if (route === '/v1/health') return send(res, 200, { ok: true, service: 'hawkesgen-portal', gen: Boolean(genKey()), payments: stripeStatus().configured, google: google.googleEnabled() });
+    if (route === '/v1/health') return send(res, 200, { ok: true, service: 'hawkesgen-portal', gen: Boolean(genKey()), payments: stripeStatus().configured, google: google.googleEnabled(), mail: mail.mailOn() });
     // What Gen makes for a game, with its price (the codex reads it, so it never drifts from gameai.ts KINDS).
     if (route === '/v1/asset-kinds' && method === 'GET') return send(res, 200, Object.fromEntries(Object.entries(KINDS).map(([k, v]) => [k, { title: v.title, credits: v.credits }])));
     if (route === '/v1/portfolio' && method === 'GET') return send(res, 200, getPortfolio());
