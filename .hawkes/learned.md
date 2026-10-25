@@ -1,0 +1,2 @@
+- convention: arrivals for the sandbox's first minutes — `config.overseer.cascade` (scene ids) is read by arrive.js when game event `intro` ends; no intro, no cascade, so returns need no extra flag.
+- lesson: playtesting two players — there is no second browser; `presence.standIn(name, { joined: true })` runs the same `H.arrive.joined` as net.js.

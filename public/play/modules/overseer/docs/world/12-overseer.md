@@ -57,6 +57,7 @@ the whole game (`"none"`: things just appear; `"beam"`: nothing falls).
 | `intro` | `"first"` (the first time a player enters any world, remembered on their device), `"always"`, or `false` | `"first"` |
 | `beams` | `false`: things just appear (no beam, nothing falls) | true |
 | `arrive` | how things you create come in, for the whole game: `"auto"` (by what they are, above), `"drop"`, `"grow"`, `"beam"`, `"none"` | `"auto"` |
+| `cascade` | scene ids beamed in one after another, a short beam each, when the first-visit intro ends (hidden until their turn; never on a return, never on a phone), e.g. `["pip", "jeep"]` | none |
 | `false` instead of an object | no Overseer in this game (it's in every game unless a game really wants none) | |
 
 The intro's voice: a sound asset named `overseer-intro` if the game has one (its words are in the chat either way). A model for

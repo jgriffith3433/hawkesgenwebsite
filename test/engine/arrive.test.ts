@@ -143,3 +143,43 @@ test('nothing is left behind: beams, rings and arrivals end; a world change clea
   assert.equal(H.arrive.of(c), null);
   assert.ok(c.node.isEnabled());
 });
+
+test('the first-visit cascade: after the intro the listed things are hidden and beamed in one by one; no intro, no cascade', () => {
+  const crate = (x: number) => ({ type: 'box', physics: 'static', shape: { size: [1, 1, 1] }, transform: { position: [x, 0.5, 4] } });
+  const scene = sceneOf({ floor, start, a: crate(0), b: crate(3), c: crate(6) }, { overseer: { cascade: ['a', 'b', 'c'] } });
+  world(H, scene);
+  H.tick(0.3);
+  const seen: string[] = [];
+  H.game.on('cascade', (d: any) => seen.push(d.id));
+  assert.equal(H.arrive.waiting, 0, 'nothing before the intro ends');
+  H.game.emit('intro', { state: 'end', skipped: false });
+  assert.equal(H.arrive.waiting, 3);
+  assert.ok(['a', 'b', 'c'].every((id) => H.world.byId.get(id).node.isEnabled() === false), 'hidden until their turn');
+  H.tick(0.4);
+  assert.deepEqual(seen, ['a'], 'one at a time');
+  settle(2);
+  assert.deepEqual(seen, ['a', 'b', 'c']);
+  assert.ok(['a', 'b', 'c'].every((id) => H.world.byId.get(id).node.isEnabled()), 'all there at the end');
+  assert.equal(H.arrive.waiting, 0);
+  // A return has no intro: nothing happens.
+  world(H, scene);
+  H.tick(0.3);
+  assert.ok(['a', 'b', 'c'].every((id) => H.world.byId.get(id).node.isEnabled()), 'just there');
+});
+
+test('undo of a removal beams the thing back (a short beam); redo of an add too', () => {
+  world(H, sceneOf({ floor, start }), { mode: 'build' });
+  H.tick(0.3);
+  g.HawkesBuild.edit([{ op: 'create', entity: { id: 'post', type: 'box', physics: 'static', shape: { size: [1, 1, 1] }, transform: { position: [2, 0.5, 2] } } }], { label: 'adding a post', fx: 'none' });
+  settle(3);
+  g.HawkesBuild.edit([{ op: 'delete', id: 'post' }], { label: 'removing the post' });
+  assert.equal(H.world.byId.get('post'), undefined);
+  const before = H.overseer.beams;
+  g.HawkesBuild.undo();
+  const post = H.world.byId.get('post');
+  assert.ok(post, 'it is back');
+  assert.ok(H.overseer.beams > before, 'with a beam');
+  settle(2);
+  assert.equal(H.overseer.beams, 0, 'and the beam is short');
+  assert.ok(Math.abs(post.node.scaling.x - 1) < 1e-6, 'full size');
+});

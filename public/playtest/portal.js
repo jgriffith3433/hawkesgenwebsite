@@ -22,9 +22,9 @@
 import { installPlaytest } from './hawkes-playtest.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'leave', 'back'];
+const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'leave', 'back', 'introc', 'arrivals', 'back2'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'] };
+const ORDERS = { 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
 const SCENARIOS = [
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
   {
@@ -61,6 +61,11 @@ const SCENARIOS = [
     id: 'sandbox-travel-board', title: 'The Observatory travel board: three featured games as planets with live counts; beam down into each with your character and name, and Return to the Observatory from its pause menu', seconds: 600, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first-minutes path to the sign-up sheet, then docking (a named setup shortcut) and the lift; at the board it checks the three planets and their live counts, stands under each (a named setup shortcut: the walk across the room) and presses E; the Overseer speaks, the screen fades and the game page opens (a page change: the run crosses it) where it checks the character and name arrived, presses Esc twice, clicks Return to the Observatory and checks it stands at the board again; for all three games. options as sandbox-first-minutes, plus games (a list of ids to visit; default all three)',
+  },
+  {
+    id: 'island-arrivals', title: 'Things arrive in a beam: the island cascades in after the intro on a first visit, undo of a delete beams the thing back, a player who joins is beamed in with their name; on a second visit everything is just there', seconds: 330, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'first visit: veil, intro (skipped after a few seconds), then the six main things (Pip, the hut, the 4x4, the boat, the helicopter, the rocket) are watched beaming in one after another (cascade-beam events); the mirror and the throwaway sign-up; then building (Tab), a delete (named setup shortcut) and Ctrl+Z (real keys): undo-beam; a second player joining (named setup shortcut: presence.standIn with joined) is beamed in with its name, seen from the first player (joined-beam, joined-name). Then /play/sandbox is opened again with the same storage: no cascade, everything is there at once (just-there). Options: watch.',
   },
   {
     id: 'sandbox-return', title: 'A second visit: no intro and no mirror, beamed in and welcomed back by name, the tour where it stopped', seconds: 330, tags: ['full'],
@@ -988,6 +993,97 @@ async function stageBack(t, ctx) {
   t.progress(1);
 }
 
+// ---------------------------------------------------------------------------------------------- things arriving in a beam
+const ARRIVAL_IDS = ['pip', 'hut', 'jeep', 'boat', 'heli', 'rocket'];
+/** The intro, then the first-visit cascade: the island's main things beam in one after another (arrive.js cascade). */
+async function stageIntroCascade(t, ctx) {
+  await t.until(() => G() && G().on, 25000, 'the game events');
+  const seen = [];
+  ctx.cascade = seen;
+  G().on('cascade', (d) => { seen.push(d.id); t.event('cascade-beam', `${d.name} (${d.index + 1} of ${d.total}), ${seen.length} beamed so far`); if (seen.length === 1) t.scene('Island: the first beam'); });
+  await stageIntro(t, ctx);
+  const phone = HP().device && HP().device.tier === 'phone';
+  if (phone) { t.event('cascade-skipped', 'a phone: the island just appears'); return; }
+  await t.until(() => seen.length >= 1, 8000, 'the island\'s main things to start beaming in after the intro');
+  t.scene('Island: beaming in');
+  await t.until(() => seen.length >= ARRIVAL_IDS.length && HP().arrive.waiting === 0, 15000, 'every main thing to have been beamed in');
+  const missing = ARRIVAL_IDS.filter((id) => !seen.includes(id));
+  if (missing.length) t.problem('error', `not beamed in: ${missing.join(', ')}`);
+  t.event('cascade-done', `${seen.join(', ')}, in that order`);
+  await t.wait(1500);
+  const hidden = ARRIVAL_IDS.filter((id) => { const e = W().byId.get(id); return !e || !e.node.isEnabled(); });
+  if (hidden.length) t.problem('error', `still hidden after the cascade: ${hidden.join(', ')}`);
+  t.scene('Island: all there');
+}
+
+/** Undo of a delete beams the thing back; a second player who joins is beamed in with their name. Named setup shortcuts: the
+ *  delete itself, and the second player (no second browser: presence.standIn with the same arrival net.js gives a joiner). */
+async function stageArrivals(t, ctx) {
+  const OV = () => HP().overseer;
+  await t.until(() => W() && W().player && OV(), 30000, 'the island');
+  // Undo.
+  await tap(t, 'Tab');
+  if (HP().mode !== 'build') { HP().setMode && HP().setMode('build'); t.event('setup-shortcut', 'building switched on directly (Tab did not)'); }
+  if (!window.HawkesBuild || HP().mode !== 'build') t.problem('warning', 'building is not available on this page: the undo is not played');
+  else {
+    const id = 'hut';
+    window.HawkesBuild.edit([{ op: 'delete', id }], { label: 'removing the hut' });
+    t.event('setup-shortcut', 'the hut deleted while building');
+    await t.until(() => !W().byId.get(id), 3000, 'the hut to be gone');
+    t.scene('Undo: the hut is gone');
+    await t.wait(1500);
+    const before = OV().beams;
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Control', bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }));
+    await t.wait(90);
+    window.dispatchEvent(new KeyboardEvent('keyup', { key: 'z', ctrlKey: true, bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Control', bubbles: true }));
+    await t.until(() => W().byId.get(id), 4000, 'Ctrl+Z to bring the hut back');
+    await t.until(() => OV().beams > before || W().scene.meshes.some((m) => /beam/.test(m.name) && m.isEnabled()), 2500, 'a beam over the hut').then(
+      () => t.event('undo-beam', 'Ctrl+Z brought the hut back in a beam'), (e) => t.problem('error', e.message));
+    t.scene('Undo: the hut beamed back');
+    await t.until(() => !W().scene.meshes.some((m) => /beam/.test(m.name) && m.isEnabled()), 6000, 'the beam to end').catch(() => {});
+  }
+  await tap(t, 'Tab'); // back to playing
+  if (HP().mode === 'build') HP().setMode && HP().setMode('play');
+  // A second player joins.
+  await t.until(() => HP().presence && HP().presence.standIn, 20000, 'the presence module');
+  const joinedEv = [];
+  G().on('joined', (d) => joinedEv.push(d));
+  const id = HP().presence.standIn('Mira', { ahead: 10, color: '#f59e0b', joined: true });
+  if (!id) throw new Error('could not put a second player in the room');
+  t.event('setup-shortcut', 'Mira joins the room (a stand-in; no second browser)');
+  await t.until(() => joinedEv.length, 3000, 'the joiner to be beamed in');
+  await t.until(() => W().scene.meshes.some((m) => /beam/.test(m.name) && m.isEnabled()), 2500, 'the beam over the joiner').then(
+    () => t.event('joined-beam', 'a beam over the new player'), (e) => t.problem('error', e.message));
+  const av = W().entities.find((e) => e.netId === id);
+  const tag = av && av.node.getChildren().some((c) => /Mira/.test(c.name || '') || (c.metadata && c.metadata.decor));
+  t.event('joined-name', `${joinedEv[0].name}${tag ? '' : ' (no name plate found)'}`);
+  if (!joinedEv.some((j) => j.name === 'Mira')) t.problem('error', 'the joiner arrived without a name');
+  t.scene('A second player joins');
+  await t.wait(2500);
+  t.scene('The second player stands there');
+  HP().presence.removeStandIns();
+  t.progress(1);
+}
+
+/** The second visit: nothing beams in, the six main things are simply there. */
+async function stageBack2(t, ctx) {
+  await stageVeil(t, ctx);
+  await t.until(() => G() && G().on, 20000, 'the game events');
+  const seen = [];
+  G().on('cascade', (d) => seen.push(d.id));
+  await t.until(() => W() && W().player, 30000, 'the island');
+  t.scene('Second visit: the island');
+  await t.wait(6000);
+  if (seen.length || HP().arrive.waiting) t.problem('error', `the island cascaded in again on the second visit (${seen.join(', ')})`);
+  const missing = ARRIVAL_IDS.filter((id) => { const e = W().byId.get(id); return !e || !e.node.isEnabled(); });
+  if (missing.length) t.problem('error', `not there on the second visit: ${missing.join(', ')}`);
+  else t.event('just-there', 'no cascade; Pip, the hut, the 4x4, the boat, the helicopter and the rocket are all there');
+  t.scene('Second visit: everything is there');
+  t.progress(1);
+}
+
 // ---------------------------------------------------------------------------------------------- touch controls
 /** Every tour action with touch alone (the phone controls: ?touch=1): pointer events of type "touch" on the stick, the buttons
  *  and the canvas, as a thumb does. At each step the real page is measured (H.touchLayout.audit(): controls that overlap,
@@ -1213,9 +1309,9 @@ async function stageTouch(t, ctx) {
 }
 
 const RUN = {
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, observatory: stageObservatory, race: stageRace, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, race: stageRace, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
 };
-const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'island-race': 'race', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back' };
+const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'island-race': 'race', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2' };
 
 // ---------------------------------------------------------------------------------------------- the contract
 let api = null;
@@ -1255,7 +1351,7 @@ export function install() {
       t.event('plan', `${id}: ${STAGES[from]} to ${STAGES[to]}${isLive() ? ' (live: no sign-up)' : ''}`);
       let named = '';
       try {
-        const seq = id === 'sandbox-return' && prior && prior.leg === 'return' ? ['back'] : id === 'sandbox-travel-board' && prior && prior.leg === 'game' ? ['game'] : id === 'sandbox-travel-board' && prior && prior.leg === 'back' ? ['board'] : ORDERS[id] ? ORDERS[id].slice(ORDERS[id].indexOf(STAGES[from])) : STAGES.slice(from, to + 1);
+        const seq = id === 'island-arrivals' && prior && prior.leg === 'return' ? ['back2'] : id === 'sandbox-return' && prior && prior.leg === 'return' ? ['back'] : id === 'sandbox-travel-board' && prior && prior.leg === 'game' ? ['game'] : id === 'sandbox-travel-board' && prior && prior.leg === 'back' ? ['board'] : ORDERS[id] ? ORDERS[id].slice(ORDERS[id].indexOf(STAGES[from])) : STAGES.slice(from, to + 1);
         for (const stage of seq) {
           named = stage;
           if ((await RUN[named](t, ctx)) === 'stop') return;

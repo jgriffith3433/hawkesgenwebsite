@@ -126,7 +126,7 @@
         if (offsets.length < 5) setTimeout(ping, 1000);
         return;
       }
-      case 'join': addPeer(m.c, m.name, m.color); dispatch('join', { id: m.c, name: m.name }); status('online'); return;
+      case 'join': addPeer(m.c, m.name, m.color, true); dispatch('join', { id: m.c, name: m.name }); status('online'); return;
       case 'leave': {
         dropPeer(m.c);
         for (const [k, v] of owners) if (v === m.c) owners.delete(k);
@@ -421,9 +421,9 @@
   }
 
   // ------------------------------------------------------------------ avatars
-  function addPeer(c, name, color) {
+  function addPeer(c, name, color, fresh = false) {
     if (c === me || peers.has(c)) return;
-    peers.set(c, { id: c, name, color, state: null, avatar: null, trk: null, seen: 0 });
+    peers.set(c, { id: c, name, color, state: null, avatar: null, trk: null, seen: 0, fresh });
   }
   function dropPeer(c) { const p = peers.get(c); if (p && p.avatar) p.avatar.destroy(); peers.delete(c); links.delete(c); }
   function makeAvatar(pr) {
@@ -443,6 +443,14 @@
     tag.parent = a.node; tag.position.set(0, 1.35, 0); tag.isPickable = false; tag.metadata = { decor: true };
     a.measure();
     pr.avatar = a;
+    // Someone joining the room right now comes down the Overseer's beam, with their name over them, where everyone
+    // sees it (once; a world reload or someone already here just appears; a crowd past the budget just appears).
+    if (pr.fresh) {
+      pr.fresh = false;
+      if (H.arrive && peers.size <= ((H.budget && H.budget.characters) || 10)) {
+        try { H.arrive.joined(a, pr.name); } catch (err) { H.report(err, 'net'); }
+      }
+    }
   }
 
   // ------------------------------------------------------------------ every step: say where I am and what I move
