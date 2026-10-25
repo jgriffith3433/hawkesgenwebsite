@@ -1,5 +1,7 @@
-// Playing together: one WebSocket to the game's room (src/rooms.ts, src/relay.ts). Everyone runs the whole game; this
-// keeps them in one world, where what you see of everyone else is a replay of their data:
+// Playing together: the game's room on Hawkes Net (Hawkes Gen's multiplayer: peer to peer while a room is small, its
+// relay when it grows; /play/hawkes-net.mjs, src/hnet.ts), or one WebSocket to this site (src/rooms.ts, src/relay.ts)
+// when Hawkes Net isn't in use. The messages are the same either way. Everyone runs the whole game; this keeps them in
+// one world, where what you see of everyone else is a replay of their data:
 //   - one authority per moving thing: its owner (whoever grabbed, pushed or drives it) or the host (the oldest player)
 //     when nobody holds it. Your own player and the car you drive are yours: they answer your keys at once, at any ping
 //   - the authority sends where its things are (10 times a second, 20 for important ones), stamped with the shared
@@ -21,6 +23,8 @@
   const H = window.HawkesPlay;
   const B = BABYLON;
   let ws = null;
+  let hn = null; // the Hawkes Net room (when the site uses Hawkes Net)
+  let hnTry = 0;
   let opts = null;
   let me = null;
   let host = null;
@@ -55,11 +59,12 @@
   let lastFlush = 0;
   let flushTimer = null;
   function send(m) {
+    if (hn) return void hn.raw.send(m);
     if (!ws || ws.readyState !== 1) return;
     outq.push(m);
     if (!flushTimer) flushTimer = setTimeout(flush, 34);
   }
-  function sendNow(m) { if (ws && ws.readyState === 1) { const t = JSON.stringify(m); stats.up += t.length; stats.upMsgs++; ws.send(t); } }
+  function sendNow(m) { if (hn) return; if (ws && ws.readyState === 1) { const t = JSON.stringify(m); stats.up += t.length; stats.upMsgs++; ws.send(t); } }
   function flush() {
     if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
     lastFlush = nowMs();
@@ -71,6 +76,53 @@
 
   function connect(o) {
     opts = { ...opts, ...o };
+    const n = ++hnTry;
+    if (hn) { const h = hn; hn = null; void h.leave('moved'); }
+    // Hawkes Net when the site offers it (its answer says so); the room on this site otherwise.
+    void connectHawkesNet(n).then((ok) => { if (!ok && n === hnTry) connectWs(); });
+  }
+  /** Joins through Hawkes Net (/play/hawkes-net.mjs): a ticket from this site (src/hnet.ts), then the room. The engine's
+   *  messages ride it unchanged (raw), and Hawkes Net does the transport, reconnecting and the clock. False: not in use. */
+  async function connectHawkesNet(n) {
+    let mod;
+    try { mod = await import('/play/hawkes-net.mjs'); } catch (e) { console.warn('net: Hawkes Net SDK did not load', e); return false; }
+    const body = opts.token ? { token: opts.token } : { play: opts.play, room: opts.room, name: opts.name || '', join: Boolean(opts.join) };
+    const ask = async () => {
+      // text/plain: a simple request, no preflight (the page is sandboxed; no cookies go).
+      const r = await fetch('/v1/net/ticket', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ ...body, sdk: mod.VERSION }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw Object.assign(new Error(j.error || `ticket ${r.status}`), { status: r.status });
+      return j;
+    };
+    let first;
+    try { first = await ask(); } catch (e) {
+      if (e.status === 409 || e.status === 404 || e.status === 401) { status(opts.join ? 'refused' : 'offline'); return true; } // a real no: don't fall back
+      return false;
+    }
+    if (first.mode !== 'hawkesnet') return false;
+    if (n !== hnTry) return true;
+    status('connecting');
+    let used = false;
+    try {
+      const room = await mod.join(first.room, {
+        project: 'hawkesgenwebsite', transport: 'auto', leaveOnHide: true, log: false,
+        ticket: async () => (used ? ask() : ((used = true), first)),
+        onRaw: (m) => { try { onMessage(m); } catch (err) { console.warn('net', err); } },
+      });
+      if (n !== hnTry) { void room.leave('moved'); return true; }
+      hn = room;
+      room.when('status', (s) => {
+        if (room !== hn) return;
+        if (s.status === 'reconnecting') { online = false; flags(); status('offline'); }
+        else if (s.status === 'closed') { online = false; for (const id of [...peers.keys()]) dropPeer(id); owners.clear(); locks.clear(); flags(); status('offline'); }
+      });
+      room.when('problem', (p) => { if (p.code === 'full') status('refused'); });
+    } catch (e) {
+      if (n === hnTry) status(e && e.code === 4009 ? 'refused' : 'offline');
+    }
+    return true;
+  }
+  function connectWs() {
     if (ws) { ws.onclose = null; try { ws.close(); } catch {} }
     try { ws = new WebSocket(url()); } catch (e) { status('offline'); return; }
     status('connecting');
@@ -92,7 +144,7 @@
       status(e.code === 4003 ? 'removed' : refused ? 'refused' : 'offline');
       if (e.code === 4003 || e.code === 1008 || refused) return;
       const wait = Math.min(15000, 1000 * 2 ** retry++);
-      setTimeout(() => { if (!online) connect({}); }, wait);
+      setTimeout(() => { if (!online) connectWs(); }, wait);
     };
   }
   function status(s) { for (const f of H.hooks.world) if (f.net) f.net(s, { me, host, peers: peers.size }); H.post({ type: 'net', status: s, conn: me, peers: [...peers.values()].map((p) => ({ name: p.name, color: p.color })) }); }
@@ -462,7 +514,8 @@
     const w = W();
     if (!w) return;
     const now = nowMs();
-    if (now - lastPing > 5000) { lastPing = now; ping(); }
+    if (hn) H.setClockOffset(hn.now() - Date.now()); // Hawkes Net keeps the shared clock
+    else if (now - lastPing > 5000) { lastPing = now; ping(); }
     const p = w.player;
     if (p && p.alive && now - lastMe > 66) {
       lastMe = now;
@@ -730,5 +783,7 @@
     get me() { return me ? { id: me, name: H.hooks.myName, color: H.hooks.myColor } : null; },
     players() { return [...peers.entries()].map(([id, p]) => ({ id, name: p.name, color: p.color, entity: p.avatar && p.avatar.alive ? p.avatar : null })); },
   };
-  window.HawkesNet = { connect, claim, release, mine: (e) => !e.sceneId || mine(e.sceneId), get online() { return online; }, get me() { return me; }, get host() { return host; }, peers: () => peers, ownerOf, holder: (id) => locks.get(id) || null, flush };
+  window.HawkesNet = { connect, claim, release, mine: (e) => !e.sceneId || mine(e.sceneId), get online() { return online; }, get me() { return me; }, get host() { return host; }, peers: () => peers, ownerOf, holder: (id) => locks.get(id) || null, flush,
+    /** How this page is connected: 'hawkesnet' (and on what: p2p or relay) or 'site' (/v1/ws). */
+    get via() { return hn ? { kind: 'hawkesnet', transport: hn.transport, room: hn.room, stats: hn.stats() } : { kind: ws ? 'site' : 'none' }; } };
 })();

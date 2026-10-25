@@ -37,6 +37,7 @@ const engineVersion = () => manifest().version;
 import * as community from './community.ts';
 import { upgrade as joinRoom, broadcastOps, markHere, liveCounts, roomState } from './rooms.ts';
 import * as invites from './invites.ts';
+import * as hnet from './hnet.ts';
 import { digest } from './sign.ts';
 import * as shares from './shares.ts';
 import { relayAnalytics, playIds, playIdsScript } from './analytics.ts';
@@ -131,8 +132,8 @@ const PLAY_HOSTS = {
   gen: ['https://gen.hawkesgen.com'],
   /** The stand-in boombox model (kinds.js). */
   models: ['https://models.babylonjs.com'],
-  /** Realtime (play/net.js) is the page's own host today; list net.hawkesgen.com here when the rooms move there. */
-  realtime: [] as string[],
+  /** Realtime (play/net.js): Hawkes Net's nodes (hnet.ts netHosts: the one inside Gen, and PORTAL_NET_HOSTS). */
+  get realtime(): string[] { return hnet.netHosts(); },
   /** Where public assets come from when Gen has them on its CDN (cdn.hawkesgen.com; config.ts cdnHosts; CORS is open there). */
   get assets(): string[] { return cdnHosts(); },
 };
@@ -423,7 +424,21 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       return send(res, 200, { link: inv.link, room: inv.room, expires: inv.expires, ref });
     }
     pb = /^\/v1\/island-invite\/([\w.-]+)$/.exec(route);
-    if (pb && method === 'GET') return send(res, 200, invites.inviteStatus(pb[1], roomState));
+    if (pb && method === 'GET') {
+      // The island's room is on Hawkes Net (hnet.ts) when it's in use, else in this process.
+      let state: (key: string) => { open: boolean; people: number; limit: number } = roomState;
+      if (await hnet.netUp()) { const code = invites.codeOf(pb[1]); const info = code ? await hnet.roomInfo(`t/${invites.ISLAND}/${code}`) : { open: false, people: 0, limit: 32 }; state = () => info; }
+      return send(res, 200, invites.inviteStatus(pb[1], state));
+    }
+    // Hawkes Net tickets for the engine's rooms (hnet.ts). Open CORS: game pages are sandboxed (origin null) and send no
+    // cookies; the editor's room needs its signed edit token, play rooms are open to anyone (limited per address).
+    if (route === '/v1/net/ticket' && (method === 'POST' || method === 'OPTIONS')) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      if (method === 'OPTIONS') return void res.writeHead(204).end();
+      return send(res, 200, await hnet.ticket(await readJson(req), clientIp(req)));
+    }
     pb = /^\/v1\/invites\/([\w-]+)$/.exec(route);
     if (pb && method === 'GET') return send(res, 200, games.inviteInfo(pb[1]));
     if (route === '/v1/billing/webhook' && method === 'POST') return send(res, 200, stripeWebhook(await readBody(req), String(req.headers['stripe-signature'] ?? '')));

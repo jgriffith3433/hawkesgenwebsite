@@ -57,6 +57,8 @@ export function missed(gameId: string, last: string | null | undefined) {
   return h.events.filter((e) => e.n > Number(m[2])).map((e) => ({ id: `${BOOT}-${e.n}`, event: e.event, data: e.data }));
 }
 
+/** How many people have the game open in the editor (its live feed). */
+export const presenceCount = (gameId: string) => rooms.get(gameId)?.size ?? 0;
 const presence = (gameId: string) => [...(rooms.get(gameId)?.values() ?? [])].map((c) => ({ conn: c.id, user: c.userId, name: c.name, file: c.file, color: c.color }));
 
 /** Opens an editor's stream; it lives until the browser goes away. */
