@@ -66,6 +66,49 @@
       </div>
     </section>
 
+    <section class="section" id="hand" aria-labelledby="handTitle">
+      <div class="wrap">
+        <div class="section-head beam-in">
+          <div class="label">Try it, no account</div>
+          <div>
+            <h2 id="handTitle">Hand the Overseer something.</h2>
+            <p>Drop in a picture and pick what it should become. Hawkes Gen makes it on its ordinary CPU, no GPU, and beams the result down to you. A few free tries a day.</p>
+          </div>
+        </div>
+        <div class="hand beam-in" data-hand>
+          <div class="hand-input">
+            <div class="hand-drop" data-hand-drop tabindex="0" role="button" aria-label="Choose a picture, or drop one here">
+              <input type="file" accept="image/png,image/jpeg,image/webp" hidden data-hand-file>
+              <img data-hand-src alt="Your picture" hidden>
+              <div class="hand-drop-text" data-hand-drop-text><b>Drop a picture here</b><span>or click to choose one. PNG, JPG or WebP, up to 6 MB.</span></div>
+            </div>
+            <div class="hand-controls">
+              <div class="segmented hand-kinds" role="group" aria-label="What to make">
+                <button type="button" data-kind="pixel" class="on" aria-pressed="true">Pixel art</button>
+                <button type="button" data-kind="cutout" aria-pressed="false">Background removed</button>
+              </div>
+              <button type="button" class="btn btn-primary btn-lg" data-hand-go disabled>Beam it down</button>
+            </div>
+          </div>
+          <div class="hand-output" data-hand-output>
+            <div class="hand-stage" data-hand-stage>
+              <div class="hand-beam" aria-hidden="true"></div>
+              <img data-hand-out alt="The result">
+              <div class="hand-empty" data-hand-empty>What comes down shows here.</div>
+            </div>
+            <div class="hand-msg" data-hand-msg aria-live="polite"></div>
+            <div class="hand-actions" data-hand-actions hidden>
+              <a class="btn btn-primary" data-hand-download href="#" download>Download</a>
+              <button type="button" class="btn btn-secondary" data-hand-more>Make more</button>
+              <button type="button" class="btn btn-ghost" data-open-auth="signup" data-hand-signup hidden>Create an account</button>
+            </div>
+            <div class="hand-left" data-hand-left></div>
+          </div>
+        </div>
+        <div class="fine">These two run on Gen's CPU only: no GPU starts, and nothing is charged. Making a picture with the AI tools, art, models or sound takes an account and its credits.</div>
+      </div>
+    </section>
+
     <section class="section" id="features">
       <div class="wrap">
         <div class="section-head beam-in">
@@ -425,6 +468,7 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
     }).catch(() => {});
   </script>
   <script src="/overseer-sky.js"></script>
+  <script src="/hand.js" defer></script>
   <script>
     (function () {
       var els = document.querySelectorAll('.beam-in');
