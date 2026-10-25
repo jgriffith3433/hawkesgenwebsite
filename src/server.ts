@@ -41,7 +41,7 @@ import type { Duplex } from 'node:stream';
 
 const PUBLIC = path.join(ROOT, 'public');
 const PAGES: Record<string, string> = { '/': 'index.html', '/home': 'index.html', '/app': 'games.html', '/app/studio': 'app.html', '/games': 'gallery.html', '/admin': 'admin.html', '/reset': 'reset.html', '/auth/popup': 'auth-popup.html', '/legal': 'legal.html', '/terms': 'legal.html', '/privacy': 'legal.html', '/refunds': 'legal.html', '/connect': 'connect.html', '/thanks': 'thanks.html', '/examples': 'examples.html', '/entities': 'entities.html', '/avatars': 'avatars.html', '/community': 'community.html','/oauth/authorize': 'authorize.html', '/client/hawkesgen.mjs': 'hawkesgen.mjs' };
-const TYPES: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webp': 'image/webp', '.gif': 'image/gif', '.mp3': 'audio/mpeg', '.jpg': 'image/jpeg', '.unitypackage': 'application/octet-stream', '.pdf': 'application/pdf', '.md': 'text/markdown; charset=utf-8', '.glb': 'model/gltf-binary', '.woff2': 'font/woff2' };
+const TYPES: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json', '.webp': 'image/webp', '.gif': 'image/gif', '.mp3': 'audio/mpeg', '.jpg': 'image/jpeg', '.unitypackage': 'application/octet-stream', '.pdf': 'application/pdf', '.md': 'text/markdown; charset=utf-8', '.glb': 'model/gltf-binary', '.woff2': 'font/woff2' };
 
 // Gen routes a signed-in customer may use as they are (Gen scopes them to the customer's project).
 const PASS_GET = [/^\/v1\/jobs$/, /^\/v1\/jobs\/j_[0-9a-f]+$/, /^\/v1\/assets$/, /^\/v1\/assets\/a_[0-9a-f]+(\/file)?$/, /^\/v1\/files\/a_[0-9a-f]+$/, /^\/v1\/presets$/, /^\/v1\/tools(\/[\w.-]+)?$/, /^\/v1\/motions$/, /^\/v1\/providers\/elevenlabs\/voices$/, /^\/v1\/entities$/];
@@ -152,6 +152,14 @@ async function servePlayAsset(parts: Parameters<typeof games.resolvePlayAsset>[0
   await pipeBody(gr, res);
 }
 
+/** The styled 404 / error page for a browser's page load (Accept: text/html); anything else gets the JSON answer. */
+function sendPage(req: IncomingMessage, res: ServerResponse, status: number, file: string, fallback: unknown): void {
+  const m = req.method ?? 'GET';
+  if ((m !== 'GET' && m !== 'HEAD') || !String(req.headers.accept ?? '').includes('text/html') || (req.url ?? '').startsWith('/v1/')) return send(res, status, fallback);
+  res.writeHead(status, { 'Content-Type': TYPES['.html'], 'Cache-Control': 'no-store' });
+  res.end(m === 'HEAD' ? undefined : fs.readFileSync(path.join(PUBLIC, file)));
+}
+
 async function serveStatic(route: string, res: ServerResponse, search = '') {
   const rel = PAGES[route] ?? route.slice(1);
   const file = path.join(PUBLIC, path.normalize(rel).replace(/^(\.\.[/\\])+/, ''));
@@ -258,7 +266,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
 
     if (!route.startsWith('/v1/')) {
       if ((method === 'GET' || method === 'HEAD') && (await serveStatic(route, res, url.search))) return;
-      return send(res, 404, { error: 'Not found' });
+      return sendPage(req, res, 404, '404.html', { error: 'Not found' });
     }
 
     // ------------------------------------------------------------ open to everyone
@@ -585,7 +593,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (res.headersSent) return void res.end();
     if (e instanceof PortalError) return send(res, e.status, e.code ? { error: e.message, code: e.code } : { error: e.message });
     console.error(`[portal] ${method} ${route}:`, e);
-    return send(res, 500, { error: 'Something went wrong on our side' });
+    return sendPage(req, res, 500, 'error.html', { error: 'Something went wrong on our side' });
   }
 }
 
