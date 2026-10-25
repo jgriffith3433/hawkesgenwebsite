@@ -81,6 +81,64 @@
   const NAME_MAX = 24;
   /** A character's name as it will show: one line, no markup or control characters, at most NAME_MAX ('' if none). */
   const cleanName = (v) => (typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f<>]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, NAME_MAX) : '');
+  // ---- names other players see: a small blocklist, not a promise (players can report and mute)
+  // STRONG words are caught anywhere inside a name once spacing, symbols and look-alike digits are taken out; WEAK ones
+  // only as a whole word (so "Dickens" and "Cassandra" stay).
+  const STRONG = ['fuck', 'shit', 'bitch', 'nigger', 'nigga', 'faggot', 'whore', 'retard', 'rapist', 'asshole', 'cocksucker', 'wanker'];
+  const WEAK = ['cunt', 'dick', 'cock', 'ass', 'fag', 'slut', 'rape', 'kys', 'nazi', 'hitler', 'bastard', 'pussy', 'tits', 'twat', 'piss', 'cum'];
+  const LEET = { 0: 'o', 1: 'i', 3: 'e', 4: 'a', 5: 's', 7: 't', 8: 'b', '@': 'a', $: 's', '!': 'i', '|': 'i', '+': 't' };
+  const fold = (s) => String(s).normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[0134578@$!|+]/g, (c) => LEET[c]);
+  /** Why a name can't be shown: 'empty', 'short' (nothing but one character), 'symbols' (no letters or digits), 'link', 'spam' (one character over and over) or 'abusive'; null if it is fine. */
+  function nameProblem(raw) {
+    const name = cleanName(raw);
+    if (!name) return 'empty';
+    if (!/[\p{L}\p{N}]/u.test(name)) return 'symbols';
+    if (name.replace(/[^\p{L}\p{N}]/gu, '').length < 2) return 'short';
+    if (/https?:|www\.|\.(com|net|org|io|gg|ly)\b|@[a-z0-9]+\.[a-z]/i.test(name)) return 'link';
+    if (/(.)\1{5,}/u.test(name)) return 'spam';
+    const f = fold(name);
+    const squashed = f.replace(/[^a-z]+/g, '');
+    if (STRONG.some((w) => squashed.includes(w))) return 'abusive';
+    const words = f.split(/[^a-z]+/).filter(Boolean);
+    if (words.some((w) => WEAK.includes(w) || WEAK.includes(w.replace(/s$/, '')))) return 'abusive';
+    return null;
+  }
+  /** The name to show: the cleaned name, or "Player 1234" (the same number every time for the same seed) when it has a problem.
+   *  → { name, ok, reason }. */
+  function filterName(raw, seed) {
+    const reason = nameProblem(raw);
+    if (!reason) return { name: cleanName(raw), ok: true, reason: null };
+    let h = 2166136261;
+    for (const c of String(seed ?? raw ?? '')) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+    return { name: `Player ${1000 + ((h >>> 0) % 9000)}`, ok: false, reason };
+  }
+  // ---- where another player is on your screen
+  /** A marker for something at `cam` (camera space: x right, y up, z forward, meters) on a view { w, h, fov (vertical,
+   *  radians), margin (px) }. On the screen: { mode: 'on', x, y }. Off it (beside, above or behind): { mode: 'edge', x, y,
+   *  angle } with the point on the screen's edge (inside the margin) and the arrow's angle (radians, 0 = right, +y down). */
+  function marker(cam, view) {
+    const { w, h } = view;
+    const m = view.margin ?? 28;
+    const f = Math.tan((view.fov || 1) / 2);
+    let px, py;
+    if (cam.z > 0.05) {
+      px = (0.5 + cam.x / (cam.z * f * (w / h)) / 2) * w;
+      py = (0.5 - cam.y / (cam.z * f) / 2) * h;
+      if (px >= m && px <= w - m && py >= m && py <= h - m) return { mode: 'on', x: px, y: py };
+    }
+    let dx, dy;
+    if (cam.z > 0.05) { dx = px - w / 2; dy = py - h / 2; } // in front, but past the edge
+    else { dx = cam.x; dy = -cam.y; if (Math.hypot(dx, dy) < 1e-3) dy = 1; } // beside or behind: toward the side they are on; straight behind points down
+    const k = Math.min((w / 2 - m) / (Math.abs(dx) || 1e-9), (h / 2 - m) / (Math.abs(dy) || 1e-9));
+    return { mode: 'edge', x: w / 2 + dx * k, y: h / 2 + dy * k, angle: Math.atan2(dy, dx) };
+  }
+  /** Where to land next to someone: `gap` meters from them on the side you are, at their height. [x, y, z]. */
+  function besideSpot(me, them, gap = 2.2) {
+    let dx = me[0] - them[0], dz = me[2] - them[2];
+    const d = Math.hypot(dx, dz);
+    if (d < 1e-3) { dx = 1; dz = 0; } else { dx /= d; dz /= d; }
+    return [them[0] + dx * gap, them[1], them[2] + dz * gap];
+  }
   const HEX = /^#[0-9a-f]{6}$/i;
   /** A look anyone sent, made safe: anything unknown becomes the default (never throws: it's for drawing). */
   function cleanLook(v) {
@@ -282,5 +340,5 @@
   const EMOTE_FACE = { wave: 'happy', dance: 'happy', cheer: 'happy', laugh: 'happy', point: 'mischief', sit: 'neutral', sleep: 'sleepy', clap: 'happy', thumbsup: 'mischief', heart: 'happy' };
   const POSE_FACE = { jump: 'surprised', fall: 'surprised', swim: 'happy', drive: 'neutral', run: 'neutral' };
 
-  P.core = { ACCESSORIES, ACCESSORY, palette, tones, hsl, hexOf, mixHex, EXPRESSIONS, EMOTE_FACE, POSE_FACE, LOOK, WHATS, WHAT, cleanName, NAME_MAX, cleanLook, randomLook, seedOf, EMOTES, emote, TAGS, layoutTags, BUBBLES, bubbleSeconds, wrap, bubbles, CHAT, cleanLine, limiter };
+  P.core = { ACCESSORIES, ACCESSORY, palette, tones, hsl, hexOf, mixHex, EXPRESSIONS, EMOTE_FACE, POSE_FACE, LOOK, WHATS, WHAT, cleanName, NAME_MAX, nameProblem, filterName, marker, besideSpot, cleanLook, randomLook, seedOf, EMOTES, emote, TAGS, layoutTags, BUBBLES, bubbleSeconds, wrap, bubbles, CHAT, cleanLine, limiter };
 })();

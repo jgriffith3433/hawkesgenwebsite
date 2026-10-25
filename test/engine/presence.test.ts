@@ -289,3 +289,77 @@ test('the mirror look: eyes, one of 12 accessories in its color, kept by the ser
   assert.ok(el && JSON.stringify(P.shown).includes('Zed'), 'named');
   clearPeers();
 });
+
+test('core: names are filtered (empty, symbols, links, spam, a small blocklist) and the replacement is stable', () => {
+  const ok = (n: string) => assert.equal(C.filterName(n, 's').ok, true, `${n} is fine`);
+  const bad = (n: string, reason: string) => { const r = C.filterName(n, 'seed'); assert.equal(r.ok, false, `${n} is replaced`); assert.equal(r.reason, reason); assert.match(r.name, /^Player \d{4}$/); };
+  for (const n of ['Mira', 'Dickens', 'Cassandra', 'Scunthorpe', 'Toaster 9', 'Zoë', 'Ana-Lucía', 'Assistant']) ok(n);
+  bad('', 'empty'); bad('   ', 'empty'); bad('<<>>', 'empty'); bad('!!!', 'symbols'); bad('x', 'short');
+  bad('visit www.example.com', 'link'); bad('aaaaaaaaaa', 'spam');
+  bad('Fuck You', 'abusive'); bad('f.u.c.k', 'abusive'); bad('sh1t', 'abusive'); bad('B I T C H', 'abusive'); bad('Big Dick', 'abusive'); bad('H1TLER', 'abusive');
+  assert.equal(C.filterName('Fuck You', 'a').name, C.filterName('Fuck You', 'a').name, 'the same seed gives the same replacement');
+  assert.notEqual(C.filterName('Fuck', 'a').name, C.filterName('Fuck', 'zzz').name, 'another seed another number');
+  assert.equal(C.filterName('  Mira   Jay ', 'a').name, 'Mira Jay', 'a good name is just tidied');
+});
+
+test('core: markers - on screen inside the margin, otherwise on the edge pointing the right way', () => {
+  const view = { w: 800, h: 600, fov: Math.PI / 2, margin: 20 };
+  const mid = C.marker({ x: 0, y: 0, z: 10 }, view);
+  assert.equal(mid.mode, 'on'); assert.ok(Math.abs(mid.x - 400) < 1e-6 && Math.abs(mid.y - 300) < 1e-6, 'straight ahead is the middle');
+  const up = C.marker({ x: 0, y: 5, z: 10 }, view);
+  assert.ok(up.mode === 'on' && up.y < 300, 'up is up the screen');
+  const right = C.marker({ x: 30, y: 0, z: 10 }, view); // far to the right, in front
+  assert.equal(right.mode, 'edge'); assert.ok(Math.abs(right.x - 780) < 1e-6 && Math.abs(right.y - 300) < 1e-6 && Math.abs(right.angle) < 1e-6, 'right edge, arrow right');
+  const left = C.marker({ x: -10, y: 0, z: -4 }, view); // behind-left
+  assert.equal(left.mode, 'edge'); assert.ok(Math.abs(left.x - 20) < 1e-6 && Math.abs(Math.abs(left.angle) - Math.PI) < 1e-6, 'behind to the left: left edge');
+  const back = C.marker({ x: 0, y: 0, z: -8 }, view);
+  assert.equal(back.mode, 'edge'); assert.ok(Math.abs(back.y - 580) < 1e-6 && Math.abs(back.x - 400) < 1e-6, 'straight behind: bottom middle, arrow down');
+  const above = C.marker({ x: 0, y: 50, z: 1 }, view);
+  assert.equal(above.mode, 'edge'); assert.ok(above.y < 21, 'far above: the top edge');
+  for (const c of [{ x: 7, y: 3, z: -2 }, { x: -40, y: 9, z: 5 }, { x: 1, y: -60, z: 0.01 }]) {
+    const m = C.marker(c, view);
+    assert.ok(m.x >= 20 - 1e-6 && m.x <= 780 + 1e-6 && m.y >= 20 - 1e-6 && m.y <= 580 + 1e-6, 'an edge marker always stays inside the margin');
+  }
+});
+
+test('core: you land beside them, on your side, a stride away', () => {
+  const s = C.besideSpot([10, 0, 0], [0, 2, 0], 2);
+  assert.deepEqual(s.map((v: number) => Math.round(v * 1000) / 1000), [2, 2, 0]);
+  const same = C.besideSpot([0, 0, 0], [0, 1, 0], 2);
+  assert.ok(Math.hypot(same[0], same[2]) > 1.9 && same[1] === 1, 'standing on top of them still gives a spot beside');
+});
+
+test('players: names are filtered in the list, markers point at far and off-screen players, going there beams, report mutes', () => {
+  clearPeers();
+  world(H, sceneOf({ floor, start }));
+  H.game.player.position = [0, 0, -6];
+  peer('far', 'Mira', [0, 0, 120]);     // ahead, past the tag range
+  peer('behind', 'fuck you', [0, 0, -60]); // behind, with an abusive name
+  const names = P.players().map((x: any) => x.name);
+  assert.ok(names.includes('Mira'));
+  assert.ok(!names.some((n: string) => /fuck/i.test(n)), 'the abusive name is replaced');
+  assert.ok(names.some((n: string) => /^Player \d{4}$/.test(n)));
+  H.tick(0.3);
+  const byName = (n: string) => P.markers.find((m: any) => m.name === n);
+  const far = byName('Mira');
+  assert.ok(far, 'a far player ahead has a marker');
+  const back = P.markers.find((m: any) => m.mode === 'edge' && /^Player/.test(m.name));
+  assert.ok(back, 'a player behind has an edge arrow');
+  const beams: any[] = [];
+  H.overseer = H.overseer || {};
+  const real = H.overseer.beam;
+  H.overseer.beam = (at: any) => { beams.push(at); return null; };
+  const id = P.players().find((x: any) => x.name === 'Mira').id;
+  assert.equal(P.goTo(id), true);
+  H.overseer.beam = real;
+  assert.equal(beams.length, 2, 'a beam where you left and one where you arrive');
+  const me = H.game.player;
+  assert.ok(Math.abs(me.z - 120) < 4 && Math.abs(me.z - 120) > 1, 'you stand next to them');
+  const x = P.players().find((q: any) => q.name === 'Mira');
+  assert.equal(P.muted(x.id), false);
+  assert.equal(P.report(x.id, 'name'), true);
+  assert.equal(P.muted(x.id), true, 'a reported player is muted for you');
+  assert.equal(P.report(x.id, 'name'), false, 'reported once');
+  P.mute(x.id, false);
+  clearPeers();
+});
