@@ -390,6 +390,29 @@ E doesn't do it.
 A friend's chat (Living things) takes your buttons: `H.living.chat.addChip({ label, show(friend), act(friend) })`
 (events adds its quest chip this way); `H.living.chat.refresh()` redraws them.
 
+## 7b2. Touch layout (`H.touchLayout`, touchlayout.js)
+
+On a phone (`H.touchUi`; `?touch=1` forces it) every touch control and HUD piece lives in one of four **zones** plus the stick and
+the two main buttons, all computed from the viewport and the safe-area insets by `H.touchLayout.compute()` (pure; set as CSS
+variables `--tl-<zone>-x|y|w|h` on `<html>`, again on resize, rotation and when building lifts the controls over the hotbar):
+
+| Zone | Where | What flows into it |
+|---|---|---|
+| stick, jump, action | bottom left; bottom right (60 px, jump on the right, B left of it) | `#touch` |
+| `#tl-ctx` | above jump and action, 2 columns of 3 buttons (60 px, 8 px apart), filling upward | `.mh-touch`, `#veh-touch`, `.sw-fab`, `.lv-touchbtn`, and the extra `.tb` buttons water adds (fish, catch log, dive) |
+| `#tl-tl` | top left | the **HUD** toggle, `.pr-hud` (chat, emotes, people), `.qs-btn` (Journal), `.tour-stuck`, `.tour-track` / `.qs-track` |
+| `#tl-tr` | top right (beside the cluster in landscape) | `.gs-acts`, `.gs-toast`, `.corner`, `#veh-hud`, `.mh-score`, `.wp-ammo` |
+| `#tl-mid` | bottom centre (landscape: between the left HUD and the buttons; portrait: above the controls) | `.hc-chat` (the Overseer's captions), then `.hp-use`, `#veh-prompt`, `.mh-tip`, `.water-hud` |
+
+Do not position a touch control with pixel offsets from a corner. Make your element where you like and add its selector to `ZONE_OF`
+in touchlayout.js; it is moved into the zone and flows there, so it cannot cover another one. Buttons are at least 48 px
+(`K.MIN`, audited); a new button goes in `#tl-ctx` and is 60 px (`--tl-btn`). `test/engine/touchlayout.test.ts` proves, for portrait and
+landscape phones with and without a notch, that the zones never overlap, stay inside the safe area and leave room to read.
+
+- **Hide the HUD:** the HUD button (top left) toggles `body.tl-hud-off` (remembered, `hg_touch_hud_off`): everything but the stick and buttons goes.
+- **Haptics:** `H.haptic(ms | [pattern])` (a short tick on every button and the stick; the fishing catch, hits and blasts use Juice's rumble). Silent with reduced motion or `localStorage.hg_haptics = '0'`, and where there is no vibration API.
+- **`H.touchLayout.audit()`** measures the real page: every showing control, overlaps, buttons under 48 px, anything outside the safe area (`{ ok, text, overlaps, small, outside }`). The playtest scenario `touch-controls` logs it at every step.
+
 ## 7c. Sound (`H.audio`)
 
 Every sound goes through one output: `H.audio.master` (a GainNode), never `context.destination`. `H.audio.context` is the

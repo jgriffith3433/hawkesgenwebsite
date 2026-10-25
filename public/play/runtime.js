@@ -209,15 +209,17 @@
       knob.style.transform = `translate(${dx}px, ${dy}px)`;
       stick.x = dx / max; stick.y = -dy / max;
     };
-    pad.addEventListener('pointerdown', (e) => { pid = e.pointerId; pad.setPointerCapture(pid); moveKnob(e); unlockAudio(); });
+    pad.addEventListener('pointerdown', (e) => { pid = e.pointerId; try { pad.setPointerCapture(pid); } catch { /* a synthetic pointer (tests, automation) has none to capture */ } moveKnob(e); unlockAudio(); buzz(6); });
     pad.addEventListener('pointermove', (e) => { if (e.pointerId === pid) moveKnob(e); });
     const end = () => { pid = null; stick.x = 0; stick.y = 0; knob.style.transform = ''; };
     pad.addEventListener('pointerup', end); pad.addEventListener('pointercancel', end);
     for (const b of wrap.querySelectorAll('.tb')) bindTouchKey(b, b.dataset.key);
   }
   /** A screen button that holds a key while pressed (jump, action, fly...). */
+  // A short buzz on a button or the stick where the device has one (touchlayout.js owns H.haptic: reduced motion and the player's off switch).
+  const buzz = (ms) => { try { const hp = window.HawkesPlay && window.HawkesPlay.haptic; if (hp) hp(ms); } catch { /* none */ } };
   function bindTouchKey(b, k) {
-    b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); if (!held.has(k)) { pressedNow.add(k); for (const h of keyHandlers) if (h.key === k) h.fn(); } held.add(k); unlockAudio(); });
+    b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); buzz(8); if (!held.has(k)) { pressedNow.add(k); for (const h of keyHandlers) if (h.key === k) h.fn(); } held.add(k); unlockAudio(); });
     const up = () => { if (held.has(k)) { held.delete(k); releasedNow.add(k); } };
     b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('pointerleave', up);
   }

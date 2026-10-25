@@ -43,7 +43,10 @@
 .sw-keys{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);font:600 12px/1.4 system-ui;color:#dbe7ff;background:rgba(8,12,24,.7);border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:6px 12px;white-space:nowrap;max-width:calc(100vw - 24px);overflow:hidden;text-overflow:ellipsis}
 .sw-keys kbd{font:700 11px system-ui;background:rgba(255,255,255,.14);border-radius:4px;padding:1px 5px;margin:0 2px}
 .sw-sheet{position:fixed;z-index:41;left:50%;top:50%;transform:translate(-50%,-50%);width:min(720px,calc(100vw - 24px));height:min(560px,calc(100vh - 40px));display:flex;flex-direction:column;background:rgba(12,16,28,.96);color:#eef2ff;border:1px solid rgba(255,255,255,.16);border-radius:18px;box-shadow:0 18px 60px rgba(0,0,0,.55);font:14px/1.35 system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
-.sw-sheet.phone{left:0;right:0;top:auto;bottom:0;transform:none;width:auto;height:min(62vh,560px);border-radius:20px 20px 0 0;padding-bottom:env(safe-area-inset-bottom)}
+.sw-sheet.phone{left:0;right:0;top:auto;bottom:0;transform:none;width:auto;height:min(62vh,560px);border-radius:20px 20px 0 0;padding:0 env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
+.sw-sheet.phone .sw-head button{min-width:48px;min-height:48px}
+.sw-sheet.phone .sw-tile .fav{width:48px;height:48px;top:0;right:0}
+@media (orientation:landscape) and (max-height:500px){.sw-sheet.phone{height:min(86vh,560px)}.sw-sheet.phone .sw-grid{grid-template-columns:repeat(5,1fr)}}
 .sw-head{display:flex;align-items:center;gap:8px;padding:10px 12px 6px}
 .sw-head b{flex:1;font-size:17px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sw-head button{font:700 15px system-ui;color:#fff;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-radius:10px;min-width:44px;min-height:40px;cursor:pointer;touch-action:manipulation}

@@ -22,9 +22,9 @@
 import { installPlaytest } from './hawkes-playtest.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'race', 'board', 'journal'];
+const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'race', 'board', 'journal', 'touch'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'] };
+const ORDERS = { 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'] };
 const SCENARIOS = [
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
   {
@@ -36,6 +36,11 @@ const SCENARIOS = [
     id: 'island-race', title: 'The Ridge Run: through the start gate, the countdown, every gate in order, the finish and best time, then the ghost of the best run', seconds: 330, tags: ['full'],
     starts: ['sandbox'],
     description: 'options: laps (default 1; the world has 3), touch (true: the phone controls, ?touch=1, and the frame rate is measured), ghost (false: one run only), signup (false: stop at the account sheet; always on live), watch (seconds of intro to watch), name, what',
+  },
+  {
+    id: 'touch-controls', title: 'Every tour action with touch alone (stick, look drag, jump, B, steer, brake, fish, tools, spawn wheel, helicopter and rocket flight, Stuck?, hide the HUD): no overlaps, buttons 48 px or more, inside the safe area', seconds: 420, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'opens /play/sandbox?touch=1 (the phone controls), plays the first minutes to the account sheet, then uses only pointer events of type touch on the stick, the buttons and the game; at every step H.touchLayout.audit() measures the real page and logs a touch-audit event (a failing audit is an error). Run it at 390x844 and again at 844x390: the browser\'s size is what is judged, the other orientation by the layout math. The helicopter and rocket are reached by named setup shortcuts. options as sandbox-first-minutes (the defaults here: at "sandbox", touch true)',
   },
   {
     id: 'island-journal', title: 'The journal: opened from its button (desktop, or the phone at 390x844), the eight quests, the neighbours met, four lore items found on the island and read in it, and kept after a return', seconds: 300, tags: ['full'],
@@ -767,10 +772,234 @@ async function stageGame(t, ctx) {
   throw new Error(`Return to the Observatory did not leave ${name}`);
 }
 
+// ---------------------------------------------------------------------------------------------- touch controls
+/** Every tour action with touch alone (the phone controls: ?touch=1): pointer events of type "touch" on the stick, the buttons
+ *  and the canvas, as a thumb does. At each step the real page is measured (H.touchLayout.audit(): controls that overlap,
+ *  buttons under 48 px, anything outside the safe area) and the result is logged as a `touch-audit` event; a failing audit is an
+ *  error problem. The page is judged at the size the browser has (390x844 and 844x390 are two runs); the other orientation is
+ *  checked by the layout's own math. Named setup shortcuts: the player put beside the helicopter and the rocket. */
+let touchId = 100;
+const touchEv = (type, target, x, y, id) => target.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', pointerId: id, isPrimary: true, bubbles: true, cancelable: true, button: 0, buttons: type === 'pointerup' ? 0 : 1, clientX: x, clientY: y }));
+const centre = (el) => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+/** Presses a screen button and returns the release. */
+function press(el) { const id = ++touchId, [x, y] = centre(el); touchEv('pointerdown', el, x, y, id); return () => { touchEv('pointerup', el, x, y, id); }; }
+async function tapButton(t, el, ms = 120) { const up = press(el); await t.wait(ms); up(); }
+/** The stick: hold it pushed to (ax, ay) in -1..1 (ay > 0 is forward). Returns { set, release }. */
+function stickHold() {
+  const pad = $('#touch .pad');
+  if (!pad) throw new Error('timed out: the stick is not on screen');
+  const id = ++touchId, r = pad.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2, m = r.width / 2;
+  touchEv('pointerdown', pad, cx, cy, id);
+  return { set(ax, ay) { touchEv('pointermove', pad, cx + ax * m, cy - ay * m, id); }, release() { touchEv('pointerup', pad, cx, cy, id); } };
+}
+async function dragLook(t, dx) { // a thumb drag on the game
+  const c = canvas(), id = ++touchId, x0 = innerWidth * 0.55, y0 = innerHeight * 0.3;
+  touchEv('pointerdown', c, x0, y0, id);
+  for (let i = 1; i <= 6; i++) { touchEv('pointermove', c, x0 + (dx * i) / 6, y0, id); await t.wait(30); }
+  touchEv('pointerup', c, x0 + dx, y0, id);
+}
+async function stageTouch(t, ctx) {
+  const TL = () => HP().touchLayout;
+  const problems = new Set();
+  const audit = (label) => {
+    const a = TL().audit();
+    t.event('touch-audit', `${label}: ${a.text}`);
+    for (const p of [...a.overlaps.map((x) => `overlap ${x}`), ...a.small.map((x) => `under 48px ${x}`), ...a.outside.map((x) => `outside the safe area ${x}`)]) {
+      const k = `${label}: ${p}`;
+      if (!problems.has(k)) { problems.add(k); t.problem('error', `touch layout, ${label}: ${p}`); }
+    }
+    return a;
+  };
+  releaseAll();
+  await t.until(() => W() && W().player && W().player.alive && HP().touchLayout, 60000, 'the island and its touch layout');
+  if (!HP().touchUi) throw new Error('the phone controls are not on (open /play/sandbox?touch=1)');
+  await t.until(() => $('#touch .pad') && $('#touch .a') && $('#tl-hide'), 15000, 'the stick, the buttons and the HUD toggle');
+  const vw = innerWidth, vh = innerHeight;
+  const ins = TL().insets();
+  t.event('viewport', `${vw}x${vh}, safe-area insets t${ins.t} r${ins.r} b${ins.b} l${ins.l}`);
+  // The other orientation, by the layout's own math.
+  const other = TL().compute({ w: vh, h: vw, top: ins.l, right: ins.t, bottom: ins.r, left: ins.b });
+  const bad = TL().zoneOverlaps(other);
+  t.event('layout-math', `${vh}x${vw}: ${bad.length ? `zones overlap: ${bad.join(', ')}` : 'no zone overlaps'}; buttons ${TL().K.BTN}px`);
+  if (bad.length) t.problem('error', `touch layout at ${vh}x${vw}: zones overlap (${bad.join(', ')})`);
+  t.scene('Touch: on foot');
+  await t.wait(1500);
+  audit('on foot');
+  t.progress(0.1);
+
+  // walk (the stick), look (a drag), jump
+  const p0 = { x: W().player.x, z: W().player.z };
+  let st = stickHold(); st.set(0, 1); await t.wait(1500); st.release();
+  const moved = Math.hypot(W().player.x - p0.x, W().player.z - p0.z);
+  t.event('touch-walk', `${moved.toFixed(1)} m with the stick`);
+  if (moved < 1) t.problem('error', 'the stick did not walk the player');
+  const yaw0 = camYaw();
+  await dragLook(t, 220);
+  t.event('touch-look', `the camera turned ${Math.abs(wrap(camYaw() - yaw0)).toFixed(2)} rad with a drag`);
+  if (Math.abs(wrap(camYaw() - yaw0)) < 0.05) t.problem('error', 'a drag on the game did not turn the camera');
+  const y0 = W().player.y;
+  const upJump = press($('#touch .a')); let high = 0; for (let i = 0; i < 12; i++) { await t.wait(60); high = Math.max(high, W().player.y - y0); } upJump();
+  t.event('touch-jump', `${high.toFixed(2)} m up`);
+
+  // the HUD toggle and the chat
+  await tapButton(t, $('#tl-hide'));
+  await t.wait(300);
+  t.scene('Touch: HUD hidden');
+  t.event('hud-hidden', `body.tl-hud-off: ${document.body.classList.contains('tl-hud-off')}`);
+  if (!document.body.classList.contains('tl-hud-off')) t.problem('error', 'the HUD button did not hide the HUD');
+  audit('HUD hidden');
+  await tapButton(t, $('#tl-hide'));
+  await t.wait(300);
+  const chatBtn = $('.pr-hud [data-a=chat]');
+  if (chatBtn) { chatBtn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' })); chatBtn.click(); await t.wait(500); t.scene('Touch: chat open'); audit('chat open'); chatBtn.click(); await t.wait(300); }
+  else t.event('touch-chat-missing', 'no chat button on screen');
+  t.progress(0.25);
+
+  // drive: the stick to the 4x4, B to get in, the stick steers, A is the handbrake, the buttons
+  const q = () => G().events && G().events.quests;
+  const step = () => (q() && q().state('tour') === 'active' ? q().step('tour') : null);
+  const driving = () => G().player && G().player.controller === 'drive';
+  if (!driving()) {
+    const jeep0 = W().byId.get('jeep');
+    for (let guard = 0; guard < 600; guard++) {
+      const p = W().player, d = Math.hypot(jeep0.x - p.x, jeep0.z - p.z);
+      if (d <= 3.2) break;
+      if (guard === 599) throw new Error('timed out walking to the 4x4 with the stick');
+      const dx = jeep0.x - p.x, dz = jeep0.z - p.z, yaw = camYaw(), s = Math.sin(yaw), c = Math.cos(yaw);
+      if (!st.live) { st = stickHold(); st.live = true; }
+      st.set((dx * c - dz * s) / d, (dx * s + dz * c) / d);
+      await t.wait(80);
+    }
+    if (st.live) { st.release(); st.live = false; }
+    for (let i = 0; i < 4 && !driving(); i++) { await tapButton(t, $('#touch .b')); await t.wait(700); }
+    if (!driving()) throw new Error('timed out getting into the 4x4 with B');
+  }
+  t.event('touch-enter-vehicle', 'B got into the 4x4');
+  await t.wait(1200);
+  t.scene('Touch: in the 4x4');
+  await t.until(() => $('#veh-touch button'), 5000, 'the vehicle buttons');
+  audit('driving');
+  const labels = [...document.querySelectorAll('#veh-touch button')].map((b) => b.getAttribute('aria-label') || b.textContent.trim().slice(0, 8));
+  t.event('vehicle-buttons', labels.join(', '));
+  for (const b of document.querySelectorAll('#veh-touch button')) { await tapButton(t, b, 80); }
+  t.event('touch-vehicle-buttons', 'every vehicle button tapped (boost, horn, view, lights, flip)');
+  const dockStart = performance.now();
+  st = stickHold(); st.live = true;
+  let sign = 1, ref = null, bad2 = 0;
+  const jeep = W().byId.get('jeep'), dock = W().byId.get('dock');
+  while (step() === 'drive' && performance.now() - dockStart < 75000) {
+    const v = jeep.vehicle;
+    const tx = dock.x - jeep.x, tz = dock.z - jeep.z;
+    const err = Math.atan2(tx * v.right.x + tz * v.right.z, tx * v.fwd.x + tz * v.fwd.z);
+    if (ref && performance.now() - ref.at > 700) { if (Math.abs(err) > Math.abs(ref.err) + 0.08) { if (++bad2 >= 2) { sign = -sign; bad2 = 0; } } else bad2 = 0; ref = null; }
+    if (!ref && Math.abs(err) > 0.3) ref = { at: performance.now(), err };
+    st.set(Math.abs(err) > 0.1 ? Math.sign(err) * sign : 0, 1); // steer with the stick
+    await t.wait(100);
+  }
+  const brake = press($('#touch .a')); // brake / handbrake
+  st.set(0, 0); await t.wait(900);
+  const speed = jeep.vehicle && jeep.vehicle.speed !== undefined ? jeep.vehicle.speed : null;
+  brake(); st.release(); st.live = false;
+  t.event('touch-steer-brake', `${step() === 'drive' ? 'did not reach' : 'reached'} the dock with the stick; handbrake held${speed !== null ? `, speed after ${Number(speed).toFixed(1)}` : ''}`);
+  if (step() === 'drive') t.problem('warning', 'the 4x4 did not reach the dock with the stick in time');
+  await tapButton(t, $('#touch .b')); await t.wait(900);
+  t.progress(0.5);
+
+  // fish: walk to the rod, then the fish button (hold to cast, tap to hook, hold to reel)
+  try {
+    await t.until(() => step() === 'rod' || step() === 'fish', 8000, 'the tour to ask for the rod');
+    if (step() === 'rod') {
+      const rod = W().byId.get('rod');
+      st = stickHold();
+      for (let guard = 0; guard < 700 && step() === 'rod'; guard++) {
+        const p = W().player, dx = rod.x - p.x, dz = rod.z - p.z, d = Math.hypot(dx, dz), yaw = camYaw(), s = Math.sin(yaw), c = Math.cos(yaw);
+        if (d <= 0.7) break;
+        st.set((dx * c - dz * s) / d, (dx * s + dz * c) / d);
+        await t.wait(80);
+      }
+      st.release();
+      await t.until(() => step() !== 'rod', 8000, 'the rod to be picked up');
+    }
+    await t.until(() => $('.water-use'), 8000, 'the fish button');
+    t.scene('Touch: fishing');
+    audit('fishing');
+    let bit = false; G().on('bite', () => { bit = true; });
+    for (let cast = 1; cast <= 4 && step() === 'fish'; cast++) {
+      bit = false;
+      const up = press($('.water-use')); await t.wait(900 + cast * 150); up(); // hold to cast
+      t.event('touch-cast', `cast ${cast}`);
+      const bitten = await t.until(() => bit || step() !== 'fish', 22000, 'a bite').then(() => bit, () => false);
+      if (!bitten) continue;
+      await tapButton(t, $('.water-use'), 90); // hook it
+      const reel = press($('.water-use')); // and reel while held
+      await t.until(() => step() !== 'fish', 14000, 'the fish to be landed').then(() => 0, () => 0);
+      reel();
+    }
+    t.event('touch-fish', step() === 'fish' ? 'no fish landed in four casts' : 'a fish caught with the button');
+    if (step() === 'fish') t.problem('warning', 'no fish was caught with the touch buttons');
+  } catch (e) { t.problem('warning', `touch fishing did not complete: ${e.message}`); }
+  t.progress(0.65);
+
+  // tools: switch and fire, if a tool is in hand
+  const next = $('.mh-next:not([hidden])'), fire = $('.mh-fire:not([hidden])');
+  if (next && next.offsetParent !== null) { await tapButton(t, next); t.event('touch-switch-tool', 'the next-tool button tapped'); }
+  const fire2 = $('.mh-fire:not([hidden])');
+  if (fire2 && fire2.offsetParent !== null) { audit('tool in hand'); await tapButton(t, fire2, 200); t.event('touch-fire', 'FIRE tapped'); }
+  else t.event('touch-fire-skipped', 'no mayhem tool in hand on this path (the rocket launcher is found up the beach)');
+  void fire;
+
+  // the spawn wheel
+  const fab = $('.sw-fab');
+  if (fab && fab.offsetParent !== null) {
+    audit('spawn button');
+    await tapButton(t, fab); await t.wait(600);
+    const sheet = $('.sw-sheet:not([hidden]), .sw-wheel:not([hidden])');
+    t.event('touch-spawn-wheel', sheet ? 'the spawn wheel opened by touch' : 'the spawn button did not open the wheel');
+    if (!sheet) t.problem('error', 'the spawn button did not open the spawn wheel');
+    t.scene('Touch: spawn wheel');
+    const close = $('.sw-head button[data-a=close], .sw-head button:last-child');
+    if (close) { await tapButton(t, close); await t.wait(400); }
+  } else t.event('touch-spawn-skipped', 'no spawn button on screen');
+
+  // helicopter and rocket flight: the player put beside each (named shortcut), B to board, A for thrust, the buttons, B out
+  for (const [id, name] of [['heli', 'helicopter'], ['rocket', 'rocket']]) {
+    const e = W().byId.get(id);
+    if (!e) { t.event('touch-flight-skipped', `no ${name} in this world`); continue; }
+    if (driving()) { await tapButton(t, $('#touch .b')); await t.wait(800); }
+    t.event('setup-shortcut', `the player put beside the ${name} (the walk to it is the drive step's)`);
+    W().player.position = [e.x + 3.5, e.y + 1, e.z];
+    await t.wait(1500);
+    for (let i = 0; i < 4 && !driving(); i++) { await tapButton(t, $('#touch .b')); await t.wait(800); }
+    if (!driving()) { t.problem('warning', `could not board the ${name} with B`); continue; }
+    await t.until(() => $('#veh-touch button'), 5000, 'the flight buttons');
+    const up = press($('#touch .a')); await t.wait(2500);
+    t.scene(`Touch: flying the ${name}`);
+    audit(`flying the ${name}`);
+    await tapButton(t, [...document.querySelectorAll('#veh-touch button')].find((b) => /Down/.test(b.getAttribute('aria-label') || '')) || $('#veh-touch button'), 400);
+    up();
+    t.event('touch-flight', `${name}: thrust with A, the down button tapped, ${(W().byId.get(id).y).toFixed(0)} m up`);
+    await tapButton(t, $('#touch .b')); await t.wait(1500);
+  }
+
+  // Stuck?
+  const stuck = $('.tour-stuck');
+  if (stuck && stuck.offsetParent !== null) {
+    audit('tour tracker');
+    let rescued = false; G().on('rescue', () => { rescued = true; });
+    await tapButton(t, stuck); await t.wait(1500);
+    t.event('touch-stuck', rescued ? 'Stuck? sent the player back' : 'Stuck? tapped (no rescue event)');
+  } else t.event('touch-stuck-skipped', 'the Stuck? button is not showing (the tour is over)');
+  releaseAll();
+  const final = audit('end');
+  t.event('touch-haptics', `${HP().haptic.sent} buzzes sent of ${HP().haptic.asked} asked (${navigator.vibrate ? 'this browser vibrates' : 'no vibration API here'})`);
+  t.progress(1);
+  void final;
+}
+
 const RUN = {
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, observatory: stageObservatory, race: stageRace, board: stageBoard, game: stageGame, journal: stageJournal,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, observatory: stageObservatory, race: stageRace, board: stageBoard, game: stageGame, journal: stageJournal, touch: stageTouch,
 };
-const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'island-race': 'race', 'sandbox-travel-board': 'board', 'island-journal': 'journal' };
+const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'island-race': 'race', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'touch-controls': 'touch' };
 
 // ---------------------------------------------------------------------------------------------- the contract
 let api = null;
@@ -784,6 +1013,7 @@ export function install() {
     stallSeconds: 120,
     isReady: () => (onSandbox() || onGame() ? Boolean(W() && W().player) || document.readyState === 'complete' : document.readyState === 'complete'),
     async start(id, options, t) {
+      if (id === 'touch-controls') options = { at: 'sandbox', touch: true, ...options }; // (the phone controls, straight to the island)
       const events = [];
       // Everything the run says is kept, so the page that follows can carry the whole report.
       const ev = t.event.bind(t);
