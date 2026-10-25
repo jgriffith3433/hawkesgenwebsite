@@ -1,2 +1,0 @@
-- lesson: mirror effects need scene.render() in tests — the engine harness's H.tick doesn't run onBeforeRender observers, so call `H.world.scene.render()` before asserting on them.
-- convention: the mirror kind's reflection cost lives in kinds.js (idle size/refresh, near-only render list while `_mirrorFast`); the show (lights, entrance, pop, fps governor) is one observer in modules/mirror/mirror.js (`fx`).
