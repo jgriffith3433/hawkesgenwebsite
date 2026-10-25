@@ -90,3 +90,35 @@ test('haptics: a buzz is sent where the device vibrates, and not for reduced mot
     assert.equal(H.haptic(8), false, 'no vibration API: false, no error');
   } finally { nav.vibrate = vib; delete g.localStorage; }
 });
+
+// ------------------------------------------------------------------ the top-left cards and the quest card (1280x720 to 390x844)
+import fs from 'node:fs';
+const r = (name: string, x: number, y: number, w: number, h: number) => ({ name, x, y, w, h, r: x + w, b: y + h });
+
+test('a layout check fails when two top-left cards overlap, and passes when they are stacked', () => {
+  const bad = TL.overlapPairs([r('tracker', 12, 10, 300, 90), r('quests', 12, 62, 110, 44)]);
+  assert.equal(bad.length, 1);
+  assert.match(bad[0], /tracker x quests/);
+  const good = TL.overlapPairs([r('tracker', 12, 10, 300, 90), r('quests', 12, 106, 110, 44), r('level', 12, 156, 132, 40)]);
+  assert.deepEqual(good, []);
+});
+
+test('the quest card inside the screen passes, one cut off at the bottom does not', () => {
+  for (const [w, h] of [[1280, 720], [390, 844], [1440, 900]]) {
+    const safe = r('safe', 0, 0, w, h);
+    assert.ok(TL.insideSafe(r('footer', 20, h - 80, 200, 50), safe));
+    assert.ok(!TL.insideSafe(r('footer', 20, h - 20, 200, 50), safe), 'a button 30 px past the bottom is cut off');
+  }
+});
+
+test('the HUD cards flow in one column on a computer, the quest card scrolls inside with a sticky footer and stays in the safe area', () => {
+  const tl = fs.readFileSync(new URL('../../public/play/touchlayout.js', import.meta.url), 'utf8');
+  const qs = fs.readFileSync(new URL('../../public/play/modules/events/quests.js', import.meta.url), 'utf8');
+  assert.match(tl, /#dl-stack\{position:fixed[^}]*flex-direction:column[^}]*overflow-y:auto/);
+  assert.match(tl, /\.dl-in\{position:static!important/);
+  for (const sel of ['.pg-hud', '.wh-hud', '.qs-btn', '.tour-stuck', '.tour-track', '.qs-track']) assert.ok(tl.includes(sel), `${sel} joins the stack`);
+  const panel = qs.match(/\.qs-panel\{[^}]*\}/g)!.join('');
+  assert.match(panel, /max-height:min\(calc\(100dvh - 24px - env\(safe-area-inset-top\) - env\(safe-area-inset-bottom\)\),620px\)/);
+  assert.match(panel, /overflow:auto/);
+  assert.match(qs, /\.qs-panel \.row\{[^}]*position:sticky;bottom:-16px/);
+});
