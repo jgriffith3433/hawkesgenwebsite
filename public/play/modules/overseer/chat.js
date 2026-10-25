@@ -147,12 +147,14 @@ body.pr-touch .hc-form:not(.on){display:none}`;
       form.classList.add('on'); try { if (document.pointerLockElement) document.exitPointerLock(); } catch { /* fine */ } setTimeout(() => input.focus(), 0); return true; },
     status(text) { if (embedded) { try { H.post({ type: 'chat-status', text: text || null }); } catch { /* fine */ } return; } if (!ensure()) return; statusEl.hidden = !text; statusEl.textContent = text || ''; },
   };
-  // Enter talks to the Overseer while it's attached (before the game chat, which still has its 💬 button).
+  // Enter talks to the Overseer while it's attached, else to the fallback (the free phrasebook: talk.js), before the game chat's own Enter.
   if (!embedded) {
     window.addEventListener('keydown', (e) => {
-      if (e.key !== 'Enter' || !attached || e.repeat) return;
+      if (e.key !== 'Enter' || e.repeat || !sender()) return;
+      if (!attached && fallback.ready && !fallback.ready()) return;
       const t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (!attached && t && (t.tagName === 'BUTTON' || t.tagName === 'A' || t.tagName === 'SELECT')) return;
       e.preventDefault(); e.stopImmediatePropagation();
       H.chat.open();
     }, true);
