@@ -53,6 +53,7 @@
       <div class="form-error" id="err" hidden></div>
     </div>
   </main>
+  <script defer src="/google-gate.js"></script>
   <script type="module">
     const $ = (id) => document.getElementById(id);
     const query = location.search.slice(1);
@@ -83,7 +84,7 @@
       $('title').textContent = `Connect ${req.client.name}`;
       $('lede').textContent = `${req.client.name} wants to use your Hawkes Gen account.`;
       $('host').textContent = req.host;
-      const me = await fetch('/v1/users/me').then((x) => (x.ok ? x.json() : null)).catch(() => null);
+      const me = await fetch('/v1/users/me?soft=1').then((x) => (x.ok ? x.json() : null)).catch(() => null);
       if (!me?.user) { $('signin').hidden = false; $('email').focus(); return; }
       $('signin').hidden = true;
       $('who').textContent = me.user.email;

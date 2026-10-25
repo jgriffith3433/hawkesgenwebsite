@@ -24,7 +24,7 @@ function toast(msg) {
 
 // ---------------------------------------------------------------- sign-in
 async function start() {
-  const me = await api('/v1/users/me').catch(() => null);
+  const me = await api('/v1/users/me?soft=1').catch(() => null);
   if (me?.user?.role !== 'admin') {
     $('gate').hidden = false;
     if (me?.user) {
