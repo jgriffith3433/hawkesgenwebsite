@@ -325,6 +325,7 @@
   <div id="error" hidden></div>
   <div class="corner" id="corner" hidden>
     <span class="here" id="hereCount" hidden></span>
+    <button type="button" id="returnBtn" hidden>↩ Return to the Observatory</button>
     <button type="button" id="buildBtn" hidden>Help build</button>
     <button type="button" id="friendsBtn">Play with friends</button>
     <a id="remixBtn" target="_top">Remix</a>
@@ -419,6 +420,51 @@
         setTimeout(function () { friends.textContent = 'Room ' + room; }, 2500);
       };
       var v = parts[3] === 'v' ? '?v=' + encodeURIComponent(parts[4]) : '';
+      // Beamed here from the Observatory's travel board (?from=observatory): arrive out of the dark as the character they
+      // made (the look and name come in the address: this page is sandboxed, with no storage), and always have the way back
+      // (the button here, and the pause menu: Esc twice). The game's own script is not touched.
+      var fromObs = tpl && q.get('from') === 'observatory';
+      if (fromObs) (function () {
+        var sheet = document.createElement('div');
+        sheet.style.cssText = 'position:fixed;inset:0;background:#05080f;opacity:1;z-index:9;pointer-events:none;transition:opacity 1.4s ease';
+        document.body.appendChild(sheet);
+        var fadeUp = function () { setTimeout(function () { sheet.style.opacity = '0'; setTimeout(function () { sheet.remove(); }, 1600); }, 500); };
+        var back = false;
+        var goBack = function () {
+          if (back) return;
+          back = true;
+          sheet.style.pointerEvents = 'all';
+          sheet.style.transition = 'opacity .8s ease';
+          sheet.style.opacity = '1';
+          setTimeout(function () { location.href = '/play/sandbox?return=observatory'; }, 900);
+        };
+        // Studio's playtest (public/playtest/portal.js): only a browser under automation loads it.
+        try { if (navigator.webdriver || /[?&]playtest=/.test(location.search) || sessionStorage.getItem('hg_playtest_run')) import('/playtest/portal.js').catch(function () {}); } catch (e) {}
+        var rb = document.getElementById('returnBtn');
+        rb.hidden = false;
+        rb.onclick = goBack;
+        window.HawkesObservatoryReturn = goBack;
+        var last = 0;
+        document.addEventListener('keydown', function (e) {
+          if (e.key !== 'Escape' || back) return;
+          var now = Date.now();
+          if (now - last < 700) {
+            last = 0;
+            var G = window.HawkesPlay && window.HawkesPlay.game;
+            if (G && G.ui && G.ui.menu) G.ui.menu('pause', { title: 'Paused', items: [{ label: 'Resume' }, { label: 'Return to the Observatory', onClick: goBack }] });
+          } else last = now;
+        }, true);
+        // Who they are: the look from the address, applied when the platform's presence has loaded.
+        var look = null;
+        try { look = JSON.parse(q.get('look') || 'null'); } catch (e) { look = null; }
+        var tries = 0;
+        var apply = function () {
+          var P = window.HawkesPlay && window.HawkesPlay.presence;
+          if (look && P && P.setLook && P.me && P.me.loaded) { P.setLook(look); window.HawkesObservatoryArrived = { name: look.name || null, game: tpl }; return; }
+          if (look && ++tries < 40) setTimeout(apply, 500);
+        };
+        window.__obsFadeUp = function () { fadeUp(); apply(); };
+      })();
       // The game and the engine at once; the engine brings only the modules this game uses (the rest come after).
       var bundle = fetch(tpl ? '/v1/play-template/' + encodeURIComponent(tpl) : '/v1/play/' + encodeURIComponent(slug) + v).then(function (r) {
         return r.json().then(function (b) { if (!r.ok) throw new Error(b.error || 'Could not load this game'); return b; });
@@ -426,6 +472,7 @@
       var engine = HawkesModules.load('play', { bundle: bundle });
       bundle.then(function (b) { return engine.then(function () { return b; }); }).then(function (b) {
         HawkesPlay.run(b, { mode: 'play' });
+        if (window.__obsFadeUp) window.__obsFadeUp();
         if (q.get('room')) { HawkesNet.connect({ play: slug, room: q.get('room') }); friends.textContent = 'Room ' + q.get('room'); }
         else if (!v) HawkesNet.connect({ play: slug, room: 'live' });
         // The owner lets visitors build: one click and you're building it with them.

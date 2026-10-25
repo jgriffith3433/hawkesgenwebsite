@@ -145,10 +145,63 @@
   const CHORDS = [[110, 164.81, 220, 277.18], [98, 146.83, 196, 246.94], [103.83, 155.56, 207.65, 261.63], [110, 164.81, 207.65, 277.18]];
   const chordAt = (t) => CHORDS[Math.floor(Math.max(0, t) / 12) % CHORDS.length];
 
+
+  // ------------------------------------------------------------------ the travel board
+  /** The Overseer's featured games (src/overseer-games/index.ts; `id` is the template: /play/t/<id>) as planets over the
+   *  board. `say` is what the Overseer says when one is chosen: calm, no motive, no exclamation. */
+  const PLANETS = [
+    { id: 'fps-arena', name: 'Bot Arena', line: 'Robots beamed onto a far planet at dusk.', say: 'Bot Arena. A far planet at dusk, and robots to meet. Hold still.', color: [0.35, 0.85, 1] },
+    { id: 'sky-racer', name: 'Sky Racer', line: 'A starship down a sunset valley, through gates of light.', say: 'Sky Racer. A valley at sunset, and gates to fly through. Hold still.', color: [1, 0.62, 0.3] },
+    { id: 'platform-run', name: 'Leap', line: 'A climb from a village to a rocket before the sun sets.', say: 'Leap. A village, a hill and a rocket at the top. Hold still.', color: [0.55, 0.95, 0.5] },
+  ];
+  /** Where planet `i` hangs, in the atrium's frame ([x, y, z]): in an arc above the board's place, facing the middle. */
+  function planetSpot(i, room = ROOM) {
+    const [bx, bz] = spot('board', room);
+    const d = Math.hypot(bx, bz) || 1;
+    const ix = -bx / d, iz = -bz / d; // toward the middle
+    const tx = -iz, tz = ix; // along the wall
+    const k = (i - (PLANETS.length - 1) / 2) * 3.6;
+    const pull = 1.6 - Math.abs(i - (PLANETS.length - 1) / 2) * 0.7; // (the ends curve back toward the wall)
+    return [bx + ix * pull + tx * k, 3.3, bz + iz * pull + tz * k];
+  }
+  /** Which planet the player (x, z in the atrium's frame) stands under, if any (within `reach` m). */
+  function planetAt(x, z, reach = 2.2, room = ROOM) {
+    let best = null, bd = reach;
+    PLANETS.forEach((p, i) => { const s = planetSpot(i, room); const d = Math.hypot(x - s[0], z - s[2]); if (d < bd) { bd = d; best = { index: i, planet: p, distance: d }; } });
+    return best;
+  }
+  const RETURN_HREF = '/play/sandbox?return=observatory';
+  /** The page a planet opens: the Overseer's game, with who they are carried in the address (the game page is sandboxed on
+   *  the live site: no storage of its own). Only the look's own keys, small. */
+  function travelHref(id, look, name) {
+    const l = look && typeof look === 'object' ? { ...look } : {};
+    const n = clean(name || l.name);
+    if (n) l.name = n;
+    let json = '';
+    try { json = JSON.stringify(l); } catch { json = ''; }
+    if (json.length > 1500) json = JSON.stringify(n ? { name: n } : {});
+    return `/play/t/${encodeURIComponent(id)}?from=observatory${json && json !== '{}' ? `&look=${encodeURIComponent(json)}` : ''}`;
+  }
+  /** The look carried in a game page's address (`?look=`), or null. */
+  function travelLook(search) {
+    try {
+      const raw = new URLSearchParams(search || '').get('look');
+      if (!raw || raw.length > 1600) return null;
+      const v = JSON.parse(raw);
+      return v && typeof v === 'object' && !Array.isArray(v) ? v : null;
+    } catch { return null; }
+  }
+  /** What the Overseer says when they come back from a world. */
+  function returned(name, game) {
+    const n = clean(name);
+    const g = game ? ` from ${game}` : '';
+    return n ? `${n}. You are back${g}. The stars kept your place.` : `You are back${g}. The stars kept your place.`;
+  }
+
   /** How long a first arrival, and a return, last from the lift opening to the last word (seconds). */
   const durations = (s) => ({ first: s.length, quick: 6 });
 
-  const api = { ROOM, STATIONS, GIFTS, QUESTIONS, spot, segments, windowShare, gift, scene, quick, pearlStep, voiceLevel, glow, chordAt, CHORDS, durations, clean, hash };
+  const api = { ROOM, STATIONS, GIFTS, QUESTIONS, spot, segments, windowShare, gift, scene, quick, pearlStep, voiceLevel, glow, chordAt, CHORDS, durations, clean, hash, PLANETS, planetSpot, planetAt, travelHref, travelLook, returned, RETURN_HREF };
   if (typeof window !== 'undefined') window.HawkesObservatoryMath = api;
   const H = typeof window !== 'undefined' ? window.HawkesPlay : null;
   if (H) H.observatoryMath = api;

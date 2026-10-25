@@ -63,6 +63,10 @@ test('the sandbox page is the game page, served unsandboxed (our template only);
   assert.match(await page.text(), /slug === 'sandbox'/);
   const other = await fetch(`${base}/play/t/sandbox`);
   assert.match(String(other.headers.get('content-security-policy')), /sandbox allow-scripts/);
+  // The Overseer's featured games are ours too (the Observatory's travel board beams players into them): open, with the way back.
+  const featuredPage = await fetch(`${base}/play/t/fps-arena`);
+  assert.equal(featuredPage.headers.get('content-security-policy'), null);
+  assert.match(await featuredPage.text(), /from=observatory|Return to the Observatory/);
   const t = await call('/v1/play-template/sandbox');
   assert.equal(t.status, 200);
   const scene = JSON.parse(t.body.files['scene.json']);

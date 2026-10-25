@@ -17,9 +17,9 @@
 import { installPlaytest } from './hawkes-playtest.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory'];
+const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'board'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'] };
+const ORDERS = { 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'] };
 const SCENARIOS = [
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
   {
@@ -38,6 +38,11 @@ const SCENARIOS = [
     description: 'the first-minutes path to the sign-up sheet, then the Observatory with real input (E at the lift, walking in the room, E again); docking itself is a named setup shortcut (the rocket put on the pad, the player beside the lift); options as sandbox-first-minutes, plus again (false: skip the quick return)',
   },
   {
+    id: 'sandbox-travel-board', title: 'The Observatory travel board: three featured games as planets with live counts; beam down into each with your character and name, and Return to the Observatory from its pause menu', seconds: 600, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the sign-up sheet, then docking (a named setup shortcut) and the lift; at the board it checks the three planets and their live counts, stands under each (a named setup shortcut: the walk across the room) and presses E; the Overseer speaks, the screen fades and the game page opens (a page change: the run crosses it) where it checks the character and name arrived, presses Esc twice, clicks Return to the Observatory and checks it stands at the board again; for all three games. options as sandbox-first-minutes, plus games (a list of ids to visit; default all three)',
+  },
+  {
     id: 'presence-who', title: 'A shared world: who is there (list, marker or edge arrow), tap a name to beam next to them, mute, an abusive name replaced', seconds: 230, tags: ['full'],
     starts: ['sandbox'],
     description: 'Plays the first minutes to the island (a throwaway sign-up, never on live), then puts two stand-in players in the room (a second browser is not needed: presence.standIn, one far ahead, one behind with an abusive name) and plays the shared-world part with real clicks. options: signup (false: never sign up; always off on live), name, what',
@@ -45,6 +50,7 @@ const SCENARIOS = [
 ];
 
 const onSandbox = () => /^\/play\/sandbox\/?$/.test(location.pathname);
+const onGame = () => /^\/play\/t\/[a-z0-9-]+\/?$/.test(location.pathname) && /[?&]from=observatory\b/.test(location.search);
 const isLive = () => /^(www\.)?hawkesgen\.com$/.test(location.hostname);
 const HP = () => window.HawkesPlay;
 const W = () => HP() && HP().world;
@@ -480,10 +486,93 @@ async function stageObservatory(t, ctx) {
   t.progress(1);
 }
 
+const GAMES = [['fps-arena', 'Bot Arena'], ['sky-racer', 'Sky Racer'], ['platform-run', 'Leap']];
+/** The travel board (docs/story.md, "The travel board"). On the sandbox: dock (a named shortcut), the lift, the board's three
+ *  planets and their live counts, then E under the next game. On the game's page (stageGame) and back again, three times. */
+async function stageBoard(t, ctx) {
+  const OB = () => HP().overseer && HP().overseer.observatory;
+  const games = Array.isArray(ctx.options.games) && ctx.options.games.length ? GAMES.filter((g) => ctx.options.games.includes(g[0])) : GAMES;
+  G() && G().on('observatory', (d) => { if (['travel', 'beam-down', 'return', 'enter', 'ready'].includes(d.state)) t.event(`observatory-${d.state}`, d.name || d.game || ''); });
+  releaseAll();
+  await t.until(() => W() && W().player && W().player.alive && OB() && OB().on, 60000, 'the Overseer\'s hangar and the Observatory to exist');
+  const visit = ctx.visit || 0;
+  if (ctx.leg === 'back') {
+    await t.until(() => OB().state === 'inside' && !OB().traveling, 40000, 'the beam back into the Observatory');
+    const b = OB().board[1], p = W().player.position;
+    const d = Math.hypot(p[0] - b.at[0], p[2] - b.at[2]);
+    t.event('returned-to-board', `${Math.round(d)} m from the middle planet; controls ${W().player.controls === false ? 'LOCKED' : 'free'}`);
+    await t.until(() => W().player.controls !== false, 8000, 'the controls to come back');
+    if (d > 12) t.problem('error', `back from ${games[visit - 1] ? games[visit - 1][1] : 'the game'} but ${Math.round(d)} m from the board`);
+    t.scene(`Back at the board${games[visit - 1] ? ` from ${games[visit - 1][1]}` : ''}`);
+    await t.wait(2500);
+    if (visit >= games.length) { t.event('board-done', `${games.length} games visited and returned from`); t.progress(1); return; }
+  } else {
+    if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
+    const hg = HP().overseer.hangar, rocket = G().entity('rocket'), l = OB().lift;
+    if (rocket) { rocket.position = [hg.pad[0], hg.pad[1] + 3, hg.pad[2]]; rocket.velocity = [0, 0, 0]; }
+    W().player.position = [l[0], l[1] + 1.2, l[2] - 1];
+    t.event('setup-shortcut', 'docked: the rocket on the pad, the player by the lift in the hangar');
+    await t.wait(2500);
+    for (let i = 0; i < 4 && OB().state === 'bay'; i++) { await tap(t, 'e'); await t.wait(700); }
+    await t.until(() => OB().state === 'inside', 15000, 'the lift to reach the Observatory');
+    if (OB().scene) { t.event('setup-shortcut', 'the first-arrival scene skipped (its own scenario plays it)'); OB().skip(); }
+    await t.wait(1500);
+  }
+  // The board.
+  await t.until(() => OB().board.length === 3 && OB().board.every((b) => b.count !== null), 25000, 'the board\'s live counts').catch(() => t.problem('warning', 'the planets showed no live counts'));
+  const board = OB().board;
+  t.event('board-listed', board.map((b) => `${b.name}: ${b.count === null ? '?' : b.count} playing`).join('; '));
+  if (board.length !== 3) throw new Error(`the board lists ${board.length} planets, not 3`);
+  const [id, name] = games[visit];
+  const target = board.find((b) => b.id === id);
+  const look = HP().presence && HP().presence.look;
+  ctx.name = look && look.name; ctx.what = look && look.what; ctx.visit = visit + 1;
+  t.event('setup-shortcut', `walked across the room: standing under ${name}`);
+  W().player.position = [target.at[0], target.at[1] + 0.5, target.at[2]];
+  await t.wait(1200);
+  t.scene(`The travel board: ${name}`);
+  G().on('observatory', (d) => { if (d.state === 'beam-down') writeRun({ ...ctx.saved(), leg: 'game', visit: visit + 1 }); });
+  for (let i = 0; i < 5 && !OB().traveling; i++) { await tap(t, 'e'); await t.wait(700); }
+  await t.until(() => OB().traveling, 5000, `E under ${name} to start the trip`);
+  t.event('travel-chosen', `${name} (${(target.count === null ? '?' : target.count)} playing)`);
+  await t.wait(2200);
+  t.scene(`Beamed away to ${name}`);
+  await t.wait(30000); // (the page changes; this never finishes)
+  throw new Error(`the beam-down to ${name} did not open the game`);
+}
+
+/** On a featured game's page: the character arrived, then Esc twice and Return to the Observatory. */
+async function stageGame(t, ctx) {
+  const tpl = location.pathname.split('/')[3];
+  const [, name] = GAMES.find((g) => g[0] === tpl) || [tpl, tpl];
+  await t.until(() => W() && W().player && W().player.alive, 60000, `${name} to start`);
+  t.event('game-opened', `${name} (/play/t/${tpl})`);
+  await t.until(() => { const l = HP().presence && HP().presence.look; return l && (!ctx.name || l.name === ctx.name); }, 25000, 'the character\'s name to arrive').catch(() => {});
+  const look = HP().presence && HP().presence.look;
+  const okName = !ctx.name || (look && look.name === ctx.name);
+  const okWhat = !ctx.what || (look && look.what === ctx.what);
+  t.event('character-arrived', `name "${look && look.name}" (sent "${ctx.name || ''}"), body ${look && look.what} (sent ${ctx.what || '?'})`);
+  if (!okName || !okWhat) t.problem('error', `the character did not arrive in ${name}: ${look && look.name}/${look && look.what}, expected ${ctx.name}/${ctx.what}`);
+  await t.wait(3500);
+  t.scene(`${name}: beamed down`);
+  await t.wait(2500);
+  const esc = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+  esc(); await t.wait(250); esc();
+  await t.until(() => [...document.querySelectorAll('.ui-menu-items button')].some((b) => /Return to the Observatory/.test(b.textContent)), 5000, 'the pause menu (Esc twice)');
+  t.scene(`${name}: the pause menu`);
+  t.event('pause-menu', 'Esc twice opened it, with Return to the Observatory');
+  await t.wait(800);
+  writeRun({ ...ctx.saved(), leg: 'back', visit: ctx.visit });
+  [...document.querySelectorAll('.ui-menu-items button')].find((b) => /Return to the Observatory/.test(b.textContent)).click();
+  t.event('return-chosen', name);
+  await t.wait(30000);
+  throw new Error(`Return to the Observatory did not leave ${name}`);
+}
+
 const RUN = {
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, observatory: stageObservatory,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, observatory: stageObservatory, board: stageBoard, game: stageGame,
 };
-const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory' };
+const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'sandbox-travel-board': 'board' };
 
 // ---------------------------------------------------------------------------------------------- the contract
 let api = null;
@@ -495,7 +584,7 @@ export function install() {
     product: 'hawkesgenwebsite',
     scenarios: SCENARIOS,
     stallSeconds: 120,
-    isReady: () => (onSandbox() ? Boolean(W() && W().player) || document.readyState === 'complete' : document.readyState === 'complete'),
+    isReady: () => (onSandbox() || onGame() ? Boolean(W() && W().player) || document.readyState === 'complete' : document.readyState === 'complete'),
     async start(id, options, t) {
       const events = [];
       // Everything the run says is kept, so the page that follows can carry the whole report.
@@ -505,19 +594,23 @@ export function install() {
       t.scene = (name) => { events.push(['s', name]); sc(name); };
       const ctx = {
         options,
-        saved: () => ({ id, options: { ...options, resumed: undefined }, events }),
+        saved: () => ({ id, options: { ...options, resumed: undefined }, events, name: ctx.name, what: ctx.what, visit: ctx.visit }),
+        leg: options.resumed && options.resumed.leg,
+        visit: (options.resumed && options.resumed.visit) || 0,
+        name: options.resumed && options.resumed.name,
+        what: options.resumed && options.resumed.what,
       };
       const prior = options.resumed;
       if (prior) { // the landing page's part of the run, replayed
         for (const [k, a, b] of prior.events) { if (k === 's') sc(a); else ev(a, b); events.push([k, a, b]); }
-        ev('page-changed', 'landing page > /play/sandbox');
+        ev('page-changed', prior.leg ? `${prior.leg === 'game' ? 'the Observatory' : 'the game'} > ${location.pathname}` : 'landing page > /play/sandbox');
       }
       const to = STAGES.indexOf(options.to && STAGES.includes(options.to) ? options.to : ENDS[id]);
       const from = prior || onSandbox() ? 1 : 0;
       t.event('plan', `${id}: ${STAGES[from]} to ${STAGES[to]}${isLive() ? ' (live: no sign-up)' : ''}`);
       let named = '';
       try {
-        const seq = ORDERS[id] ? ORDERS[id].slice(ORDERS[id].indexOf(STAGES[from])) : STAGES.slice(from, to + 1);
+        const seq = id === 'sandbox-travel-board' && prior && prior.leg === 'game' ? ['game'] : id === 'sandbox-travel-board' && prior && prior.leg === 'back' ? ['board'] : ORDERS[id] ? ORDERS[id].slice(ORDERS[id].indexOf(STAGES[from])) : STAGES.slice(from, to + 1);
         for (const stage of seq) {
           named = stage;
           if ((await RUN[named](t, ctx)) === 'stop') return;
@@ -531,7 +624,7 @@ export function install() {
     stop() { releaseAll(); writeRun(null); },
   });
   // The page after the Play click carries the run on (and a runner's own start() of the same run doesn't restart it).
-  if (saved0 && onSandbox()) {
+  if (saved0 && (onSandbox() || onGame())) {
     const start = api.start.bind(api);
     const go = () => (Boolean(W() && W().player) || document.readyState === 'complete' ? (resumed = start(saved0.id, { ...saved0.options, resumed: saved0 })) : setTimeout(go, 250));
     api.start = (id, o) => (resumed && id === saved0.id ? resumed : start(id, o));

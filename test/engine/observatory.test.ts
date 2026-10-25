@@ -168,3 +168,68 @@ test('falling out of the room sends you back to the bay; the lift cannot be left
   H.tick(0.2);
   assert.notEqual(H.world.player.controls, false, 'a respawn gives them back');
 });
+
+test('the travel board: three featured games as planets, a way to each, who they are carried along', () => {
+  assert.deepEqual(M.PLANETS.map((p: any) => p.id), ['fps-arena', 'sky-racer', 'platform-run']);
+  const spots = M.PLANETS.map((_: any, i: number) => M.planetSpot(i));
+  for (const s of spots) assert.ok(Math.hypot(s[0], s[2]) < M.ROOM.radius, 'inside the room');
+  assert.ok(Math.hypot(spots[0][0] - spots[1][0], spots[0][2] - spots[1][2]) > 3, 'apart enough to stand under one');
+  for (let i = 0; i < 3; i++) assert.equal(M.planetAt(spots[i][0], spots[i][2]).index, i);
+  assert.equal(M.planetAt(0, 0), null);
+  for (const p of M.PLANETS) {
+    assert.ok(!/!/.test(p.say) && !/credit|price|must/i.test(p.say), p.say);
+    assert.ok(p.line.length < 60, 'one line');
+  }
+  const href = M.travelHref('sky-racer', { name: 'Ada', what: 'toaster' }, 'Ada');
+  assert.ok(href.startsWith('/play/t/sky-racer?from=observatory&look='));
+  assert.equal(M.travelLook(href.split('?')[1]).name, 'Ada');
+  assert.equal(M.travelLook('look=%7Bnot json'), null);
+  assert.ok(/Ada/.test(M.returned('Ada', 'Leap')) && /Leap/.test(M.returned('Ada', 'Leap')));
+});
+
+test('in the engine: choose a world at the board and be beamed down; coming back puts you at the board', () => {
+  const { ob } = dock();
+  H.presence.setLook({ name: 'Ada' });
+  H.use.act();
+  for (let t = 0; t < 6 && ob.state !== 'inside'; t += 0.1) H.tick(0.1);
+  assert.equal(ob.state, 'inside');
+  ob.skip();
+  ob.setCounts({ 'fps-arena': 2, 'sky-racer': 0, 'platform-run': 5 });
+  H.tick(0.2);
+  const board = ob.board;
+  assert.equal(board.length, 3);
+  assert.equal(board.find((b: any) => b.id === 'platform-run').count, 5);
+  const gone: string[] = [];
+  ob.navigate = (href: string) => gone.push(href);
+  const events: string[] = [];
+  H.game.on('observatory', (d: any) => events.push(d.state));
+  const said: string[] = [];
+  const speak = H.overseer.speak;
+  H.overseer.speak = (t: string, v: any, s: any, o: any) => { said.push(t); return speak.call(H.overseer, t, v, s, o); };
+  const leap = board.find((b: any) => b.id === 'platform-run');
+  H.world.player.position = [leap.at[0], leap.at[1] + 0.5, leap.at[2]];
+  H.tick(0.2);
+  assert.equal(H.use.act(), 'observatory:board', 'E under a planet');
+  assert.ok(said.some((x) => x.startsWith('Leap.')), 'the Overseer says where');
+  for (let t = 0; t < 10 && !gone.length; t += 0.1) H.tick(0.1);
+  assert.equal(gone.length, 1);
+  assert.ok(gone[0].startsWith('/play/t/platform-run?from=observatory'));
+  assert.equal(M.travelLook(gone[0].split('?')[1]).name, 'Ada', 'their name travels');
+  assert.ok(events.includes('travel') && events.includes('beam-down'));
+  H.overseer.speak = speak;
+  // The page did not open: nothing stays locked.
+  for (let t = 0; t < 8; t += 0.1) H.tick(0.1);
+  assert.notEqual(H.world.player.controls, false);
+  assert.ok(events.includes('travel-failed'));
+});
+
+test('in the engine: beamIn (the way back from a game) stands you at the board, free to move', () => {
+  const { ob } = dock();
+  H.tick(0.5);
+  assert.ok(ob.beamIn());
+  for (let t = 0; t < 8 && ob.state !== 'inside'; t += 0.1) H.tick(0.1);
+  assert.equal(ob.state, 'inside');
+  assert.notEqual(H.world.player.controls, false);
+  const b = ob.board[1];
+  assert.ok(Math.hypot(H.world.player.position[0] - b.at[0], H.world.player.position[2] - b.at[2]) < 8, 'at the board');
+});
