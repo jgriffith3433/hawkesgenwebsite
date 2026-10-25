@@ -14,8 +14,9 @@ file of clips (section 3):
 | `object` | one `Body`, the whole body | the rigid things | `public/play/anim/object.json` |
 
 **Built so far:** the format, the sampler (`presence-anim.js`), the class files with a starter `idle` and `walk` each, the
-`/avatars?body=<id>&pose=<clip>&t=<seconds>` view, the tests. **Left:** every other clip of the tables below (they are the list
-to author, in the same files), the Mixamo re-rig of the biped models (until a model has it, the 11 template-rigged bipeds
+`/avatars?body=<id>&pose=<clip>&t=<seconds>` view, the tests, and **the whole quadruped set** (section 2B: 29 clips, made on the
+dog and checked on the fox, sheep and horse; section 2B1 below has what it does and where the rig limits it). **Left:** every
+other clip of the humanoid and object tables (they are the list to author, in the same files), the Mixamo re-rig of the biped models (until a model has it, the 11 template-rigged bipeds
 keep their own GLB clips and the procedural motion; `/avatars?body=person&standin=mixamo` shows the Mixamo class on a
 stand-in puppet), importing Mixamo/Quaternius clips (`toDelta` is the conversion), and the object class's named parts (the
 toast slices, the teapot's lid).
@@ -101,6 +102,41 @@ speed. **P0** = the engine already asks for it, **P1** = needed to feel finished
 | `shrug` | 1 | 1.2 | head tilt, one ear down, a small sigh | P1 |
 | `hurt` | 1 | 0.5 | yelp: body tucks, tail between the legs | P1 |
 | `knock_down`, `get_up` | 1 | 0.9, 1.0 | tumbles onto its side; rolls over and shakes | P1 |
+
+### B1. The quadruped set as built (`public/play/anim/quadruped.json`)
+
+The file is written by `tools/make-quadruped-clips.mjs` (`node tools/make-quadruped-clips.mjs`): each clip is a function of the
+cycle that lays rotations on bones, and the file keeps the sampled keys (loops 8 to 24 keys, spline, so they close; a one-shot
+ends at rest unless it is a pose to stay in: `lie_down`, `knock_down`). Edit the tool, run it, look at `/avatars?body=dog&pose=<clip>&t=<s>`.
+
+**What the rig is** (measured from the four GLBs, `test/engine/anim.test.ts` reads the same):
+- `Root > Body > Head`, and `LegFL/FR/BL/BR` hang from `Body`, their hips close to Body's own pivot: pitching Body rocks the torso on
+  its legs, so every pitch turns the four legs back by the same angle (`Pose.legs`) to keep the paws where they were.
+- The legs are one rigid segment, and the dog's front legs rest leaning 28 degrees forward (the hind ones 11 back). A paw is on the
+  ground for a front angle of about 0 to +10 degrees and a hind one of -25 to +5; leaning further forward lifts a front paw, further
+  back a hind one. The gaits are windows in those ranges (`swing()` in the tool), with the whole body's bob doing the rest.
+- **`ArmL`/`ArmR` on the dog are a second pair of limbs under the body that the mesh does not use**: no vertex of the dog, fox or horse
+  is weighted to them (the sheep's two small `arm_l`/`arm_r` meshes are, and are left at rest). The `Tip` bones move no vertex on the
+  dog, fox or horse either (the legs have no knee). So the set uses `Root`, `Body`, `Head` and the four legs, and never names an Arm.
+- **There is no tail or ear bone.** The dog's tail and ears are part of its body and head meshes; the fox's and horse's tails are part
+  of the body mesh, which is weighted to `Body`, `Root` and the legs, so **a tail moves with the hind legs and Body's yaw**. A tail wag
+  is Body's yaw (the head is turned back against it to stay steady), an ear flick is a small roll of the head.
+- The leg meshes are weighted across legs (the fox most, its hind legs pull the torso), so big hind rotations smear the fox's body.
+  The set keeps hind folds under about 70 degrees and a gallop's under 40; a re-rig with cleaner weights, knees and a tail bone is the
+  way to better feet and tails.
+
+**What is in it, in the engine's terms:** `idle`, `walk`, `run`, `jump`, `fall`, `swim`, `sit`, `drive` are roles (`ROLE_CLIPS`); the
+quadruped's `walk` becomes **`trot`** above 2.4 m/s; `jump_start` and `land` are the take-off and landing one-shots; **after 8 to 12 s
+standing still** the player plays `idle_sniff` (a loop of 3 s) or `idle_fidget` (a one-shot) once, and a step cancels it; `sit`, `sleep`,
+`wave`, `dance`, `cheer`, `laugh`, `point`, `clap`, `thumbsup`, `heart` and `shrug` are the emote wheel's names. `lie_down`, `bark`,
+`shake_off`, `hurt`, `knock_down` and `get_up` have no trigger yet: they play from `/avatars` and from `rig.emote = { def: { name } }`,
+and wait for the wheel entries, a damage event and Juice's ragdoll to call them. The registry's quadruped rows now carry a `stride`
+in body heights (`quadStride`: walk 1.0, trot 2.0, run 3.4 heights a cycle) so the feet do not skate at the old 1.6 and 4.5 m.
+
+**The gaits:** the walk lands its feet in diagonal pairs a little apart (left front at 0, right hind at 0.12, right front at 0.5, left
+hind at 0.62: four beats in two pairs), the trot lands each pair together (0 and 0.5) with a bounce twice a cycle, and the run is a
+gallop (the front pair reaches while the hind pair pushes, the back stretches to 1.1 in the extended flight and gathers to 0.97, the whole
+body rises in the two flights and the head stays level). Footsteps are events on all three, at the moment the foot lands.
 
 ### C. Object (made on the toaster; the ten other rigid models take it with their own proportions)
 

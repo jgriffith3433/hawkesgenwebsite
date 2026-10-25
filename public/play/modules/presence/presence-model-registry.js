@@ -40,6 +40,9 @@
   const mdl = (id, tris = 7600, low = 2280) => ({ url: `/play/models/${id}.glb`, lods: lods(tris, low, `/play/models/${id}-low.glb`) });
   const BIPED = { idle: 'Head', walk: 'ArmR', run: 'ArmR2', jump: 'LegRTip2' };
   const QUAD = { idle: 'Head', walk: 'ArmR', run: 'ArmR2', jump: 'LegBRTip2' };
+  // Metres a gait cycle covers on the quad template (public/play/anim/quadruped.json): its legs are rigid and swing about 20 degrees either
+  // way, so a cycle is about a body height long for the walk (the default 1.6 m would slide the feet on the dog).
+  const quadStride = (h) => ({ walk: +(h * 1.0).toFixed(2), trot: +(h * 2).toFixed(2), run: +(h * 3.4).toFixed(2) });
   // Anchors are offsets from the model's origin in its own units (the model is about 1 unit tall, feet on y = 0, the face toward +z): see the pictures in /avatars?compare=1.
   const A = (head, face, neck, back, rump) => ({ head: { at: head }, face: { at: face }, neck: { at: neck }, back: { at: back }, rump: { at: rump } });
   P.modelRegistry = {
@@ -49,15 +52,15 @@
     tvbot: { ...row('biped'), ...mdl('tvbot'), h: 1.75, head: 0.7, clips: BIPED, anchors: A([0, 0.86, 0], [0, 0.76, 0.2], [0, 0.66, 0], [0, 0.45, -0.17], [0, 0.3, -0.15]) },
     rollbot: { ...row('legless'), ...mdl('rollbot'), h: 1.35, head: 0.6, anchors: A([0, 0.88, 0], [0, 0.72, 0.2], [0, 0.6, 0], [0, 0.4, -0.2], [0, 0.2, -0.2]) },
     // animals: Gen drew most of them as upright vinyl toys, so they are bipeds; the sheep, the horse, the fox (and the pilot's dog) are on four legs
-    dog: { ...row('quadruped'), url: '/play/models/dog.glb', lods: lods(7600, 2280, '/play/models/dog-low.glb'), h: 0.95, head: 0.4, clips: { walk: 'ArmR', run: 'ArmR2', idle: 'Head', jump: 'LegBRTip' }, anchors: { head: { at: [0, 0.92, 0.13] }, face: { at: [0, 0.7, 0.4] }, neck: { at: [0, 0.5, 0.25] }, back: { at: [0, 0.62, -0.2] }, rump: { at: [0, 0.55, -0.45] } } },
+    dog: { ...row('quadruped'), stride: quadStride(0.95), url: '/play/models/dog.glb', lods: lods(7600, 2280, '/play/models/dog-low.glb'), h: 0.95, head: 0.4, clips: { walk: 'ArmR', run: 'ArmR2', idle: 'Head', jump: 'LegBRTip' }, anchors: { head: { at: [0, 0.92, 0.13] }, face: { at: [0, 0.7, 0.4] }, neck: { at: [0, 0.5, 0.25] }, back: { at: [0, 0.62, -0.2] }, rump: { at: [0, 0.55, -0.45] } } },
     cat: { ...row('biped'), ...mdl('cat'), h: 0.8, head: 0.36, clips: BIPED, anchors: A([0, 0.9, 0.02], [0, 0.76, 0.2], [0, 0.62, 0.02], [0, 0.4, -0.2], [0, 0.22, -0.25]) },
-    fox: { ...row('quadruped'), ...mdl('fox'), h: 1, head: 0.45, clips: QUAD, anchors: A([0, 0.76, 0.22], [0, 0.58, 0.45], [0, 0.6, 0.1], [0, 0.5, -0.05], [0, 0.42, -0.35]) },
+    fox: { ...row('quadruped'), stride: quadStride(1), ...mdl('fox'), h: 1, head: 0.45, clips: QUAD, anchors: A([0, 0.76, 0.22], [0, 0.58, 0.45], [0, 0.6, 0.1], [0, 0.5, -0.05], [0, 0.42, -0.35]) },
     pig: { ...row('biped'), ...mdl('pig'), h: 0.95, head: 0.52, clips: BIPED, anchors: A([0, 0.93, 0], [0, 0.74, 0.3], [0, 0.62, 0.1], [0, 0.4, -0.2], [0, 0.25, -0.28]) },
     bear: { ...row('biped'), ...mdl('bear'), h: 1.4, head: 0.56, clips: BIPED, anchors: A([0, 0.94, 0.02], [0, 0.77, 0.2], [0, 0.66, 0], [0, 0.45, -0.17], [0, 0.25, -0.18]) },
     rabbit: { ...row('biped'), ...mdl('rabbit'), h: 0.8, head: 0.24, clips: BIPED, anchors: A([0, 0.71, 0], [0, 0.57, 0.19], [0, 0.47, 0], [0, 0.3, -0.18], [0, 0.18, -0.2]) },
     cow: { ...row('biped'), ...mdl('cow'), h: 1.5, head: 0.65, clips: BIPED, anchors: A([0, 0.93, 0], [0, 0.75, 0.25], [0, 0.62, 0.05], [0, 0.4, -0.22], [0, 0.25, -0.25]) },
-    sheep: { ...row('quadruped'), ...mdl('sheep'), h: 1.1, head: 0.55, clips: QUAD, anchors: A([0, 0.95, 0.15], [0, 0.62, 0.46], [0, 0.55, 0.3], [0, 0.62, -0.1], [0, 0.55, -0.45]) },
-    horse: { ...row('quadruped'), ...mdl('horse'), h: 1.8, head: 0.4, clips: QUAD, anchors: A([0.07, 0.9, 0.24], [0.07, 0.7, 0.47], [0, 0.7, 0.12], [0, 0.55, -0.05], [0, 0.5, -0.42]) },
+    sheep: { ...row('quadruped'), stride: quadStride(1.1), ...mdl('sheep'), h: 1.1, head: 0.55, clips: QUAD, anchors: A([0, 0.95, 0.15], [0, 0.62, 0.46], [0, 0.55, 0.3], [0, 0.62, -0.1], [0, 0.55, -0.45]) },
+    horse: { ...row('quadruped'), stride: quadStride(1.8), ...mdl('horse'), h: 1.8, head: 0.4, clips: QUAD, anchors: A([0.07, 0.9, 0.24], [0.07, 0.7, 0.47], [0, 0.7, 0.12], [0, 0.55, -0.05], [0, 0.5, -0.42]) },
     penguin: { ...row('bird'), ...mdl('penguin'), h: 1.1, head: 0.55, clips: BIPED, anchors: A([0, 0.97, 0], [0, 0.8, 0.27], [0, 0.68, 0], [0, 0.45, -0.27], [0, 0.22, -0.25]) },
     chicken: { ...row('bird'), ...mdl('chicken'), h: 0.9, head: 0.45, clips: BIPED, anchors: A([0, 0.88, 0], [0, 0.72, 0.26], [0, 0.62, 0.1], [0, 0.45, -0.25], [0, 0.3, -0.28]) },
     dinosaur: { ...row('biped'), ...mdl('dinosaur'), h: 1.9, head: 0.6, clips: BIPED, anchors: A([0, 0.97, 0.1], [0, 0.84, 0.4], [0, 0.72, 0.12], [0, 0.55, -0.2], [0, 0.4, -0.4]) },

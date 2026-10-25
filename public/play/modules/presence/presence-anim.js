@@ -53,6 +53,8 @@
   const EASES = ['linear', 'smooth', 'spline'];
 
   /** Which roles and emotes take which clips, first found wins. An emote is its own name. */
+  /** Metres a clip's cycle covers when a row has no stride of its own for it: the walk and run are the registry's, a trot is between them. */
+  const TROT_AT = 2.4, STRIDE_TROT = 2.2;
   const ROLE_CLIPS = { idle: ['idle'], walk: ['walk', 'run'], run: ['run', 'walk'], jump: ['jump', 'fall'], fall: ['fall', 'jump'], swim: ['swim'], drive: ['drive', 'sit'], sit: ['sit'] };
 
   // ------------------------------------------------------------------ quaternions [x, y, z, w] (Hamilton: a * b is b first)
@@ -385,14 +387,29 @@
       if (set.clips[em.def.name]) { shot = { key: em, name: em.def.name }; emote = true; }
       else if (ctx.glbEmote) { release(b); A.player.loops = []; A.player.shots = []; return null; } // (the model's own emote clip has the body)
     }
+    // standing still for 8 to 12 s: the set's idle_sniff (a loop for a few seconds) or idle_fidget (a one-shot) plays once
+    if (role === 'idle' && !em && !A.take) {
+      if (A.sniff) { A.sniff.t += ctx.dt; if (A.sniff.t >= set.clips.idle_sniff.seconds) A.sniff = null; }
+      else if (set.clips.idle_sniff || set.clips.idle_fidget) {
+        A.idleT = (A.idleT || 0) + ctx.dt;
+        if (A.idleNext === undefined) A.idleNext = 8 + Math.random() * 4;
+        if (A.idleT >= A.idleNext) {
+          A.idleT = 0; A.idleNext = 8 + Math.random() * 4;
+          const picks = ['idle_sniff', 'idle_fidget'].filter((n) => set.clips[n]), n = picks[Math.floor(Math.random() * picks.length)];
+          if (n === 'idle_sniff') A.sniff = { t: 0 }; else A.take = { key: {}, name: n, t: 0, idle: true };
+        }
+      }
+    } else if (role !== 'idle') { A.idleT = 0; A.sniff = null; if (A.take && A.take.idle) A.take = null; }
     // a take-off and a landing are one-shots when the set has them (jump_start, land) over the role's loop
     if (ctx.took && set.clips.jump_start) A.take = { key: {}, name: 'jump_start', t: 0 };
     if (ctx.landed && set.clips.land) A.take = { key: {}, name: 'land', t: 0 };
     if (A.take) { A.take.t += ctx.dt; if (A.take.t >= set.clips[A.take.name].seconds) A.take = null; else if (!shot) shot = A.take; }
-    const name = roleClip(set, role, ctx.glb);
+    let name = roleClip(set, role, ctx.glb);
+    if (name === 'walk' && set.clips.trot && ctx.speed > TROT_AT) name = 'trot'; // (a quicker diagonal gait between the walk and the run)
+    if (name === 'idle' && A.sniff) name = 'idle_sniff';
     if (name) {
-      const walkish = name === 'walk' || name === 'run';
-      loop = { name, rate: walkish ? clamp(ctx.speed / (ctx.stride[name] || ctx.stride.walk), 0.4, 2.5) : 1 };
+      const walkish = name === 'walk' || name === 'trot' || name === 'run';
+      loop = { name, rate: walkish ? clamp(ctx.speed / (ctx.stride[name] || (name === 'trot' ? STRIDE_TROT : ctx.stride.walk)), 0.4, 2.5) : 1 };
     } else if (!shot) { release(b); A.player.loops = []; A.player.shots = []; return null; }
     if (!loop && shot && !A.player.loops.length) { const idle = roleClip(set, 'idle', false); if (idle) loop = { name: idle, rate: 1 }; }
     const ev = A.events; ev.length = 0;
