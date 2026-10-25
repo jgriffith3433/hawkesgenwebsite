@@ -116,7 +116,7 @@
         if (s.status === 'reconnecting') { online = false; flags(); status('offline'); }
         else if (s.status === 'closed') { online = false; for (const id of [...peers.keys()]) dropPeer(id); owners.clear(); locks.clear(); flags(); status('offline'); }
       });
-      room.when('problem', (p) => { if (p.code === 'full') status('refused'); });
+      room.when('problem', (p) => { if (room !== hn) return; if (p.code === 'full') status('refused'); else if (p.code === 'refused') status('removed'); });
     } catch (e) {
       if (n === hnTry) status(e && e.code === 4009 ? 'refused' : 'offline');
     }

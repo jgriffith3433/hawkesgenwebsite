@@ -76,7 +76,7 @@
           </div>
           <div class="client" id="net">
             <div class="label">Multiplayer</div><h3>Hawkes Net</h3>
-            <p>Multiplayer for your web game: peer to peer for small rooms, our relay for big ones, one SDK. Your server asks for a ticket with your API key (rooms are yours alone, usage on your account); the page joins with it.</p>
+            <p>Multiplayer for your web game: peer to peer for small rooms, our relay for big ones, one SDK. Your server asks for a ticket with your API key (rooms are yours alone); the page joins with it. For accounts that have bought credits or a plan.</p>
             <div class="copy"><code id="netTicket">curl -X POST https://hawkesgen.com/v1/net/rooms/ticket -H "Authorization: Bearer hg_..." -d '{"room":"lobby","name":"Ada"}'</code><button type="button" data-copy="netTicket">Copy</button></div>
             <div class="copy"><code id="netJoin">import { join } from 'https://gen.hawkesgen.com/sdk/hawkes-net.mjs'; const net = await join('lobby', { ticket: () =&gt; fetch('/ticket').then((r) =&gt; r.json()) });</code><button type="button" data-copy="netJoin">Copy</button></div>
             <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-primary" href="/net">Try the demo</a></div>

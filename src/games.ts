@@ -646,7 +646,7 @@ export function setHidden(adminName: string, gameId: string, hidden: boolean, re
   if (hidden) {
     const why = String(reason ?? '').replace(/\s+/g, ' ').trim().slice(0, 300) || 'It was reported and an admin closed it.';
     db.prepare('UPDATE games SET hidden = 1, hidden_reason = ?, hidden_at = ?, hidden_by = ? WHERE id = ?').run(why, Date.now(), adminName, g.id);
-    closePlayRooms(g.slug);
+    closePlayRooms(g.slug, g.id);
   } else db.prepare('UPDATE games SET hidden = 0, hidden_reason = NULL, hidden_at = NULL, hidden_by = NULL WHERE id = ?').run(g.id);
   return getGame(g.id)!;
 }

@@ -15,13 +15,15 @@ import { env, genUrl } from './config.ts';
 import { genFetch, gen } from './gen.ts';
 import { verify } from './sign.ts';
 import { PortalError, Limiter } from './util.ts';
-import { getUser } from './users.ts';
+import { getUser, type User } from './users.ts';
+import { db } from './db.ts';
 import { gameBySlug, getGame, memberGame } from './games.ts';
 import { templateBundle } from './templates.ts';
 
 export const NET_PROJECT = 'hawkesgenwebsite';
 const CODE = /^[a-z0-9]{4,16}$/;
 const ticketsByIp = new Limiter(40, 60_000);
+const customerTickets = new Limiter(600, 60_000);
 
 let state = { at: 0, up: false };
 /** Should the engine use Hawkes Net? (Gen's /v1/net/status, asked at most every 30 s.) */
@@ -85,7 +87,7 @@ export async function ticket(body: any, ip: string) {
       room = `t/${t[1]}/${code}`;
     } else {
       const g = gameBySlug(play);
-      if (!g) throw new PortalError('No such game', { status: 404 });
+      if (!g || g.hidden) throw new PortalError('No such game', { status: 404 });
       room = `g/${g.id}/p/${code}`;
     }
     // A friend answering an invitation joins the room that is there; it never makes an empty one.
@@ -106,7 +108,12 @@ export async function ticket(body: any, ip: string) {
  * their own Hawkes Net project (their Gen project, usr_...), so nobody else's game can join it. Their server hands the
  * ticket to the player's page, which passes it to join(). Usage is filed under their project in Gen.
  */
-export async function customerTicket(project: string, body: any) {
+export async function customerTicket(user: User, body: any) {
+  // Relay traffic costs us per byte and is not billed yet, so only accounts that have paid (or admins) get tickets: a
+  // free sign-up can't run up the relay. (Studio's roadmap has the pricing decision.)
+  if (user.role !== 'admin' && !paid(user.id)) throw new PortalError('Hawkes Net for your own games needs an account that has bought credits or a plan', { status: 402 });
+  customerTickets.take(user.id, 'Too many tickets a minute for this account');
+  const project = user.project;
   const room = String(body?.room ?? '');
   if (!/^[a-z0-9][a-z0-9/_.-]{0,63}$/i.test(room)) throw new PortalError('room is 1 to 64 of letters, digits and / _ . -');
   const transport = ['auto', 'p2p', 'relay'].includes(body?.transport) ? body.transport : 'auto';
@@ -115,6 +122,8 @@ export async function customerTicket(project: string, body: any) {
   const r: any = await gen('/v1/net/ticket', { as: project, body: { project, room, name: clean(body?.name) || null, sub: typeof body?.sub === 'string' ? body.sub.slice(0, 64) : undefined, transport, role, config, client: { sdk: String(body?.sdk ?? ''), protocols: [3] } } });
   return r;
 }
+
+const paid = (userId: string) => !!db.prepare("SELECT 1 FROM credit_ledger WHERE user_id = ? AND kind IN ('stripe_purchase', 'subscription_credits') LIMIT 1").get(userId);
 
 /** Is a room open and how full? (Invitations ask before a friend loads anything.) */
 export async function roomInfo(room: string): Promise<{ open: boolean; people: number; limit: number }> {
@@ -128,6 +137,13 @@ export async function roomInfo(room: string): Promise<{ open: boolean; people: n
 export function publishOps(gameId: string, ops: unknown[], by: string, fx: string | null, except?: string) {
   if (!netUpCached() || !ops.length) return;
   void gen('/v1/net/publish', { body: { project: NET_PROJECT, room: `g/${gameId}/*`, ops, by, fx, except: except ?? null } }).catch((e) => console.warn(`[portal] hawkes net publish: ${e.message}`));
+}
+/** Puts people out of a game's rooms on Hawkes Net: everyone in rooms under `room` ("g/<id>/p/*": a world an admin
+ *  closed), or only those who joined as `sub` (a removed member: their account id). Their page leaves and does not
+ *  come back, since this site gives them no new ticket. */
+export function kick(room: string, sub?: string) {
+  if (!netUpCached()) return;
+  void gen('/v1/net/publish', { body: { project: NET_PROJECT, room, kick: { sub: sub ?? null } } }).catch((e) => console.warn(`[portal] hawkes net kick: ${e.message}`));
 }
 /** A server event to the editor room (an asset arrived, a script was saved). */
 export function publishEvent(gameId: string, name: string, data: unknown) {
