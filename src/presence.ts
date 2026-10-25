@@ -220,10 +220,12 @@ export async function presenceRoute(req: IncomingMessage, res: ServerResponse, r
   const body = method === 'POST' ? await readJson(req) : {};
   const me = caller(req, body.t ?? url.searchParams.get('t'));
   if (route === '/v1/presence/who' && method === 'POST') return send(res, 200, who(me, body.badges));
+  // ?soft=1: a page asking who it is before sign-in gets a plain "nobody" instead of a 401 in the console
+  if (!me && method === 'GET' && url.searchParams.get('soft')) return send(res, 200, { user: null, avatar: null, badge: null, friends: [], overseer: null });
   if (!me) return send(res, 401, { error: 'Sign in to keep your look and make friends' });
   if (route === '/v1/users/me/avatar' && method === 'GET') return send(res, 200, { user: { id: me.id, name: me.name }, avatar: getAvatar(me.id), badge: badgeFor(me), friends: listFriends(me.id).map((f) => f.id) });
   if (route === '/v1/users/me/avatar' && method === 'POST') return send(res, 200, { avatar: setAvatar(me.id, body.avatar ?? null) });
-  if (route === '/v1/users/me/overseer' && method === 'GET') return send(res, 200, { overseer: getMemory(me.id) });
+  if (route === '/v1/users/me/overseer' && method === 'GET') return send(res, 200, { user: { id: me.id }, overseer: getMemory(me.id) });
   if (route === '/v1/users/me/overseer' && method === 'POST') return send(res, 200, { overseer: setMemory(me.id, body.overseer ?? null) });
   if (route === '/v1/friends/request' && method === 'POST') return send(res, 200, requestFriend(me, body.to));
   return send(res, 405, { error: 'Method not allowed' });

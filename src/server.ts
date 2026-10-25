@@ -391,6 +391,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
 
     // ------------------------------------------------------------ a customer
     const user = users.authenticate(req);
+    if (!user && (route === '/v1/users/me' || route === '/v1/me') && method === 'GET' && new URL(req.url ?? '/', 'http://x').searchParams.get('soft')) return send(res, 200, { user: null }); // ?soft=1: public pages ask who is here without a 401 in the console
     if (!user) return send(res, 401, { error: 'Sign in, or send your API key (Authorization: Bearer hg_...)' });
 
     if ((route === '/v1/users/me' || route === '/v1/me') && method === 'GET') return send(res, 200, users.profile(user));

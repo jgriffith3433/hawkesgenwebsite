@@ -83,6 +83,11 @@ test('a look is saved per player, validated and size-limited; the game reaches i
   assert.equal(set.body.avatar.hat, 'tophat');
   assert.equal((await call('/v1/users/me/avatar', { body: { t: 'forged.token', avatar: { hat: 'cap' } } })).status, 401, 'a made-up token is nobody');
   assert.equal((await call('/v1/users/me/avatar')).status, 401, 'guests keep their look on their own device');
+  const soft = await call('/v1/users/me/avatar?soft=1');
+  assert.equal(soft.status, 200, 'asking softly is not an error');
+  assert.equal(soft.body.user, null);
+  assert.equal((await call('/v1/users/me/overseer?soft=1')).body.user, null);
+  assert.equal((await call('/v1/users/me?soft=1')).body.user, null);
   assert.equal((await call('/v1/users/me/avatar', { raw: 'not json' })).status, 400);
 });
 

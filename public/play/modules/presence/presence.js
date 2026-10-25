@@ -67,7 +67,7 @@
   function loadMe() {
     if (loading) return loading;
     me.look = me.look || guestLook();
-    loading = api('/v1/users/me/avatar').then((j) => {
+    loading = api('/v1/users/me/avatar?soft=1').then((j) => {
       me.user = j.user ? j.user.id : null; me.name = j.user ? j.user.name : null; me.badge = j.badge || null; me.signedIn = Boolean(me.user);
       me.friends = new Set(j.friends || []);
       // First time signed in: the look they had as a guest becomes theirs.

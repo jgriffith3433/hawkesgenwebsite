@@ -309,7 +309,7 @@
     begun = true;
     const local = readLocal();
     let remote = null;
-    try { const j = await memory.api('/v1/users/me/overseer'); signedIn = true; remote = j && j.overseer ? clean(j.overseer) : null; } catch { signedIn = false; }
+    try { const j = await memory.api('/v1/users/me/overseer?soft=1'); signedIn = Boolean(j && j.user); remote = j && j.overseer ? clean(j.overseer) : null; } catch { signedIn = false; }
     m = merge(local, remote);
     const now = memory.now();
     const returning = m.visits > 0 && now - m.lastAt >= GAP;
@@ -405,8 +405,8 @@
     /** Signed in just now: merge this device's record with the account's and keep both. */
     async sync() {
       try {
-        const j = await memory.api('/v1/users/me/overseer');
-        signedIn = true;
+        const j = await memory.api('/v1/users/me/overseer?soft=1');
+        signedIn = Boolean(j && j.user);
         m = merge(m, j && j.overseer ? clean(j.overseer) : null);
         save();
       } catch { /* not signed in */ }

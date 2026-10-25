@@ -28,7 +28,7 @@ M.now = () => t;
 M.api = async (route: string, body?: any) => {
   if (!signedIn) throw Object.assign(new Error('Sign in'), { status: 401 });
   if (body) { posts.push(body.overseer); account = body.overseer; return { overseer: account }; }
-  return { overseer: account };
+  return { user: { id: "u" }, overseer: account };
 };
 L.clock = () => seconds;
 L.now = () => t;
