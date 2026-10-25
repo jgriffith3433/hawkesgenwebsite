@@ -1,18 +1,21 @@
 // A software preview of the person (no browser, no GPU): the real presence code builds and moves it on the test engine, and this draws the
 // triangles orthographically with a z-buffer, vertex colors and one flat light, to a PNG. A way to look at a shape, a hair or a pose
 // where no browser can run; the real picture (rim light, shadows) is /avatars?body=person. Used for docs/characters-person-*.png.
-//   node --disable-warning=ExperimentalWarning tools/avatar-preview.ts <repoRoot> <out.png> <front|side|three> <pose> <hair> [seconds] [face] [expression]
+//   [WHAT=<body id>] node --disable-warning=ExperimentalWarning tools/avatar-preview.ts <repoRoot> <out.png> <front|side|three> <pose> <hair> [seconds] [face] [expression]
 import fs from 'node:fs'; import zlib from 'node:zlib';
 const [root, out, view = 'front', pose = 'idle', hair = 'short', tS = '1.2', faceArg = 'eyes', expr = ''] = process.argv.slice(2);
 const { load, world, sceneOf } = await import(root + '/test/engine/harness.ts');
 const H = await load(); const P = H.presence; const C = P.core; const B = (globalThis as any).BABYLON;
 world(H, sceneOf({}, { player: false }), { mode: 'play' });
 const node = new B.TransformNode('s', H.world.scene); const e: any = { node, x: 0, y: 0.9, z: 0, alive: true };
-const look = C.cleanLook({ what: 'person', face: faceArg, hair, body: '#4a9eff', head: '#f2c9a0', accent: '#f4a3b5', ...(C.LOOK.hairs ? {} : {}) });
+// WHAT=<id> draws any other body of the mirror (a shoe, a toaster...) in its own colors instead of the person.
+const WHAT = process.env.WHAT || 'person', W0 = C.WHAT.get(WHAT);
+const look = WHAT !== 'person' ? C.cleanLook({ what: WHAT, face: faceArg, body: W0.colors[0], accent: W0.colors[1], head: W0.colors[2] }) : C.cleanLook({ what: 'person', face: faceArg, hair, body: '#4a9eff', head: '#f2c9a0', accent: '#f4a3b5' });
 const rig = P.showcase.make(e, look, look.body);
-rig.forcePose = ['jump', 'fall', 'swim', 'drive'].includes(pose) ? pose : null;
+rig.forcePose = ['jump', 'fall', 'swim', 'drive', 'gag', 'react'].includes(pose) ? pose : null;
 const speed = pose === 'walk' ? 2.6 : pose === 'run' ? 6.5 : 0;
 if (rig.person && expr) rig.person.rest = expr;
+if (rig.thing && expr) rig.thing.F.rest = expr;
 if (!rig.person) { /* old build */ }
 const em = C.emote(pose); if (em) rig.emote = { def: em, t0: 0 };
 rig.lookTarget = [0, 1.3, 5];
