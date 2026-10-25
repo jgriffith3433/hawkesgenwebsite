@@ -315,6 +315,29 @@ It is never asked outright in a way that makes it lie, and it never refuses in a
 5. **Why does it listen?** It hears every request, on any world, and answers each as if it were the only one.
 6. **What does it want from the answers?** It asks "What are you?" and loves the replies. It never says what the replies are for.
 
+### The Observatory (built: `modules/overseer/observatory.js`)
+
+Docking used to end at a pad. Now the hangar has a lift, and the lift goes up into a round room inside the ship. It is the
+first place that is the Overseer's own rather than a landing place, and it is kept calm.
+
+- **The room.** Curved walls that are mostly glass: tall windows onto the planet below and the stars. A model of the planet
+  turns slowly on a stand in the middle. The lights are soft and rise a little while the Overseer speaks. A quiet music bed
+  (a slow chord and a low hum). Three places stand against the wall, empty for now: **a mirror**, **a wardrobe** and **a travel
+  board**. Their plaques say "hung soon", "filled soon", "lit soon". Nothing is promised beyond that.
+- **The Overseer is here, and it is not a body.** It is a pearl of light that drifts over to the player and stops a few steps
+  off, a little above head height. It does not follow like a pet and does not leave. It is the same voice as everywhere.
+- **The first time** (once per device; about forty seconds, skippable): it says the character's name from the mirror and asks
+  them to come closer; thanks them *"for climbing so far"* (it thanks people for things nobody thanks them for); gives a gift,
+  an accessory for their look (*"A new one, from me."*); then raises one of the six open questions and, as always, turns away
+  from it, kindly, to the player. The first-visit scene raises question 2, *why this planet* (either *whose it was before* or *why every world is this
+  size*), and never the hangar's purpose or the others. The Overseer gives and does not ask: the
+  gift has no price and no reason.
+- **Every later time** is quick: a lift of a few seconds and one short line (*"Welcome back, Ada."*, *"The stars kept your place."*).
+- **The way out** is the same lift; it puts the player down beside the ship they came in.
+
+*Open for later tasks:* the mirror, the wardrobe and the travel board are placeholders until their own tasks land. The cracked
+mirror of Chapter Three is not here: it is in the hangar, facing the wall, and this room does not mention it.
+
 ### The "seems good" ledger
 
 A list of what the Overseer has been seen to do, for the content to draw on. Only deeds, never reasons.

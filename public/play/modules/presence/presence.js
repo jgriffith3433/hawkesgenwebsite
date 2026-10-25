@@ -98,7 +98,7 @@
     const p = W() && W().player;
     return {
       look: me.look, ty: me.typing ? 1 : 0, hp: p && p.alive ? Math.round(p.health ?? 100) : null, mx: p && p.alive ? (p.maxHealth || 100) : null,
-      host: H.sync && H.sync.isHost ? 1 : 0, b: me.badge, sp: spect ? 1 : 0,
+      host: H.sync && H.sync.isHost ? 1 : 0, b: me.badge, sp: floatCam ? 2 : spect ? 1 : 0,
     };
   }
   function resend() { const c = myConn(); const h = c && synced.get(c); if (h) h.resend(); }
@@ -182,7 +182,7 @@
         const friend = Boolean(v && (v.friend || me.friends.has(v.user)));
         if (pr.avatar && pr.avatar.alive) for (const c of pr.avatar.node.getChildMeshes(true)) if (c.name === 'text') c.setEnabled(!on('tags'));
         const theirs = i.look ? C.cleanLook(i.look) : null;
-        out.push({ key: `p:${id}`, kind: friend ? 'friend' : 'player', entity: pr.avatar && pr.avatar.alive ? pr.avatar : null, name: shown((theirs && theirs.name) || nameOf(pr.name, v ? v.name : null), id) || 'Player', color: pr.color, conn: id, host: Boolean(host && host === id), typing: Boolean(i.ty), hp: i.hp, mx: i.mx, user: v ? v.user : null, verified: Boolean(v), requested: Boolean(v && v.requested), look: i.look ? C.cleanLook(i.look) : null, spectating: Boolean(i.sp), state: pr.state });
+        out.push({ key: `p:${id}`, kind: friend ? 'friend' : 'player', entity: pr.avatar && pr.avatar.alive ? pr.avatar : null, name: shown((theirs && theirs.name) || nameOf(pr.name, v ? v.name : null), id) || 'Player', color: pr.color, conn: id, host: Boolean(host && host === id), typing: Boolean(i.ty), hp: i.hp, mx: i.mx, user: v ? v.user : null, verified: Boolean(v), requested: Boolean(v && v.requested), look: i.look ? C.cleanLook(i.look) : null, spectating: Boolean(i.sp), floating: i.sp === 2, state: pr.state });
       }
     }
     if (on('npcs')) {
@@ -560,7 +560,7 @@
         const self = pr.kind === 'me';
         // My own body shows only when I can see myself (third person, top view); the capsule is the collider only.
         // (At a mirror, or dressing up, I see myself whatever the view: modules/mirror sets e._mirrorShow.)
-        const show = self ? (e._mirrorShow || (e._view !== 'first' && e._view !== 'rts')) && e.visible !== false && !e._seatHidden : e.visible !== false;
+        const show = self ? (e._mirrorShow || (e._view !== 'first' && e._view !== 'rts')) && e.visible !== false && !e._seatHidden && !floatCam : e.visible !== false && !pr.floating;
         e._rigged = true;
         if (pr.kind === 'ai' && e.living && e.living.rig && e.living.rig.vis) e.living.rig.vis.setEnabled(false); // an islander shows its look, not the creature body
         if (self) { if (e._visor) e._visor.setEnabled(false); }
@@ -765,7 +765,7 @@
   // ------------------------------------------------------------------ spectating: watch another player's view
   let spect = null; // { key, saved: { controls, view } }
   P.spectating = () => (spect ? spect.key : null);
-  const watchable = () => people(true).filter((x) => (x.kind === 'player' || x.kind === 'friend') && x.entity && x.entity.alive && x.entity.visible !== false);
+  const watchable = () => people(true).filter((x) => (x.kind === 'player' || x.kind === 'friend') && !x.floating && x.entity && x.entity.alive && x.entity.visible !== false);
   /** Watches a player: P.spectate('next'), P.spectate(id), P.spectate(null) stops. */
   P.spectate = (who = 'next') => {
     const w = W();
@@ -816,6 +816,70 @@
     w.camera.internal(() => w.camera.api.fixed([spect.cam.x, spect.cam.y, spect.cam.z], [look.x, look.y, look.z]));
     if (cam !== w.scene.activeCamera) spect.cam = null;
   }
+
+
+  // ------------------------------------------------------------------ the Overseer's eye: a camera with no character
+  // /play/<slug>?spectate=1 (the gallery's Spectate): you are in the room as a floating view. No body (others do not see
+  // one either: sp 2), controls off; WASD/arrows fly, Q/E down and up, Shift faster, drag to look. P.float(false) joins.
+  let floatCam = null; // { pos, yaw, pitch, keys, saved: { controls }, drag }
+  P.floating = () => Boolean(floatCam);
+  P.float = (yes = true) => {
+    const w = W();
+    if (!w || !w.player) return false;
+    if (!yes) { stopFloat(); return false; }
+    if (floatCam || !on('spectate')) return Boolean(floatCam);
+    if (spect) stopSpectate();
+    const p = w.player, c = w.scene.activeCamera;
+    const from = c ? [c.position.x, c.position.y + 12, c.position.z] : [p.x, p.y + 14, p.z];
+    floatCam = { pos: from, yaw: c && c.rotation ? c.rotation.y : 0, pitch: 0.5, keys: new Set(), drag: null, saved: { controls: p.controls } };
+    p.controls = false; p.velocity = [0, 0, 0];
+    resend();
+    emit('float', true);
+    return true;
+  };
+  function stopFloat() {
+    if (!floatCam) return;
+    const w = W(), f = floatCam;
+    floatCam = null;
+    resend();
+    if (w && w.player && w.player.alive) { w.player.controls = f.saved.controls; if (w.camera && w.camera.api) w.camera.internal(() => w.camera.api.thirdPerson(w.player, { distance: 5 })); }
+    emit('float', false);
+  }
+  function floatFrame(dt) {
+    if (!floatCam) return;
+    const w = W(), f = floatCam;
+    const k = (n) => (f.keys.has(n) ? 1 : 0);
+    const input = { x: k('d') + k('arrowright') - k('a') - k('arrowleft'), y: k('e') - k('q'), z: k('w') + k('arrowup') - k('s') - k('arrowdown') };
+    if (input.x || input.y || input.z) {
+      const speed = f.keys.has('shift') ? 40 : 12;
+      const c = Math.cos(f.pitch), sy = Math.sin(f.yaw);
+      const fwd = [sy * c, -Math.sin(f.pitch), Math.cos(f.yaw) * c], right = [Math.cos(f.yaw), 0, -sy], s = speed * dt;
+      f.pos = [f.pos[0] + (fwd[0] * input.z + right[0] * input.x) * s, f.pos[1] + (fwd[1] * input.z + input.y) * s, f.pos[2] + (fwd[2] * input.z + right[2] * input.x) * s];
+    }
+    const c = Math.cos(f.pitch);
+    const look = [f.pos[0] + Math.sin(f.yaw) * c * 10, f.pos[1] - Math.sin(f.pitch) * 10, f.pos[2] + Math.cos(f.yaw) * c * 10];
+    w.camera.internal(() => w.camera.api.fixed(f.pos, look));
+    if (w.player && w.player.alive) w.player.controls = false;
+  }
+  const floatKey = (down) => (e) => {
+    if (!floatCam) return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    const k = String(e.key || '').toLowerCase();
+    if (down) floatCam.keys.add(k); else floatCam.keys.delete(k);
+    if (e.shiftKey) floatCam.keys.add('shift'); else floatCam.keys.delete('shift');
+  };
+  window.addEventListener('keydown', floatKey(true), true);
+  window.addEventListener('keyup', floatKey(false), true);
+  window.addEventListener('blur', () => { if (floatCam) floatCam.keys.clear(); });
+  window.addEventListener('pointerdown', (e) => { if (floatCam && !(e.target.closest && e.target.closest('button,a,input,.pr-spect'))) floatCam.drag = { x: e.clientX, y: e.clientY }; }, true);
+  window.addEventListener('pointermove', (e) => {
+    if (!floatCam || !floatCam.drag) return;
+    floatCam.yaw += (e.clientX - floatCam.drag.x) * 0.005;
+    floatCam.pitch = Math.max(-1.45, Math.min(1.45, floatCam.pitch + (e.clientY - floatCam.drag.y) * 0.005));
+    floatCam.drag = { x: e.clientX, y: e.clientY };
+  }, true);
+  window.addEventListener('pointerup', () => { if (floatCam) floatCam.drag = null; }, true);
 
   // ------------------------------------------------------------------ drawing: tags and bubbles over heads (the page)
   let layer = null;
@@ -1008,6 +1072,7 @@
       if (performance.now() - tickAt > 400) { tickAt = performance.now(); syncTick(); }
       updateRigs(dt);
       spectFrame(dt);
+      floatFrame(dt);
       draw();
     } catch (err) { H.report(err, 'presence'); }
   });
@@ -1016,11 +1081,14 @@
       loadMe();
       if (H.game && !('presence' in H.game)) try { Object.defineProperty(H.game, 'presence', { value: P, configurable: true, enumerable: false }); } catch {}
       peopleAt = -Infinity;
+      // The gallery's Spectate: /play/<slug>?spectate=1 enters as a floating camera, once the player is there.
+      if (H.mode === 'play' && /[?&]spectate=1\b/.test(location.search)) { let n = 0; const t = setInterval(() => { if (P.float(true) || ++n > 40) clearInterval(t); }, 250); }
     },
     leave() {
       for (const rig of rigs.values()) disposeRig(rig);
       rigs.clear(); rigSoon.clear(); reactions.clear(); bubbleOwners.clear(); bub.clear(); occluded.clear();
       if (spect) spect = null;
+      floatCam = null;
       clearDrawn();
     },
     net(status) { if (status === 'online') { resend(); peopleAt = -Infinity; } emit('people', null); },

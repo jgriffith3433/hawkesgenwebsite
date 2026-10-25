@@ -81,7 +81,7 @@ body.pr-touch .pr-sw button{width:38px;height:38px}body.pr-touch .pr-ch button{m
 .pr-wheel.grid .ring button{position:static;margin:0;width:auto;height:76px;border-radius:14px}
 .pr-wheel.grid .ring .mid{display:none}
 .pr-spect{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:30;display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:14px;background:rgba(10,14,26,.85);color:#fff;font:600 14px system-ui;border:1px solid rgba(255,255,255,.16)}
-.pr-spect[hidden]{display:none}.pr-spect b{min-width:90px;text-align:center}
+.pr-spect[hidden]{display:none}.pr-spect .pr-hint{font:500 12px system-ui;opacity:.7}.pr-spect b{min-width:90px;text-align:center}
 .pr-me-pop{position:fixed;left:50%;bottom:22%;transform:translateX(-50%);z-index:8;font-size:64px;pointer-events:none;opacity:0;transition:opacity .2s,transform .3s}
 .pr-me-pop.on{opacity:1;transform:translateX(-50%) translateY(-20px)}
 `;
@@ -393,6 +393,20 @@ body.pr-touch .pr-sw button{width:38px;height:38px}body.pr-touch .pr-ch button{m
     bar.addEventListener('click', (e) => { const b = e.target.closest ? e.target.closest('button') : null; if (!b) return; if (b.dataset.a === 'stop') P.spectate(null); else P.spectate(b.dataset.a); });
   }
   P.on('spectate', (d) => { ensureBar(); bar.hidden = !d; if (d) bar.querySelector('b').textContent = `👁 ${d.name}`; renderPeople(false); });
+
+  // The Overseer's eye (P.float): a bar says what you are and how to join.
+  let eye = null;
+  P.on('float', (yes) => {
+    style();
+    if (!eye || !eye.isConnected) {
+      eye = make('div', 'pr-spect', '<b>👁 Spectating</b><span class="pr-hint">WASD to fly · Q/E down and up · drag to look</span><button type="button" class="pr-btn" data-a="join">Join the game</button>');
+      eye.querySelector('b').style.minWidth = '0';
+      eye.addEventListener('pointerdown', (e) => e.stopPropagation());
+      eye.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('[data-a="join"]')) P.float(false); });
+    }
+    eye.hidden = !yes;
+    renderPeople(false);
+  });
 
   // ------------------------------------------------------------------ keys
   const typingIn = (e) => { const t = e.target; return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable); };
