@@ -340,8 +340,13 @@
       return k;
     },
   };
+  const soundFails = new Set(); // sounds already reported as failing (once each, not on every play)
   async function loadBuffer(url) {
-    if (!buffers.has(url)) buffers.set(url, fetch(url).then((r) => r.arrayBuffer()).then((b) => new Promise((ok, bad) => makeAudio().decodeAudioData(b, ok, bad))));
+    if (!buffers.has(url)) {
+      const p = fetch(url).then((r) => { if (!r.ok) throw new Error(`sound ${url}: ${r.status}`); return r.arrayBuffer(); }).then((b) => makeAudio().decodeAudioData(b));
+      p.catch(() => { /* the caller hears about it */ });
+      buffers.set(url, p);
+    }
     return buffers.get(url);
   }
 
@@ -1559,7 +1564,7 @@
           gn.gain.value = o.volume ?? 1;
           src.connect(gn).connect(audioApi.master || audio.destination);
           src.start();
-        }).catch((e) => report(new Error(`Could not play ${name}: ${e.message || e}`)));
+        }).catch((e) => { if (!soundFails.has(name)) { soundFails.add(name); report(new Error(`Could not play ${name}: ${e.message || e}`)); } });
       },
       music(name, o = {}) {
         const start = () => {
