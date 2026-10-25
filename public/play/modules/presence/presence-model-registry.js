@@ -34,7 +34,7 @@
     // people and machines
     person: row('biped'), robot: row('biped'), tvbot: row('biped'), rollbot: row('roller'),
     // animals
-    dog: { ...row('quadruped'), url: '/play/models/dog.glb', lods: lods(7600, 2280, '/play/models/dog-low.glb'), h: 0.95, head: 0.4, anchors: { head: { at: [0, 0.92, 0.13] }, face: { at: [0, 0.7, 0.4] }, neck: { at: [0, 0.5, 0.25] }, back: { at: [0, 0.62, -0.2] }, rump: { at: [0, 0.55, -0.45] } } }, cat: row('quadruped'), fox: row('quadruped'), pig: row('quadruped'), bear: row('quadruped'),
+    dog: { ...row('quadruped'), url: '/play/models/dog.glb', lods: lods(7600, 2280, '/play/models/dog-low.glb'), h: 0.95, head: 0.4, clips: { walk: 'ArmR', run: 'ArmR2', idle: 'Head', jump: 'LegBRTip' }, anchors: { head: { at: [0, 0.92, 0.13] }, face: { at: [0, 0.7, 0.4] }, neck: { at: [0, 0.5, 0.25] }, back: { at: [0, 0.62, -0.2] }, rump: { at: [0, 0.55, -0.45] } } }, cat: row('quadruped'), fox: row('quadruped'), pig: row('quadruped'), bear: row('quadruped'),
     rabbit: row('quadruped'), cow: row('quadruped'), sheep: row('quadruped'), horse: row('quadruped'),
     penguin: row('bird'), chicken: row('bird'), dinosaur: row('biped'), fish: row('swimmer'),
     // things

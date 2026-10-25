@@ -49,16 +49,35 @@ function run(t: any, seconds: number, speed = 0, em: any = null) {
   }
 }
 
+const PILOT = ['person', 'dog', 'shoe']; // the types whose Gen models are in public/play/models (the pilot)
+test('the pilot models: each filled row names a file that is there, a near level within the phone budget and a low level', () => {
+  for (const id of PILOT) {
+    const r = registryBefore[id];
+    if (!r.url) continue; // (a model not baked yet keeps its procedural body)
+    const file = path.join(ROOT, 'public', r.url);
+    assert.ok(fs.existsSync(file), `${id}: ${r.url} is there`);
+    assert.ok(r.lods && r.lods.tris <= M.TRIS.phone, `${id}: near level ${r.lods && r.lods.tris} <= ${M.TRIS.phone} triangles`);
+    const b = fs.readFileSync(file), j = JSON.parse(b.subarray(20, 20 + b.readUInt32LE(12)).toString());
+    const names = (j.animations || []).map((a: any) => a.name);
+    for (const [role, clip] of Object.entries(r.clips || {})) assert.ok(names.includes(clip), `${id}: the file has a clip "${clip}" for ${role}`);
+    const pos = j.meshes.flatMap((m: any) => m.primitives.map((q: any) => j.accessors[q.attributes.POSITION])), top = Math.max(...pos.map((a: any) => a.max[1]));
+    assert.ok(r.anchors.head.at[1] <= top * 1.02 && r.anchors.head.at[1] >= top * 0.8, `${id}: the head anchor sits at the top of the model (${r.anchors.head.at[1]} of ${top.toFixed(2)})`);
+    assert.ok(r.lods.levels.length && r.lods.levels[0].tris < r.lods.tris && fs.existsSync(path.join(ROOT, 'public', r.lods.levels[0].url)), `${id}: a low level`);
+  }
+});
+
 test('the registry names every type, with a form and no file yet: the procedural bodies are untouched', () => {
   const rows = registryBefore;
   assert.deepEqual(Object.keys(rows).sort(), C.WHATS.map((w: any) => w.id).sort(), 'one row for each of the 26 types of the mirror');
   assert.equal(C.WHATS.length, 26);
   for (const w of C.WHATS) {
     assert.ok(FORMS.includes(rows[w.id].form), `${w.id}: form ${rows[w.id].form}`);
-    assert.ok(!rows[w.id].asset && !rows[w.id].url, `${w.id}: no model made yet`);
+    assert.ok(PILOT.includes(w.id) || (!rows[w.id].asset && !rows[w.id].url), `${w.id}: no model made yet`);
   }
   assert.equal(rows.fish.form, 'swimmer'); assert.equal(rows.dog.form, 'quadruped'); assert.equal(rows.rollbot.form, 'roller'); assert.equal(rows.duck.form, 'legless'); assert.equal(rows.penguin.form, 'bird');
-  P.modelRegistry = JSON.parse(JSON.stringify(rows)); M.setLoader(() => Promise.reject(new Error('should not load')));
+  P.modelRegistry = JSON.parse(JSON.stringify(rows));
+  for (const id of PILOT) { P.modelRegistry[id].url = null; P.modelRegistry[id].asset = null; P.modelRegistry[id].lods = null; } // (the procedural bodies when a row has no file)
+  M.setLoader(() => Promise.reject(new Error('should not load')));
   for (const id of ['dog', 'person', 'toaster']) {
     const t = stand(id);
     assert.equal(M.enabled(id), false);
@@ -357,5 +376,5 @@ test('presence code stays erasable and documented: docs/characters.md has the Ge
   assert.ok(/## .*Gen models/.test(doc), 'the section');
   for (const f of ['presence-model-registry.js', 'anchors', 'clips', 'form', 'yaw', 'lods', 'fallback', 'How to add one', 'avatars?standin=1', '8,000']) assert.ok(doc.includes(f), `documents ${f}`);
   const reg = fs.readFileSync(path.join(ROOT, 'public', 'play', 'modules', 'presence', 'presence-model-registry.js'), 'utf8');
-  for (const w of C.WHATS) assert.ok(new RegExp(`\\b${w.id}: row\\(`).test(reg), `${w.id} has a row in the registry file`);
+  for (const w of C.WHATS) assert.ok(new RegExp(`\\b${w.id}: (\\{ \\.\\.\\.)?row\\(`).test(reg), `${w.id} has a row in the registry file`);
 });
