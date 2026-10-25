@@ -77,3 +77,5 @@ with the planet; a custom shader adds `y -= |xz - camera.xz|² / 2R` itself), `H
 `emitter()`, `flare(k)`, `hangar`, `docked`, `intro`; a beam's `pulse(k)`), `H.arrive` (`bring(things, { how, exact })`,
 `how(entity)`, `plan(specs)` (building: a drop's spot, roof and all, before the op), `landing(at, { lift, half })`,
 `quake(at, { radius, rise, seconds })` (the ground moving), `down(at)` / `up(at)`, `of(entity)`, `active`).
+
+The Overseer's first-time lines (`lines.js`): `H.lines.say(id)`, `.seen(id)`, `.blocked()`, `.reset()`; ids `build`, `fish`, `death`, `dock`, `space`, `boom`, `friend`, `return`. Each is said once per device, in the chat (`game.on('overseer-line', ({ id, text, voice }))` hears it), and waits while the intro, the mirror or a tour moment is on or another Overseer line is being read.
