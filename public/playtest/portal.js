@@ -22,9 +22,9 @@
 import { installPlaytest } from './hawkes-playtest.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'race', 'board'];
+const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'race', 'board', 'journal'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'] };
+const ORDERS = { 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'] };
 const SCENARIOS = [
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
   {
@@ -36,6 +36,11 @@ const SCENARIOS = [
     id: 'island-race', title: 'The Ridge Run: through the start gate, the countdown, every gate in order, the finish and best time, then the ghost of the best run', seconds: 330, tags: ['full'],
     starts: ['sandbox'],
     description: 'options: laps (default 1; the world has 3), touch (true: the phone controls, ?touch=1, and the frame rate is measured), ghost (false: one run only), signup (false: stop at the account sheet; always on live), watch (seconds of intro to watch), name, what',
+  },
+  {
+    id: 'island-journal', title: 'The journal: opened from its button (desktop, or the phone at 390x844), the eight quests, the neighbours met, four lore items found on the island and read in it, and kept after a return', seconds: 300, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the account sheet, then the journal with real input (a click on the book button, walking to the lamp, the beach chair, the faded drawing and the scratched rock, E at each); the return is the Overseer\'s memory read back from this device (a named setup shortcut). options as sandbox-first-minutes, plus touch (true: the phone controls, ?touch=1)',
   },
   {
     id: 'sandbox-chapter-one', title: 'Chapter One "What Are You?": the eight quests to the launch pad, the lit bay and the two closing lines', seconds: 420, tags: ['full'],
@@ -615,6 +620,70 @@ async function stageObservatory(t, ctx) {
   t.progress(1);
 }
 
+/** The journal: open it from its button, find lore with E on the island, read it in the journal, and see it kept after a return. */
+async function stageJournal(t, ctx) {
+  const J = () => window.__island && window.__island.journal;
+  const shown = () => { const el = $('.jr'); return Boolean(el && !el.hidden); };
+  const summary = () => { const m = J().model(); return `quests ${m.done}/8, met ${m.cast.filter((c) => c.met).length}/6, lore ${m.lore.filter((l) => l.found).length}/12`; };
+  G().on('lore-found', (d) => t.event('lore-found', `${d.n}. ${d.title}`));
+  releaseAll();
+  await t.until(() => J() && $('.jr-btn'), 20000, 'the journal button');
+  const vw = window.innerWidth;
+  t.event('viewport', `${vw}x${window.innerHeight}`);
+  $('.jr-btn').click();
+  await t.until(shown, 5000, 'the journal to open');
+  const html = $('.jr').innerHTML;
+  const eight = (html.match(/class="jr-q /g) || []).length;
+  t.event('journal-opened', `${summary()}; ${eight} quests listed; the panel is ${Math.round($('.jr').getBoundingClientRect().width)} px wide and ends ${Math.round(window.innerHeight - $('.jr').getBoundingClientRect().bottom)} px above the bottom`);
+  if (eight !== 8) t.problem('error', `the journal lists ${eight} quests, not 8`);
+  t.scene('Journal: opened');
+  await t.wait(1500);
+  keyEv('keydown', 'Escape'); keyEv('keyup', 'Escape');
+  await t.until(() => !shown(), 4000, 'Esc to close the journal');
+  t.event('journal-closed');
+  // Lore on the island: walk to each and press E.
+  const before = J().model().lore.filter((l) => l.found).length;
+  for (const [id, name] of [['lore_chair', 'the beach chair'], ['lamp_a', 'the dock lamp'], ['lore_drawing', 'the faded drawing'], ['lore_rock', 'the scratched rock']]) {
+    try {
+      await walkTo(t, id, 1.9, 70000, name);
+      await t.wait(400);
+      await tap(t, 'e');
+      await t.wait(900);
+      t.scene(`Lore: ${name}`);
+    } catch (e) { t.problem('warning', `could not walk to ${name}: ${e.message}`); }
+  }
+  let found = J().model().lore.filter((l) => l.found).length - before;
+  if (found < 4) {
+    for (const id of ['chair', 'lamp', 'drawing', 'tally']) if (!J().model().lore.find((l) => l.id === id).found) { t.event('setup-shortcut', `found ${id} (could not be reached on foot in time)`); J().find(id); }
+    found = J().model().lore.filter((l) => l.found).length - before;
+  }
+  t.event('lore-found-total', `${found} found by walking and E`);
+  $('.jr-btn').click();
+  await t.until(shown, 5000, 'the journal to open again');
+  const text = $('.jr').innerHTML;
+  const withText = J().model().lore.filter((l) => l.found && text.includes(l.title)).length;
+  t.event('journal-lore', `${summary()}; ${withText} found items are in the journal with their text`);
+  t.scene('Journal: lore found');
+  if (withText < 4) t.problem('error', `only ${withText} found lore items show in the journal`);
+  await t.wait(1500);
+  $('.jr-x').click();
+  await t.until(() => !shown(), 4000, 'the journal to close');
+  // After a return: the Overseer's memory read back from this device (a named shortcut: the page itself is not reloaded).
+  const mem = HP().memory;
+  const had = mem.journal.get();
+  t.event('setup-shortcut', 'return: the Overseer\'s memory re-read from the device');
+  mem.reload();
+  const back = mem.journal.get();
+  t.event('kept-after-return', `lore ${back.lore.length} (had ${had.lore.length}), neighbours met ${back.met.length} (had ${had.met.length})`);
+  if (back.lore.length < had.lore.length || back.met.length < had.met.length) t.problem('error', 'the journal lost something on a return');
+  J().open('playtest');
+  await t.wait(800);
+  t.scene('Journal: after a return');
+  J().close();
+  t.event('journal-done', summary());
+  t.progress(1);
+}
+
 const GAMES = [['fps-arena', 'Bot Arena'], ['sky-racer', 'Sky Racer'], ['platform-run', 'Leap']];
 /** The travel board (docs/story.md, "The travel board"). On the sandbox: dock (a named shortcut), the lift, the board's three
  *  planets and their live counts, then E under the next game. On the game's page (stageGame) and back again, three times. */
@@ -699,9 +768,9 @@ async function stageGame(t, ctx) {
 }
 
 const RUN = {
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, observatory: stageObservatory, race: stageRace, board: stageBoard, game: stageGame,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, observatory: stageObservatory, race: stageRace, board: stageBoard, game: stageGame, journal: stageJournal,
 };
-const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'island-race': 'race', 'sandbox-travel-board': 'board' };
+const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'island-race': 'race', 'sandbox-travel-board': 'board', 'island-journal': 'journal' };
 
 // ---------------------------------------------------------------------------------------------- the contract
 let api = null;
