@@ -57,11 +57,11 @@
     const act = activeDraws(scene);
     return {
       fps: engine.getFps(),
-      frameMs: sceneI ? sceneI.frameTimeCounter.lastSecAverage : null,
+      frameMs: (sceneI && sceneI.frameTimeCounter.lastSecAverage) || (sceneI ? engine.getDeltaTime() || null : null),
       renderMs: sceneI ? sceneI.renderTimeCounter.lastSecAverage : null,
       gpuMs: engineI && engineI.gpuFrameTimeCounter && engineI.gpuFrameTimeCounter.lastSecAverage ? engineI.gpuFrameTimeCounter.lastSecAverage * 1e-6 : null,
       stepMs: stepAvg || null,
-      drawCalls: sceneI ? sceneI.drawCallsCounter.current : null,
+      drawCalls: sceneI ? (sceneI.drawCallsCounter.current || act.draws) : null,
       triangles: Math.round(scene.getActiveIndices() / 3),
       activeDraws: act.draws,
       activeTriangles: act.tris,
@@ -161,6 +161,23 @@
     g.stroke();
   }
 
+  function counters(scene) {
+    if (sceneI) return;
+    sceneI = new B.SceneInstrumentation(scene);
+    sceneI.captureFrameTime = true;
+    sceneI.captureRenderTime = true;
+    try { engineI = new B.EngineInstrumentation(scene.getEngine()); engineI.captureGPUFrameTime = true; } catch { engineI = null; }
+  }
+  /** The counters without the panel (a playtest, game.overseer.presence().cost): sample() then gives frame ms and draw calls.
+   *  probe(false) lets them go again (a panel that is open keeps its own). */
+  let probing = false;
+  function probe(on = true) {
+    const w = W();
+    if (on) { if (w && w.scene) { probing = true; counters(w.scene); } return; }
+    probing = false;
+    if (!el) { if (sceneI) sceneI.dispose(); if (engineI) engineI.dispose(); sceneI = engineI = null; }
+  }
+
   function open() {
     const w = W();
     if (el || !w || !w.scene) return;
@@ -173,10 +190,7 @@
     el.querySelector('[data-a=copy]').onclick = () => { try { navigator.clipboard.writeText(JSON.stringify(sample(), null, 2)); } catch { /* no clipboard in this frame */ } };
     for (const ev of ['pointerdown', 'mousedown', 'click', 'wheel']) el.addEventListener(ev, (e) => e.stopPropagation());
     document.body.appendChild(el);
-    sceneI = new B.SceneInstrumentation(w.scene);
-    sceneI.captureFrameTime = true;
-    sceneI.captureRenderTime = true;
-    try { engineI = new B.EngineInstrumentation(w.scene.getEngine()); engineI.captureGPUFrameTime = true; } catch { engineI = null; }
+    counters(w.scene);
     draw();
     timer = setInterval(draw, 250);
   }
@@ -186,9 +200,7 @@
     try { const sc = W() && W().scene; if (sc && sc.debugLayer.isVisible()) sc.debugLayer.hide(); } catch { /* no inspector */ }
     if (el) el.remove();
     el = null;
-    if (sceneI) sceneI.dispose();
-    if (engineI) engineI.dispose();
-    sceneI = engineI = null;
+    if (!probing) { if (sceneI) sceneI.dispose(); if (engineI) engineI.dispose(); sceneI = engineI = null; }
     stepAvg = 0;
     fpsHistory.length = 0;
   }
@@ -207,7 +219,7 @@
 
   // A new world (hot reload, a restart) gets fresh counters on its own scene.
   let reopen = false;
-  H.hooks.world.push({ leave() { if (el) { close(); reopen = true; } } });
+  H.hooks.world.push({ leave() { if (el) { close(); reopen = true; } if (probing) { probing = false; sceneI = engineI = null; } } });
   H.hooks.frame.push(() => { if (reopen && W() && W().scene) { reopen = false; open(); } });
 
   window.addEventListener('keydown', (e) => {
@@ -217,5 +229,5 @@
     if (el) close(); else open();
   }, true);
 
-  H.monitor = { open, close, toggle: () => (el ? close() : open()), sample, get isOpen() { return Boolean(el); } };
+  H.monitor = { open, close, probe, toggle: () => (el ? close() : open()), sample, get isOpen() { return Boolean(el); } };
 })();

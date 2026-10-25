@@ -124,3 +124,25 @@ test('presence costs no meshes: the same ship, one transform node more', () => {
   const names = H.world.scene.meshes.filter((m: any) => /^ov-/.test(m.name)).map((m: any) => m.name);
   assert.ok(!names.some((n: string) => /turn|hum|alive/.test(n)));
 });
+
+test('the halo answers the voice even when no frame is drawn (a background tab), and relaxes after', () => {
+  fresh();
+  const calm = H.game.overseer.presence().halo.alpha;
+  H.speech.say({ text: 'Look up. I am here, and I am glad you came.', priority: 'normal' });
+  for (let i = 0; i < 8; i++) { t += 0.3; H.speech.pump(); H.tick(0.3); } // (steps only, no render)
+  const talking = H.game.overseer.presence().halo.alpha;
+  assert.ok(talking > calm + 0.15, `halo ${calm} → ${talking}`);
+  for (let i = 0; i < 60; i++) { t += 0.3; H.speech.pump(); H.tick(0.3); }
+  assert.ok(H.game.overseer.presence().halo.alpha < talking - 0.1);
+});
+
+test('presence() reports real draw calls and frame time once the monitor counters run', () => {
+  fresh();
+  assert.equal(H.game.overseer.presence().cost, null, 'no counters, no numbers');
+  H.monitor.probe(true);
+  for (let i = 0; i < 5; i++) tick(1 / 60);
+  const cost = H.game.overseer.presence().cost;
+  assert.ok(cost && cost.drawCalls > 0 && cost.frameMs > 0, JSON.stringify(cost));
+  H.monitor.probe(false);
+  assert.equal(H.game.overseer.presence().cost, null);
+});
