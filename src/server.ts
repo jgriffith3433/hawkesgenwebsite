@@ -599,24 +599,45 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
   }
 }
 
+/** The portal's HTTP server: sane timeouts, a handler that never throws, upgrades for the game rooms. Tests use it too. */
+export function createPortalServer() {
+  const server = http.createServer((req, res) => {
+    // A handler's stray rejection must never leave a socket hanging or take the process down.
+    handle(req, res).catch((e) => {
+      console.error('[portal] handler:', e);
+      if (!res.headersSent) { try { res.writeHead(500, { 'Content-Type': 'application/json' }); } catch {} }
+      try { res.end(); } catch {}
+    });
+  });
+  // Caddy keeps its connections to us open for a long time: ours must outlast its idle time (else a request lands on a
+  // socket we are just closing: a reset), and slow clients may not hold a connection forever.
+  server.keepAliveTimeout = 75_000;
+  server.headersTimeout = 30_000;
+  server.requestTimeout = 0; // uploads and streams (events, assets) run long; the handlers set their own limits
+  server.on('clientError', (_e, socket) => { if (socket.writable) socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n'); else socket.destroy(); });
+  server.on('upgrade', onUpgrade);
+  return server;
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(ROOT, 'src', 'server.ts')) {
   if (!genKey()) console.warn('[portal] HAWKESGEN_KEY is not set: jobs will fail until it is');
+  // Listen first, so /v1/health answers within a second of starting; the background work follows.
+  const server = createPortalServer();
+  server.listen(PORT, '127.0.0.1', () => console.log(`[portal] http://127.0.0.1:${PORT}`));
   watch();
   resumeTasks();
   resumeGens();
   community.watchStarter();
-  const server = http.createServer((req, res) => void handle(req, res));
-  server.on('upgrade', onUpgrade);
-  server.listen(PORT, '127.0.0.1', () => console.log(`[portal] http://127.0.0.1:${PORT}`));
-  // A restart (every beta push, every deploy) must not reset requests under way: stop taking new
-  // connections, let the running ones finish, drop idle keep-alive ones, and leave after 8 s at most.
+  // A restart (every beta push, every deploy) must not reset requests under way: stop taking new connections, let the
+  // running ones finish (their answers say Connection: close), drop idle keep-alive ones as they go idle, leave after 8 s at most.
   let leaving = false;
   const leave = () => {
     if (leaving) return;
     leaving = true;
     closeLive();
     server.close(() => process.exit(0));
-    server.closeIdleConnections();
+    const sweep = setInterval(() => server.closeIdleConnections(), 50);
+    sweep.unref();
     setTimeout(() => process.exit(0), 8000).unref();
   };
   // One request's stray error must not take the process down: that resets every connection at once (blank pages).
