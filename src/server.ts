@@ -28,7 +28,7 @@ import * as games from './games.ts';
 import * as friends from './friends.ts';
 import { presenceRoute } from './presence.ts';
 import { askAssistant, askQuote, generateAsset, pendingGens, markSuggestion, resumeGens, KINDS, AI_CREDITS } from './gameai.ts';
-import { join as joinLive, setPresence } from './live.ts';
+import { join as joinLive, setPresence, closeAll as closeLive } from './live.ts';
 import { templateBundle, featured } from './templates.ts';
 import { loaderScript, engineDoc, manifest } from './engine.ts';
 const engineVersion = () => manifest().version;
@@ -613,6 +613,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(ROOT, 'src
   const leave = () => {
     if (leaving) return;
     leaving = true;
+    closeLive();
     server.close(() => process.exit(0));
     server.closeIdleConnections();
     setTimeout(() => process.exit(0), 8000).unref();
