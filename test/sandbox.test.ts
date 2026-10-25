@@ -39,6 +39,23 @@ const ctx: any = { window: {}, console };
 vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'public', 'play', 'guest.js'), 'utf8'), ctx);
 const Guest = ctx.window.HawkesGuestCore;
 
+test('the sandbox template revalidates (ETag, 304), the hut shows its light copy from afar, fonts are self-hosted', async () => {
+  const a = await fetch(`${base}/v1/play-template/sandbox`);
+  assert.equal(a.status, 200);
+  assert.match(String(a.headers.get('cache-control')), /max-age=60/);
+  const etag = String(a.headers.get('etag'));
+  assert.ok(etag);
+  const scene = JSON.parse((await a.json()).files['scene.json']);
+  assert.equal(scene.entities.hut.shape.lod.distance, 12);
+  const b = await fetch(`${base}/v1/play-template/sandbox`, { headers: { 'If-None-Match': etag } });
+  assert.equal(b.status, 304);
+  const f = await fetch(`${base}/fonts/orbitron.woff2`);
+  assert.equal(f.status, 200);
+  assert.equal(f.headers.get('content-type'), 'font/woff2');
+  assert.equal(f.headers.get('access-control-allow-origin'), '*');
+  for (const page of ['public/play/play.html', 'public/editor.html', 'public/public.css']) assert.doesNotMatch(fs.readFileSync(path.join(ROOT, page), 'utf8'), /fonts\.googleapis/, page);
+});
+
 test('the sandbox page is the game page, served unsandboxed (our template only); other games stay sandboxed', async () => {
   const page = await fetch(`${base}/play/sandbox`);
   assert.equal(page.status, 200);
