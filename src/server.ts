@@ -771,20 +771,21 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(ROOT, 'src
   } else {
     // Listen first, so /v1/health answers within a second of starting; the background work follows.
     const server = createPortalServer();
+    const leave = leaveWith(server);
     if (mode === 'web') {
       connectHub(busPath(DATA_DIR));
-      // Sockets for game rooms that another web process keeps arrive here (rooms.ts handoff).
+      // The primary asks a web process to leave (a rolling restart); sockets for game rooms that another keeps arrive here (rooms.ts handoff).
       process.on('message', (m: any, handle: any) => {
+        if (m?.t === 'leave') return leave();
         if (m?.t !== 'ws-handoff' || !handle) return;
         server.emit('connection', handle);
         handle.unshift(Buffer.from(m.head, 'base64'));
       });
-      process.on('disconnect', leaveWith(server));
+      process.on('disconnect', leave);
     }
     server.listen(PORT, '127.0.0.1', () => console.log(`[portal] http://127.0.0.1:${PORT}${mode === 'web' ? ` (web ${process.env.PORTAL_WEB_INDEX})` : ''}`));
     if (mode === 'all') background();
     guard();
-    const leave = leaveWith(server);
     process.on('SIGTERM', leave);
     process.on('SIGINT', leave);
   }

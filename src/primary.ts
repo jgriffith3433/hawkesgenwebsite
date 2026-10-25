@@ -49,7 +49,9 @@ export function runPrimary({ port, dataDir }: { port: number; dataDir: string })
   });
   const retire = async (w: Worker, how: 'disconnect' | 'kill') => {
     retiring.add(w);
-    if (how === 'disconnect') w.disconnect(); else w.process.kill('SIGTERM');
+    // (Not worker.disconnect(): that waits for every connection to end before the child hears of it. The child is told to
+    // leave; closing its server takes it out of the primary's round robin, and a connection already on its way is passed on.)
+    if (how === 'disconnect') w.send({ t: 'leave' }); else w.process.kill('SIGTERM');
     await exited(w, 12_000);
     retiring.delete(w);
   };
@@ -90,8 +92,10 @@ export function runPrimary({ port, dataDir }: { port: number; dataDir: string })
       for (let i = 0; i < n; i++) {
         const old = slots[i];
         const nw = await forkWeb(i);
+        say(`web process ${i}: new one listening after ${Date.now() - t0} ms`);
         if (!(await healthy())) { retiring.add(nw); nw.process.kill('SIGTERM'); throw new Error(`the new web process ${i} did not answer`); }
         slots[i] = nw;
+        say(`web process ${i}: new one answers after ${Date.now() - t0} ms`);
         if (old) await retire(old, 'disconnect');
         say(`web process ${i} restarted`);
       }
