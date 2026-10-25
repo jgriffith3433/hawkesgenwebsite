@@ -97,6 +97,9 @@ function worlds(nodes) {
  * Gen's mesh.rig writes the character lying on its back (the skeleton along -z, the front +y; tools/mixamo-upright.mjs stands the game's
  * models up with +90 degrees about x on the root, and that is what a model in the game has). Clips are deltas in the model's axes, so a
  * lying file is stood up the same way before its rest is read: when the Hips-to-Head line is not mostly +y, the skeleton's root turns +90 about x.
+ * Gen's retarget writes the clips already upright in the file's own frame (the Armature at rest lies, the clip stands: `rawW` keeps what the
+ * clip's rotations are relative to), so the skeleton's own root bone is written as `(rawParent * abs) * (stoodParent * rest)^-1` (a
+ * file that was never lying has both the same, which is the plain formula).
  */
 export function standUp(skel) {
   const find = (n) => skel.nodes.find((x) => norm(x.name) === n);
@@ -104,6 +107,7 @@ export function standUp(skel) {
   if (!hips || !head) return skel;
   const v = [head.wp[0] - hips.wp[0], head.wp[1] - hips.wp[1], head.wp[2] - hips.wp[2]], l = Math.hypot(...v) || 1;
   if (v[1] / l >= 0.5) return skel;
+  skel.rawW = skel.nodes.map((n) => n.wq); // (the world turns before standing up: what a clip's absolute rotations were written against)
   const turn = [Math.SQRT1_2, 0, 0, Math.SQRT1_2];
   let root = hips; while (root.parent >= 0) root = skel.nodes[root.parent]; // (the skeleton's own root, like the Armature: a mesh beside it stays)
   root.q = qmul(turn, root.q); root.p = qrot(turn, root.p);
@@ -326,11 +330,13 @@ export function convertTake(skel, take, o = {}) {
     const bone = norm(nodes[i].name);
     if (!MIXAMO_BONES.has(bone)) continue;
     const rp = nodes[i].parent >= 0 ? nodes[nodes[i].parent].wq : [0, 0, 0, 1], rest = nodes[i].q, tr = {};
+    const isRoot = nodes[i].parent < 0 || !MIXAMO_BONES.has(norm(nodes[nodes[i].parent].name));
+    const rawRp = isRoot && skel.rawW && nodes[i].parent >= 0 ? skel.rawW[nodes[i].parent] : rp; // (the clip's own frame for the skeleton's root bone)
     const rot = take.rot.get(i);
     if (rot) {
-      const qs = times.map((u) => { const abs = slerpAt(rot.times, rot.q, u * frames / fps); const d = qnorm(qmul(rp, qmul(qmul(abs, qinv(rest)), qinv(rp)))); return fixes.has(bone) ? qnorm(qmul(d, qinv(fixes.get(bone)))) : d; });
+      const qs = times.map((u) => { const abs = slerpAt(rot.times, rot.q, u * frames / fps); const d = qnorm(qmul(rawRp, qmul(qmul(abs, qinv(rest)), qinv(rp)))); return fixes.has(bone) ? qnorm(qmul(d, qinv(fixes.get(bone)))) : d; });
       for (let k = 1; k < qs.length; k++) if (qdot(qs[k], qs[k - 1]) < 0) qs[k] = qs[k].map((v) => -v); // one hemisphere
-      if (qs.some((q) => qangle(q, [0, 0, 0, 1]) > 0.3)) {
+      if (qs.some((q) => qangle(q, [0, 0, 0, 1]) > 1.2)) {
         const keep = simplify(qs, tol, (q, a, b, k) => qangle(q, qslerp(a, b, k)), loop);
         const ks = []; qs.forEach((q, k) => { if (keep[k] && !(loop && k === n - 1)) ks.push([r4(times[k]), r4(q[0]), r4(q[1]), r4(q[2]), r4(q[3])]); });
         tr.q = ks;

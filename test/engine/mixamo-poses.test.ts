@@ -108,18 +108,16 @@ test('loops close: the pose at the end of the clip leads straight into its start
   assert.deepEqual(problems, [], problems.join('\n'));
 });
 
-test('every one-shot begins and ends where the idle stands (so it blends in and out without a pop)', () => {
-  const idle = A.sampleClip(A.compile(FILE.clips.idle), 0), problems: string[] = [];
-  for (const name of ['wave', 'cheer', 'laugh', 'point', 'clap', 'thumbsup', 'heart', 'shrug', 'bow', 'idle_fidget']) {
+test('every one-shot begins and ends where the idle stands (so it blends in and out without a pop): the joints are within a few percent of the height', () => {
+  const idlePose = A.sampleClip(A.compile(FILE.clips.idle), 0);
+  // (a one-shot is laid over the idle loop as Player.pose does: the bones it names are its, a track with only a position keeps the loop's rotation, the rest are the idle's)
+  const at = (clip: any, u: number) => { const over = A.sampleClip(A.compile(clip), u), pose = new Map(idlePose); for (const [b, v] of over) { const cur: any = pose.get(b) || { q: null, p: null, s: null }; pose.set(b, { q: v.q || cur.q, p: v.p || cur.p, s: v.s || cur.s }); } A.apply(person.b, pose); return Object.fromEntries(BONES.map((n) => [n, person.pos(n)])); };
+  const idle = at(FILE.clips.idle, 0), problems: string[] = [];
+  for (const name of ['wave', 'cheer', 'laugh', 'point', 'clap', 'thumbsup', 'heart', 'shrug', 'bow', 'idle_fidget']) { // (ours: the library's clips start from their own stance)
     const clip = FILE.clips[name]; if (!clip) { problems.push(`${name}: missing`); continue; }
     for (const u of [0, 1]) {
-      const pose = A.sampleClip(A.compile(clip), u);
-      for (const [bone, v] of pose) {
-        if (!v.q) continue;
-        const r = idle.get(bone), q0 = r && r.q ? r.q : [0, 0, 0, 1];
-        const d = 2 * Math.acos(Math.min(1, Math.abs(v.q[0] * q0[0] + v.q[1] * q0[1] + v.q[2] * q0[2] + v.q[3] * q0[3]))) / D;
-        if (d > 7) problems.push(`${name} @${u}: ${bone} is ${d.toFixed(0)} degrees from the idle`);
-      }
+      const P = at(clip, u);
+      for (const n of BONES) { const d = len(sub(P[n], idle[n])) / person.h; if (d > 0.07) problems.push(`${name} @${u}: ${n} is ${(d * 100).toFixed(0)}% of the height from where the idle has it`); }
     }
   }
   assert.deepEqual(problems, [], problems.join('\n'));
@@ -139,4 +137,14 @@ test('the robot, on the same Mixamo skeleton, takes the same clips: its hands st
     }
   }
   assert.deepEqual(bad, [], bad.join('\n'));
+});
+
+test('mixamo.json holds every P0 and P1 clip of docs/animations.md 2A, sound, and the engine maps its roles and emotes to them', () => {
+  const need = ['idle', 'idle_look', 'idle_fidget', 'walk', 'run', 'jump_start', 'jump', 'fall', 'land', 'swim_idle', 'swim', 'sit', 'sit_down', 'stand_up', 'sleep', 'drive', 'wave', 'dance', 'cheer', 'laugh', 'point', 'clap', 'thumbsup', 'heart', 'shrug', 'hurt', 'knock_down', 'get_up'];
+  assert.deepEqual(need.filter((n) => !FILE.clips[n]), [], 'every clip of the table is there');
+  assert.deepEqual(A.validate('mixamo', FILE), [], 'the file is sound');
+  for (const e of H.presence.core.EMOTES.filter((x: any) => x.name !== 'sit')) assert.ok(FILE.clips[e.name], `the emote ${e.name} has its own clip`);
+  for (const n of ['walk', 'run']) assert.ok(FILE.clips[n].events.filter((v: any) => v.name === 'footstep').length === 2, `${n} has a footstep per foot`);
+  for (const n of ['land', 'jump_start']) assert.ok(FILE.clips[n].tracks.Hips.scl, `${n} has the toy's squash`);
+  const land = FILE.clips.land.tracks.Hips.scl; assert.ok(Math.min(...land.map((k: number[]) => k[2])) <= 0.83, 'the landing squashes to 0.82');
 });

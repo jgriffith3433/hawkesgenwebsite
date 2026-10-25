@@ -15,10 +15,9 @@ file of clips (section 3):
 
 **Built so far:** the format, the sampler (`presence-anim.js`), the class files with a starter `idle` and `walk` each, the
 `/avatars?body=<id>&pose=<clip>&t=<seconds>` view, the tests, and **the whole quadruped set** (section 2B: 29 clips, made on the
-dog and checked on the fox, sheep and horse; section 2B1 below has what it does and where the rig limits it) and **the whole object set** (section 2C: 23 clips, made on the toaster, with its two toast slices; section 2C1 has how it is built). **Left:** every
-other clip of the humanoid table (the list to author, in the same file), the Mixamo re-rig of the biped models (until a model has it, the 11 template-rigged bipeds
+dog and checked on the fox, sheep and horse; section 2B1 below has what it does and where the rig limits it) and **the whole object set** (section 2C: 23 clips, made on the toaster, with its two toast slices; section 2C1 has how it is built). **The humanoid set** (section A1: 19 library clips retargeted by Gen and 14 of ours, with the toy touches; the importer is A2). **Left:** the P2 clips (`fish_*`, `aim`), the Mixamo re-rig of the other nine biped models (until a model has it, the 11 template-rigged bipeds
 keep their own GLB clips and the procedural motion; `/avatars?body=person&standin=mixamo` shows the Mixamo class on a
-stand-in puppet), importing Mixamo/Quaternius clips (`toDelta` is the conversion), and the object class's other named parts (the teapot's lid, the shoe's tongue: a prop like the toast slices, `presence-things.js props`).
+stand-in puppet), and the object class's other named parts (the teapot's lid, the shoe's tongue: a prop like the toast slices, `presence-things.js props`).
 
 ## 1. What the models are (measured from `public/play/models/*.glb`)
 
@@ -71,6 +70,39 @@ speed. **P0** = the engine already asks for it, **P1** = needed to feel finished
 | `knock_down`, `get_up` | 1 | 0.9, 1.1 | thrown onto the back by an explosion; sits up and stands | P1 |
 | `fish_cast`, `fish_reel` (L), `fish_catch` | 1, L, 1 | 1.0, 0.8, 1.6 | the rod: swing back and forward; lean and crank; hold the fish up | P2 |
 | `aim` | L | 1 | both arms forward holding a launcher (an upper-body layer over walk/idle) | P2 |
+
+### A1. The humanoid set as built (`public/play/anim/mixamo.json`)
+
+Two layers, one file, so the same clips play on every model on the Mixamo skeleton (the person and the robot today; the penguin, cat and the rest once `mesh.rig` has re-rigged them):
+
+| Layer | Made by | Clips | In the file |
+|---|---|---|---|
+| **Library** | `tools/mixamo-clips.mjs` from a GLB that Gen's `blender.character` exported after `retarget` (the CC0 Quaternius Universal Animation Library: `motion:ual1/...`), or a Mixamo FBX | `idle` (Idle_Loop), `walk` (Walk_Loop), `run` (Jog_Fwd_Loop), `jump_start`, `jump` (Jump_Loop), `land` (Jump_Land), `swim` (Swim_Fwd_Loop), `swim_idle`, `sit_down` (Sitting_Enter), `sit` (Sitting_Idle_Loop), `stand_up` (Sitting_Exit), `drive` (Driving_Loop), `dance` (Dance_Loop), `hurt` (Hit_Chest), `knock_down` (UAL2 Hit_Knockback), `idle_talk`, `death`, `interact`, `nod` | `source` names the file |
+| **Ours** | `tools/mixamo-own-clips.mjs` (poses as functions of time, on the Mixamo bones; sampled into keys) | `idle_look` (plays once over the idle, not a loop: it names only the head, neck and chest), `idle_fidget`, `fall`, `sleep`, `wave`, `cheer`, `laugh`, `point`, `clap`, `thumbsup`, `heart`, `shrug`, `bow`, `get_up` (the library has none of them) | `"own": true`: an import never replaces them |
+
+The toy touches go on the library's clips (`mixamo-own-clips.mjs`, marked `toy: true`): `land` squashes the Hips to 0.82 and springs back with one overshoot, `jump_start` dips to 0.88 in its first 80 ms (the anticipation) and stretches as the feet leave; volume is kept (`sx = sz = 1 / sqrt(sy)`). `walk` and `run` carry a `footstep` event per foot (found from when each thigh is furthest forward; nothing listens yet but sound will).
+
+**Engine mapping** (`presence-anim.js ROLE_CLIPS`, the emote menu): roles `idle walk run jump fall swim drive sit` take the clip of that name (`swim` becomes `swim_idle` under 0.35 m/s); `jump_start` and `land` are one-shots at take-off and landing; `idle_fidget` plays once every 8 to 12 s standing still; the emotes `wave dance cheer laugh point clap thumbsup heart shrug sit sleep` are their own clip. `bow`, `hurt`, `death`, `knock_down`, `get_up`, `sit_down`, `stand_up`, `idle_look`, `idle_talk`, `interact` and `nod` are in the set for the game's scripts and the next emotes (`P.anim.hasClip`).
+
+### A2. `tools/mixamo-clips.mjs`: library and Mixamo clips into the file
+
+```
+node tools/mixamo-clips.mjs <file.glb|file.fbx> [--into public/play/anim/mixamo.json] [--name n] [--only a,b] [--rename a=b] [--loop|--once] [--keep-travel] [--no-fix] [--height m] [--fps 30] [--tolerance 1.5]
+```
+
+- **A GLB** (what `blender.character` exports: ops `import` the rigged person, one `retarget` per library clip with a `name`, `export` `glb`): every animation in the file is a clip. A file that lies on its back (mesh.rig's own output: the skeleton along -z) is stood up first with +90 degrees about x on the skeleton's root, the same as `tools/mixamo-upright.mjs` does to the game's models, so the deltas are in the game model's axes.
+- **A Mixamo FBX** (binary, downloaded from mixamo.com with J's account: "FBX Binary", with or without skin): `Walking.fbx` becomes `walk` (a name in the table below the tool's `NAMES`, else the file's name in snake_case); PreRotation, the Euler curves in FBX ticks and the cm units are handled. So to add a clip later: `node tools/mixamo-clips.mjs ~/Downloads/Waving.fbx --into public/play/anim/mixamo.json --once`, then look at it in `/avatars?body=person&pose=waving&t=0.5`.
+- **What it writes:** per Mixamo bone (the prefix is dropped; the 52 bones of Gen's rig, fingers included when they move) `q` keys `[t, x, y, z, w]` as the delta from the model's rest in the model's axes (`P.anim.toDelta`); limbs of an A-pose rig are written against Mixamo's T-pose by the same measure the engine uses (`restFixes`), so `delta * fix` in the engine puts the model's own pose back on this model and reads right on every other; Hips `pos` in model heights (the file's own height from its mesh), the travel along the ground taken out of loops (`--keep-travel` keeps it); a key every 2 to 3 frames after simplification (1.5 degrees) and a loop's last key is not repeated; the loop flag from `_Loop` and the looping roles; `footstep` events on walk, run and sprint. Quaternion keys play on a Catmull-Rom spline through the components (normalised), so there is no stop at each key.
+- **Merging** with `--into` replaces a clip of the same name unless the file's has `"own": true`; it prints one line a clip (loop or once, seconds, bones, keys).
+- **Test** `test/engine/mixamo-clips.test.ts` builds a small rigged GLB (a looping walk and a one-shot), a lying one, an A-pose one and a binary FBX in the way Mixamo writes them, and checks the engine validates the output, the loops close, the travel is out, the footsteps are half a stride apart, names map and merging keeps ours.
+
+**How ours sit on the library's.** A loop of ours replaces the idle and a one-shot plays over it, so ours are written on the library idle's first pose (body bones: `ours * idle`; the chest chain always named) and the arms of a one-shot ease in from the idle's over 0.2 s; an arm a clip does not use is left unnamed and keeps doing what the loop does. Run `node tools/mixamo-own-clips.mjs` after any import. The file is ~800 KB (about 160 KB gzipped, one fetch).
+
+**Gen jobs (the person):** the rigged person `a_cc1d4924a1e32d95` with 19 `motion:ual1/...` and `ual2/...` clips, one `blender.character` batch (`import`, a `retarget` per clip with a `name`, `export` glb): job `j_ec6e4ea5ebce`, 16 GPU seconds, $0.013 (a first run on the wrong rig, `j_6e5f4c95997e`, $0.023, was not used). Gen's retarget writes the clips already upright while the rig file lies, which the importer handles (`standUp`, `rawW`).
+
+### A3. Judging the clips
+
+`test/engine/mixamo-poses.test.ts` is the contact sheet as numbers: every clip of the file on the person's real GLB and on the robot, at 0, 0.25, 0.5 and 0.75, through the engine's own bind and apply: no knee backwards (against the rest bend), no arm longer than its bones, nothing under the floor, no hand through the body unless the clip puts it there, the head over the hips unless the body lies down, loops that close, one-shots that begin and end where the idle stands. `SHEET=1` prints heights; `DUMP=<clip>` the joints. The playtest `avatar-animations` takes the same frames on the page (scenes `Sheet: person walk 2/4`) for a person to look at.
 
 ### B. Quadruped (made on the dog; fox, sheep, horse take it)
 

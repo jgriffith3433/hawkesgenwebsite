@@ -32,9 +32,9 @@ function pose() {
     L: (name, v) => add(`Left${name}`, v),
     R: (name, v) => add(`Right${name}`, [v[0], -v[1], -v[2]]),
     both(name, v) { this.L(name, v); this.R(name, v); },
-    /** Arms hanging, plus a delta. */
+    /** Arms hanging, plus a delta; `false` for an arm leaves it out (it keeps doing what the loop underneath does: the idle's, the walk's). */
     hang(lv, rv) {
-      for (const [n, k] of [['Arm', 'arm'], ['ForeArm', 'fore'], ['Shoulder', 'shoulder']]) { this.L(n, HANG[k]); this.R(n, HANG[k]); }
+      for (const [n, k] of [['Arm', 'arm'], ['ForeArm', 'fore'], ['Shoulder', 'shoulder']]) { if (lv !== false) this.L(n, HANG[k]); if (rv !== false) this.R(n, HANG[k]); }
       if (lv) for (const [n, v] of Object.entries(lv)) this.L(n, v);
       if (rv) for (const [n, v] of Object.entries(rv)) this.R(n, v);
     },
@@ -76,14 +76,13 @@ function clip(name, { loop, seconds, keys, events, ease }, f) {
 }
 
 // ---- stands ---------------------------------------------------------------------------------------------------------------------
-// idle_look: breathes like the idle, then looks left, right and up at the sky (the Overseer), the head leading and the neck and chest following
-clip('idle_look', { loop: true, seconds: 5, keys: 40 }, (u, z) => {
+// idle_look: breathes, then looks left, right and up at the sky (the Overseer), the head leading and the neck and chest following; plays once over the idle
+// (only the head, the neck and the chest are named, so the idle's arms and legs go on)
+clip('idle_look', { loop: false, seconds: 5, keys: 50 }, (u, z) => {
   const left = bump(u, 0.1, 0.2, 0.32, 0.42), right = bump(u, 0.42, 0.52, 0.64, 0.74), up = bump(u, 0.76, 0.86, 0.92, 0.99);
-  const yaw = 38 * left - 38 * right, breathe = 0.5 - 0.5 * Math.cos(TAU * u * 2);
-  z.add('Head', [-14 * up + 2, yaw * 0.7, 3 * (left - right)]); z.add('Neck', [-8 * up, yaw * 0.4, 0]);
-  z.add('Spine2', [-3 * up + 1.5 * breathe, yaw * 0.12, 0]); z.add('Spine1', [1.2 * breathe, yaw * 0.06, 0]);
-  z.hang({ Arm: [0, 0, 1.5 * breathe] }, { Arm: [0, 0, 1.5 * breathe] });
-  return { pos: [0, 0.004 * breathe, 0] };
+  const yaw = 38 * left - 38 * right;
+  z.add('Head', [-14 * up, yaw * 0.7, 3 * (left - right)]); z.add('Neck', [-8 * up, yaw * 0.4, 0]);
+  z.add('Spine2', [-3 * up, yaw * 0.12, 0]); z.add('Spine1', [0, yaw * 0.06, 0]);
 });
 
 // idle_fidget: a stretch: up on the toes, both arms overhead, chest open, head back, then a shoulder roll on the way down
@@ -114,14 +113,14 @@ clip('sleep', { loop: true, seconds: 4, keys: 16 }, (u, z) => {
   z.add('Head', [10, 0, 6]); z.add('Neck', [6, 0, 0]);
   z.both('UpLeg', [-78, 0, 0]); z.both('Leg', [112, 0, 0]); z.both('Foot', [10, 0, 0]);
   z.L('Arm', [-40, 0, -58]); z.L('ForeArm', [0, -100, 0]); z.R('Arm', [0, -90, 8]); z.R('ForeArm', [0, -24, 0]); // the arm under it stretched forward along the floor, under the head
-  return { pos: [0, -0.29 + 0.003 * breath, 0], sy: 1 + 0.012 * breath };
+  return { pos: [0, -0.19 + 0.003 * breath, 0], sy: 1 + 0.012 * breath };
 });
 
 // ---- emotes ---------------------------------------------------------------------------------------------------------------------
 // wave: the right arm up and out, the forearm waving three times, the head tilting to it
 clip('wave', { loop: false, seconds: 1.6, keys: 32 }, (u, z) => {
   const up = bump(u, 0.08, 0.26, 0.82, 0.97), sw = Math.sin(TAU * 3 * clamp((u - 0.26) / 0.56, 0, 1)) * up;
-  z.hang(null, { Arm: [0, 0, 138 * up], ForeArm: [0, -6 * up, 28 * up + 24 * sw], Shoulder: [0, 0, 6 * up], Hand: [0, 0, 14 * sw] });
+  z.hang(false, { Arm: [0, 0, 138 * up], ForeArm: [0, -6 * up, 28 * up + 24 * sw], Shoulder: [0, 0, 6 * up], Hand: [0, 0, 14 * sw] });
   z.add('Head', [0, -6 * up, -7 * up]); z.add('Spine', [0, 0, -2 * up]); z.add('Spine2', [0, 0, 2 * up]);
   return {};
 });
@@ -139,7 +138,7 @@ clip('cheer', { loop: false, seconds: 1.4, keys: 28 }, (u, z) => {
 // laugh: head back, the shoulders shaking, one hand on the belly, a lean forward at the end
 clip('laugh', { loop: false, seconds: 1.6, keys: 40 }, (u, z) => {
   const on = bump(u, 0.05, 0.2, 0.82, 0.97), sh = Math.sin(TAU * 7 * u) * on;
-  z.hang({ Arm: [-8 * on, 0, 18 * on], ForeArm: [0, 6 * on, 0], Shoulder: [0, 0, 3 * sh] }, { Arm: [-42 * on, -38 * on, 16 * on], ForeArm: [0, -100 * on, 0], Shoulder: [0, 0, 3 * sh] });
+  z.hang(false, { Arm: [-42 * on, -38 * on, 16 * on], ForeArm: [0, -100 * on, 0], Shoulder: [0, 0, 3 * sh] });
   z.add('Head', [-16 * on + 2 * sh, 0, 0]); z.add('Neck', [-6 * on, 0, 0]); z.add('Spine', [-4 * on + 1.2 * sh, 0, 0]); z.add('Spine2', [-3 * on, 0, 0]);
   return { pos: [0, 0.006 * sh, 0] };
 });
@@ -147,7 +146,7 @@ clip('laugh', { loop: false, seconds: 1.6, keys: 40 }, (u, z) => {
 // point: the right arm straight ahead, the head and chest turn to it, a small step of weight
 clip('point', { loop: false, seconds: 1.2, keys: 24 }, (u, z) => {
   const on = bump(u, 0.08, 0.28, 0.76, 0.95), pop = win(u, 0.2, 0.4);
-  z.hang(null, { Arm: [0, -90 * on, 72 * on - 3 * pop], ForeArm: [0, 0, 0], Hand: [0, 0, 0], Shoulder: [0, 0, 4 * on] });
+  z.hang(false, { Arm: [0, -90 * on, 72 * on - 3 * pop], ForeArm: [0, 0, 0], Hand: [0, 0, 0], Shoulder: [0, 0, 4 * on] });
   z.add('Head', [0, -12 * on, 0]); z.add('Spine2', [0, -10 * on, 0]); z.add('Spine', [2 * on, -6 * on, 0]);
   return {};
 });
@@ -165,7 +164,7 @@ clip('clap', { loop: false, seconds: 1.6, keys: 40 }, (u, z) => {
 // thumbsup: the right forearm up with the thumb out, a nod
 clip('thumbsup', { loop: false, seconds: 1.2, keys: 24 }, (u, z) => {
   const on = bump(u, 0.08, 0.28, 0.74, 0.94), nod = win(u, 0.4, 0.62);
-  z.hang(null, { Arm: [-14 * on, -42 * on, 38 * on], ForeArm: [0, 0, 94 * on], Hand: [0, 10 * on, -16 * on], Shoulder: [0, 0, 3 * on] });
+  z.hang(false, { Arm: [-14 * on, -42 * on, 38 * on], ForeArm: [0, 0, 94 * on], Hand: [0, 10 * on, -16 * on], Shoulder: [0, 0, 3 * on] });
   z.add('Head', [10 * nod - 2 * on, 0, 0]); z.add('Spine1', [2 * on, 0, 0]);
   return {};
 });
@@ -221,10 +220,63 @@ export const landKeys = () => [[0, 1], [0.12, 0.82], [0.34, 1.05], [0.56, 0.98],
 /** The keys for a take-off: an 80 ms anticipation (a dip to 0.88), then the stretch as the feet leave. */
 export const jumpKeys = (seconds) => { const a = clamp(0.08 / seconds, 0.04, 0.45); return [[0, 1], [a, 0.88], [clamp(a + 0.3 * (1 - a), a + 0.05, 0.9), 1.07], [1, 1]]; };
 
+// ---- standing the way the library's idle stands -----------------------------------------------------------------------------------------
+// Our poses are small turns about the T-pose rest; the library's idle stands in its own posture (a little arch, the hips tilted, the knees
+// soft). A one-shot of ours that named the spine or a leg would pop to the rest posture when it fades in over that idle, so the body bones
+// (not the arms, which our poses write whole) are written on top of the library idle's first pose: q = ours * idle.
+const BASE_BONES = ['Hips', 'Spine', 'Spine1', 'Spine2', 'Neck', 'Head', 'LeftUpLeg', 'RightUpLeg', 'LeftLeg', 'RightLeg', 'LeftFoot', 'RightFoot'];
+const qmul = (a, b) => [a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1], a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0], a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3], a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]];
+const qeuler = (x, y, z) => { // Babylon's order (docs/animations.md 3): z, then x, then y
+  const e = (a, i) => { const h = a * D / 2, q = [0, 0, 0, Math.cos(h)]; q[i] = Math.sin(h); return q; };
+  return qmul(e(y, 1), qmul(e(x, 0), e(z, 2)));
+};
+const ARM_BONES = /^(Left|Right)(Shoulder|Arm|ForeArm|Hand)$/;
+const slerp = (a, b, k) => {
+  let d = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+  if (d < 0) { b = b.map((v) => -v); d = -d; }
+  if (d > 0.9995) { const q = a.map((v, i) => v + (b[i] - v) * k), l = Math.hypot(...q); return q.map((v) => v / l); }
+  const th = Math.acos(d), sn = Math.sin(th), x = Math.sin((1 - k) * th) / sn, y = Math.sin(k * th) / sn;
+  return a.map((v, i) => v * x + b[i] * y);
+};
+const r4 = (x) => Math.round(x * 10000) / 10000;
+/**
+ * Writes our clip on top of the library idle (a loop of ours replaces the idle, a one-shot plays over it, so either would pop to the T-pose
+ * rest or to our own stance): the body bones are ours composed with the idle's first pose, the chest chain is always named so it stays one
+ * line, and the arms of a one-shot ease in from the idle's over 0.2 s and back out (`slerp` by an envelope), so where the clip is not
+ * using an arm it is where the idle has it.
+ */
+function onIdle(ours, idle) {
+  if (!idle) return;
+  const base = (bone) => { const k = idle.tracks[bone] && idle.tracks[bone].q && idle.tracks[bone].q[0]; return k ? [k[1], k[2], k[3], k[4]] : null; };
+  const keysOf = (tr) => (tr.rot || []).map((k) => k[0]);
+  const times = Object.values(ours.tracks).map((tr) => keysOf(tr)).find((t) => t.length) || [0, 1];
+  const ramp = ours.loop ? 0 : Math.min(0.25, 0.2 / ours.seconds);
+  const env = (u) => (ours.loop ? 1 : rise(u, 0, ramp) * (1 - rise(u, 1 - ramp, 1)));
+  const eul = (tr, i) => qeuler(tr.rot[i][1], tr.rot[i][2], tr.rot[i][3]);
+  for (const bone of ['Spine', 'Spine1', 'Spine2', 'Neck', 'Head']) if (!ours.tracks[bone] && base(bone)) ours.tracks[bone] = { rot: times.map((t) => [t, 0, 0, 0]) };
+  for (const [bone, tr] of Object.entries(ours.tracks)) {
+    const b = base(bone);
+    if (!b || !tr.rot) continue;
+    let prev = null;
+    const out = tr.rot.map((k, i) => {
+      let q;
+      if (BASE_BONES.includes(bone)) q = qmul(eul(tr, i), b);
+      else if (ARM_BONES.test(bone) && !ours.loop) q = slerp(b, eul(tr, i), env(k[0]));
+      else return null;
+      if (prev && q[0] * prev[0] + q[1] * prev[1] + q[2] * prev[2] + q[3] * prev[3] < 0) q = q.map((v) => -v);
+      prev = q;
+      return [k[0], r4(q[0]), r4(q[1]), r4(q[2]), r4(q[3])];
+    });
+    if (out.every(Boolean)) { tr.q = out; delete tr.rot; }
+  }
+}
+
 export function build(file = FILE) {
   const data = JSON.parse(fs.readFileSync(file, 'utf8'));
   for (const [name, c] of Object.entries(data.clips)) if (c.own) delete data.clips[name]; // regenerate ours, keep the library's
-  Object.assign(data.clips, clips);
+  const fresh = JSON.parse(JSON.stringify(clips));
+  for (const c of Object.values(fresh)) onIdle(c, data.clips.idle && data.clips.idle.source ? data.clips.idle : null);
+  Object.assign(data.clips, fresh);
   const squash = [['land', landKeys()], ['jump_start', null]];
   for (const [name, keys] of squash) {
     const c = data.clips[name];
