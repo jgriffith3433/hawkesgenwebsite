@@ -8,14 +8,14 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
-const calls: { path: string; body: any }[] = [];
+const calls: { path: string; body: any; project?: string }[] = [];
 let openRooms = new Set<string>();
 const fakeGen = http.createServer(async (req, res) => {
   const chunks: Buffer[] = [];
   for await (const c of req) chunks.push(c);
   const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}') : null;
   const url = new URL(req.url!, 'http://gen');
-  calls.push({ path: url.pathname, body });
+  calls.push({ path: url.pathname, body, project: req.headers['x-hawkesgen-project'] as string | undefined });
   const json = (status: number, b: unknown) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(b)); };
   if (url.pathname === '/v1/events') { res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.write(': hi\n\n'); return; }
   if (url.pathname === '/v1/net/status') return json(200, { up: true });
@@ -98,4 +98,35 @@ test("the play page's CSP lets games reach Gen's relay", () => {
   const csp = playCsp('n');
   const connect = csp.split(';').find((d: string) => d.trim().startsWith('connect-src'))!;
   assert.match(connect, /ws:\/\/127\.0\.0\.1:\d+/, 'the node inside Gen');
+});
+
+test('the public demo (/net) gets a peer-to-peer room of its own, light, up to 8 before the relay', async () => {
+  const j = await (await ticket({ play: 'net-demo', room: 'demo1234', name: 'Ada' })).json();
+  assert.equal(j.room, 'd/demo1234');
+  assert.equal(j.echo.transport, 'auto');
+  assert.equal(j.echo.config.profile, 'light');
+  assert.equal(j.echo.config.p2pMax, 8);
+  assert.equal((await ticket({ play: 'net-demo', room: 'no' })).status, 400);
+});
+
+test("a customer's server gets a ticket in its own Hawkes Net project with its API key; no key, no ticket", async () => {
+  const users = await import('../src/users.ts');
+  const u: any = await users.createAccount({ email: 'net-customer@example.com', password: 'a long password 1' });
+  const user = u.user ?? u;
+  const { apiKey } = users.mintApiKey(user.id);
+  const post = (body: any, key?: string) => fetch(`${base}/v1/net/rooms/ticket`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: `Bearer ${key}` } : {}) }, body: JSON.stringify(body) });
+  assert.equal((await post({ room: 'lobby' })).status, 401);
+  calls.length = 0;
+  const r = await post({ room: 'lobby', name: 'Ada', transport: 'relay', role: 'spectator', config: { maxPlayers: 64, evil: 1 } }, apiKey);
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.equal(j.ticket, 'hn1.x.y');
+  assert.equal(j.echo.project, user.project, "the customer's own project");
+  assert.equal(j.echo.room, 'lobby');
+  assert.equal(j.echo.transport, 'relay');
+  assert.equal(j.echo.role, 'spectator');
+  assert.equal(j.echo.config.maxPlayers, 64);
+  assert.equal(j.echo.config.evil, undefined, 'only the known room settings pass');
+  assert.equal(calls.find((c) => c.path === '/v1/net/ticket')!.project, user.project, 'the portal key narrowed to their project');
+  assert.equal((await post({ room: '../x y' }, apiKey)).status, 400);
 });
