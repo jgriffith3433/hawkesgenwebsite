@@ -96,3 +96,26 @@ test('sandbox: the tour asks for the Overseer in the chat, and passes that step 
   // are the harness's, not the game's.)
   assert.deepEqual([...errors, ...errorBox()].filter((e) => !/^quests: Cannot (read|set) properties of (null|undefined)/.test(e)), []);
 });
+
+test('sandbox: the tour tracker shows the step, the count, a hint after 20 s and a flourish', () => {
+  const game = start();
+  H.tick(3);
+  const q = game.events.quests;
+  if (q.state('tour') !== 'active') q.start('tour');
+  H.tick(0.5);
+  const el = () => game.ui.el('tour-track');
+  assert.ok(el() && !el().hidden, 'the tracker is up');
+  assert.match(el().children[1].textContent, /Drive the 4x4 to the dock/);
+  assert.match(el().children[0].textContent, /1 of 7/);
+  assert.ok(!el().classList.contains('hint'), 'no hint yet');
+  H.tick(21);
+  assert.ok(el().classList.contains('hint'), 'a hint after 20 s');
+  assert.ok(el().children[2].textContent.length > 10);
+  q.advance('tour');
+  H.tick(0.5);
+  assert.match(el().children[0].textContent, /2 of 7/);
+  assert.ok(el().classList.contains('flash'), 'a flourish');
+  assert.ok(!el().classList.contains('hint'), 'the hint starts over');
+  // (The quest module's screen-edge arrow needs a real DOM's lastChild: the fake one has none.)
+  assert.deepEqual([...errors, ...errorBox()].filter((e) => !/^quests: .*textContent/.test(e)), []);
+});

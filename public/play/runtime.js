@@ -2164,7 +2164,7 @@
     if (o.mode) mode = o.mode;
     document.title = b.title ? `${b.title} · Hawkes Play` : 'Hawkes Play';
     const loading = $('loading');
-    if (loading) loading.hidden = true;
+    if (loading) { if (window.HawkesLoadScreen) window.HawkesLoadScreen.done(); else loading.hidden = true; }
     // Warm the sound cache so the first effect plays on time.
     for (const [, a] of Object.entries(b.assets || {})) if (/^audio\//.test(a.mime || '') && a.url) fetch(a.url).catch(() => {});
     try { start({ newScene: true }); } catch (e) { report(e); } // a new bundle: its own world
