@@ -11,7 +11,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
 test('the playtest files are valid modules', () => {
-  for (const f of ['portal.js', 'hawkes-playtest.js', 'hawkes-perf.js']) {
+  for (const f of ['portal.js', 'site-layout.js', 'hawkes-playtest.js', 'hawkes-perf.js']) {
     const r = spawnSync(process.execPath, ['--check', path.join(ROOT, 'public', 'playtest', f)], { encoding: 'utf8' });
     assert.equal(r.status, 0, `${f}: ${r.stderr}`);
   }
@@ -20,8 +20,8 @@ test('the playtest files are valid modules', () => {
 test('the scenarios are the ones AGENTS.md documents', () => {
   const src = read('public/playtest/portal.js');
   const agents = read('AGENTS.md');
-  for (const id of ['smoke', 'sandbox-first-minutes', 'sandbox-chapter-one', 'island-race', 'island-journal', 'sandbox-progress']) {
-    assert.ok(src.includes(`id: '${id}'`), `${id} is a scenario`);
+  for (const id of ['smoke', 'sandbox-first-minutes', 'sandbox-chapter-one', 'island-race', 'island-journal', 'sandbox-progress', 'site-layout']) {
+    assert.ok(src.includes(`id: '${id}'`) || (id === 'site-layout' && read('public/playtest/site-layout.js').includes(`id: '${id}'`)), `${id} is a scenario`);
     assert.ok(agents.includes(id), `${id} is in AGENTS.md`);
   }
   assert.ok(src.includes("product: 'hawkesgenwebsite'"));
@@ -38,4 +38,13 @@ test('a playtest never signs up on live', () => {
   const src = read('public/playtest/portal.js');
   assert.match(src, /isLive\(\)/);
   assert.match(src, /health\.mail/);
+});
+
+test('site-layout: three sizes, the checklist in AGENTS.md, horizontal scroll fails the run', () => {
+  const src = read('public/playtest/site-layout.js');
+  for (const size of ['390x844', '768x1024', '1440x900']) assert.ok(src.includes(size), size);
+  assert.match(src, /throw new Error\(`horizontal scroll/);
+  assert.match(read('public/playtest/portal.js'), /runSiteLayout\(t, options\)/);
+  assert.match(read('AGENTS.md'), /The landing page checklist/);
+  assert.match(read('public/overseer-sky.js'), /hero\.dataset\.overseer/);
 });
