@@ -515,3 +515,184 @@ test('the docs say how it works: the format, the rest-pose handling, the registr
   assert.ok(eng.includes('presence-anim.js') && eng.includes('P.anim'), 'engine-modules.md');
   void STANDIN_FOR; void loopClip;
 });
+
+// ------------------------------------------------------------------ the quadruped set (docs/animations.md 2B)
+// name -> [loops, seconds] as the table lists them
+const QUAD_SET: Record<string, [boolean, number]> = {
+  idle: [true, 3], idle_sniff: [true, 3], idle_fidget: [false, 2], walk: [true, 1], trot: [true, 0.7], run: [true, 0.5],
+  jump_start: [false, 0.25], jump: [true, 0.7], land: [false, 0.3], fall: [true, 0.9], swim: [true, 0.9], sit: [true, 4],
+  lie_down: [false, 0.8], sleep: [true, 4], drive: [true, 2], wave: [false, 1.6], dance: [true, 2.4], cheer: [false, 1.4],
+  laugh: [false, 1.6], point: [false, 1.2], clap: [false, 1.6], thumbsup: [false, 1.2], heart: [false, 1.6], bark: [false, 0.8],
+  shake_off: [false, 1.2], shrug: [false, 1.2], hurt: [false, 0.5], knock_down: [false, 0.9], get_up: [false, 1.0],
+};
+const quadSet = () => A.setOf('quadruped');
+/** The playing rotation of a bone in a clip at u, as an angle from rest (degrees). */
+const turnOf = (clip: any, bone: string, u: number) => { const v = A.sampleClip(clip, u).get(bone); return v && v.q ? A.q.angle(v.q) : 0; };
+const rxOf = (clip: any, bone: string, u: number) => { const v = A.sampleClip(clip, u).get(bone); if (!v || !v.q) return 0; const [x, , , w] = v.q; return 2 * Math.atan2(x, w) * 180 / Math.PI; };
+const corr = (a: number[], b: number[]) => { const n = a.length, ma = a.reduce((s, x) => s + x, 0) / n, mb = b.reduce((s, x) => s + x, 0) / n; let ab = 0, aa = 0, bb = 0; for (let i = 0; i < n; i++) { ab += (a[i] - ma) * (b[i] - mb); aa += (a[i] - ma) ** 2; bb += (b[i] - mb) ** 2; } return ab / Math.sqrt(aa * bb || 1); };
+const ticks = Array.from({ length: 48 }, (_, i) => i / 48);
+
+test('the quadruped set has every clip of the table, with its loop flag and length, and the file is sound', () => {
+  const have = Object.keys(FILES.quadruped.clips).sort(), want = Object.keys(QUAD_SET).sort();
+  assert.deepEqual(have, want, 'exactly the 29 clips of docs/animations.md 2B');
+  for (const [name, [loop, seconds]] of Object.entries(QUAD_SET)) {
+    const c = FILES.quadruped.clips[name];
+    assert.equal(c.loop, loop, `${name}: loop`);
+    assert.ok(Math.abs(c.seconds - seconds) < 1e-9, `${name}: ${seconds} s`);
+  }
+  assert.deepEqual(A.setOf('quadruped').problems, [], 'no problems in the file');
+  assert.ok(fs.statSync(path.join(ROOT, 'public/play/anim/quadruped.json')).size < 160000, 'the class file stays small (one fetch a class)');
+});
+
+test('quadruped loops close: the last frame runs into the first, and a one-shot that ends at rest ends there', () => {
+  for (const [name, [loop]] of Object.entries(QUAD_SET)) {
+    const c = quadSet().clips[name];
+    if (loop) {
+      for (const tr of c.tracks) {
+        const a = A.sampleClip({ ...c, tracks: [tr] }, 0).get(tr.bone), b = A.sampleClip({ ...c, tracks: [tr] }, 0.9999).get(tr.bone);
+        if (a.q) assert.ok(A.q.angle(A.q.mul(a.q, A.q.inv(b.q))) < 2, `${name}.${tr.bone}: the turn closes`);
+        for (const k of ['p', 's'] as const) if (a[k]) a[k].forEach((x: number, i: number) => assert.ok(Math.abs(x - b[k][i]) < 0.01, `${name}.${tr.bone}.${k}: closes`));
+      }
+    }
+  }
+  // the emotes and the takes that come back to standing (the rest of the one-shots end lying, up in the air or on the move)
+  for (const name of ['land', 'wave', 'cheer', 'laugh', 'point', 'clap', 'thumbsup', 'heart', 'bark', 'shake_off', 'shrug', 'hurt', 'get_up', 'idle_fidget']) {
+    const c = quadSet().clips[name];
+    for (const tr of c.tracks) {
+      const v = A.sampleClip({ ...c, tracks: [tr] }, 1).get(tr.bone);
+      if (v.q) assert.ok(A.q.angle(v.q) < 1.5, `${name}.${tr.bone}: ends at rest (${A.q.angle(v.q).toFixed(2)} degrees)`);
+      if (v.p) v.p.forEach((x: number) => assert.ok(Math.abs(x) < 0.004, `${name}.${tr.bone}: ends in place`));
+      if (v.s) v.s.forEach((x: number) => assert.ok(Math.abs(x - 1) < 0.004, `${name}.${tr.bone}: ends at its size`));
+    }
+  }
+  // lying down ends where sleep starts, and getting up starts where the knock-down ends
+  const near = (a: string, ua: number, b: string, ub: number, tol = 4) => { const A1 = A.sampleClip(quadSet().clips[a], ua), B1 = A.sampleClip(quadSet().clips[b], ub); for (const bone of new Set([...A1.keys(), ...B1.keys()])) { const x = (A1.get(bone) || { q: [0, 0, 0, 1] }).q, y = (B1.get(bone) || { q: [0, 0, 0, 1] }).q; if (x && y && /^Leg|^Root|^Body/.test(bone)) assert.ok(A.q.angle(A.q.mul(x, A.q.inv(y))) < tol, `${a} to ${b}: ${bone} is where the next clip starts`); } };
+  near('lie_down', 1, 'sleep', 0, 14);
+  near('knock_down', 1, 'get_up', 0, 6);
+});
+
+test('quadruped clips keep volume when they squash and stretch', () => {
+  for (const name of Object.keys(QUAD_SET)) for (const u of ticks) for (const [bone, v] of A.sampleClip(quadSet().clips[name], u)) if (v.s) {
+    const vol = v.s[0] * v.s[1] * v.s[2];
+    assert.ok(Math.abs(vol - 1) < 0.015, `${name} ${bone} at ${u.toFixed(2)}: volume ${vol.toFixed(3)}`);
+    assert.ok(v.s.every((x: number) => x > 0.8 && x < 1.2), `${name} ${bone}: a believable squash`);
+  }
+});
+
+test('the gaits: a walk and a trot are diagonal pairs, a run is a gallop (the hind pair against the front pair, the back stretching 1.1)', () => {
+  const seq = (name: string, bone: string) => ticks.map((u) => rxOf(quadSet().clips[name], bone, u));
+  const lag = (a: number, b: number) => { const d = Math.abs(a - b) % 1; return Math.min(d, 1 - d); };
+  for (const name of ['walk', 'trot']) {
+    const c = quadSet().clips[name], when = Object.fromEntries(c.events.map((e: any) => [e.foot, e.t]));
+    assert.ok(lag(when.FL, when.BR) <= 0.15 && lag(when.FR, when.BL) <= 0.15, `${name}: the left front lands with the right hind, the right front with the left hind (${JSON.stringify(when)})`);
+    assert.ok(Math.abs(lag(when.FL, when.FR) - 0.5) < 0.05 && Math.abs(lag(when.BL, when.BR) - 0.5) < 0.05, `${name}: the two sides take turns, half a cycle apart`);
+    const FL = seq(name, 'LegFL');
+    assert.ok(Math.max(...FL) - Math.min(...FL) > 18, `${name}: the legs really swing (${(Math.max(...FL) - Math.min(...FL)).toFixed(0)} degrees)`);
+    assert.equal(c.loop, true);
+  }
+  const trotWhen = Object.fromEntries(quadSet().clips.trot.events.map((e: any) => [e.foot, e.t])), walkWhen = Object.fromEntries(quadSet().clips.walk.events.map((e: any) => [e.foot, e.t]));
+  assert.ok(lag(trotWhen.FL, trotWhen.BR) < 0.03, 'a trot lands the pair together');
+  assert.ok(lag(walkWhen.FL, walkWhen.BR) > 0.08, 'a walk lets the hind foot follow the front one (four beats)');
+  const run = quadSet().clips.run, front = seq('run', 'LegFL'), hind = seq('run', 'LegBL');
+  assert.ok(corr(front, hind) < -0.7, `a gallop: the front pair reaches while the hind pair pushes (${corr(front, hind).toFixed(2)})`);
+  assert.ok(corr(seq('run', 'LegFL'), seq('run', 'LegFR')) > 0.9 && corr(seq('run', 'LegBL'), seq('run', 'LegBR')) > 0.9, 'the pairs bound together');
+  assert.ok(Math.max(...front) - Math.min(...front) > 50 && Math.max(...hind) - Math.min(...hind) > 50, 'a big stride');
+  const sz = ticks.map((u) => A.sampleClip(run, u).get('Body').s[2]);
+  assert.ok(Math.max(...sz) >= 1.095 && Math.max(...sz) <= 1.11 && Math.min(...sz) < 1, `the back stretches 1.1 (${Math.max(...sz).toFixed(3)}) and gathers`);
+  const ry = ticks.map((u) => A.sampleClip(run, u).get('Root').p[1]);
+  assert.ok(Math.max(...ry) - Math.min(...ry) > 0.05, 'the whole body rises and falls in the flights');
+  // the cycle's own times: walk 1.0, trot 0.7, run 0.5 seconds, and a faster gait is a shorter cycle
+  assert.ok(quadSet().clips.walk.seconds > quadSet().clips.trot.seconds && quadSet().clips.trot.seconds > run.seconds);
+});
+
+test('footsteps: four a cycle on the walk, the trot and the run, one for each foot, at the moment it lands', () => {
+  for (const name of ['walk', 'trot', 'run']) {
+    const ev = quadSet().clips[name].events;
+    assert.equal(ev.length, 4, `${name}: four footsteps`);
+    assert.ok(ev.every((e: any) => e.name === 'footstep'), `${name}: they are footsteps`);
+    assert.deepEqual(ev.map((e: any) => e.foot).sort(), ['BL', 'BR', 'FL', 'FR'], `${name}: each foot once`);
+  }
+  // the walk's foot is forward (landing) when its step is told: its leg is at the front of its swing
+  const walk = quadSet().clips.walk;
+  for (const e of walk.events) {
+    const bone = `Leg${e.foot}`, now = rxOf(walk, bone, e.t), later = rxOf(walk, bone, (e.t + 0.2) % 1);
+    assert.ok(later > now + 2, `${e.foot} is carried back once it lands (${now.toFixed(1)} then ${later.toFixed(1)} degrees)`);
+  }
+  const seen: string[] = []; const pl = new A.Player(quadSet());
+  for (let i = 0; i < 120; i++) pl.update(1 / 60, { name: 'trot', rate: 1 }, null, (ev: any) => seen.push(ev.foot));
+  assert.ok(seen.length >= 4 * Math.floor(2 / 0.7) - 1, `two seconds of trot tell ${seen.length} footsteps`);
+});
+
+for (const id of QUADS) {
+  test(`${id}: every clip of the quadruped set binds to its bones and plays without breaking the body`, () => {
+    const model = glbTree(id), b = A.bind([model], 'quadruped', { unit: 1 });
+    assert.ok(b.fit, `${id} fits the class`);
+    const rest = new Map<string, number[]>();
+    A.apply(b, new Map());
+    for (const n of b.bones.keys()) rest.set(n, at(b, n).asArray());
+    const height = Math.max(...[...rest.values()].map((p) => p[1])) * 1.3;
+    for (const [name, c] of Object.entries<any>(quadSet().clips)) {
+      for (const tr of c.tracks) assert.ok(b.bones.has(tr.bone), `${id}: ${name} names ${tr.bone}: the model has it`);
+      for (const u of [0, 0.25, 0.5, 0.75, 1]) {
+        A.apply(b, A.sampleClip(c, Math.min(u, 0.9999)));
+        for (const n of b.bones.keys()) {
+          const p = at(b, n).asArray();
+          assert.ok(p.every(Number.isFinite), `${id} ${name} ${u}: ${n} is a place`);
+          assert.ok(Math.hypot(p[0] - rest.get(n)![0], p[1] - rest.get(n)![1], p[2] - rest.get(n)![2]) < height * 1.6, `${id} ${name} ${u}: ${n} stays with the body (${p.map((x: number) => x.toFixed(2)).join(',')})`);
+        }
+        // the head is never inside the ground and the feet never past the middle of the body
+        assert.ok(at(b, 'Head').y > 0.05, `${id} ${name} ${u}: the head is up`);
+      }
+    }
+    A.apply(b, new Map());
+    model.dispose();
+  });
+}
+
+test('the dog plays every role from the set: walk, trot and run by speed, jump, fall, swim, drive, and sit and sleep as emotes', () => {
+  const dog = glbTree('dog');
+  const pm: any = { ent: { rig: 'quadruped', form: 'quadruped', h: 0.95, stride: { walk: 0.95, trot: 1.9, run: 3.23 } }, k: 1, anim: { cls: 'quadruped', player: null, binds: new Map(), state: 'loading', events: [] } };
+  const lvl = { roots: [dog] };
+  const rig: any = {};
+  const play = (role: string, speed = 0, em: any = null, seconds = 0.6) => {
+    let out: any = null;
+    for (let i = 0; i < seconds * 60; i++) out = A.drive(rig, pm, lvl, { dt: 1 / 60, role, em, speed, glb: false, glbEmote: false, took: false, landed: false, stride: pm.ent.stride });
+    const top = pm.anim.player.loops[pm.anim.player.loops.length - 1];
+    return { out, loop: top && top.name, rate: top && top.rate, shot: pm.anim.player.shots.map((s: any) => s.name) };
+  };
+  assert.equal(play('idle').loop, 'idle');
+  assert.equal(play('walk', 1.4).loop, 'walk', 'a walking pace walks');
+  assert.equal(play('walk', 3.0).loop, 'trot', 'a quicker one trots');
+  assert.equal(play('run', 6).loop, 'run');
+  assert.equal(play('jump', 2).loop, 'jump');
+  assert.equal(play('fall', 2).loop, 'fall');
+  assert.equal(play('swim', 1).loop, 'swim');
+  assert.equal(play('drive', 0).loop, 'drive');
+  assert.ok(play('walk', 3.0).rate > 0.4 && play('walk', 3.0).rate <= 2.5, 'the cycle follows the speed');
+  for (const name of ['sit', 'sleep', 'wave', 'dance', 'cheer', 'laugh', 'point', 'clap', 'thumbsup', 'heart', 'shrug']) {
+    const r = play('idle', 0, { def: { name } }, 0.5);
+    assert.ok(r.out && r.out.driven && r.out.emote, `${name}: played from the set as an emote`);
+    assert.ok(r.shot.includes(name), `${name}: a one-shot (or a held loop) over the idle`);
+    play('idle', 0, null, 0.5);
+  }
+  // it moves its bones: a sit sits (the hind legs fold forward), a walk swings the legs
+  A.apply(pm.anim.binds.get(lvl), new Map());
+  play('idle', 0, { def: { name: 'sit' } }, 0.8);
+  const b = pm.anim.binds.get(lvl);
+  assert.ok(at(b, 'LegBLTip').z > at(b, 'LegBL').z + 0.02 || Math.abs(at(b, 'LegBL').y - 0.4) > 0.02, 'the sit moved the hind legs');
+  dog.dispose();
+});
+
+test('standing still, the dog now and then sniffs (a loop of three seconds) or fidgets (a one-shot), and a step cancels it', () => {
+  const dog = glbTree('dog');
+  const pm: any = { ent: { rig: 'quadruped', form: 'quadruped', h: 0.95, stride: { walk: 0.95, trot: 1.9, run: 3.23 } }, k: 1, anim: { cls: 'quadruped', player: null, binds: new Map(), state: 'loading', events: [] } };
+  const lvl = { roots: [dog] }, rig: any = {};
+  const names = new Set<string>();
+  const step = (role: string, speed = 0) => { A.drive(rig, pm, lvl, { dt: 0.05, role, em: null, speed, glb: false, glbEmote: false, took: false, landed: false, stride: pm.ent.stride }); for (const L of pm.anim.player.loops) names.add(L.name); for (const S of pm.anim.player.shots) names.add(S.name); };
+  const real = Math.random; let n = 12345; Math.random = () => { n = (Math.imul(n, 1103515245) + 12345) >>> 0; return (n >>> 8) / 16777216; }; // (waits and picks that vary)
+  try { for (let i = 0; i < 60 * 20 * 3; i++) step('idle'); } finally { Math.random = real; }
+  assert.ok(names.has('idle_sniff') && names.has('idle_fidget'), `both idle variations played in a minute standing (${[...names].join(', ')})`);
+  step('walk', 1.4);
+  assert.ok(!pm.anim.take, 'moving cancels a fidget');
+  dog.dispose();
+});

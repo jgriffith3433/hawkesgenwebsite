@@ -37,6 +37,8 @@ class Pose {
   s(b, x = 1, y = 1, z = 1) { const o = (this.scl[b] = this.scl[b] || [1, 1, 1]); o[0] *= x; o[1] *= y; o[2] *= z; return this; }
   /** Squash and stretch about Root that keeps volume and the feet down: k is the height (0.9 squashes, 1.1 stretches). */
   squash(k) { const w = 1 / Math.sqrt(k); return this.s('Root', w, k, w).p('Root', 0, -RR * (1 - k), 0); }
+  /** Scales a bone along one axis (y) by k and the others by 1 / sqrt(k): the volume stays. */
+  vol(b, k) { const w = 1 / Math.sqrt(k); return this.s(b, w, k, w); }
   /** The four legs turned by the same amount (to undo what Body's pitch did to them: keep(-pitch)). */
   legs(x = 0, y = 0, z = 0) { for (const l of LEGS) this.r(l, x, y, z); return this; }
 }
@@ -193,10 +195,11 @@ clip('lie_down', { loop: false, seconds: 0.8, n: 24 }, (u, p) => {
   // sits, then slides the front legs out and the belly to the ground, the head last
   const a = smooth(u / 0.45), b = smooth((u - 0.35) / 0.65);
   p.r('Body', -38 * a + 38 * b, 0, 0).legs(38 * a - 38 * b);
-  p.r('LegBL', -42 * a - 22 * b, 0, OUT.LegBL * (14 * a + 22 * b)).r('LegBR', -42 * a - 22 * b, 0, OUT.LegBR * (14 * a + 22 * b));
-  p.r('LegFL', -86 * b, 0, OUT.LegFL * 8 * b).r('LegFR', -86 * b, 0, OUT.LegFR * 8 * b);
+  p.r('LegBL', -42 * a - 24 * b, 0, OUT.LegBL * (14 * a + 34 * b)).r('LegBR', -42 * a - 24 * b, 0, OUT.LegBR * (14 * a + 34 * b));
+  p.r('LegFL', -86 * b, 0, OUT.LegFL * 26 * b).r('LegFR', -86 * b, 0, OUT.LegFR * 26 * b);
   p.p('Root', 0, -0.045 * a - 0.08 * b, 0);
-  p.r('Head', 12 * a - 4 * b + 8 * env(u, 0.6, 0.85, 0.9, 1), 0, 0);
+  const h = smooth((u - 0.5) / 0.5);                           // the head comes round last: it ends as sleep begins
+  p.r('Head', 12 * a * (1 - h) + 20 * h, 70 * h, 10 * h).r('Body', 0, 6 * h, 0);
 });
 clip('sleep', { loop: true, seconds: 4, n: 16 }, (u, p) => {
   // on the belly, the legs tucked, the head turned back with the nose on the tail; a slow breath
@@ -245,7 +248,7 @@ clip('laugh', { loop: false, seconds: 1.6, n: 40 }, (u, p) => {
   // head back and the whole chest shaking in a bark-pant, the body bobbing on every beat
   const e = env(u, 0, 0.14, 0.82, 1), pant = sin(u * 1.6, 6.5, 0);
   p.r('Head', -34 * e + 5 * pant * e, 0, 4 * e).r('Body', -7 * e + 2.2 * pant * e, 0, 0).legs(7 * e);
-  p.s('Body', 1, 1 + 0.025 * pant * e, 1).p('Body', 0, 0.007 * Math.abs(pant) * e, 0).p('Root', 0, 0.003 * pant * e, 0);
+  p.vol('Body', 1 + 0.025 * pant * e).p('Body', 0, 0.007 * Math.abs(pant) * e, 0).p('Root', 0, 0.003 * pant * e, 0);
   p.r('Body', 0, 8 * sin(u * 1.6, 3.25, 0) * e, 0).r('Head', 0, -5 * sin(u * 1.6, 3.25, 0) * e, 0);
 });
 clip('point', { loop: false, seconds: 1.2, n: 24 }, (u, p) => {
@@ -269,7 +272,7 @@ clip('thumbsup', { loop: false, seconds: 1.2, n: 48 }, (u, p) => {
   const e = env(u, 0, 0.12, 0.8, 1), wag = sin(u * 1.2, 7, 0);
   p.r('Body', -3 * e, 14 * wag * e, 0).r('Head', 0, -10 * wag * e, 0).r('Root', 0, -3 * wag * e, 0).legs(3 * e);
   p.r('Head', 12 * Math.max(0, sin(u, 2, 0.1)) * e + (-4 * e), 0, 0);
-  p.s('Body', 1, 1 + 0.015 * e, 1);
+  p.vol('Body', 1 + 0.015 * e);
 });
 clip('heart', { loop: false, seconds: 1.6, n: 40 }, (u, p) => {
   // a play-bow, chest to the ground and the rump and tail high, spinning round once
@@ -298,7 +301,7 @@ clip('shrug', { loop: false, seconds: 1.2, n: 24 }, (u, p) => {
   // a head tilt, one ear down, a small sigh: the chest drops, the head looks off to the side
   const e = env(u, 0, 0.25, 0.7, 1), sigh = env(u, 0.45, 0.6, 0.65, 0.85);
   p.r('Head', 6 * e, 12 * e, 16 * e).r('Body', 0, 0, 1.5 * e);
-  p.s('Body', 1 + 0.02 * e, 1 - 0.03 * sigh - 0.01 * e, 1 + 0.02 * e).p('Root', 0, -0.012 * sigh, 0);
+  p.vol('Body', 1 - 0.03 * sigh - 0.01 * e).p('Root', 0, -0.012 * sigh, 0);
 });
 clip('hurt', { loop: false, seconds: 0.5, n: 20 }, (u, p) => {
   // a yelp: it jerks back and tucks, the legs in, the head down; it settles with a small bounce
