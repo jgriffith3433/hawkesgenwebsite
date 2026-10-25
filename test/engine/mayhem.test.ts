@@ -285,3 +285,56 @@ test('playing alone, an explosion is decided here: things are pushed and an expl
   assert.ok(crate.x > 1.3, 'pushed');
   assert.ok(ev && ev.authoritative && ev.radius === 4 && Array.isArray(ev.position), 'the explosion event (for terrain craters and others)');
 });
+
+// ------------------------------------------------------------------ game feel (mayhem-feel.js; the numbers are in mayhem-math.js)
+test('feel math: sound arrives later with distance, a chain rolls in order with a gap, the show shrinks along a chain', () => {
+  assert.equal(M.soundDelay(0), 0);
+  assert.ok(M.soundDelay(85) > 0.45 && M.soundDelay(85) < 0.55, 'about half a second at 85 m');
+  assert.equal(M.soundDelay(5000), 1.1, 'never later than the cap');
+  // A row of ten barrels 1.2 m apart, all hurt at once by the first blast.
+  const dists = Array.from({ length: 10 }, (_, i) => i * 1.2);
+  const t = M.chainSchedule(dists);
+  for (let i = 1; i < t.length; i++) assert.ok(t[i] - t[i - 1] >= 0.119, `gap ${i}: ${t[i] - t[i - 1]}`);
+  assert.ok(t[9] <= 2.4, 'the whole roll within the cap');
+  assert.ok(t[0] < 0.2, 'the first goes almost at once');
+  // The order follows distance, not the order they were listed in.
+  const shuffled = M.chainSchedule([6, 0, 3]);
+  assert.ok(shuffled[1] < shuffled[2] && shuffled[2] < shuffled[0], JSON.stringify(shuffled));
+  // Many barrels: the gap shrinks to fit the cap, but they are still apart.
+  const many = M.chainSchedule(Array.from({ length: 40 }, (_, i) => i), { cap: 2 });
+  assert.ok(Math.max(...many) <= 2 && new Set(many).size === 40, 'forty barrels stay apart inside 2 s');
+  // Detail: the first blast is full; later ones and busy scenes and phones make less, never nothing.
+  assert.deepEqual(M.detail(0, 0, 0), { k: 1, light: true, embers: true, ring: true });
+  const later = M.detail(5, 20, 1);
+  assert.ok(later.k < 0.3 && later.k >= 0.12 && !later.light, JSON.stringify(later));
+  assert.ok(M.detail(0, 0, 1).k < M.detail(0, 0, 0).k, 'a phone makes less');
+  assert.ok(M.detail(3, 0, 0).k < M.detail(1, 0, 0).k, 'later in the chain makes less');
+  // Layers: far blasts are late, quiet and dull; the crack goes first, the rumble last.
+  const near = M.boomLayers(5, 5), far = M.boomLayers(5, 60);
+  assert.ok(far.crack.delay > near.crack.delay && far.crack.gain < near.crack.gain && far.boom.cutoff <= near.boom.cutoff);
+  assert.ok(near.crack.delay < near.boom.delay && near.boom.delay < near.rumble.delay);
+  assert.ok(M.emberCount(8, 1) > M.emberCount(3, 1) && M.emberCount(8, 0) === 0);
+  const kick = M.launcherKick(1);
+  assert.ok(kick.model > 1 && kick.flash < 0.1 && kick.camera > 0);
+});
+
+test('a ten-barrel row goes off one after another, inside the effects budget', () => {
+  const row: Record<string, any> = {};
+  for (let i = 0; i < 10; i++) row[`b${i}`] = { type: 'barrel', transform: { position: [i * 1.3, 0.6, 0] } };
+  const g = play(row);
+  H.tick(0.5);
+  const when: number[] = [];
+  g.on('explosion', () => when.push(H.world.time));
+  H.mayhem.feel.reset();
+  g.damage(g.entity('b0'), 50);
+  H.tick(5);
+  assert.equal(count('boom'), 10, log.join(' '));
+  assert.ok(when.length === 10);
+  assert.ok(when[9] - when[0] > 0.9, `the roll took ${(when[9] - when[0]).toFixed(2)} s, not all at once`);
+  let tied = 0;
+  for (let i = 1; i < when.length; i++) if (when[i] - when[i - 1] < 0.05) tied++;
+  assert.ok(tied <= 2, `explosions apart: ${when.map((x) => x.toFixed(2)).join(' ')}`);
+  const s = H.mayhem.feel.sample();
+  assert.ok(s.chains >= 1 && s.rolled >= 2, JSON.stringify(s));
+  assert.ok(s.maxLive <= s.cap + 12, `effects alive stayed bounded (${s.maxLive} vs ${s.cap})`);
+});
