@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="preload" href="/fonts/rajdhani-500.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/fonts/fonts.css">
   <title>Hawkes Gen</title>
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/public.css">
@@ -187,7 +187,10 @@
         <button type="button" class="st-menu-item" data-act="library">Create</button>
         <button type="button" class="st-menu-item" data-act="advanced">Advanced (code, settings)</button>
         <button type="button" class="st-menu-item" data-act="codex">How things work</button>
-        <label class="st-menu-item check"><input type="checkbox" id="voiceToggle"> Read the assistant's replies aloud</label>
+        <label class="st-menu-item check"><input type="checkbox" id="speechCaptions" checked> Captions for the Overseer's voice</label>
+        <label class="st-menu-item check">Overseer voice <input type="range" id="speechVoice" min="0" max="100" value="100" aria-label="Overseer voice volume"></label>
+        <label class="st-menu-item check">Music <input type="range" id="speechMusic" min="0" max="100" value="100" aria-label="Music volume"></label>
+        <button type="button" class="st-menu-item" id="speechReplay">Replay the Overseer's last line</button>
         <button type="button" class="st-menu-item" data-act="exit">Exit to my games</button>
         <button type="button" class="st-menu-item dim" data-act="logout">Sign out</button>
       </nav>

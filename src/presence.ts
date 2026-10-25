@@ -4,6 +4,7 @@
 // API key) works too. The engine side is public/play/modules/presence/.
 //   GET  /v1/users/me/avatar[?t=]          { user, avatar, badge, friends }   (badge: a signed "this is me" for the room)
 //   POST /v1/users/me/avatar {avatar, t?}  { avatar }                         (validated, at most AVATAR.maxBytes)
+//   GET/POST /v1/users/me/overseer         { overseer }                       (what the Overseer remembers of the player: cleanMemory)
 //   POST /v1/presence/who {badges, t?}     { who: [{ i, user, name, friend }] } (only badges this server signed)
 //   POST /v1/friends/request {to, t?}      { status: 'requested' | 'friends' } (friends once both have asked)
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -15,6 +16,7 @@ import { authenticate, getUser, type User } from './users.ts';
 import { addFriend, areFriends, listFriends } from './friends.ts';
 
 if (!(db.prepare('PRAGMA table_info(users)').all() as { name: string }[]).some((c) => c.name === 'avatar')) db.exec('ALTER TABLE users ADD COLUMN avatar TEXT');
+if (!(db.prepare('PRAGMA table_info(users)').all() as { name: string }[]).some((c) => c.name === 'overseer')) db.exec('ALTER TABLE users ADD COLUMN overseer TEXT');
 db.exec(`
 CREATE TABLE IF NOT EXISTS friend_requests (
   from_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -33,6 +35,7 @@ export const AVATAR = {
   faces: ['visor', 'eyes', 'smile', 'none'],
   hairs: ['short', 'long', 'ponytail', 'curly', 'spiky', 'bun'],
   maxExtras: 3,
+  accessories: ['none', 'headphones', 'goggles', 'monocle', 'mustache', 'eyepatch', 'flower', 'antenna', 'medal', 'bell', 'jetpack', 'bandana', 'earrings'],
   // What you are (public/play/modules/presence/presence-core.js WHATS: keep the ids in step) and your character's name.
   whats: ['person', 'robot', 'tvbot', 'rollbot', 'dog', 'cat', 'fox', 'pig', 'bear', 'rabbit', 'penguin', 'chicken', 'cow', 'sheep', 'horse', 'dinosaur', 'fish', 'shoe', 'toaster', 'cactus', 'cone', 'teapot', 'banana', 'mushroom', 'potato', 'duck'],
   nameMax: 24,
@@ -58,9 +61,47 @@ export function cleanAvatar(v: unknown) {
     what: one('what', AVATAR.whats, 'person'),
     // The person's hair and clothes (body is the top).
     hair: one('hair', AVATAR.hairs, 'short'), hairColor: color('hairColor', '#4a3322'), bottom: color('bottom', '#3b4a6b'), shoes: color('shoes', '#f2f2ee'),
+    // The eyes' color, one accessory and its color.
+    eyeColor: color('eyeColor', '#14161d'), accessory: one('accessory', AVATAR.accessories, 'none'), accessoryColor: color('accessoryColor', '#ffffff'),
     // A name is only words over your head: one line, no markup, short (anything else is dropped, not refused).
     name: typeof a.name === 'string' ? a.name.replace(/[\u0000-\u001f\u007f<>]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, AVATAR.nameMax) || null : null,
   };
+}
+
+/** What the Overseer may remember of a player (public/play/modules/overseer/memory.js clean(): keep in step). Only in-game facts. */
+export const MEMORY = {
+  maxBytes: 2048,
+  deeds: ['fish', 'boom', 'build', 'dock', 'high', 'space', 'drive', 'ask', 'fall'],
+  counts: ['fish', 'boom', 'build', 'dock', 'high', 'space', 'ask', 'fall'],
+  recent: 8,
+};
+export function cleanMemory(v: unknown) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) throw new PortalError('overseer must be an object');
+  if (JSON.stringify(v).length > MEMORY.maxBytes) throw new PortalError(`overseer is too big (${MEMORY.maxBytes} bytes at most)`, { status: 413 });
+  const a = v as Record<string, any>;
+  const int = (x: unknown, max: number) => { const n = Math.floor(Number(x)); return Number.isFinite(n) && n > 0 ? Math.min(n, max) : 0; };
+  const id = (x: unknown) => (typeof x === 'string' && /^[a-z0-9-]{1,32}$/.test(x) ? x : null);
+  const last = a.last && typeof a.last === 'object' && MEMORY.deeds.includes(a.last.id) ? { id: a.last.id as string, at: int(a.last.at, 4e12), visit: int(a.last.visit, 100000) } : null;
+  const g = a.greet && typeof a.greet === 'object' ? a.greet : {};
+  return {
+    v: 1, visits: int(a.visits, 100000), firstAt: int(a.firstAt, 4e12), lastAt: int(a.lastAt, 4e12),
+    name: typeof a.name === 'string' ? a.name.replace(/[\u0000-\u001f\u007f<>]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, AVATAR.nameMax) || null : null,
+    what: typeof a.what === 'string' && AVATAR.whats.includes(a.what) ? a.what : null,
+    last,
+    n: Object.fromEntries(MEMORY.counts.map((k) => [k, int(a.n?.[k], 100000)])),
+    driveS: int(a.driveS, 1e8), playS: int(a.playS, 1e8),
+    greet: { last: id(g.last), recent: Array.isArray(g.recent) ? g.recent.map(id).filter((x): x is string => x !== null).slice(-MEMORY.recent) : [] },
+  };
+}
+export function getMemory(userId: string) {
+  const row = db.prepare('SELECT overseer FROM users WHERE id = ?').get(userId) as { overseer: string | null } | undefined;
+  if (!row || !row.overseer) return null;
+  try { return cleanMemory(JSON.parse(row.overseer)); } catch { return null; }
+}
+export function setMemory(userId: string, v: unknown) {
+  const m = v === null ? null : cleanMemory(v);
+  db.prepare('UPDATE users SET overseer = ? WHERE id = ?').run(m ? JSON.stringify(m) : null, userId);
+  return m;
 }
 
 export function getAvatar(userId: string) {
@@ -137,6 +178,8 @@ export async function presenceRoute(req: IncomingMessage, res: ServerResponse, r
   if (!me) return send(res, 401, { error: 'Sign in to keep your look and make friends' });
   if (route === '/v1/users/me/avatar' && method === 'GET') return send(res, 200, { user: { id: me.id, name: me.name }, avatar: getAvatar(me.id), badge: badgeFor(me), friends: listFriends(me.id).map((f) => f.id) });
   if (route === '/v1/users/me/avatar' && method === 'POST') return send(res, 200, { avatar: setAvatar(me.id, body.avatar ?? null) });
+  if (route === '/v1/users/me/overseer' && method === 'GET') return send(res, 200, { overseer: getMemory(me.id) });
+  if (route === '/v1/users/me/overseer' && method === 'POST') return send(res, 200, { overseer: setMemory(me.id, body.overseer ?? null) });
   if (route === '/v1/friends/request' && method === 'POST') return send(res, 200, requestFriend(me, body.to));
   return send(res, 405, { error: 'Method not allowed' });
 }

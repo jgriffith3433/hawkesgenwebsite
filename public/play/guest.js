@@ -635,6 +635,8 @@
       catch (x) { busy.remove(); if (x.status === 402) return gamesFull(el('', 'gs-veil'), x.message, intent); throw x; }
       // The look they made at the mirror is theirs now (it replaces what the account had: they just chose it).
       if (look) await api('POST', '/v1/users/me/avatar', { avatar: look }).catch((e) => console.warn('sandbox: look not saved', e));
+      // What the Overseer remembered of them on this device goes into the account (the newer record wins).
+      try { if (H.memory) await H.memory.sync(); } catch { /* fine */ }
       const ops = Core.toOps(session.base || { config: {}, entities: {} }, snap);
       for (const part of Core.chunks(ops, 200)) await api('POST', `/v1/games/${game.id}/scene`, { ops: part });
       // Their island: no Overseer's beginning or mirror again (they've seen them; the mirror is still there to use).
@@ -761,7 +763,7 @@
     track('credits_out', { where: 'sandbox' });
     if (Date.now() - creditsAt < 20000) return;
     creditsAt = Date.now();
-    if (H.chat) H.chat.line({ kind: 'overseer', keep: 60, text: `${message ? `${String(message).replace(/\.?$/, '.')} ` : ''}I make things from credits, and yours have run out. Get more and ask me again: I will remember the island.`, action: { label: 'Get credits', href: '/app#credits' } });
+    if (H.chat) H.chat.line({ kind: 'overseer', priority: 'important', keep: 60, text: `The light has gone quiet for now. Take more when you wish, and ask me again: the island will be as you left it.`, action: { label: 'Get credits', href: '/app#credits' } });
     const back = async () => {
       if (document.visibilityState !== 'visible') return;
       document.removeEventListener('visibilitychange', back);

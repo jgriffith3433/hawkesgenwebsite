@@ -16,12 +16,34 @@
     faces: ['visor', 'eyes', 'smile', 'none'],
     hairs: ['short', 'long', 'ponytail', 'curly', 'spiky', 'bun'],
     maxExtras: 3,
+    // The accessory (mirror, "How do you look?"): one of these small procedural meshes, in its own color, on an anchor every
+    // body has (docs/characters.md 5d). Keep the ids in step with src/presence.ts AVATAR.accessories.
+    accessories: ['none', 'headphones', 'goggles', 'monocle', 'mustache', 'eyepatch', 'flower', 'antenna', 'medal', 'bell', 'jetpack', 'bandana', 'earrings'],
+    eyeColors: ['#14161d', '#5b3a1e', '#2f6fdb', '#22a06b', '#8b5cf6', '#e11d48', '#f59e0b', '#22d3ee'],
     // Body shapes: [width, height, depth] of the body, times normal.
     sizes: { normal: [1, 1, 1], tall: [0.92, 1.18, 0.92], short: [1.08, 0.82, 1.05], wide: [1.32, 0.98, 1.2], tiny: [0.72, 0.7, 0.72], big: [1.25, 1.22, 1.2] },
     palette: ['#4a9eff', '#a855f7', '#34d399', '#fbbf24', '#ef4444', '#f97316', '#22d3ee', '#ec4899', '#f5f5f4', '#1f2937', '#84cc16', '#8b5cf6'],
     hairColors: ['#2b1d14', '#4a3322', '#8a5a2b', '#d9a441', '#c2410c', '#1f2937', '#e5e7eb', '#a855f7'],
     skins: ['#f2c9a0', '#e0ac69', '#c68642', '#8d5524', '#5c3a1e', '#ffdbac', '#9ad0ff', '#b4f8c8'],
   };
+
+  /** The accessories, in the mirror's order: id, icon, label, where it sits (head, face, neck, back) and the color it starts in. */
+  const ACCESSORIES = [
+    { id: 'none', icon: '—', label: 'None', anchor: null, color: '#ffffff' },
+    { id: 'headphones', icon: '🎧', label: 'Headphones', anchor: 'head', color: '#ef4444' },
+    { id: 'goggles', icon: '🥽', label: 'Goggles', anchor: 'face', color: '#f59e0b' },
+    { id: 'monocle', icon: '🧐', label: 'Monocle', anchor: 'face', color: '#fbbf24' },
+    { id: 'mustache', icon: '🥸', label: 'Mustache', anchor: 'face', color: '#3b2a1c' },
+    { id: 'eyepatch', icon: '🏴‍☠️', label: 'Eye patch', anchor: 'face', color: '#111827' },
+    { id: 'flower', icon: '🌸', label: 'Flower', anchor: 'head', color: '#ec4899' },
+    { id: 'antenna', icon: '📡', label: 'Antenna', anchor: 'head', color: '#22d3ee' },
+    { id: 'medal', icon: '🏅', label: 'Medal', anchor: 'neck', color: '#fbbf24' },
+    { id: 'bell', icon: '🔔', label: 'Bell', anchor: 'neck', color: '#facc15' },
+    { id: 'jetpack', icon: '🚀', label: 'Jetpack', anchor: 'back', color: '#94a3b8' },
+    { id: 'bandana', icon: '🧣', label: 'Bandana', anchor: 'neck', color: '#dc2626' },
+    { id: 'earrings', icon: '💎', label: 'Earrings', anchor: 'head', color: '#60a5fa' },
+  ];
+  const ACCESSORY = new Map(ACCESSORIES.map((a) => [a.id, a]));
 
   // What you are (the mirror's first question: modules/mirror). Each: its word, an icon, a group, the body it's drawn
   // with (`body`: 'person', a Living species, or a thing in presence-bodies.js), its height in meters, its own colors
@@ -73,6 +95,8 @@
       what: WHAT.has(a.what) ? a.what : 'person', name: cleanName(a.name) || null,
       // The person's hair and outfit (body is the top): the clothes' bottom and shoes, the hair's style and color.
       hair: one(a.hair, LOOK.hairs, 'short'), hairColor: color(a.hairColor, '#4a3322'), bottom: color(a.bottom, '#3b4a6b'), shoes: color(a.shoes, '#f2f2ee'),
+      // The eyes' color, one accessory and its color (an old look has none: dark eyes, no accessory).
+      eyeColor: color(a.eyeColor, '#14161d'), accessory: one(a.accessory, LOOK.accessories, 'none'), accessoryColor: color(a.accessoryColor, '#ffffff'),
     };
   }
   /** A random fun look (guests get one): the same seed gives the same look. */
@@ -89,7 +113,9 @@
     const look = { body, head: pick(LOOK.skins), accent, shape: pick(['normal', 'normal', 'tall', 'short', 'wide', 'tiny', 'big']), hat: pick(LOOK.hats.filter((h) => h !== 'halo' && h !== 'crown')), face: pick(['eyes', 'smile', 'eyes']), extras };
     // (picked last, so the same seed still gives the same body, hat and face as before)
     const bottom = pick(LOOK.palette);
-    return cleanLook({ ...look, hair: pick(LOOK.hairs), hairColor: pick(LOOK.hairColors), bottom: bottom === body ? '#3b4a6b' : bottom, shoes: pick(['#f2f2ee', '#1f2937', '#ef4444', '#fbbf24']) });
+    // (and these after, so older seeds keep their look too)
+    const accessory = r() < 0.7 ? pick(LOOK.accessories.filter((x) => x !== 'none')) : 'none';
+    return cleanLook({ ...look, hair: pick(LOOK.hairs), hairColor: pick(LOOK.hairColors), bottom: bottom === body ? '#3b4a6b' : bottom, shoes: pick(['#f2f2ee', '#1f2937', '#ef4444', '#fbbf24']), eyeColor: pick(LOOK.eyeColors), accessory, accessoryColor: pick(LOOK.palette) });
   }
   const seedOf = (str) => { let h = 2166136261; for (const ch of String(str)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
 
@@ -237,7 +263,7 @@
     const l = cleanLook(look);
     const t = tones(l.body);
     const [ah, as, al] = hsl(l.accent === '#ffffff' ? '#f4a3b5' : l.accent);
-    return { ...t, accent: l.accent, eye: EYE, ink: INK, cheek: mixHex(hexOf(ah, as, al), '#ff9fb2', 0.45), top: t, bottom: tones(l.bottom), shoes: tones(l.shoes), skin: tones(l.head), hair: tones(l.hairColor) };
+    return { ...t, accent: l.accent, eye: EYE, iris: l.eyeColor, ink: INK, cheek: mixHex(hexOf(ah, as, al), '#ff9fb2', 0.45), top: t, bottom: tones(l.bottom), shoes: tones(l.shoes), skin: tones(l.head), hair: tones(l.hairColor) };
   }
 
   // ------------------------------------------------------------------ expressions: five numbers (docs/characters.md 1)
@@ -256,5 +282,5 @@
   const EMOTE_FACE = { wave: 'happy', dance: 'happy', cheer: 'happy', laugh: 'happy', point: 'mischief', sit: 'neutral', sleep: 'sleepy', clap: 'happy', thumbsup: 'mischief', heart: 'happy' };
   const POSE_FACE = { jump: 'surprised', fall: 'surprised', swim: 'happy', drive: 'neutral', run: 'neutral' };
 
-  P.core = { palette, tones, hsl, hexOf, mixHex, EXPRESSIONS, EMOTE_FACE, POSE_FACE, LOOK, WHATS, WHAT, cleanName, NAME_MAX, cleanLook, randomLook, seedOf, EMOTES, emote, TAGS, layoutTags, BUBBLES, bubbleSeconds, wrap, bubbles, CHAT, cleanLine, limiter };
+  P.core = { ACCESSORIES, ACCESSORY, palette, tones, hsl, hexOf, mixHex, EXPRESSIONS, EMOTE_FACE, POSE_FACE, LOOK, WHATS, WHAT, cleanName, NAME_MAX, cleanLook, randomLook, seedOf, EMOTES, emote, TAGS, layoutTags, BUBBLES, bubbleSeconds, wrap, bubbles, CHAT, cleanLine, limiter };
 })();

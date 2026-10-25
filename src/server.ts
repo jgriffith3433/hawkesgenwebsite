@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -39,7 +40,7 @@ import type { Duplex } from 'node:stream';
 
 const PUBLIC = path.join(ROOT, 'public');
 const PAGES: Record<string, string> = { '/': 'index.html', '/home': 'index.html', '/app': 'games.html', '/app/studio': 'app.html', '/games': 'gallery.html', '/admin': 'admin.html', '/reset': 'reset.html', '/auth/popup': 'auth-popup.html', '/legal': 'legal.html', '/terms': 'legal.html', '/privacy': 'legal.html', '/refunds': 'legal.html', '/connect': 'connect.html', '/thanks': 'thanks.html', '/examples': 'examples.html', '/entities': 'entities.html', '/avatars': 'avatars.html', '/community': 'community.html','/oauth/authorize': 'authorize.html', '/client/hawkesgen.mjs': 'hawkesgen.mjs' };
-const TYPES: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webp': 'image/webp', '.gif': 'image/gif', '.mp3': 'audio/mpeg', '.jpg': 'image/jpeg', '.unitypackage': 'application/octet-stream', '.pdf': 'application/pdf', '.md': 'text/markdown; charset=utf-8', '.glb': 'model/gltf-binary' };
+const TYPES: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webp': 'image/webp', '.gif': 'image/gif', '.mp3': 'audio/mpeg', '.jpg': 'image/jpeg', '.unitypackage': 'application/octet-stream', '.pdf': 'application/pdf', '.md': 'text/markdown; charset=utf-8', '.glb': 'model/gltf-binary', '.woff2': 'font/woff2' };
 
 // Gen routes a signed-in customer may use as they are (Gen scopes them to the customer's project).
 const PASS_GET = [/^\/v1\/jobs$/, /^\/v1\/jobs\/j_[0-9a-f]+$/, /^\/v1\/assets$/, /^\/v1\/assets\/a_[0-9a-f]+(\/file)?$/, /^\/v1\/files\/a_[0-9a-f]+$/, /^\/v1\/presets$/, /^\/v1\/tools(\/[\w.-]+)?$/, /^\/v1\/motions$/, /^\/v1\/providers\/elevenlabs\/voices$/, /^\/v1\/entities$/];
@@ -147,7 +148,9 @@ async function serveStatic(route: string, res: ServerResponse, search = '') {
   // The engine's files carry the manifest's version (?v=<hash of every engine file>, src/engine.ts): a new version is a
   // new address, so one with the current version is cached for good (a phone's second visit loads no engine at all).
   const versioned = route.startsWith('/play/') && path.extname(file) === '.js' && new URLSearchParams(search).get('v') === engineVersion();
-  res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] ?? 'application/octet-stream', 'Cache-Control': path.extname(file) === '.html' ? 'no-cache' : versioned ? 'public, max-age=31536000, immutable' : 'public, max-age=300' });
+  // Self-hosted fonts (public/fonts): the play page is sandboxed (origin null), so they need open CORS; they never change under a name.
+  const font = path.extname(file) === '.woff2';
+  res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] ?? 'application/octet-stream', 'Cache-Control': path.extname(file) === '.html' ? 'no-cache' : versioned || font ? 'public, max-age=31536000, immutable' : 'public, max-age=300', ...(font || route === '/fonts/fonts.css' ? { 'Access-Control-Allow-Origin': '*' } : {}) });
   fs.createReadStream(file).pipe(res);
   return true;
 }
@@ -272,7 +275,13 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       const b = templateBundle(tb[1]);
       if (!b) return send(res, 404, { error: 'No such game' });
       res.setHeader('Access-Control-Allow-Origin', '*');
-      return send(res, 200, { ...b, assets: games.templateAssets(b.template) });
+      // A revisit within a minute is the browser's own copy; after that it revalidates (304) rather than downloading it again.
+      const body = JSON.stringify({ ...b, assets: games.templateAssets(b.template) });
+      const etag = `"${createHash('sha1').update(body).digest('base64url').slice(0, 22)}"`;
+      const headers = { 'ETag': etag, 'Cache-Control': 'public, max-age=60, must-revalidate', 'Access-Control-Expose-Headers': 'ETag' };
+      if (String(req.headers['if-none-match'] ?? '').split(',').some((t) => t.trim().replace(/^W\//, '') === etag)) { res.writeHead(304, headers); return void res.end(); }
+      res.writeHead(200, { ...headers, 'Content-Type': 'application/json; charset=utf-8' });
+      return void res.end(body);
     }
     // The community library is public: what's shared is for everyone (searching, browsing, its files). Open CORS: the
     // spawn wheel searches it from inside the play sandbox (origin null).
@@ -341,7 +350,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       return send(res, 200, { ok: true });
     }
 
-    if (/^\/v1\/(users\/me\/avatar|presence\/who|friends\/request)$/.test(route)) return await presenceRoute(req, res, route, method); // presence.ts: looks, badges, friend requests (open to the game's sandbox)
+    if (/^\/v1\/(users\/me\/(avatar|overseer)|presence\/who|friends\/request)$/.test(route)) return await presenceRoute(req, res, route, method); // presence.ts: looks, badges, friend requests (open to the game's sandbox)
 
     // ------------------------------------------------------------ a customer
     const user = users.authenticate(req);

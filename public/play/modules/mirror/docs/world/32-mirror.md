@@ -7,8 +7,12 @@ one question at a time:
 1. **"What are you?"**: a person, a robot, a TV robot, a roll-bot; a dog, cat, fox, pig, bear, bunny, penguin, chicken,
    cow, sheep, horse, dinosaur, fish; a shoe, toaster, cactus, traffic cone, teapot, banana, mushroom, potato or rubber
    duck. Picking one changes the reflection at once, and the Overseer has a word about it.
-2. **"How do you look?"**: three colors (main, second, skin or details), a size (normal, tall, short, wide, tiny, big),
-   a hat, a face (people), up to three extras (glasses, shades, scarf, backpack, cape, bow tie, wings, tail).
+2. **"How do you look?"**: **🎲 Surprise me** (one click: a whole new look, never a new body or name) and **👀 Preview
+   all** (a carousel of eight different looks: Before, Next, Keep this one, Back to mine) come first, so a decisive
+   player is through in seconds. Or pick: three colors (main, second, skin or details), the eyes' color, a size (normal,
+   tall, short, wide, tiny, big), a hat, a face (people), one of twelve accessories in a color of its own (headphones,
+   goggles, monocle, mustache, eye patch, flower, antenna, medal, bell, jetpack, bandana, earrings), up to three extras
+   (glasses, shades, scarf, backpack, cape, bow tie, wings, tail). Everything shows on the reflection at once.
 3. **"What are you called?"**: their character's name, shown over their head (🎲 suggests a funny one).
 4. (Only if the mirror asks it) **"How do you see the world?"**: first or third person, for this game.
 

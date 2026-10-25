@@ -31,7 +31,8 @@ let errors = [];
 let mention = null;
 let stageReady = false;
 let aiCredits = 8;
-let voiceEnabled = (() => { try { return localStorage.getItem('hg_voice') === '1'; } catch { return false; } })();
+// The Overseer's captions and volumes (the game's speech desk, modules/overseer/speech.js, applies them; the frame has no storage).
+const speechSettings = (() => { try { const m = JSON.parse(localStorage.getItem('hg_overseer_speech') || '{}') || {}; const v = (x) => (Number.isFinite(Number(x)) ? Math.max(0, Math.min(1, Number(x))) : 1); return { captions: m.captions !== false, voice: v(m.voice), music: v(m.music) }; } catch { return { captions: true, voice: 1, music: 1 }; } })();
 
 // ===================================================================== start
 (async () => {
@@ -133,6 +134,8 @@ async function loadStage() {
   try { if (localStorage.getItem('hg_overseer_intro')) bundle.overseen = true; } catch {}
   // And which of the Overseer's first-time lines it has said (public/play/modules/overseer/lines.js).
   try { bundle.overseerLines = JSON.parse(localStorage.getItem('hg_overseer_lines') || '{}'); } catch {}
+  // And what the Overseer remembers of the player when there is no account side to ask (memory.js).
+  try { bundle.overseerMemory = JSON.parse(localStorage.getItem('hg_overseer_memory') || 'null') || undefined; } catch {}
   const send = () => toStage({ type: 'bundle', bundle, mode: 'build' });
   if (stageReady) send(); else stageBundle = send;
   toStage({ type: 'advanced', on: $('advTools').checked });
@@ -174,6 +177,9 @@ window.addEventListener('message', async (e) => {
     case 'overseer-lines':
       try { if (m.lines && typeof m.lines === 'object') localStorage.setItem('hg_overseer_lines', JSON.stringify(m.lines)); } catch {}
       return;
+    case 'overseer-memory':
+      try { if (m.memory && typeof m.memory === 'object') localStorage.setItem('hg_overseer_memory', JSON.stringify(m.memory)); } catch {}
+      return;
     case 'overseer-seen':
       try { localStorage.setItem('hg_overseer_intro', String(Date.now())); } catch {}
       return;
@@ -181,6 +187,7 @@ window.addEventListener('message', async (e) => {
       stageReady = true;
       if (stageBundle) { stageBundle(); stageBundle = null; }
       toStage({ type: 'advanced', on: $('advTools').checked });
+      toStage({ type: 'speech-settings', ...speechSettings });
       return;
     case 'started': {
       clearErrors();
@@ -458,7 +465,7 @@ function noCredits(message) {
   const fresh = Date.now() - creditsAskedAt > 20_000;
   creditsAskedAt = Date.now();
   if (!fresh) return;
-  addOverseer(`${message ? `${String(message).replace(/\.?$/, '.')} ` : ''}I make things from credits, and yours have run out. Get more and ask me again: I will remember the island.`, {
+  addOverseer(`The light has gone quiet for now. Take more when you wish, and ask me again: the island will be as you left it.`, {
     action: { label: 'Get credits', href: '/app#credits' },
   });
   const back = () => { if (document.visibilityState !== 'visible') return; document.removeEventListener('visibilitychange', back); get('/v1/users/me').then((r) => { const before = Number(me && me.credits) || 0; me = r.user; if ((Number(me.credits) || 0) > before) addOverseer(`You have ${Number(me.credits).toLocaleString()} credits now. Ask me again.`); }).catch(() => {}); };
@@ -1272,18 +1279,17 @@ async function bootSequence() {
   try { localStorage.setItem(key, '1'); } catch {}
 }
 
-// ------------------------------------------------------------------ reading replies aloud
+// ------------------------------------------------------------------ the Overseer's captions, voice and music
+// The assistant speaks as the Overseer: its replies are always captions (the chat). They are also spoken only where the
+// Overseer has a clip with those very words (the game's speech desk decides); never the browser's own voice.
 function initVoice() {
-  const t = $('voiceToggle');
-  t.checked = voiceEnabled;
-  t.onchange = () => { voiceEnabled = t.checked; try { localStorage.setItem('hg_voice', voiceEnabled ? '1' : '0'); } catch {} if (!voiceEnabled && window.speechSynthesis) speechSynthesis.cancel(); };
+  const save = () => { try { localStorage.setItem('hg_overseer_speech', JSON.stringify(speechSettings)); } catch {} toStage({ type: 'speech-settings', ...speechSettings }); };
+  $('speechCaptions').checked = speechSettings.captions;
+  $('speechVoice').value = Math.round(speechSettings.voice * 100);
+  $('speechMusic').value = Math.round(speechSettings.music * 100);
+  $('speechCaptions').onchange = () => { speechSettings.captions = $('speechCaptions').checked; save(); };
+  $('speechVoice').oninput = () => { speechSettings.voice = Number($('speechVoice').value) / 100; save(); };
+  $('speechMusic').oninput = () => { speechSettings.music = Number($('speechMusic').value) / 100; save(); };
+  $('speechReplay').onclick = () => toStage({ type: 'speech-replay' });
 }
-function speak(text) {
-  if (!voiceEnabled || !window.speechSynthesis) return;
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text.slice(0, 400));
-  u.rate = 1;
-  const v = speechSynthesis.getVoices().find((x) => x.lang.startsWith('en'));
-  if (v) u.voice = v;
-  speechSynthesis.speak(u);
-}
+function speak(text) { toStage({ type: 'assistant-reply', text: String(text || '').slice(0, 400) }); }

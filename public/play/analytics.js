@@ -9,6 +9,11 @@
 //   script errors the runtime caught (on a game's own page; in the editor's frame the editor reports them), and in the
 //   frame the player's input (`activity`, so the editor counts time spent in the game as active). Context on every event: `tier` (phone, tablet, desktop),
 //   `input` (touch, mouse, gamepad: what they used last) and `mode` (play or build).
+// - `perf` (no personal data, nothing continuous): at `game_ready` (phase 'ready': load ms by stage, device tier, bytes
+//   fetched), after 30 s of play ('30s') and every 2 minutes of play after that ('2m'): median and p5 fps, frame ms (median
+//   and p95), draw calls, JS heap, texture MB against the tier's budget, over the frames since the last one; and once a
+//   session ('low_fps') when fps stays under 20 for 3 s, with what was on screen. Frame times are collected in memory
+//   only; one event leaves per report.
 // It watches what the modules already do (game events, H.vehicles.current, the sky's altitude, rewind, photo mode,
 // sharing) instead of each module sending its own, so a module never needs an analytics line. Nothing on the codex.
 (() => {
@@ -41,6 +46,7 @@
   function feature(what, extra) {
     if (seen.has(what)) return;
     seen.add(what);
+    lastFeatureName = what;
     const ms = readyAt ? Math.round(performance.now() - readyAt) : null;
     send('feature', { name: what, ms, ...(extra || {}) });
     // (The intro and the mirror come to everyone: fun is what they choose to do next.)
@@ -114,22 +120,86 @@
       if (readyAt) return;
       readyAt = performance.now();
       send('game_ready', { ms: Math.round(readyAt) });
+      // Load stages are the page's own timings; a frame later so the first paint is in.
+      setTimeout(() => { try { const l = load(); send('perf', { phase: 'ready', tier: H.device ? H.device.tier : null, stages: l.stages, bytes: l.bytes, ...snapshot() }); } catch { /* never break the game */ } }, 0);
     },
   });
+
+  // Performance, on real devices: frame times kept in memory (visible, drawn frames only), reported at three moments.
+  const LOW_FPS = 20, LOW_SECONDS = 3, FIRST_REPORT = 30, EVERY = 120;
+  let frames = [], lowFor = 0, lowSent = false, nextReport = FIRST_REPORT, lastFeatureName = null;
+  const pct = (a, q) => a.length ? a[Math.min(a.length - 1, Math.floor(q * a.length))] : null;
+  const r1 = (n) => (n === null || n === undefined || !Number.isFinite(n) ? null : Math.round(n * 10) / 10);
+  function load() {
+    const nav = (performance.getEntriesByType('navigation') || [])[0] || {};
+    const fcp = (performance.getEntriesByType('paint') || []).find((e) => e.name === 'first-contentful-paint');
+    let bytes = 0;
+    try { for (const e of performance.getEntriesByType('resource')) bytes += e.transferSize || 0; } catch { /* no resource timing */ }
+    return { stages: { dom: nav.domContentLoadedEventEnd ? Math.round(nav.domContentLoadedEventEnd) : null, paint: fcp ? Math.round(fcp.startTime) : null, ready: Math.round(readyAt) }, bytes: bytes || null };
+  }
+  /** What the monitor would show, without opening it: its sample() where it has counters, else the engine's own. */
+  function snapshot() {
+    const w = H.world, scene = w && w.scene;
+    if (!scene) return {};
+    const out = { tier: H.device ? H.device.tier : null };
+    try {
+      const engine = scene.getEngine();
+      out.drawCalls = engine._drawCalls ? engine._drawCalls.current : null;
+      out.triangles = Math.round(scene.getActiveIndices() / 3);
+      out.activeMeshes = scene.getActiveMeshes().length;
+      out.pixels = engine.getRenderWidth() * engine.getRenderHeight();
+    } catch { /* a scene mid-load */ }
+    try {
+      const t = H.textures && H.textures.stats ? H.textures.stats() : null;
+      if (t) { out.textureMB = t.usedMB; out.textureBudgetMB = t.budgetMB; }
+      const mem = performance.memory;
+      if (mem) out.heapMB = r1(mem.usedJSHeapSize / 1048576);
+      out.entities = w.entities ? w.entities.size || w.entities.length || 0 : null;
+    } catch { /* fine */ }
+    return out;
+  }
+  function perf(phase, extra) {
+    const ms = frames.slice().sort((a, b) => a - b);
+    const body = { phase, ...snapshot(), ...(extra || {}) };
+    if (ms.length) {
+      body.frames = ms.length;
+      body.frameMs = r1(pct(ms, 0.5)); body.frameMsP95 = r1(pct(ms, 0.95));
+      body.fps = r1(1000 / pct(ms, 0.5)); body.fpsP5 = r1(1000 / pct(ms, 0.95));
+    }
+    frames = [];
+    send('perf', body);
+  }
+  H.track.perf = perf;
+  function lowFps(sec, secFrames) {
+    if (lowSent) return;
+    const fps = secFrames / sec;
+    lowFor = fps < LOW_FPS ? lowFor + sec : 0;
+    if (lowFor < LOW_SECONDS) return;
+    lowSent = true;
+    const v = H.vehicles && H.vehicles.current;
+    perf('low_fps', { lowFps: r1(fps), mode: H.mode || 'play', after: Math.round(played), vehicle: v ? kindOf(v).slice(0, 24) : null, feature: lastFeatureName,
+      space: Boolean(H.world && H.world._sky && H.world._sky.space > 0.9), intro: Boolean(H.world && H.world.intro && H.world.intro.active), scaling: (() => { try { return H.world.scene.getEngine().getHardwareScalingLevel(); } catch { return null; } })() });
+  }
 
   // Once a second: playing time (visible, running), the vehicle they're in, space, rewind, photo mode, sharing.
   let last = performance.now();
   const kindOf = (v) => String((v && (v.kind || (v.spec && v.spec.type))) || '');
   const AIR = /airplane|helicopter|rocket|spaceship|plane|jet|glider/, WATER = /boat|submarine|ship|canoe|jet.?ski/;
-  H.hooks.frame.push(() => {
+  let secFrames = 0;
+  H.hooks.frame.push((elapsed, render) => {
     const t = performance.now();
+    const shown = render && readyAt && document.visibilityState === 'visible' && H.world && !H.hooks.codex;
+    if (shown) { secFrames++; if (frames.length < 20000) frames.push(elapsed * 1000); }
     if (t - last < 1000) return;
     const dt = Math.min(5, (t - last) / 1000);
     last = t;
+    const drawn = secFrames; secFrames = 0;
     if (!H.world || H.hooks.codex) return;
     const going = document.visibilityState === 'visible' && readyAt;
     if (going) {
       played += dt;
+      if (shown && dt < 2) lowFps(dt, drawn); else lowFor = 0;
+      if (played >= nextReport) { perf(nextReport === FIRST_REPORT ? '30s' : '2m'); nextReport += EVERY; }
       if (nextMinute < MINUTES.length && played >= MINUTES[nextMinute] * 60) { send('progress', { step: MINUTES[nextMinute], label: 'minutes_played' }); nextMinute++; }
     }
     const counting = going && t - lastInput < 60_000;

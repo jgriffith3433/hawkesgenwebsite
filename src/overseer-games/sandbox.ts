@@ -149,7 +149,8 @@ export const SANDBOX = {
     // The 4x4, ready on the path.
     add({ id: 'jeep', type: 'truck', name: '4x4', shape: { model: A.truck }, material: { color: '#3f7d3a' }, transform: { position: [4, r2(groundAt(4, 6.5) + 1.4), 6.5], rotation: [0, 90, 0] } });
     // Pip's hut and yard, up the slope behind the start.
-    add(model('hut', "Pip's hut", A.cottage, -20, 14, 6.5, { transform: yaw(125) }, -0.2));
+    // (20 m from the start: its light copy shows there, the full one comes within 12 m, so the first view doesn't download it.)
+    add(model('hut', "Pip's hut", A.cottage, -20, 14, 6.5, { transform: yaw(125), shape: { lod: { distance: 12 } } }, -0.2));
     // (Small things show their light copy until you're close: lod.distance.)
     // (And cast no shadow: little things, a phone's shadow map has better things to draw.)
     const near = { lod: { distance: 7 } };

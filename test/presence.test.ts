@@ -48,7 +48,15 @@ test('a look is saved per player, validated and size-limited; the game reaches i
   const look = { body: '#22C55E', head: '#e0ac69', accent: '#ffffff', shape: 'tall', hat: 'crown', face: 'smile', extras: ['cape', 'cape', 'glasses'], model: null, extra: 'dropped' };
   const saved = await call('/v1/users/me/avatar', { cookie: sam.cookie, body: { avatar: look } });
   assert.equal(saved.status, 200);
-  assert.deepEqual(saved.body.avatar, { body: '#22c55e', head: '#e0ac69', accent: '#ffffff', shape: 'tall', hat: 'crown', face: 'smile', extras: ['cape', 'glasses'], model: null, what: 'person', name: null, hair: 'short', hairColor: '#4a3322', bottom: '#3b4a6b', shoes: '#f2f2ee' });
+  assert.deepEqual(saved.body.avatar, { body: '#22c55e', head: '#e0ac69', accent: '#ffffff', shape: 'tall', hat: 'crown', face: 'smile', extras: ['cape', 'glasses'], model: null, what: 'person', name: null, hair: 'short', hairColor: '#4a3322', bottom: '#3b4a6b', shoes: '#f2f2ee', eyeColor: '#14161d', accessory: 'none', accessoryColor: '#ffffff' });
+  // The mirror's eyes and accessory: kept (colors lowercased), and refused when they are not ours.
+  const dressed = await call('/v1/users/me/avatar', { cookie: sam.cookie, body: { avatar: { ...saved.body.avatar, eyeColor: '#2F6FDB', accessory: 'headphones', accessoryColor: '#EF4444' } } });
+  assert.equal(dressed.status, 200);
+  assert.deepEqual([dressed.body.avatar.eyeColor, dressed.body.avatar.accessory, dressed.body.avatar.accessoryColor], ['#2f6fdb', 'headphones', '#ef4444']);
+  assert.equal((await call('/v1/users/me/avatar', { cookie: sam.cookie })).body.avatar.accessory, 'headphones', 'it stays for the next visit');
+  assert.equal((await call('/v1/users/me/avatar', { cookie: sam.cookie, body: { avatar: { ...saved.body.avatar, accessory: 'jetski' } } })).status, 400, 'an accessory we do not have');
+  assert.equal((await call('/v1/users/me/avatar', { cookie: sam.cookie, body: { avatar: { ...saved.body.avatar, eyeColor: 'blue' } } })).status, 400, 'eyes are a #color');
+  await call('/v1/users/me/avatar', { cookie: sam.cookie, body: { avatar: saved.body.avatar } });
   // What you are (the mirror) and your character's name: kept; a name is cleaned, never refused.
   const shoe = await call('/v1/users/me/avatar', { cookie: sam.cookie, body: { avatar: { ...saved.body.avatar, what: 'shoe', name: '  Sir <b>Laces</b>\n' + 'x'.repeat(40) } } });
   assert.equal(shoe.body.avatar.what, 'shoe');
@@ -100,4 +108,25 @@ test('badges say who is in the room (and who is a friend); friend requests becom
   assert.equal((await call('/v1/friends/request', { cookie: ana.cookie, body: { to: ana.id } })).status, 400, "can't befriend yourself");
   assert.equal((await call('/v1/friends/request', { cookie: ana.cookie, body: { to: 'nobody' } })).status, 400);
   assert.equal((await call('/v1/friends/request', { body: { to: ben.id } })).status, 401, 'guests sign in first');
+});
+
+test('what the Overseer remembers is kept per account, cleaned and size-limited', async () => {
+  const kim = await signup('kim@example.test', 'Kim');
+  const none = await call('/v1/users/me/overseer', { cookie: kim.cookie });
+  assert.equal(none.body.overseer, null, 'nothing on record until the game writes some');
+  const rec = { visits: 3, firstAt: 1000, lastAt: 5000, name: '  Sir <b>Laces</b> ', what: 'shoe', last: { id: 'fish', at: 4000, visit: 3 }, n: { fish: 2, boom: 1, evil: 9 }, driveS: 12, playS: 300, greet: { last: 'fish-a', recent: ['fish-a', 'Bad Id!'] }, secret: 'x' };
+  const saved = await call('/v1/users/me/overseer', { cookie: kim.cookie, body: { overseer: rec } });
+  assert.equal(saved.status, 200);
+  const m = saved.body.overseer;
+  assert.equal(m.visits, 3); assert.equal(m.what, 'shoe'); assert.equal(m.name, 'Sir b Laces /b');
+  assert.deepEqual(m.last, { id: 'fish', at: 4000, visit: 3 });
+  assert.equal(m.n.fish, 2); assert.equal(m.n.evil, undefined); assert.equal(m.secret, undefined);
+  assert.deepEqual(m.greet, { last: 'fish-a', recent: ['fish-a'] });
+  assert.deepEqual((await call('/v1/users/me/overseer', { cookie: kim.cookie })).body.overseer, m, 'it stays');
+  assert.equal((await call('/v1/users/me/overseer', { body: { overseer: rec } })).status, 401, 'no account, no memory here (the device keeps it)');
+  assert.equal((await call('/v1/users/me/overseer', { cookie: kim.cookie, body: { overseer: { ...rec, name: 'x'.repeat(3000) } } })).status, 413);
+  assert.equal((await call('/v1/users/me/overseer', { cookie: kim.cookie, body: { overseer: { last: { id: 'spy' }, what: 'hacker' } } })).body.overseer.last, null, 'only in-game deeds');
+  // Someone else's is theirs.
+  const lee = await signup('lee@example.test', 'Lee');
+  assert.equal((await call('/v1/users/me/overseer', { cookie: lee.cookie })).body.overseer, null);
 });
