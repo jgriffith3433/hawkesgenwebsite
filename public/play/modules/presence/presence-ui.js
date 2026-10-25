@@ -147,6 +147,8 @@ body.pr-touch .pr-sw button{width:38px;height:38px}body.pr-touch .pr-ch button{m
   function openChat() {
     // (Where the Overseer is in the chat, 💬 and Enter talk to it: modules/overseer/chat.js.)
     if (H.chat && H.chat.attached && H.chat.open()) return;
+    // (Anywhere else, typing is the free Overseer phrasebook: modules/overseer/talk.js, which also says it to the other players.)
+    if (H.talk && H.chat && !H.chat.embedded && H.chat.open()) return;
     if (!P.enabled('chat')) return;
     if (H.chat && !H.chat.embedded) {
       // Typing goes in the one chat window too (said to the other players), not a box of its own.
