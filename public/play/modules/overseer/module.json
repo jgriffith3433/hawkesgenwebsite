@@ -1,6 +1,6 @@
 {
   "title": "The Overseer: sky, planet, the ship, beams and the intro",
   "order": 15,
-  "scripts": ["chat.js", "talk.js", "sky.js", "planet.js", "round.js", "overseer.js", "speech.js", "arrive.js", "dock-math.js", "dock.js", "observatory-math.js", "observatory.js", "intro.js", "memory.js", "lines.js"],
+  "scripts": ["chat.js", "talk.js", "sky.js", "planet.js", "round.js", "overseer.js", "speech.js", "arrive.js", "dock-math.js", "dock.js", "observatory-math.js", "observatory.js", "wardrobe.js", "intro.js", "memory.js", "lines.js"],
   "kinds": []
 }

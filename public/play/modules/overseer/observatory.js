@@ -1,8 +1,8 @@
 // The Observatory (docs/story.md, "The Observatory"): docking ends at a pad, and from the hangar's back wall a lift
 // takes you up into a round room inside the ship: curved walls with tall windows onto the planet below and the stars, a
-// slowly turning model of the planet, soft lights that rise with the Overseer's voice, a calm music bed, a place each for
-// the mirror, a wardrobe and a travel board (placeholders for now) and the Overseer as a pearl of light that drifts to you
-// (not a body). The first time, a short scene: it greets you by the name you chose, thanks you, gives you a gift (an
+// slowly turning model of the planet, soft lights that rise with the Overseer's voice, a calm music bed, a mirror (the
+// real one: redo "What are you?", "How do you look?" and "What are you called?" any time), a wardrobe (wardrobe.js), a travel board and the
+// Overseer as a pearl of light that drifts to you (not a body). The first time, a short scene: it greets you by the name you chose, thanks you, gives you a gift (an
 // accessory for your look) and raises a question it does not answer. Every later time is quick: a lift, one line.
 //
 // The room is a static thing in the world (colliders like the hangar's, so it holds wherever you are), shown only while you
@@ -194,7 +194,7 @@
     // The places: a pedestal and a plaque on the wall behind each, and a ring that waits.
     const places = {};
     const pedestals = [];
-    const names = { mirror: ['Mirror', 'hung soon'], board: ['Travel board', 'three worlds'], wardrobe: ['Wardrobe', 'filled soon'] };
+    const names = { mirror: ['Mirror', 'who you are'], board: ['Travel board', 'three worlds'], wardrobe: ['Wardrobe', 'what you wear'] };
     for (const id of ['mirror', 'board', 'wardrobe']) {
       const [x, z] = M().spot(id);
       const a = (M().STATIONS[id].angle * Math.PI) / 180;
@@ -211,6 +211,37 @@
       pmat.opacityTexture = pmat.emissiveTexture;
       pl.material = pmat; pl.isPickable = false;
       places[id] = { at: room(x, 0, z), label: names[id][0] };
+    }
+    // The mirror: the real one (modules/mirror: the reflection, the questions, the entrance), hung on the wall at its place, glass
+    // to the middle. It opens with E ("Change who you are") or from game.mirror; it never opens by itself here.
+    let mirrorE = null;
+    try {
+      const def = H.kinds && H.kinds.get('mirror');
+      if (def && def.build) {
+        const a = (M().STATIONS.mirror.angle * Math.PI) / 180;
+        const mh = 4.2, mw = 2.8;
+        const at0 = room(Math.sin(a) * (R.radius - 0.9), mh / 2 + 0.25, Math.cos(a) * (R.radius - 0.9));
+        const spec = { type: 'mirror', shape: { width: mw, height: mh, character: { steps: ['what', 'look', 'name'], start: false, voice: true, reach: 3.5 } } };
+        mirrorE = def.build(spec.shape, { position: at0, rotation: [0, (b.yaw + a + Math.PI) / L.RAD, 0], name: 'Observatory mirror', tag: 'observatory' }, spec);
+        mirrorE.temporary = true; mirrorE.keep = true; mirrorE.data.overseer = 'observatory';
+        for (const m of mirrorE.node.getChildMeshes()) { m.metadata = { ...(m.metadata || {}), overseer: true }; }
+      }
+    } catch (err) { H.report(err, 'overseer observatory mirror'); mirrorE = null; }
+    // The wardrobe: a tall cabinet against the wall with two lit doors and a hat on a peg above it (decor; no collider).
+    {
+      const [x, z] = M().spot('wardrobe');
+      const a = (M().STATIONS.wardrobe.angle * Math.PI) / 180;
+      const cab = new B.TransformNode('ov-obs-wardrobe', scene);
+      cab.parent = decor; cab.position.set(Math.sin(a) * (R.radius - 1.3), 0, Math.cos(a) * (R.radius - 1.3)); cab.rotation.y = a + Math.PI;
+      const body = B.MeshBuilder.CreateBox('ov-obs-wardrobe-body', { width: 3.4, height: 4.4, depth: 1.2 }, scene);
+      body.parent = cab; body.position.y = 2.2; body.material = shell;
+      for (const sd of [-1, 1]) {
+        const door = B.MeshBuilder.CreateBox('ov-obs-wardrobe-door', { width: 1.5, height: 3.9, depth: 0.06 }, scene);
+        door.parent = cab; door.position.set(sd * 0.82, 2.25, -0.62); door.material = lightM; lights.push(door);
+        door.isPickable = false; door.metadata = { decor: true, overseer: true };
+      }
+      body.isPickable = false; body.metadata = { decor: true, overseer: true };
+      void x; void z;
     }
     // The travel board: the Overseer's featured games as small planets in an arc over the board's place, each with a plate.
     const board = M().PLANETS.map((pl, i) => {
@@ -263,13 +294,14 @@
     lamp.diffuse = new B.Color3(0.86, 0.94, 1); lamp.specular = new B.Color3(0.4, 0.45, 0.5); lamp.range = 46; lamp.intensity = 0.4;
     lamp.parent = pearl;
 
-    const s = { board, counts: {}, root, decor, solidE, glassE, globe, pearl, halo, lamp, lights, lightM, warmM, hangarBits, places, pm: pearl.material, pos: [0, 5.5, 0], level: 0, music: null, t: 0, shown: null };
+    const s = { board, mirrorE, counts: {}, root, decor, solidE, glassE, globe, pearl, halo, lamp, lights, lightM, warmM, hangarBits, places, pm: pearl.material, pos: [0, 5.5, 0], level: 0, music: null, t: 0, shown: null };
     s.show = (inside) => {
       if (s.shown === inside) return;
       s.shown = inside;
       solidE.node.layerMask = glassE.node.layerMask = inside ? 0x0FFFFFFF : 0;
       decor.setEnabled(inside);
       lamp.setEnabled(inside);
+      if (mirrorE && mirrorE.alive) mirrorE.node.setEnabled(inside);
     };
     s.show(false);
     for (const m of [...lights, pearl, halo, ...pedestals, globe, stand, ...hangarBits]) { m.isPickable = false; m.metadata = { decor: true, overseer: true }; }
@@ -429,10 +461,15 @@
   function say(text, voice) {
     if (OV.speak) OV.speak(text, voice || null, 6, { priority: 'important', owner: 'observatory' });
   }
+  /** What the wardrobe keeps: the gift and the colors that come with it (H.memory.wardrobe: the account's, when signed in). */
+  function own(g) {
+    try { if (H.memory && H.memory.wardrobe) H.memory.wardrobe.add({ acc: g.id, col: M().giftColors(g, H.memory.wardrobe.get(), nameOf()) }); } catch (err) { H.report(err, 'observatory wardrobe'); }
+  }
   function giveGift(g) {
     let ok = false;
     try { if (H.presence && H.presence.setLook) { H.presence.setLook({ accessory: g.id, accessoryColor: g.color }); ok = true; } } catch (err) { H.report(err, 'observatory gift'); }
     if (!ok && G() && G().mayhem && G().mayhem.giveTool) { G().mayhem.giveTool('matches'); ok = true; }
+    own(g);
     S.flare = 1;
     chimeGift();
     if (G()) G().emit('observatory-gift', { gift: g.id, kind: g.kind, label: g.label });
@@ -608,7 +645,15 @@
     // Inside: the scene, the quick line, and never stuck.
     if (me.state === 'inside') {
       if (me.scene && S.t - me.scene.startedAt >= 0) playScene(dt);
-      if (!me.first && !me.quickDone && S.t - me.at >= 1.5) { me.quickDone = true; say(me.back ? M().returned(nameOf(), me.back.name) : M().quick(nameOf(), (H.memory && H.memory.get ? H.memory.get().visits : 0)), null); emit('ready'); }
+      if (!me.first && !me.quickDone && S.t - me.at >= 1.5) {
+        me.quickDone = true;
+        const visits = H.memory && H.memory.get ? H.memory.get().visits : 0;
+        // Every third visit it leaves something in the wardrobe (never a thing they own), and says so instead of the usual line.
+        const lg = !me.back && H.memory && H.memory.wardrobe ? M().laterGift(H.memory.wardrobe.get(), nameOf(), visits) : null;
+        if (lg) { own(lg); S.flare = 1; chimeGift(); if (G()) G().emit('observatory-gift', { gift: lg.id, kind: lg.kind, label: lg.label, later: true }); say(M().WARDROBE_LINES.later(lg), null); }
+        else say(me.back ? M().returned(nameOf(), me.back.name) : M().quick(nameOf(), visits), null);
+        emit('ready');
+      }
       if (p && p.alive) {
         const c = room(0, 0, 0);
         const dx = p.position[0] - c[0], dz = p.position[2] - c[2], dy = p.position[1] - c[1];
@@ -644,16 +689,13 @@
       return d < 7 ? { label: 'Take the lift up to the Observatory', act: go, distance: d, priority: 5 } : null;
     },
   });
-  // The places that wait (the mirror, the wardrobe, the board): E near one, one plain line.
-  H.use.register('observatory:places', {
+  // The wardrobe: E near it opens the panel. (The mirror is the real one: modules/mirror offers "Change who you are" at it.)
+  H.use.register('observatory:wardrobe', {
     near(p) {
-      if (!S || !me || me.state !== 'inside') return null;
-      for (const id of ['mirror', 'wardrobe']) {
-        const pl = S.places[id];
-        const d = Math.hypot(p.position[0] - pl.at[0], p.position[2] - pl.at[2]);
-        if (d < 3) return { label: `${pl.label}`, act: () => say(id === 'mirror' ? 'A place for a mirror. It is not hung yet.' : 'A place for your wardrobe. Empty, for now.'), distance: d, priority: 1 };
-      }
-      return null;
+      if (!S || !me || me.state !== 'inside' || trip || !H.wardrobe || H.wardrobe.isOpen) return null;
+      const pl = S.places.wardrobe;
+      const d = Math.hypot(p.position[0] - pl.at[0], p.position[2] - pl.at[2]);
+      return d < 3.4 ? { label: 'Open the wardrobe', act: () => { if (H.wardrobe.open()) emit('wardrobe'); }, distance: d, priority: 3 } : null;
     },
   });
 
@@ -684,7 +726,8 @@
     fadeTo(0);
     const p = W() && W().player;
     if (p && me && me.state === 'riding') p.controls = true;
-    for (const e of [S.solidE, S.glassE]) if (e && e.alive) e.destroy();
+    if (H.wardrobe && H.wardrobe.isOpen) H.wardrobe.close();
+    for (const e of [S.solidE, S.glassE, S.mirrorE]) if (e && e.alive) e.destroy();
     S.root.dispose(false, true);
     S = null; me = null; trip = null;
   });
@@ -719,6 +762,8 @@
         get level() { return S ? S.level : 0; },
         get music() { return Boolean(S && S.music); },
         get places() { return S ? Object.keys(S.places) : []; },
+        get mirror() { return S && S.mirrorE && S.mirrorE.alive ? { at: [S.mirrorE.x, S.mirrorE.y, S.mirrorE.z] } : null; },
+        get wardrobe() { return S ? S.places.wardrobe.at.slice() : null; },
         get board() { return S ? S.board.map((b) => ({ id: b.planet.id, name: b.planet.name, line: b.planet.line, count: S.counts[b.planet.id] === undefined ? null : S.counts[b.planet.id], at: b.at.slice() })) : []; },
         get traveling() { return trip ? { game: trip.planet.id, phase: trip.phase, href: trip.href } : null; },
         get returning() { return returning; },

@@ -121,6 +121,8 @@ export function cleanMemory(v: unknown) {
     race: cleanRace(a.race),
     // The journal (the sandbox): ids of the neighbours met and the lore found.
     met: cleanIds(a.met), lore: cleanIds(a.lore),
+    // The wardrobe (the Observatory): accessories owned (ids) and colors (hex without the #).
+    own: { acc: cleanIds(a.own?.acc), col: cleanIds(a.own?.col).filter((c) => /^[0-9a-f]{6}$/i.test(c)).map((c) => c.toLowerCase()) },
     greet: { last: id(g.last), recent: Array.isArray(g.recent) ? g.recent.map(id).filter((x): x is string => x !== null).slice(-MEMORY.recent) : [] },
   };
 }
