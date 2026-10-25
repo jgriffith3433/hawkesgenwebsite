@@ -256,7 +256,8 @@ too much). `docs/performance.md` has the measured numbers and how to measure.
   3x screen at 2x; desktop 0: never capped), `drawDistance` (meters drawn per meter of a mesh's radius: 220 phone, 700
   desktop; never past the fog's end for fogged meshes), `shadowDistance`, `loads` (models and textures loading at
   once), `lights` (4 phone, 6 tablet, 8 desktop) and `catchUp` (the most fixed steps a frame runs to catch up: 3
-  phone, 4 tablet, 8 desktop; past it a slow device plays in slow motion). Phones get less (and a one-pass filtered shadow instead of the
+  phone, 4 tablet, 8 desktop; past it a slow device plays in slow motion), `characters` (bodies animated in full: 10 phone, 20
+  tablet, 40 desktop) and `farCharacter` (30 m: past it a body draws its half-detail level and moves simply; docs/characters.md "A crowd"). Phones get less (and a one-pass filtered shadow instead of the
   blurred one); desktop is never capped to a phone's numbers.
 - **Draw distance** puts a Babylon LOD level with nothing at the far end on every entity mesh (`m._cullAt`). A mesh with
   its own LOD levels is left alone; `e.noCull = true` draws a thing at any distance (a planet; a mesh with
