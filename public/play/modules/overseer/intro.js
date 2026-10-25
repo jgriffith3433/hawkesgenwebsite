@@ -4,7 +4,8 @@
 //   - config.overseer.intro: "first" (the default: once per player, remembered on this device), "always", or false.
 //   - The sound: a score made here (a hum, the beam's swell and whoosh, a chime, a tone under each line). The voice: a
 //     sound asset named "overseer-intro" in the game, else the Overseer's own line (overseer.js VOICES).
-//   - With sound still blocked by the browser (no click or key yet), it first shows "Click to enter the world".
+//   - With sound still blocked by the browser (no click or key yet), it first shows the gateway: the Overseer's ring, one
+//     "Enter" (click, tap, Enter or Space) that unlocks the sound and starts the intro at once (game.on('gateway')).
 //   - Remembered in localStorage ("hg_overseer_intro"); a sandboxed game page (the editor's stage) asks its page,
 //     which passes it in the bundle (bundle.overseen) and is told when it has played (message "overseer-seen").
 //   - game.overseer.intro() plays it from a script; game.on('intro', ({ state }) => ...) hears it start and end.
@@ -127,31 +128,57 @@
   /** The guest sandbox's funnel (play/guest.js sets it; nothing anywhere else): never breaks the intro. */
   function funnel(name) { try { if (window.hgFunnel) window.hgFunnel(name, {}); } catch { /* fine */ } }
 
-  /** Browsers keep sound off until the first click or key: before the intro, a quiet "click to enter", so it's heard. */
+  const VEIL_CSS = '.hp-enter{position:fixed;inset:0;z-index:2147482000;display:grid;place-items:center;padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));box-sizing:border-box;background:radial-gradient(ellipse at 50% 45%,rgba(20,34,80,.35),rgba(4,6,16,.92) 70%);color:#eef2ff;font-family:system-ui,sans-serif;animation:hpEnterIn .7s ease both;touch-action:manipulation;-webkit-tap-highlight-color:transparent}'
+    + '.hp-enter.out{animation:hpEnterOut .5s ease forwards}.hp-enter .in{display:grid;justify-items:center;gap:22px;text-align:center;max-width:min(92vw,420px)}'
+    + '.hp-enter .ring{position:relative;width:min(46vmin,240px);aspect-ratio:1;border-radius:50%;display:grid;place-items:center;border:2px solid rgba(160,190,255,.55);box-shadow:0 0 40px rgba(110,150,255,.45),inset 0 0 40px rgba(110,150,255,.25);animation:hpRing 3.2s ease-in-out infinite}'
+    + '.hp-enter .ring:before,.hp-enter .ring:after{content:"";position:absolute;inset:-14px;border-radius:50%;border:1px solid rgba(160,190,255,.25)}.hp-enter .ring:after{inset:-30px;border-color:rgba(160,190,255,.12)}'
+    + '.hp-enter button{appearance:none;border:0;cursor:pointer;color:#06091a;background:linear-gradient(#f4f7ff,#b9ccff);font:700 clamp(18px,4.4vmin,24px)/1 system-ui,sans-serif;letter-spacing:.2em;text-transform:uppercase;padding:.95em 2.2em;border-radius:999px;box-shadow:0 0 28px rgba(140,175,255,.7);min-width:140px;min-height:48px}'
+    + '.hp-enter button:focus-visible{outline:3px solid #fff;outline-offset:4px}.hp-enter p{margin:0;font:400 14px/1.4 system-ui,sans-serif;opacity:.72;letter-spacing:.04em}'
+    + '@keyframes hpEnterIn{from{opacity:0}to{opacity:1}}@keyframes hpEnterOut{to{opacity:0}}@keyframes hpRing{50%{transform:scale(1.05);box-shadow:0 0 64px rgba(110,150,255,.7),inset 0 0 50px rgba(110,150,255,.35)}}'
+    + '@media (prefers-reduced-motion:reduce){.hp-enter .ring{animation:none}}';
+
+  /** Browsers keep sound off until a click, tap or key. Before the intro: the gateway, the Overseer's ring and one
+   *  "Enter". That one gesture (click, tap, Enter or Space) unlocks the sound and starts the intro, and the game hears
+   *  it as game.on('gateway', { state: 'passed' }) so the island's sound starts right then. */
   function waitForSound() {
     const ctx = H.audio && H.audio.context;
     if (!ctx || ctx.state === 'running' || H.hooks.codex) return Promise.resolve();
     return new Promise((done) => {
       const veil = document.createElement('div');
       veil.className = 'hp-enter';
-      veil.innerHTML = '<div><b>Click to enter the world</b><span>or press any key</span></div>';
+      veil.setAttribute('role', 'dialog');
+      veil.setAttribute('aria-label', 'Enter the world');
+      veil.innerHTML = '<div class="in"><div class="ring" aria-hidden="true"></div><button type="button">Enter</button><p>This world has sound. Turn it up.</p></div>';
       if (!document.getElementById('hp-enter-css')) {
         const st = document.createElement('style');
         st.id = 'hp-enter-css';
-        st.textContent = '.hp-enter{position:fixed;inset:0;z-index:2147482000;display:grid;place-items:center;background:radial-gradient(ellipse at center,rgba(4,6,16,.35),rgba(4,6,16,.75));cursor:pointer;animation:hpEnterIn .6s ease both}.hp-enter div{display:grid;gap:8px;text-align:center;color:#eef2ff;font:600 22px/1.2 system-ui,sans-serif;letter-spacing:.02em;text-shadow:0 2px 18px rgba(120,160,255,.6)}.hp-enter span{font:400 13px/1 system-ui,sans-serif;opacity:.65;letter-spacing:.08em;text-transform:uppercase}@keyframes hpEnterIn{from{opacity:0}to{opacity:1}}';
+        st.textContent = VEIL_CSS;
         document.head.appendChild(st);
       }
+      const btn = veil.querySelector('button');
+      let passed = false;
       const go = (e) => {
-        if (e && e.type === 'keydown' && ['shift', 'control', 'alt', 'meta'].includes(String(e.key || '').toLowerCase())) return;
+        if (passed) return;
+        if (e && e.type === 'keydown') {
+          const k = String(e.key || '').toLowerCase();
+          if (['shift', 'control', 'alt', 'meta', 'tab'].includes(k) || e.repeat) return;
+        }
+        passed = true;
         if (e) { e.preventDefault(); e.stopPropagation(); }
         window.removeEventListener('keydown', go, true);
-        veil.remove();
+        // Inside the gesture: unlock the sound now, and tell the game so its sound starts with it.
+        const resumed = ctx.resume().catch(() => {});
         funnel('sandbox_veil_passed');
-        ctx.resume().catch(() => {}).finally(() => setTimeout(done, 60));
+        try { if (G()) G().emit('gateway', { state: 'passed' }); } catch { /* fine */ }
+        veil.classList.add('out');
+        setTimeout(() => veil.remove(), 520);
+        resumed.finally(() => done());
       };
       veil.addEventListener('pointerdown', go);
+      veil.addEventListener('click', go);
       window.addEventListener('keydown', go, true);
       document.body.appendChild(veil);
+      try { btn.focus({ preventScroll: true }); } catch { /* fine */ }
       funnel('sandbox_veil_shown');
     });
   }

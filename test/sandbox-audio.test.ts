@@ -85,3 +85,15 @@ test('sandbox sound: the intro voice first, the music and loops only after the i
   assert.equal(p.audios[1].paused, true, 'the sea waits for its own file');
   assert.ok(p.win.__islandAudioLog.some((e: any) => e.what === 'ready' && e.name === 'meadow.mp3'), 'the log says when each was ready');
 });
+
+test('sandbox sound: the gateway gesture starts the music, the sea and the birds at once; a skipped intro still does', async () => {
+  const p = page();
+  p.start();
+  p.emit('gateway', { state: 'passed' });
+  await new Promise((r) => setTimeout(r, 20));
+  for (const n of ['meadow', 'ocean-waves', 'forest']) assert.ok(has(p.requests, n), `${n} is asked for with the gesture`);
+  const q = page();
+  q.start();
+  q.emit('intro', { state: 'end' });
+  for (const n of ['meadow', 'ocean-waves', 'forest']) assert.ok(has(q.requests, n), `${n} starts after a skipped intro`);
+});
