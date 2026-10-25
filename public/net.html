@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
+  <script src="/site-analytics.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hawkes Net — multiplayer for web games</title>
+  <meta name="description" content="Hawkes Net: one call joins a room. Small rooms go peer to peer, big ones move to our relay without anyone reconnecting. Try it in two tabs.">
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/public.css">
+  <link rel="stylesheet" href="/site.css">
+  <style>
+    .net-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; align-items: start; }
+    @media (max-width: 900px) { .net-grid { grid-template-columns: 1fr; } }
+    .net-stage { border: 1px solid var(--rule-strong); border-radius: var(--r); background: var(--paper-2); overflow: hidden; }
+    .net-stage canvas { width: 100%; aspect-ratio: 16 / 10; display: block; touch-action: none; }
+    .net-panel { border: 1px solid var(--rule); border-radius: var(--r); padding: 16px; background: var(--paper); }
+    .net-panel dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; font-size: 14px; }
+    .net-panel dt { color: var(--ink-3); } .net-panel dd { margin: 0; font-variant-numeric: tabular-nums; }
+    .net-panel ul { list-style: none; padding: 0; margin: 14px 0 0; display: grid; gap: 6px; max-height: 240px; overflow: auto; font-size: 14px; }
+    .net-panel li { display: flex; gap: 8px; align-items: center; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+    .pill { font: 500 11px var(--mono); padding: 1px 8px; border-radius: 99px; border: 1px solid var(--rule-strong); color: var(--ink-2); margin-left: auto; }
+    .pill.relay { border-color: var(--accent); color: var(--accent); }
+    .net-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+    .net-log { font: 12px/1.45 var(--mono); color: var(--ink-3); white-space: pre-wrap; max-height: 120px; overflow: auto; margin-top: 12px; }
+    .facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); border-top: 1px solid var(--ink); }
+    .facts > div { padding: 18px 20px 18px 0; border-bottom: 1px solid var(--rule); }
+    .facts b { display: block; font: 400 30px/1.1 var(--serif); }
+    .facts span { color: var(--ink-2); font-size: 14px; }
+  </style>
+  <script src="/sitenav.js" defer></script>
+</head>
+<body class="landing">
+  <header class="hg-navbar">
+    <div class="wrap hg-navbar-inner">
+      <a href="/" class="hg-brand"><span class="wordmark">Hawkes Gen</span></a>
+      <nav class="hg-nav-links" data-site-nav><a href="/games">Games</a><a href="/community">Community library</a><a href="/entities">Engine codex</a><a href="/app/studio">Asset Studio</a><a href="/#pricing">Pricing</a><a href="/connect">For developers</a></nav>
+      <div class="hg-nav-actions" id="nav"><a class="btn btn-primary" href="/app">Open the studio</a></div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" style="padding-bottom:24px">
+      <div class="wrap">
+        <div class="label">Hawkes Net · multiplayer</div>
+        <h1 style="margin-top:18px">Play together,<br><em>here, right now.</em></h1>
+        <p class="lede">Every dot is someone with this page open in the same room. Open the invite link in another tab or on your phone. Small rooms go peer to peer; past eight players the room moves to our relay, and nobody reconnects.</p>
+      </div>
+    </section>
+
+    <section class="section" style="padding-top:8px">
+      <div class="wrap net-grid">
+        <div>
+          <div class="net-stage"><canvas id="c" width="960" height="600" aria-label="The room: every dot is a player"></canvas></div>
+          <div class="net-actions">
+            <button class="btn btn-primary" id="share" type="button">Copy the invite link</button>
+            <button class="btn btn-secondary" id="bots" type="button">Add 5 bots</button>
+            <button class="btn btn-secondary" id="migrate" type="button">Move to the relay</button>
+          </div>
+          <div class="fine">Move with the arrow keys, or drag on the room. Bots are more players in this page, on the same network as you.</div>
+        </div>
+        <aside class="net-panel" aria-live="polite">
+          <dl>
+            <dt>You</dt><dd id="me">joining…</dd>
+            <dt>Carried by</dt><dd id="transport">…</dd>
+            <dt>Host</dt><dd id="host">–</dd>
+            <dt>Round trip</dt><dd id="rtt">–</dd>
+            <dt>Down / up</dt><dd id="bw">–</dd>
+          </dl>
+          <ul id="peers"></ul>
+          <div class="net-log" id="log"></div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head"><div class="label">How it holds up</div><div><h2>Measured, not promised.</h2><p>From our load test and our own games. Numbers for a world with 60 moving things and avatars 15 times a second.</p></div></div>
+        <div class="facts">
+          <div><b>1,000</b><span>players on one relay node with 4 processes: all connected, none dropped</span></div>
+          <div><b>~8 KB/s</b><span>per player on the relay, in a binary protocol about 5 times smaller than JSON</span></div>
+          <div><b>0 bytes</b><span>through our servers for a room of friends that stays peer to peer</span></div>
+          <div><b>1 call</b><span><code>join(room)</code>: the move from peer to peer to the relay happens under your game</span></div>
+        </div>
+        <div class="actions" style="margin-top:28px"><a class="btn btn-primary btn-lg" href="/connect#net">Use it in your game</a><a class="btn btn-secondary btn-lg" href="/games">Play the games built on it</a></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <span>© 2026 Hawkes Gen</span>
+      <span><a href="/legal#terms">Terms</a> · <a href="/legal#privacy">Privacy</a> · <a href="mailto:support@hawkesgen.com">support@hawkesgen.com</a></span>
+    </div>
+  </footer>
+
+<script type="module">
+  import { join } from '/play/hawkes-net.mjs';
+  const $ = (id) => document.getElementById(id);
+  const q = new URLSearchParams(location.search);
+  let room = (q.get('room') || '').toLowerCase();
+  if (!/^[a-z0-9]{4,16}$/.test(room)) { room = Math.random().toString(36).slice(2, 10); history.replaceState(null, '', `?room=${room}`); }
+  const log = (s) => { const el = $('log'); el.textContent = `${new Date().toLocaleTimeString()}  ${s}\n${el.textContent}`.slice(0, 3000); };
+  const ticket = (name) => async () => {
+    const r = await fetch('/v1/net/ticket', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ play: 'net-demo', room, name }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Could not join');
+    if (j.mode !== 'hawkesnet') throw new Error('Hawkes Net is not running right now');
+    return j;
+  };
+  const W = 960, H = 600;
+  const pos = { x: 120 + Math.random() * 720, y: 100 + Math.random() * 400 };
+  const keys = new Set();
+  addEventListener('keydown', (e) => { if (e.key.startsWith('Arrow')) { keys.add(e.key); e.preventDefault(); } });
+  addEventListener('keyup', (e) => keys.delete(e.key));
+  const cv = $('c'), g = cv.getContext('2d');
+  const drag = (e) => { const r = cv.getBoundingClientRect(); pos.x = ((e.clientX - r.left) / r.width) * W; pos.y = ((e.clientY - r.top) / r.height) * H; };
+  cv.addEventListener('pointerdown', (e) => { cv.setPointerCapture(e.pointerId); drag(e); });
+  cv.addEventListener('pointermove', (e) => { if (e.buttons) drag(e); });
+  const myName = `Guest ${Math.floor(Math.random() * 900 + 100)}`;
+  let net;
+  try { net = await join(room, { project: 'hawkesgenwebsite', transport: 'auto', name: myName, ticket: ticket(myName) }); }
+  catch (e) { $('me').textContent = e.message || 'Could not join'; throw e; }
+  log(`You joined as ${net.name}`);
+  net.when('transport', (e) => log(`The room moved: ${e.from} to the ${e.to} (${e.why})`));
+  net.when('peer:join', (p) => log(`${p.name || p.id} joined`));
+  net.when('peer:leave', (e) => log(`${e.peer.name || e.peer.id} left`));
+  net.when('host', (e) => e.previous && log(`${net.peers.get(e.host)?.name || 'You'} host the room now`));
+  const tracks = new Map();
+  net.onPose((id, s, at) => { let t = tracks.get(id); if (!t) tracks.set(id, (t = net.sync.track({ pos: [0, 1, 2] }))); t.push(at, [s.p[0], s.p[1], s.p[2]], id); });
+  const bots = [];
+  $('bots').onclick = async () => {
+    $('bots').disabled = true;
+    try {
+      for (let i = 0; i < 5; i++) {
+        const name = `Bot ${bots.length + 1}`;
+        const b = await join(room, { project: 'hawkesgenwebsite', transport: 'auto', name, ticket: ticket(name), sub: `bot-${Math.random()}` });
+        bots.push({ net: b, x: Math.random() * W, y: Math.random() * H, a: Math.random() * 6.28 });
+      }
+    } catch (e) { log(e.message); }
+    $('bots').disabled = false;
+  };
+  $('migrate').onclick = () => net.migrate('game asked');
+  $('share').onclick = async () => { try { await navigator.clipboard.writeText(location.href); $('share').textContent = 'Copied'; } catch { prompt('The invite link', location.href); } setTimeout(() => ($('share').textContent = 'Copy the invite link'), 1500); };
+  const ink = () => getComputedStyle(document.body).color;
+  let last = performance.now(), prev = { d: 0, u: 0, t: performance.now() };
+  function frame(t) {
+    const dt = Math.min(0.05, (t - last) / 1000); last = t;
+    const sp = 260 * dt;
+    if (keys.has('ArrowLeft')) pos.x -= sp; if (keys.has('ArrowRight')) pos.x += sp; if (keys.has('ArrowUp')) pos.y -= sp; if (keys.has('ArrowDown')) pos.y += sp;
+    pos.x = Math.max(12, Math.min(W - 12, pos.x)); pos.y = Math.max(12, Math.min(H - 12, pos.y));
+    net.pose([pos.x, 0, pos.y], 0);
+    for (const b of bots) { b.a += (Math.random() - 0.5) * 0.3; b.x += Math.cos(b.a) * 110 * dt; b.y += Math.sin(b.a) * 110 * dt; if (b.x < 12 || b.x > W - 12) b.a = Math.PI - b.a; if (b.y < 12 || b.y > H - 12) b.a = -b.a; b.x = Math.max(12, Math.min(W - 12, b.x)); b.y = Math.max(12, Math.min(H - 12, b.y)); b.net.pose([b.x, 0, b.y], 0); }
+    g.clearRect(0, 0, W, H);
+    g.font = '13px Inter, system-ui, sans-serif'; g.textAlign = 'center';
+    const color = ink();
+    for (const [id, tr] of tracks) {
+      const pr = net.peers.get(id);
+      if (!pr) { tracks.delete(id); continue; }
+      const s = tr.sample();
+      if (!s) continue;
+      g.fillStyle = pr.color || '#888'; g.beginPath(); g.arc(s[0], s[2], 9, 0, 7); g.fill();
+      g.fillStyle = color; g.fillText(pr.name || id, s[0], s[2] - 15);
+    }
+    g.fillStyle = net.color || '#2f6fed'; g.beginPath(); g.arc(pos.x, pos.y, 11, 0, 7); g.fill();
+    g.strokeStyle = color; g.lineWidth = 2; g.stroke();
+    g.fillStyle = color; g.fillText('You', pos.x, pos.y - 17);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+  setInterval(() => {
+    const s = net.stats();
+    const t = performance.now(), sec = (t - prev.t) / 1000;
+    $('bw').textContent = `${((s.downBytes - prev.d) / sec / 1024).toFixed(1)} / ${((s.upBytes - prev.u) / sec / 1024).toFixed(1)} KB/s`;
+    prev = { d: s.downBytes, u: s.upBytes, t };
+    $('me').textContent = net.name;
+    $('transport').innerHTML = net.transport === 'relay' ? '<span class="pill relay" style="margin:0">our relay</span>' : '<span class="pill" style="margin:0">peer to peer</span>';
+    $('host').textContent = net.isHost ? 'you' : (net.peers.get(net.host)?.name || '–');
+    $('rtt').textContent = s.rttMs === null ? '–' : `${s.rttMs} ms`;
+    const ul = $('peers');
+    ul.textContent = '';
+    for (const p of [...net.peers.values()].sort((a, b) => a.ord - b.ord)) {
+      const li = document.createElement('li');
+      const dot = document.createElement('span'); dot.className = 'dot'; dot.style.background = p.color || '#888';
+      const name = document.createElement('span'); name.textContent = p.name || p.id;
+      const pill = document.createElement('span'); pill.className = 'pill'; pill.textContent = net.transport === 'relay' ? 'relay' : p.id === net.host ? 'host' : net.isHost ? 'linked to you' : p.route === 'direct' ? 'direct' : 'via host';
+      li.append(dot, name, pill);
+      ul.appendChild(li);
+    }
+  }, 500);
+</script>
+</body>
+</html>

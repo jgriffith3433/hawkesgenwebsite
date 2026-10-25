@@ -66,6 +66,14 @@ export async function ticket(body: any, ip: string) {
     if (!user || user.disabled || !getGame(v.g)) throw new PortalError('No such game', { status: 404 });
     memberGame(user, v.g, 'player');
     room = `g/${v.g}/edit`; name = user.name ?? 'Builder'; sub = user.id; transport = 'relay';
+  } else if (body?.play === 'net-demo') {
+    // The public demo (/net): dots in a room, anyone, a few joins a minute per address.
+    if (!ticketsByIp.hit(ip)) throw new PortalError('Too many joins from here; wait a moment', { status: 429 });
+    const code = String(body?.room ?? '').toLowerCase();
+    if (!CODE.test(code)) throw new PortalError('A room code is 4 to 16 letters and numbers');
+    room = `d/${code}`; name = clean(body?.name) || null; transport = 'auto';
+    const r: any = await gen('/v1/net/ticket', { body: { project: NET_PROJECT, room, name, transport, role: 'player', config: { profile: 'light', maxPlayers: 32, p2pMax: 8 }, client: { sdk: String(body?.sdk ?? ''), protocols: [3] } } });
+    return { mode: 'hawkesnet', room, ...r };
   } else {
     if (!ticketsByIp.hit(ip)) throw new PortalError('Too many joins from here; wait a moment', { status: 429 });
     const play = String(body?.play ?? '');
@@ -91,6 +99,21 @@ export async function ticket(body: any, ip: string) {
   }
   const r: any = await gen('/v1/net/ticket', { body: { project: NET_PROJECT, room, name, sub, transport, role: 'player', client: { sdk: String(body?.sdk ?? ''), protocols: [3] } } });
   return { mode: 'hawkesnet', room, ...r };
+}
+
+/**
+ * A customer's own game (POST /v1/net/rooms/ticket with their API key, from their game's server): a ticket for a room in
+ * their own Hawkes Net project (their Gen project, usr_...), so nobody else's game can join it. Their server hands the
+ * ticket to the player's page, which passes it to join(). Usage is filed under their project in Gen.
+ */
+export async function customerTicket(project: string, body: any) {
+  const room = String(body?.room ?? '');
+  if (!/^[a-z0-9][a-z0-9/_.-]{0,63}$/i.test(room)) throw new PortalError('room is 1 to 64 of letters, digits and / _ . -');
+  const transport = ['auto', 'p2p', 'relay'].includes(body?.transport) ? body.transport : 'auto';
+  const config = body?.config && typeof body.config === 'object' ? { maxPlayers: body.config.maxPlayers, p2pMax: body.config.p2pMax, profile: body.config.profile, sendHz: body.config.sendHz } : undefined;
+  const role = body?.role === 'spectator' ? 'spectator' : 'player';
+  const r: any = await gen('/v1/net/ticket', { as: project, body: { project, room, name: clean(body?.name) || null, sub: typeof body?.sub === 'string' ? body.sub.slice(0, 64) : undefined, transport, role, config, client: { sdk: String(body?.sdk ?? ''), protocols: [3] } } });
+  return r;
 }
 
 /** Is a room open and how full? (Invitations ask before a friend loads anything.) */
