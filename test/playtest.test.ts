@@ -51,7 +51,7 @@ test('site-layout: three sizes, the checklist in AGENTS.md, horizontal scroll fa
 
 test('avatar-animations: a frame per class, the bone checks, the fallbacks and ten characters; documented in AGENTS.md', () => {
   const src = read('public/playtest/avatar-animations.js');
-  for (const k of ['clip-file', 'clip-moments', 'bone-checks', 'prefixes-match', 'fallback-procedural', 'template-biped-animates', 'ten-characters', 'standin=mixamo', 'pose=walk&t=0.25']) assert.ok(src.includes(k), k);
+  for (const k of ['clip-file', 'clip-moments', 'bone-checks', 'prefixes-match', 'fallback-procedural', 'template-biped-animates', 'ten-characters', 'object-clips', 'toast-pops', 'volume-kept', 'no-clipping', 'object-loops-close', 'proportionate-motion', 'fish-keeps-gait', 'rollbot-keeps-roll', 'standin=mixamo', 'pose=walk&t=0.25']) assert.ok(src.includes(k), k);
   assert.match(read('public/playtest/portal.js'), /runAvatarAnimations\(t, options\)/);
   assert.match(read('AGENTS.md'), /avatar-animations/);
 });
