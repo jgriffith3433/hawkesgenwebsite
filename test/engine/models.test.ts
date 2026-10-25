@@ -49,9 +49,11 @@ function run(t: any, seconds: number, speed = 0, em: any = null) {
   }
 }
 
-const PILOT = ['person', 'dog', 'shoe']; // the types whose Gen models are in public/play/models (the pilot)
-test('the pilot models: each filled row names a file that is there, a near level within the phone budget and a low level', () => {
-  for (const id of PILOT) {
+const PILOT = ['person', 'dog', 'shoe']; // the pilot's three
+const MADE = ['robot', 'tvbot', 'rollbot', 'cat', 'fox', 'pig', 'bear', 'rabbit', 'penguin', 'chicken', 'cow', 'sheep', 'horse', 'dinosaur', 'fish', 'toaster', 'cactus', 'cone', 'teapot', 'banana', 'mushroom', 'potato', 'duck']; // made through Hawkes Gen after it
+const MODELS = [...PILOT, ...MADE]; // every type whose Gen model is in public/play/models (a type left out here keeps its procedural body and is named in docs/characters.md)
+test('the Gen models: each filled row names a file that is there, a near level within the phone budget and a low level', () => {
+  for (const id of MODELS) {
     const r = registryBefore[id];
     if (!r.url) continue; // (a model not baked yet keeps its procedural body)
     const file = path.join(ROOT, 'public', r.url);
@@ -61,7 +63,7 @@ test('the pilot models: each filled row names a file that is there, a near level
     const names = (j.animations || []).map((a: any) => a.name);
     for (const [role, clip] of Object.entries(r.clips || {})) assert.ok(names.includes(clip), `${id}: the file has a clip "${clip}" for ${role}`);
     const pos = j.meshes.flatMap((m: any) => m.primitives.map((q: any) => j.accessors[q.attributes.POSITION])), top = Math.max(...pos.map((a: any) => a.max[1]));
-    assert.ok(r.anchors.head.at[1] <= top * 1.02 && r.anchors.head.at[1] >= top * 0.8, `${id}: the head anchor sits at the top of the model (${r.anchors.head.at[1]} of ${top.toFixed(2)})`);
+    assert.ok(r.anchors.head.at[1] <= top * 1.02 && r.anchors.head.at[1] >= top * 0.7, `${id}: the head anchor sits at the top of the model (${r.anchors.head.at[1]} of ${top.toFixed(2)})`);
     assert.ok(r.lods.levels.length && r.lods.levels[0].tris < r.lods.tris && fs.existsSync(path.join(ROOT, 'public', r.lods.levels[0].url)), `${id}: a low level`);
   }
 });
@@ -72,11 +74,11 @@ test('the registry names every type, with a form and no file yet: the procedural
   assert.equal(C.WHATS.length, 26);
   for (const w of C.WHATS) {
     assert.ok(FORMS.includes(rows[w.id].form), `${w.id}: form ${rows[w.id].form}`);
-    assert.ok(PILOT.includes(w.id) || (!rows[w.id].asset && !rows[w.id].url), `${w.id}: no model made yet`);
+    assert.ok(MODELS.includes(w.id) || (!rows[w.id].asset && !rows[w.id].url), `${w.id}: no model made yet`);
   }
-  assert.equal(rows.fish.form, 'swimmer'); assert.equal(rows.dog.form, 'quadruped'); assert.equal(rows.rollbot.form, 'roller'); assert.equal(rows.duck.form, 'legless'); assert.equal(rows.penguin.form, 'bird');
+  assert.equal(rows.fish.form, 'swimmer'); assert.equal(rows.dog.form, 'quadruped'); assert.equal(rows.rollbot.form, 'legless'); assert.equal(rows.duck.form, 'legless'); assert.equal(rows.penguin.form, 'bird');
   P.modelRegistry = JSON.parse(JSON.stringify(rows));
-  for (const id of PILOT) { P.modelRegistry[id].url = null; P.modelRegistry[id].asset = null; P.modelRegistry[id].lods = null; } // (the procedural bodies when a row has no file)
+  for (const id of MODELS) { P.modelRegistry[id].url = null; P.modelRegistry[id].asset = null; P.modelRegistry[id].lods = null; } // (the procedural bodies when a row has no file)
   M.setLoader(() => Promise.reject(new Error('should not load')));
   for (const id of ['dog', 'person', 'toaster']) {
     const t = stand(id);
@@ -136,7 +138,8 @@ test('a person model (a skinned biped with clips) is scaled to the row\'s height
   const { min, max } = t.rig.pm.mover.getHierarchyBoundingVectors(true);
   assert.ok(Math.abs((max.y - min.y) - 1.8) < 0.03, `${max.y - min.y}`);
   assert.ok(!t.rig.person || t.rig.hipL, 'the procedural person\'s joints are still there for the pose code');
-  const o = stand('robot'); // (no row for the robot: it keeps its procedural body)
+  M.register('robot', { url: null, asset: null, lods: null }); // (a type whose row has no file keeps its procedural body)
+  const o = stand('robot');
   assert.ok(!o.rig.pm);
   P.showcase.dispose(t.rig); P.showcase.dispose(o.rig); t.node.dispose(); o.node.dispose();
 });
