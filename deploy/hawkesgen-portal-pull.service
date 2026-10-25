@@ -1,5 +1,5 @@
 [Unit]
-Description=hawkesgen.com portal: deploy main once CI passes
+Description=hawkesgen.com portal: deploy main once its tests pass on this box
 After=network-online.target
 
 [Service]

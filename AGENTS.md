@@ -172,8 +172,10 @@ answering 200: that is how Studio runs it.
 ## Deploys
 
 Push to `main` (going live: Studio fast-forwards main to the playtested beta commit when J types
-`DEPLOY hawkesgenwebsite`). CI runs typecheck and tests; the box checks every 2 minutes (`hawkesgen-portal-pull.timer`), and
-deploys a commit whose CI passed: fast-forward, restart, health check, rollback if unhealthy. Logs:
+`DEPLOY hawkesgenwebsite`). GitHub runs no tests (J, 2026-10-25): agents run `npm run typecheck` and `npm test` as their
+checks, and the box checks every 2 minutes (`hawkesgen-portal-pull.timer`), runs typecheck and tests on a clean copy of a
+new main (niced, `deploy/pull.mjs` testedHere), and deploys it only if they pass: fast-forward, restart, health check,
+rollback if unhealthy. Logs:
 `journalctl -u hawkesgen-portal -u hawkesgen-portal-pull`. Push to main only with J's OK.
 
 **Backups** (`src/backup.ts`, `deploy/hawkesgen-portal-backup.{service,timer}`, `deploy/backup-aws.mjs`; test `test/backup.test.ts`). `.data/portal.db` holds accounts, credits, the ledger and Stripe records.
