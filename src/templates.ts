@@ -230,7 +230,7 @@ game.ui.message('${title.replace(/'/g, "\\'")}', 1.5);
     files: (title) => ({
       'README.md': readme(title, 'A playground to build from. Walk with WASD, jump with space (twice to fly), hold click to grab things, double-click anything to change it, Enter to ask the assistant.'),
       'scene.json': sceneJson(
-        { background: '#9fd3f0', ambient: 0.75, sun: 0.9, gravity: -24, fog: { color: '#9fd3f0', start: 60, end: 160 } },
+        { background: '#9fd3f0', ambient: 0.75, sun: 0.9, gravity: -24, overseer: { position: [3000, 4200, -9700] }, fog: { color: '#9fd3f0', start: 60, end: 160 } },
         {
           ground: thing('ground', 'plane', 'Ground', [0, 0, 0], { shape: { width: 60, depth: 60 }, material: { color: '#7aa35a' } }),
           start: thing('start', 'spawn', 'Player start', [0, 0.1, 8], { data: { role: 'player' }, transform: { position: [0, 0.1, 8], rotation: [0, 180, 0] } }),

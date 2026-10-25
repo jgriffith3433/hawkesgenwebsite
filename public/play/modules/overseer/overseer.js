@@ -21,7 +21,7 @@
   const { clamp, num, smooth, PHONE } = H.sky._;
   const RAD = Math.PI / 180;
 
-  const DEFAULTS = { position: [-2600, 5200, 8200], radius: 560, color: '#eef1f6', glow: '#8fd8ff', intro: 'first', beams: true };
+  const DEFAULTS = { position: [-3000, 4200, 9700], radius: 1400, color: '#eef1f6', glow: '#8fd8ff', intro: 'first', beams: true };
   /** config.overseer as an object (null: this game has none). */
   function read(cfg) {
     const v = cfg.overseer;
@@ -175,6 +175,15 @@
     return { cfg, scene, r, bay, mats, decor, seam, ringA, ringB, halo, bayGlow, farHull, decorMeshes, lod: null, near: null, model: null, t: 0 };
   }
 
+  /** The most the air hazes it, and the least it differs from the sky behind it (0..1 brightness) however hazy. */
+  const HAZE_MAX = 0.4, MIN_CONTRAST = 0.14;
+  const lum = (c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+  /** About the colour the hull shows (lit pearl, hazed toward the horizon colour). */
+  function hullSeen(pearl, hz, night, hor) {
+    const lit = pearl.scale((1 - hz * 0.7) * (0.55 + 0.45 * (1 - night)));
+    return B.Color3.Lerp(lit.add(pearl.scale(0.05 + 0.2 * night)), hor, hz * 0.75);
+  }
+
   /** How far it looks lower than it is (the planet's curve), blended in as it gets far (so close up it's exact). */
   function farOffset(d) { const P = H.planet; return P && P.on ? P.drop(d) * smooth(1200, 3200, d) : 0; }
   const center = () => (O ? new B.Vector3(O.cfg.position[0], O.cfg.position[1], O.cfg.position[2]) : null);
@@ -186,12 +195,15 @@
     return new B.Vector3(c.x, c.y - O.r * 0.99 - farOffset(d), c.z);
   }
 
+  /** The far layer can show it only when it really was built (its render target and the layer that draws it). */
+  const farOk = () => { const bg = H.sky.bg; return Boolean(bg && bg.rtt && bg.layer); };
   /** Near (in the world, with its hangar) or far (the sky's far layer). */
   function setLod(lod) {
     if (!O || O.lod === lod) return;
     const bg = H.sky.bg;
     O.lod = lod;
-    const far = lod === 'far' && bg;
+    O.proxy = null; // (update() decides again)
+    const far = lod === 'far' && farOk();
     for (const m of O.decorMeshes) { if (far) bg.add(m, 2); else if (bg) bg.remove(m); }
     if (bg) { if (far) bg.add(O.farHull, 2); else bg.remove(O.farHull); }
     O.farHull.setEnabled(Boolean(far) && !O.model);
@@ -207,12 +219,29 @@
     const c = center(), p = main.globalPosition;
     const d = B.Vector3.Distance(c, p);
     const nearAt = O.r + 900, farAt = O.r + 1150;
-    if (!H.sky.bg) setLod('near');
+    if (!farOk()) setLod('near');
     else if (O.lod !== 'near' && d < nearAt) setLod('near');
     else if (O.lod !== 'far' && d > farAt) setLod('far');
     const dxz = Math.hypot(c.x - p.x, c.z - p.z);
-    const off = O.lod === 'far' ? farOffset(dxz) : 0;
+    // Without the far layer, the world's own camera reaches only maxZ: farther than that it is drawn as a stand-in sphere
+    // of the same look and the same size on the screen, pulled in along the line of sight (a failed far layer must never
+    // lose the ship).
+    const reach = (main.maxZ || 2000) * 0.8;
+    const proxy = O.lod === 'near' && d > reach;
+    const k = proxy ? reach / d : 1;
+    if (proxy !== O.proxy) {
+      O.proxy = proxy;
+      O.farHull.setEnabled(proxy && !O.model);
+      O.halo.setEnabled(proxy);
+      if (!proxy) { O.decor.scaling.setAll(1); O.farHull.scaling.setAll(1); if (O.model && O.model.root) O.model.root.scaling.setAll(1); }
+    }
+    const off = O.lod === 'far' || proxy ? farOffset(dxz) : 0;
     O.decor.position.set(c.x, c.y - off, c.z);
+    if (proxy) {
+      O.decor.position.set(p.x + (c.x - p.x) * k, p.y + (c.y - off - p.y) * k, p.z + (c.z - p.z) * k);
+      O.decor.scaling.setAll(k); O.farHull.scaling.setAll(k);
+      if (O.model && O.model.root) O.model.root.scaling.setAll(k);
+    }
     O.farHull.position.copyFrom(O.decor.position);
     if (O.model && O.model.root) O.model.root.position.copyFrom(O.decor.position);
     // A round world: it hangs over its place on the planet, turned with the planet (you see it tilt as you go round).
@@ -222,14 +251,27 @@
     // Hazy by day, glowing at night: the hull fades into the sky with distance through the air, the seams shine.
     const sky = H.sky;
     const night = 1 - clamp((sky.day - 0.12) / 0.88, 0, 1);
-    const hz = (1 - Math.exp(-d / 16000)) * (1 - sky.space) * (1 - night * 0.6) * (O.lod === 'far' ? 1 : 0.2);
+    const hz = Math.min(HAZE_MAX, (1 - Math.exp(-d / 16000)) * (1 - sky.space) * (1 - night * 0.6)) * (O.lod === 'far' || O.proxy ? 1 : 0.2);
     const pearl = L.hex(O.cfg.color, DEFAULTS.color), glow = L.hex(O.cfg.glow, DEFAULTS.glow), hor = sky.horizon;
+    // (The haze never takes it below MIN_CONTRAST against the sky behind it: a disc by day must still read.)
     O.mats.hull.diffuseColor = pearl.scale(1 - hz * 0.7);
     O.mats.hull.emissiveColor = B.Color3.Lerp(pearl.scale(0.05 + 0.2 * night), hor, hz * 0.75);
+    if (O.lod === 'far' || O.proxy) {
+      const seen = hullSeen(pearl, hz, night, hor);
+      const gap = MIN_CONTRAST - Math.abs(lum(seen) - lum(hor));
+      if (gap > 0) {
+        // Away from the sky's brightness: darker when the sky is bright, lighter when it is dark.
+        if (lum(hor) > 0.5) { const f = Math.max(0.25, 1 - gap / Math.max(0.05, lum(seen))); O.mats.hull.diffuseColor = O.mats.hull.diffuseColor.scale(f); O.mats.hull.emissiveColor = O.mats.hull.emissiveColor.scale(f); }
+        else O.mats.hull.emissiveColor = O.mats.hull.emissiveColor.add(new B.Color3(gap, gap, gap));
+      }
+    }
     const shine = 0.75 + 0.9 * night + 0.25 * sky.space + flareK * 1.6;
     O.mats.seam.emissiveColor = B.Color3.Lerp(glow.scale(shine), hor, hz * 0.4);
     O.mats.ring.emissiveColor = B.Color3.Lerp(B.Color3.Lerp(glow, new B.Color3(1, 1, 1), 0.45).scale(0.65 + 0.7 * night), hor, hz * 0.5);
-    O.mats.halo.alpha = clamp(0.18 + 0.5 * night + 0.15 * sky.space - hz * 0.1 + flareK * 0.35, 0.08, 0.95);
+    // A gentle pulse of the halo (about every seven seconds): a little in size, a little in brightness.
+    const pulse = Math.sin(O.t * 0.9);
+    O.halo.scaling.setAll(1 + 0.04 * pulse);
+    O.mats.halo.alpha = clamp(0.18 + 0.5 * night + 0.15 * sky.space - hz * 0.1 + flareK * 0.35 + 0.05 * pulse, 0.08, 0.95);
   }
   /** The emitter flares as the ship sends something down (arrive.js): seams and halo brighten, then settle. */
   let flareK = 0;
@@ -394,7 +436,7 @@ void main(void) {
         const tIn = smooth(0, 0.22, b.t);
         const life = b.hold && !b.ended ? 1 : b.ended ? 1 - smooth(b.endT, b.endT + 0.45, b.t) : 1 - smooth(b.seconds - 0.45, b.seconds, b.t);
         const k = tIn * life;
-        const widthTop = Math.max(10, b.radius * 0.5) * (O ? O.r / 560 : 1);
+        const widthTop = Math.max(10, b.radius * 0.5) * (O ? O.r / 1400 : 1);
         for (const [m, mm, nearPass] of [[near, nm, true], [far, fm, false]]) {
           if (!m) continue;
           m.position.copyFrom(bot);
@@ -437,7 +479,7 @@ void main(void) {
       });
     }
     // The shaft leans from the target out to the emitter: its top is wider than its bottom.
-    const topK = Math.max(10, radius * 0.5) * (O ? O.r / 560 : 1) / radius;
+    const topK = Math.max(10, radius * 0.5) * (O ? O.r / 1400 : 1) / radius;
     for (const m of [near, far]) if (m) scaleTop(m, topK);
     beams.push(b);
     if (opts.sound !== false) whoosh(at0, radius);
@@ -529,7 +571,7 @@ void main(void) {
       const cfg = localize(read(L.effectiveConfig()));
       if (cfg) {
         try { O = build(w, cfg); } catch (err) { H.report(err, 'overseer'); O = null; }
-        if (O) { setLod(H.sky.bg ? 'far' : 'near'); for (const f of enterListeners) try { f(O, w); } catch (err) { H.report(err, 'overseer'); } wearModel(); }
+        if (O) { setLod(farOk() ? 'far' : 'near'); for (const f of enterListeners) try { f(O, w); } catch (err) { H.report(err, 'overseer'); } wearModel(); }
       }
       // The player arrives in a beam (unless the intro does it, or the world only reloaded around them).
       const p = w.player;
@@ -570,7 +612,7 @@ void main(void) {
     const cfg = localize(read(L.effectiveConfig()));
     if (!cfg) return;
     try { O = build(w, cfg); } catch (err) { H.report(err, 'overseer'); return; }
-    setLod(H.sky.bg ? 'far' : 'near');
+    setLod(farOk() ? 'far' : 'near');
     for (const f of enterListeners) try { f(O, w); } catch (err) { H.report(err, 'overseer'); }
     wearModel();
   }
@@ -620,8 +662,8 @@ void main(void) {
     // Placed for this view every frame, before the sky's far layer draws.
     H.sky.onBg((main) => { try { update(main); } catch (err) { H.report(err, 'overseer'); } });
   });
-  // Without a far layer (no screen: tests) it still has a place and a look.
-  H.hooks.frame.push(() => { const w = W(); if (O && !H.sky.bg && w && w.scene.activeCamera) update(w.scene.activeCamera); });
+  // Without a far layer (no screen: tests, or one that failed to build) it still has a place and a look.
+  H.hooks.frame.push(() => { const w = W(); if (O && !farOk() && w && w.scene.activeCamera) update(w.scene.activeCamera); });
 
   // The codex's page (overseer.js reads config.overseer itself: every game has it, unless it's false).
   H.features.register('overseer', {
@@ -630,7 +672,7 @@ void main(void) {
       title: 'The Overseer', group: 'World features',
       what: 'The giant sphere-shaped ship in the sky of every game: everything that appears comes down from it (dropped out of the sky to land where asked, or on the roof over it; plants grow up out of the ground; mountains rise over five seconds; lights and signs are beamed in), the assistant speaks as it, and a rocket or a space ship can fly up and dock in its hangar. Here, a small one close by.',
       value: { position: [0, 16, 0], radius: 9, intro: false },
-      fields: [['position', '[x, y, z] meters', '[-2600, 5200, 8200]'], ['radius', 'meters', '560'], ['color', 'the hull', '#eef1f6'], ['glow', 'seams, rings, beams', '#8fd8ff'], ['intro', '"first", "always" or false', 'first'], ['beams', 'false: things just appear', 'true'], ['arrive', 'how things come in: auto (dropped from the sky, plants grown, lights beamed), drop, grow, beam, none', 'auto'], ['(false)', 'no Overseer in this game', '']],
+      fields: [['position', '[x, y, z] meters', '[-3000, 4200, 9700]'], ['radius', 'meters', '1400'], ['color', 'the hull', '#eef1f6'], ['glow', 'seams, rings, beams', '#8fd8ff'], ['intro', '"first", "always" or false', 'first'], ['beams', 'false: things just appear', 'true'], ['arrive', 'how things come in: auto (dropped from the sky, plants grown, lights beamed), drop, grow, beam, none', 'auto'], ['(false)', 'no Overseer in this game', '']],
     },
   });
 
@@ -708,6 +750,6 @@ void main(void) {
     onEnter(fn) { enterListeners.push(fn); },
     onLeave(fn) { leaveListeners.push(fn); },
     onLod(fn) { lodListeners.push(fn); },
-    _: { mat, bayOf, center, farOffset },
+    _: { mat, bayOf, center, farOffset, farOk, lum, hullSeen, HAZE_MAX, MIN_CONTRAST },
   };
 })();
