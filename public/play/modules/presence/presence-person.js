@@ -592,5 +592,5 @@
     void em;
   }
 
-  P.softPerson = { build, animate, HS, NECK_Y, Geo, lathe, ellipsoid, FLIP };
+  P.softPerson = { build, animate, HS, NECK_Y, Geo, lathe, ellipsoid, FLIP, toyMat };
 })();
