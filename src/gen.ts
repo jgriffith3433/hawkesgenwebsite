@@ -2,6 +2,7 @@
 // to one customer's project for the call (X-Hawkesgen-Project), so Gen itself keeps customers apart.
 import { genKey, genUrl } from './config.ts';
 import { PortalError } from './util.ts';
+import { genCall } from './metrics.ts';
 
 export type GenCall = { method?: string; body?: unknown; as?: string; headers?: Record<string, string>; signal?: AbortSignal };
 
@@ -14,13 +15,20 @@ export function genHeaders(as?: string, extra: Record<string, string> = {}) {
 /** A raw fetch to Gen (streams, files). */
 export function genFetch(route: string, o: GenCall & { rawBody?: BodyInit; duplex?: 'half' } = {}) {
   const json = o.body !== undefined && o.rawBody === undefined;
-  return fetch(`${genUrl()}${route}`, {
+  const t0 = performance.now();
+  // (How long Gen took to answer, not to finish streaming: for health/details.)
+  return timed(t0, fetch(`${genUrl()}${route}`, {
     method: o.method ?? (json || o.rawBody !== undefined ? 'POST' : 'GET'),
     headers: genHeaders(o.as, { ...(json ? { 'Content-Type': 'application/json' } : {}), ...(o.headers ?? {}) }),
     body: json ? JSON.stringify(o.body) : o.rawBody,
     signal: o.signal ?? AbortSignal.timeout(60_000),
     ...(o.duplex ? { duplex: o.duplex } : {}),
-  } as RequestInit);
+  } as RequestInit));
+}
+
+function timed(t0: number, p: Promise<Response>) {
+  p.then((r) => genCall(performance.now() - t0, r.status < 500), () => genCall(performance.now() - t0, false));
+  return p;
 }
 
 /** A JSON call to Gen; Gen's own error message and status come back as a PortalError. */

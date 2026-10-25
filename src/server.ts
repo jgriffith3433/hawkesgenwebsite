@@ -30,6 +30,7 @@ import { presenceRoute } from './presence.ts';
 import { askAssistant, askQuote, generateAsset, pendingGens, markSuggestion, resumeGens, KINDS, AI_CREDITS } from './gameai.ts';
 import { join as joinLive, setPresence, closeAll as closeLive } from './live.ts';
 import { templateBundle, featured } from './templates.ts';
+import { details, countRequest, trackServer } from './metrics.ts';
 import { serveVendor } from './vendor.ts';
 import { loaderScript, engineDoc, manifest } from './engine.ts';
 const engineVersion = () => manifest().version;
@@ -314,6 +315,12 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     // Player analytics from game pages that have no origin of their own: passed on to Gen (src/analytics.ts).
     if (route === '/v1/analytics/collect' && method === 'POST' && !analyticsPosts.hit(clientIp(req))) return void res.writeHead(429, { 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store', 'Content-Type': 'application/json' }).end('{"ok":false}');
     if (route === '/v1/analytics/collect' && (method === 'POST' || method === 'OPTIONS')) return await relayAnalytics(req, res, clientIp(req));
+    if (route === '/v1/health/details') {
+      // Admins, or a request from this machine itself (no proxy in front: clientIp is then a loopback address).
+      const local = /^(127\.0\.0\.1|::1|::ffff:127\.0\.0\.1)$/.test(clientIp(req));
+      if (!local && users.authenticate(req)?.role !== 'admin') return send(res, 404, { error: 'Not found' });
+      return send(res, 200, details(url.searchParams.get('reset') === '1')); // ?reset=1 starts a new event-loop window
+    }
     if (route === '/v1/health') return send(res, 200, { ok: true, service: 'hawkesgen-portal', gen: Boolean(genKey()), payments: stripeStatus().configured, google: google.googleEnabled(), mail: mail.mailOn() });
     // What Gen makes for a game, with its price (the codex reads it, so it never drifts from gameai.ts KINDS).
     if (route === '/v1/asset-kinds' && method === 'GET') return send(res, 200, Object.fromEntries(Object.entries(KINDS).map(([k, v]) => [k, { title: v.title, credits: v.credits }])));
@@ -647,6 +654,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
 /** The portal's HTTP server: sane timeouts, a handler that never throws, upgrades for the game rooms. Tests use it too. */
 export function createPortalServer() {
   const server = http.createServer((req, res) => {
+    countRequest();
     // A handler's stray rejection must never leave a socket hanging or take the process down.
     handle(req, res).catch((e) => {
       console.error('[portal] handler:', e);
@@ -661,6 +669,7 @@ export function createPortalServer() {
   server.requestTimeout = 0; // uploads and streams (events, assets) run long; the handlers set their own limits
   server.on('clientError', (_e, socket) => { if (socket.writable) socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n'); else socket.destroy(); });
   server.on('upgrade', onUpgrade);
+  trackServer(server);
   return server;
 }
 
