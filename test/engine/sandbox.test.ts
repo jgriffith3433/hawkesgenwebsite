@@ -661,3 +661,18 @@ test('sandbox journal: neighbours met and lore found are kept with the Overseer\
   H.memory.reset();
   assert.deepEqual(clean(), []);
 });
+
+test('a return: no intro or mirror, welcomed by name, the tour resumes where it stopped (guest.js + sandbox.js)', () => {
+  assert.match(guestSrc, /const RET = 'hg_sandbox_return'/);
+  assert.match(guestSrc, /localStorage\.getItem\('hg_overseer_intro'\) && ret\.get\(\)/, 'a return needs the intro flag and the record: cleared storage is a first visit');
+  assert.match(guestSrc, /\(q\.get\('return'\) === 'observatory' \|\| comingBack\)/, 'the same switches as the Observatory return turn the intro and the mirror off');
+  assert.match(guestSrc, /ret\.patch\(\{ name: lookName\(H\) \|\| null \}\)/, 'the mirror\'s name is kept when it is done');
+  assert.match(guestSrc, /ret\.patch\(\{ tour: STEPS\[i \+ 1\] \|\| 'done' \}\)/, 'the tour step is kept as it moves');
+  assert.match(guestSrc, /Welcome back, \$\{name\}/);
+  assert.match(guestSrc, /want\('tour', 'return'\)/, 'a guest without an account still meets the sheet: the gate does not move');
+  assert.match(guestSrc, /data-look/, 'a button to change the look');
+  const sb = fs.readFileSync(path.join(ROOT, 'src', 'overseer-games', 'sandbox.js'), 'utf8');
+  assert.match(sb, /HawkesGuest\.resume|GU\.resume/);
+  assert.match(sb, /for \(const s of before\) played\.add\(s\)/, 'no moment is told again');
+  assert.match(sb, /q\.advance\('tour'\)/);
+});

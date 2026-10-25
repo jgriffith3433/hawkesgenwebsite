@@ -433,3 +433,11 @@ return begins with a greeting picked from what is *true* of that record (thirty-
 Kept in the account when signed in (`GET/POST /v1/users/me/overseer`), and on the device otherwise (the guest sandbox's
 kept island carries on from it); signing in merges the two, the newer record wins. A page reloaded within 30 seconds is
 the same visit.
+
+**A return does not repeat the beginning** (built: `public/play/guest.js`, `hg_sandbox_return`). The intro and the mirror are
+for the first time: once the intro's flag (`hg_overseer_intro`) and the mirror's answer are on this device, a second visit
+is beamed straight in, with no intro and no mirror, and the Overseer says *"Welcome back, Ada."* by the mirror's name, and
+that the mirror is there (**L**, or the "Change my look" button, opens its questions anywhere). Signed in, the kept island
+plays on and Pip's tour **resumes on the step they left** (Pip: *"Right, where were we?"*; no moment is told twice, the tools
+that finished steps gave are in the belt). A guest who never made an account still meets the sheet next: the order of a first
+time (intro, mirror, account, tour) is not moved. Storage cleared: no flag, no record, the whole beginning.
