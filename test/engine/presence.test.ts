@@ -243,6 +243,23 @@ test('spectate: watch another player over their shoulder, cycle, and stop (your 
   assert.equal(P.spectate('next'), null, 'nobody to watch');
 });
 
+test('the Overseer\'s eye: a floating camera with no character; flying moves it, joining gives the controls back', () => {
+  clearPeers();
+  world(H, sceneOf({ floor, start }));
+  const p = H.game.player;
+  H.tick(0.2);
+  assert.equal(P.float(true), true);
+  assert.equal(P.floating(), true);
+  assert.equal(p.controls, false, 'no character to walk');
+  H.tick(0.2);
+  const y0 = H.world.scene.activeCamera.position.y;
+  assert.ok(y0 > p.y + 5, 'the camera floats above the world');
+  P.float(false);
+  H.tick(0.1);
+  assert.equal(P.floating(), false);
+  assert.equal(p.controls, true);
+});
+
 test('the mirror look: eyes, one of 12 accessories in its color, kept by the server\'s lists, on every body, seen on tags', () => {
   assert.deepEqual(C.LOOK.accessories, AVATAR.accessories, 'client and server agree on the accessories');
   assert.equal(C.ACCESSORIES.length, 13, 'none and twelve');
