@@ -32,7 +32,7 @@ function standins(rows = standinRows()) {
 }
 function stand(id: string, o: any = {}) {
   const node = new B.TransformNode('stand', H.world.scene);
-  const e = { node, x: 0, y: 0.9, z: 0, alive: true };
+  const e: any = { node, x: 0, y: 0.9, z: 0, alive: true };
   const w = C.WHAT.get(id);
   const look = C.cleanLook({ what: id, body: w.colors[0], accent: w.colors[1], head: w.colors[2], face: 'eyes', ...o });
   const rig = P.showcase.make(e, look, look.body, o.opts);
