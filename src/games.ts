@@ -37,6 +37,13 @@ CREATE TABLE IF NOT EXISTS games (
   updated INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS games_owner ON games (owner_id);
+-- A play is counted once per player per game per hour: who is an account id, else a keyed hash of the address.
+CREATE TABLE IF NOT EXISTS play_seen (
+  game_id TEXT NOT NULL,
+  who TEXT NOT NULL,
+  at INTEGER NOT NULL,
+  PRIMARY KEY (game_id, who)
+) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS game_members (
   game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -589,12 +596,23 @@ export function restoreRelease(user: User, gameId: string, version: number) {
 
 export const releases = (gameId: string) => (db.prepare('SELECT version, notes, created, created_by FROM game_releases WHERE game_id = ? ORDER BY version DESC LIMIT 50').all(gameId) as { version: number; notes: string; created: number; created_by: string | null }[]).map((r) => ({ ...r, by: nameOf(r.created_by) }));
 
+const PLAY_WINDOW_MS = 3600_000;
+/** Counts a play of a game, once per player per hour (reloading is the same play). `player` is the account id, or for a guest
+ *  a hash of their address. Returns whether it counted. */
+export function countPlay(gameId: string, player: string, now = Date.now()) {
+  const took = db.prepare('INSERT INTO play_seen (game_id, who, at) VALUES (?, ?, ?) ON CONFLICT (game_id, who) DO UPDATE SET at = excluded.at WHERE play_seen.at <= ?')
+    .run(gameId, player, now, now - PLAY_WINDOW_MS).changes > 0;
+  if (took) db.prepare('UPDATE games SET plays = plays + 1 WHERE id = ?').run(gameId);
+  if (Math.random() < 0.01) db.prepare('DELETE FROM play_seen WHERE at < ?').run(now - PLAY_WINDOW_MS);
+  return took;
+}
+
 /** What a player loads: the game as it is right now (every game is live), or a save when asked. Anyone with the link. */
-export function playBundle(slug: string, version?: number | null, count = true) {
+export function playBundle(slug: string, version?: number | null, player: string | null = null) {
   const g = gameBySlug(slug);
   if (!g) throw new PortalError('No such game', { status: 404 });
   const owner = getUser(g.owner_id);
-  if (count) db.prepare('UPDATE games SET plays = plays + 1 WHERE id = ?').run(g.id);
+  if (player) countPlay(g.id, player);
   if (!version) {
     const files = Object.fromEntries((db.prepare('SELECT path, content FROM game_files WHERE game_id = ?').all(g.id) as { path: string; content: string }[]).map((f) => [f.path, f.content]));
     return { id: g.id, slug: g.slug, title: g.title, description: g.description, by: owner?.name ?? null, version: null, live: true, visitors: g.visitors ?? 'play', updated: g.updated, files, assets: assetMap(listAssets(g.id), (a) => liveAssetUrl(g, a.name)) };

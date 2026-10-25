@@ -48,7 +48,7 @@ export function checkClaims(idToken: string, clientId: string, now = Date.now())
 }
 
 /** Finds, links or makes the account for a Google identity. */
-export function accountFor(g: { sub: string; email: string; name: string | null }, ip = '', origin: Origin = {}): User {
+export async function accountFor(g: { sub: string; email: string; name: string | null }, ip = '', origin: Origin = {}): Promise<User> {
   const bySub = db.prepare('SELECT id FROM users WHERE google_sub = ?').get(g.sub) as { id: string } | undefined;
   if (bySub) return getUser(bySub.id)!;
   const byEmail = getUserByEmail(g.email);
@@ -56,7 +56,7 @@ export function accountFor(g: { sub: string; email: string; name: string | null 
     db.prepare('UPDATE users SET google_sub = ? WHERE id = ?').run(g.sub, byEmail.id);
     return getUser(byEmail.id)!;
   }
-  const u = createAccount({ email: g.email, name: g.name }, ip, origin);
+  const u = await createAccount({ email: g.email, name: g.name }, ip, origin);
   db.prepare('UPDATE users SET google_sub = ? WHERE id = ?').run(g.sub, u.id);
   return getUser(u.id)!;
 }
@@ -75,7 +75,7 @@ export async function callback(req: IncomingMessage, res: ServerResponse, q: URL
   });
   const t: any = await r.json().catch(() => ({}));
   if (!r.ok) throw new PortalError(`Google said no: ${t.error_description ?? t.error ?? r.status}`);
-  const user = accountFor(checkClaims(t.id_token, env('GOOGLE_CLIENT_ID')!), ip, originOf(req));
+  const user = await accountFor(checkClaims(t.id_token, env('GOOGLE_CLIENT_ID')!), ip, originOf(req));
   if (user.disabled) throw new PortalError('This account is disabled. Contact support@hawkesgen.com.', { status: 403 });
   db.prepare('UPDATE users SET last_login = ? WHERE id = ?').run(Date.now(), user.id);
   setSessionCookie(res, req, createSession(user.id));
