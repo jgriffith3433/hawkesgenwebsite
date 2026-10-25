@@ -475,7 +475,7 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
       history.replaceState(null, '', '/');
     }
     // Already signed in: swap nav buttons and hero CTA to go to the dashboard.
-    fetch('/v1/users/me').then((r) => (r.ok ? r.json() : null)).then((d) => {
+    fetch('/v1/users/me?soft=1').then((r) => (r.ok ? r.json() : null)).then((d) => {
       if (!d?.user) return;
       const actions = document.querySelector('.hg-nav-actions');
       actions.innerHTML = `${d.user.role === 'admin' ? '<a class="btn btn-ghost" href="/admin">Admin</a>' : ''}<a class="btn btn-ghost" href="/app/studio">Asset Studio</a><a class="btn btn-primary" href="/app">My Games</a>`;
