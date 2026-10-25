@@ -60,3 +60,8 @@ export function setPresence(gameId: string, conn: string, userId: string, body: 
 export function kick(gameId: string, userId: string) {
   for (const c of rooms.get(gameId)?.values() ?? []) if (c.userId === userId) c.res.end();
 }
+
+/** Ends every stream properly (the chunked terminator goes out) so a restart is a clean close the browser reconnects from, not a reset. */
+export function closeAll() {
+  for (const room of rooms.values()) for (const c of room.values()) try { c.res.end(); } catch {}
+}

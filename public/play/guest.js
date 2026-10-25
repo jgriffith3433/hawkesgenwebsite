@@ -908,6 +908,7 @@
     const seen = new Set();
     const es = new EventSource(`/v1/games/${id}/live`, { withCredentials: true });
     let assetsT = null;
+    addEventListener('pagehide', () => es.close()); // leaving: close the stream ourselves, not by the page being torn down
     es.addEventListener('chat', (e) => {
       let m; try { m = JSON.parse(e.data); } catch { return; }
       if (!m || !H.chat) return;
