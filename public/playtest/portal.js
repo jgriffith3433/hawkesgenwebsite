@@ -217,6 +217,54 @@ async function walkTo(t, id, near, timeoutMs, what) {
   setKeys({});
 }
 
+// ---------------------------------------------------------------------------------------------- playtest hooks
+/** The playtest-only hooks (docs: AGENTS.md "Playtest hooks"; `window.hawkesPlaytest.hooks`). Each one calls the engine's own
+ *  path and leaves its own events to fire (`explosion`, the vehicle's `enter`, `docked-pad`, `catch`), so what a scenario
+ *  checks afterwards is the game's. They exist only here, in the script a browser under automation loads (never a visitor),
+ *  and they refuse on live (`isLive`): a named `setup-shortcut` event says what was done. Every one fails with a message
+ *  that says what was missing, so the stage that breaks is named. */
+const HOOKS = {
+  /** A blast at the player's feet or `ahead` metres in front of the camera (default 6): the engine's own mayhem.explode, so the
+   *  physics 'explosion' event and game.on('explosion') fire as for a rocket. Big by the share module's rule (radius 8). */
+  explode(t, o = {}) {
+    HOOKS.allowed('explode');
+    const P = W() && W().player;
+    if (!P || !G() || !G().mayhem || !G().mayhem.explode) throw new Error('hook explode: the island or the mayhem module is not ready');
+    const yaw = camYaw(), d = o.ahead ?? 6;
+    const at = [P.x + Math.sin(yaw) * d, P.y, P.z + Math.cos(yaw) * d];
+    G().mayhem.explode(at, { radius: o.radius ?? 8, force: o.force ?? 24, damage: o.damage ?? 30, fire: false });
+    t.event('setup-shortcut', `a blast set off ${d} m ahead of the player (the engine's own explosion)`);
+  },
+  /** Gets the player into a vehicle by id (the engine's own enter, as E does): waits for it to be there, then for the drive. */
+  async enterVehicle(t, id, o = {}) {
+    HOOKS.allowed('enterVehicle');
+    const V = HP() && HP().vehicles;
+    await t.until(() => W() && W().player && W().byId.get(id) && V && V.enter, 30000, `hook enterVehicle: the vehicle "${id}" to exist`);
+    if (G().player.controller === 'drive' && V.current && V.current.sceneId === id) return;
+    V.enter(W().byId.get(id), o);
+    await t.until(() => G().player.controller === 'drive', 8000, `hook enterVehicle: the player to be driving the "${id}"`);
+    t.event('setup-shortcut', `the player put in the ${id} by the engine's own enter (E did not reach it)`);
+  },
+  /** Docks the rocket by the game's own dock path (waits for the hangar). */
+  async dock(t, id = 'rocket') {
+    HOOKS.allowed('dock');
+    await t.until(() => HP().overseer && HP().overseer.dockShip && G() && G().entity(id) && W().player, 30000, 'hook dock: the hangar and the rocket to exist');
+    dockRocket(t);
+    await t.until(() => HP().overseer.observatory && HP().overseer.observatory.state === 'bay', 10000, 'hook dock: the bay (the player on foot beside the pad)');
+  },
+  /** A fish caught: water.fish.give (the log, the card and the 'catch' event, as a landed fish does). */
+  catchFish(t, species = 'trout') {
+    HOOKS.allowed('catchFish');
+    const f = G() && G().water && G().water.fish && G().water.fish.give(species, {});
+    if (!f) throw new Error(`hook catchFish: no fish "${species}" in this world`);
+    t.event('setup-shortcut', `a ${species} counted as caught (water.fish.give: the engine's catch event)`);
+    return f;
+  },
+  allowed(name) { if (isLive()) throw new Error(`hook ${name}: playtest hooks are never available on the live site`); },
+  names: ['explode', 'enterVehicle', 'dock', 'catchFish'],
+};
+if (!isLive()) { window.hawkesPlaytestHooks = HOOKS; if (window.hawkesPlaytest) window.hawkesPlaytest.hooks = HOOKS; }
+
 // ---------------------------------------------------------------------------------------------- the stages
 /** One stage's timeout or failure carries its name, so the review reads which part of the path broke. */
 const stageError = (name, e) => new Error(`stage "${name}": ${e && e.message ? e.message : e}`);
@@ -404,7 +452,11 @@ async function stageDrive(t, ctx) {
       await walkTo(t, 'jeep', 3.2, 40000, 'the 4x4');
       t.event('at-the-4x4');
       for (let i = 0; i < 4 && !driving(); i++) { await tap(t, 'e'); await t.wait(700); }
-      if (!driving()) throw new Error('timed out getting into the 4x4 with E');
+      if (!driving()) {
+    t.problem('warning', 'E did not get the player into the 4x4 (the jeep: ' + (jeep() ? Math.round(Math.hypot(jeep().x - W().player.x, jeep().z - W().player.z)) + ' m away' : 'missing') + '): the hook put them in');
+    await HOOKS.enterVehicle(t, 'jeep');
+  }
+  if (!driving()) throw new Error('timed out getting into the 4x4 (E and hooks.enterVehicle)');
     }
     t.scene('Island: driving');
     t.event('drive-start', 'in the 4x4, W held');
@@ -744,7 +796,11 @@ async function stageRace(t, ctx) {
   if (!driving()) {
     await walkTo(t, 'jeep', 3.2, 60000, 'the 4x4');
     for (let i = 0; i < 4 && !driving(); i++) { await tap(t, 'e'); await t.wait(700); }
-    if (!driving()) throw new Error('timed out getting into the 4x4 with E');
+    if (!driving()) {
+    t.problem('warning', 'E did not get the player into the 4x4 (the jeep: ' + (jeep() ? Math.round(Math.hypot(jeep().x - W().player.x, jeep().z - W().player.z)) + ' m away' : 'missing') + '): the hook put them in');
+    await HOOKS.enterVehicle(t, 'jeep');
+  }
+  if (!driving()) throw new Error('timed out getting into the 4x4 (E and hooks.enterVehicle)');
   }
   t.event('in-the-4x4');
   const local = (x, y, z) => G().planet.toLocal([x, y, z]);
@@ -906,7 +962,7 @@ async function stageWardrobe(t, ctx) {
   releaseAll();
   await t.until(() => W() && W().player && W().player.alive && OB() && OB().on, 60000, 'the Overseer\'s hangar and lift');
   if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
-  dockRocket(t);
+  await HOOKS.dock(t);
   await t.wait(2500);
   await walkToLift(t, OB);
   await useAt('lift up', () => OB().state !== 'bay');
@@ -1009,8 +1065,8 @@ async function stageObservatory(t, ctx) {
   releaseAll();
   await t.until(() => W() && W().player && W().player.alive && OB() && OB().on, 60000, 'the Overseer\'s hangar and lift to exist');
   if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
-  const toBay = () => dockRocket(t);
-  toBay();
+  const toBay = () => HOOKS.dock(t);
+  await toBay();
   await t.wait(2500);
   await walkToLift(t, OB);
   t.scene('The hangar: the lift');
@@ -1039,6 +1095,7 @@ async function stageObservatory(t, ctx) {
   // The way down: E at the lift.
   const l = OB().liftRoom;
   W().player.position = [l[0], l[1] + 0.4, l[2] - 1];
+  t.event('setup-shortcut', 'the walk across the room to the lift down: the player put beside it');
   await t.wait(500);
   const t1 = performance.now();
   for (let i = 0; i < 4 && OB().state === 'inside'; i++) { await tap(t, 'e'); await t.wait(700); }
@@ -1049,7 +1106,7 @@ async function stageObservatory(t, ctx) {
   t.scene('Back in the bay, beside the rocket');
   await t.wait(2500);
   if (ctx.options.again !== false) {
-    toBay();
+    await toBay();
     await t.wait(1500);
     const t2 = performance.now();
     const say0 = (HP().speech && HP().speech.log ? HP().speech.log.length : 0);
@@ -1169,7 +1226,11 @@ async function stageProgress(t, ctx) {
     await walkTo(t, 'jeep', 3.2, 40000, 'the 4x4');
     for (let i = 0; i < 4 && !driving(); i++) { closeCard(); await tap(t, 'e'); await t.wait(700); }
   }
-  if (!driving()) throw new Error('timed out getting into the 4x4 with E');
+  if (!driving()) {
+    t.problem('warning', 'E did not get the player into the 4x4 (the jeep: ' + (jeep() ? Math.round(Math.hypot(jeep().x - W().player.x, jeep().z - W().player.z)) + ' m away' : 'missing') + '): the hook put them in');
+    await HOOKS.enterVehicle(t, 'jeep');
+  }
+  if (!driving()) throw new Error('timed out getting into the 4x4 (E and hooks.enterVehicle)');
   keyEv('keydown', 'w'); down.add('w');
   await t.until(() => PG().state.pts > before, 20000, 'points for the first drive');
   await t.wait(6000);
@@ -1310,7 +1371,7 @@ async function stageBoard(t, ctx) {
     if (visit >= games.length) { t.event('board-done', `${games.length} games visited and returned from`); t.progress(1); return; }
   } else {
     if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
-    dockRocket(t);
+    await HOOKS.dock(t);
     await t.wait(2500);
     await walkToLift(t, OB);
     for (let i = 0; i < 4 && OB().state === 'bay'; i++) { await tap(t, 'e'); await t.wait(700); }
@@ -1843,7 +1904,11 @@ async function stageFeel(t, ctx) {
   if (!driving()) {
     await walkTo(t, 'jeep', 3.2, 60000, 'the 4x4');
     for (let i = 0; i < 4 && !driving(); i++) { await tap(t, 'e'); await t.wait(700); }
-    if (!driving()) throw new Error('timed out getting into the 4x4 with E');
+    if (!driving()) {
+    t.problem('warning', 'E did not get the player into the 4x4 (the jeep: ' + (jeep() ? Math.round(Math.hypot(jeep().x - W().player.x, jeep().z - W().player.z)) + ' m away' : 'missing') + '): the hook put them in');
+    await HOOKS.enterVehicle(t, 'jeep');
+  }
+  if (!driving()) throw new Error('timed out getting into the 4x4 (E and hooks.enterVehicle)');
   }
   const F = () => HP().vehicles.feel;
   if (!F()) throw new Error('the vehicles feel layer is not loaded');
@@ -2064,7 +2129,13 @@ async function blastAhead(t, booms) {
   await t.wait(700);
   const n = booms.length;
   await holdMouse(t, 160);
-  await t.until(() => booms.length > n, 9000, 'the rocket to land');
+  // The rocket's flight is the engine's own; when none lands in 8 s, the hook fires the engine's explosion at the player's side.
+  const landed = await t.until(() => booms.length > n, 8000, 'the rocket to land').then(() => true, () => false);
+  if (!landed) {
+    t.event('rocket-no-boom', 'no explosion from the rocket in 8 s: the playtest hook sets one off');
+    HOOKS.explode(t, { ahead: 10 });
+    await t.until(() => booms.length > n, 4000, 'the explosion event (stage "blast": hooks.explode fired, the engine emitted none)');
+  }
 }
 /** The chip after a big explosion; a guest taps it, signs in on the sheet and comes back to the same moment, and the link opens a page. */
 async function stageMoment(t, ctx) {

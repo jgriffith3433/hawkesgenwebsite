@@ -55,6 +55,10 @@ export const getUserByEmail = (email: string) => (db.prepare('SELECT * FROM user
 
 // Sign-ups per address: a few an hour, so free starter credits can't be farmed from one machine.
 const signupsByIp = new Map<string, number[]>();
+/** Studio's playtest sign-ups (`playtest-…@example.com`, a reserved domain nobody receives mail at) are not counted on a beta
+ *  portal (any project prefix but live's `usr_`), where one runner address makes many throwaway accounts. Live keeps the limit. */
+export const signupExempt = (email: string, prefix = PROJECT_PREFIX) => prefix !== 'usr_' && /^playtest-[a-z0-9._+-]*@example\.com$/.test(email);
+
 function limitSignups(ip: string) {
   const now = Date.now();
   const recent = (signupsByIp.get(ip) ?? []).filter((t) => now - t < 3600_000);
@@ -115,7 +119,7 @@ export function createAccount(input: { email?: unknown; name?: unknown; password
   if (!EMAIL_RE.test(email) || email.length > 200) throw new PortalError('Enter a valid email address', { code: 'bad_email' });
   const name = typeof input.name === 'string' && input.name.trim() ? input.name.trim().slice(0, 120) : email.split('@')[0];
   if (getUserByEmail(email)) throw new PortalError('An account with that email already exists', { status: 409, code: 'email_exists' });
-  if (ip) limitSignups(ip);
+  if (ip && !signupExempt(email)) limitSignups(ip);
 
   const userId = id(PROJECT_PREFIX, 8);
   const starter = starterCredits();

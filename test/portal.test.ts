@@ -473,3 +473,17 @@ test('unknown paths: the styled 404 for a browser, JSON for the rest; brand file
     assert.match(h, /apple-touch-icon/);
   }
 });
+
+test('sign-up limit: playtest sign-ups are exempt on a beta prefix only, live keeps the limit', async () => {
+  const { signupExempt } = await import('../src/users.ts');
+  const mail = 'playtest-abc123@example.com';
+  assert.equal(signupExempt(mail, 'ubeta_'), true, 'beta: a playtest address is not counted');
+  assert.equal(signupExempt(mail, 'usr_'), false, 'live: counted like anyone');
+  assert.equal(signupExempt('someone@example.com', 'ubeta_'), false, 'beta: only playtest- addresses');
+  assert.equal(signupExempt('playtest-x@gmail.com', 'ubeta_'), false, 'beta: only the reserved example.com');
+  // This server runs with the live prefix: six playtest sign-ups from one address hit the limit (5 an hour).
+  const headers = { 'X-Forwarded-For': '10.50.0.1' };
+  const statuses: number[] = [];
+  for (let i = 0; i < 6; i++) statuses.push((await call('/v1/users/signup', { body: { email: `playtest-lim${i}@example.com`, password: 'password123' }, headers })).status);
+  assert.deepEqual(statuses, [200, 200, 200, 200, 200, 429]);
+});
