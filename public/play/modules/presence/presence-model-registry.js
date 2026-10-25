@@ -69,4 +69,19 @@
     potato: { ...row('thing'), ...mdl('potato'), h: 1, head: 0.6, anchors: A([0, 0.98, 0], [0, 0.65, 0.3], [0, 0.45, 0.1], [0, 0.5, -0.28], [0, 0.2, -0.28]) },
     duck: { ...row('legless'), ...mdl('duck'), h: 0.95, head: 0.5, anchors: A([0, 0.86, 0.05], [0, 0.66, 0.45], [0, 0.5, 0.3], [0, 0.4, -0.35], [0, 0.3, -0.48]) },
   };
+  // Gen-made hats (docs/characters.md "Gen hats"): files in public/play/models, made through Hawkes Gen (prop3d steps), about 1.3k triangles each,
+  // base at y = 0, front +z. `width` is the body of the hat in head units (the unit head is 0.43 wide), `sink` how far it sits into the head,
+  // `tint` whether the look's accent colours it (the model is white where it should take the pick), `flat` a colour for a hat whose bake failed.
+  // A hat with no row (halo, horns, bunny) keeps its procedural shape.
+  const hat = (kind, o) => ({ url: `/play/models/hat-${kind}.glb`, ...o });
+  P.hatRegistry = {
+    cap: hat('cap', { width: 0.46, sink: 0.04, tint: true }),
+    beanie: hat('beanie', { width: 0.44, sink: 0.1, tint: true }),
+    tophat: hat('tophat', { width: 0.58 }),
+    crown: hat('crown', { width: 0.44, flat: '#facc15' }),
+    cowboy: hat('cowboy', { width: 0.78 }),
+    party: hat('party', { width: 0.3, tint: true }),
+    helmet: hat('helmet', { width: 0.5, sink: 0.15, tint: 'body' }),
+    chef: hat('chef', { width: 0.46 }),
+  };
 })();

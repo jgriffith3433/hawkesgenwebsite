@@ -7,6 +7,7 @@
 
   var MAX_BYTES = 6 * 1024 * 1024;
   var TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+  var BLANK = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; // a 1px stand-in: an <img> with no src counts as broken
   var NAMES = { pixel: 'pixel-art', cutout: 'background-removed' };
   var LIMIT = "That was today's last free try. Make an account and you get starter credits to keep going.";
   var DONE = { pixel: 'Here it is, in pixel art.', cutout: "Here it is, with the background taken out." };
@@ -77,11 +78,11 @@
     previewUrl = null;
     if (resultUrl) URL.revokeObjectURL(resultUrl);
     resultUrl = null;
-    preview.removeAttribute('src');
+    preview.src = BLANK;
     preview.hidden = true;
     dropText.hidden = false;
     drop.classList.remove('has-file');
-    out.removeAttribute('src');
+    out.src = BLANK;
     stage.classList.remove('landed', 'beaming');
     empty.hidden = false;
     actions.hidden = true;

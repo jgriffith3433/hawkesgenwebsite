@@ -28,19 +28,20 @@ import * as games from './games.ts';
 import * as friends from './friends.ts';
 import { presenceRoute } from './presence.ts';
 import { askAssistant, askQuote, generateAsset, pendingGens, markSuggestion, resumeGens, KINDS, AI_CREDITS } from './gameai.ts';
-import { join as joinLive, setPresence } from './live.ts';
+import { join as joinLive, setPresence, closeAll as closeLive } from './live.ts';
 import { templateBundle, featured } from './templates.ts';
 import { loaderScript, engineDoc, manifest } from './engine.ts';
 const engineVersion = () => manifest().version;
 import * as community from './community.ts';
-import { upgrade as joinRoom, broadcastOps, markHere, liveCounts } from './rooms.ts';
+import { upgrade as joinRoom, broadcastOps, markHere, liveCounts, roomState } from './rooms.ts';
+import * as invites from './invites.ts';
 import * as shares from './shares.ts';
 import { relayAnalytics, playIds, playIdsScript } from './analytics.ts';
 import type { Duplex } from 'node:stream';
 
 const PUBLIC = path.join(ROOT, 'public');
 const PAGES: Record<string, string> = { '/': 'index.html', '/home': 'index.html', '/app': 'games.html', '/app/studio': 'app.html', '/games': 'gallery.html', '/admin': 'admin.html', '/reset': 'reset.html', '/auth/popup': 'auth-popup.html', '/legal': 'legal.html', '/terms': 'legal.html', '/privacy': 'legal.html', '/refunds': 'legal.html', '/connect': 'connect.html', '/thanks': 'thanks.html', '/examples': 'examples.html', '/entities': 'entities.html', '/avatars': 'avatars.html', '/community': 'community.html','/oauth/authorize': 'authorize.html', '/client/hawkesgen.mjs': 'hawkesgen.mjs' };
-const TYPES: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webp': 'image/webp', '.gif': 'image/gif', '.mp3': 'audio/mpeg', '.jpg': 'image/jpeg', '.unitypackage': 'application/octet-stream', '.pdf': 'application/pdf', '.md': 'text/markdown; charset=utf-8', '.glb': 'model/gltf-binary', '.woff2': 'font/woff2' };
+const TYPES: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json', '.webp': 'image/webp', '.gif': 'image/gif', '.mp3': 'audio/mpeg', '.jpg': 'image/jpeg', '.unitypackage': 'application/octet-stream', '.pdf': 'application/pdf', '.md': 'text/markdown; charset=utf-8', '.glb': 'model/gltf-binary', '.woff2': 'font/woff2' };
 
 // Gen routes a signed-in customer may use as they are (Gen scopes them to the customer's project).
 const PASS_GET = [/^\/v1\/jobs$/, /^\/v1\/jobs\/j_[0-9a-f]+$/, /^\/v1\/assets$/, /^\/v1\/assets\/a_[0-9a-f]+(\/file)?$/, /^\/v1\/files\/a_[0-9a-f]+$/, /^\/v1\/presets$/, /^\/v1\/tools(\/[\w.-]+)?$/, /^\/v1\/motions$/, /^\/v1\/providers\/elevenlabs\/voices$/, /^\/v1\/entities$/];
@@ -62,6 +63,16 @@ function limitLogins(ip: string) {
   if (recent.length >= 20) throw new PortalError('Too many sign-in attempts; wait a few minutes', { status: 429 });
   recent.push(now);
   attempts.set(ip, recent);
+}
+
+const inviteMade = new Map<string, number[]>();
+/** Links an address may make an hour (a link is only a signed token, but a room code per call is not worth abusing). */
+function limitInvites(ip: string) {
+  const now = Date.now();
+  const recent = (inviteMade.get(ip) ?? []).filter((t) => now - t < 3600_000);
+  if (recent.length >= 30) throw new PortalError('That is a lot of invitations; try again in a while', { status: 429 });
+  recent.push(now);
+  inviteMade.set(ip, recent);
 }
 
 /** Gen's answer straight to the customer: status, the headers that matter, the body as it streams. */
@@ -114,7 +125,7 @@ function servePlayPage(res: ServerResponse, req: IncomingMessage, o: { guest?: b
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', ...(open ? {} : { 'Content-Security-Policy': PLAY_SANDBOX }), 'X-Content-Type-Options': 'nosniff' });
   // A signed-in player's analytics ids (src/analytics.ts): the sandboxed page has no storage to keep its own.
   const ids = o.guest ? null : playIds(users.authenticate(req));
-  if (!ids) return void fs.createReadStream(path.join(PUBLIC, 'play', 'play.html')).pipe(res);
+  if (!ids) return void pipeline(fs.createReadStream(path.join(PUBLIC, 'play', 'play.html')), res).catch(() => {});
   res.end(fs.readFileSync(path.join(PUBLIC, 'play', 'play.html'), 'utf8').replace('</head>', `${playIdsScript(ids)}</head>`));
 }
 
@@ -141,6 +152,14 @@ async function servePlayAsset(parts: Parameters<typeof games.resolvePlayAsset>[0
   await pipeBody(gr, res);
 }
 
+/** The styled 404 / error page for a browser's page load (Accept: text/html); anything else gets the JSON answer. */
+function sendPage(req: IncomingMessage, res: ServerResponse, status: number, file: string, fallback: unknown): void {
+  const m = req.method ?? 'GET';
+  if ((m !== 'GET' && m !== 'HEAD') || !String(req.headers.accept ?? '').includes('text/html') || (req.url ?? '').startsWith('/v1/')) return send(res, status, fallback);
+  res.writeHead(status, { 'Content-Type': TYPES['.html'], 'Cache-Control': 'no-store' });
+  res.end(m === 'HEAD' ? undefined : fs.readFileSync(path.join(PUBLIC, file)));
+}
+
 async function serveStatic(route: string, res: ServerResponse, search = '') {
   const rel = PAGES[route] ?? route.slice(1);
   const file = path.join(PUBLIC, path.normalize(rel).replace(/^(\.\.[/\\])+/, ''));
@@ -151,7 +170,8 @@ async function serveStatic(route: string, res: ServerResponse, search = '') {
   // Self-hosted fonts (public/fonts): the play page is sandboxed (origin null), so they need open CORS; they never change under a name.
   const font = path.extname(file) === '.woff2';
   res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] ?? 'application/octet-stream', 'Cache-Control': path.extname(file) === '.html' ? 'no-cache' : versioned || font ? 'public, max-age=31536000, immutable' : 'public, max-age=300', ...(font || route === '/fonts/fonts.css' || (route.startsWith('/play/models/') && path.extname(file) === '.glb') ? { 'Access-Control-Allow-Origin': '*' } : {}) });
-  fs.createReadStream(file).pipe(res);
+  // pipeline, not pipe: a read error (or a client that left) must end this response, never raise an unhandled 'error' that kills the process.
+  pipeline(fs.createReadStream(file), res).catch(() => {});
   return true;
 }
 
@@ -247,7 +267,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
 
     if (!route.startsWith('/v1/')) {
       if ((method === 'GET' || method === 'HEAD') && (await serveStatic(route, res, url.search))) return;
-      return send(res, 404, { error: 'Not found' });
+      return sendPage(req, res, 404, '404.html', { error: 'Not found' });
     }
 
     // ------------------------------------------------------------ open to everyone
@@ -322,6 +342,18 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       res.setHeader('Access-Control-Allow-Origin', '*');
       return send(res, 200, games.playBundle(pb[1], url.searchParams.get('v') ? Number(url.searchParams.get('v')) : null));
     }
+    // Island invitations (invites.ts): the inviter (a guest or an account) makes a link to their island's room; the friend's
+    // page asks what it is worth before loading anything. Open routes: neither starts Gen work or touches credits.
+    if (route === '/v1/island-invite' && method === 'POST') {
+      limitInvites(clientIp(req));
+      const b = await readJson(req).catch(() => ({}));
+      const me = users.authenticate(req);
+      const ref = me ? users.refCode(me.id) : null;
+      const inv = invites.createInvite(publicUrl(), { name: b.name || me?.name, ref });
+      return send(res, 200, { link: inv.link, room: inv.room, expires: inv.expires, ref });
+    }
+    pb = /^\/v1\/island-invite\/([\w.-]+)$/.exec(route);
+    if (pb && method === 'GET') return send(res, 200, invites.inviteStatus(pb[1], roomState));
     pb = /^\/v1\/invites\/([\w-]+)$/.exec(route);
     if (pb && method === 'GET') return send(res, 200, games.inviteInfo(pb[1]));
     if (route === '/v1/billing/webhook' && method === 'POST') return send(res, 200, stripeWebhook(await readBody(req), String(req.headers['stripe-signature'] ?? '')));
@@ -360,6 +392,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
 
     // ------------------------------------------------------------ a customer
     const user = users.authenticate(req);
+    if (!user && (route === '/v1/users/me' || route === '/v1/me') && method === 'GET' && new URL(req.url ?? '/', 'http://x').searchParams.get('soft')) return send(res, 200, { user: null }); // ?soft=1: public pages ask who is here without a 401 in the console
     if (!user) return send(res, 401, { error: 'Sign in, or send your API key (Authorization: Bearer hg_...)' });
 
     if ((route === '/v1/users/me' || route === '/v1/me') && method === 'GET') return send(res, 200, users.profile(user));
@@ -562,7 +595,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (res.headersSent) return void res.end();
     if (e instanceof PortalError) return send(res, e.status, e.code ? { error: e.message, code: e.code } : { error: e.message });
     console.error(`[portal] ${method} ${route}:`, e);
-    return send(res, 500, { error: 'Something went wrong on our side' });
+    return sendPage(req, res, 500, 'error.html', { error: 'Something went wrong on our side' });
   }
 }
 
@@ -575,4 +608,20 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(ROOT, 'src
   const server = http.createServer((req, res) => void handle(req, res));
   server.on('upgrade', onUpgrade);
   server.listen(PORT, '127.0.0.1', () => console.log(`[portal] http://127.0.0.1:${PORT}`));
+  // A restart (every beta push, every deploy) must not reset requests under way: stop taking new
+  // connections, let the running ones finish, drop idle keep-alive ones, and leave after 8 s at most.
+  let leaving = false;
+  const leave = () => {
+    if (leaving) return;
+    leaving = true;
+    closeLive();
+    server.close(() => process.exit(0));
+    server.closeIdleConnections();
+    setTimeout(() => process.exit(0), 8000).unref();
+  };
+  // One request's stray error must not take the process down: that resets every connection at once (blank pages).
+  process.on('uncaughtException', (e) => console.error('[portal] uncaught:', e));
+  process.on('unhandledRejection', (e) => console.error('[portal] unhandled rejection:', e));
+  process.on('SIGTERM', leave);
+  process.on('SIGINT', leave);
 }

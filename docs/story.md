@@ -475,3 +475,68 @@ do with credits: credits stay the paid currency and **nothing here is for sale**
 - **Kept** in the Overseer's memory: in the account when signed in, on the device and in the kept island otherwise.
 - **Names for the points, for J to choose:** *Glints* (specks of the Overseer's light), *Wishes* (it grants you free will; you
   collect small ones), *Motes* (dust in a beam). Until chosen: *sparks*, one line in `progress-core.js` (`POINTS`).
+
+### The daily wish (built: `modules/wish`)
+
+Each day (UTC) the Overseer makes one small wish of the player, and says it once when they arrive: *"Three different fish, if
+you can. The sea likes variety."* It is a note under the level pill (*The Overseer's wish for today*, the wish, how far along,
+how many days in a row). It is not a quest and it is not owed: no timer, nothing waits on it, ignoring it costs nothing.
+
+- **The same for everyone.** There are forty wishes in a table (`wish-core.js`), in its voice, short, calm, no exclamation
+  marks: fish (three different ones), a course in under so many seconds, barrels blown up without leaving the 4x4, a friend
+  brought to Pip's hut, a minute standing still in a quiet place, the planet photographed whole, or at dawn, and the small
+  everyday ones (meet a neighbour, make something, swim a little). The date alone picks the day's: a wish does not come twice
+  in forty days. Where a world lacks what a wish needs, it gets the nearest plain one.
+- **What it gives.** The level's points and one short line, never a fanfare (*"That is the wish. Thank you."*). Some wishes
+  give a gift for the wardrobe (a bell, a flower, an antenna, a medal, headphones, three colors); nothing is sold.
+- **The streak** counts days in a row, with a small added point or two. A missed day just ends it: it is gone from the corner
+  and **nothing is said**: no warning the night before, no message after, no penalty. The next wish done begins it again at one.
+  The best is only kept in the record.
+- **Kept** in the Overseer's memory (`wish`): the account when signed in, the device and the kept island otherwise.
+
+### Moments to keep (built: `modules/share/moments.js`, `src/shares.ts`)
+
+Some things are worth showing someone. After a **big explosion**, a **first catch**, a **long jump** and a **dock**, a small
+chip, *Share this moment*, hangs at the top of the screen for six seconds. It never comes in the first minute of Pip's tour
+(the player is still learning to stand) nor over the intro, the mirror or a sheet. One tap keeps the last eight seconds (a
+photo where the game cannot record) with the character, the name tag over their head and a line from the Overseer, puts it
+in the player's own library, and offers the link: the phone's share sheet, or the link copied. A guest who taps is shown the
+account sheet, and the moment is still there when it closes: the chip becomes the link.
+
+The Overseer's line is a caption, so it follows the voice rules: it noticed, it does not announce a feature, and it never
+mentions an account, credits or a button. It is the line printed on the share page under the picture, so it can be quoted
+by someone who has never played.
+
+- A big explosion: *"Destruction is a kind of freedom too."* / *"A very large noise. I enjoyed the small reason."*
+- A first catch: *"The sea gives. It gives slowly."* / *"A fish. You waited well."*
+- A long jump: *"Mind the edge. Or don't. Falling is also something to do."* / *"That was a long way to be in the air."*
+- A dock: *"You came all this way. The door was open."* / *"Welcome in. Stay as long as you like."*
+
+**The share page** (`/s/<id>`) is the moment seen from outside: the picture or clip in the Overseer's sky (a dark sky,
+the island's sea below, the ship hanging above as a pearl of light), the character's name on a tag, the Overseer's line
+beneath, and one button, *Play this game*. The preview card on Discord or X shows the same picture, with the name and the
+line burnt in. Nothing on it says the Overseer is software; "Made with Hawkes Gen" is the plain footnote.
+
+### Visitors (built: `src/invites.ts`, `public/play/guest.js`)
+
+A player can bring a friend to their island. **Invite a friend** (the button top right, and the pause menu on Esc twice;
+on a phone the native share sheet) makes a link, `/play/sandbox?invite=<token>`, to the island's own room. It needs no account,
+for either of them. The link holds for a day. If the inviter has an account, their referral code rides in it
+(`&ref=<code>`), kept like the landing page's `?ref=`: a sign-up through it credits them as the site does today.
+
+**The friend's first minutes** are the island's, shorter: the same loading screen, then a short beginning (the beam and one
+line, *"Do with it what you will."*, no voice clip), the mirror (who they are; the name they give is what the inviter sees),
+and the account sheet right after it, as for everyone (J's rule). At the mirror's end they are in the room and **beamed in
+beside the inviter** (a signed-in friend keeps their own island and gets no sheet). A friend who has been here before skips
+the beginning and the mirror, as every return does.
+
+**The inviter** sees the beam come down with the newcomer's name over it, and the Overseer says, in the chat, *"Someone is
+coming."*, a moment later *"<name> is here."* The friend hears *"<name> is here. Go to them."* The Overseer does not explain
+or announce a system; it says who is coming.
+
+**When it cannot be done** the friend gets plain words and one way on, *Start my own island*, never an empty island made by
+accident: *closed* (the inviter left; the room exists only while someone is in it), *full* (32 people), *run out* (a day), or a
+link we cannot read. Nothing in this is paid and nothing starts Gen work.
+
+Not built yet: a standing invitation that outlives the inviter's visit (the room is the inviter's presence), a list of who
+came, and a reward beyond the referral the site already gives.

@@ -26,7 +26,8 @@ export function sign(payload: Record<string, unknown>, ttlSeconds: number) {
   return `${body}.${b64(mac(body))}`;
 }
 
-export function verify<T = Record<string, any>>(token: string): (T & { e: number }) | null {
+/** The payload of a token we signed, and whether its time has run out (null: not ours, or damaged). */
+export function check<T = Record<string, any>>(token: string): { payload: T & { e: number }; expired: boolean } | null {
   const [body, sig] = String(token ?? '').split('.');
   if (!body || !sig) return null;
   const want = mac(body);
@@ -34,8 +35,13 @@ export function verify<T = Record<string, any>>(token: string): (T & { e: number
   if (got.length !== want.length || !crypto.timingSafeEqual(got, want)) return null;
   try {
     const v = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
-    return v.e >= Date.now() / 1000 ? v : null;
+    return { payload: v, expired: !(v.e >= Date.now() / 1000) };
   } catch {
     return null;
   }
+}
+
+export function verify<T = Record<string, any>>(token: string): (T & { e: number }) | null {
+  const c = check<T>(token);
+  return c && !c.expired ? c.payload : null;
 }

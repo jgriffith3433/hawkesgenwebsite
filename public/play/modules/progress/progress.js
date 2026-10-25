@@ -8,6 +8,7 @@
 //
 //   H.progress.state       { pts, level, bar, name }      H.progress.has('tool:grenade')   whether it is theirs
 //   H.progress.earn(id, n) earns by the table (id: 'fish', 'quest', 'first-dock'...; n a measured amount for `per` ones)
+//   H.progress.award(label, pts, id)   points that are not in the table (the daily wish's)
 //   H.progress.did(kind)   an activity done: its repeating points and, the first time, its first-time points
 //   game.on('progress', ({ state: 'earn' | 'level' | 'unlock', ... }))
 /* global HawkesPlay */
@@ -98,6 +99,11 @@
     }
     return add(id, spec.label, spec.pts * (spec.once ? 1 : Math.max(1, Math.floor(n))));
   }
+  /** Points that are not in the table (the daily wish's own number). Counts like earn: not before the world settled. Returns the points given. */
+  function award(label, pts, id = 'award') {
+    if (!counts()) return 0;
+    return add(id, label, Math.max(0, Math.min(200, Math.floor(Number(pts) || 0))));
+  }
   /** An activity done: its repeating points, and the first time its first-time points on top. */
   function did(kind) {
     let got = earn(kind);
@@ -130,13 +136,13 @@
 
   // ------------------------------------------------------------------ the HUD (a small pill, top left; the touch layout places it)
   const CSS = `
-.pg-hud{position:fixed;left:12px;top:56px;z-index:6;display:flex;flex-direction:column;gap:3px;min-width:132px;max-width:220px;padding:5px 10px 6px;border-radius:12px;background:rgba(8,12,22,.62);border:1.5px solid rgba(255,255,255,.18);color:#eaf7ff;font:600 12.5px/1.2 system-ui,sans-serif;pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.8)}
+.pg-hud{position:fixed;left:324px;top:62px;z-index:6;display:flex;flex-direction:column;gap:3px;min-width:132px;max-width:220px;padding:5px 10px 6px;border-radius:12px;background:rgba(8,12,22,.62);border:1.5px solid rgba(255,255,255,.18);color:#eaf7ff;font:600 12.5px/1.2 system-ui,sans-serif;pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.8)}
 .pg-hud[hidden]{display:none}
 .pg-hud .pg-row{display:flex;justify-content:space-between;gap:8px}.pg-hud b{color:#ffe28a}
 .pg-hud .pg-bar{height:6px;border-radius:3px;background:rgba(255,255,255,.16);overflow:hidden}.pg-hud .pg-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#8fd8ff,#ffe28a);transition:width .5s}
 .pg-hud .pg-pop{min-height:14px;color:#cfe8f7;font-weight:500;opacity:0;transition:opacity .3s}.pg-hud .pg-pop.on{opacity:1}
 .pg-hud.pg-lv{border-color:#ffe28a;box-shadow:0 0 14px #ffe28a66}
-@media (max-width:700px){.pg-hud{min-width:112px;font-size:12px;top:52px}}
+@media (max-width:700px){.pg-hud{min-width:112px;font-size:12px;left:12px;top:52px}}
 `;
   function make() {
     if (el || typeof document === 'undefined') return;
@@ -228,7 +234,7 @@
   });
 
   H.progress = {
-    earn, did, has, clock, grantAll,
+    earn, did, award, has, clock, grantAll,
     get state() { return { pts: pr.p, level: level(), bar: C.bar(pr.p), name: C.POINTS, firsts: [...pr.f], meters: pr.d, loaded }; },
     get unlocked() { return mine().map((u) => u.key); },
     get waiting() { return moments.length; },

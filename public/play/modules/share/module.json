@@ -1,9 +1,10 @@
 {
   "title": "Sharing and the cinematic camera",
   "order": 85,
-  "scripts": ["share-math.js", "share.js", "photo.js", "cinematic.js"],
+  "scripts": ["share-math.js", "share.js", "photo.js", "cinematic.js", "moments.js"],
   "editor": ["camera-editor.js"],
   "kinds": [],
   "lazy": true,
+  "config": ["share"],
   "words": ["share", "photo", "cinematic", "trailer", "clip"]
 }

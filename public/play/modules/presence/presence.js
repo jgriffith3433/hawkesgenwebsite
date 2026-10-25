@@ -67,7 +67,7 @@
   function loadMe() {
     if (loading) return loading;
     me.look = me.look || guestLook();
-    loading = api('/v1/users/me/avatar').then((j) => {
+    loading = api('/v1/users/me/avatar?soft=1').then((j) => {
       me.user = j.user ? j.user.id : null; me.name = j.user ? j.user.name : null; me.badge = j.badge || null; me.signedIn = Boolean(me.user);
       me.friends = new Set(j.friends || []);
       // First time signed in: the look they had as a guest becomes theirs.
@@ -302,6 +302,7 @@
   /** Puts a rig's hat, extras and accessory on again, after its anchors moved (a Gen model took the body: presence-models.js). */
   P._redress = (rig) => {
     if (!rig.dressArgs) return;
+    if (P.hats) P.hats.clear(rig);
     for (const m of rig.meshes.splice(rig.bodyMeshes)) try { m.dispose(); } catch {}
     rig.cape = rig.tail = rig.wings = null;
     dress(rig, ...rig.dressArgs);
@@ -311,8 +312,10 @@
    *  tessellation, and joined the same way: each far mesh is the near one's level of detail past H.budget.farCharacter (the
    *  same shapes to within a pixel at that distance, so no pop). */
   function dress(rig, look, acc, body) {
-    if ((!look.hat || look.hat === 'none') && !look.extras.length && (!look.accessory || look.accessory === 'none')) return;
-    const wear = () => { hat(rig, look.hat, acc, body); for (const x of look.extras) extra(rig, x, acc, body); accessory(rig, look.accessory, look.accessoryColor); };
+    // A Gen hat (presence-hats.js) takes the procedural hat's place once it has loaded; until then, or if it fails, the procedural one is drawn.
+    const modelHat = !!(look.hat && look.hat !== 'none' && P.hats && P.hats.put(rig, look.hat, acc, body));
+    if ((!look.hat || look.hat === 'none' || modelHat) && !look.extras.length && (!look.accessory || look.accessory === 'none')) return;
+    const wear = () => { if (!modelHat) hat(rig, look.hat, acc, body); for (const x of look.extras) extra(rig, x, acc, body); accessory(rig, look.accessory, look.accessoryColor); };
     const join = (from) => {
       const still = rig.meshes.splice(from);
       if (!H.mergeParts) { rig.meshes.push(...still); return still; }
@@ -491,6 +494,7 @@
     }).catch(() => {});
   }
   function disposeRig(rig) {
+    if (P.hats) P.hats.clear(rig);
     if (P.models) P.models.dispose(rig);
     if (rig.model) for (const m of rig.model.meshes) try { m.dispose(); } catch {}
     for (const m of rig.meshes) try { m.dispose(); } catch {}

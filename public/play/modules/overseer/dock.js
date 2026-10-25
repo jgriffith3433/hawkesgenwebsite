@@ -109,22 +109,28 @@
     return d;
   }
 
+  /** The bay's turn in the world: its yaw and, in a round world, the frame's turn since it was built. It is read off the
+   *  hangar itself (the engine turns every thing when the frame moves), so what is computed here is where the walls are. */
+  function turn() {
+    const n = D.hangarE && D.hangarE.alive ? D.hangarE.node : null;
+    if (n && n.rotationQuaternion) return n.rotationQuaternion;
+    if (n) return B.Quaternion.FromEulerAngles(n.rotation.x, n.rotation.y, n.rotation.z);
+    return B.Quaternion.RotationAxis(B.Axis.Y, D.f.yaw);
+  }
+  const rotate = (v, q) => { const r = new B.Vector3(v[0], v[1], v[2]).applyRotationQuaternion(q); return [r.x, r.y, r.z]; };
+  /** A direction/velocity in the bay's frame ([across, up, out]; no shift to the ship's middle). */
+  function localVec(v) { return rotate(v, turn().conjugate()); }
+  /** ...and back out of it. */
+  function worldVec(l) { return rotate(l, turn()); }
   /** A point in the bay's frame: [across, up (from the ship's middle), out]. */
   function local(p) {
     if (!D) return null;
-    const rx = p[0] - D.c[0], ry = p[1] - D.c[1], rz = p[2] - D.c[2];
-    const s = Math.sin(D.f.yaw), c = Math.cos(D.f.yaw);
-    return [rx * c - rz * s, ry, rx * s + rz * c];
+    return localVec([p[0] - D.c[0], p[1] - D.c[1], p[2] - D.c[2]]);
   }
-  /** A direction/velocity in the bay's frame (no shift to the ship's middle). */
-  function localVec(v) {
-    const s = Math.sin(D.f.yaw), c = Math.cos(D.f.yaw);
-    return [v[0] * c - v[2] * s, v[1], v[0] * s + v[2] * c];
-  }
-  /** ...and back out of it. */
-  function worldVec(l) {
-    const s = Math.sin(D.f.yaw), c = Math.cos(D.f.yaw);
-    return [l[0] * c + l[2] * s, l[1], -l[0] * s + l[2] * c];
+  /** A point of the bay's frame in world meters. */
+  function pointAt(x, y, z) {
+    const w = worldVec([x, y, z]);
+    return [D.c[0] + w[0], D.c[1] + w[1], D.c[2] + w[2]];
   }
   /** Inside the hangar (or over its apron)? */
   function inHangar(p) {
@@ -324,13 +330,12 @@
     /** The hangar: where its pad is (world meters) and whether you are inside. */
     get hangar() {
       if (!D) return null;
-      const f = D.f, s = Math.sin(f.yaw), c = Math.cos(f.yaw);
-      const at = (x, y, z) => [D.c[0] + x * c + z * s, D.c[1] + y, D.c[2] - x * s + z * c];
-      return { pad: at(0, f.floor, f.padZ), mouth: at(0, f.floor, f.front + f.apron), floor: D.c[1] + f.floor, inside: D.inside, landed: D.landed, yaw: f.yaw, width: f.halfW * 2, height: f.top - f.floor };
+      const f = D.f, at = pointAt;
+      return { pad: at(0, f.floor, f.padZ), mouth: at(0, f.floor, f.front + f.apron), floor: at(0, f.floor, f.padZ)[1], inside: D.inside, landed: D.landed, yaw: f.yaw, width: f.halfW * 2, height: f.top - f.floor };
     },
     /** The bay's numbers for the Observatory (observatory.js): the ship's middle (world meters), the hangar frame, the node
      *  that follows a round world's frame, and `interior(true)` to hide the hull and hangar's look while inside. */
-    get bay() { return D ? { c: D.c.slice(), f: D.f, yaw: D.f.yaw, node: D.node } : null; },
+    get bay() { return D ? { c: D.c.slice(), f: D.f, yaw: D.f.yaw, node: D.node, at: pointAt, vec: localVec, dir: worldVec } : null; },
     interior(on) { if (D) { D.hidden = Boolean(on); D.show(OV.lod === 'near'); } },
     /** The approach readout now (distance, speed, closing, align, lateral, height, allowed, tooFast, state, advice), or null. */
     get approach() { return D && D.gauge ? { ...D.gauge, catching: Boolean(D.catching) } : null; },

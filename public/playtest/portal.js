@@ -20,12 +20,14 @@
 //   always so on live), fish: 'strict' (a fishing failure fails the run; otherwise it is a warning), watch: seconds of the
 //   intro to watch before skipping (default 8), at: 'sandbox' (start on /play/sandbox instead of clicking Play) }.
 import { installPlaytest } from './hawkes-playtest.js';
+import { SITE_LAYOUT, runSiteLayout } from './site-layout.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'progress', 'models'];
+const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'progress', 'models', 'wish'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'gen-models-all': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
+const ORDERS = { 'gen-models-all': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-daily-wish': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wish'], 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
 const SCENARIOS = [
+  SITE_LAYOUT, // the landing page at three sizes (site-layout.js)
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
   {
     id: 'sandbox-first-minutes', title: 'Play /play/sandbox as a new player: veil, intro, mirror, sign-up, drive to the dock, fish', seconds: 210, tags: ['full'],
@@ -63,6 +65,11 @@ const SCENARIOS = [
     description: 'the first-minutes path to the account sheet, then real input: walk to the 4x4, E, W held (points for the first drive and the meters in the HUD); the points of a few quests are earned by a named setup shortcut (the same table), a level-up gives goggles and a color (the wardrobe) and at level 4 the grenades (the tool belt), each with the Overseer\'s moment; the Overseer\'s memory re-read from the device (a named shortcut) shows them kept. options as sandbox-first-minutes',
   },
   {
+    id: 'sandbox-daily-wish', title: 'The daily wish: one wish a day in the HUD and spoken once, points and a line when done, a streak across days that resets quietly after a missed one', seconds: 240, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the account sheet, then the Overseer\'s wish for today (the same for everyone: chosen by the UTC date): it is in the HUD and was spoken once (wish-hud, wish-spoken); finishing it is a named setup shortcut (the events that wish names are fed to the game), then the points and the Overseer\'s short line (wish-done, overseer-said) and the streak at 1. Days passing is a named setup shortcut (the wish\'s clock moved one day, then three): the next day shows the streak at 2 once the wish is done; after the skipped days the streak is gone from the HUD with nothing said about it (streak-reset-quiet) and the next wish begins it again at 1. options as sandbox-first-minutes',
+  },
+  {
     id: 'island-journal', title: 'The journal: opened from its button (desktop, or the phone at 390x844), the eight quests, the neighbours met, four lore items found on the island and read in it, and kept after a return', seconds: 300, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first-minutes path to the account sheet, then the journal with real input (a click on the book button, walking to the lamp, the beach chair, the faded drawing and the scratched rock, E at each); the return is the Overseer\'s memory read back from this device (a named setup shortcut). options as sandbox-first-minutes, plus touch (true: the phone controls, ?touch=1)',
@@ -93,6 +100,16 @@ const SCENARIOS = [
     description: 'first visit: veil, intro (skipped after a few seconds), then the six main things (Pip, the hut, the 4x4, the boat, the helicopter, the rocket) are watched beaming in one after another (cascade-beam events); the mirror and the throwaway sign-up; then building (Tab), a delete (named setup shortcut) and Ctrl+Z (real keys): undo-beam; a second player joining (named setup shortcut: presence.standIn with joined) is beamed in with its name, seen from the first player (joined-beam, joined-name). Then /play/sandbox is opened again with the same storage: no cascade, everything is there at once (just-there). Options: watch.',
   },
   {
+    id: 'island-invite', title: 'Invite a friend: the button and pause menu give a link; the friend arrives beside the inviter, who sees the beam, the name and an Overseer line; a closed island says so kindly and offers their own', seconds: 240, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the account sheet (a throwaway sign-up, never on live), then the Invite button (a real click: the link, its ?invite= and ?ref=), the pause menu (Esc twice) offering it too, the invitation read back (open); the friend is a named setup-shortcut socket in the room (the friend\'s own page, its mirror and sheet, is covered by the engine and relay tests), and the inviter must show the beam (joined), the name over the newcomer and the Overseer\'s "Someone is coming."; then the friend\'s page is opened on an island nobody is on (closed): the message and "Start my own island" (a real click). Full and expired links are the tests\' (test/invite.test.ts).',
+  },
+  {
+    id: 'share-moment', title: 'Share this moment: a big explosion offers a chip (not in the first minute of the tour), one tap keeps the last 8 s, a guest is taken to the sign-up sheet and comes back to the same moment, and the link opens a page with the character, the Overseer\'s line and a card image', seconds: 420, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the account sheet (a throwaway sign-up, never on live), then Share this moment (modules/share/moments.js): the rocket launcher in hand (named setup-shortcut) and a blast at fuel barrels with real input within the first minute of the tour: no chip (chip-held-back); after the minute another blast: the chip appears (chip-shown); the player is signed out first (a named setup-shortcut: a guest) and taps the chip (a real click): the account sheet opens for it (sheet-for-share), signs back in with the throwaway account, closes, and the chip is the same moment still (same-moment) and becomes the link (share-link). The link\'s page (share-page) has the character\'s name and the Overseer\'s line and its Open Graph card has an image that loads (og-image); the page is shown in a frame for the screenshot.',
+  },
+  {
     id: 'sandbox-return', title: 'A second visit: no intro and no mirror, beamed in and welcomed back by name, the tour where it stopped', seconds: 330, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first visit as a new player (veil, intro, mirror, account sheet with a throwaway sign-up, then driving to the dock: the tour is on its second step), in that order; then the page is opened again as a returning player would (the same browser storage). It checks that the intro and the mirror do not play, that the player is beamed in and the Overseer says "Welcome back, <name>", and that Pip\'s tour is on the step it was left on (not the first). Never on live (no sign-up there). options as sandbox-first-minutes',
@@ -106,6 +123,11 @@ const SCENARIOS = [
     id: 'faces-and-emotes', title: 'Faces and emotes: the character blinks, looks at the Overseer when it speaks, changes expression on a hard landing and an explosion; the six emotes from the radial wheel (desktop or touch), seen by another player', seconds: 240, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first-minutes path to the island (a throwaway sign-up, never on live), then: blinks counted over a few seconds; the Overseer asked to say a line (named setup shortcut) and the gaze checked; a drop from height (named setup shortcut: the player lifted, the fall and landing are the game\'s) and a blast beside the player (named setup shortcut) with the face read each time; then the emote wheel opened from its button and the six emotes (wave, laugh, cheer, shrug, dance, point) clicked, each checked on the player and on a stand-in second player (presence.standIn; the remote emote handed to the same handler a real peer\'s message uses). options as sandbox-first-minutes, plus touch (true: ?touch=1, taps as touch pointers)',
+  },
+  {
+    id: 'gen-hats', title: 'The Gen hats: each hat in the mirror is a Gen model on the head of the person, a dog and a shoe, moving with the head, recoloured by the colour pick, within the triangle budget', seconds: 300, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the island (a throwaway sign-up, never on live), then for each hat with a model in the registry (HawkesPlay.presence.hatRegistry) on each of person, dog and shoe (the look changed through presence.setLook, as the mirror does): the Gen model is worn (not the procedural hat), parented to the head anchor, at most 1.8k triangles; a real walk and jump with the hat staying on the head; the colour pick (accent) changing the colour of a tinted hat. A hat with no model yet is logged as procedural.',
   },
   {
     id: 'gen-models-pilot', title: 'The pilot Gen models: person, dog and shoe as the character, at real height, walking, running, jumping and emoting, each in a top hat and a cap', seconds: 330, tags: ['full'],
@@ -298,7 +320,9 @@ async function stageSheet(t, ctx) {
   const set = (id, v) => { const el = $(id); el.focus(); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); };
   set('#gsEmail', email);
   await t.wait(500);
-  set('#gsPw', `Pt-${rand(14)}`);
+  const password = `Pt-${rand(14)}`;
+  ctx.account = { email, password }; // (share-moment signs back in with it)
+  set('#gsPw', password);
   t.event('signup-submit', `throwaway ${email.replace(/^[^@]+/, 'playtest-…')}`);
   await t.wait(800);
   $('#gsGo').click();
@@ -1072,9 +1096,12 @@ async function stageProgress(t, ctx) {
   const before = PG().state.pts;
   const jeep = () => W().byId.get('jeep');
   const driving = () => G().player && G().player.controller === 'drive';
+  // Pip comes over after the sign-up and offers the tour in a modal card; while it is open E never reaches the 4x4: close it like a player (Not now).
+  const closeCard = () => { const qs = G().events && G().events.quests; if (qs && qs.close) qs.close(); document.querySelectorAll('.qs-panel').forEach((n) => n.remove()); };
   if (!driving()) {
+    closeCard();
     await walkTo(t, 'jeep', 3.2, 40000, 'the 4x4');
-    for (let i = 0; i < 4 && !driving(); i++) { await tap(t, 'e'); await t.wait(700); }
+    for (let i = 0; i < 4 && !driving(); i++) { closeCard(); await tap(t, 'e'); await t.wait(700); }
   }
   if (!driving()) throw new Error('timed out getting into the 4x4 with E');
   keyEv('keydown', 'w'); down.add('w');
@@ -1110,6 +1137,71 @@ async function stageProgress(t, ctx) {
   const kept = HP().memory.progress.get();
   t.event('kept-after-return', `${kept.p} points (had ${pts}); wardrobe ${wardrobe().acc.length} accessories`);
   if (kept.p < pts || !wardrobe().acc.includes('goggles')) t.problem('error', 'progress or its unlocks were lost on a return');
+  t.progress(1);
+}
+
+/** The daily wish (docs/story.md, "The daily wish"): today's wish in the HUD, spoken once; done (a named shortcut: its own events are fed); points and a line; the streak over days that pass (a named shortcut: the wish's clock) and its quiet reset. */
+async function stageWish(t, ctx) {
+  const WS = () => HP().wish;
+  const WC = () => HP().wishCore;
+  const hud = () => { const h = $('.wh-hud'); return h && !h.hidden ? h.textContent.replace(/\s+/g, ' ').trim() : ''; };
+  const said = [];
+  G().on('wish', (d) => {
+    if (d.state === 'offer') t.event('wish-spoken', d.text);
+    else if (d.state === 'line') { said.push(d.text); t.event('overseer-said', d.text); }
+    else if (d.state === 'progress') t.event('wish-progress', `${d.n} / ${d.of}`);
+    else if (d.state === 'done') t.event('wish-done', `${d.id}: +${d.pts} points, streak ${d.streak}${d.gift ? `, gift ${d.gift}` : ''}`);
+    else if (d.state === 'day') t.event('wish-new-day', d.id);
+  });
+  G().on('progress', (d) => { if (d.state === 'earn' && d.id === 'wish') t.event('points-earned', `+${d.pts} ${d.label}; ${d.total} total`); });
+  releaseAll();
+  await t.until(() => W() && W().player && W().player.alive && WS() && WS().state.loaded && WS().state.wish, 60000, 'the daily wish to load');
+  await t.until(() => hud(), 30000, 'the wish in the HUD');
+  const day0 = WC().dayKey(Date.now());
+  const own = WC().wishFor(day0);
+  t.event('wish-hud', `${WC().dayKey(WS().clock.now())}: ${hud()}`);
+  if (WS().state.wish !== own.id && WS().state.wish !== WC().INSTEAD[own.needs]) t.problem('error', `the HUD shows ${WS().state.wish}, not the wish of ${day0} (${own.id})`);
+  t.event('same-for-everyone', `${day0} -> ${own.id} (a pure function of the UTC date)`);
+  await t.until(() => WS().record().said === 1, 30000, 'the Overseer to speak the wish');
+  t.scene('Daily wish: in the HUD');
+  const finish = async (label) => {
+    const w = WC().byId(WS().state.wish);
+    t.event('setup-shortcut', `${label}: the events of "${w.hud}" fed to the game`);
+    for (const e of WC().eventsFor(w)) WS().feed(e);
+    await t.until(() => WS().state.done, 8000, 'the wish to be done');
+  };
+  const pts0 = HP().progress.state.pts;
+  await finish('wish done');
+  await t.until(() => WS().waiting === 0, 40000, 'the Overseer\'s line');
+  t.event('wish-points', `${HP().progress.state.pts - pts0} points; HUD: ${hud()}`);
+  if (!(HP().progress.state.pts > pts0)) t.problem('error', 'finishing the wish earned nothing');
+  t.scene('Daily wish: done');
+  if (WS().state.streak !== 1) t.problem('error', `the streak is ${WS().state.streak} after the first wish`);
+  const day = (n) => Date.now() + n * 86400000;
+  const pass = async (n, label) => {
+    t.event('setup-shortcut', `${label}: the wish's clock moved to ${WC().dayKey(day(n))}`);
+    WS().clock.now = () => day(n);
+    await t.until(() => WS().state.day === WC().dayKey(day(n)), 15000, 'the new day');
+    await t.until(() => hud(), 8000, 'the new wish in the HUD');
+  };
+  await pass(1, 'one day passes');
+  t.event('wish-hud', `${WS().state.day}: ${hud()}`);
+  if (WS().state.streak !== 1) t.problem('error', `yesterday's streak should still show, it shows ${WS().state.streak}`);
+  await finish('the second day\'s wish done');
+  await t.until(() => WS().state.streak === 2, 8000, 'the streak at 2');
+  t.event('streak-counted', `${WS().state.streak} days in a row; HUD: ${hud()}`);
+  t.scene('Daily wish: a streak of two');
+  await t.until(() => WS().waiting === 0, 40000, 'the Overseer\'s line');
+  said.length = 0;
+  await pass(4, 'three days pass with no wish done');
+  await t.wait(2500);
+  const bad = said.filter((x) => /streak|miss|lost|reset|broke|days/i.test(x));
+  t.event('streak-reset-quiet', `streak ${WS().state.streak}; HUD: ${hud()}; said since: ${said.length ? said.join(' | ') : 'nothing'}`);
+  if (WS().state.streak !== 0 || /in a row/.test(hud()) || bad.length) t.problem('error', `a missed day should reset the streak quietly (streak ${WS().state.streak}, said: ${bad.join(' | ')})`);
+  t.scene('Daily wish: after a missed day');
+  await finish('the new wish done');
+  await t.until(() => WS().state.streak === 1, 8000, 'the streak to begin again at 1');
+  t.event('streak-begins-again', `${WS().state.streak} day in a row (best ${WS().state.best})`);
   t.progress(1);
 }
 
@@ -1556,6 +1648,51 @@ async function stageTouch(t, ctx) {
   void final;
 }
 
+async function stageHats(t, ctx) {
+  const P = () => HP().presence;
+  releaseAll();
+  await t.until(() => W() && W().player && W().player.alive && P() && P().hats, 60000, 'the player\'s body');
+  if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
+  const rigOf = () => P()._internal.rigs.get(W().player);
+  const all = P().core.LOOK.hats.filter((h) => h !== 'none'), made = Object.keys(P().hatRegistry || {});
+  for (const hat of all) if (!made.includes(hat)) t.event('hat-procedural', `${hat}: no Gen model yet, the procedural hat stays`);
+  for (const id of ['person', 'dog', 'shoe']) {
+    for (const hat of made) {
+      t.event('setup-shortcut', `the look changed to ${id} with a ${hat} (presence.setLook, as the mirror's answer does)`);
+      P().setLook({ what: id, hat, accent: '#ffffff' });
+      await t.until(() => { const r = rigOf(); return r && r.pm && r.pm.state !== 'loading'; }, 30000, `the ${id} model to load`);
+      await P().models.ready(rigOf());
+      await P().hats.ready(rigOf());
+      await t.wait(400);
+      const rig = rigOf(), st = P().hats.stats(rig);
+      if (!st) { t.problem('error', `${hat} on ${id}: the Gen hat is not worn (the procedural hat shows)`); continue; }
+      if (st.tris > 1800) t.problem('error', `${hat}: ${st.tris} triangles is over the hat budget`);
+      if (rig.hatModel.holder.parent !== rig.neck) t.problem('error', `${hat} on ${id}: not parented to the head anchor`);
+      t.event('hat-on', `${hat} on ${id}: Gen model, ${st.tris} triangles, on the head anchor`);
+      t.scene(`Hat: ${hat} on ${id}`);
+      if (id !== 'person' && hat !== made[0]) continue;
+      // real keys: walk and jump, the hat staying on the head
+      const y0 = () => { rig.hatModel.holder.computeWorldMatrix(true); rig.neck.computeWorldMatrix(true); return rig.hatModel.holder.getAbsolutePosition().subtract(rig.neck.getAbsolutePosition()).length(); };
+      const d0 = y0();
+      setKeys({ w: true }); await t.wait(1500); await tap(t, ' ', 120); await t.wait(300); const d1 = y0(); setKeys({}); await t.wait(900);
+      if (Math.abs(d1 - d0) > 0.02) t.problem('error', `${hat} on ${id}: slid off the head (${d0.toFixed(3)} then ${d1.toFixed(3)})`);
+      t.event('hat-follows', `${hat} on ${id}: walked and jumped, the hat stayed on the head`);
+    }
+  }
+  // the colour pick: a tinted hat changes colour
+  for (const hat of made) {
+    P().setLook({ what: 'person', hat, accent: '#ffffff' }); await t.wait(500);
+    let rig = rigOf(); const c0 = rig.hatModel && rig.hatModel.mats[0] && (rig.hatModel.mats[0].albedoColor || rig.hatModel.mats[0].diffuseColor).toHexString();
+    P().setLook({ what: 'person', hat, accent: '#e11d48' }); await t.wait(500);
+    rig = rigOf(); const m = rig.hatModel && rig.hatModel.mats[0], c1 = m && (m.albedoColor || m.diffuseColor).toHexString();
+    const tinted = !!(rig.hatModel && rig.hatModel.tinted);
+    t.event('hat-color', `${hat}: ${c0} then ${c1}${tinted ? ' (tinted by the pick)' : ' (its own colours)'}`);
+    t.scene(`Hat colour: ${hat}`);
+    if (tinted && c0 === c1) t.problem('error', `${hat}: the colour pick did not change the hat`);
+  }
+  t.progress(1);
+}
+
 async function stageModels(t, ctx) {
   const P = () => HP().presence;
   releaseAll();
@@ -1776,9 +1913,194 @@ async function stageBlast(t, ctx) {
 
 const RUN = {
   models: stageModels,
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
+  hats: stageHats,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, wish: stageWish, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
 };
-const ENDS = { 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models' };
+// Island invitations (island-invite): after the sheet, the inviter's stage, then the friend's page on a closed island.
+STAGES.push('invite', 'gone', 'own');
+ORDERS['island-invite'] = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'invite', 'gone', 'own'];
+RUN.invite = stageInvite;
+RUN.gone = stageGone;
+RUN.own = stageOwn;
+// Share this moment (share-moment): after the sheet, the blast stage's rocket at fresh barrels, the chip, the tap, the link.
+STAGES.push('moment');
+ORDERS['share-moment'] = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'moment'];
+RUN.moment = stageMoment;
+/** The stages a page that follows a leg change carries on with (the first-minutes ones are already done). */
+const legSeq = (id, prior) => (id === 'island-invite' && prior && (prior.leg === 'gone' || prior.leg === 'own') ? [prior.leg] : null);
+
+const ENDS = { 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models', 'gen-hats': 'hats' };
+
+
+// ---------------------------------------------------------------------------------------------- share-moment
+/** A big blast with the rocket launcher at three fresh barrels ten metres ahead (real input: the camera turned, the click). */
+async function blastAhead(t, booms) {
+  const P = W().player;
+  const yaw = camYaw();
+  G().mayhem.spawnMany('barrel', 3, { at: [P.x + Math.sin(yaw) * 10, P.y, P.z + Math.cos(yaw) * 10], pattern: 'line', spacing: 1.3 });
+  await t.wait(700);
+  const n = booms.length;
+  await holdMouse(t, 160);
+  await t.until(() => booms.length > n, 9000, 'the rocket to land');
+}
+/** The chip after a big explosion; a guest taps it, signs in on the sheet and comes back to the same moment, and the link opens a page. */
+async function stageMoment(t, ctx) {
+  await t.until(() => G() && G().mayhem && W() && W().player && HP().share && HP().share.moments, 90000, 'the island and the share module');
+  await t.wait(1500);
+  const Mo = () => HP().share.moments;
+  const states = [];
+  G().on('moment', (d) => states.push(d));
+  const booms = [];
+  G().on('explosion', (d) => booms.push(d));
+  W().player.tool = 'rocket-launcher';
+  t.event('setup-shortcut', 'the rocket launcher put in hand (the tour gives it at the barrels)');
+  // 1. Inside the tour's first minute: a big blast, and no chip.
+  const age = Mo().tourAge();
+  if (age !== null && age < 50000) {
+    await blastAhead(t, booms);
+    await t.wait(1500);
+    if (Mo().visible) t.problem('error', 'the chip appeared in the first minute of the tour');
+    else t.event('chip-held-back', `a rocket blast ${Math.round(age / 1000)} s into the tour: no chip`);
+    t.scene('First minute: no chip');
+  } else t.event('chip-held-back-skipped', age === null ? 'the tour has not begun on this page' : `already ${Math.round(age / 1000)} s into the tour`);
+  // 2. Past the minute (and the quiet after the last chip): wait it out.
+  await t.until(() => { const a = Mo().tourAge(); return a === null || a > 62000; }, 90000, 'the first minute of the tour to pass');
+  // The player is a guest now (NAMED SHORTCUT: signed out, the page unchanged; the island stays as it is).
+  await fetch('/v1/users/logout', { method: 'POST', credentials: 'same-origin' });
+  const user = await fetch('/v1/users/me', { credentials: 'same-origin' }).then((r) => r.json()).then((d) => d.user).catch(() => null);
+  t.event('setup-shortcut', `signed out, as a guest${user ? ' (still signed in: the sign-out did not take)' : ''}`);
+  await blastAhead(t, booms);
+  await t.until(() => Mo().visible, 6000, 'the Share this moment chip');
+  const first = Mo().state();
+  t.scene('Share this moment: the chip');
+  t.event('chip-shown', `${first.kind}: "${first.caption}", ${(document.querySelector('.sh-moment') || {}).textContent || ''}`.replace(/\s+/g, ' '));
+  // 3. One tap: the guest gets the sheet.
+  document.querySelector('.sh-moment [data-a="keep"]').click();
+  t.event('chip-tapped', 'one tap on the chip');
+  await t.until(() => $('#gsEmail'), 40000, 'the account sheet to open for the moment');
+  t.scene('The sign-up sheet, from the moment');
+  t.event('sheet-for-share', ($('#gsTitle') || {}).textContent || '');
+  if (!ctx.account) throw new Error('no throwaway account from the sheet stage');
+  const set = (id, v) => { const el = $(id); el.focus(); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); };
+  const swap = $('#gsSwap [data-swap]');
+  if (swap && /sign in/i.test(swap.textContent)) swap.click();
+  set('#gsEmail', ctx.account.email);
+  set('#gsPw', ctx.account.password);
+  await t.wait(600);
+  $('#gsGo').click();
+  await t.until(() => !$('#gsEmail') || ($('#gsErr') && !$('#gsErr').hidden && $('#gsErr').textContent.trim()), 25000, 'the sign-in to answer');
+  if ($('#gsEmail')) throw new Error(`the sign-in was refused: ${$('#gsErr').textContent.trim().slice(0, 160)}`);
+  t.event('signed-in', 'the sheet closed; the island carries on');
+  // 4. The same moment, and the link.
+  const done = await t.until(() => states.find((s) => s.state === 'link') || (states.find((s) => s.state === 'failed') && 'failed'), 90000, 'the share link');
+  if (done === 'failed') throw new Error(`the moment did not become a link: ${(states.find((s) => s.state === 'failed') || {}).reason}`);
+  if (done.kind !== first.kind || done.caption !== first.caption) t.problem('error', `the moment changed over the sheet (${first.kind} > ${done.kind})`);
+  else t.event('same-moment', `${done.kind}: "${done.caption}" is still the moment after the sheet`);
+  t.event('share-link', `${done.url} (${done.media})`);
+  t.scene('Share this moment: the link');
+  // 5. The page and its card.
+  const html = await fetch(done.url, { credentials: 'omit' }).then((r) => r.text());
+  const name = (((HP().presence || {}).look || {}).name || '');
+  const hasCaption = html.includes(first.caption.replace(/'/g, '&#39;')) || html.includes(first.caption);
+  const hasName = !name || html.includes(name);
+  const og = /<meta property="og:image" content="([^"]+)"/.exec(html);
+  if (!hasCaption || !hasName) t.problem('error', `the share page misses ${!hasName ? 'the character name' : 'the Overseer\'s line'}`);
+  else t.event('share-page', `shows ${name ? `"${name}" and ` : ''}the Overseer's line, in the sky with the ship (${html.includes('sh-pearl') ? 'pearl' : 'no pearl'})`);
+  if (!og) t.problem('error', 'the share page has no og:image');
+  else {
+    const img = await fetch(og[1], { credentials: 'omit' });
+    if (!img.ok || !/^image\//.test(img.headers.get('content-type') || '')) t.problem('error', `the card image does not load (${img.status})`);
+    else t.event('og-image', `${og[1]} loads (${img.headers.get('content-type')})`);
+  }
+  const frame = document.createElement('iframe');
+  frame.src = new URL(done.url).pathname;
+  frame.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;border:0;z-index:2147483000;background:#fff';
+  document.body.appendChild(frame);
+  await new Promise((res) => { frame.onload = res; setTimeout(res, 8000); });
+  await t.wait(1500);
+  t.scene('The share page');
+  frame.remove();
+  t.progress(1);
+}
+
+// ---------------------------------------------------------------------------------------------- island-invite
+/** The inviter: the Invite button gives a link, the pause menu offers it too, the island's room opens, a friend arrives. */
+async function stageInvite(t, ctx) {
+  await t.until(() => W() && W().player && $('.gs-acts [data-intent="invite"]'), 40000, 'the Invite button');
+  const btn = $('.gs-acts [data-intent="invite"]');
+  t.event('invite-button', `"${btn.textContent}" among the buttons top right`);
+  t.scene('Island: the Invite button');
+  const joined = [];
+  G().on('joined', (d) => { joined.push(d); });
+  btn.click();
+  await t.until(() => $('[data-invite="link"] input'), 15000, 'the invitation link');
+  const link = new URL($('[data-invite="link"] input').value);
+  const token = link.searchParams.get('invite') || '';
+  const room = (() => { try { return JSON.parse(atob(token.split('.')[0].replace(/-/g, '+').replace(/_/g, '/'))).r; } catch (e) { return ''; } })();
+  t.event('invite-link', `${link.pathname}?invite=… for room ${room}${link.searchParams.get('ref') ? ' and ?ref=' + link.searchParams.get('ref') : ' (a guest: no referral code)'}`);
+  if (link.pathname !== '/play/sandbox' || !room) t.problem('error', 'the invitation link does not open the island');
+  t.scene('Island: the invitation link');
+  // The pause menu offers it too (Esc twice).
+  await tap(t, 'Escape'); await t.wait(200); await tap(t, 'Escape');
+  await t.until(() => /Invite a friend/.test(($('.ui-menu') || {}).textContent || ''), 5000, 'the pause menu with Invite a friend').then(
+    () => { t.event('pause-menu-invite', 'Esc twice: Paused > Resume, Invite a friend, Change my look'); t.scene('Island: the pause menu'); const r = [...document.querySelectorAll('.ui-menu .ui-btn')].find((b) => /Resume/.test(b.textContent)); if (r) r.click(); },
+    (e) => t.problem('error', e.message));
+  const st = await fetch(`/v1/island-invite/${token}`).then((r) => r.json());
+  t.event('invite-status', `${st.state}${st.name ? ' (' + st.name + ')' : ''}`);
+  if (st.state !== 'open') t.problem('error', `the invitation reads "${st.state}" while the inviter is on the island`);
+  // The friend. NAMED SHORTCUT: their page (loading, short intro, mirror, sheet) is another browser; here it is a socket in the room,
+  // as that page opens after the mirror (join=1), standing where the inviter is.
+  t.event('setup-shortcut', 'the friend is a socket in the island room named Visitor (their page is a second browser)');
+  const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/v1/ws?play=t/sandbox&room=${room}&name=Visitor&join=1&v=2`);
+  let beat = null;
+  ws.onmessage = (e) => { if (beat || !/"hello"/.test(e.data)) return; beat = setInterval(() => { const p = W().player; if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'me', at: Date.now(), s: { p: [p.x + 1.6, p.y, p.z + 1], y: 0, pi: 0, f: 0 } })); }, 100); };
+  await t.until(() => ws.readyState === 1, 8000, 'the friend to join the room');
+  await t.until(() => /Someone is coming\./.test(document.body.innerText), 15000, 'the Overseer to say someone is coming').then(
+    () => t.event('overseer-line', '"Someone is coming." in the chat'), (e) => t.problem('error', e.message));
+  await t.until(() => joined.length, 20000, 'the newcomer to be beamed in').then(
+    () => { t.event('beam-seen', `joined: ${joined[0].name}`); t.scene('Island: someone is coming down the beam'); }, (e) => t.problem('error', e.message));
+  await t.until(() => /Visitor is here/.test(document.body.innerText), 10000, 'the Overseer to name the friend').then(
+    () => t.event('friend-named', 'Visitor, in the chat and over the newcomer'), (e) => t.problem('error', e.message));
+  await t.wait(1500);
+  t.scene('Island: the friend beside the inviter');
+  clearInterval(beat);
+  ws.close();
+  // The friend's page on an island nobody is on any more: a new invitation (no one in its room) is closed.
+  const fresh = await fetch('/v1/island-invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"name":"Playtest"}' }).then((r) => r.json());
+  writeRun({ ...ctx.saved(), leg: 'gone' });
+  t.event('friend-page', 'opening an invitation to an island nobody is on');
+  // The link names the portal's PUBLIC_URL; the browser stays on the origin the run is on (a preview or local server), where the
+  // friend's cold page is as open as the inviter's: another host would be a different server (or Studio's login gate: 401).
+  const there = new URL(fresh.link);
+  location.href = there.pathname + there.search;
+  await t.wait(30000);
+  throw new Error('the invitation page did not open');
+}
+
+/** The friend's page on a closed island: the reason in plain words, and a way to start their own. */
+async function stageGone(t, ctx) {
+  await t.until(() => $('[data-invite]'), 30000, 'the closed-island message');
+  const box = $('[data-invite]');
+  t.event('invite-gone', `${box.dataset.invite}: ${(box.querySelector('p') || {}).textContent}`);
+  t.scene('Invitation: the island is closed');
+  if (box.dataset.invite !== 'closed') t.problem('error', `expected a closed island, got ${box.dataset.invite}`);
+  const own = box.querySelector('[data-own]');
+  if (!own) throw new Error('no way to start their own island');
+  t.event('own-island-offered', `"${own.textContent}"`);
+  writeRun({ ...ctx.saved(), leg: 'own' });
+  own.click();
+  await t.wait(30000);
+  throw new Error('their own island did not open');
+}
+
+/** Their own island, after "Start my own island": no invitation in the address, the game is there. */
+async function stageOwn(t, ctx) {
+  await t.until(() => W() && W().player, 40000, 'their own island');
+  if (/[?&]invite=/.test(location.search) || $('[data-invite]')) t.problem('error', 'the invitation is still on the page');
+  t.event('own-island', `${location.pathname}${location.search}: their own island loads`);
+  t.scene('Their own island');
+  t.progress(1);
+}
 
 // ---------------------------------------------------------------------------------------------- the contract
 let api = null;
@@ -1792,6 +2114,7 @@ export function install() {
     stallSeconds: 120,
     isReady: () => (onSandbox() || onGame() ? Boolean(W() && W().player) || document.readyState === 'complete' : document.readyState === 'complete'),
     async start(id, options, t) {
+      if (id === SITE_LAYOUT.id) return runSiteLayout(t, options);
       if (id === 'observatory-wardrobe' && options.touch) options = { at: 'sandbox', ...options }; // (touch: straight to the island with the phone controls)
       if ((id === 'vehicle-feel' || id === 'rocket-blast-feel') && options.touch) options = { at: 'sandbox', ...options };
       if (id === 'touch-controls') options = { at: 'sandbox', touch: true, ...options }; // (the phone controls, straight to the island)
@@ -1820,7 +2143,7 @@ export function install() {
       t.event('plan', `${id}: ${STAGES[from]} to ${STAGES[to]}${isLive() ? ' (live: no sign-up)' : ''}`);
       let named = '';
       try {
-        const seq = id === 'island-arrivals' && prior && prior.leg === 'return' ? ['back2'] : id === 'sandbox-return' && prior && prior.leg === 'return' ? ['back'] : id === 'sandbox-travel-board' && prior && prior.leg === 'game' ? ['game'] : id === 'sandbox-travel-board' && prior && prior.leg === 'back' ? ['board'] : ORDERS[id] ? ORDERS[id].slice(ORDERS[id].indexOf(STAGES[from])) : STAGES.slice(from, to + 1);
+        const seq = legSeq(id, prior) || (id === 'island-arrivals' && prior && prior.leg === 'return' ? ['back2'] : id === 'sandbox-return' && prior && prior.leg === 'return' ? ['back'] : id === 'sandbox-travel-board' && prior && prior.leg === 'game' ? ['game'] : id === 'sandbox-travel-board' && prior && prior.leg === 'back' ? ['board'] : ORDERS[id] ? ORDERS[id].slice(ORDERS[id].indexOf(STAGES[from])) : STAGES.slice(from, to + 1));
         for (const stage of seq) {
           named = stage;
           if ((await RUN[named](t, ctx)) === 'stop') return;
