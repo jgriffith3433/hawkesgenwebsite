@@ -44,3 +44,12 @@ game.input.onKey('t', () => game.vehicles.drive(taxi, null));
 **Modules** (`HawkesPlay.vehicles`): `types`, `kinds`, `list()`, `near(from, radius)`, `nearest(from, radius)`,
 `enter`, `exit`, `board(v, entity, { driver })`, `unboard`, `drive`, `blast`, `useOffer(player)` (what E does here:
 `{ label, act }`), `waterLevel(x, z)`, `simulatedByMe(v)`, `current`, `seat`. A vehicle's own state is `e.vehicle`.
+
+**How driving feels** (`HawkesPlay.vehicles.feel`, `vehicles-feel.js`; looks and sounds only, no forces): the view widens with speed
+(and boost, and a drift), the chase camera trails farther back, the body leans in bends and dips under braking, dust and spray
+come off the wheels by surface (sand and dirt a lot, paving hardly), the engine climbs through gears and is higher under load,
+the handbrake or a slide squeals, a landing dips the view with dust and a thud, bumps shake it a little, a drift swings the
+camera toward the slide, and headlights come on at night (the L key still wins). Phones: Juice's level halves (reduced) or
+mostly stops (minimal) the particles; "reduce motion" turns the camera effects well down. `feel.math` has the pure numbers
+(`fovKick`, `camLag`, `roll`, `pitch`, `engineRpm`, `dustAmount`, `skid`, `landing`, `bump`, `lightsWanted`); `feel.sample()`
+gives what the local vehicle is doing now (`fov`, `roll`, `pitch`, `rpm`, `dip`, `skid`, `puffs`, `landed`).
