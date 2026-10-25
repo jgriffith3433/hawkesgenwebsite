@@ -547,11 +547,15 @@
       return;
     }
     // Tumbling (Mayhem's ragdoll spin, e._tumble): lying there until it's back on its feet.
-    if (e._tumble && r.state !== 'knocked') { r.state = 'knocked'; r.act = 'knocked'; r.knockT = 0; r.goal = null; r.path = null; r.fear = 1; if (r.carrying) drop(r); }
+    if (e._tumble && r.state !== 'knocked') { r.state = 'knocked'; r.act = 'knocked'; r.knockT = 0; r.downT = 0; r.goal = null; r.path = null; r.fear = 1; if (r.carrying) drop(r); }
     if (r.state === 'knocked') {
       if (e._tumble) { r.knockT = 0; if (e.grounded) e.walk({ x: 0, z: 0 }, 0); return; }
       if (e.grounded && hv < 1) r.knockT += dt;
-      if (r.knockT > 1.4) { r.state = 'idle'; r.act = 'idle'; r.startle = { from: [e.x + rand(-1, 1), e.z + rand(-1, 1)], until: t + 3 }; r.lastThink = t; r.think = 0; }
+      // (Lying on another animal, or shoved along by the stampede, it may never be still on the ground: after 5 s down
+      // it gets up anyway once it isn't falling.)
+      r.downT = (r.downT || 0) + dt;
+      if (r.knockT > 1.4 || (r.downT > 5 && Math.abs(e.vy) < 1.5)) {
+        r.downT = 0; r.state = 'idle'; r.act = 'idle'; r.startle = { from: [e.x + rand(-1, 1), e.z + rand(-1, 1)], until: t + 3 }; r.lastThink = t; r.think = 0; }
       r.lastSet = 0;
       return;
     }
@@ -805,7 +809,7 @@
     startle(p, { radius: Math.max(14, R * 4), strength: 1.2, all: true });
   });
   function knock(r) {
-    r.state = 'knocked'; r.act = 'knocked'; r.knockT = 0; r.tipSide = Math.random() < 0.5 ? -1 : 1; r.spinRate = rand(6, 14) * (Math.random() < 0.5 ? -1 : 1);
+    r.state = 'knocked'; r.act = 'knocked'; r.knockT = 0; r.downT = 0; r.tipSide = Math.random() < 0.5 ? -1 : 1; r.spinRate = rand(6, 14) * (Math.random() < 0.5 ? -1 : 1);
     r.goal = null; r.path = null; r.fear = 1;
     if (r.carrying) drop(r);
     tell('hurt', r, { knocked: true });
