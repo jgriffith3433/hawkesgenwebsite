@@ -375,7 +375,7 @@
       look();
     });
     // ------------------------------------------------------------------ invitations: the inviter's link, the friend's arrival
-    const say = (text) => { if (H.chat) H.chat.line({ kind: 'overseer', keep: 30, text }); };
+    const say = (text, priority) => { if (H.chat) H.chat.line({ kind: 'overseer', keep: 30, text, priority }); };
     const myName = () => lookName(H) || (ret.get() || {}).name || '';
     let invited = null; // { link, room } once this player has an invitation out
     async function invite(from) {
@@ -391,8 +391,10 @@
         if (window.HawkesNet) window.HawkesNet.connect({ token: null, play: 't/sandbox', room: r.room, name: myName() || 'Host', join: false });
         H.game.net.on('join', (d) => {
           track('sandbox_invite_arrived', {});
-          say('Someone is coming.');
-          setTimeout(() => say(`${d && d.name ? d.name : 'A friend'} is here.`), 2600);
+          // Both at once, important: the speech desk says them one after the other, ahead of the tour's and Pip's lines (a
+          // normal line queued behind a chatty island went stale or was dropped, and the second one never showed).
+          say('Someone is coming.', 'important');
+          say(`${d && d.name ? d.name : 'A friend'} is here.`, 'important');
         });
       }
       shareLink(invited.link);

@@ -189,3 +189,40 @@ test('over the wire: the friend joins the open island beside its inviter; a clos
   await until(() => !rooms.roomState(invites.islandKey(room)).open);
   assert.equal(((await call(`/v1/island-invite/${token}`)).body as any).state, 'closed');
 });
+
+test('access: a visitor with no cookie, no key and no Referer reads an invitation and gets the page and files it needs', async () => {
+  const made = await call('/v1/island-invite', { body: { name: 'Mo' } });
+  assert.equal(made.status, 200);
+  const token = new URL(made.body.link).searchParams.get('invite')!;
+  // The friend's fetch from a second browser: nothing but the address.
+  const read = await call(`/v1/island-invite/${token}`);
+  assert.equal(read.status, 200, 'never a 401: the invitation is open to the signed out');
+  assert.equal(read.body.state, 'closed', 'nobody is in the room yet, so it says so (not an auth error)');
+  assert.equal(read.body.name, 'Mo');
+  for (const bad of ['nonsense', sign({ k: 'other', r: 'abcd1234' }, 60)]) {
+    const r = await call(`/v1/island-invite/${bad}`);
+    assert.equal(r.status, 200);
+    assert.equal(r.body.state, 'invalid');
+  }
+  assert.equal((await call(`/v1/island-invite/${sign({ k: 'island', r: 'abcd1234', n: 'Mo', f: null }, -10)}`)).body.state, 'expired');
+  // Making a link is open too (a guest invites), and says nothing a stranger can use against a customer.
+  assert.ok(!JSON.stringify(read.body).includes('usr_'));
+  // The pages and files the friend's browser loads, all without a cookie.
+  for (const route of ['/play/sandbox', '/fonts/fonts.css', '/playtest/portal.js', '/play/guest.js', '/play/modules.js', '/v1/play-template/sandbox']) {
+    const r = await fetch(base + route);
+    assert.equal(r.status, 200, `${route} answers a signed-out visitor`);
+    await r.arrayBuffer();
+  }
+  // The friend's socket needs no token either; a closed island refuses it kindly (403), not as an auth failure (401).
+  const closed = await open(`play=t/sandbox&room=zzzz9999&name=Friend&join=1&v=2`);
+  assert.equal(closed.status, 403);
+  closed.sock.destroy();
+});
+
+test('access: what stays closed is still closed (a customer\'s routes need their session or key)', async () => {
+  for (const route of ['/v1/users/me/overseer', '/v1/games']) {
+    const r = await fetch(base + route, { method: route === '/v1/games' ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json' }, body: route === '/v1/games' ? '{}' : undefined });
+    assert.equal(r.status, 401, route);
+    await r.arrayBuffer();
+  }
+});
