@@ -487,3 +487,16 @@ test('sign-up limit: playtest sign-ups are exempt on a beta prefix only, live ke
   for (let i = 0; i < 6; i++) statuses.push((await call('/v1/users/signup', { body: { email: `playtest-lim${i}@example.com`, password: 'password123' }, headers })).status);
   assert.deepEqual(statuses, [200, 200, 200, 200, 200, 429]);
 });
+
+test('POST /v1/games/:id/generate: 10 a minute per account (a second guard behind the editor\'s card), others unaffected', async () => {
+  const a = await newCustomer();
+  const b = await newCustomer();
+  const g = (await call('/v1/games', { cookie: a.cookie, body: { title: 'Rate', template: 'blank' } })).body;
+  const gen = (cookie: string, id: string) => call(`/v1/games/${id}/generate`, { cookie, body: { kind: 'nope', prompt: 'a lantern' } });
+  for (let i = 0; i < 10; i++) assert.equal((await gen(a.cookie, g.id)).status, 400, `try ${i + 1} reaches the route`);
+  const over = await gen(a.cookie, g.id);
+  assert.equal(over.status, 429);
+  assert.match(over.body.error, /give it a minute/);
+  const g2 = (await call('/v1/games', { cookie: b.cookie, body: { title: 'Other', template: 'blank' } })).body;
+  assert.equal((await gen(b.cookie, g2.id)).status, 400, 'another account is not held back');
+});

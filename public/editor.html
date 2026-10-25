@@ -32,7 +32,7 @@
   </div>
 
   <!-- The game itself: the world you build in, running in a sandbox (play/play.html + build.js) -->
-  <iframe id="stage" class="st-stage" title="Your game" src="/play/_draft" sandbox="allow-scripts allow-pointer-lock allow-popups allow-popups-to-escape-sandbox" allow="fullscreen; autoplay"></iframe>
+  <iframe id="stage" class="st-stage" title="Your game" src="/play/_draft" sandbox="allow-scripts allow-pointer-lock allow-popups" allow="fullscreen; autoplay"></iframe>
 
   <!-- Corners of the screen, like a game: the menu and who's here; saving and errors -->
   <div class="st-corner left">
@@ -59,6 +59,14 @@
   <button class="st-savebtn" id="saveBtn" type="button" title="Save (Ctrl+S): a point in the history you can come back to">
     <span class="dot"></span><span class="lbl" id="saveLbl">Save</span>
   </button>
+
+  <!-- A generation a game asked for: the person decides (editor.js showGenCard) -->
+  <div class="st-gencard" id="genCard" role="dialog" aria-label="Make this?" hidden>
+    <div class="st-gencard-kind" id="genCardKind"></div>
+    <div class="st-gencard-what" id="genCardWhat"></div>
+    <div class="st-gencard-cost"><b id="genCardPrice"></b> <span id="genCardBalance"></span></div>
+    <div class="st-gencard-btns"><button type="button" id="genCardYes">Make it</button><button type="button" id="genCardNo">Not now</button></div>
+  </div>
 
   <!-- The assistant, as game chat: the last lines fade out above the input -->
   <section class="st-chat" id="ai">
@@ -213,6 +221,8 @@
     </div>
   </div>
 
-  <script type="module" src="/editor.js?v=engine12"></script>
+  <script>/* Studio's playtest (public/playtest/portal.js): only a browser under automation loads it */
+  try { if (navigator.webdriver || /[?&]playtest=/.test(location.search) || sessionStorage.getItem('hg_playtest_run')) import('/playtest/portal.js').catch(function () {}); } catch (e) {}</script>
+  <script type="module" src="/editor.js?v=engine13"></script>
 </body>
 </html>

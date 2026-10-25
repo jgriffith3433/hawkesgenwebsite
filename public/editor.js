@@ -3,6 +3,7 @@
 // people (SSE /live), the assistant (which gets told what you're looking at), and the Advanced drawer (code, assets,
 // settings, docs). The game frame and this page talk with postMessage; the game never sees the cookie.
 /* global CodeMirror marked */
+import { createBridge, safeHref } from '/editor-bridge.js';
 const API = '/v1';
 const gameId = /\/app\/g\/(g_[0-9a-f]+)/.exec(location.pathname)?.[1];
 if (!gameId) location.replace('/app');
@@ -161,10 +162,50 @@ function askLater(o, ms = 2500) { setTimeout(() => { try { hga()?.ask({ theme: A
 // The assistant: when each request of mine went, to time its answer (and say when it's slow or fails).
 let askedAt = 0;
 
-window.addEventListener('message', async (e) => {
+// A link from the game or its chat is a link only when it is ours (editor-bridge.js safeHref); otherwise the line is plain text.
+const linkOf = (href) => safeHref(href, [location.origin]);
+
+// The share window: the game is sandboxed (no cookies), so this page opens /share/new and carries the photo or clip
+// between the two. The game asks ('share-open', in the tap, so the click still counts) and sends the media ('share-media').
+const shareWins = new Map(); // id -> { win, payload, ready }
+const SHARE_MAX = 64 * 1024 * 1024;
+function shareOpen(id) {
+  id = String(id || '').slice(0, 40);
+  if (!id) return;
+  for (const [k, v] of shareWins) if (!v.win || v.win.closed) shareWins.delete(k);
+  let win = null;
+  if (shareWins.size < 4) { try { win = window.open('/share/new', `hg-share-${id}`, 'popup,width=640,height=820'); } catch { win = null; } }
+  if (win) shareWins.set(id, { win, payload: null, ready: false });
+  toStage({ type: 'share-opened', id, ok: Boolean(win) });
+}
+function shareMedia(m) {
+  const w = shareWins.get(String(m.id || '').slice(0, 40));
+  const p = m.payload;
+  if (!w || !p || p.source !== 'hawkes-share' || p.type !== 'media' || !(p.blob instanceof Blob) || p.blob.size > SHARE_MAX) return;
+  w.payload = p;
+  if (w.ready) sendShare(w);
+}
+function sendShare(w) { try { w.win.postMessage(w.payload, location.origin); } catch {} }
+window.addEventListener('message', (e) => {
+  for (const [id, w] of shareWins) {
+    if (e.source !== w.win) continue;
+    const m = e.data || {};
+    if (e.origin !== location.origin || m.source !== 'hawkes-share') return;
+    if (m.type === 'ready') { w.ready = true; if (w.payload) sendShare(w); }
+    if (m.type === 'shared' && m.url) toStage({ type: 'share-done', id, url: String(m.url).slice(0, 300) });
+    return;
+  }
+});
+
+window.addEventListener('message', (e) => {
   if (e.source !== stage.contentWindow) return;
   const m = e.data || {};
   if (m.source !== 'hawkes-play') return;
+  return bridge.handle(m);
+});
+// Allowlist, rate limits and the one-card rule live in editor-bridge.js: a game script is only asking.
+const bridge = createBridge({ run: fromGame });
+async function fromGame(m) {
   switch (m.type) {
     case 'analytics': {
       const a = analytics();
@@ -213,7 +254,7 @@ window.addEventListener('message', async (e) => {
     case 'chat-line': {
       const text = String(m.text || '').trim().slice(0, 400);
       if (!text) return;
-      if (m.kind === 'overseer') { const last = chatHistory.at(-1); if (!(last && last.local && last.text === text && Date.now() - last.at < 5000)) addOverseer(text, m.action && m.action.href ? { action: { label: String(m.action.label || 'Open'), href: String(m.action.href) } } : {}); return; }
+      if (m.kind === 'overseer') { const last = chatHistory.at(-1); if (!(last && last.local && last.text === text && Date.now() - last.at < 5000)) addOverseer(text, m.action && linkOf(m.action.href) ? { action: { label: String(m.action.label || 'Open'), href: linkOf(m.action.href) } } : {}); return; }
       if (m.kind === 'sys') { addSystem(text); return; }
       const msg = { id: `local_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, role: 'other', kind: m.kind, name: m.kind === 'me' ? (me && me.name) || 'You' : String(m.who || 'Someone').slice(0, 40), text, local: true, at: Date.now() };
       chatHistory.push(msg);
@@ -253,14 +294,26 @@ window.addEventListener('message', async (e) => {
       return;
     }
     case 'context': { const w = contextWaits.get(m.id); if (w) { contextWaits.delete(m.id); w(m.context); } return; }
-    case 'ask': await sendChat(m.text, m.mention, m.context); return;
-    case 'focus-chat': setMention(m.mention); $('chatInput').focus(); return;
-    case 'generate': try { await post(`${API}/games/${gameId}/generate`, { kind: m.kind, prompt: m.prompt, name: m.name }); } catch (err) { if (err.status === 402) noCredits(err.message); else addSystem(err.message); } return;
+    // A game's 'ask' only fills the chat box: the person reads it and presses Enter (sendChat, which spends, is theirs).
+    case 'ask': {
+      const text = String(m.text ?? '').trim().slice(0, 4000);
+      if (!text) return;
+      const about = m.mention && m.mention.id ? { id: String(m.mention.id).slice(0, 80), name: String(m.mention.name || m.mention.id).slice(0, 80) } : null;
+      setMention(about);
+      $('chatInput').value = text;
+      $('chatInput').focus();
+      return;
+    }
+    case 'focus-chat': setMention(m.mention && m.mention.id ? { id: String(m.mention.id).slice(0, 80), name: String(m.mention.name || m.mention.id).slice(0, 80) } : null); $('chatInput').focus(); return;
+    // A game's 'generate' is a request: the person sees what it is and what it costs, and decides.
+    case 'generate': return showGenCard(m);
     case 'open-code': openDrawer('code'); openFile('scene.json'); if (m.entity) revealEntity(m.entity); return;
     case 'net': if (m.conn) roomConn = m.conn; return;
     case 'mode': setPlaying(m.mode === 'play'); return;
     case 'menu': openMenu(); return;
     case 'card': return;
+    case 'share-open': return shareOpen(m.id);
+    case 'share-media': return shareMedia(m);
     case 'selected':
       // What you opened is what you're talking about: it shows in the assistant's line as @name.
       if (m.entity && m.entity.id) setMention({ id: m.entity.id, name: m.entity.name || m.entity.id, fromCard: true });
@@ -281,7 +334,7 @@ window.addEventListener('message', async (e) => {
     case 'basics': basics = m.list || []; if (libKind === 'basics' && $('library').classList.contains('open')) loadLibrary(); return;
     case 'words': if (libKind === 'game' && $('library').classList.contains('open')) renderWords(m.words || {}, m.assets || []); return;
   }
-});
+}
 /** What the player can see right now, for the assistant (asked from the game, quickly). */
 function worldContext() {
   return new Promise((resolve) => {
@@ -396,12 +449,12 @@ function renderChat(fresh) {
     if (d.changed && d.changed.length) did.push(`edited ${d.changed.join(', ')}`);
     if (did.length) { const c = document.createElement('span'); c.className = 'changed'; c.textContent = did.join(' · '); div.appendChild(c); }
     // A line with something to do (out of credits: get more), a link that opens beside the game.
-    if (msg.action) {
+    if (msg.action && linkOf(msg.action.href)) {
       const a = document.createElement('span');
       a.className = 'sugg';
       const link = document.createElement('a');
       link.className = 'sugg-link';
-      link.href = msg.action.href; link.target = '_blank'; link.rel = 'noopener';
+      link.href = linkOf(msg.action.href); link.target = '_blank'; link.rel = 'noopener';
       link.textContent = msg.action.label;
       if (msg.action.onclick) link.onclick = msg.action.onclick;
       a.appendChild(link);
@@ -544,6 +597,36 @@ async function sendChat(text, about, ctx) {
 }
 
 // ===================================================================== generation (Hawkes Gen making assets)
+/** The card for a generation a game asked for (the beam, a waiting model): what, kind, price, balance, and the person's
+ *  Make it / Not now. One at a time (editor-bridge.js drops the others), and nothing is made until Make it. */
+let assetKinds = null;
+async function showGenCard(m) {
+  const card = $('genCard');
+  const kind = String(m.kind || '');
+  const prompt = String(m.prompt || '').trim().slice(0, 1500);
+  const name = String(m.name || '').trim().slice(0, 80);
+  const close = (made) => { card.hidden = true; bridge.closeCard(); toStage({ type: 'generate-closed', name, made }); };
+  if (!prompt) { close(false); return; }
+  try { assetKinds ||= await get(`${API}/asset-kinds`); } catch {}
+  const k = assetKinds && assetKinds[kind];
+  if (!k) { close(false); addSystem('That is not something I can make.'); return; }
+  try { me = (await get('/v1/users/me')).user; } catch {}
+  const balance = Number(me && me.credits) || 0;
+  $('genCardWhat').textContent = prompt;
+  $('genCardKind').textContent = k.title;
+  $('genCardPrice').textContent = `${k.credits} credits`;
+  $('genCardBalance').textContent = `You have ${balance.toLocaleString()}`;
+  card.hidden = false;
+  toStage({ type: 'release-mouse' });
+  $('genCardNo').onclick = () => close(false);
+  $('genCardYes').onclick = async () => {
+    $('genCardYes').disabled = true;
+    try { await post(`${API}/games/${gameId}/generate`, { kind, prompt, name: name || undefined }); close(true); }
+    catch (err) { close(false); if (err.status === 402) noCredits(err.message); else addSystem(err.message); }
+    finally { $('genCardYes').disabled = false; }
+  };
+  $('genCardYes').focus();
+}
 function onGen(row) {
   const i = pendingGens.findIndex((p) => p.task_id === row.task_id);
   if (i >= 0) pendingGens[i] = row; else pendingGens.push(row);

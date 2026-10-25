@@ -24,9 +24,9 @@ import { SITE_LAYOUT, runSiteLayout } from './site-layout.js';
 import { AVATAR_ANIMATIONS, runAvatarAnimations } from './avatar-animations.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'progress', 'models', 'wish'];
+const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'progress', 'models', 'wish', 'toeditor', 'editor'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'gen-models-all': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-daily-wish': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wish'], 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
+const ORDERS = { 'gen-models-all': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-daily-wish': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wish'], 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'editor-bridge': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'toeditor', 'editor'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
 const SCENARIOS = [
   SITE_LAYOUT, // the landing page at three sizes (site-layout.js)
   AVATAR_ANIMATIONS, // clips as data on /avatars (avatar-animations.js)
@@ -55,6 +55,11 @@ const SCENARIOS = [
     id: 'touch-controls', title: 'Every tour action with touch alone (stick, look drag, jump, B, steer, brake, fish, tools, spawn wheel, helicopter and rocket flight, Stuck?, hide the HUD): no overlaps, buttons 48 px or more, inside the safe area', seconds: 420, tags: ['full'],
     starts: ['sandbox'],
     description: 'opens /play/sandbox?touch=1 (the phone controls), plays the first minutes to the account sheet, then uses only pointer events of type touch on the stick, the buttons and the game; at every step H.touchLayout.audit() measures the real page and logs a touch-audit event (a failing audit is an error). Run it at 390x844 and again at 844x390: the browser\'s size is what is judged, the other orientation by the layout math. The helicopter and rocket are reached by named setup shortcuts. options as sandbox-first-minutes (the defaults here: at "sandbox", touch true)',
+  },
+  {
+    id: 'editor-bridge', title: 'What a game may ask the editor: 50 generate messages show one priced card and make nothing until Make it; ask messages only fill the chat box; building and saving still work; Overseer lines with foreign links are plain text; a game script cannot fetch an outside site (the page\'s policy); the editor opens the share window for a game', seconds: 300, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path through the throwaway sign-up (never on live), then Build: a new game in the editor (/app/g/<id>). A game script is stood in for by 50 generate and 50 ask messages delivered to the editor as from its frame (a named setup-shortcut: the frame is sandboxed, so the page cannot run code in it). Logs gen-card-shown (one card, the price and balance on it), no-generate-request (nothing sent to /generate by the 50), gen-card-made (after a real click on Make it: exactly one request), ask-filled-chat and no-ai-request, ops-and-save-work (a world edit reaches /scene and Save /save), foreign-links-plain and own-link-kept (Overseer lines whose link is another site, javascript:, //host, a backslash or data: show no link; a path on this site stays one), fetch-blocked (a script file sent into the real sandboxed frame fetches https://example.com: the page\'s Content-Security-Policy refuses it and the frame reports the violation, which the browser also logs in the console), share-window-opened and share-media-delivered (the game cannot open the share window itself: the editor opens /share/new and carries the photo; the window is a hidden-frame stand-in). options as sandbox-first-minutes',
   },
   {
     id: 'ask-the-overseer', title: 'After the sign-up: the Overseer says the real balance, offers three priced asks to tap, and an empty balance gets Get credits', seconds: 200, tags: ['full'],
@@ -154,6 +159,7 @@ const SCENARIOS = [
 
 const onSandbox = () => /^\/play\/sandbox\/?$/.test(location.pathname);
 const onGame = () => /^\/play\/t\/[a-z0-9-]+\/?$/.test(location.pathname) && /[?&]from=observatory\b/.test(location.search);
+const onEditor = () => /^\/app\/g\/g_[0-9a-f]+\/?$/.test(location.pathname);
 const isLive = () => /^(www\.)?hawkesgen\.com$/.test(location.hostname);
 const HP = () => window.HawkesPlay;
 const W = () => HP() && HP().world;
@@ -434,6 +440,131 @@ async function stageAsks(t) {
   window.fetch = realFetch;
   if (calls.length) t.problem('error', 'a request to the Overseer was made with an empty balance');
   else t.event('no-failed-request', 'nothing was sent to the Overseer');
+  t.progress(1);
+}
+
+/** Build: a new game of the signed-up account, and the editor opens on it (the run crosses the page in sessionStorage). */
+async function stageToEditor(t, ctx) {
+  const r = await fetch('/v1/games', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'Bridge check', template: 'blank' }) });
+  const g = await r.json();
+  if (!r.ok || !g.id) throw new Error(`a game could not be made: ${g.error || r.status}`);
+  t.event('editor-opening', `a new game, ${g.id}`);
+  await t.wait(1500);
+  writeRun({ ...ctx.saved(), leg: 'editor' });
+  location.href = `/app/g/${g.id}`;
+  await t.wait(30000);
+  throw new Error('the editor did not open');
+}
+
+/** In the editor. The game frame is sandboxed, so a game script is stood in for by messages delivered to the editor's
+ *  own listener as from the frame (named setup shortcut); everything after is what the editor does. */
+async function stageEditor(t) {
+  const frame = await t.until(() => document.getElementById('stage'), 30000, 'the game frame');
+  await t.until(() => document.getElementById('chatInput') && document.getElementById('genCard'), 30000, 'the editor');
+  await t.wait(4000); // (the world is loaded)
+  t.scene('The editor');
+  const calls = [];
+  const realFetch = window.fetch;
+  window.fetch = function (u, o) { if (o && o.method === 'POST') calls.push(String(u)); return realFetch.apply(this, arguments); };
+  const fromFrame = (m) => window.dispatchEvent(new MessageEvent('message', { data: { source: 'hawkes-play', ...m }, source: frame.contentWindow }));
+  const count = (re) => calls.filter((u) => re.test(u)).length;
+  const toStage = (m) => frame.contentWindow.postMessage(m, '*');
+  const me = await fetch('/v1/users/me', { credentials: 'same-origin' }).then((r) => r.json()).then((d) => d.user);
+  try {
+    t.event('setup-shortcut', 'a game script stood in for: 50 generate and 50 ask messages delivered as from the frame');
+    for (let i = 0; i < 50; i++) fromFrame({ type: 'generate', kind: 'sfx', prompt: `a cannon boom ${i}`, name: `boom-${i}` });
+    const card = document.getElementById('genCard');
+    await t.until(() => !card.hidden && /credits/.test(document.getElementById('genCardPrice').textContent), 15000, 'the priced card');
+    t.scene('One card, priced');
+    t.event('gen-card-shown', `${document.getElementById('genCardKind').textContent}: "${document.getElementById('genCardWhat').textContent}" for ${document.getElementById('genCardPrice').textContent}; ${document.getElementById('genCardBalance').textContent}`);
+    if (document.getElementById('genCardWhat').textContent !== 'a cannon boom 0') t.problem('error', 'the card is not for the first request');
+    await t.wait(1500);
+    if (count(/\/generate$/)) t.problem('error', `${count(/\/generate$/)} request(s) to /generate before any click`);
+    else t.event('no-generate-request', 'the 50 messages started nothing');
+    const after = await fetch('/v1/users/me', { credentials: 'same-origin' }).then((r) => r.json()).then((d) => d.user);
+    if (after.credits !== me.credits) t.problem('error', `credits changed (${me.credits} > ${after.credits}) with no click`);
+    // The person says yes: a real click.
+    document.getElementById('genCardYes').click();
+    await t.until(() => card.hidden, 15000, 'the card to close after Make it');
+    await t.wait(1500);
+    if (count(/\/generate$/) === 1) t.event('gen-card-made', 'one request to /generate, after the click on Make it');
+    else t.problem('error', `${count(/\/generate$/)} requests to /generate after one click`);
+    // Ask: the chat box is filled and nothing is spent.
+    for (let i = 0; i < 50; i++) fromFrame({ type: 'ask', text: `build me ${i} castles` });
+    const input = document.getElementById('chatInput');
+    await t.until(() => input.value === 'build me 49 castles', 10000, 'the chat box to hold the ask');
+    t.scene('The ask waits in the chat box');
+    await t.wait(1500);
+    if (count(/\/ai$/)) t.problem('error', `${count(/\/ai$/)} request(s) to /ai without the person sending`);
+    else t.event('no-ai-request', 'the 50 asks only filled the chat box');
+    t.event('ask-filled-chat', `"${input.value}" waits for Enter`);
+    input.value = '';
+    // Building and saving go on.
+    fromFrame({ type: 'ops', ops: [{ op: 'create', entity: { id: 'bridge-crate', type: 'box', name: 'Crate', transform: { position: [0, 1, 4] } } }], seq: 1 });
+    await t.until(() => count(/\/scene$/) >= 1, 10000, 'the world edit to reach /scene');
+    fromFrame({ type: 'save' });
+    await t.until(() => count(/\/save$/) >= 1, 10000, 'Save to reach /save');
+    t.event('ops-and-save-work', 'a world edit reached /scene and Save reached /save');
+    t.scene('Building and saving still work');
+
+    // A link in the Overseer's chat is a link only when it is ours; anything else is plain text (editor-bridge.js safeHref).
+    const log = document.getElementById('chatLog');
+    const linksOf = () => [...log.querySelectorAll('a.sugg-link')].map((a) => a.getAttribute('href'));
+    for (const [label, href] of [['Win a prize', 'https://evil.example/win'], ['Click me', 'javascript:alert(1)'], ['Protocol-less', '//evil.example/x'], ['Backslash', '/\\evil.example/x'], ['Data', 'data:text/html,hi']]) {
+      fromFrame({ type: 'chat-line', kind: 'overseer', text: `Look: ${label}`, action: { label, href } });
+      await t.wait(300);
+    }
+    const evil = linksOf().filter((h) => /evil\.example|javascript:|^data:/.test(String(h)));
+    t.scene('Overseer lines with foreign links: plain text');
+    if (evil.length) t.problem('error', `a foreign link was made clickable: ${evil.join(', ')}`);
+    else t.event('foreign-links-plain', 'five Overseer lines with another site, javascript:, //host, a backslash and data: links show no link');
+    fromFrame({ type: 'chat-line', kind: 'overseer', text: 'Get credits here', action: { label: 'Get credits', href: '/app#credits' } });
+    await t.until(() => linksOf().includes('/app#credits'), 5000, 'our own link to stay a link');
+    t.event('own-link-kept', 'a path on this site is still a link');
+
+    // The game's page has a Content-Security-Policy: a script the game runs cannot fetch an outside site. The probe is a
+    // real script sent into the sandboxed frame (the editor's hot reload), so the frame itself is what refuses; the browser
+    // logs the refusal in the console and the frame reports it.
+    const probe = "var post=function(o){parent.postMessage(Object.assign({source:'hawkes-play',type:'log',probe:'csp'},o),'*')};"
+      + "document.addEventListener('securitypolicyviolation',function(e){console.error('csp-probe: refused '+e.blockedURI+' by '+e.violatedDirective);post({blocked:e.blockedURI,directive:e.violatedDirective})});"
+      + "fetch('https://example.com/probe').then(function(){post({allowed:true})},function(err){post({failed:String(err)})});";
+    const seen = [];
+    const onProbe = (e) => { if (e.data && e.data.probe === 'csp') seen.push(e.data); };
+    window.addEventListener('message', onProbe);
+    t.event('setup-shortcut', 'a game script stood in for: a script file sent into the frame (hot reload) that fetches https://example.com');
+    toStage({ type: 'files', files: { 'scripts/csp-probe.js': probe } });
+    await t.until(() => seen.length, 15000, 'the probe script to report');
+    await t.wait(800);
+    window.removeEventListener('message', onProbe);
+    toStage({ type: 'files', files: { 'scripts/csp-probe.js': null } });
+    const hit = seen.find((x) => x.blocked);
+    if (seen.some((x) => x.allowed)) t.problem('error', 'a game script fetched https://example.com: the page has no policy against it');
+    else if (!hit) t.problem('warning', `the fetch failed (${seen.map((x) => x.failed).join('; ')}) but the frame reported no policy violation`);
+    else t.event('fetch-blocked', `fetch(https://example.com) refused by the page's policy: ${hit.directive}, and the console says so`);
+    t.scene('A game script cannot reach another site');
+
+    // Sharing: the game is sandboxed and cannot open the share window itself, so the editor opens it and carries the media.
+    const holder = document.createElement('iframe');
+    holder.style.display = 'none';
+    document.body.appendChild(holder);
+    const popup = holder.contentWindow;
+    const got = [];
+    popup.addEventListener('message', (e) => got.push(e.data));
+    const realOpen = window.open;
+    const opened = [];
+    window.open = function (u) { opened.push(String(u)); return popup; };
+    try {
+      t.event('setup-shortcut', 'the share window stood in for by a hidden frame (a script cannot be given a real click)');
+      fromFrame({ type: 'share-open', id: 'pt1' });
+      if (!opened.some((u) => u === '/share/new')) t.problem('error', 'the editor did not open /share/new when the game asked');
+      else t.event('share-window-opened', 'the editor opened /share/new for the game');
+      const blob = new Blob(['photo'], { type: 'image/jpeg' });
+      fromFrame({ type: 'share-media', id: 'pt1', payload: { source: 'hawkes-share', type: 'media', kind: 'photo', blob, mime: 'image/jpeg', title: 'Playtest', filename: 'p.jpg' } });
+      window.dispatchEvent(new MessageEvent('message', { data: { source: 'hawkes-share', type: 'ready' }, source: popup, origin: location.origin }));
+      await t.until(() => got.some((m) => m && m.type === 'media' && m.blob instanceof Blob), 5000, 'the photo to reach the share window');
+      t.event('share-media-delivered', 'the photo reached the share window through the editor');
+    } finally { window.open = realOpen; holder.remove(); }
+  } finally { window.fetch = realFetch; }
   t.progress(1);
 }
 
@@ -2070,7 +2201,7 @@ async function stageBlast(t, ctx) {
 const RUN = {
   models: stageModels,
   hats: stageHats,
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, wish: stageWish, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, toeditor: stageToEditor, editor: stageEditor, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, wish: stageWish, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
 };
 // Island invitations (island-invite): after the sheet, the inviter's stage, then the friend's page on a closed island.
 STAGES.push('invite', 'gone', 'own');
@@ -2125,9 +2256,9 @@ STAGES.push('moment');
 ORDERS['share-moment'] = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'moment'];
 RUN.moment = stageMoment;
 /** The stages a page that follows a leg change carries on with (the first-minutes ones are already done). */
-const legSeq = (id, prior) => (id === 'island-invite' && prior && (prior.leg === 'gone' || prior.leg === 'own') ? [prior.leg] : null);
+const legSeq = (id, prior) => (id === 'editor-bridge' && prior && prior.leg === 'editor' ? ['editor'] : id === 'island-invite' && prior && (prior.leg === 'gone' || prior.leg === 'own') ? [prior.leg] : null);
 
-const ENDS = { 'island-invite-friend': 'farrive', 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models', 'gen-hats': 'hats' };
+const ENDS = { 'island-invite-friend': 'farrive', 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'editor-bridge': 'editor', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models', 'gen-hats': 'hats' };
 
 
 // ---------------------------------------------------------------------------------------------- share-moment
@@ -2327,7 +2458,7 @@ export function install() {
     product: 'hawkesgenwebsite',
     scenarios: SCENARIOS,
     stallSeconds: 120,
-    isReady: () => (onSandbox() || onGame() ? Boolean(W() && W().player) || document.readyState === 'complete' : document.readyState === 'complete'),
+    isReady: () => (onEditor() ? document.readyState === 'complete' : onSandbox() || onGame() ? Boolean(W() && W().player) || document.readyState === 'complete' : document.readyState === 'complete'),
     async start(id, options, t) {
       if (id === SITE_LAYOUT.id) return runSiteLayout(t, options);
       if (id === AVATAR_ANIMATIONS.id) return runAvatarAnimations(t, options);
@@ -2373,9 +2504,9 @@ export function install() {
     stop() { releaseAll(); writeRun(null); },
   });
   // The page after the Play click carries the run on (and a runner's own start() of the same run doesn't restart it).
-  if (saved0 && (onSandbox() || onGame())) {
+  if (saved0 && (onSandbox() || onGame() || onEditor())) {
     const start = api.start.bind(api);
-    const go = () => (Boolean(W() && W().player) || document.readyState === 'complete' ? (resumed = start(saved0.id, { ...saved0.options, resumed: saved0 })) : setTimeout(go, 250));
+    const go = () => (onEditor() || Boolean(W() && W().player) || document.readyState === 'complete' ? (resumed = start(saved0.id, { ...saved0.options, resumed: saved0 })) : setTimeout(go, 250));
     api.start = (id, o) => (resumed && id === saved0.id ? resumed : start(id, o));
     writeRun(null);
     go();
