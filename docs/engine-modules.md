@@ -459,6 +459,10 @@ const url = H.assets.url(id);                                           // H.lib
 throw them; vehicles carry them; homes have pets the same way. Knock one over with an explosion, or set `e._tumble`
 while you spin it (Living things lets it lie until it's cleared).
 
+## 7g. Gen models for characters (`H.presence.models`)
+
+`modules/presence/presence-models.js` + the data in `presence-model-registry.js`: a "What are you?" type can be a Gen-made GLB. A row of `P.modelRegistry` with an `asset` or `url` gives that type a model; the procedural body is the fallback while it loads or when it is missing. The rig keeps its API (`rig.neck`, `faceY`, `faceZ`, `rig.pose`); with a model, `rig.neck` and the new `rig.mounts.{neck, back, rump}` are nodes under the model's own bones or parts, scaled to its head, and `P._redress(rig)` makes what is worn again there. A module that adds a worn thing should parent it to `rig.neck` (head, face) or `rig.mounts.neck/back/rump` when `rig.mounts` exists, else to `rig.pose`, as `extra()` and `accessory()` do. `P.models.attach / animate / dispose / stats / register / setLoader`. Fields, anchors, clips, the procedural fallback by form and how to add a model: docs/characters.md "Gen models". Tests `test/engine/models.test.ts`.
+
 ## 8. Tests
 
 `npm test` runs `test/engine/*.test.ts`: the engine in Node (Babylon's NullEngine and Havok's wasm, no browser), the
