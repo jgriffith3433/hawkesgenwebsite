@@ -858,5 +858,7 @@
     emoteAction = (d) => onEmote(d, null);
     sayAction = (d) => onSay(d, null);
   }
+  // The showcase (/avatars) builds and moves bodies on stand-in entities ({ node, x, y, z, alive }) with the very code the game runs.
+  P.showcase = { make: makeRig, animate: (rig, dt) => animate(rig, dt, null), dispose: disposeRig };
   P._internal = { rigs, people, reactions, peerInfo, verified, onSay, onEmote, mine, draw, collect };
 })();
