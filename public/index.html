@@ -441,7 +441,7 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
     (function () {
       var btn = document.querySelector('[data-play-now]');
       if (!btn) return;
-      btn.addEventListener('click', function () { if (window.hawkesAnalytics && window.hawkesAnalytics.track) window.hawkesAnalytics.track('sandbox_open', { from: 'hero' }); });
+      btn.addEventListener('click', function () { if (window.hawkesAnalytics && window.hawkesAnalytics.track) window.hawkesAnalytics.track('sandbox_open', { from: 'hero', ms: Math.round(performance.now()) }); });
       var started = false;
       function prefetch() {
         if (started) return;
