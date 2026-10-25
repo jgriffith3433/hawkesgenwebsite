@@ -1,0 +1,2 @@
+- lesson: monitor sample() needs the panel open — its frame/draw-call counters are made on open, so passive analytics reads engine._drawCalls and the frame hook instead.
+- convention: analytics.js tests fake performance.now and call H.hooks.frame directly (set document.visibilityState); H.tick doesn't use the real clock.
