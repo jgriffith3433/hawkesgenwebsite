@@ -88,6 +88,19 @@
       }
       return ops;
     },
+    /** The Overseer's words on the account sheet (docs/story.md voice rules: it asks, never commands, never says why). */
+    sheetLine(name) {
+      const n = String(name || '').replace(/[<>]/g, '').trim().slice(0, 40);
+      return n ? `${n}. A good name to keep. Tell me where to find you, and I will keep this world for you.` : 'I have watched you arrive. Tell me where to find you, and I will keep this world for you.';
+    },
+    /** What the sheet shows of who they are: icon, what they chose to be, the name, the body color (H.presence.core). */
+    character(H) {
+      const look = (H && H.presence && H.presence.look) || (H && H.presence && H.presence.me && H.presence.me.look) || null;
+      const core = H && H.presence && H.presence.core;
+      const w = look && core && core.WHAT && core.WHAT.get ? core.WHAT.get(look.what) : null;
+      const color = look && /^#[0-9a-f]{6}$/i.test(look.body || '') ? look.body : '#4a9eff';
+      return { icon: (w && w.icon) || '🧍', label: (w && w.label) || 'A person', name: (look && look.name) || '', color };
+    },
     chunks(list, n) { const out = []; for (let i = 0; i < list.length; i += n) out.push(list.slice(i, i + n)); return out; },
   };
   window.HawkesGuestCore = Core;
@@ -155,6 +168,10 @@
 .gs-toast button.primary{background:linear-gradient(90deg,#4a9eff,#a855f7);border-color:transparent;color:#fff}
 .gs-veil{inset:0;z-index:60;background:rgba(4,6,12,.66);display:grid;place-items:center;padding:16px;pointer-events:auto}
 .gs-sheet{width:min(420px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:22px 22px 18px;font-family:var(--sans)}
+.gs-who{display:flex;align-items:center;gap:14px;margin:0 0 14px}
+.gs-who .face{flex:none;width:68px;height:68px;border-radius:50%;display:grid;place-items:center;font-size:36px;background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.35),transparent 55%),var(--c,#4a9eff);box-shadow:0 0 0 2px rgba(255,255,255,.2),0 0 22px var(--c,#4a9eff)}
+.gs-who .who{min-width:0}.gs-who b{display:block;font:700 17px var(--display);letter-spacing:.04em;color:#fff;overflow-wrap:anywhere}.gs-who small{color:#a5acc2;font:13px var(--sans)}
+.gs-sheet p.says{color:#dfe6ff;font:italic 15px/1.5 var(--sans)}
 .gs-sheet h3{margin:0 0 6px;font:700 20px var(--display);letter-spacing:.04em;color:#fff}
 .gs-sheet p{margin:0 0 14px;color:#a5acc2;font:14px/1.45 var(--sans)}
 .gs-sheet .google{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;box-sizing:border-box;background:#fff;color:#1f2937;border-radius:10px;padding:11px;font:600 15px var(--sans);text-decoration:none;min-height:44px}
@@ -350,20 +367,47 @@
     build: ['Build your own', 'Sign in (or make a free account) and you are in the editor with this island: move things, add things, make it a game.'],
     assistant: ['Ask the Overseer', 'Describe anything ("a volcano", "a race around the island") and the Overseer builds it. It needs an account; your island comes with you.'],
     invite: ['Invite a friend', 'Playing and building together needs an account. Your island becomes your game, and you get a link to send.'],
-    tour: ['One more thing', 'Sign in so I know you when you come back (new here? An account is free). Your island, your look and your name come with you, and I can make anything you ask for: it uses your credits, and new accounts start with free ones.'],
+    tour: ['Keep this island', 'An account is free. It keeps this island as your game, with your look and your name, so it is here when you come back. With an account you can ask the Overseer to make things for you: that uses credits, and new accounts start with some free ones.'],
   };
   /** The name they gave at the mirror (or none). */
   function lookName(H) { try { const n = H && H.presence && H.presence.look && H.presence.look.name; return n ? String(n).slice(0, 40) : ''; } catch { return ''; } }
+  /** Nothing behind the sheet reacts while it is open: the player's controls off (back as they were on close), keys
+   *  that don't come from the sheet never reach the engine, held keys let go, and every sound but the music is held. */
+  function lockGame(sheet) {
+    const H = session.H;
+    const p = (() => { try { return H && H.world && H.world.player; } catch { return null; } })();
+    const was = p ? p.controls : null;
+    if (p) p.controls = false;
+    try { window.dispatchEvent(new Event('blur')); } catch { /* fine */ } // (the engine forgets the keys held)
+    try { H && H.audio && H.audio.hold && H.audio.hold('guest-sheet', true); } catch { /* fine */ }
+    const stop = (e) => {
+      if (sheet.contains(e.target)) return;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+    };
+    const types = ['keydown', 'keyup', 'keypress', 'wheel', 'contextmenu'];
+    for (const t of types) window.addEventListener(t, stop, true);
+    document.body.dataset.gsSheet = '1';
+    return () => {
+      for (const t of types) window.removeEventListener(t, stop, true);
+      delete document.body.dataset.gsSheet;
+      try { H && H.audio && H.audio.hold && H.audio.hold('guest-sheet', false); } catch { /* fine */ }
+      if (p && was !== null && H.world.player === p) p.controls = was;
+    };
+  }
   function openSheet(intent, o = {}) {
     const [title, whyText] = WHY[intent] || WHY.save;
-    const why = o.name && intent === 'tour' ? `${o.name}. ${whyText}` : whyText;
+    const why = whyText;
     const forced = Boolean(o.forced);
+    const who = Core.character(session.H);
     track('signup_open', { from: 'sandbox', intent, forced });
     track('sandbox_sheet_shown', { intent, forced });
     try { if (document.pointerLockElement) document.exitPointerLock(); } catch { /* fine */ }
     // Sign-in first (J, 2026-10-24): Google signs in and signs up the same way; "Create an account" is one tap away.
     let mode = 'login';
     const veil = el(`<div class="gs-glass gs-sheet" role="dialog" aria-modal="true" aria-labelledby="gsTitle">
+      <div class="gs-who" id="gsWho"><div class="face" style="--c:${esc(who.color)}" aria-hidden="true">${esc(who.icon)}</div><div class="who"><b>${esc(who.name || who.label)}</b><small>${esc(who.name ? who.label : 'This is you.')}</small></div></div>
+      ${forced ? `<p class="says" id="gsSays">“${esc(Core.sheetLine(who.name))}”</p>` : ''}
       <h3 id="gsTitle">${esc(title)}</h3><p>${esc(why)}</p>
       <a class="google" id="gsGoogle" hidden href="/auth/google?next=${encodeURIComponent('/play/sandbox?claim=' + intent)}"><svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg><span>Continue with Google</span></a>
       <div class="or" id="gsOr" hidden>or with email</div>
@@ -439,7 +483,8 @@
       };
       addEventListener('message', onMsg);
     });
-    const close = () => veil.remove();
+    const unlock = lockGame(veil);
+    const close = () => { unlock(); veil.remove(); };
     // (Forced: it can't be put away: the way out is leaving the island.)
     if (!forced) veil.querySelector('[data-back]').onclick = close;
     else veil.querySelector('[data-leave]').onclick = () => track('sandbox_gate_leave', {});

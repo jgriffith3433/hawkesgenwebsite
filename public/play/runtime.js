@@ -264,6 +264,9 @@
   // H.audio: one output every sound goes through (the engine's, every module's, music), so a module can change how
   // everything sounds (water muffles it all under water). master (a gain) -> effects (in name order) -> speakers.
   let masterNode = null, outputNode = null, links = [];
+  // H.audio.hold(owner): while held, everything but the background (music, ambience) is silent (a sheet over the game).
+  let gateNode = null;
+  const holds = new Set();
   // The background (music, ambience: media({ background: true })) has its own level into the master, which ducks
   // (H.audio.duck) while something must be heard over it: the Overseer speaking.
   let bedNode = null;
@@ -275,9 +278,15 @@
   function wire() {
     if (!masterNode) return;
     for (const [a, b] of links) { try { a.disconnect(b); } catch { /* gone */ } }
-    const chain = [masterNode, ...[...effects.keys()].sort().map((k) => effects.get(k)), outputNode];
+    const chain = [masterNode, gateNode, ...[...effects.keys()].sort().map((k) => effects.get(k)), outputNode];
     links = [];
     for (let i = 0; i < chain.length - 1; i++) { chain[i].connect(chain[i + 1]); links.push([chain[i], chain[i + 1]]); }
+    gateNode.gain.value = holds.size ? 0 : 1;
+    // Held: the background skips the gate (and the master) and still plays.
+    if (bedNode) {
+      try { bedNode.disconnect(); } catch { /* fine */ }
+      if (holds.size) { bedNode.connect(chain[2]); links.push([bedNode, chain[2]]); } else bedNode.connect(masterNode);
+    }
   }
   const audioApi = {
     /** The shared AudioContext (made on first use; it starts running at the first click, tap or key). Null without WebAudio. */
@@ -287,6 +296,7 @@
       if (masterNode) return masterNode;
       if (!makeAudio()) return null;
       masterNode = audio.createGain();
+      gateNode = audio.createGain();
       outputNode = audio.createGain();
       outputNode.connect(audio.destination);
       wire();
@@ -324,8 +334,14 @@
       if (bedNode) return bedNode;
       if (!audioApi.master) return null;
       bedNode = audio.createGain();
-      bedNode.connect(masterNode);
+      wire();
       return bedNode;
+    },
+    /** Silences every sound but the background (music, ambience) while `owner` holds; hold(owner, false) lets go. */
+    hold(owner, on = true) {
+      if (on) holds.add(String(owner)); else holds.delete(String(owner));
+      if (audioApi.master) wire();
+      return holds.size > 0;
     },
     /** The background ducks under something that must be heard: duck('overseer', 0.25) while it speaks, duck(owner,
      *  null) after. The lowest asked wins; it glides there and back (a quarter of a second, then about a second). */
