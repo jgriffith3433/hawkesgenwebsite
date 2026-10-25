@@ -207,6 +207,12 @@ export const SANDBOX = {
     // Chapter One's small things to notice (sandbox.js: E near them): the pier's hand-cut planks and the harbour desk's logbook.
     add(thing('harbour_desk', 'box', "Harbour desk", [62.5, groundAt(62.5, 5.6) + 0.45, 5.6], { shape: { size: [1.3, 0.9, 0.75] }, material: { color: '#8a6a4a', texture: A.oldWood, tile: [1, 1] }, transform: yaw(90) }));
     add(thing('logbook', 'box', 'Logbook', [62.5, groundAt(62.5, 5.6) + 0.95, 5.6], { shape: { size: [0.4, 0.07, 0.3] }, material: { color: '#3b2a1c' }, transform: yaw(90), shadow: false }));
+    // The lore to find (journal.js: E near each; docs/story.md section 7): small objects, a few lines each, in the voice of whoever left them.
+    add(thing('lore_rock', 'box', 'Scratched rock', [40.5, groundAt(40.5, 28) + 0.3, 28], { shape: { size: [0.9, 0.6, 0.7] }, material: { color: '#8b8f96' }, transform: yaw(30), shadow: false }));
+    add(thing('lore_slip', 'box', 'Repair slip', [-38, groundAt(-38, -22) + 0.02, -22], { shape: { size: [0.3, 0.02, 0.42] }, material: { color: '#f1ead7' }, transform: yaw(20), shadow: false }));
+    add(thing('lore_chair', 'box', 'Beach chair', [53, groundAt(53, -5) + 0.3, -5], { shape: { size: [0.7, 0.12, 0.7] }, material: { color: '#e8c15a' }, transform: yaw(90), shadow: false }));
+    add(thing('lore_chair_back', 'box', 'Beach chair back', [53.3, groundAt(53, -5) + 0.7, -5], { shape: { size: [0.1, 0.8, 0.7] }, material: { color: '#e8c15a' }, transform: yaw(90), shadow: false }));
+    add(thing('lore_drawing', 'box', 'Faded drawing', [48.4, groundAt(48.4, -15.4) + 0.45, -15.4], { shape: { size: [0.06, 0.8, 0.6] }, material: { color: '#d8c9a3' }, transform: yaw(-20), shadow: false }));
     add(thing('catch_board_post', 'cylinder', 'Board post', [58.5, groundAt(58.5, 3.6) + 0.5, 3.66], { shape: { radius: 0.07, height: 1.1 }, material: { color: '#6b4a2f', texture: A.oldWood } }));
     // The race board: the best times of the Ridge Run and Harbour Run on this device (modules/race: E reads it, the sign shows the top).
     add(thing('race_board', 'box', 'Race board', [58.5, groundAt(58.5, 7.6) + 1.5, 7.6], { shape: { size: [1.9, 1.05, 0.08] }, material: { color: '#6b4a2f', texture: A.oldWood, tile: [1, 1] }, transform: yaw(-90), data: { raceBoard: 'ridge' } }));
@@ -233,5 +239,5 @@ export const SANDBOX = {
   },
 };
 
-/** The guide (Pip, the rewards, the Overseer's words, music and the sea): src/overseer-games/sandbox.js; the islanders' lines: islanders.js. */
-export const sandboxScript = () => ['sandbox.js', 'islanders.js'].map((f) => fs.readFileSync(path.join(HERE, f), 'utf8').replace(/\r\n/g, '\n')).join('\n');
+/** The guide (Pip, the rewards, the Overseer's words, music and the sea): src/overseer-games/sandbox.js; the islanders' lines: islanders.js; the journal and its lore: journal.js. */
+export const sandboxScript = () => ['sandbox.js', 'islanders.js', 'journal.js'].map((f) => fs.readFileSync(path.join(HERE, f), 'utf8').replace(/\r\n/g, '\n')).join('\n');

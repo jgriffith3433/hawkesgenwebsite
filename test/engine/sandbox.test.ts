@@ -28,7 +28,7 @@ const Guest = sandboxCtx.window.HawkesGuestCore;
 function start() {
   errors.length = 0;
   // (What the script keeps on window across a hot reload is a fresh page's here.)
-  for (const k of ['__islandEarly', '__islandNudged', '__islandRescue', '__islandPlayed', '__islandAsked', '__islandJourney', '__islandNoticed', '__islandFuelled', '__islanderDid', '__islanderHeard', '__islanderLog', '__islanderListening']) delete g.window[k];
+  for (const k of ['__islandEarly', '__islandNudged', '__islandRescue', '__islandPlayed', '__islandAsked', '__islandJourney', '__islandNoticed', '__islandFuelled', '__islanderDid', '__islanderHeard', '__islanderLog', '__islanderListening', '__islandJournal', '__island']) delete g.window[k];
   run(H, { ...scene, config: { ...scene.config, look: false, shadows: false } }, { mode: 'play', scripts: { 'scripts/main.js': bundle.files['scripts/main.js'] } });
   return H.game;
 }
@@ -534,4 +534,130 @@ test('sandbox chapter one: the funnel keeps its events and adds one per new ques
   assert.match(guestSrc, /sandbox_bay_lit/);
   assert.match(guestSrc, /'sandbox_tour_start'/);
   assert.match(guestSrc, /'sandbox_tour_done'/);
+});
+
+// ------------------------------------------------------------------ the journal (journal.js; docs/story.md sections 5 and 7)
+const J = () => g.window.__island.journal;
+const lorePlace = (game: any, id: string) => { const l = J().LORE.find((x: any) => x.id === id); const y = game.terrain.heightAt(l.at[0], l.at[1]); game.player.position = [l.at[0] - 0.8, y + 0.6, l.at[1]]; H.tick(0.5); return l; };
+
+test('sandbox journal: lists the eight quests, the six neighbours and the twelve lore titles', () => {
+  H.memory.reset();
+  const game = start();
+  H.tick(2);
+  const m = J().model();
+  assert.equal(m.quests.length, 8);
+  assert.deepEqual(m.quests.map((q: any) => q.n), [1, 2, 3, 4, 5, 6, 7, 8]);
+  assert.ok(m.quests.every((q: any) => q.skippable), 'every quest can be skipped');
+  assert.equal(m.quests[0].state, 'now');
+  assert.equal(m.cast.length, 6);
+  assert.equal(m.lore.length, 12);
+  assert.ok(m.lore.filter((l: any) => l.here).length >= 4 && m.lore.filter((l: any) => l.here).length === 8);
+  assert.ok(m.lore.every((l: any) => !l.found && l.text === null), 'nothing found yet');
+  game.emit('tour', { step: 'drive' });
+  game.emit('tour', { step: 'fish' });
+  const q = J().model().quests;
+  assert.deepEqual(q.map((x: any) => x.state), ['now', 'done', 'done', 'todo', 'todo', 'todo', 'todo', 'todo']);
+  assert.deepEqual(clean(), []);
+});
+
+test('sandbox journal: opens from the button, N and the menu message; one funnel event each open; the panel shows all three lists', () => {
+  const game = start();
+  H.tick(2);
+  const sent: any[] = [];
+  g.window.hgFunnel = (name: string, props: any) => sent.push({ name, props });
+  const btn = game.ui.el('journal-btn');
+  assert.ok(btn && btn.className === 'jr-btn', 'a small button');
+  btn.onclick && btn.onclick({});
+  const el = game.ui.el('journal');
+  assert.ok(el && !el.hidden, 'the panel is open');
+  assert.match(el.innerHTML, /Chapter One/);
+  assert.match(el.innerHTML, /Neighbours met/);
+  assert.match(el.innerHTML, /Lore found/);
+  assert.equal((el.innerHTML.match(/class="jr-q /g) || []).length, 8);
+  assert.equal((el.innerHTML.match(/skippable/g) || []).length, 8);
+  assert.deepEqual(sent.map((e) => e.name), ['sandbox_journal_open']);
+  assert.equal(sent[0].props.from, 'button');
+  J().close();
+  assert.ok(el.hidden && !game.paused, 'closing resumes the game');
+  J().open('menu');
+  assert.equal(sent[1].props.from, 'menu');
+  J().close();
+  delete g.window.hgFunnel;
+  assert.deepEqual(clean(), []);
+});
+
+test('sandbox journal: E at the objects on the island finds at least four lore items, with their text in the journal and a funnel event', () => {
+  H.memory.reset();
+  const game = start();
+  H.tick(2);
+  mirrorDone(game);
+  const sent: any[] = [];
+  g.window.hgFunnel = (name: string, props: any) => sent.push({ name, props });
+  const chat = islanderLines();
+  for (const id of ['lamp', 'tally', 'receipt', 'chair', 'drawing']) {
+    const l = lorePlace(game, id);
+    const o = H.use.offers(game.player).find((x: any) => x.name === 'island:lore');
+    assert.ok(o, `${id} is on offer`);
+    o.act(); // (a wandering animal can be the nearer offer; E picks the best, this one is the lore's)
+    const m = J().model().lore.find((x: any) => x.id === id);
+    assert.ok(m.found && m.text.length >= 2, `${id} is found with its text`);
+    assert.equal(chat[chat.length - 1].who, l.title);
+  }
+  // The planks and the logbook are Chapter One's notices (sandbox.js); the letter is at Mrs Ember's mailbox.
+  game.emit('notice', { id: 'planks' });
+  game.emit('notice', { id: 'logbook' });
+  const lore = J().model().lore;
+  assert.equal(lore.filter((l: any) => l.found).length, 7);
+  assert.equal(sent.filter((e) => e.name === 'sandbox_lore_found').length, 7);
+  // Twice is not new: no second event.
+  lorePlace(game, 'lamp'); H.use.act();
+  assert.equal(sent.filter((e) => e.name === 'sandbox_lore_found').length, 7);
+  // The journal shows the found ones' words and the others as not yet found.
+  J().open('key');
+  const html = game.ui.el('journal').innerHTML;
+  assert.match(html, /already lit|The Lamp That Was Already Lit/);
+  assert.match(html, /three wobbles/);
+  assert.match(html, /Not yet found/);
+  assert.match(html, /not on this island yet/);
+  // Nobody says why the Overseer does anything, and no prices or work talk.
+  const all = J().LORE.map((l: any) => (l.text || []).join(' ')).join(' ');
+  assert.doesNotMatch(all, /overseer|free will|credit|price|office|work day|achievement/i);
+  J().close();
+  delete g.window.hgFunnel;
+  assert.deepEqual(clean(), []);
+});
+
+test('sandbox journal: neighbours met and lore found are kept with the Overseer\'s memory and survive a return', () => {
+  const game = start();
+  H.tick(2);
+  mirrorDone(game);
+  H.memory.reset();
+  stand(game, 'dolores');
+  H.use.act(); // (Talk to Dolores)
+  game.emit('lore-test', {});
+  J().find('tally');
+  game.emit('islander', { id: 'channel' });
+  const rec = H.memory.journal.get();
+  assert.ok(rec.met.includes('dolores') && rec.met.includes('channel'));
+  assert.deepEqual(rec.lore, ['tally']);
+  // A return: the page again, the record read back from the device.
+  delete g.window.__islandJournal;
+  H.memory.reload();
+  const back = H.memory.journal.get();
+  assert.deepEqual(back.met.sort(), ['channel', 'dolores']);
+  assert.deepEqual(back.lore, ['tally']);
+  const game2 = start();
+  H.tick(2);
+  const m = J().model();
+  assert.ok(m.cast.find((c: any) => c.id === 'dolores').met && m.cast.find((c: any) => c.id === 'channel').met);
+  assert.ok(m.lore.find((l: any) => l.id === 'tally').found);
+  assert.ok(!m.cast.find((c: any) => c.id === 'rolo').met);
+  // The account's record and this device's merge by union; the server's cleaner agrees with the engine's.
+  const c = H.memory.core;
+  const merged = c.merge({ visits: 1, lastAt: 1, met: ['pip'], lore: ['lamp'] }, { visits: 1, lastAt: 2, met: ['rolo'], lore: ['tally', 'bad id!'] });
+  assert.deepEqual(merged.met.sort(), ['pip', 'rolo']);
+  assert.deepEqual(merged.lore.sort(), ['lamp', 'tally']);
+  assert.equal(game2 === H.game, true);
+  H.memory.reset();
+  assert.deepEqual(clean(), []);
 });

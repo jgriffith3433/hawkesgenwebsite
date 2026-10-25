@@ -179,3 +179,7 @@ dropped fall to the ground under them.
 The Overseer also marks a few firsts with a short line, once per device: the first thing built or sent, the first fish, the first fall, the first dock, the first time above the air, the first vehicle blown up, the first friend to join. Nothing to set up; they never interrupt the intro, the mirror or the tour.
 
 The Overseer also remembers: `H.memory` (`memory.js`) keeps the character's name and body, the visit count, the last thing done and a few counts, in the account when signed in and on the device otherwise, and each return visit starts with a different greeting made only from what is on record (never the same twice in a row, never a guess; a player with no history gets a plain welcome). Nothing to set up. Scripts may read `H.memory.get()`.
+
+### The journal (the sandbox island)
+
+The sandbox island has a journal: Chapter One's eight quests (each skippable), the neighbours met (name, what they are, a line) and the lore found (docs/story.md section 7: twelve titles, eight lie on the island, four wait for later chapters). Small objects and notes carry the lore: E near the harbour desk's logbook, the pier's planks, Mrs Ember's mailbox, the dock lamp, Rolo's repair slip, the scratched rock on the hill, the beach chair and the faded drawing by the barrels. Each is a few lines in the voice of whoever left it and never says why the Overseer does anything. What was found is kept by the Overseer's memory (`H.memory.journal`). A game you build does not have a journal unless its script makes one.
