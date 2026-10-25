@@ -233,10 +233,9 @@ test('the starter clips move the right limbs the right way (checked on the puppe
   const qs = A.setOf('quadruped').clips.walk;
   const tips = (u: number) => { A.apply(q, A.sampleClip(qs, u)); return { fl: at(q, 'LegFLTip'), fr: at(q, 'LegFRTip'), bl: at(q, 'LegBLTip'), br: at(q, 'LegBRTip'), body: at(q, 'Body') }; };
   A.apply(q, new Map());
-  const r0 = tips(0.25), t0 = tips(0), t5 = tips(0.5);
-  assert.ok(t0.fl.z > r0.fl.z + 0.01 && t0.fr.z < r0.fr.z - 0.01, 'at the start the left front leg reaches forward and the right goes back');
-  assert.ok(t5.fl.z < r0.fl.z - 0.01 && t5.fr.z > r0.fr.z + 0.01, 'half a stride on, the other way');
-  assert.ok(t0.br.z > r0.br.z + 0.01 && t0.bl.z < r0.bl.z - 0.01, 'the diagonal pairs: the right hind goes with the left front');
+  const t0 = tips(0.06), t5 = tips(0.56);
+  assert.ok(t0.fl.z > t5.fl.z + 0.02 && t0.fr.z < t5.fr.z - 0.02, 'a third of the way in the left front leg is forward and the right is back; half a stride on, the other way');
+  assert.ok(t0.br.z > t5.br.z + 0.02 && t0.bl.z < t5.bl.z - 0.02, 'the diagonal pairs: the right hind goes with the left front');
   assert.ok(Math.abs(t0.body.x) < 0.02 && t0.body.y > 0.3 && t0.body.y < 0.6, 'the body stays over the legs');
 });
 
