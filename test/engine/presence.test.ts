@@ -203,7 +203,7 @@ test('looks: mine changes at once and is sent to the room; config can turn parts
   P.setLook({ hat: 'tophat', shape: 'big', extras: ['cape'] });
   H.tick(0.1);
   const rig = I.rigs.get(p);
-  assert.ok(rig.meshes.some((m: any) => m.name === 'pr-top') && rig.meshes.some((m: any) => m.name === 'pr-cape'), 'the top hat and cape are on');
+  assert.ok(rig.meshes.some((m: any) => /^pr-(top|brim)/.test(m.name)) && rig.meshes.some((m: any) => m.name === 'pr-cape'), 'the top hat (its parts joined) and cape are on');
   assert.ok(rig.root.scaling.y > 1.1, 'and the body is big');
   assert.equal(rig.root.isEnabled(), false, 'not drawn in first person');
   p.view = 'third'; H.tick(0.1);
