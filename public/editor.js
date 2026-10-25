@@ -465,7 +465,7 @@ function noCredits(message) {
   const fresh = Date.now() - creditsAskedAt > 20_000;
   creditsAskedAt = Date.now();
   if (!fresh) return;
-  addOverseer(`${message ? `${String(message).replace(/\.?$/, '.')} ` : ''}I make things from credits, and yours have run out. Get more and ask me again: I will remember the island.`, {
+  addOverseer(`The light has gone quiet for now. Take more when you wish, and ask me again: the island will be as you left it.`, {
     action: { label: 'Get credits', href: '/app#credits' },
   });
   const back = () => { if (document.visibilityState !== 'visible') return; document.removeEventListener('visibilitychange', back); get('/v1/users/me').then((r) => { const before = Number(me && me.credits) || 0; me = r.user; if ((Number(me.credits) || 0) > before) addOverseer(`You have ${Number(me.credits).toLocaleString()} credits now. Ask me again.`); }).catch(() => {}); };

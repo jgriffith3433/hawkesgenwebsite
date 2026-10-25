@@ -49,36 +49,54 @@ export async function sendEmail(to: string, subject: string, text: string, html:
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
-/** The welcome email, in the site's plain voice. */
+/** The welcome email, in the Overseer's voice (docs/story.md: calm, vast, a little amused, generous, never commanding;
+ *  it does not talk about credits itself, so those are one plain line apart). `name` is the character's name from the
+ *  mirror when they came through the island, otherwise null. */
 export function welcomeEmail(name: string | null, credits: number) {
   const site = publicUrl();
-  const hi = name ? `Hi ${name},` : 'Hi,';
-  const links: [string, string, string][] = [
-    ['See what it can do', `${site}/examples`, 'real prompts, with the results, time and cost'],
-    ['Make something now', `${site}/app`, 'images, sprite sheets, 3D, voice and music in the browser'],
-    ['Use it from your editor', `${site}/connect`, 'Claude Code, Cursor, VS Code, Claude and more'],
-  ];
+  const hi = name ? `Hello, ${name}.` : 'Hello.';
+  const images = Math.floor(credits / 5);
+  const who = name
+    ? `You came down the light as ${name}, and I have kept the name. It suits the island.`
+    : 'You came down the light, and the island noticed.';
+  const island = name
+    ? { text: `Your island is kept with your games. Open it from there, press Play, and the sea will be where you left it.`, label: 'Back to your island', url: `${site}/app` }
+    : { text: `The island is open whenever you wish to see it.`, label: 'Come and see the island', url: `${site}/play/sandbox` };
+  const makes = 'Ask, and I will send it down: an image, a sprite sheet, a model you can walk around, a voice, a sound, a little music. In the island, say it in the chat ("a castle on the hill") and watch the light carry it in.';
+  const plain = `In plain words: your account has ${credits} free credits, enough for about ${images} images or a sprite sheet. What I make uses them. If they run out, the chat will say so and offer more; nothing is taken without your asking.`;
+  const ask = 'If something did not come down as it should, or you have an idea, write to support@hawkesgen.com. Replying to this email reaches the same place.';
   const text = `${hi}
 
-Your Hawkes Gen account is ready, with ${credits} free credits: enough for about ${Math.floor(credits / 5)} images, or a sprite sheet.
+${who}
 
-${links.map(([t, u, d]) => `${t}: ${u}\n  (${d})`).join('\n')}
+${island.text}
+${island.label}: ${island.url}
 
-Questions, ideas or something that didn't work? Reply to this email. It comes straight to us.
+${makes}
+
+${plain}
+
+${ask}
 
 Hawkes Gen
-${site}`;
+${site}
+
+You're getting this because you made an account at hawkesgen.com.`;
+  const p = (t: string, extra = '') => `<p style="margin:0 0 16px;font-size:15px;line-height:1.65${extra}">${t}</p>`;
   const html = `<!doctype html><html><body style="margin:0;background:#f4f2ed;padding:32px 16px;font-family:'IBM Plex Sans',Helvetica,Arial,sans-serif;color:#1a1915">
 <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #d6d1c6;border-radius:3px;padding:32px">
 <div style="font:400 26px Georgia,'Times New Roman',serif;margin-bottom:24px">Hawkes Gen</div>
-<p style="margin:0 0 14px;font-size:15px;line-height:1.6">${esc(hi)}</p>
-<p style="margin:0 0 22px;font-size:15px;line-height:1.6">Your account is ready, with <strong>${credits} free credits</strong>: enough for about ${Math.floor(credits / 5)} images, or a sprite sheet.</p>
-${links.map(([t, u, d]) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.5"><a href="${u}" style="color:#1a1915;font-weight:600">${t} →</a><br><span style="color:#8b867b;font-size:13px">${d}</span></p>`).join('\n')}
-<p style="margin:22px 0 0;font-size:14px;line-height:1.6;color:#4b4840">Questions, ideas or something that didn't work? Reply to this email. It comes straight to us.</p>
+${p(esc(hi))}
+${p(esc(who))}
+${p(esc(island.text))}
+<p style="margin:0 0 22px"><a href="${island.url}" style="display:inline-block;background:#1a1915;color:#f4f2ed;text-decoration:none;padding:11px 18px;border-radius:3px;font-size:15px;font-weight:600">${island.label} →</a></p>
+${p(esc(makes))}
+${p(esc(plain), ';color:#4b4840;font-size:14px')}
+${p('If something did not come down as it should, or you have an idea, write to <a href="mailto:support@hawkesgen.com" style="color:#1a1915">support@hawkesgen.com</a>. Replying to this email reaches the same place.', ';color:#4b4840;font-size:14px')}
 </div>
 <p style="max-width:520px;margin:14px auto 0;font-size:12px;color:#8b867b;text-align:center">You're getting this because you made an account at hawkesgen.com.</p>
 </body></html>`;
-  return { subject: 'Welcome to Hawkes Gen', text, html };
+  return { subject: name ? `${name}, your island is waiting` : 'Welcome to Hawkes Gen', text, html };
 }
 
 /** Sends the welcome email in the background; a failure is logged, never shown to the person signing up. */
