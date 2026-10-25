@@ -255,9 +255,12 @@
   const box = (w, h, d) => (s) => (Math.min(w, h, d) >= 0.07 && H.living && H.living.body && H.living.body.softBox
     ? H.living.body.softBox('b', { width: w, height: h, depth: d }, s)
     : B.MeshBuilder.CreateBox('b', { width: w, height: h, depth: d }, s));
-  const cyl = (top, bottom, h, n = 14) => (s) => B.MeshBuilder.CreateCylinder('c', { diameterTop: top, diameterBottom: bottom, height: h, tessellation: n }, s);
-  const ball = (d, n = 10) => (s) => B.MeshBuilder.CreateSphere('s', { diameter: d, segments: n }, s);
-  const ring = (d, t) => (s) => B.MeshBuilder.CreateTorus('t', { diameter: d, thickness: t, tessellation: 18 }, s);
+  // What a body wears is built at a detail (WQ): 0.75 near, 0.4 for the level past H.budget.farCharacter (dress, below).
+  let WQ = 0.75 * (P.nearDetail ? P.nearDetail() : 1);
+  const tess = (n) => Math.max(Math.min(n, 5), Math.round(n * WQ));
+  const cyl = (top, bottom, h, n = 14) => (s) => B.MeshBuilder.CreateCylinder('c', { diameterTop: top, diameterBottom: bottom, height: h, tessellation: tess(n) }, s);
+  const ball = (d, n = 10) => (s) => B.MeshBuilder.CreateSphere('s', { diameter: d, segments: tess(n) }, s);
+  const ring = (d, t) => (s) => B.MeshBuilder.CreateTorus('t', { diameter: d, thickness: t, tessellation: tess(18) }, s);
   function makeRig(e, look, color) {
     const w = W();
     const scene = w.scene;
@@ -279,20 +282,52 @@
     const what = C.WHAT && C.WHAT.get(rig.what);
     if (what && what.body !== 'person' && P.bodies && P.bodies.build(rig, what, look, shade)) {
       for (const [n, at] of [['hipL', [0.11, -0.36, 0]], ['hipR', [-0.11, -0.36, 0]], ['shL', [0.31, 0.24, 0]], ['shR', [-0.31, 0.24, 0]]]) if (!rig[n]) rig[n] = joint(n, at);
-      hat(rig, look.hat, acc, body);
-      for (const x of look.extras) extra(rig, x, acc, body);
-      accessory(rig, look.accessory, look.accessoryColor);
+      dress(rig, look, acc, body);
       if (look.model) loadModel(rig, look.model);
       return rig;
     }
     rig.what = 'person';
     // The soft toy person (presence-person.js): a rounded body, a big head with a face, hair, clothes in the look's colors.
     P.softPerson.build(rig, look, { joint, part, box });
-    hat(rig, look.hat, acc, body);
-    for (const x of look.extras) extra(rig, x, acc, body);
-    accessory(rig, look.accessory, look.accessoryColor);
+    dress(rig, look, acc, body);
     if (look.model) loadModel(rig, look.model);
     return rig;
+  }
+  /** The hat, extras and accessory. What a body wears is still: its parts are joined into one mesh per joint and color
+   *  (H.mergeParts); the cape, wings and tail swing, so they stay as they are. Built twice, the second at less than half the
+   *  tessellation, and joined the same way: each far mesh is the near one's level of detail past H.budget.farCharacter (the
+   *  same shapes to within a pixel at that distance, so no pop). */
+  function dress(rig, look, acc, body) {
+    if ((!look.hat || look.hat === 'none') && !look.extras.length && (!look.accessory || look.accessory === 'none')) return;
+    const wear = () => { hat(rig, look.hat, acc, body); for (const x of look.extras) extra(rig, x, acc, body); accessory(rig, look.accessory, look.accessoryColor); };
+    const join = (from) => {
+      const still = rig.meshes.splice(from);
+      if (!H.mergeParts) { rig.meshes.push(...still); return still; }
+      const moves = new Set([rig.cape, rig.tail, ...(rig.wings || [])].filter(Boolean));
+      const out = H.mergeParts(still, { keep: (m) => moves.has(m) });
+      for (const m of out) if (!moves.has(m)) m.name = m.name.replace(/-parts$/, ''); // (named for its first part)
+      rig.meshes.push(...out);
+      return out;
+    };
+    const from = rig.meshes.length;
+    const nearQ = 0.75 * (P.nearDetail ? P.nearDetail() : 1);
+    WQ = nearQ;
+    wear();
+    const near = join(from);
+    const fromFar = rig.meshes.length, keep = { cape: rig.cape, tail: rig.tail, wings: rig.wings };
+    WQ = Math.min(0.4, nearQ * 0.6);
+    try { wear(); } finally { WQ = nearQ; }
+    Object.assign(rig, keep);
+    const lows = join(fromFar);
+    const far = Number(H.budget && H.budget.farCharacter) || 30;
+    const byKey = new Map();
+    const swings = new Set([keep.cape, keep.tail, ...(keep.wings || [])].filter(Boolean));
+    for (const m of near) if (!swings.has(m) && m.getClassName() === 'Mesh' && m.material && !m.getLODLevels().length) byKey.set(`${m.parent && m.parent.uniqueId}|${m.material.uniqueId}`, m);
+    for (const m of lows) {
+      const hi = m.getClassName() === 'Mesh' && m.material ? byKey.get(`${m.parent && m.parent.uniqueId}|${m.material.uniqueId}`) : null;
+      if (hi && m !== hi) { m.isVisible = false; hi.addLODLevel(far, m); byKey.delete(`${m.parent && m.parent.uniqueId}|${m.material.uniqueId}`); }
+      else { m.dispose(); rig.meshes.splice(rig.meshes.indexOf(m), 1); }
+    }
   }
   /**
    * The mirror's accessory (docs/characters.md 5d): small procedural meshes in the look's accessoryColor on the anchors every
@@ -382,7 +417,7 @@
     const t = rig.neck, y = 0.44;
     switch (kind) {
       case 'cap': part(rig, 'cap', cyl(0.44, 0.44, 0.12), t, [0, y + 0.05, 0], acc); part(rig, 'brim', box(0.4, 0.03, 0.2), t, [0, y + 0.0, 0.25], acc); break;
-      case 'beanie': part(rig, 'beanie', (s) => B.MeshBuilder.CreateSphere('s', { diameter: 0.48, segments: 10, slice: 0.5 }, s), t, [0, y - 0.04, 0], acc); part(rig, 'pom', ball(0.12), t, [0, y + 0.2, 0], '#ffffff'); break;
+      case 'beanie': part(rig, 'beanie', (s) => B.MeshBuilder.CreateSphere('s', { diameter: 0.48, segments: tess(10), slice: 0.5 }, s), t, [0, y - 0.04, 0], acc); part(rig, 'pom', ball(0.12), t, [0, y + 0.2, 0], '#ffffff'); break;
       case 'tophat': part(rig, 'brim', cyl(0.56, 0.56, 0.03), t, [0, y + 0.01, 0], '#111827'); part(rig, 'top', cyl(0.32, 0.32, 0.36), t, [0, y + 0.19, 0], '#111827'); part(rig, 'band', cyl(0.33, 0.33, 0.06), t, [0, y + 0.06, 0], acc); break;
       case 'crown': part(rig, 'crown', cyl(0.42, 0.38, 0.16, 8), t, [0, y + 0.07, 0], '#facc15', true); for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; part(rig, `pt${i}`, cyl(0, 0.08, 0.12, 4), t, [Math.sin(a) * 0.19, y + 0.2, Math.cos(a) * 0.19], '#facc15', true); } break;
       case 'cowboy': part(rig, 'brim', cyl(0.78, 0.78, 0.03), t, [0, y + 0.01, 0], '#92400e'); part(rig, 'top', cyl(0.3, 0.38, 0.22), t, [0, y + 0.12, 0], '#92400e'); break;
@@ -390,7 +425,7 @@
       case 'halo': { const m = part(rig, 'halo', ring(0.42, 0.05), t, [0, y + 0.22, 0], '#fde047', true); m.rotation.x = 0.1; break; }
       case 'horns': { const a = part(rig, 'hornL', cyl(0, 0.1, 0.24, 8), t, [0.15, y + 0.06, 0], '#e5e7eb'); a.rotation.z = -0.5; const b = part(rig, 'hornR', cyl(0, 0.1, 0.24, 8), t, [-0.15, y + 0.06, 0], '#e5e7eb'); b.rotation.z = 0.5; break; }
       case 'bunny': { const a = part(rig, 'earL', box(0.09, 0.36, 0.05), t, [0.1, y + 0.17, 0], '#ffffff'); a.rotation.z = -0.12; const b = part(rig, 'earR', box(0.09, 0.36, 0.05), t, [-0.1, y + 0.17, 0], '#ffffff'); b.rotation.z = 0.12; break; }
-      case 'helmet': { const m = part(rig, 'helmet', (s) => B.MeshBuilder.CreateSphere('s', { diameter: 0.56, segments: 12, slice: 0.55 }, s), t, [0, y - 0.1, 0], acc === '#ffffff' ? body : acc); m.scaling.y = 1.05; break; }
+      case 'helmet': { const m = part(rig, 'helmet', (s) => B.MeshBuilder.CreateSphere('s', { diameter: 0.56, segments: tess(12), slice: 0.55 }, s), t, [0, y - 0.1, 0], acc === '#ffffff' ? body : acc); m.scaling.y = 1.05; break; }
       case 'chef': part(rig, 'band', cyl(0.4, 0.4, 0.14), t, [0, y + 0.06, 0], '#ffffff'); part(rig, 'puff', ball(0.5), t, [0, y + 0.28, 0], '#ffffff'); break;
       default: break;
     }
@@ -461,6 +496,50 @@
     }
     return rig;
   }
+  // ------------------------------------------------------------------ a crowd (docs/characters.md "A crowd")
+  // Which bodies animate in full: those within H.budget.farCharacter meters, in front of the camera, nearest first, at most
+  // H.budget.characters (mine counts). The rest take the cheap level (rig.lod 1): the stride only, no blinking, no gaze, no
+  // springs, updated every 2nd frame (every 6th out of view); past the far distance the meshes also draw their half-detail
+  // level (a LOD of the shared source, presence-person.js shared). A body changes level at most every half second and the far
+  // distance has a 3 m band, so nothing flickers at the edge.
+  const crowd = { bodies: 0, full: 0, simple: 0, far: 0, out: 0, cap: 0, farAt: 0 };
+  function crowdLevels(list, dt) {
+    const w = W();
+    const cam = w && w.scene && w.scene.activeCamera;
+    const cap = Math.max(1, Number(H.budget && H.budget.characters) || 10), farAt = Number(H.budget && H.budget.farCharacter) || 30;
+    const cp = cam ? cam.globalPosition : null, fw = cam && cam.getForwardRay ? cam.getForwardRay(1).direction : null;
+    const now = w ? w.time || 0 : 0;
+    for (const x of list) {
+      const rig = x.rig;
+      let d = 0, front = true;
+      if (cp && !x.self) {
+        const p = rig.e.node.getAbsolutePosition();
+        const dx = p.x - cp.x, dy = p.y - cp.y, dz = p.z - cp.z;
+        d = Math.hypot(dx, dy, dz);
+        front = !fw || dx * fw.x + dy * fw.y + dz * fw.z > -1.5; // (a body just behind the camera's plane may still show its feet)
+      }
+      x.d = d; x.front = front;
+      rig.far = d > farAt - (rig.far ? 3 : 0);
+    }
+    const near = list.filter((x) => !x.rig.far && x.front && x.show).sort((a, b) => a.d - b.d);
+    const want = new Set(near.slice(0, cap));
+    let full = 0, simple = 0, far = 0, out = 0;
+    for (const x of list) {
+      const rig = x.rig;
+      let lod = want.has(x) || x.self ? 0 : 1;
+      if (rig.lod !== undefined && lod !== rig.lod && now - (rig.lodT || 0) < 0.5 && !x.self) lod = rig.lod;
+      if (rig.lod === undefined || lod !== rig.lod) rig.lodT = now;
+      rig.lod = lod;
+      rig.out = !x.front || !x.show;
+      if (lod === 0) full++; else simple++;
+      if (rig.far) far++;
+      if (rig.out) out++;
+    }
+    crowd.bodies = list.length; crowd.full = full; crowd.simple = simple; crowd.far = far; crowd.out = out; crowd.cap = cap; crowd.farAt = farAt;
+    void dt;
+  }
+  /** How many bodies animate in full or cheaply right now (the monitor shows it; tests read it). */
+  P.crowd = () => ({ ...crowd });
   const rigSoon = new Map();
   function updateRigs(dt) {
     const w = W();
@@ -468,6 +547,7 @@
     const looks = on('looks');
     const seen = new Set();
     if (looks) {
+      const todo = [];
       for (const pr of people()) {
         if (pr.kind !== 'me' && pr.kind !== 'player' && pr.kind !== 'friend') continue;
         const e = pr.entity;
@@ -490,7 +570,16 @@
         if (!Number.isFinite(off)) off = 0;
         rig.smY = wy + off;
         rig.root.position.y = (rig.baseY || 0) + off;
-        animate(rig, dt, pr);
+        todo.push({ pr, rig, self, show });
+      }
+      crowdLevels(todo, dt);
+      for (const x of todo) {
+        // The cheap levels animate every 2nd frame (in view) or 6th (out of view) with the time they missed.
+        x.rig.owed = (x.rig.owed || 0) + dt;
+        x.rig.tick = ((x.rig.tick || 0) + 1) % (x.rig.lod ? (x.rig.out ? 6 : 2) : 1);
+        if (x.rig.tick) continue;
+        const step = x.rig.owed; x.rig.owed = 0;
+        animate(x.rig, step, x.pr);
       }
     }
     for (const [e, rig] of rigs) {
@@ -736,9 +825,16 @@
     document.body.appendChild(layer);
     return layer;
   }
+  const pool = []; // tags taken off a head, waiting for the next one (a crowd coming and going makes no new elements)
   function elFor(key) {
     let x = els.get(key);
     if (x) return x;
+    x = pool.pop();
+    if (x) {
+      x.wrap.style.display = ''; x.sig = ''; x.bsig = ''; x.rsig = '';
+      els.set(key, x);
+      return x;
+    }
     const wrap = document.createElement('div');
     wrap.className = 'pr-head';
     wrap.innerHTML = '<div class="pr-bubbles"></div><div class="pr-tag"><span class="pr-badges"></span><b class="pr-name"></b><span class="pr-dots"><i></i><i></i><i></i></span><span class="pr-react"></span></div><div class="pr-hp"><em></em></div>';
@@ -747,7 +843,12 @@
     els.set(key, x);
     return x;
   }
-  function dropEl(key) { const x = els.get(key); if (x) { x.wrap.remove(); els.delete(key); } }
+  function dropEl(key) {
+    const x = els.get(key);
+    if (!x) return;
+    els.delete(key);
+    if (pool.length < 40) { x.wrap.style.display = 'none'; x.bubbles.textContent = ''; pool.push(x); } else x.wrap.remove();
+  }
   const BADGE = { friend: '★', ai: '✦', pet: '🐾' };
   const phone = () => Boolean(H.touchUi);
   const occluded = new Map(); // key -> { at, hit }
