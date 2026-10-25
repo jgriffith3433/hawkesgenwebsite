@@ -873,106 +873,7 @@
   /** The look a builder was given (its colors). */
   const look = (x) => x.look;
 
-  // ---- the TV robot: the screen is the face. Flickers with static; hearts in its eyes when it loves something
-  BUILD.tvbot = (x) => {
-    const { cols: { b, a, d }, joint } = x, rig = x.rig;
-    legs(x, 0.14, 0.52, 0.075, b, d);
-    const g = x.g();
-    sbox(g, [0, 0.76, 0], [0.5, 0.46, 0.34], paint(b), { n: 3, m: 3, segs: 16, rows: 6 });                        // the torso
-    sbox(g, [0, 0.82, 0.19], [0.22, 0.12, 0.03], flat(x.ink), { n: 3, m: 2, segs: 12, rows: 3 });                // the chest panel
-    ball(g, [0, 0.55, 0], [0.22, 0.07, 0.15], paint(d), { segs: 10, rings: 3 });
-    ball(g, [0, 1.05, 0], [0.12, 0.06, 0.12], paint(d), { segs: 8, rings: 3 });                                  // the neck
-    sbox(g, [0, 1.4, 0], [0.98, 0.74, 0.6], paint(b), { n: 3.2, m: 3.2, segs: 20, rows: 8 });                      // the TV head: a soft CRT box
-    sbox(g, [0, 1.4, 0.2], [0.8, 0.58, 0.3], flat([0.05, 0.06, 0.08]), { n: 3.4, m: 3.6, segs: 18, rows: 6 });     // the dark glass
-    for (const s of [1, -1]) ball(g, [s * 0.52, 1.5, 0.0], [0.045, 0.05, 0.05], paint(d), { segs: 8, rings: 3 });  // side knobs
-    ball(g, [0.52, 1.3, 0.0], [0.04, 0.04, 0.04], paint(a), { segs: 8, rings: 3 });
-    x.mk('tv', g, x.holder);
-    const ag = x.g();
-    for (const s of [1, -1]) { sweep(ag, (t) => [s * t * 0.18, t * 0.34, 0], () => 0.014, paint(d), { steps: 3, segs: 5, ref: [0, 0, 1] }); }
-    const ant = joint('antennas', [0, 1.77, -0.05]); x.mk('antennas', ag, ant);
-    const tg = x.g(); for (const s of [1, -1]) ball(tg, [s * 0.18, 0.37, 0], [0.05, 0.05, 0.05], flat(rgb(C().tones(x.look.accent === '#ffffff' ? '#7dd3fc' : x.look.accent).light)), { segs: 8, rings: 3 });
-    const tips = joint('tips', [0, 1.77, -0.05]); x.mk('antennaTips', tg, tips, { glow: true });
-    arms(x, 0.3, 0.95, 0.3, 0.05, b);
-    const glass = (xx, yy) => 0.5 + 0.0 - (xx * xx + yy * yy) * 0.12;
-    const accent = x.look.accent === '#ffffff' ? '#7dd3fc' : x.look.accent;
-    const F = addFace(x, x.holder, [0, 1.4, 0.0], { surf: glass, ex: 0.17, ey: 0.07, er: 0.065, ery: 0.1, mouth: { y: -0.13, w: 0.11, th: 0.03, color: accent }, brow: { y: 0.2, w: 0.045, color: accent }, screen: { color: accent }, lid: '#0d1117', cheek: null, z: 0.006 });
-    // static: grey bars that crawl over the glass (a lit mesh, shown for a moment)
-    const sg = x.g(); for (let i = 0; i < 7; i++) { const yy = -0.24 + i * 0.08, c = 0.35 + ((i * 37) % 7) * 0.09; sbox(sg, [0, yy, 0], [0.7, 0.045, 0.01], flat([c, c, c * 1.05]), { n: 3, m: 2, segs: 8, rows: 2 }); }
-    const stat = joint('static', [0, 1.4, 0.52]); const stm = x.mk('static', sg, stat, { glow: true }); stm.setEnabled(false);
-    const sA = sp(), sS = sp();
-    return {
-      head: { head: [0, 1.4, 0], r: 0.4, top: 1.78, front: 0.52 }, F, gagFace: 'surprised', sigFace: 'happy', gagDur: 2.4, sigDur: 2, F2: true,
-      anim(rig, c) {
-        const w = c.s, st = Math.sin(c.ph);
-        let rz = st * 0.06 * w, rx = w * 0.06 + c.run * 0.1, lift = Math.abs(st) * 0.04 * w, noise = 0, love = 0;
-        if (c.gu >= 0) { const u = c.gu; noise = bump(u) > 0.2 ? 1 : 0; rz += Math.sin(c.t * 30) * 0.015 * noise; }
-        if (c.su >= 0) { const u = c.su; love = bump(clamp(u * 1.1, 0, 1)); lift += Math.abs(Math.sin(u * 14)) * 0.07 * love; rz += Math.sin(u * 14) * 0.05 * love; }
-        tilt(rig, rx, rz, 0, lift, 1);
-        const a2 = spring(sA, -w * 0.3 * Math.sin(c.ph + 1) + love * 0.4, 4, 0.3, c.dt); ant.rotation.z = a2 * 0.5; ant.rotation.x = Math.sin(c.t * 2) * 0.03 - w * 0.12; tips.rotation.copyFrom(ant.rotation);
-        stm.setEnabled(noise > 0);
-        if (noise > 0) { stat.position.y = 1.4 + Math.sin(c.t * 26) * 0.03; stat.scaling.y = 0.7 + 0.5 * Math.abs(Math.sin(c.t * 9)); }
-        F.heart = love > 0.2;
-        const tsc = 1 + love * 0.6 * Math.abs(Math.sin(c.t * 10)); tips.scaling.set(tsc, tsc, tsc);
-      },
-    };
-  };
-
-  // ---- the roll-bot: a ball that rolls, a dome head with a visor face; scans around, spins its head
-  BUILD.rollbot = (x) => {
-    const { cols: { b, a, d }, joint } = x, rig = x.rig;
-    const accent = x.look.accent === '#ffffff' ? '#22d3ee' : x.look.accent;
-    const ballJ = joint('ball', [0, 0.46, 0]), g = x.g();
-    // the ball: banded in the accent and a dark stripe; spots so its roll shows
-    const colB = ({ n, p }) => { const q = Math.abs(p[1]) < 0.06 ? toon(tonesRgb(accent), n[1]) : (Math.abs(p[0]) < 0.05 && p[2] > 0) ? toon(d, n[1]) : toon(b, n[1]); return q; };
-    ball(g, [0, 0, 0], [0.46, 0.46, 0.46], colB, { segs: 20, rings: 10, recolor: false });
-    for (const [px, py, pz] of [[0.4, 0.15, 0.2], [-0.36, -0.2, 0.25], [0.1, 0.38, -0.2], [-0.3, 0.1, -0.33], [0.3, -0.3, -0.18]]) { const l = Math.hypot(px, py, pz); spike(g, [px / l * 0.45, py / l * 0.45, pz / l * 0.45], [px, py, pz], 0.02, 0.07, paint(d), 8); }
-    x.mk('ball', g, ballJ);
-    const hg = x.g();
-    ball(hg, [0, 0, 0], [0.12, 0.07, 0.12], paint(d), { segs: 10, rings: 3 });                                    // the neck ring
-    const headJ = joint('head', [0, 0.97, 0]);
-    const dg = x.g();
-    rev(dg, [[0.0, -0.02, 0, -1], [0.38, 0.0, 0.2, -0.9], [0.5, 0.12, 1, -0.1], [0.52, 0.3, 1, 0.1], [0.42, 0.5, 0.7, 0.7], [0.22, 0.64, 0.3, 0.95], [0.0, 0.68, 0, 1]], { segs: 22, at: [0, 0.0, 0], color: paint(b), smooth: true });
-    ball(dg, [0, 0.07, 0.0], [0.5, 0.035, 0.5], paint(tonesRgb(accent)), { segs: 22, rings: 3 });
-    sweep(dg, (t) => [0, 0.5 + t * 0.0, 0], () => 0.0, flat([0, 0, 0]), { steps: 1, segs: 3, open: true });
-    ball(hg, [0, 0.9, 0], [0.0001, 0.0001, 0.0001], flat([0, 0, 0]), { segs: 3, rings: 2 });
-    x.mk('dome', dg, headJ); x.mk('neck', hg, ballJ).position.set(0, 0.5, 0);
-    // the visor: a dark lit band round the front of the dome carries the face
-    const visor = (xx, yy) => Math.sqrt(Math.max(0.01, 0.47 * 0.47 - xx * xx)) * 1.0 - Math.max(0, Math.abs(yy)) * 0.0 + 0.0;
-    const F = addFace(x, headJ, [0, 0.3, 0.0], { surf: radial([[-0.2, 0.36], [-0.08, 0.5], [0.1, 0.52], [0.3, 0.45], [0.44, 0.25]], 0.012), ex: 0.15, ey: 0.06, er: 0.07, ery: 0.095, mouth: { y: -0.1, w: 0.08, th: 0.024, color: accent }, brow: null, screen: { color: accent }, lid: '#101820', cheek: null, z: 0.006 });
-    const ag = x.g(); sweep(ag, (t) => [0, t * 0.26, 0], () => 0.014, paint(d), { steps: 3, segs: 6 }); ball(ag, [0, 0.31, 0], [0.055, 0.055, 0.055], flat(rgb(C().tones(accent).light)), { segs: 8, rings: 4 });
-    const ant = joint('antenna', [0.12, 0.5, -0.05], headJ); x.mk('antenna', ag, ant);
-    arms(x, 0.0, 0, 0.0, 0.0001, b); rig.shL.dispose(); rig.shR.dispose();
-    // tiny arms: little stubby paddles at the dome's sides
-    rig.shL = joint('shL', [0.5, 0.58, 0.0]); rig.shR = joint('shR', [-0.5, 0.58, 0.0]);
-    const pg = x.g(); rev(pg, capsule(-0.14, 0.045, 0, 0.05, 3), { segs: 8, color: paint(d) }); ball(pg, [0, -0.19, 0.01], [0.065, 0.06, 0.065], paint(d), { segs: 8, rings: 3 });
-    x.mk('armL', pg, rig.shL); x.mk('armR', pg, rig.shR);
-    // (the ball rolls with the distance; presence-bodies.js animate used rig.roll for it, this does it on its own)
-    let rolled = 0;
-    const sAn = sp(), sY = sp();
-    return {
-      head: { head: [0, 1.27, 0], r: 0.45, top: 1.66, front: 0.52 }, F, gagFace: 'surprised', sigFace: 'happy', gagDur: 3, sigDur: 1.7,
-      anim(rig, c) {
-        const sg2 = c.sp;
-        rolled += sg2 * c.dt / 0.46;
-        let lean = clamp(sg2 / 8, 0, 0.5) * 0.6, lift = 0, sy = 1, yaw = 0, ant2 = 0.0, scan = 0, spinH = 0;
-        let gaze = null;
-        if (c.gu >= 0) {
-          // scanning: the head looks left, right, then all the way round, the antenna ticking
-          const u = c.gu; scan = Math.sin(u * TAU) * 0.9 * bump(Math.min(1, u * 1.1)); ant2 = bump(u); gaze = [Math.sin(u * TAU) * 0.9, 0];
-        }
-        if (c.su >= 0) {
-          // a wheelie spin: leaps, the head spins a full turn and the ball roll-bounces
-          const u = c.su; spinH = ease(clamp((u - 0.1) / 0.7, 0, 1)) * TAU; lift = Math.sin(clamp((u - 0.1) / 0.7, 0, 1) * Math.PI) * 0.3; sy = u < 0.1 ? 1 - 0.18 * ease(u / 0.1) : 1; ant2 = bump(u) * 2; rolled += (u > 0.1 && u < 0.8 ? 0.2 : 0);
-        }
-        tilt(rig, lean, 0, 0, lift, sy);
-        ballJ.rotation.x = rolled;
-        headJ.rotation.y = spring(sY, scan, 3.5, 0.5, c.dt) + spinH; headJ.rotation.x = -lean * 0.4 + Math.sin(c.t * 1.3) * 0.01;
-        ant.rotation.z = spring(sAn, -clamp(sg2 / 5, 0, 1) * 0.5 + Math.sin(c.t * 14) * 0.15 * ant2, 3.5, 0.3, c.dt);
-        rig.shL.rotation.set(0, 0, 0.2 + clamp(sg2 / 5, 0, 1) * 0.5 + ant2 * 0.4); rig.shR.rotation.set(0, 0, -0.2 - clamp(sg2 / 5, 0, 1) * 0.5 - ant2 * 0.4);
-        this.gaze = gaze;
-      },
-    };
-  };
+  // (the TV robot, the roll-bot and the robot are built in presence-robots.js: P.things.register)
 
   // ------------------------------------------------------------------ registry and the frame
   const ORDER = Object.keys(BUILD);
@@ -997,6 +898,9 @@
     if (th.sigAt >= 0) { su = (t - th.sigAt) / th.sigDur; if (su > 1) { th.sigAt = -1; su = -1; } }
     const forced = rig.forcePose;
     if (forced === 'react') { const T = th.sigDur + 0.9, u = (t % T) / th.sigDur; su = u <= 1 ? u : -1; }
+    // booting up (presence-robots.js): the first seconds a machine is there (or looped by /avatars pose=boot): bu is 0..1 through it, -1 when not
+    let bu = -1;
+    if (th.bootDur) { const bt = forced === 'boot' ? t % (th.bootDur + 1.4) : t - (th.bootAt || 0); bu = bt >= 0 && bt < th.bootDur ? bt / th.bootDur : -1; }
     const idle = rig.speed < 0.4 && !em && su < 0;
     th.idleT = idle ? th.idleT + dt : 0;
     if (forced === 'gag') { const T = th.gagDur + 0.9, u = (t % T) / th.gagDur; gu = u <= 1 ? u : -1; }
@@ -1004,7 +908,7 @@
       if (th.gagAt < 0 && idle && th.idleT > th.nextGag) { th.gagAt = t; }
       if (th.gagAt >= 0) { gu = (t - th.gagAt) / th.gagDur; if (gu > 1 || !idle) { th.gagAt = -1; gu = -1; th.nextGag = th.idleT + 6 + Math.random() * 5; if (!idle) th.nextGag = 3 + Math.random() * 3; } }
     }
-    const c = { t, dt, s, run: clamp((rig.speed - 3.2) / 3.5, 0, 1), sp: rig.speed || 0, ph: rig.phase, gu, su, em: name, th };
+    const c = { t, dt, s, run: clamp((rig.speed - 3.2) / 3.5, 0, 1), sp: rig.speed || 0, ph: rig.phase, gu, su, bu, em: name, th };
     th.anim.call(th, rig, c);
     // the face: what it feels now (the signature, the gag, the emote, or how it rests)
     let expr = th.F.rest;
@@ -1013,9 +917,12 @@
     if (gu >= 0 && th.gagFace) expr = th.gagFace;
     if (su >= 0 && th.sigFace) expr = th.sigFace;
     if (!ef && gu < 0 && su < 0 && rig.forcePose && C().POSE_FACE[rig.forcePose]) expr = C().POSE_FACE[rig.forcePose];
-    stepFace(rig, th.F, dt, expr, { open: th.F.open || 0, heart: th.F.heart, gaze: th.gaze || null });
+    const fx = th.faceExtra ? th.faceExtra(c) : null;
+    stepFace(rig, th.F, dt, bu >= 0 && th.bootFace ? th.bootFace : expr, { open: th.F.open || 0, heart: th.F.heart, gaze: th.gaze || null, lid: fx && fx.lid });
   }
 
-  P.things = { BUILD, ORDER, animate, makeFace, ids: ORDER };
+  /** presence-robots.js registers a body here (same shape as BUILD.<id>) and hands it the helpers above. */
+  function register(id, fn) { BUILD[id] = fn; if (!ORDER.includes(id)) ORDER.push(id); if (P.bodies) P.bodies.THINGS[id] = builder(id); }
+  P.things = { BUILD, ORDER, animate, makeFace, ids: ORDER, register, kit: { Geo, rev, ball, sbox, sweep, spike, capsule, radial, paint, flat, toon, tonesRgb, rgb, mix3, clamp, smooth, ease, lerp, bump, TAU, spring, sp, tilt, addFace, glowMat } };
   if (P.bodies) for (const id of ORDER) P.bodies.THINGS[id] = builder(id);
 })();
