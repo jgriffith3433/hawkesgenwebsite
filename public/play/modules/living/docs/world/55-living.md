@@ -8,7 +8,7 @@ A model's clips play by name: walk, run, idle, eat, sleep, sit, dance, attack.
 |---|---|---|
 | `creature` | one animal or person with a brain | `species`, `size`, `temper`, `follow`, `roam`, `speed`, `color`, `colors` `{ body, head, legs, accent }`, `model`, `rideable`, `hp`, `sight` |
 | `herd` | many of one species at once (1 to 300), cheap: they keep together, graze, sleep and stampede together | `species`, `count`, `radius`, `size`, `roam`, `temper` |
-| `friend` | an AI friend with a name and a personality; players talk to them (E or T near them, or click) | `personality`, `species` (person by default), `follow` (false = stays put: a villager), `lines` (things they say when you come near), `talk` (false = no chat), `color` |
+| `friend` | an AI friend with a name and a personality; players talk to them (E or T near them, or click) | `personality`, `species` (person by default), `follow` (false = stays put: a villager), `lines` (things they say when you come near), `talk` (false = no chat), `look` (a mirror look, e.g. `{ "what": "toaster", "name": "Mrs Ember", "body": "#b8bfcc" }`: the friend shows that body from the Presence module instead of a creature; with `talk: false` and a script that answers E through `H.use`, a villager that speaks in the game chat), `color` |
 
 **Living things own every animal** in a game: this is the one way to make one (Mayhem's `game.spawnMany('cow', 100)` and
 its spawn gun make these creatures too, and blow them up). `critter` is an old word for `creature`.

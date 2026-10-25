@@ -306,3 +306,124 @@ test('sandbox: Pip nudges after 30 s on a step, once per step', () => {
   assert.deepEqual(nudges, ['drive', 'rod'], 'the next step has its own');
   assert.deepEqual(clean(), []);
 });
+
+// ------------------------------------------------------------------ the islanders (islanders.js; docs/story.md 5b)
+const CAST_IDS = ['bobbin', 'ember', 'rolo', 'dolores', 'channel'];
+const islanderLines = () => {
+  const chat: any[] = [];
+  H.chat = { ...(H.chat || {}), line: (m: any) => { chat.push(m); } };
+  return chat;
+};
+const resetIslanders = () => { for (const k of ['__islanderDid', '__islanderHeard', '__islanderLog', '__islanderListening', '__islanders']) delete g.window[k]; };
+// (The harness has no intro to end, so the mirror stays "about to open"; here it has been answered.)
+const mirrorDone = (game: any) => { try { game.mirror.close(); } catch { /* none open */ } Object.defineProperty(game, 'mirror', { value: { pending: false }, configurable: true }); H.tick(0.3); };
+const stand = (game: any, id: string, d = 1.8) => { const e = H.world.byId.get(id); game.player.position = [e.x - d, e.y + 0.5, e.z]; H.tick(0.7); return e; };
+const BODY_WORDS = /\b(toaster|duck|cactus|roll-?bot|robot|television|shoe|potato|banana|teapot|mushroom|cone|dog|cat|fox|pig|bear|rabbit|penguin|chicken|cow|sheep|horse|dinosaur|person|human)\b/i;
+
+test('sandbox islanders: five named neighbours stand on the island, in the mirror\'s bodies, with talk in the chat only', () => {
+  resetIslanders();
+  const game = start();
+  H.tick(2);
+  for (const id of CAST_IDS) {
+    const e = H.world.byId.get(id);
+    assert.ok(e && e.alive, id);
+    // (Bobbin stands on the pier's planks, 1.1 m up over the sea's edge.)
+    const ground = id === 'bobbin' ? 1.1 : game.terrain.heightAt(e.x, e.z);
+    assert.ok(ground > 0, `${id} is on land (${ground.toFixed(1)})`);
+    assert.ok(e.y > ground - 0.3 && e.y < ground + 3.5, `${id} stands at ${e.y.toFixed(2)} over ${ground.toFixed(2)}`);
+    assert.equal(e.living.friend.talk, false, `${id} has no phrasebook panel: the chat window is where they talk`);
+    assert.ok(e.living.friend.look && e.living.friend.look.what, `${id} wears a body`);
+  }
+  assert.deepEqual(CAST_IDS.map((id) => H.world.byId.get(id).living.friend.look.what), ['duck', 'toaster', 'rollbot', 'cactus', 'tvbot']);
+  // The tag they carry is their name; none of the scene's voice lines or assets are new.
+  assert.deepEqual(CAST_IDS.map((id) => H.world.byId.get(id).name), ['Admiral Bobbin', 'Mrs Ember', 'Rolo', 'Dolores', 'Channel']);
+  assert.ok(!Object.keys(bundle.files).some((f) => /islander|bobbin|ember|rolo|dolores|channel/i.test(f) && /\.(mp3|wav|ogg)$/.test(f)), 'no voice files');
+  assert.deepEqual(clean(), []);
+});
+
+test('sandbox islanders: E near one (H.use) puts a short line in the chat window, and phones get the same button', () => {
+  resetIslanders();
+  const chat = islanderLines();
+  const game = start();
+  H.tick(2);
+  stand(game, 'rolo');
+  const spoken: any[] = [];
+  game.on('islander', (d: any) => spoken.push(d));
+  const offers = H.use.offers(game.player);
+  assert.ok(offers.some((o: any) => o.name === 'island:talk' && /Talk to Rolo/.test(o.label)), 'Talk to Rolo is on offer');
+  assert.equal(offers[0].name, 'island:talk', 'it is the best offer near him');
+  const before = chat.length;
+  H.use.act();
+  assert.ok(chat.length > before, 'a line in the chat window');
+  const m = chat[chat.length - 1];
+  assert.equal(m.kind, 'npc');
+  assert.equal(m.who, 'Rolo');
+  assert.ok(m.text.length > 5 && m.text.length < 200, 'short');
+  // Never the same line twice in a row, however often you ask.
+  const texts = [m.text];
+  for (let i = 0; i < 8; i++) { H.use.act(); texts.push(chat[chat.length - 1].text); }
+  for (let i = 1; i < texts.length; i++) assert.notEqual(texts[i], texts[i - 1]);
+  assert.ok(spoken.length >= 1);
+  assert.deepEqual(clean(), []);
+});
+
+test('sandbox islanders: what the player did changes what at least four of them say, and nobody names what the mirror made them', () => {
+  resetIslanders();
+  const chat = islanderLines();
+  const game = start();
+  H.tick(2);
+  H.presence.look = { ...(H.presence.look || {}), name: 'Plink', what: 'shoe' };
+  mirrorDone(game);
+  assert.ok(!game.mirror.pending, 'the mirror is done: they greet only after it');
+  const said = (id: string) => { stand(game, id); const n = chat.length; H.use.act(); return chat.slice(n).map((c: any) => c.text).join(' | '); };
+  const topic = (id: string) => g.window.__islanderLog.filter((l: any) => l.id === id).map((l: any) => l.topic);
+  // Before doing anything: hellos (they come by themselves when you walk up) and ordinary lines.
+  for (const id of CAST_IDS) { stand(game, id); }
+  for (const id of CAST_IDS) assert.equal(topic(id)[0], 'hello', `${id} greets`);
+  // The deeds: a fish, a blast, a flight.
+  game.emit('catch', { fish: 'tuna', mine: true });
+  game.emit('explosion', { at: [50, 1, -18] });
+  game.emit('sandbox-high', { height: 300, mine: true });
+  H.tick(0.5);
+  const after: Record<string, string> = {};
+  for (const id of CAST_IDS) after[id] = said(id);
+  const reacted = CAST_IDS.filter((id) => !topic(id).slice(-1).includes('base') && topic(id).slice(-1)[0] !== 'hello');
+  assert.ok(reacted.length >= 4, `at least four react to a deed (${reacted.join(', ')}): ${JSON.stringify(topic('bobbin'))}`);
+  assert.match(after.bobbin, /cast/i, 'Bobbin rates the cast');
+  assert.match(after.channel, /BOOM|Sources/, 'Channel reports the blast');
+  assert.match(after.dolores, /helicopter/i, 'Dolores watched the climb');
+  assert.match(after.rolo + ' ' + after.ember, /./);
+  // The name they chose is used; what the mirror made them is never mentioned, by anyone, in any line.
+  const all = CAST_IDS.flatMap((id) => g.window.__islanders.CAST[id] ? [id] : []);
+  assert.equal(all.length, 5);
+  for (const id of CAST_IDS) for (let i = 0; i < 12; i++) said(id);
+  const lines: string[] = g.window.__islanderLog.map((l: any) => l.text);
+  assert.ok(lines.some((t) => t.includes('Plink')), 'the name they chose is used');
+  for (const t of lines) assert.ok(!BODY_WORDS.test(t.replace(/Rolo|Channel/g, '')), `no remark on a body: ${t}`);
+  // A different player body changes nothing in how they talk to them.
+  assert.deepEqual(clean(), []);
+});
+
+test('sandbox islanders: an earlier visit is remembered (H.memory), the ordinary lines carry no work talk, and they stay clear of the tour', () => {
+  resetIslanders();
+  const chat = islanderLines();
+  const game = start();
+  H.tick(2);
+  const mem = H.memory.get();
+  const old = H.memory.get;
+  H.memory.get = () => ({ ...mem, visits: 3, name: null, n: { ...mem.n, fish: 4, boom: 3 } });
+  try {
+    stand(game, 'bobbin'); H.use.act(); // hello was said on arrival; this is the first real line
+    const topics = () => g.window.__islanderLog.filter((l: any) => l.id === 'bobbin').map((l: any) => l.topic);
+    for (let i = 0; i < 4; i++) H.use.act();
+    assert.ok(topics().includes('fish3') || topics().includes('back'), `Bobbin remembers earlier visits: ${topics()}`);
+    const t = g.window.__islanderLog.find((l: any) => l.id === 'bobbin' && l.topic === 'fish3');
+    if (t) assert.match(t.text, /Fish number 4/);
+  } finally { H.memory.get = old; }
+  // The story's rules: no office or game talk in anyone's mouth.
+  const src = fs.readFileSync(path.join(ROOT, 'src', 'overseer-games', 'islanders.js'), 'utf8');
+  assert.ok(!/\b(quest|level|achievement|unlock|credits?|price|meeting|deadline|boss|office|salary|invoice|customer|subscribe)\b/i.test(src.split('const CAST')[1].split('const ids')[0]), 'no work, game or business words in the lines');
+  // The tracker and the Stuck? button are not touched: the islanders add no screen element of their own.
+  assert.ok(!src.includes('game.ui.'), 'no HUD of their own (phones keep the tracker and buttons clear)');
+  assert.deepEqual(clean(), []);
+});
