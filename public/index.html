@@ -5,13 +5,33 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Hawkes Gen — Say what should exist</title>
   <meta name="description" content="Create browser games collaboratively in real-time with your friends and an AI assistant. No downloads, no setup. Start building in seconds.">
-  <link rel="icon" href="/favicon.svg">
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" href="/brand/favicon-16.png" type="image/png" sizes="16x16">
+  <link rel="icon" href="/brand/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0a0e1a">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Hawkes Gen">
+  <meta property="og:title" content="Hawkes Gen — Say what should exist">
+  <meta property="og:description" content="Say what should exist. The Overseer makes it, and you play it in the browser.">
+  <meta property="og:url" content="https://hawkesgen.com/">
+  <meta property="og:image" content="https://hawkesgen.com/brand/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="The Overseer, a glowing sphere, in its starry sky">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Hawkes Gen — Say what should exist">
+  <meta name="twitter:description" content="Say what should exist. The Overseer makes it, and you play it in the browser.">
+  <meta name="twitter:image" content="https://hawkesgen.com/brand/og.png">
   <link rel="stylesheet" href="/public.css">
   <link rel="stylesheet" href="/site.css">
   <link rel="stylesheet" href="/overseer-sky.css">
   <script>document.documentElement.classList.add("js")</script>
   <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
   <script src="/site-analytics.js"></script>
+  <script>if("serviceWorker"in navigator&&!navigator.webdriver)addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))</script>
   <script src="/sitenav.js" defer></script>
   <script>/* Studio's playtest (public/playtest/portal.js): only a browser under automation loads it */
   try { if (navigator.webdriver || /[?&]playtest=/.test(location.search) || sessionStorage.getItem('hg_playtest_run')) import('/playtest/portal.js').catch(function () {}); } catch (e) {}</script>
