@@ -289,11 +289,11 @@
 
   // ------------------------------------------------------------------ sign up (the landing page's account: email or Google)
   const WHY = {
-    save: ['Save this world', 'Make a free account and this island, as you left it, becomes your first game. Then change anything in it.'],
-    build: ['Build your own', 'Make a free account and you are in the editor with this island: move things, add things, make it a game.'],
+    save: ['Save this world', 'Sign in (or make a free account) and this island, as you left it, becomes your game. Then change anything in it.'],
+    build: ['Build your own', 'Sign in (or make a free account) and you are in the editor with this island: move things, add things, make it a game.'],
     assistant: ['Ask the Overseer', 'Describe anything ("a volcano", "a race around the island") and the Overseer builds it. It needs an account; your island comes with you.'],
     invite: ['Invite a friend', 'Playing and building together needs an account. Your island becomes your game, and you get a link to send.'],
-    tour: ['One more thing', 'Make an account so I know you when you come back. Your island, your look and your name come with you, and I can make anything you ask for: it uses your credits, and you start with free ones.'],
+    tour: ['One more thing', 'Sign in so I know you when you come back (new here? An account is free). Your island, your look and your name come with you, and I can make anything you ask for: it uses your credits, and new accounts start with free ones.'],
   };
   /** The name they gave at the mirror (or none). */
   function lookName(H) { try { const n = H && H.presence && H.presence.look && H.presence.look.name; return n ? String(n).slice(0, 40) : ''; } catch { return ''; } }
@@ -303,7 +303,8 @@
     const forced = Boolean(o.forced);
     track('signup_open', { from: 'sandbox', intent, forced });
     try { if (document.pointerLockElement) document.exitPointerLock(); } catch { /* fine */ }
-    let mode = 'signup';
+    // Sign-in first (J, 2026-10-24): Google signs in and signs up the same way; "Create an account" is one tap away.
+    let mode = 'login';
     const veil = el(`<div class="gs-glass gs-sheet" role="dialog" aria-modal="true" aria-labelledby="gsTitle">
       <h3 id="gsTitle">${esc(title)}</h3><p>${esc(why)}</p>
       <a class="google" id="gsGoogle" hidden href="/auth/google?next=${encodeURIComponent('/play/sandbox?claim=' + intent)}"><svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg><span>Continue with Google</span></a>
@@ -335,7 +336,7 @@
       $('gsErr').hidden = true;
       $('gsNote').hidden = true;
     };
-    setMode('signup');
+    setMode('login');
     if (o.name) $('gsName').value = o.name;
     const note = (text) => { $('gsNote').textContent = text; $('gsNote').hidden = false; $('gsErr').hidden = true; };
     const fail = (text) => { $('gsErr').textContent = text; $('gsErr').hidden = false; $('gsNote').hidden = true; };
@@ -386,7 +387,7 @@
           $('gsPw').focus();
           return;
         }
-        if (mode === 'login' && x.status === 401) { fail("That email and password don't match. Try again, or set a new password."); $('gsForgotRow').hidden = false; return; }
+        if (mode === 'login' && x.status === 401) { fail("That email and password don't match an account. Try again, set a new password, or create an account if you're new."); $('gsForgotRow').hidden = false; return; }
         fail(x.message);
       }
     });
