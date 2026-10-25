@@ -160,7 +160,7 @@
     }
     return d;
   };
-  const me = () => fetch('/v1/users/me', { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null)).then((d) => (d && d.user) || null).catch(() => null);
+  const me = () => fetch('/v1/users/me?soft=1', { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null)).then((d) => (d && d.user) || null).catch(() => null);
 
   const isTouch = () => { try { return Boolean(window.HawkesPlay && window.HawkesPlay.touchUi); } catch { return false; } };
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
