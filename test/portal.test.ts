@@ -104,8 +104,13 @@ test('sign up, sign in, keys, sign out', async () => {
   assert.match(c.user.project, new RegExp(`^${PROJECT_PREFIX}[0-9a-f]{16}$`));
   assert.equal(c.user.credits, 50);
   assert.equal((await call('/v1/users/me', { key: c.key })).body.user.id, c.user.id);
-  assert.equal((await call('/v1/users/signup', { body: { email: 'c1@example.com', password: 'password123' } })).status, 409);
-  assert.equal((await call('/v1/users/signup', { body: { email: 'x@example.com', password: 'short' } })).status, 400);
+  const dup = await call('/v1/users/signup', { body: { email: 'c1@example.com', password: 'password123' } });
+  assert.equal(dup.status, 409);
+  assert.equal(dup.body.code, 'email_exists', 'the sheet moves to sign-in on this code');
+  const short = await call('/v1/users/signup', { body: { email: 'x@example.com', password: 'short' } });
+  assert.equal(short.status, 400);
+  assert.equal(short.body.code, 'short_password');
+  assert.equal((await call('/v1/users/signup', { body: { email: 'not-an-email', password: 'password123' } })).body.code, 'bad_email');
   assert.equal((await call('/v1/users/login', { body: { email: c.user.email, password: 'wrong-password' } })).status, 401);
   const login = await call('/v1/users/login', { body: { email: c.user.email, password: 'password123' } });
   assert.equal(login.status, 200);
@@ -317,6 +322,16 @@ test('welcome email: SigV4 matches the AWS test suite; the email names the credi
   assert.match(g.text, /Thanks <b>a lot<\/b>/);
   assert.ok(g.html.includes('Thanks &lt;b&gt;a lot&lt;/b&gt;'), 'the message is escaped in html');
   assert.deepEqual(await sendEmail('x@example.com', 's', 't', 'h'), { skipped: true }, 'off without PORTAL_MAIL=ses');
+});
+
+test('sign-up with only an email and a password: the name comes from the email or the one sent; cookies are kept', async () => {
+  const bare = await call('/v1/users/signup', { body: { email: `quick${++n}@example.com`, password: 'password123' }, headers: { 'X-Forwarded-For': `10.0.2.${n}`, Cookie: 'hg_src=tiktok' } });
+  assert.equal(bare.status, 200);
+  assert.equal(bare.body.user.name, `quick${n}`);
+  const named = await call('/v1/users/signup', { body: { email: `quick${++n}@example.com`, password: 'password123', name: 'Toaster' }, headers: { 'X-Forwarded-For': `10.0.2.${n}` } });
+  assert.equal(named.body.user.name, 'Toaster');
+  const { db } = await import('../src/db.ts');
+  assert.equal((db.prepare('SELECT source FROM users WHERE id = ?').get(bare.body.user.id) as { source: string }).source, 'tiktok');
 });
 
 test('referrals: a friend with the link gets a bonus; their first purchase pays the inviter once', async () => {
