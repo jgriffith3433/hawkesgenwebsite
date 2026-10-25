@@ -39,12 +39,31 @@ function card({ title, sub, by, plays, cover, emoji, play, remix, playing = 0, b
   return el;
 }
 
+const HUES = [205, 160, 285, 30, 340];
+
+/** A featured game as a planet: its cover (or its emoji on a world of its own colour) cropped round, with an atmosphere. */
 function renderFeatured(list) {
   const grid = document.getElementById('featuredGrid');
   grid.innerHTML = '';
-  document.getElementById('featuredHead').hidden = !list.length;
-  for (const t of list) grid.appendChild(card({ title: t.name, sub: t.blurb, by: 'the Overseer', emoji: t.emoji, playing: t.playing, building: t.building, play: () => enterGame(t.url), remix: () => remixIt({ template: t.id, title: t.name }) }));
-  for (const c of grid.querySelectorAll('.game-card')) c.classList.add('overseer-card');
+  grid.hidden = !list.length;
+  list.forEach((t, i) => {
+    const el = document.createElement('div');
+    el.className = 'planet-wrap';
+    el.style.setProperty('--i', i);
+    el.style.setProperty('--hue', HUES[i % HUES.length]);
+    const live = (t.playing ? `${t.playing} playing` : '') + (t.playing && t.building ? ' · ' : '') + (t.building ? `${t.building} building` : '');
+    el.innerHTML = `
+      <div class="orbit"><button type="button" class="planet" data-a="play" aria-label="Play ${escapeHtml(t.name)}">${t.cover ? `<img src="${escapeHtml(t.cover)}" alt="">` : `<span class="glyph">${escapeHtml(t.emoji || (t.name[0] || '?').toUpperCase())}</span>`}<i class="rim"></i></button></div>
+      <div class="planet-name">${escapeHtml(t.name)}</div>
+      <div class="planet-live">${live ? `<span class="live-now"><i></i>${live}</span>` : '<span class="planet-by">by the Overseer</span>'}</div>
+      <div class="planet-blurb">${escapeHtml((t.blurb || '').slice(0, 90))}${(t.blurb || '').length > 90 ? '…' : ''}</div>
+      <div class="actions"><button type="button" class="btn btn-play btn-sm" data-a="play">Play</button><button type="button" class="btn btn-ghostlight btn-sm" data-a="remix" title="Make your own copy to change">Remix</button></div>`;
+    for (const b of el.querySelectorAll('[data-a="play"]')) b.onclick = () => enterGame(t.url);
+    el.querySelector('[data-a="remix"]').onclick = () => remixIt({ template: t.id, title: t.name });
+    grid.appendChild(el);
+  });
+  const playing = list.reduce((n, t) => n + (t.playing || 0), 0) + games.reduce((n, g) => n + (g.playing || 0), 0);
+  document.getElementById('liveCount').textContent = playing ? `${playing} ${playing === 1 ? 'person is' : 'people are'} playing right now.` : '';
 }
 
 function render() {
