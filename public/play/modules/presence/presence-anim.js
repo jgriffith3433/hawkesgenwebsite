@@ -357,6 +357,7 @@
     return b;
   }
   /** A body that keeps its own gait (the fish's swim, the roll-bot's roll: a row's `keepGait`) takes the set only for standing, emotes and a hurt. */
+  const SWIM_STILL = 0.35; // m/s: slower than this in the water is treading water
   const OWN_GAIT = new Set(['walk', 'run', 'jump_start', 'jump', 'land', 'fall', 'swim', 'drive', 'knock_down', 'get_up']);
   const keepsGait = (ent, clipName) => Boolean(ent && ent.keepGait && OWN_GAIT.has(clipName));
   const hasClip = (A, name) => Boolean(A.player && A.player.clip(name));
@@ -416,6 +417,7 @@
     let name = roleClip(set, role, ctx.glb);
     if (name === 'walk' && set.clips.trot && ctx.speed > TROT_AT) name = 'trot'; // (a quicker diagonal gait between the walk and the run)
     if (name === 'idle' && A.sniff) name = 'idle_sniff';
+    if (name === 'swim' && set.clips.swim_idle && ctx.speed < SWIM_STILL) name = 'swim_idle'; // (treading water when it is not going anywhere)
     if (name) {
       const walkish = name === 'walk' || name === 'trot' || name === 'run';
       loop = { name, rate: walkish ? clamp(ctx.speed / (ctx.stride[name] || (name === 'trot' ? STRIDE_TROT : ctx.stride.walk)), 0.4, 2.5) : 1 };
