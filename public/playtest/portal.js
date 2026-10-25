@@ -25,7 +25,7 @@ import { SITE_LAYOUT, runSiteLayout } from './site-layout.js';
 const KEY = 'hg_playtest_run';
 const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'progress', 'models'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
+const ORDERS = { 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
 const SCENARIOS = [
   SITE_LAYOUT, // the landing page at three sizes (site-layout.js)
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
@@ -118,6 +118,11 @@ const SCENARIOS = [
     id: 'faces-and-emotes', title: 'Faces and emotes: the character blinks, looks at the Overseer when it speaks, changes expression on a hard landing and an explosion; the six emotes from the radial wheel (desktop or touch), seen by another player', seconds: 240, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first-minutes path to the island (a throwaway sign-up, never on live), then: blinks counted over a few seconds; the Overseer asked to say a line (named setup shortcut) and the gaze checked; a drop from height (named setup shortcut: the player lifted, the fall and landing are the game\'s) and a blast beside the player (named setup shortcut) with the face read each time; then the emote wheel opened from its button and the six emotes (wave, laugh, cheer, shrug, dance, point) clicked, each checked on the player and on a stand-in second player (presence.standIn; the remote emote handed to the same handler a real peer\'s message uses). options as sandbox-first-minutes, plus touch (true: ?touch=1, taps as touch pointers)',
+  },
+  {
+    id: 'gen-hats', title: 'The Gen hats: each hat in the mirror is a Gen model on the head of the person, a dog and a shoe, moving with the head, recoloured by the colour pick, within the triangle budget', seconds: 300, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the island (a throwaway sign-up, never on live), then for each hat with a model in the registry (HawkesPlay.presence.hatRegistry) on each of person, dog and shoe (the look changed through presence.setLook, as the mirror does): the Gen model is worn (not the procedural hat), parented to the head anchor, at most 1.8k triangles; a real walk and jump with the hat staying on the head; the colour pick (accent) changing the colour of a tinted hat. A hat with no model yet is logged as procedural.',
   },
   {
     id: 'gen-models-pilot', title: 'The pilot Gen models: person, dog and shoe as the character, at real height, walking, running, jumping and emoting, each in a top hat and a cap', seconds: 330, tags: ['full'],
@@ -1565,6 +1570,51 @@ async function stageTouch(t, ctx) {
   void final;
 }
 
+async function stageHats(t, ctx) {
+  const P = () => HP().presence;
+  releaseAll();
+  await t.until(() => W() && W().player && W().player.alive && P() && P().hats, 60000, 'the player\'s body');
+  if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
+  const rigOf = () => P()._internal.rigs.get(W().player);
+  const all = P().core.LOOK.hats.filter((h) => h !== 'none'), made = Object.keys(P().hatRegistry || {});
+  for (const hat of all) if (!made.includes(hat)) t.event('hat-procedural', `${hat}: no Gen model yet, the procedural hat stays`);
+  for (const id of ['person', 'dog', 'shoe']) {
+    for (const hat of made) {
+      t.event('setup-shortcut', `the look changed to ${id} with a ${hat} (presence.setLook, as the mirror's answer does)`);
+      P().setLook({ what: id, hat, accent: '#ffffff' });
+      await t.until(() => { const r = rigOf(); return r && r.pm && r.pm.state !== 'loading'; }, 30000, `the ${id} model to load`);
+      await P().models.ready(rigOf());
+      await P().hats.ready(rigOf());
+      await t.wait(400);
+      const rig = rigOf(), st = P().hats.stats(rig);
+      if (!st) { t.problem('error', `${hat} on ${id}: the Gen hat is not worn (the procedural hat shows)`); continue; }
+      if (st.tris > 1800) t.problem('error', `${hat}: ${st.tris} triangles is over the hat budget`);
+      if (rig.hatModel.holder.parent !== rig.neck) t.problem('error', `${hat} on ${id}: not parented to the head anchor`);
+      t.event('hat-on', `${hat} on ${id}: Gen model, ${st.tris} triangles, on the head anchor`);
+      t.scene(`Hat: ${hat} on ${id}`);
+      if (id !== 'person' && hat !== made[0]) continue;
+      // real keys: walk and jump, the hat staying on the head
+      const y0 = () => { rig.hatModel.holder.computeWorldMatrix(true); rig.neck.computeWorldMatrix(true); return rig.hatModel.holder.getAbsolutePosition().subtract(rig.neck.getAbsolutePosition()).length(); };
+      const d0 = y0();
+      setKeys({ w: true }); await t.wait(1500); await tap(t, ' ', 120); await t.wait(300); const d1 = y0(); setKeys({}); await t.wait(900);
+      if (Math.abs(d1 - d0) > 0.02) t.problem('error', `${hat} on ${id}: slid off the head (${d0.toFixed(3)} then ${d1.toFixed(3)})`);
+      t.event('hat-follows', `${hat} on ${id}: walked and jumped, the hat stayed on the head`);
+    }
+  }
+  // the colour pick: a tinted hat changes colour
+  for (const hat of made) {
+    P().setLook({ what: 'person', hat, accent: '#ffffff' }); await t.wait(500);
+    let rig = rigOf(); const c0 = rig.hatModel && rig.hatModel.mats[0] && (rig.hatModel.mats[0].albedoColor || rig.hatModel.mats[0].diffuseColor).toHexString();
+    P().setLook({ what: 'person', hat, accent: '#e11d48' }); await t.wait(500);
+    rig = rigOf(); const m = rig.hatModel && rig.hatModel.mats[0], c1 = m && (m.albedoColor || m.diffuseColor).toHexString();
+    const tinted = !!(rig.hatModel && rig.hatModel.tinted);
+    t.event('hat-color', `${hat}: ${c0} then ${c1}${tinted ? ' (tinted by the pick)' : ' (its own colours)'}`);
+    t.scene(`Hat colour: ${hat}`);
+    if (tinted && c0 === c1) t.problem('error', `${hat}: the colour pick did not change the hat`);
+  }
+  t.progress(1);
+}
+
 async function stageModels(t, ctx) {
   const P = () => HP().presence;
   releaseAll();
@@ -1763,6 +1813,7 @@ async function stageBlast(t, ctx) {
 
 const RUN = {
   models: stageModels,
+  hats: stageHats,
   landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
 };
 // Island invitations (island-invite): after the sheet, the inviter's stage, then the friend's page on a closed island.
@@ -1778,7 +1829,7 @@ RUN.moment = stageMoment;
 /** The stages a page that follows a leg change carries on with (the first-minutes ones are already done). */
 const legSeq = (id, prior) => (id === 'island-invite' && prior && (prior.leg === 'gone' || prior.leg === 'own') ? [prior.leg] : null);
 
-const ENDS = { 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models' };
+const ENDS = { 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-hats': 'hats' };
 
 
 // ---------------------------------------------------------------------------------------------- share-moment
