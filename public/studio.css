@@ -312,3 +312,15 @@ body.role-builder #advancedBtn { display: none; }
 .st-word-item:hover .st-word-acts, .st-word-item:focus-within .st-word-acts { display: flex; }
 .st-word-acts button { font: 600 10px var(--sans); padding: 3px 4px; border-radius: 6px; border: 1px solid rgba(255,255,255,.3); background: rgba(10,14,24,.78); color: #fff; cursor: pointer; }
 @media (hover: none) { .st-word-acts { display: flex; } }
+
+/* The card for a generation a game asked for: priced, with Make it / Not now. */
+.st-gencard { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 60; width: min(360px, calc(100vw - 32px)); padding: 16px 18px; border-radius: 12px; background: rgba(14,16,22,.94); border: 1px solid rgba(140,200,255,.45); box-shadow: 0 10px 40px rgba(0,0,0,.6); color: #f1f2f4; display: grid; gap: 8px; }
+.st-gencard[hidden] { display: none; }
+.st-gencard-kind { font: 700 11px var(--display); letter-spacing: .2em; text-transform: uppercase; color: #7cc8ff; }
+.st-gencard-what { font: 600 16px var(--hud); overflow-wrap: anywhere; max-height: 7em; overflow: auto; }
+.st-gencard-cost { font: 500 13px var(--hud); color: rgba(220,235,255,.8); }
+.st-gencard-cost b { color: #f2b33d; font-weight: 700; }
+.st-gencard-btns { display: flex; gap: 8px; margin-top: 4px; }
+.st-gencard-btns button { flex: 1; min-height: 44px; border-radius: 8px; border: 1px solid rgba(140,200,255,.4); background: transparent; color: #fff; font: 700 14px var(--hud); cursor: pointer; }
+.st-gencard-btns button#genCardYes { background: #f2b33d; color: #14161b; border-color: #f2b33d; }
+.st-gencard-btns button:disabled { opacity: .5; }

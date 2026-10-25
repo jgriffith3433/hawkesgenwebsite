@@ -75,6 +75,20 @@ function limitInvites(ip: string) {
   inviteMade.set(ip, recent);
 }
 
+const genMade = new Map<string, number[]>();
+/** Generations an account may start from a game: 10 a minute and 40 an hour. A second guard: the editor asks the person
+ *  first (docs/engine-modules.md, "What a game may ask the editor"), but a script can post to the route itself. */
+function limitGenerations(userId: string) {
+  const now = Date.now();
+  const recent = (genMade.get(userId) ?? []).filter((t) => now - t < 3600_000);
+  if (recent.length >= 40 || recent.filter((t) => now - t < 60_000).length >= 10) {
+    genMade.set(userId, recent);
+    throw new PortalError('That is a lot of things to make at once; give it a minute and try again.', { status: 429 });
+  }
+  recent.push(now);
+  genMade.set(userId, recent);
+}
+
 /** Gen's answer straight to the customer: status, the headers that matter, the body as it streams. */
 /** Streams Gen's answer to the browser. A body that errors late (its timeout fires after a player's <audio> stopped
  *  reading a long track, or after they left) must never become an unhandled 'error' event: that ends the server. */
@@ -512,6 +526,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       if (sub === 'generate' && method === 'GET') return send(res, 200, pendingGens(user, gid));
       if (sub === 'generate' && method === 'POST') {
         const b = await readJson(req);
+        limitGenerations(user.id);
         const g = await generateAsset(user, gid, b);
         if (b.messageId && Number.isInteger(b.suggestion)) markSuggestion(String(b.messageId), b.suggestion, g.task_id);
         return send(res, 200, g);

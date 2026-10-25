@@ -16,6 +16,7 @@
   const RAD = Math.PI / 180;
   const toParent = (m) => H.post(m);
   const W = () => H.world;
+  let makeBtn = null; // the card's "Make it with AI" button waiting for the editor's card to be answered
   const G = () => H.game;
   const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -701,8 +702,8 @@
       refresh();
     };
     const make = q('cMake');
-    if (make) make.onclick = () => { toParent({ type: 'generate', kind: 'model', name: e._waiting, prompt: e.name || e._waiting.replace(/\.[a-z]+$/, '') }); make.disabled = true; make.textContent = 'Asked… (check the chat)'; };
-    q('cAsk').onsubmit = (ev) => { ev.preventDefault(); const v = q('cAskIn').value.trim(); if (!v) return; toParent({ type: 'ask', text: v, mention: { id: e.sceneId, name: e.name || e.sceneId }, context: context() }); q('cAskIn').value = ''; q('cAskIn').placeholder = 'Sent. The Overseer is on it…'; };
+    if (make) make.onclick = () => { toParent({ type: 'generate', kind: 'model', name: e._waiting, prompt: e.name || e._waiting.replace(/\.[a-z]+$/, '') }); make.disabled = true; make.textContent = 'Say yes on the card…'; makeBtn = make; };
+    q('cAsk').onsubmit = (ev) => { ev.preventDefault(); const v = q('cAskIn').value.trim(); if (!v) return; toParent({ type: 'ask', text: v, mention: { id: e.sceneId, name: e.name || e.sceneId }, context: context() }); q('cAskIn').value = ''; q('cAskIn').placeholder = 'In the chat: press Enter to send it'; };
     q('cCopy').onclick = () => copyThing(W().byId.get(e.sceneId) || e);
     q('cChat').onclick = () => { toParent({ type: 'focus-chat', mention: { id: e.sceneId, name: e.name || e.sceneId } }); };
     q('cDel').onclick = () => removeThing(W().byId.get(e.sceneId) || e);
@@ -1089,6 +1090,14 @@
         const ops = pending.get(m.seq);
         pending.delete(m.seq);
         if (m.errors && m.errors.length) { toast(m.errors[0]); refused(m.seq); if (ops) toParent({ type: 'resync' }); }
+        return;
+      }
+      // The editor's card for a generation was answered: Make it started it, Not now lets the button come back.
+      case 'generate-closed': {
+        const b = makeBtn;
+        makeBtn = null;
+        if (!b) return;
+        if (m.made) b.textContent = 'Making… (check the chat)'; else { b.disabled = false; b.textContent = `Make “${m.name || ''}” with AI`; }
         return;
       }
       case 'context?': return toParent({ type: 'context', id: m.id, context: context() });
