@@ -951,6 +951,14 @@
         const b = await bundle;
         let base = null;
         try { base = JSON.parse(b.files['scene.json']); } catch { /* the template is ours: never */ }
+        // Back from a featured game (the Observatory's travel board): no intro and no mirror again, the Observatory beams them in.
+        if (q.get('return') === 'observatory' && base) {
+          try {
+            base.config = { ...(base.config || {}), overseer: { ...((base.config || {}).overseer || {}), intro: false } };
+            if (base.entities && base.entities.mirror) base.entities.mirror = { ...base.entities.mirror, shape: { ...(base.entities.mirror.shape || {}), character: { ...((base.entities.mirror.shape || {}).character || {}), start: false } } };
+            b.files['scene.json'] = JSON.stringify(base);
+          } catch { /* the usual start */ }
+        }
         window.HawkesPlay.run(b, { mode: 'play' });
         track('sandbox_world_built', {});
         requestAnimationFrame(() => requestAnimationFrame(() => track('sandbox_first_frame', {})));

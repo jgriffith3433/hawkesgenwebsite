@@ -106,3 +106,15 @@ s.set({ captions: false, voice: 0.6, music: 0.3 });             // the player's 
 s.replay();                                                      // the last line again
 s.current; s.waiting; s.busy; s.log;                             // what is said, what waits, what was said
 ```
+
+### The travel board (inside the Observatory)
+
+```js
+const ob = H.overseer.observatory;
+ob.board;                  // [{ id, name, line, count, at }]: the featured games as planets (count: players there now, null until known)
+ob.travel('platform-run'); // what E under a planet does: the Overseer speaks, fade, then navigate to /play/t/<id>?from=observatory&look=...
+ob.beamIn();               // back from a game (?return=observatory does it on load): at the board, with a line
+ob.traveling;              // { game, phase, href } while a trip lasts
+game.on('observatory', ({ state }) => {}); // + 'travel', 'beam-down', 'return', 'travel-failed'
+```
+A featured game page opened with `?from=observatory` has a corner button and a pause menu (Esc twice) with "Return to the Observatory".
