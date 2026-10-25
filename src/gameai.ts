@@ -7,7 +7,7 @@ import path from 'node:path';
 import { db } from './db.ts';
 import { env, ROOT } from './config.ts';
 import { gen } from './gen.ts';
-import { submit, settle } from './jobs.ts';
+import { submit, settle, quote } from './jobs.ts';
 import { startTask, events, getTask, results, progressOf, type Step, type Task } from './tasks.ts';
 import { getUser, type User } from './users.ts';
 import { PortalError } from './util.ts';
@@ -305,6 +305,19 @@ function whyNot(job: { status: string; error?: string | null }) {
   if (/overload|rate|busy|capacity|429|529/.test(err)) return `The AI is very busy right now.${after} Try again in a minute.`;
   if (/json|schema|parse/.test(err)) return `My answer came back garbled, so I didn't use it.${after} Try again; rewording can help.`;
   return `I couldn't finish that.${after} Try again, or say it a different way.`;
+}
+
+/** What a message to the Overseer costs now, before anyone presses send: Gen's quote for the call, never under AI_CREDITS.
+ *  Asks nothing of Gen's GPUs and charges nothing. */
+export async function askQuote(user: User, gameId: string) {
+  memberGame(user, gameId);
+  let credits = AI_CREDITS();
+  try {
+    const q = await quote(user, { tool: 'llm.json', params: { prompt: 'a lighthouse', system: SYSTEM(), schema: SCHEMA, effort: 'medium', maxTokens: 32000 } });
+    if (Number.isFinite(q.credits)) credits = Math.max(credits, Math.ceil(q.credits));
+  } catch { /* Gen can't say: the floor is what a message costs at least */ }
+  const balance = getUser(user.id)!.credits;
+  return { credits, balance, canAfford: balance >= credits };
 }
 
 /** A message to the assistant: answered in the background; the reply and its file changes reach every editor live. */

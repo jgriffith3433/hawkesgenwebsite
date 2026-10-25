@@ -740,16 +740,57 @@
     if (H.chat) H.chat.attach({ send: (t) => ask(id, t), placeholder: isTouch() ? 'Talk to the Overseer…' : 'Press Enter to talk to the Overseer' });
     autosave();
     signedInButtons();
-    const n = Number(user.credits) || 0;
     ret.patch({ user: user.id });
+    // The real numbers: the balance now (the sign-up may have given some) and what a message to the Overseer costs (Gen's quote).
+    const fresh1 = (await me()) || user;
+    const n = Number(fresh1.credits) || 0;
+    session.credits = n;
+    const price = await askPrice(id);
     const name = (H.presence && H.presence.look && H.presence.look.name) || (ret.get() || {}).name || user.name || '';
     const hi = name ? `Welcome, ${name}.` : 'Welcome.';
     const say = (text, action) => H.chat && H.chat.line({ kind: 'overseer', text, action, keep: 30 });
+    const emit = (ev, d) => { try { H.game.emit(ev, d); } catch { /* fine */ } };
     setTimeout(() => {
       if (!fresh) say(`${name ? `Welcome back, ${name}.` : 'Welcome back.'} Your island, as you left it${window.HawkesGuest.resumed && window.HawkesGuest.resumed !== 'done' ? ', and the tour where you stopped' : ''}. Press L to change how you look; talk to me here any time.`);
-      else if (n > 0) say(`${hi} This island is yours now, and I am here: talk to me in this chat${isTouch() ? ' (the 💬 button)' : ' (press Enter)'}. Ask for anything ("a castle on the hill") and I will beam it down. What I make uses your credits: you have ${n.toLocaleString()}.`);
-      else say(`${hi} This island is yours now, and I am here: talk to me in this chat. What I make uses credits, and you have none right now.`, { label: 'Get credits', href: '/app#credits' });
+      else if (n > 0) {
+        say(`${hi} This island is yours now. You have ${n.toLocaleString()} credits, and a message to me costs ${price}${n >= price ? `: that is ${Math.floor(n / price).toLocaleString()} ${Math.floor(n / price) === 1 ? 'ask' : 'asks'}` : ', so you are a little short'}. Nothing is spent until you send.`);
+        emit('credits-told', { credits: n, price });
+        if (n >= price) setTimeout(() => offerAsks(), 3500);
+      } else {
+        say(`${hi} This island is yours now. What I make uses credits, and you have none right now.`, { label: 'Get credits', href: '/app#credits' });
+        emit('credits-told', { credits: 0, price });
+      }
     }, 1200);
+    // The tour's ask step teaches the same three asks again, when it is reached (spawn done).
+    H.game.on('tour', (d) => { if (d && d.step === 'spawn') offerAsks(true); });
+  }
+  /** What a message to the Overseer costs now (Gen's quote through the portal; the portal's floor if it can't be had). */
+  async function askPrice(id) {
+    try { const q = await api('GET', `/v1/games/${id}/ai/quote`); session.price = Number(q.credits) || session.price || 8; if (q.balance != null) session.credits = Number(q.balance); }
+    catch { session.price = session.price || 8; }
+    return session.price;
+  }
+  /** Three things to ask for, each a line with its price and a Send: nothing is asked or charged until it is tapped. */
+  const EXAMPLE_ASKS = ['a lighthouse', 'a tune for the island', 'a hat for me'];
+  async function offerAsks(again) {
+    const H = session.H;
+    if (!island || !H.chat) return;
+    if (!again && session.offered) return;
+    session.offered = true;
+    const price = await askPrice(island.id);
+    if (session.credits < price) { outOfCredits(); return; }
+    H.chat.line({ kind: 'overseer', text: `Here is what I can do. Tap one to send it, or type your own. Each message costs ${price} credits; whatever I offer to make shows its own price before it runs.`, keep: 40 });
+    for (const t of EXAMPLE_ASKS) {
+      H.chat.line({ kind: 'sys', text: `“${t}” · ${price} credits`, keep: 60, action: { label: 'Send', onclick: (btn) => sendExample(t, btn) } });
+    }
+    try { H.game.emit('asks-offered', { asks: EXAMPLE_ASKS, price }); } catch { /* fine */ }
+    track('sandbox_asks_offered', { price, credits: session.credits });
+  }
+  async function sendExample(text, btn) {
+    const H = session.H;
+    if (btn) { btn.disabled = true; btn.textContent = 'Sent'; }
+    track('sandbox_ask_example', { text });
+    try { await ask(island.id, text); } catch (x) { if (btn) { btn.disabled = false; btn.textContent = 'Send'; } if (H.chat) H.chat.line({ kind: 'sys', text: x.message }); }
   }
   /** The game's feed (the editor's: /v1/games/:id/live): the Overseer's answers and offers, its work, new assets, files. */
   function feed(id, user) {
@@ -804,9 +845,12 @@
   /** A message to the Overseer, with what the player sees (the editor sends the same: build.js context()). */
   async function ask(id, text) {
     const H = session.H;
+    // Known to be out of credits: say so, with the Get credits link, and send nothing (no request that is bound to fail).
+    if (session.credits != null && session.price != null && session.credits < session.price) { outOfCredits(); return; }
     try {
       await api('POST', `/v1/games/${id}/ai`, { message: text, context: worldContext(H) || undefined });
       track('assistant_ask', { chars: text.length, where: 'sandbox' });
+      me().then((u) => { if (u) session.credits = Number(u.credits) || 0; });
       try { H.game.emit('asked', { chars: text.length }); } catch { /* fine */ }
     } catch (x) {
       if (x.status === 402) return outOfCredits(x.message);
@@ -1033,5 +1077,7 @@
         if (o.failed) o.failed(e);
       }
     },
-  };
+  };  // (Playtest only, a named setup shortcut: the game is told the balance, then offered the asks as an empty account would be.)
+  window.HawkesGuest.pretendCredits = (n) => { session.credits = Number(n) || 0; session.offered = false; return offerAsks(); };
+
 })();

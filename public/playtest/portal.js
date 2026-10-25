@@ -22,9 +22,9 @@
 import { installPlaytest } from './hawkes-playtest.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'leave', 'back', 'introc', 'arrivals', 'back2'];
+const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
+const ORDERS = { 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
 const SCENARIOS = [
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
   {
@@ -41,6 +41,11 @@ const SCENARIOS = [
     id: 'touch-controls', title: 'Every tour action with touch alone (stick, look drag, jump, B, steer, brake, fish, tools, spawn wheel, helicopter and rocket flight, Stuck?, hide the HUD): no overlaps, buttons 48 px or more, inside the safe area', seconds: 420, tags: ['full'],
     starts: ['sandbox'],
     description: 'opens /play/sandbox?touch=1 (the phone controls), plays the first minutes to the account sheet, then uses only pointer events of type touch on the stick, the buttons and the game; at every step H.touchLayout.audit() measures the real page and logs a touch-audit event (a failing audit is an error). Run it at 390x844 and again at 844x390: the browser\'s size is what is judged, the other orientation by the layout math. The helicopter and rocket are reached by named setup shortcuts. options as sandbox-first-minutes (the defaults here: at "sandbox", touch true)',
+  },
+  {
+    id: 'ask-the-overseer', title: 'After the sign-up: the Overseer says the real balance, offers three priced asks to tap, and an empty balance gets Get credits', seconds: 200, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path through the throwaway sign-up (never on live), then, in the chat with no reload: the Overseer\'s line carries the balance /v1/users/me reports; three example asks are offered, each with its price (the quote) and a Send; nothing is spent before a click; a real click sends one. The empty balance is a named setup shortcut (the game told the balance is 0): the Overseer says so with a Get credits link and no request is made. options as sandbox-first-minutes',
   },
   {
     id: 'island-journal', title: 'The journal: opened from its button (desktop, or the phone at 390x844), the eight quests, the neighbours met, four lore items found on the island and read in it, and kept after a return', seconds: 300, tags: ['full'],
@@ -272,6 +277,48 @@ async function stageSheet(t, ctx) {
   if ($('#gsEmail')) throw new Error(`the sign-up was refused: ${$('#gsErr').textContent.trim().slice(0, 160)}`);
   t.event('signup-ok', 'the account was made; the island carries on');
   t.progress(0.6);
+}
+
+async function stageAsks(t) {
+  const me = () => fetch('/v1/users/me', { credentials: 'same-origin' }).then((r) => r.json()).then((d) => d.user);
+  const lines = () => [...document.querySelectorAll('.hc-log p')];
+  const sends = () => lines().filter((p) => p.classList.contains('sys') && /credits/.test(p.textContent) && p.querySelector('.act'));
+  const before = await me();
+  t.scene('After sign-up: the Overseer\'s line');
+  const told = await t.until(() => lines().map((p) => p.textContent).find((x) => /you have [\d,]+ credits/.test(x)), 30000, 'the Overseer to tell the balance after the sign-up');
+  const said = Number(/you have ([\d,]+) credits/.exec(told)[1].replace(/,/g, ''));
+  if (said !== Number(before.credits)) t.problem('error', `the Overseer said ${said} credits but /v1/users/me says ${before.credits}`);
+  else t.event('balance-told', `the Overseer said ${said} credits; the account has ${before.credits}`);
+  t.progress(0.7);
+  await t.until(() => sends().length >= 3, 30000, 'the three example asks');
+  t.scene('Three asks to tap');
+  for (const p of sends()) t.event('ask-offered', p.textContent.replace(/\s+/g, ' ').trim());
+  if (!sends().every((p) => /\d+ credits/.test(p.textContent))) t.problem('error', 'an example ask has no price');
+  await t.wait(1500);
+  const idle = await me();
+  if (idle.credits !== before.credits) t.problem('error', `credits changed (${before.credits} > ${idle.credits}) before any ask was sent`);
+  else t.event('nothing-charged', 'no credits taken before a click');
+  // A real click on the first Send.
+  const first = sends()[0];
+  const label = first.textContent.replace(/\s+/g, ' ').trim();
+  first.querySelector('.act').click();
+  t.event('ask-tapped', label);
+  await t.until(() => lines().some((p) => /Sent|thinking/i.test(p.textContent)) || document.querySelector('.hc-status'), 15000, 'the tapped ask to go out').catch(() => {});
+  t.scene('An ask sent');
+  await t.wait(2500);
+  // The empty balance (named setup shortcut: the game is told the balance is 0).
+  t.event('setup-shortcut', 'the game told the balance is 0');
+  const calls = [];
+  const realFetch = window.fetch;
+  window.fetch = function (u, o) { if (/\/v1\/games\/[^/]+\/ai$/.test(String(u)) && o && o.method === 'POST') calls.push(String(u)); return realFetch.apply(this, arguments); };
+  window.HawkesGuest.pretendCredits(0);
+  const msg = await t.until(() => lines().find((p) => /gone quiet/.test(p.textContent) && p.querySelector('a.act[href*="credits"]')), 15000, 'the Overseer\'s out-of-credits line with Get credits');
+  t.scene('Out of credits');
+  t.event('get-credits-shown', msg.textContent.replace(/\s+/g, ' ').trim());
+  window.fetch = realFetch;
+  if (calls.length) t.problem('error', 'a request to the Overseer was made with an empty balance');
+  else t.event('no-failed-request', 'nothing was sent to the Overseer');
+  t.progress(1);
 }
 
 async function stageDrive(t, ctx) {
@@ -1309,9 +1356,9 @@ async function stageTouch(t, ctx) {
 }
 
 const RUN = {
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, race: stageRace, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, race: stageRace, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
 };
-const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'island-race': 'race', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2' };
+const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'island-race': 'race', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2' };
 
 // ---------------------------------------------------------------------------------------------- the contract
 let api = null;

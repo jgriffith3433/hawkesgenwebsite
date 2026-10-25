@@ -27,7 +27,7 @@ import { PLANS, subscription, choosePlan, setCancel, billingPortal } from './pla
 import * as games from './games.ts';
 import * as friends from './friends.ts';
 import { presenceRoute } from './presence.ts';
-import { askAssistant, generateAsset, pendingGens, markSuggestion, resumeGens, KINDS, AI_CREDITS } from './gameai.ts';
+import { askAssistant, askQuote, generateAsset, pendingGens, markSuggestion, resumeGens, KINDS, AI_CREDITS } from './gameai.ts';
 import { join as joinLive, setPresence } from './live.ts';
 import { templateBundle, featured } from './templates.ts';
 import { loaderScript, engineDoc, manifest } from './engine.ts';
@@ -473,6 +473,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       if (mem && method === 'DELETE') return send(res, 200, games.removeMember(user, gid, mem[1]));
       if (sub === 'chat' && method === 'GET') return send(res, 200, games.chatHistory(user, gid, Number(url.searchParams.get('limit')) || 80));
       if (sub === 'chat' && method === 'POST') return send(res, 200, games.postChat(user, gid, (await readJson(req)).text));
+      if (sub === 'ai/quote' && method === 'GET') return send(res, 200, await askQuote(user, gid));
       if (sub === 'ai' && method === 'POST') return send(res, 200, await askAssistant(user, gid, await readJson(req)));
       if (sub === 'generate' && method === 'GET') return send(res, 200, pendingGens(user, gid));
       if (sub === 'generate' && method === 'POST') {
