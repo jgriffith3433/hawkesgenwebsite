@@ -1,0 +1,116 @@
+// Hawkes Net for the games here (hawkesgen docs/net.md): the engine's rooms run on Hawkes Gen's relay nodes and peer to
+// peer, not in this process. This file hands out tickets for them (the game pages are sandboxed and hold no keys, so
+// they ask here and the portal asks Gen with its key), sends the world edits this server saves into the rooms, and says
+// whether an invitation's room is open.
+//
+// Room names (one Hawkes Net project, "hawkesgenwebsite"):
+//   g/<gameId>/edit          the game's members in the editor (a signed edit token from /bundle)
+//   g/<gameId>/p/<code>      people playing a game together (/play/<slug>?room=<code>; "live" is the public room)
+//   t/<template>/<code>      an Overseer game or the guest island played together (/play/t/<id>, island invitations)
+// A world edit is published to "g/<gameId>/*", so the editor and every play room of the game hear it.
+//
+// PORTAL_NET: "auto" (the default: Hawkes Net when Gen says a node is up, else the rooms in this process), "hawkesnet"
+// or "local". The rooms in this process (rooms.ts) stay for "local" and for pages already open on /v1/ws.
+import { env, genUrl } from './config.ts';
+import { genFetch, gen } from './gen.ts';
+import { verify } from './sign.ts';
+import { PortalError, Limiter } from './util.ts';
+import { getUser } from './users.ts';
+import { gameBySlug, getGame, memberGame } from './games.ts';
+import { templateBundle } from './templates.ts';
+
+export const NET_PROJECT = 'hawkesgenwebsite';
+const CODE = /^[a-z0-9]{4,16}$/;
+const ticketsByIp = new Limiter(40, 60_000);
+
+let state = { at: 0, up: false };
+/** Should the engine use Hawkes Net? (Gen's /v1/net/status, asked at most every 30 s.) */
+export async function netUp(): Promise<boolean> {
+  const mode = env('PORTAL_NET') ?? 'auto';
+  if (mode === 'local') return false;
+  if (mode === 'hawkesnet') return true;
+  if (Date.now() - state.at < 30_000) return state.up;
+  state.at = Date.now();
+  try {
+    const r = await genFetch('/v1/net/status', { signal: AbortSignal.timeout(4000) });
+    state.up = r.ok && Boolean((await r.json() as any)?.up);
+  } catch { state.up = false; }
+  return state.up;
+}
+/** The last answer, without asking (for code that can't wait). */
+export const netUpCached = () => (env('PORTAL_NET') === 'hawkesnet' ? true : env('PORTAL_NET') === 'local' ? false : state.up);
+
+/** The relay hosts a game page must be allowed to reach (its Content-Security-Policy): the node inside Gen, plus any
+ *  relay boxes named in PORTAL_NET_HOSTS (wss://net.hawkesgen.com,...). */
+export function netHosts(): string[] {
+  const g = new URL(genUrl());
+  const own = `${g.protocol === 'https:' ? 'wss' : 'ws'}://${g.host}`;
+  const extra = (env('PORTAL_NET_HOSTS') ?? '').split(',').map((h) => h.trim().replace(/\/+$/, '')).filter((h) => /^wss?:\/\/[a-z0-9.-]+(:\d+)?$/i.test(h));
+  return [...new Set([own, ...extra])];
+}
+
+const clean = (v: unknown) => String(v ?? '').replace(/[^\p{L}\p{N} _.-]/gu, '').trim().slice(0, 24);
+
+/**
+ * POST /v1/net/ticket from a game page: { token } (the editor's room) or { play: '<slug>' | 't/<id>', room: '<code>',
+ * name, join }. Answers { mode: 'local' } when Hawkes Net isn't in use (the page uses /v1/ws as before), else Gen's
+ * ticket answer plus { mode: 'hawkesnet', room }.
+ */
+export async function ticket(body: any, ip: string) {
+  if (!(await netUp())) return { mode: 'local' };
+  let room: string, name: string | null, sub: string | undefined, transport: 'auto' | 'relay' | 'p2p';
+  if (body?.token) {
+    const v = verify<{ k: string; g: string; u: string }>(String(body.token));
+    if (!v || v.k !== 'edit') throw new PortalError('This link has expired; reload the editor', { status: 401 });
+    const user = getUser(v.u);
+    if (!user || user.disabled || !getGame(v.g)) throw new PortalError('No such game', { status: 404 });
+    memberGame(user, v.g, 'player');
+    room = `g/${v.g}/edit`; name = user.name ?? 'Builder'; sub = user.id; transport = 'relay';
+  } else {
+    if (!ticketsByIp.hit(ip)) throw new PortalError('Too many joins from here; wait a moment', { status: 429 });
+    const play = String(body?.play ?? '');
+    const code = String(body?.room ?? '').toLowerCase();
+    if (!CODE.test(code)) throw new PortalError('A room code is 4 to 16 letters and numbers');
+    const t = /^t\/([a-z0-9-]+)$/.exec(play);
+    if (t) {
+      if (!templateBundle(t[1])) throw new PortalError('No such game', { status: 404 });
+      room = `t/${t[1]}/${code}`;
+    } else {
+      const g = gameBySlug(play);
+      if (!g) throw new PortalError('No such game', { status: 404 });
+      room = `g/${g.id}/p/${code}`;
+    }
+    // A friend answering an invitation joins the room that is there; it never makes an empty one.
+    if (body?.join) {
+      const info = await roomInfo(room);
+      if (!info.open) throw new PortalError('This island is closed', { status: 409 });
+    }
+    name = clean(body?.name) || null;
+    // The public live room of a game is many people: the relay from the start. Rooms of friends start peer to peer.
+    transport = code === 'live' ? 'relay' : 'auto';
+  }
+  const r: any = await gen('/v1/net/ticket', { body: { project: NET_PROJECT, room, name, sub, transport, role: 'player', client: { sdk: String(body?.sdk ?? ''), protocols: [3] } } });
+  return { mode: 'hawkesnet', room, ...r };
+}
+
+/** Is a room open and how full? (Invitations ask before a friend loads anything.) */
+export async function roomInfo(room: string): Promise<{ open: boolean; people: number; limit: number }> {
+  try {
+    const r: any = await gen('/v1/net/room', { body: { project: NET_PROJECT, room } });
+    return { open: Boolean(r.open), people: Number(r.players) || 0, limit: Number(r.limit) || 32 };
+  } catch { return { open: false, people: 0, limit: 32 }; }
+}
+
+/** World edits this server saved: into the game's editor room and every play room of it. Never waits on the caller. */
+export function publishOps(gameId: string, ops: unknown[], by: string, fx: string | null, except?: string) {
+  if (!netUpCached() || !ops.length) return;
+  void gen('/v1/net/publish', { body: { project: NET_PROJECT, room: `g/${gameId}/*`, ops, by, fx, except: except ?? null } }).catch((e) => console.warn(`[portal] hawkes net publish: ${e.message}`));
+}
+/** A server event to the editor room (an asset arrived, a script was saved). */
+export function publishEvent(gameId: string, name: string, data: unknown) {
+  if (!netUpCached()) return;
+  void gen('/v1/net/publish', { body: { project: NET_PROJECT, room: `g/${gameId}/edit`, event: { name, data } } }).catch(() => {});
+}
+
+// Warm the answer at start, so the first page doesn't wait on it.
+void netUp();

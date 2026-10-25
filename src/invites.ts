@@ -41,6 +41,12 @@ export const MESSAGES = {
   invalid: 'This link is not an invitation we can read. You can start an island of your own.',
 };
 
+/** The room code an invitation names (or null), to ask whether its room is open before inviteStatus. */
+export function codeOf(token: string): string | null {
+  const v = check<{ k: string; r: string }>(String(token ?? ''))?.payload;
+  return v && v.k === 'island' && /^[a-z0-9]{4,16}$/.test(String(v.r)) ? String(v.r) : null;
+}
+
 /** What an invitation is worth now: open (join this room), or why not, in words for the person who opened it. `state` says
  *  how the room is (rooms.ts roomState). */
 export function inviteStatus(token: string, state: (key: string) => RoomState): Status {

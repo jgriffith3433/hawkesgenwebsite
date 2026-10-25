@@ -17,6 +17,8 @@ import { getUser } from './users.ts';
 import { gameBySlug, getGame } from './games.ts';
 import { templateBundle } from './templates.ts';
 import * as relay from './relay.ts';
+import { publishOps, publishEvent } from './hnet.ts';
+import { presenceCount } from './live.ts';
 
 type Conn = relay.Conn & { s: Socket };
 type Room = relay.Room;
@@ -132,12 +134,15 @@ export function upgrade(req: IncomingMessage, raw: Duplex) {
 export function broadcastOps(gameId: string, ops: unknown[], by: string, fx: string | null = null, except?: string) {
   if (!ops.length) return;
   for (const room of rooms.values()) if (room.gameId === gameId) relay.ops(room, ops as any[], by, fx, except);
+  // And the game's rooms on Hawkes Net (hnet.ts): the editor's and every play room's.
+  if (gameId.startsWith('g_')) publishOps(gameId, ops, by, fx, except);
 }
 
 /** Tells the edit room something happened (an asset arrived, a script was saved) without the editor relaying it. */
 export function roomEvent(gameId: string, name: string, data: unknown) {
   const room = rooms.get(`edit:${gameId}`);
   if (room) relay.event(room, name, data);
+  publishEvent(gameId, name, data);
 }
 
 /** Ends a removed member's connections. */
@@ -170,5 +175,6 @@ export function liveCounts(gameId: string) {
   const m = here.get(gameId);
   let playing = 0;
   if (m) for (const [k, at] of m) { if (Date.now() - at > HERE_MS) m.delete(k); else playing++; }
-  return { playing, building: rooms.get(`edit:${gameId}`)?.conns.size ?? 0 };
+  // Building: the edit room here, or (its rooms on Hawkes Net) the people with the editor's live feed open.
+  return { playing, building: Math.max(rooms.get(`edit:${gameId}`)?.conns.size ?? 0, presenceCount(gameId)) };
 }
