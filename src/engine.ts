@@ -71,6 +71,8 @@ export function manifest(): Manifest {
   ];
   const h = crypto.createHash('sha1');
   for (const f of files) { h.update(f.url); try { h.update(fs.readFileSync(f.file)); } catch {} }
+  // (The guest sandbox's page script is loaded with the same ?v=: a change to it must reach browsers too.)
+  try { h.update(fs.readFileSync(path.join(PLAY_DIR, 'guest.js'))); } catch {}
   const version = h.digest('hex').slice(0, 10);
   const kinds = [...new Set([...list(core.kinds), ...mods.flatMap((m) => m.kinds)])];
   const m: Manifest = {
