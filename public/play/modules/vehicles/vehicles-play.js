@@ -556,7 +556,7 @@ body.veh-touching #veh-hud .hint{display:none}
   }
   const buffers = new Map();
   function buffer(name) {
-    if (!buffers.has(name)) buffers.set(name, fetch(H.lib.assetUrl(name)).then((r) => r.arrayBuffer()).then((b) => ac.decodeAudioData(b)).catch(() => null));
+    if (!buffers.has(name)) buffers.set(name, fetch(H.lib.assetUrl(name)).then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r.arrayBuffer(); }).then((b) => ac.decodeAudioData(b)).catch(() => null));
     return buffers.get(name);
   }
   const ENGINE = { car: [42, 130], truck: [34, 95], motorbike: [70, 230], boat: [48, 140], submarine: [28, 40], airplane: [55, 150], helicopter: [32, 30], rocket: [26, 40], spaceship: [70, 60] };

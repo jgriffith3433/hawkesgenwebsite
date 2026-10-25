@@ -88,7 +88,9 @@
     if (!a || !url) return null;
     if (!buffers.has(url)) {
       buffers.set(url, null);
-      fetch(url).then((r) => r.arrayBuffer()).then((b) => new Promise((ok, bad) => a.decodeAudioData(b, ok, bad))).then((buf) => buffers.set(url, buf)).catch(() => buffers.delete(url));
+      // A sound that won't load (gone, refused, not audio) stays silent for a minute instead of being asked for on every hit.
+      fetch(url).then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r.arrayBuffer(); }).then((b) => a.decodeAudioData(b)).then((buf) => buffers.set(url, buf))
+        .catch(() => setTimeout(() => { if (buffers.get(url) === null) buffers.delete(url); }, 60000));
     }
     return buffers.get(url);
   }
