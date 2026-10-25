@@ -45,7 +45,7 @@
   // ---- drawing
   function drawSky() {
     const g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, '#03050c'); g.addColorStop(0.45, '#0a1328'); g.addColorStop(0.72, '#16335c'); g.addColorStop(1, '#2d6aa3');
+    g.addColorStop(0, '#03050c'); g.addColorStop(0.45, '#0a1328'); g.addColorStop(0.72, '#0f2447'); g.addColorStop(1, '#1c4575');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   }
   function drawStars(t) {
