@@ -161,3 +161,15 @@ test('a hat with a flat colour drops its texture, and a helmet with no pick take
   assert.equal(b.rig.hatModel.mats[0].albedoColor.toHexString().toLowerCase(), '#2563eb');
   for (const t of [a, b]) { P.showcase.dispose(t.rig); t.node.dispose(); }
 });
+
+test('the halo, horns and bunny files (tools/hat-glbs.mjs) are under budget with nothing below the base, and each has a registry row', async () => {
+  const fs = await import('node:fs');
+  for (const kind of ['halo', 'horns', 'bunny']) {
+    const b = fs.readFileSync(new URL(`../../public/play/models/hat-${kind}.glb`, import.meta.url));
+    const jl = b.readUInt32LE(12), j = JSON.parse(b.subarray(20, 20 + jl).toString());
+    const tris = j.accessors[j.meshes[0].primitives[0].indices].count / 3;
+    assert.ok(tris > 100 && tris <= 1500, `${kind}: ${tris} triangles`);
+    assert.equal(j.accessors[0].min[1], 0, `${kind}: base at y = 0, nothing below`);
+    assert.ok(hatsBefore[kind] && hatsBefore[kind].url === `/play/models/hat-${kind}.glb` && hatsBefore[kind].flat, `${kind}: a registry row`);
+  }
+});
