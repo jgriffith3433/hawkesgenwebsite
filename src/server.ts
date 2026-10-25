@@ -20,7 +20,7 @@ import { caller } from './caller.ts';
 import { handleMcp } from './mcp.ts';
 import { serveDownload, receiveUpload, uploadLink } from './files.ts';
 import { resumeTasks, recentTasks, getTask, results } from './tasks.ts';
-import { publicUrl } from './config.ts';
+import { cdnHosts, publicUrl } from './config.ts';
 import * as mail from './mail.ts';
 import * as google from './google.ts';
 import { PLANS, subscription, choosePlan, setCancel, billingPortal } from './plans.ts';
@@ -128,8 +128,8 @@ const PLAY_HOSTS = {
   models: ['https://models.babylonjs.com'],
   /** Realtime (play/net.js) is the page's own host today; list net.hawkesgen.com here when the rooms move there. */
   realtime: [] as string[],
-  /** Where assets come from when they leave the portal for a CDN (cdn.hawkesgen.com, later). */
-  assets: [] as string[],
+  /** Where public assets come from when Gen has them on its CDN (cdn.hawkesgen.com; config.ts cdnHosts; CORS is open there). */
+  get assets(): string[] { return cdnHosts(); },
 };
 export function playCsp(nonce: string): string {
   const self = new URL(publicUrl()).host;
