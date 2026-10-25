@@ -1,0 +1,1 @@
+- lesson: stale GPU brief — a PM note about 'stand-ins' can be out of date; check git log and the job's output size against the committed files before spending GPU.
