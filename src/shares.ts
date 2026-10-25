@@ -14,6 +14,7 @@ import { getGame, gameBySlug } from './games.ts';
 import { templateBundle } from './templates.ts';
 import { getUser, type User } from './users.ts';
 import { PortalError } from './util.ts';
+import { cdnOf, rememberAsset } from './lods.ts';
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS shares (
@@ -79,6 +80,8 @@ export function gameLink(ref: unknown): { path: string; title: string } | null {
 async function assetInfo(user: User, id: string) {
   const a: any = await gen(`/v1/assets/${id}`, { as: user.project }).catch(() => null);
   if (!a || a.id !== id) throw new PortalError("That file isn't in your library", { status: 404 });
+  // (Its CDN link, when Gen has backed it up: the share page then shows the file from the CDN.)
+  rememberAsset(a);
   return { mime: String(a.mime ?? a.contentType ?? ''), kind: String(a.kind ?? '') };
 }
 
@@ -198,9 +201,14 @@ export function sharePage(id: string, res: ServerResponse) {
     ...tags.map(([k, c]) => `<meta property="${esc(k)}" content="${esc(c)}">`),
     ...twitter.map(([k, c]) => `<meta name="${esc(k)}" content="${esc(c)}">`),
   ].join('\n  ');
+  // The page shows the files from Gen's CDN when they are backed up; the preview tags and the download stay on /s/<id>/...
+  // (they are the share's own links, which stop working when the share is taken down), as does anything not backed up yet.
+  const cdn = cdnOf([r.asset, r.thumb]);
+  const mediaSrc = cdn[r.asset] ?? `/s/${r.id}/media`;
+  const posterSrc = r.thumb ? cdn[r.thumb] ?? `/s/${r.id}/image` : null;
   const media = clip
-    ? `<video class="sh-media" src="/s/${esc(r.id)}/media" ${v.image ? `poster="/s/${esc(r.id)}/image"` : ''} controls playsinline loop autoplay muted></video>`
-    : `<img class="sh-media" src="/s/${esc(r.id)}/media" alt="${esc(r.caption ? `${v.title}: ${r.caption}` : v.title)}">`;
+    ? `<video class="sh-media" src="${esc(mediaSrc)}" ${posterSrc ? `poster="${esc(posterSrc)}"` : ''} controls playsinline loop autoplay muted></video>`
+    : `<img class="sh-media" src="${esc(mediaSrc)}" alt="${esc(r.caption ? `${v.title}: ${r.caption}` : v.title)}">`;
   const when = new Date(r.created).toISOString().slice(0, 10);
   const shareText = encodeURIComponent(r.caption ? `“${r.caption}” ${v.title}` : v.game ? `${v.title} · ${v.game.title}` : v.title);
   const moment = Boolean(r.moment);
