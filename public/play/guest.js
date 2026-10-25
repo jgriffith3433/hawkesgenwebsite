@@ -908,10 +908,24 @@
     if (typeof EventSource === 'undefined') return;
     const H = session.H;
     const seen = new Set();
-    const es = new EventSource(`/v1/games/${id}/live`, { withCredentials: true });
+    // One listener set, a stream that comes back quietly: `bye` from the server, a drop or an error closes it and a new one
+    // opens after a growing wait (1 s to 30 s) with the last event id, so what was missed arrives once and nothing twice.
+    let es = null, last = '', tries = 0, timer = null, gone = false;
+    const handlers = [];
+    const on = (name, fn) => { handlers.push([name, fn]); es && es.addEventListener(name, fn); };
+    const open = () => {
+      if (gone) return;
+      es = new EventSource(`/v1/games/${id}/live${last ? `?last=${encodeURIComponent(last)}` : ''}`, { withCredentials: true });
+      es.addEventListener('open', () => { tries = 0; });
+      for (const [name, fn] of handlers) es.addEventListener(name, fn);
+      for (const name of ['chat', 'gen', 'asset', 'file', 'deleted']) es.addEventListener(name, (e) => { if (e.lastEventId) last = e.lastEventId; });
+      const retry = () => { if (!es) return; es.close(); es = null; if (!gone) timer = setTimeout(open, Math.min(30_000, 1000 * 2 ** tries++)); };
+      es.addEventListener('bye', () => { tries = 0; retry(); });
+      es.onerror = retry;
+    };
     let assetsT = null;
-    addEventListener('pagehide', () => es.close()); // leaving: close the stream ourselves, not by the page being torn down
-    es.addEventListener('chat', (e) => {
+    addEventListener('pagehide', () => { gone = true; clearTimeout(timer); if (es) es.close(); }); // leaving: close the stream ourselves, not by the page being torn down
+    on('chat', (e) => {
       let m; try { m = JSON.parse(e.data); } catch { return; }
       if (!m || !H.chat) return;
       const firstTime = !seen.has(m.id);
@@ -927,8 +941,8 @@
       } else if (m.role === 'system') H.chat.line({ kind: 'sys', text: m.text });
       else H.chat.line({ kind: m.user_id && m.user_id === user.id ? 'me' : 'player', who: m.name || 'Someone', text: m.text });
     });
-    es.addEventListener('thinking', (e) => { let d = {}; try { d = JSON.parse(e.data); } catch { /* fine */ } if (H.chat) H.chat.status(d.on ? 'The Overseer is thinking…' : null); });
-    es.addEventListener('gen', (e) => {
+    on('thinking', (e) => { let d = {}; try { d = JSON.parse(e.data); } catch { /* fine */ } if (H.chat) H.chat.status(d.on ? 'The Overseer is thinking…' : null); });
+    on('gen', (e) => {
       let r; try { r = JSON.parse(e.data); } catch { return; }
       if (!r || !H.chat) return;
       if (r.state === 'running') H.chat.status(`Making ${r.name || r.kind}${r.steps ? ` · step ${r.step} of ${r.steps}` : ''}${r.progress != null ? ` · ${Math.round(r.progress * 100)}%` : ''}`);
@@ -940,19 +954,20 @@
       }
     });
     // A new asset (made, or from the community): the world gets it (stand-ins become the real thing).
-    es.addEventListener('asset', () => {
+    on('asset', () => {
       clearTimeout(assetsT);
       assetsT = setTimeout(async () => { try { const b = await api('GET', `/v1/games/${id}/bundle`); if (b.assets) H.setAssets(b.assets); } catch { /* next time */ } }, 400);
     });
     // World edits come through the room; anything else (a script, a new world file) is reloaded in place.
-    es.addEventListener('file', (e) => {
+    on('file', (e) => {
       let d; try { d = JSON.parse(e.data); } catch { return; }
       if (!d || !d.path) return;
       if (d.path === 'scene.json' && d.ops && ((session.conn && d.conn === session.conn) || saving || (d.rev && savedRevs.has(d.rev)))) return; // our own save
       if (!(d.path === 'scene.json' && d.ops) && typeof d.content === 'string') { try { H.reload({ [d.path]: d.content }); } catch (err) { console.warn('sandbox: reload', err); } }
       rebase();
     });
-    es.addEventListener('deleted', () => { es.close(); if (H.chat) { H.chat.detach(); H.chat.line({ kind: 'sys', text: 'This island was deleted.' }); } island = null; kept.clear(); });
+    on('deleted', () => { gone = true; clearTimeout(timer); es && es.close(); if (H.chat) { H.chat.detach(); H.chat.line({ kind: 'sys', text: 'This island was deleted.' }); } island = null; kept.clear(); });
+    open();
   }
   /** A message to the Overseer, with what the player sees (the editor sends the same: build.js context()). */
   async function ask(id, text) {
