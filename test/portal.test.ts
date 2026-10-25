@@ -98,6 +98,13 @@ test('pages and the open routes', async () => {
   assert.equal((await call('/v1/jobs')).status, 401);
 });
 
+test('Signed out: ?soft=1 answers 200 with no user; protected routes still answer 401', async () => {
+  const soft = await call('/v1/users/me?soft=1');
+  assert.equal(soft.status, 200);
+  assert.equal(soft.body.user, null);
+  for (const p of ['/v1/users/me', '/v1/me', '/v1/connections', '/v1/jobs', '/v1/referral']) assert.equal((await call(p)).status, 401, p);
+});
+
 test('sign up, sign in, keys, sign out', async () => {
   const c = await newCustomer();
   // usr_ on live; another copy of the portal (Studio's beta: PORTAL_PROJECT_PREFIX=ubeta_) has its own.
@@ -292,7 +299,7 @@ test('Google: claims are checked, a verified email links to the existing account
 
 test('Google: only our own pages as the place to come back to', async () => {
   const r = await fetch(`${base}/auth/google?next=https://evil.example`, { redirect: 'manual' });
-  assert.ok([302, 503].includes(r.status));
+  assert.equal(r.status, 302, 'never a raw 503 page');
   if (r.status === 302) {
     const cookie = r.headers.get('set-cookie')!;
     const { verify } = await import('../src/sign.ts');

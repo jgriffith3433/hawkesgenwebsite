@@ -23,7 +23,10 @@ const redirectUri = () => `${publicUrl()}/auth/google/callback`;
 const safeNext = (n: unknown) => (typeof n === 'string' && /^\/(?!\/)[^\s\\]*$/.test(n) ? n : '/app');
 
 export function start(req: IncomingMessage, res: ServerResponse, next: unknown) {
-  if (!googleEnabled()) throw new PortalError('Google sign-in is not set up yet', { status: 503 });
+  if (!googleEnabled()) { // not set up here (beta): a plain message on the page they came from, never a raw 503
+    const popup = safeNext(next) === '/auth/popup';
+    return void res.writeHead(302, { Location: popup ? '/auth/popup?cancelled=1' : `/?signin_error=${encodeURIComponent('Google sign-in is not available here. Use your email instead.')}` }).end();
+  }
   const state = crypto.randomBytes(16).toString('base64url');
   const verifier = crypto.randomBytes(32).toString('base64url');
   const secure = publicUrl().startsWith('https:') ? '; Secure' : '';

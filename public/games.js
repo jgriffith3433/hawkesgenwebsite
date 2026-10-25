@@ -50,7 +50,8 @@ function bindAuth() {
 // ------------------------------------------------------------------ the page
 async function load() {
   try {
-    me = (await api('/v1/users/me')).user;
+    me = (await api('/v1/users/me?soft=1')).user;
+    if (!me) throw new Error('signed out');
   } catch {
     $('auth').hidden = false;
     $('home').hidden = true;
