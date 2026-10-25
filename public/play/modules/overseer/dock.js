@@ -101,7 +101,8 @@
     for (const m of [hullMesh, hangar]) m.receiveShadows = false;
     const d = { O, f, hullE, hangarE, node, lights: [warmM, cyanM], c, docked: false, landed: false, inside: false };
     d.show = (on) => {
-      for (const m of [hullMesh, hangar, warmM, cyanM]) m.layerMask = on ? 0x0FFFFFFF : 0;
+      // (The Observatory, inside the ship, hides the hull and the hangar's look so its windows open on the sky: `hidden`.)
+      for (const m of [hullMesh, hangar, warmM, cyanM]) m.layerMask = on && !d.hidden ? 0x0FFFFFFF : 0;
     };
     O.near = d;
     d.show(O.lod === 'near');
@@ -177,7 +178,7 @@
       document.body.appendChild(hudEl);
     }
     const names = Object.values(docked);
-    const txt = `The Overseer · hangar${names.length ? ` · docked: ${names.slice(0, 4).join(', ')}${names.length > 4 ? ` +${names.length - 4}` : ''}` : ''}`;
+    const txt = `The Overseer · ${D && D.hidden ? 'observatory' : 'hangar'}${names.length ? ` · docked: ${names.slice(0, 4).join(', ')}${names.length > 4 ? ` +${names.length - 4}` : ''}` : ''}`;
     if (hudEl.textContent !== txt) hudEl.textContent = txt;
     hudEl.hidden = false;
   }
@@ -279,7 +280,7 @@
     if (!p || !p.alive) { hud(false); return; }
     const veh = H.vehicles && H.vehicles.current;
     const at = veh && veh.alive ? veh.position : p.position;
-    const inside = inHangar(at);
+    const inside = inHangar(at) || Boolean(D.hidden); // (in the Observatory you are still docked: observatory.js)
     D.inside = inside;
     try { approach(w, veh, at, dt); } catch (err) { H.report(err, 'overseer approach'); }
     if (inside !== D.docked) setDocked(inside);
@@ -327,6 +328,10 @@
       const at = (x, y, z) => [D.c[0] + x * c + z * s, D.c[1] + y, D.c[2] - x * s + z * c];
       return { pad: at(0, f.floor, f.padZ), mouth: at(0, f.floor, f.front + f.apron), floor: D.c[1] + f.floor, inside: D.inside, landed: D.landed, yaw: f.yaw, width: f.halfW * 2, height: f.top - f.floor };
     },
+    /** The bay's numbers for the Observatory (observatory.js): the ship's middle (world meters), the hangar frame, the node
+     *  that follows a round world's frame, and `interior(true)` to hide the hull and hangar's look while inside. */
+    get bay() { return D ? { c: D.c.slice(), f: D.f, yaw: D.f.yaw, node: D.node } : null; },
+    interior(on) { if (D) { D.hidden = Boolean(on); D.show(OV.lod === 'near'); } },
     /** The approach readout now (distance, speed, closing, align, lateral, height, allowed, tooFast, state, advice), or null. */
     get approach() { return D && D.gauge ? { ...D.gauge, catching: Boolean(D.catching) } : null; },
     inHangar, onPad,
