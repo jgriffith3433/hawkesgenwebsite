@@ -150,10 +150,12 @@ function soundAfterVoice() {
   if (sounding) return;
   Promise.race([voiceWarm, new Promise((r) => setTimeout(r, 1500))]).then(() => startSound());
 }
+// The gateway's one gesture (Enter, a click or a tap) unlocks the sound: the music, the sea and the birds start right then.
+game.on('gateway', () => { warmVoice(); startSound(); });
 game.on('intro', (d) => {
   if (!d) return;
   if (d.state === 'start') soundAfterVoice();
-  if (d.state === 'end') game.after(1, afterMirror);
+  if (d.state === 'end') { startSound(); game.after(1, afterMirror); } // (skipped or not, the island sounds)
 });
 game.onStart(() => {
   const intro = Boolean(H && H.overseer && H.overseer.introWanted && H.overseer.introWanted());
@@ -255,6 +257,166 @@ game.on('wrecked', (d) => {
   });
 });
 
+// ------------------------------------------------------------------ out of order: a goal done early is kept
+// The quest line asks for its steps in order and only listens to the step it is on, so a player who flies first, fires the
+// barrels first or catches a fish before the rod would lose that deed. Each one is kept here (on window: a script that runs
+// again keeps its old listeners) and, when the quest reaches the step, it passes at once, its moment and all. Nothing is
+// removed: every step still ends in its own moment, in order.
+const early = (window.__islandEarly = window.__islandEarly || new Set());
+const TOUR_ORDER = ['drive', 'rod', 'fish', 'boom', 'spawn', 'ask', 'fly'];
+const tourStep = () => { const q = game.events && game.events.quests; return q && game.mode === 'play' && q.state('tour') === 'active' ? q.step('tour') : null; };
+const mark = (step) => { if (!early.has(step)) early.add(step); };
+game.on('pickup', (d) => { if (d && d.gives === 'tool' && d.tool === 'rod') mark('rod'); });
+game.on('catch', (d) => { if (d && d.mine !== false) mark('fish'); });
+game.on('explosion', () => mark('boom'));
+game.on('spawned', () => mark('spawn'));
+game.on('asked', () => mark('ask'));
+game.on('sandbox-high', () => mark('fly'));
+// The dock is reached on foot or by 4x4 at any time, whatever the quest is on.
+game.every(0.5, () => {
+  const p = game.player, dock = game.find && game.find('dock');
+  if (p && dock && game.mode === 'play' && Math.hypot(p.x - dock.x, p.z - dock.z) < 9) mark('drive');
+});
+/** The current step is already done: let the quest through it (and the next ones the same way). */
+function passEarly() {
+  const step = tourStep();
+  if (!step || !early.has(step) || step === 'ask') return; // (ask passes in its own way, below)
+  game.after(0.6, () => {
+    const q = game.events.quests;
+    if (tourStep() === step && early.has(step)) { q.advance('tour'); game.emit('tour-early', { step }); }
+  });
+}
+game.on('quest', (d) => { if (d && d.id === 'tour' && d.state === 'step') passEarly(); });
+game.every(1, passEarly);
+
+// ------------------------------------------------------------------ Stuck? R puts you and the thing you need back
+// One action for a flipped 4x4, a swim in the sea, a launcher lost, barrels gone, a rod missing: you go to the place of the
+// step you are on, the thing it needs goes there too (made again when it was destroyed), with the Overseer's beam over both
+// and a line in its voice. R on a keyboard, the "Stuck?" button anywhere. (R is also reload: not while a gun is out.)
+const HOME = {
+  jeep: [4, 6.5, 90], heli: [30, 30, 200], rod: [86.5, -0.4], rodStand: [82, 0], dock: [58, 0], start: [-3, 1],
+  barrels: [[50, -18], [51.2, -18.4], [50.5, -19.5], [51.7, -17.2], [49.6, -16.9]], beach: [55, -14],
+};
+const rescueMeta = (window.__islandRescue = window.__islandRescue || { count: 0, last: -99 });
+const RESCUE_COOLDOWN = 2; // seconds
+const ground = (x, z) => { const t = game.terrain && game.terrain.heightAt ? game.terrain.heightAt(x, z) : null; return t === null || t === undefined ? 4 : t; };
+/** A place on the island (the world file's numbers) as the engine's own, which moves under a round world as you travel. */
+const at = (x, y, z) => {
+  const v = game.planet && game.planet.round && game.planet.toLocal ? game.planet.toLocal([x, y, z]) : [x, y, z];
+  return Array.isArray(v) ? v : [v.x, v.y, v.z];
+};
+const settle = (e, pos, yaw) => {
+  e.position = pos; e.velocity = [0, 0, 0];
+  if (yaw !== undefined) e.rotation = [0, yaw, 0];
+  if (e.angularVelocity) e.angularVelocity = [0, 0, 0];
+  const v = e.vehicle;
+  if (v) { try { if (v.vel && v.vel.set) v.vel.set(0, 0, 0); v.flipT = 0; } catch { /* fine */ } }
+};
+const seated = () => { const p = game.player; return Boolean(p && (p._vehRider || p.controller === 'drive')); };
+const getOut = () => { try { if (seated() && game.vehicles && game.vehicles.exit) game.vehicles.exit(); } catch { /* it lets go in the move */ } };
+const aliveOne = (name) => (game.all(name) || []).find((e) => e && e.alive && !(e.vehicle && e.vehicle.wrecked)) || null;
+function bringVehicle(name, id, home, kind) {
+  let e = aliveOne(name);
+  const [hx, hz, yw] = home;
+  const y = ground(hx, hz) + (kind === 'heli' ? 1.55 : 1.4);
+  if (e) { settle(e, at(hx, y, hz), yw); return e; }
+  const old = (game.all(name) || [])[0];
+  const model = old && old.shape && old.shape.model;
+  try { if (old && old.alive) old.destroy(); } catch { /* gone */ }
+  const maker = kind === 'heli' ? game.helicopter : game.truck;
+  if (typeof maker !== 'function') return null;
+  const [lx, ly, lz] = at(hx, y, hz);
+  const opts = { x: lx, y: ly, z: lz, rotation: [0, yw, 0], name, ...(model ? { model } : {}), ...(kind === 'heli' ? { color: '#2b5fd9' } : { color: '#3f7d3a' }) };
+  e = maker.call(game, opts);
+  return e || null;
+}
+function ensureRod() {
+  const rod = game.find && game.find('rod');
+  if (rod && rod.alive) { settle(rod, at(HOME.rod[0], ground(HOME.rod[0], HOME.rod[1]) + 1.15, HOME.rod[1])); return; }
+  const maker = game['tool-pickup'];
+  if (typeof maker === 'function') { const [x, y, z] = at(HOME.rod[0], ground(HOME.rod[0], HOME.rod[1]) + 1.15, HOME.rod[1]); maker('rod', { x, y, z, name: 'Fishing rod', respawn: 5 }); }
+}
+function ensureBarrels() {
+  let made = 0;
+  HOME.barrels.forEach(([x, z], i) => {
+    const b = game.find && game.find(`barrel_${i + 1}`);
+    if (b && b.alive) return;
+    if (typeof game.barrel !== 'function') return; // (the mayhem kind: it goes off when shot, like the island's own)
+    const [lx, ly, lz] = at(x, ground(x, z) + 0.6, z);
+    const n = game.barrel({ x: lx, y: ly, z: lz, name: 'Fuel barrel' });
+    if (n) made++;
+  });
+  return made;
+}
+const RESCUE_LINES = {
+  drive: 'Back at the start. The 4x4 is right there.', rod: 'The rod is where it was. Walk to it.', fish: 'The rod is in your hands. Cast.',
+  boom: 'The barrels are as they were. The launcher is in your hands.', spawn: 'Back where you started. Ask for something.',
+  ask: 'Back where you started. Speak, and I will hear.', fly: 'The helicopter is on its pad. Go up.',
+};
+function rescue(why) {
+  const p = game.player;
+  if (!p || game.mode !== 'play') return false;
+  const now = game.time;
+  if (now - rescueMeta.last < RESCUE_COOLDOWN) return false;
+  rescueMeta.last = now; rescueMeta.count++;
+  const step = tourStep() || (early.has('fly') ? 'fly' : 'drive');
+  const from = [p.x, p.y, p.z];
+  getOut();
+  let spot = HOME.start, thing = null;
+  if (step === 'drive') { thing = bringVehicle('4x4', 'jeep', HOME.jeep, 'truck'); spot = [HOME.jeep[0] - 3, HOME.jeep[1] - 2]; }
+  else if (step === 'rod') { ensureRod(); spot = HOME.dock; thing = game.find && game.find('rod'); }
+  else if (step === 'fish') { if (game.mayhem && game.mayhem.giveTool) game.mayhem.giveTool('rod'); spot = HOME.rodStand; }
+  else if (step === 'boom') { ensureBarrels(); if (game.mayhem && game.mayhem.giveTool) game.mayhem.giveTool('rocket-launcher'); spot = HOME.beach; thing = game.find && game.find('barrel_1'); }
+  else if (step === 'fly') { thing = bringVehicle('Helicopter', 'heli', HOME.heli, 'heli'); spot = [HOME.heli[0] - 6, HOME.heli[1] - 4]; }
+  const to = at(spot[0], ground(spot[0], spot[1]) + 1, spot[1]);
+  // A beam where you were, a beam where you land and over the thing: the Overseer sends you back.
+  const O = H && H.overseer;
+  try { if (O && O.beam) { O.beam(from, { radius: 1.4, seconds: 1.4 }); O.beam(to, { radius: 1.4, seconds: 1.8 }); if (thing && thing.alive) O.beam([thing.x, thing.y, thing.z], { radius: 1.8, seconds: 1.8 }); } } catch { /* the move is what matters */ }
+  p.position = [to[0], to[1], to[2]]; p.velocity = [0, 0, 0]; p.flying = false;
+  if (p.health !== undefined && p.health < 100) p.health = 100;
+  sfx('teleport.mp3', { volume: 0.5 });
+  overseer(RESCUE_LINES[step] || RESCUE_LINES.drive, 4, null);
+  game.emit('rescue', { step, why: why || 'key', count: rescueMeta.count });
+  return true;
+}
+window.__islandRescueNow = rescue; // (for tests and playtests)
+game.input.onKey('r', () => {
+  const t = game.player && game.player.tool;
+  if (toolOf(t) === 'rocket-launcher' || toolOf(t) === 'shovel') return; // (R reloads and piles)
+  if (tourStep() || early.size) rescue('key');
+});
+// The drowned: 6 s in the sea, or the sea under a boat you didn't mean to take, and the Overseer sends you back.
+let wet = 0;
+game.every(0.5, () => {
+  const p = game.player;
+  if (!p || game.mode !== 'play' || !tourStep()) { wet = 0; return; }
+  const swimming = Boolean(H && H.water && H.water.swimming && H.water.swimming());
+  wet = swimming ? wet + 0.5 : 0;
+  if (wet >= 8) { wet = 0; rescue('sea'); }
+});
+
+// ------------------------------------------------------------------ Pip notices when you have stopped getting anywhere
+const NUDGES = {
+  drive: 'The path goes east, to the dock. The 4x4 is faster: press E at it.',
+  rod: 'The rod is at the very end of the pier. Walk right into it.',
+  fish: 'Hold click to cast the rod out into the sea. Wait for the bobber to dip.',
+  boom: 'The fuel barrels are up the beach. Switch to the rocket launcher and fire!',
+  spawn: 'Hold Q and pick anything. The Overseer will beam it down.',
+  ask: 'Type what you want in the chat. Anything at all!',
+  fly: 'The helicopter is on the hill. Get in and keep going up.',
+};
+const NUDGE_AFTER = 30; // seconds on one step
+const nudged = (window.__islandNudged = window.__islandNudged || new Set());
+let nudgeStep = null, nudgeSince = 0;
+game.every(1, () => {
+  const step = tourStep();
+  if (step !== nudgeStep) { nudgeStep = step; nudgeSince = game.time; return; }
+  if (!step || nudged.has(step) || game.time - nudgeSince < NUDGE_AFTER || !NUDGES[step]) return;
+  nudged.add(step);
+  say(`${NUDGES[step]} Stuck? ${H && H.touchUi ? 'Tap Stuck?' : 'Press R'} and I'll get you back.`, 7);
+  game.emit('nudge', { step });
+});
+
 // ------------------------------------------------------------------ the tour's tracker
 // Pip's line is gone in a few seconds; this stays: the step in one line, "2 of 7", a flourish when one is done, a hint with
 // the controls after 20 s without progress, and a marker over the place (it fades as you get there). Top left, under the
@@ -293,6 +455,8 @@ if (typeof document !== 'undefined' && !document.getElementById('tour-style')) {
     '.tour-track.flash{animation:tour-flash .9s ease-out}',
     '@keyframes tour-flash{0%{transform:scale(1);box-shadow:0 0 0 0 rgba(255,216,74,.9);background:rgba(60,48,8,.9)}25%{transform:scale(1.07)}100%{transform:scale(1);box-shadow:0 0 0 18px rgba(255,216,74,0)}}',
     '@keyframes tour-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}',
+    '.tour-stuck{position:fixed;left:12px;top:max(78px,calc(env(safe-area-inset-top) + 68px));z-index:25;padding:5px 11px;border-radius:999px;background:rgba(10,14,24,.6);border:1px solid rgba(255,255,255,.28);color:#dbe7ff;font:600 12px system-ui,sans-serif;cursor:pointer;pointer-events:auto;backdrop-filter:blur(4px)}',
+    '.tour-stuck[hidden]{display:none}',
     '.tour-mark{padding:0!important;border:0!important;background:none!important;font-size:26px;line-height:1;color:#ffd84a;text-shadow:0 2px 6px rgba(0,0,0,.7);transition:opacity .25s;animation:tour-bob 1.1s ease-in-out infinite alternate}',
     '@keyframes tour-bob{from{margin-top:0}to{margin-top:-8px}}',
   ].join('\n');
@@ -312,6 +476,16 @@ const tracker = () => {
   }
   return el;
 };
+const stuckButton = () => {
+  let b = game.ui.el('tour-stuck');
+  if (!b) {
+    game.ui.button('tour-stuck', H && H.touchUi ? 'Stuck?' : 'Stuck? (R)', () => rescue('button'));
+    b = game.ui.el('tour-stuck');
+    b.removeAttribute('style'); // (its own place: CSS above)
+    b.classList.add('tour-stuck');
+  }
+  return b;
+};
 const markTarget = (step) => {
   const list = (game.all(NAMES[step]) || []).filter((e) => e && e.alive && !(e.vehicle && e.vehicle.wrecked));
   const p = game.player;
@@ -326,11 +500,14 @@ function drawTour() {
   if (!active || !step || !STEPS.includes(step)) {
     const el = game.ui.el('tour-track');
     if (el) el.hidden = true;
+    const sb = game.ui.el('tour-stuck');
+    if (sb) sb.hidden = true;
     clearMark();
     return;
   }
   const el = tracker();
   el.hidden = false;
+  stuckButton().hidden = false;
   const now = game.time;
   if (tour.step !== step) {
     const first = tour.step === null;

@@ -131,6 +131,8 @@ async function loadStage() {
   const bundle = await get(`${API}/games/${gameId}/bundle`);
   // Whether this player has seen the Overseer's intro (the stage is sandboxed: it has no storage of its own).
   try { if (localStorage.getItem('hg_overseer_intro')) bundle.overseen = true; } catch {}
+  // And which of the Overseer's first-time lines it has said (public/play/modules/overseer/lines.js).
+  try { bundle.overseerLines = JSON.parse(localStorage.getItem('hg_overseer_lines') || '{}'); } catch {}
   const send = () => toStage({ type: 'bundle', bundle, mode: 'build' });
   if (stageReady) send(); else stageBundle = send;
   toStage({ type: 'advanced', on: $('advTools').checked });
@@ -169,6 +171,9 @@ window.addEventListener('message', async (e) => {
     }
     // Input inside the game: the SDK here can't see it, but it is time spent here.
     case 'analytics-activity': try { analytics()?.activity?.(); } catch {} return;
+    case 'overseer-lines':
+      try { if (m.lines && typeof m.lines === 'object') localStorage.setItem('hg_overseer_lines', JSON.stringify(m.lines)); } catch {}
+      return;
     case 'overseer-seen':
       try { localStorage.setItem('hg_overseer_intro', String(Date.now())); } catch {}
       return;

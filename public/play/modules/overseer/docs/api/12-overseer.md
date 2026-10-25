@@ -77,3 +77,7 @@ with the planet; a custom shader adds `y -= |xz - camera.xz|² / 2R` itself), `H
 `emitter()`, `flare(k)`, `hangar`, `docked`, `intro`; a beam's `pulse(k)`), `H.arrive` (`bring(things, { how, exact })`,
 `how(entity)`, `plan(specs)` (building: a drop's spot, roof and all, before the op), `landing(at, { lift, half })`,
 `quake(at, { radius, rise, seconds })` (the ground moving), `down(at)` / `up(at)`, `of(entity)`, `active`).
+
+The Overseer's first-time lines (`lines.js`): `H.lines.say(id)`, `.seen(id)`, `.blocked()`, `.reset()`; ids `build`, `fish`, `death`, `dock`, `space`, `boom`, `friend`, `return`. Each is said once per device, in the chat (`game.on('overseer-line', ({ id, text, voice }))` hears it), and waits while the intro, the mirror or a tour moment is on or another Overseer line is being read.
+
+The Overseer's free phrasebook (`talk.js`): in every game, published ones too, Enter (or the 💬 button on a phone) opens the chat box and plain talk is answered in the Overseer's voice at no cost (no model: keyword rules, several variants each). Where the builder's assistant is attached (the editor, the signed-in sandbox) typing goes to it instead. Requests to make or change things are explained, with a Get started link; questions about its motives are turned away kindly. `H.talk.reply(text)` gives `{ intent, text, action? }`, `H.talk.say(text)` says it in the chat, `game.on('overseer-talk', ({ intent, said, text }))` hears it. With other players here, typing also goes to them and the Overseer answers only when its name is said.
