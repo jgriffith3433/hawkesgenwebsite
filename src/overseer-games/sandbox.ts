@@ -147,6 +147,8 @@ export const SANDBOX = {
     // Tools come with the tour: none at first (the rocket launcher at the barrels, the rest when it's done).
     player: { view: 'third', tools: [] },
     mayhem: { slowmo: true },
+    // "Share this moment" (modules/share/moments.js): the last 8 seconds of a big blast, a first catch, a long jump or a dock.
+    share: { clip: 8 },
     spawn: { play: true, max: 200 },
     assets: { tree: { ids: [A.oak, A.pine], mix: true }, rock: { ids: [A.rocks, A.boulder], mix: true }, bush: { ids: [A.bush], only: true }, barrel: { ids: [A.barrel], only: true }, crate: { ids: [A.crate], only: true },
       // The blast's sound is the explosion alone: the Overseer's "Destruction is..." voice is labelled "explosion" too, and a word's mix would play it with every blast.

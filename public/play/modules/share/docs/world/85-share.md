@@ -42,7 +42,16 @@ camera stays when it ends), `loop`, `fov` (degrees).
 `{ "clip": 15, "clips": true, "photo": true, "buttons": true, "caption": true, "keys": { "photo": "p", "clip": "f8" } }`.
 `clip` is how many seconds "clip that" keeps (3-60); `clips` keeps them all the time (on by default on computers, off on
 phones until the player turns it on: it costs a video encoder); `photo: false` turns photo mode off (a competitive game);
-`caption: false` leaves the game's name off photos; `"share": false` turns all of it off.
+`caption: false` leaves the game's name off photos; `moments: false` turns off the "Share this moment" chip (below); `"share": false` turns all of it off.
+
+### Share this moment (`config.share.moments`, on by default)
+
+After a big explosion (a rocket's size), a first catch, a long jump or a dock, a small chip, *Share this moment*, hangs at the
+top for 6 seconds (never in the first minute of a `tour` quest, nor over the intro, the mirror, photo mode or a sheet; not twice
+within 45 seconds). One tap keeps the last 8 seconds (`config.share.clip: 8` keeps exactly that much ready; where the game cannot
+record, a photo) with the character's name and an Overseer caption on the share page, puts it in the player's own library and
+offers the link. A guest is shown the account sheet first (where the page has one). Nothing to add to a world: it only
+needs `config.share`, even `{}`.
 
 ### In words
 
