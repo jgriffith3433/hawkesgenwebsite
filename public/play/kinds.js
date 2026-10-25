@@ -391,7 +391,9 @@
     surface.parent = frame;
     surface.rotation.y = Math.PI; // a plane shows its -z side; turned, the mirror faces +z (forward), like everything else
     const mat = new B.StandardMaterial('mirror', W.scene);
-    const tex = new B.MirrorTexture('mirror-tex', 512, W.scene, true);
+    // (A phone's idle reflection is small; modules/mirror raises it while someone stands in front of it.)
+    const phone = Boolean(H.device && H.device.tier === 'phone');
+    const tex = new B.MirrorTexture('mirror-tex', phone ? 256 : 512, W.scene, true);
     tex.mirrorPlane = new B.Plane(0, 0, 1, 0);
     tex.level = 0.85;
     mat.reflectionTexture = tex;
@@ -413,9 +415,13 @@
     e._mirrorH = h; e._mirrorW = w;
     for (const c of frame.getChildMeshes()) c.metadata = { entity: e };
     place(e, { ...o, shadow: false });
-    // What it reflects: everything, kept up to date as the world changes.
+    // What it reflects: everything, kept up to date as the world changes. Idle, the reflection is redrawn every few
+    // frames; with someone in front of it (e._mirrorFast) it is redrawn often, from what is near the glass only
+    // (e._mirrorEvery: modules/mirror raises it when the device can't keep up).
     let last = 0;
+    e._mirrorTex = tex; e._mirrorSurface = surface;
     e._mirrorObs = W.scene.onBeforeRenderObservable.add(() => {
+      tex.refreshRate = e._mirrorFast ? (e._mirrorEvery || (phone ? 2 : 1)) : (phone ? 4 : 2);
       const now = performance.now();
       // About once a second; many times a second while someone is changing who they are in front of it.
       if (now - last < (e._mirrorFast ? 100 : 1000)) return;
@@ -423,7 +429,10 @@
       surface.computeWorldMatrix(true);
       const n = B.Vector3.TransformNormal(new B.Vector3(0, 0, -1), surface.getWorldMatrix()).normalize();
       tex.mirrorPlane = B.Plane.FromPositionAndNormal(surface.getAbsolutePosition(), n.scale(-1));
-      tex.renderList = W.scene.meshes.filter((x) => x !== surface && x.isEnabled() && x.isVisible);
+      const all = W.scene.meshes.filter((x) => x !== surface && x.isEnabled() && x.isVisible);
+      if (!e._mirrorFast) { tex.renderList = all; return; }
+      const c = surface.getAbsolutePosition(), reach = phone ? 12 : 24;
+      tex.renderList = all.filter((x) => { const bs = x.getBoundingInfo && x.getBoundingInfo().boundingSphere; return !bs || B.Vector3.Distance(bs.centerWorld, c) - bs.radiusWorld < reach; });
     });
     return e;
   }
@@ -628,7 +637,7 @@
     editor: { word: 'a mirror', lift: (spec) => num(spec.shape && spec.shape.height, 3) / 2, hotbar: [{ order: 92, icon: '🪞', label: 'Mirror', make: (yaw) => ({ type: 'mirror', name: 'Mirror', shape: { width: 1.5, height: 2.4, character: { start: 'first' } }, transform: { rotation: [0, Math.round(((yaw / (Math.PI / 180) + 180) % 360) / 15) * 15, 0] } }) }] },
     codex: {
       group: 'World', what: 'A framed mirror with a live reflection, and where players become who they are: in front of it (E, or by itself when they arrive) the Overseer asks "What are you?" (a person, a robot, a dog, a dinosaur, a shoe, a toaster, a cactus...), "How do you look?" (colors, size, hat, face, extras) and "What are you called?", and the reflection changes as they choose. Each mirror decides its questions (and "How do you see the world?": first or third person), who players may be, and whether it opens by itself; while building, its card\'s 🪞 button sets all of it.',
-      uses: 'It reflects the world (about once a second; many times a second while someone is in front of it changing). Its character questions are modules/mirror (mirror.js); what players can be is presence-core.js WHATS.',
+      uses: 'It reflects the world (its list refreshed about once a second, the picture every few frames; with someone in front of it changing, ten times a second from what is near the glass, with a warm key and a cool rim light on them). Its character questions are modules/mirror (mirror.js); what players can be is presence-core.js WHATS.',
       spec: { type: 'mirror', name: 'Mirror', transform: { position: [0, 1.6, 0] }, shape: { width: 2, height: 3, character: { steps: ['what', 'look', 'name'], start: false } } },
       fields: [['shape.width', 'meters', '2'], ['shape.height', 'meters', '3'], ['shape.character', 'false: a plain mirror (no character questions)', '{}'], ['shape.character.steps', 'the questions, in order: what, look, name, view', '["what", "look", "name"]'], ['shape.character.whats', 'who players may be: ids (dog, shoe...) or groups (people, animals, things); [] for everyone', '[]'], ['shape.character.start', '"first": opens by itself the first time a player arrives; "always": every time; false: only with E', 'false'], ['shape.character.voice', 'false: the Overseer stays quiet', 'true'], ['shape.character.reach', 'how close E works (meters)', '3']],
       props: true,
