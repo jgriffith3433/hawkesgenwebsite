@@ -202,6 +202,16 @@ anything. They are written in the voice of whoever left them.
   that, being beamed in is enough. A game can turn the intro off, or always play it.
 - **Mirrors:** a key thing in every game (modules/mirror). Each mirror decides its questions (a game might only allow
   robots, or ask first or third person), who players may be, and whether it opens by itself when they arrive.
+- **The lights (races, modules/race):** a side activity on the island, never a quest and never a gate to anything
+  (Chapter One does not ask for it). Two courses of lit gates start by the dock: the **Ridge Run** (the 4x4, three times
+  round the hills) and the **Harbour Run** (the speedboat, twice round the island). A gate is a pillar of light the
+  Overseer leaves standing; it lights the next three in order and puts out the ones you have passed. Driving through
+  the first gate starts Pip's countdown ("Three! Two! One! GO!"), then the clock runs until you come back through it.
+  **Pip** is the challenger (Pip's own time is the one to beat, and Pip loses cheerfully, with a name for the road). The
+  **Overseer** only remarks, after, in its own voice: it likes that you raced yourself and it never counts a slow time
+  against anyone ("Not faster. Still, you went round."). Your best time is kept with you (the account when signed in) and
+  a pale ghost of that run on this device; the board by the pier lists the best runs on this device, with Pip's time at the top to beat.
+  No timer ever shows in the Overseer's voice, and nobody is told they lost.
 
 ## The Overseer as a character (proposed)
 

@@ -693,3 +693,64 @@ game.on('wrecked', (d) => {
   if (!wreck || journey.state !== 'invited' || !String(wreck.type || '').includes('rocket')) return;
   newRocket('wrecked');
 });
+
+// ------------------------------------------------------------------ the lights: two races by the dock (modules/race)
+// Pip challenges (the first time you come near the lit start gates, or once the tour is done), counts the lap and
+// loses cheerfully; the Overseer remarks after, calmly: it likes that you raced yourself, and it never counts a slow
+// time against anyone (docs/story.md, "The lights"). A side activity: nothing asks for it. The module (modules/race)
+// keeps the clock, the best, the ghost and the board; the island's world file (sandbox.ts RACES) has the courses.
+const raced = (window.__islandRace = window.__islandRace || { challenged: false, opened: false, remarked: -99, aborted: false });
+const RIDE = { ridge: 'the 4x4', harbour: 'the speedboat' };
+const nice = (ms) => { const s = Math.round(ms / 100) / 10; return s >= 60 ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}` : `${s.toFixed(1)}`; };
+function challenge(why) {
+  if (raced.challenged || game.mode !== 'play' || !game.race) return;
+  raced.challenged = true;
+  const ridge = game.race.courses.find((c) => c.id === 'ridge');
+  say(`See the lights by the dock? Race me! Three laps round the hills in the 4x4${ridge && ridge.par ? `, and my time is ${nice(ridge.par)}` : ''}. The speedboat has its own!`, 8);
+  game.emit('race-challenge', { why });
+}
+// Near a start gate, or the tour done: Pip's challenge, once.
+game.every(1, () => {
+  if (raced.challenged || !game.race || game.mode !== 'play') return;
+  const p = game.player;
+  if (!p) return;
+  const at = game.planet && game.planet.round ? game.planet.toPlanet([p.x, p.y, p.z]) : [p.x, p.y, p.z];
+  for (const c of game.race.courses) {
+    const g = c.gates[0];
+    if (Math.hypot(at[0] - g.x, at[2] - g.z) < 34) return void challenge('near');
+  }
+});
+game.on('quest', (d) => { if (d && d.id === 'tour' && d.state === 'done') game.after(14, () => challenge('tour')); });
+
+// One word from the Overseer at a time: never twice within 20 s.
+const remark = (text, seconds = 5) => {
+  if (game.time - raced.remarked < 20) return;
+  raced.remarked = game.time;
+  overseer(text, seconds, null);
+};
+game.on('race', (d) => {
+  if (!d) return;
+  if (d.state === 'countdown' && d.n === 3) {
+    if (!raced.opened) { raced.opened = true; game.after(1.2, () => remark('I left lights for you. Follow them in order.', 5)); }
+  } else if (d.state === 'go') {
+    game.after(0.2, () => say('GO GO GO!', 2));
+  } else if (d.state === 'lap') {
+    say(['Hello again, Road!', 'Round we go!', 'Lap, lap, lap!'][(d.lap - 1) % 3], 3);
+  } else if (d.state === 'abort') {
+    if (!raced.aborted && d.why !== 'rescue') { raced.aborted = true; remark('The lights will wait.', 4); }
+  } else if (d.state === 'finish') {
+    const first = !d.previous;
+    game.after(0.8, () => {
+      if (d.beatPar) say(`You beat me! That was brilliant. I am not upset. I am a little upset. ${nice(d.ms)}!`, 7);
+      else if (first) say(`${nice(d.ms)}! Now you have a time. Beat my ${nice(d.par)}!`, 7);
+      else if (d.isBest) say(`${nice(d.ms)}! Faster than before. Again?`, 6);
+      else say(`The road liked that one. Again? ${nice(d.ms)} is a fine time.`, 6);
+    });
+    game.after(3.5, () => {
+      if (first) remark(`A line, a light, and ${RIDE[d.course] || 'you'} going round. I am glad you went.`, 5);
+      else if (d.beatGhost) remark('You raced yourself, and you won. I like that.', 5);
+      else if (d.isBest) remark('Faster than before. The road noticed.', 5);
+      else remark('Not faster. Still, you went round.', 5);
+    });
+  }
+});

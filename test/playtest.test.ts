@@ -20,7 +20,7 @@ test('the playtest files are valid modules', () => {
 test('the scenarios are the ones AGENTS.md documents', () => {
   const src = read('public/playtest/portal.js');
   const agents = read('AGENTS.md');
-  for (const id of ['smoke', 'sandbox-first-minutes']) {
+  for (const id of ['smoke', 'sandbox-first-minutes', 'island-race']) {
     assert.ok(src.includes(`id: '${id}'`), `${id} is a scenario`);
     assert.ok(agents.includes(id), `${id} is in AGENTS.md`);
   }

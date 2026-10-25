@@ -11,19 +11,29 @@
 // The page changes once (the Play click leaves the landing page for /play/sandbox): the run is kept in sessionStorage and
 // the sandbox page carries it on, replaying the events so far, so one report covers the whole path.
 //
+// `island-race` plays the same way up to the account, then the Ridge Run: into the 4x4, through the start gate (the
+// countdown and the clock), every gate in order by steering with the keys, the finish and the best, then once more with the
+// ghost of the best run beside you. Options: laps (default 1: a named shortcut for the world's three), touch (the phone
+// controls: /play/sandbox?touch=1), signup (as above), ghost: false (one run), watch.
+//
 // Options: { to: 'veil'|'intro'|'mirror'|'sheet'|'drive'|'fish' (stop after; default 'fish'), signup: false (never sign up;
 //   always so on live), fish: 'strict' (a fishing failure fails the run; otherwise it is a warning), watch: seconds of the
 //   intro to watch before skipping (default 8), at: 'sandbox' (start on /play/sandbox instead of clicking Play) }.
 import { installPlaytest } from './hawkes-playtest.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish'];
+const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'race'];
 const SCENARIOS = [
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
   {
     id: 'sandbox-first-minutes', title: 'Play /play/sandbox as a new player: veil, intro, mirror, sign-up, drive to the dock, fish', seconds: 210, tags: ['full'],
     starts: ['sandbox'],
     description: 'options: to (veil, intro, mirror, sheet, drive, fish), signup (false: never sign up; always off on live), fish ("strict": a fishing failure fails the run), watch (seconds of intro to watch), at ("sandbox")',
+  },
+  {
+    id: 'island-race', title: 'The Ridge Run: through the start gate, the countdown, every gate in order, the finish and best time, then the ghost of the best run', seconds: 330, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'options: laps (default 1; the world has 3), touch (true: the phone controls, ?touch=1, and the frame rate is measured), ghost (false: one run only), signup (false: stop at the account sheet; always on live), watch (seconds of intro to watch), name, what',
   },
 ];
 
@@ -100,7 +110,7 @@ async function stageLanding(t, ctx) {
   await t.until(() => document.readyState === 'complete' && $('[data-play-now]'), 20000, 'the landing page and its Play now button');
   t.event('landing-loaded');
   t.progress(0.04);
-  if (ctx.options.at === 'sandbox') { t.event('start-at', 'sandbox: skipped the Play click (named shortcut)'); writeRun({ ...ctx.saved(), landed: true }); location.href = '/play/sandbox'; await t.wait(30000); return; }
+  if (ctx.options.at === 'sandbox') { t.event('start-at', 'sandbox: skipped the Play click (named shortcut)'); writeRun({ ...ctx.saved(), landed: true }); location.href = ctx.options.touch ? '/play/sandbox?touch=1' : '/play/sandbox'; await t.wait(30000); return; }
   await t.wait(1500);
   t.event('play-click', 'Play now (the hero button)');
   writeRun({ ...ctx.saved(), landed: true });
@@ -301,10 +311,131 @@ async function stageFish(t, ctx) {
   } finally { pointer('pointerup', window); }
 }
 
+// ---------------------------------------------------------------------------------------------- the Ridge Run
+/** Steers the 4x4 at a point (engine numbers) with the keys, as a careful driver: turn by the heading error (the 4x4's own
+ *  right/forward: a target on the right = D), throttle when it is roughly ahead, brake for a sharp bend, and back out for a
+ *  moment when it has stopped against something. Checked against the island's course by a keyboard bot (the engine test
+ *  rig): a lap of the Ridge Run in about 30 s. `then` is the point after the target: near the target it aims between. */
+const steer = { last: null, slow: 0, back: 0 };
+function steerAt(jeep, target, then) {
+  const v = jeep.vehicle, now = performance.now();
+  const spd = steer.last ? Math.hypot(jeep.x - steer.last[0], jeep.z - steer.last[1]) / Math.max(0.02, (now - steer.last[2]) / 1000) : 0;
+  const dt = steer.last ? (now - steer.last[2]) / 1000 : 0.1;
+  steer.last = [jeep.x, jeep.z, now];
+  let aim = target;
+  if (then && Math.hypot(target[0] - jeep.x, target[2] - jeep.z) < 16) aim = [(target[0] * 2 + then[0]) / 3, target[1], (target[2] * 2 + then[2]) / 3];
+  const tx = aim[0] - jeep.x, tz = aim[2] - jeep.z;
+  const err = Math.atan2(tx * v.right.x + tz * v.right.z, tx * v.fwd.x + tz * v.fwd.z); // + : the target is to the right
+  if (spd < 1) steer.slow += dt; else if (spd > 3) steer.slow = 0;
+  const keys = { w: false, s: false, a: false, d: false };
+  if (steer.back > 0) { steer.back -= dt; keys.s = true; keys[err > 0 ? 'a' : 'd'] = true; }
+  else if (steer.slow > 2) { steer.slow = 0; steer.back = 1.4; }
+  else {
+    if (Math.abs(err) < 0.5 || spd < 5) keys.w = true; else if (Math.abs(err) > 1.0 && spd > 8) keys.s = true;
+    if (Math.abs(err) > 0.07) keys[err > 0 ? 'd' : 'a'] = true;
+  }
+  setKeys(keys);
+  return { err, dist: Math.hypot(target[0] - jeep.x, target[2] - jeep.z), spd };
+}
+
+async function stageRace(t, ctx) {
+  const race = () => G() && G().race;
+  await t.until(() => race() && race().courses && race().courses.length && G().vehicles, 90000, 'the island\'s race courses');
+  const laps = Math.max(1, Number(ctx.options.laps ?? 1));
+  race().setLaps('ridge', laps);
+  const course = race().courses.find((c) => c.id === 'ridge');
+  const g0 = course.gates[0];
+  t.event('race-ready', `${course.name}: ${laps} lap${laps > 1 ? 's' : ''}, ${course.gates.length} gates${ctx.options.touch ? ', touch controls' : ''}`);
+  t.progress(0.62);
+  await t.wait(2500);
+  const jeep = () => W().byId.get('jeep');
+  const driving = () => G().player && G().player.controller === 'drive';
+  const seen = [];
+  G().on('race', (d) => { seen.push(d); if (d.state === 'gate') t.event('gate', `${d.index} of ${d.of}${d.delta !== null && d.delta !== undefined ? ` (${d.delta > 0 ? '+' : ''}${(d.delta / 1000).toFixed(2)} s)` : ''}`); else if (d.state === 'lap') t.event('lap', `${d.lap} of ${d.laps}`); else if (d.state === 'go') t.event('go', d.ghost ? 'with the ghost' : 'no ghost yet'); else if (d.state === 'countdown') t.event('countdown', String(d.n)); });
+  if (!driving()) {
+    await walkTo(t, 'jeep', 3.2, 60000, 'the 4x4');
+    for (let i = 0; i < 4 && !driving(); i++) { await tap(t, 'e'); await t.wait(700); }
+    if (!driving()) throw new Error('timed out getting into the 4x4 with E');
+  }
+  t.event('in-the-4x4');
+  const local = (x, y, z) => G().planet.toLocal([x, y, z]);
+  const planetOf = (e) => { const q = G().planet.toPlanet([e.x, e.y, e.z]); return { x: q[0], z: q[2] }; };
+  // The start gate faces the way its course runs; the run in is from behind it.
+  const dir = (() => { const n = course.gates.length, a = course.gates[n - 1], b = course.gates[1], dx = b.x - a.x, dz = b.z - a.z, l = Math.hypot(dx, dz) || 1; return { x: dx / l, z: dz / l }; })();
+
+  const oneRun = async (label) => {
+    const before = seen.length;
+    let t0 = performance.now();
+    // 1) to the start gate, from behind
+    t.scene(`Race: to the start gate${label}`);
+    while (race().state.phase === 'idle') {
+      if (performance.now() - t0 > 90000) throw new Error('timed out driving through the start gate (no countdown began)');
+      const j = jeep(), p = planetOf(j);
+      const s = (p.x - g0.x) * dir.x + (p.z - g0.z) * dir.z;
+      const lat = (p.x - g0.x) * -dir.z + (p.z - g0.z) * dir.x;
+      // Behind and lined up: straight at the gate; else the point 30 m behind it first.
+      const lined = s < -6 && Math.abs(lat) < 8 ? g0 : { x: g0.x - dir.x * 30, y: g0.y, z: g0.z - dir.z * 30 };
+      const tg = local(lined.x, lined.y ?? g0.y, lined.z);
+      steerAt(j, tg, null);
+      await t.wait(80);
+    }
+    t.event('countdown-started', 'through the start gate');
+    t.scene(`Race: countdown${label}`);
+    setKeys({});
+    await t.until(() => race().state.phase === 'running', 8000, 'GO after the countdown');
+    t.scene(`Race: GO${label}`);
+    t.event('race-go', `lit gates ahead; ${label ? 'ghost' : 'no ghost'}`);
+    t.progress(0.7);
+    // 2) the gates in order
+    let frames = 0, last = performance.now(), worst = 0;
+    const raf = () => { const n = performance.now(); frames++; worst = Math.max(worst, n - last); last = n; if (race().state.phase === 'running') requestAnimationFrame(raf); };
+    requestAnimationFrame(raf);
+    const tRun = performance.now();
+    let shot = 0, ghostSeen = false;
+    t0 = performance.now();
+    while (race().state.phase === 'running') {
+      if (performance.now() - t0 > 160000) throw new Error(`timed out on the course (checkpoint ${race().state.checkpoint} of ${race().state.of})`);
+      const st = race().state, gate = course.gates[st.next], j = jeep();
+      if (!j || !gate) break;
+      const nx = course.gates[(st.next + 1) % course.gates.length];
+      steerAt(j, local(gate.x, gate.y, gate.z), local(nx.x, nx.y, nx.z));
+      if (st.checkpoint >= 2 && !shot) { shot = 1; t.scene(`Race: gates lit in order${label}`); }
+      if (label && !ghostSeen && [...W().entities].some((e) => e.tag === 'race-ghost' && e.alive && e.visible !== false)) { ghostSeen = true; t.event('ghost-running', 'the ghost of the best run is on the course'); t.scene('Race: the ghost beside you'); }
+      await t.wait(80);
+    }
+    releaseAll();
+    const secs = (performance.now() - tRun) / 1000;
+    t.metric(`raceFps${label ? 'Ghost' : ''}`, Math.round(frames / secs));
+    t.metric(`raceWorstFrameMs${label ? 'Ghost' : ''}`, Math.round(worst));
+    const fin = seen.slice(before).find((d) => d.state === 'finish');
+    if (!fin) {
+      const gone = seen.slice(before).find((d) => d.state === 'abort');
+      throw new Error(gone ? `the race was called off (${gone.why})` : 'the run ended with no finish');
+    }
+    t.scene(`Race: finish${label}`);
+    t.event('race-finish', `${(fin.ms / 1000).toFixed(2)} s${fin.isBest ? ', new best' : ''}${fin.previous ? ` (before: ${(fin.previous / 1000).toFixed(2)} s)` : ''}${fin.beatGhost ? ', beat the ghost' : ''}`);
+    await t.wait(2200);
+    return fin;
+  };
+
+  const first = await oneRun('');
+  if (!first.isBest) t.problem('warning', 'the first finish was not reported as the best time');
+  t.event('best-kept', `best ${(race().best('ridge') / 1000).toFixed(2)} s`);
+  t.progress(0.85);
+  if (ctx.options.ghost === false) { t.progress(1); return; }
+  await t.until(() => race().state.phase === 'idle', 6000, 'the start gate to listen again');
+  await t.wait(2500);
+  const second = await oneRun(' (second run)');
+  t.event('race-compare', `${(first.ms / 1000).toFixed(2)} s then ${(second.ms / 1000).toFixed(2)} s${second.beatGhost ? ' - beat the ghost' : ''}`);
+  t.progress(1);
+}
+
 const RUN = {
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish, race: stageRace,
 };
-const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish' };
+// (island-race skips the tour's own stages: it signs in, then races.)
+const PLANS = { 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'] };
+const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'island-race': 'race' };
 
 // ---------------------------------------------------------------------------------------------- the contract
 let api = null;
@@ -333,13 +464,14 @@ export function install() {
         for (const [k, a, b] of prior.events) { if (k === 's') sc(a); else ev(a, b); events.push([k, a, b]); }
         ev('page-changed', 'landing page > /play/sandbox');
       }
-      const to = STAGES.indexOf(options.to && STAGES.includes(options.to) ? options.to : ENDS[id]);
+      const list = PLANS[id] || STAGES;
+      const to = list.indexOf(options.to && list.includes(options.to) ? options.to : ENDS[id]);
       const from = prior || onSandbox() ? 1 : 0;
-      t.event('plan', `${id}: ${STAGES[from]} to ${STAGES[to]}${isLive() ? ' (live: no sign-up)' : ''}`);
+      t.event('plan', `${id}: ${list[from]} to ${list[to]}${isLive() ? ' (live: no sign-up)' : ''}`);
       let named = '';
       try {
         for (let i = from; i <= to; i++) {
-          named = STAGES[i];
+          named = list[i];
           if ((await RUN[named](t, ctx)) === 'stop') return;
           t.event('stage-done', named);
         }
