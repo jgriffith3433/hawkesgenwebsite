@@ -16,6 +16,8 @@ import { describeScene, parseScene } from './scene.ts';
 import { engineDoc } from './engine.ts';
 import { broadcastOps } from './rooms.ts';
 import { broadcast } from './live.ts';
+import { lock, unlock, locked } from './shared.ts';
+import { publish, onHub } from './bus.ts';
 import { search as searchCommunity } from './community.ts';
 
 export const AI_CREDITS = () => Math.max(1, Number(env('GAME_AI_CREDITS') ?? 8));
@@ -94,7 +96,7 @@ export async function generateAsset(user: User, gameId: string, body: { kind?: u
   const steps = await k.build(prompt, { seconds: body.seconds, voice: body.voice, project: user.project });
   const t = startTask(user, { kind: 'session', id: `game:${game.id}`, name: game.title, cap: null }, `${k.title}: ${prompt.slice(0, 60)}`, steps);
   db.prepare('INSERT INTO game_gen (task_id, game_id, user_id, name, kind, prompt, message_id, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(t.id, game.id, user.id, name, kind, prompt, body.messageId ? String(body.messageId) : null, Date.now());
-  follow(t.id);
+  publish({ t: 'gen-follow', id: t.id }); // the worker follows it
   const row = genRow(t.id)!;
   broadcast(game.id, 'gen', row);
   return row;
@@ -116,6 +118,7 @@ export function pendingGens(user: User, gameId: string) {
 }
 
 const following = new Set<string>();
+onHub('gen-follow', (m) => follow(m.id));
 /** Watches a generation task: progress to the game's editors, and the result into the game's assets. */
 function follow(taskId: string) {
   if (following.has(taskId)) return;
@@ -327,7 +330,9 @@ export function riskyCode(content: string) {
   return RISKY.filter(([re]) => re.test(content)).map(([, name]) => name);
 }
 
-const thinking = new Set<string>();
+// One message at a time per game, across every web process (shared.ts: a lock in the database that lets go by itself).
+const thinkingFor = (gameId: string) => `thinking:${gameId}`;
+const THINK_TTL = () => Number(env('GAME_AI_TIMEOUT_MS') ?? 5 * 60_000) + 2 * 60_000;
 
 /** What to tell the players when the assistant's job didn't finish: plain, and always that nothing broke. */
 function whyNot(job: { status: string; error?: string | null }) {
@@ -361,7 +366,7 @@ export async function askAssistant(user: User, gameId: string, body: { message?:
   const codes = role === 'editor' || role === 'owner';
   const message = String(body.message ?? '').trim().slice(0, 4000);
   if (!message) throw new PortalError('Ask for something');
-  if (thinking.has(game.id)) throw new PortalError('The Overseer is still working on the last message', { status: 429 });
+  if (locked(thinkingFor(game.id))) throw new PortalError('The Overseer is still working on the last message', { status: 429 });
   const fresh = getUser(user.id)!;
   if (fresh.credits < AI_CREDITS()) throw new PortalError(`Each message to the Overseer costs ${AI_CREDITS()} credits; you have ${fresh.credits}.`, { status: 402 });
   const asked = chatMessage(game.id, user.id, 'user', message, { toAi: true });
@@ -370,13 +375,14 @@ export async function askAssistant(user: User, gameId: string, body: { message?:
   const view = playerView(body.context, body.mention);
   const shared = searchCommunity({ q: message, limit: 16 }).items;
   const prompt = buildPrompt({ title: game.title, description: game.description, assets: ctx.assets, world: ctx.world, files: ctx.files, chat: ctx.chat, errors, community: shared.length ? communityLines(shared) : '', view, name: user.name ?? 'Someone', message });
-  thinking.add(game.id);
+  // (Taken after the cheap checks above and before anything is charged: whoever gets it first asks, the other is told to wait.)
+  if (!lock(thinkingFor(game.id), THINK_TTL())) throw new PortalError('The Overseer is still working on the last message', { status: 429 });
   broadcast(game.id, 'thinking', { on: true, by: user.name });
   let job: any;
   try {
     [job] = await submit(fresh, [{ tool: 'llm.json', params: { prompt, system: SYSTEM(), schema: SCHEMA, effort: 'medium', maxTokens: 32000 } }], { kind: 'session', id: `game:${game.id}`, name: game.title, cap: null }, { minCredits: AI_CREDITS() });
   } catch (e) {
-    thinking.delete(game.id);
+    unlock(thinkingFor(game.id));
     broadcast(game.id, 'thinking', { on: false });
     throw e;
   }
@@ -449,7 +455,7 @@ export async function askAssistant(user: User, gameId: string, body: { message?:
       chatMessage(game.id, null, 'ai', "Something went wrong on my side before I could finish. Nothing in your game changed, and you weren't charged for this one.", { error: true, retry: message, mention: body.mention ?? null, replyTo: asked.id });
       if (job && !['done', 'failed', 'cancelled'].includes(job.status)) settle({ ...job, status: 'failed', error: String(e?.message ?? e) });
     } finally {
-      thinking.delete(game.id);
+      unlock(thinkingFor(game.id));
       broadcast(game.id, 'thinking', { on: false });
     }
   })();

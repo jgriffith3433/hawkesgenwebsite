@@ -4,25 +4,29 @@
 import type { ServerResponse } from 'node:http';
 import { id, PortalError, envInt } from './util.ts';
 import { env } from './config.ts';
+import { publish, missed, on, onConnect } from './bus.ts';
+import { procName, procs } from './proc.ts';
 
-type Conn = { id: string; res: ServerResponse; userId: string; name: string; file: string | null; color: string };
+type Conn = { id: string; res: ServerResponse; userId: string; name: string; file: string | null; color: string; pending: { event: string; data: unknown; id?: string }[] | null };
 const rooms = new Map<string, Map<string, Conn>>();
 
-// Streams are long-lived, so they are capped: PORTAL_LIVE_PER_USER (6) for one account, PORTAL_LIVE_MAX (2000) in all.
-export const liveCaps = () => ({ perUser: envInt(env, 'PORTAL_LIVE_PER_USER', 6), total: envInt(env, 'PORTAL_LIVE_MAX', 2000) });
+// Streams are long-lived, so they are capped: PORTAL_LIVE_PER_USER (6) for one account in a process, PORTAL_LIVE_MAX (2000) in all (shared out among the web processes).
+export const liveCaps = () => ({ perUser: envInt(env, 'PORTAL_LIVE_PER_USER', 6), total: Math.ceil(envInt(env, 'PORTAL_LIVE_MAX', 2000) / procs()) });
 let streams = 0;
 export const liveStats = () => ({ streams, users: streamsByUser.size });
 const streamsByUser = new Map<string, number>();
 
-// Every durable event gets an id `<boot>-<n>` and the last few of a game are kept, so a stream that drops and comes back
-// (the browser sends Last-Event-ID itself; a manual reconnect sends ?last=) gets what it missed, once. A new boot has a
-// new prefix: ids from before a restart replay nothing (the editor reloads its state from `hello`, nothing is repeated).
-// Presence, cursors and the hello are state, not history: they are never replayed.
-const BOOT = id('b', 3);
-const KEEP = 200;
+// Every durable event gets an id `<boot>-<n>` from the bus's hub (the worker's, src/bus.ts) and the last few of a game are
+// kept there, so a stream that drops and comes back (the browser sends Last-Event-ID itself; a manual reconnect sends
+// ?last=), to this process or another, gets what it missed, once. A new boot has a new prefix: ids from before a restart
+// replay nothing (the editor reloads its state from `hello`, nothing is repeated). Presence, cursors and the hello are
+// state, not history: they are never replayed. Every event goes through the hub and comes back to every web process, so
+// each editor's stream gets it once wherever it is connected.
 const RETRY_MS = 3000;
-const NOT_REPLAYED = new Set(['presence', 'cursor', 'hello', 'thinking']);
-const history = new Map<string, { seq: number; events: { n: number; event: string; data: unknown }[] }>();
+const PROC = procName();
+// Who has the editor open, as the hub last told us: game -> process -> its streams. This process's own entry is always
+// read from `rooms`, never from here.
+const remote = new Map<string, Record<string, unknown[]>>();
 
 const COLORS = ['#c8421d', '#2f6b4a', '#2f4f8f', '#9a6a12', '#7a3b8f', '#1f7a7a', '#8f2f4f', '#4b4840'];
 const colorFor = (userId: string) => COLORS[[...userId].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % COLORS.length];
@@ -37,29 +41,44 @@ const write = (c: Conn, event: string, data: unknown, evId?: string) => {
 };
 
 export function broadcast(gameId: string, event: string, data: unknown) {
-  const room = rooms.get(gameId);
-  let evId: string | undefined;
-  if (!NOT_REPLAYED.has(event)) {
-    let h = history.get(gameId);
-    if (!h) history.set(gameId, (h = { seq: 0, events: [] }));
-    h.events.push({ n: ++h.seq, event, data });
-    if (h.events.length > KEEP) h.events.shift();
-    evId = `${BOOT}-${h.seq}`;
+  publish({ t: 'live', game: gameId, event, data });
+}
+
+const seqOf = (evId?: string) => Number(/-(\d+)$/.exec(evId ?? '')?.[1] ?? 0);
+
+on('live', (m) => {
+  const room = rooms.get(m.game);
+  if (room) for (const c of room.values()) {
+    if (c.pending) c.pending.push({ event: m.event, data: m.data, id: m.id });
+    else write(c, m.event, m.data, m.id);
   }
-  if (room) for (const c of room.values()) write(c, event, data, evId);
-}
+});
+on('presence', (m) => {
+  if (Object.keys(m.procs).length) remote.set(m.game, m.procs); else remote.delete(m.game);
+  const room = rooms.get(m.game);
+  if (room?.size) { const list = presence(m.game); for (const c of room.values()) write(c, 'presence', list); }
+});
+on('kick', (m) => { for (const c of rooms.get(m.game)?.values() ?? []) if (c.userId === m.user) c.res.end(`event: bye\ndata: {}\n\n`); });
+on('set-presence', (m) => {
+  const c = rooms.get(m.game)?.get(m.conn);
+  if (!c || c.userId !== m.user) return;
+  c.file = typeof m.file === 'string' ? m.file.slice(0, 200) : null;
+  announce(m.game);
+  if (m.line !== undefined) broadcast(m.game, 'cursor', { conn: m.conn, name: c.name, color: c.color, file: c.file, line: Number(m.line) || 0 });
+});
 
-/** The events after `last` (an id from this boot), or none when the id is from before a restart or too old to be kept. */
-export function missed(gameId: string, last: string | null | undefined) {
-  const m = /^(\w+)-(\d+)$/.exec(last ?? '');
-  const h = history.get(gameId);
-  if (!m || m[1] !== BOOT || !h) return [];
-  return h.events.filter((e) => e.n > Number(m[2])).map((e) => ({ id: `${BOOT}-${e.n}`, event: e.event, data: e.data }));
-}
+/** Tells the hub who of this process has the game open; it tells everyone the whole list. */
+const mine = (gameId: string) => [...(rooms.get(gameId)?.values() ?? [])].map((c) => ({ conn: c.id, user: c.userId, name: c.name, file: c.file, color: c.color }));
+const announce = (gameId: string) => publish({ t: 'presence-set', game: gameId, proc: PROC, conns: mine(gameId) });
+// A worker that restarted has forgotten: say again who is here.
+onConnect(() => { for (const g of rooms.keys()) announce(g); });
 
-/** How many people have the game open in the editor (its live feed). */
-export const presenceCount = (gameId: string) => rooms.get(gameId)?.size ?? 0;
-const presence = (gameId: string) => [...(rooms.get(gameId)?.values() ?? [])].map((c) => ({ conn: c.id, user: c.userId, name: c.name, file: c.file, color: c.color }));
+/** How many people have the game open in the editor (its live feed), on every web process. */
+export const presenceCount = (gameId: string) => presence(gameId).length;
+const presence = (gameId: string) => {
+  const others = Object.entries(remote.get(gameId) ?? {}).filter(([p]) => p !== PROC).flatMap(([, conns]) => conns);
+  return [...mine(gameId), ...others];
+};
 
 /** Opens an editor's stream; it lives until the browser goes away. */
 export function join(gameId: string, user: { id: string; name: string | null }, res: ServerResponse, onClose: () => void = () => {}, last?: string | null, beatMs = 25_000) {
@@ -69,13 +88,25 @@ export function join(gameId: string, user: { id: string; name: string | null }, 
   streams++;
   streamsByUser.set(user.id, (streamsByUser.get(user.id) ?? 0) + 1);
   res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no', Connection: 'keep-alive' });
-  const c: Conn = { id: id('c_', 6), res, userId: user.id, name: user.name ?? 'someone', file: null, color: colorFor(user.id) };
+  const c: Conn = { id: `${id('c_', 6)}`, res, userId: user.id, name: user.name ?? 'someone', file: null, color: colorFor(user.id), pending: null };
   if (!rooms.has(gameId)) rooms.set(gameId, new Map());
   rooms.get(gameId)!.set(c.id, c);
   res.write(`retry: ${RETRY_MS}\n\n`); // how long the browser waits before it comes back on its own
-  write(c, 'hello', { conn: c.id, color: c.color, presence: presence(gameId), resumed: !!last });
-  for (const e of missed(gameId, last)) write(c, e.event, e.data, e.id);
-  broadcast(gameId, 'presence', presence(gameId));
+  write(c, 'hello', { conn: c.id, proc: PROC, color: c.color, presence: presence(gameId), resumed: !!last });
+  // What it missed: at once when the hub is in this process; else it asks the worker, and what arrives meanwhile waits
+  // behind it, so nothing is written twice or out of order.
+  const gone = missed(gameId, last);
+  if (Array.isArray(gone)) for (const e of gone) write(c, e.event, e.data, e.id);
+  else {
+    c.pending = [];
+    void gone.then((list) => {
+      for (const e of list) write(c, e.event, e.data, e.id);
+      const upto = Math.max(0, ...list.map((e) => e.n));
+      for (const e of c.pending ?? []) if (!e.id || seqOf(e.id) > upto) write(c, e.event, e.data, e.id);
+      c.pending = null;
+    });
+  }
+  announce(gameId);
   const beat = setInterval(() => {
     if (!res.destroyed && !res.writableEnded) try { res.write(': beat\n\n'); } catch {}
   }, beatMs);
@@ -87,25 +118,31 @@ export function join(gameId: string, user: { id: string; name: string | null }, 
     clearInterval(beat);
     rooms.get(gameId)?.delete(c.id);
     if (!rooms.get(gameId)?.size) rooms.delete(gameId);
-    broadcast(gameId, 'presence', presence(gameId));
+    announce(gameId);
     onClose();
   });
   return c.id;
 }
 
-/** Which file someone has open (and where their cursor is), for everyone else's file list and gutter. */
+/** Which file someone has open (and where their cursor is), for everyone else's file list and gutter. The stream may
+ *  be on another web process: then the hub carries the word to it. */
 export function setPresence(gameId: string, conn: string, userId: string, body: { file?: unknown; line?: unknown }) {
   const c = rooms.get(gameId)?.get(conn);
-  if (!c || c.userId !== userId) return { ok: false };
+  if (!c) {
+    if (!conn || procs() < 2) return { ok: false };
+    publish({ t: 'set-presence', game: gameId, conn, user: userId, file: body.file, line: body.line });
+    return { ok: true };
+  }
+  if (c.userId !== userId) return { ok: false };
   c.file = typeof body.file === 'string' ? body.file.slice(0, 200) : null;
-  broadcast(gameId, 'presence', presence(gameId));
+  announce(gameId);
   if (body.line !== undefined) broadcast(gameId, 'cursor', { conn, name: c.name, color: c.color, file: c.file, line: Number(body.line) || 0 });
   return { ok: true };
 }
 
-/** Ends the streams of someone removed from a game. */
+/** Ends the streams of someone removed from a game, on every web process. */
 export function kick(gameId: string, userId: string) {
-  for (const c of rooms.get(gameId)?.values() ?? []) if (c.userId === userId) c.res.end(`event: bye\ndata: {}\n\n`);
+  publish({ t: 'kick', game: gameId, user: userId });
 }
 
 /** Ends every stream properly (the chunked terminator goes out) so a restart is a clean close the browser reconnects from, not a reset. */
