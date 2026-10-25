@@ -38,7 +38,8 @@
   // Gen-made models (the pilot): files in public/play/models, made through Hawkes Gen (docs/characters.md "Gen models"). The front of each file is +z.
   const lods = (tris, low, url) => ({ kind: 'mesh', tris, tex: 1024, levels: [{ tris: low, tex: 1024, url }] });
   // The pilot's and the full set's models (docs/characters.md "Gen models"): every one is retopologised to 7,600 triangles near and 2,280 low (JPEG textures, 1024 px).
-  // Skinned ones came out of Gen's template rigs, whose clips are named after bones: `idle` Head, `walk` ArmR, `run` ArmR2, `jump` LegRTip2 (biped) or LegBRTip2 (quadruped template).
+  // person and robot are the first Mixamo-standard models (docs/characters.md "Mixamo models": mesh.rig, the full 52-bone skeleton; their clips come from public/play/anim/mixamo.json, their anchors hang on mixamorig: bones).
+  // The other skinned ones came out of Gen's template rigs, whose clips are named after bones: `idle` Head, `walk` ArmR, `run` ArmR2, `jump` LegRTip2 (biped) or LegBRTip2 (quadruped template).
   // The things (and the roll-bot, the fish, the duck) are one rigid mesh: they move by their form, procedurally.
   const mdl = (id, tris = 7600, low = 2280) => ({ url: `/play/models/${id}.glb`, lods: lods(tris, low, `/play/models/${id}-low.glb`) });
   const BIPED = { idle: 'Head', walk: 'ArmR', run: 'ArmR2', jump: 'LegRTip2' };
@@ -50,8 +51,8 @@
   const A = (head, face, neck, back, rump) => ({ head: { at: head }, face: { at: face }, neck: { at: neck }, back: { at: back }, rump: { at: rump } });
   P.modelRegistry = {
     // people and machines
-    person: { ...row('biped'), url: '/play/models/person.glb', lods: lods(7600, 2279, '/play/models/person-low.glb'), h: 1.8, head: 0.85, clips: { walk: 'ArmR', run: 'ArmR2', idle: 'Head', jump: 'LegRTip' }, anchors: { head: { at: [0, 0.99, 0] }, face: { at: [0, 0.78, 0.24] }, neck: { at: [0, 0.52, 0] }, back: { at: [0, 0.4, -0.14] }, rump: { at: [0, 0.22, -0.12] } } },
-    robot: { ...row('biped'), ...mdl('robot'), h: 1.8, head: 0.8, clips: BIPED, anchors: A([0, 0.99, 0], [0, 0.79, 0.2], [0, 0.62, 0], [0, 0.45, -0.18], [0, 0.3, -0.15]) },
+    person: { ...row('biped'), url: '/play/models/person.glb', lods: lods(7600, 2280, '/play/models/person-low.glb'), h: 1.8, head: 1.04, rig: 'mixamo', anchors: { head: { node: 'mixamorig:Head', at: [0.0616, 1.5419, -0.0385], rot: [0.0999, -2.9231, 0.0506] }, face: { node: 'mixamorig:Head', at: [-0.1472, 0.6436, -0.7886], rot: [0.0999, -2.9231, 0.0506] }, neck: { node: 'mixamorig:Neck', at: [-0.0554, -0.1273, 0.1911], rot: [0.2243, 2.9323, 0.0249] }, back: { node: 'mixamorig:Spine2', at: [0.254, -0.2907, 0.6441], rot: [0.2588, -2.7481, 0.0037] }, rump: { node: 'mixamorig:Hips', at: [0.0239, 0.1467, 0.7213], rot: [0.2955, -3.0903, 0.015] } } },
+    robot: { ...row('biped'), ...mdl('robot'), h: 1.8, head: 0.95, rig: 'mixamo', anchors: { head: { node: 'mixamorig:Head', at: [0.015, 1.1176, -0.1419], rot: [0.2552, 3.0125, 0.0058] }, face: { node: 'mixamorig:Head', at: [0.0702, 0.2547, -0.6], rot: [0.2552, 3.0125, 0.0058] }, neck: { node: 'mixamorig:Neck', at: [-0.0578, -0.3254, 0.2862], rot: [0.249, 2.9367, -0.0153] }, back: { node: 'mixamorig:Spine2', at: [0.0361, -0.3783, 0.8001], rot: [0.306, -3.0669, 0.0223] }, rump: { node: 'mixamorig:Hips', at: [-0.0038, -0.1402, 0.8423], rot: [0.2001, -3.1308, 0.0021] } } },
     tvbot: { ...row('biped'), ...mdl('tvbot'), h: 1.75, head: 0.7, clips: BIPED, anchors: A([0, 0.86, 0], [0, 0.76, 0.2], [0, 0.66, 0], [0, 0.45, -0.17], [0, 0.3, -0.15]) },
     rollbot: { ...row('legless'), rig: 'object', keepGait: true, ...mdl('rollbot'), h: 1.35, head: 0.6, anchors: A([0, 0.88, 0], [0, 0.72, 0.2], [0, 0.6, 0], [0, 0.4, -0.2], [0, 0.2, -0.2]) },
     // animals: Gen drew most of them as upright vinyl toys, so they are bipeds; the sheep, the horse, the fox (and the pilot's dog) are on four legs

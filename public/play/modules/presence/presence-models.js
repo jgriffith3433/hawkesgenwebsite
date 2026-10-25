@@ -81,15 +81,21 @@
   }
 
   // ------------------------------------------------------------------ finding things in a model
+  // A Mixamo bone is one bone with or without its prefix: `Head`, `mixamorig:Head`, `mixamorig7:Head` and `mixamorig_Head` all find it.
+  const bare = (s) => String(s).toLowerCase().replace(/^mixamorig\d*[:_]/, '');
   function findNode(roots, name) {
     const want = String(name).toLowerCase();
+    const wantBare = bare(name);
+    let loose = null;
     const stack = [...roots];
     while (stack.length) {
       const n = stack.shift();
-      if (String(n.name).toLowerCase() === want) return n;
+      const have = String(n.name).toLowerCase();
+      if (have === want) return n;
+      if (!loose && bare(have) === wantBare) loose = n;
       for (const c of n.getChildren(undefined, true)) stack.push(c);
     }
-    return null;
+    return loose;
   }
   /** World matrices from the top down: nodes made a moment ago have no world position until their parents do. */
   function refresh(node) {
@@ -491,7 +497,7 @@
   }
 
   P.models = {
-    entry, register, levels, attach, preload, animate, dispose, stats, TRIS, HEAD_SHARE, ROLE_RE,
+    entry, register, levels, attach, preload, animate, dispose, stats, TRIS, HEAD_SHARE, ROLE_RE, findNode,
     enabled: (id) => Boolean(entry(id)),
     /** A promise that settles once a rig's model has loaded (or failed): for tests and the showcase. */
     ready: (rig) => (rig.pm ? rig.pm.wait : Promise.resolve()),
