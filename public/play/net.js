@@ -30,6 +30,7 @@
   const owners = new Map(); // scene id -> conn
   const locks = new Map(); // scene id -> conn that holds it (drives it, carries it): nobody else takes it by bumping it
   const sent = new Map(); // scene id -> last sent values (to send only what changed)
+  let everOnline = false; // (a friend answering an invitation that never got in was refused: closed or full)
   let lastMe = 0;
   let lastPing = 0;
   const xfAt = { normal: 0, fast: 0 };
@@ -47,7 +48,7 @@
   function url() {
     const base = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/v1/ws`;
     if (opts.token) return `${base}?t=${encodeURIComponent(opts.token)}&v=2`;
-    return `${base}?play=${encodeURIComponent(opts.play)}&room=${encodeURIComponent(opts.room)}&name=${encodeURIComponent(opts.name || '')}&v=2`;
+    return `${base}?play=${encodeURIComponent(opts.play)}&room=${encodeURIComponent(opts.room)}&name=${encodeURIComponent(opts.name || '')}${opts.join ? '&join=1' : ''}&v=2`;
   }
   // Everything said in one ~33 ms goes as one message (the room counts messages: 90 a second at most).
   let outq = [];
@@ -80,14 +81,16 @@
       try { if (m.t === 'b') { for (const x of m.m || []) onMessage(x); } else onMessage(m); } catch (err) { console.warn('net', err); }
     };
     ws.onclose = (e) => {
+      const refused = opts.join && !everOnline;
       online = false;
       host = null;
       for (const id of [...peers.keys()]) dropPeer(id);
       owners.clear(); locks.clear();
       outq = [];
       flags();
-      status(e.code === 4003 ? 'removed' : 'offline');
-      if (e.code === 4003 || e.code === 1008) return;
+      // A friend answering an invitation (join) who never got in: the island is closed or full. No retrying; the page says so.
+      status(e.code === 4003 ? 'removed' : refused ? 'refused' : 'offline');
+      if (e.code === 4003 || e.code === 1008 || refused) return;
       const wait = Math.min(15000, 1000 * 2 ** retry++);
       setTimeout(() => { if (!online) connect({}); }, wait);
     };
@@ -97,7 +100,7 @@
   function onMessage(m) {
     switch (m.t) {
       case 'hello': {
-        me = m.you; host = m.host; online = true;
+        me = m.you; host = m.host; online = true; everOnline = true;
         owners.clear(); locks.clear();
         for (const [k, v] of Object.entries(m.owners || {})) owners.set(k, v);
         for (const [k, v] of Object.entries(m.locks || {})) locks.set(k, v);
