@@ -22,7 +22,9 @@
 import { installPlaytest } from './hawkes-playtest.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'race'];
+const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'race'];
+// A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
+const ORDERS = { 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'] };
 const SCENARIOS = [
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
   {
@@ -34,6 +36,16 @@ const SCENARIOS = [
     id: 'island-race', title: 'The Ridge Run: through the start gate, the countdown, every gate in order, the finish and best time, then the ghost of the best run', seconds: 330, tags: ['full'],
     starts: ['sandbox'],
     description: 'options: laps (default 1; the world has 3), touch (true: the phone controls, ?touch=1, and the frame rate is measured), ghost (false: one run only), signup (false: stop at the account sheet; always on live), watch (seconds of intro to watch), name, what',
+  },
+  {
+    id: 'sandbox-chapter-one', title: 'Chapter One "What Are You?": the eight quests to the launch pad, the lit bay and the two closing lines', seconds: 420, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path, then quests 6 (walk up to Dolores) and 8 (Rolo\'s rocket) with real input; quests 4, 5 and 7 are named setup shortcuts (the quest line advanced); options as sandbox-first-minutes, plus rocket ("shortcut": skip the climb)',
+  },
+  {
+    id: 'presence-who', title: 'A shared world: who is there (list, marker or edge arrow), tap a name to beam next to them, mute, an abusive name replaced', seconds: 230, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'Plays the first minutes to the island (a throwaway sign-up, never on live), then puts two stand-in players in the room (a second browser is not needed: presence.standIn, one far ahead, one behind with an abusive name) and plays the shared-world part with real clicks. options: signup (false: never sign up; always off on live), name, what',
   },
 ];
 
@@ -265,6 +277,54 @@ async function stageDrive(t, ctx) {
   await t.wait(2500); // Pip's line and the Overseer's
 }
 
+/** Shared world: two players in the room. The second is a stand-in (presence.standIn: a named setup shortcut, since one
+ *  browser cannot be two players); everything else is what a player does: the 👥 button, a tap on a name, Mute, Report. */
+async function stagePresence(t) {
+  const P = () => HP().presence;
+  const click = (el) => { el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' })); el.click(); };
+  await t.until(() => W() && W().player && P() && P().standIn, 30000, 'the island with its presence module');
+    const mira = P().standIn('Mira', { ahead: 45, color: '#f59e0b' });
+  const rude = P().standIn('fuck you', { ahead: -50, color: '#ef4444' });
+  if (!mira || !rude) throw new Error('could not put a second player in the room');
+  t.event('second-player', 'Mira 45 m ahead; a player with an abusive name 50 m behind');
+  await t.until(() => P().markers.length >= 2, 8000, 'a marker or an edge arrow for each other player');
+  const mk = P().markers;
+  t.event('markers', mk.map((m) => `${m.name}: ${m.mode}`).join(', '));
+  t.scene('Shared world: markers');
+  // The list: 👥 opens Who's here.
+  const btn = $('#pr-hud [data-a=people]');
+  if (!btn) throw new Error('timed out: the 👥 button is not on screen');
+  click(btn);
+  await t.until(() => $('.pr-panel:not([hidden]) .pr-row[data-id="' + mira + '"]'), 5000, "Who's here to list the other player");
+  const rows = [...document.querySelectorAll('.pr-panel .pr-row .nm')].map((n) => n.textContent);
+  t.event('people-listed', rows.join(' | '));
+  if (rows.some((n) => /fuck/i.test(n))) throw new Error('the abusive name is shown in Who\'s here: ' + rows.join(' | '));
+  t.event('name-replaced', 'the abusive name shows as a Player number');
+  t.scene("Shared world: who's here");
+  // Tap their name: beamed next to them.
+  const p0 = { x: W().player.x, z: W().player.z };
+  click($('.pr-panel .pr-row[data-id="' + mira + '"] .nm'));
+  await t.until(() => P().lastGo && Math.hypot(W().player.x - W().entities.find((e) => e.netId === mira).x, W().player.z - W().entities.find((e) => e.netId === mira).z) < 5, 6000, 'the player to be beamed next to Mira');
+  t.event('teleported', 'moved ' + Math.round(Math.hypot(W().player.x - p0.x, W().player.z - p0.z)) + ' m next to Mira');
+  await t.until(() => W().scene.meshes.some((m) => /beam/.test(m.name) && m.isEnabled()), 3000, 'the beam').then(() => t.event('beam-seen'), () => t.problem('warning', 'no beam mesh was seen'));
+  t.scene('Shared world: next to Mira');
+  await t.wait(1600);
+  // Mute her, report the other.
+  click(btn);
+  await t.until(() => $('.pr-panel:not([hidden]) .pr-row[data-id="' + mira + '"] [data-a=mute]'), 5000, "Who's here again");
+  click($('.pr-panel .pr-row[data-id="' + mira + '"] [data-a=mute]'));
+  await t.until(() => P().muted(mira), 3000, 'Mira to be muted');
+  t.event('muted', 'Mira');
+  click($('.pr-panel .pr-row[data-id="' + rude + '"] [data-a=report]'));
+  await t.until(() => P().reported(rude), 3000, 'the other player to be reported');
+  t.event('reported', 'the player with the replaced name');
+  t.scene('Shared world: muted and reported');
+  P().mute(mira, false);
+  P().removeStandIns();
+  t.progress(1);
+  await t.wait(1500);
+}
+
 async function stageFish(t, ctx) {
   const q = () => G().events.quests;
   const step = () => (q().state('tour') === 'active' ? q().step('tour') : null);
@@ -430,12 +490,54 @@ async function stageRace(t, ctx) {
   t.progress(1);
 }
 
+/** Chapter One's last quests. Setup shortcuts (named in the timeline): quests 4, 5 and 7 are advanced through the quest line;
+ *  quests 6 and 8 are played with real input: walk up to Dolores, then fill and fly Rolo's rocket. */
+async function stageChapter(t, ctx) {
+  const q = () => G().events.quests;
+  const step = () => (q().state('tour') === 'active' ? q().step('tour') : null);
+  const seen = [];
+  G().on('tour', (d) => { seen.push(d.step); t.event('quest-done', d.step); });
+  G().on('beat', (d) => t.event('islander-line', `${d.who}: ${d.text}`));
+  G().on('bay-lit', () => t.event('bay-lit', 'the Overseer\'s bay is lit on the sphere'));
+  const shortcut = async (until, why) => {
+    for (let i = 0; i < 9 && step() && step() !== until; i++) { t.event('setup-shortcut', `${why}: passed "${step()}"`); q().advance('tour'); await t.wait(1500); }
+  };
+  releaseAll();
+  if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
+  await shortcut('hill', 'quests 2 to 5 (the tour so far)');
+  if (step() !== 'hill') throw new Error(`the quest line is on "${step()}", not the hill`);
+  t.scene('Quest 6: up the hill');
+  await walkTo(t, 'dolores', 3.2, 70000, 'Dolores on the hill');
+  await t.until(() => step() !== 'hill', 12000, 'Dolores to say hello (the hill quest)');
+  t.event('hill-hello', 'Dolores greeted the player; quest 6 passed');
+  t.scene('Quest 6: Dolores says hello');
+  await t.wait(3500);
+  await shortcut('launch', 'quest 7 (the helicopter flight)');
+  if (step() !== 'launch') throw new Error(`the quest line is on "${step()}", not the launch pad`);
+  t.scene('Quest 8: Rolo\'s rocket');
+  await t.wait(2500);
+  await walkTo(t, 'rocket', 4.5, 80000, 'Rolo\'s rocket on the launch pad');
+  const riding = () => { try { const r = HP().vehicles && HP().vehicles.current; return Boolean(r && r.alive); } catch { return false; } };
+  for (let i = 0; i < 4 && !riding(); i++) { await tap(t, 'e'); await t.wait(900); } // (the first E fills the tank, the next gets in)
+  t.event(riding() ? 'rocket-boarded' : 'rocket-not-boarded');
+  if (riding() && ctx.options.rocket !== 'shortcut') {
+    keyEv('keydown', ' ');
+    t.scene('Quest 8: the burn');
+    await t.until(() => step() !== 'launch', 60000, 'the rocket to carry the player up until the planet is whole').catch(() => {});
+    keyEv('keyup', ' ');
+  }
+  if (step() === 'launch') { t.problem('warning', 'the climb did not reach the planet in time; the last step was passed by a setup shortcut'); t.event('setup-shortcut', 'planet whole (sandbox-planet)'); G().emit('sandbox-planet', { height: 1000, mine: true }); }
+  await t.until(() => q().state('tour') === 'done', 15000, 'the chapter to end');
+  t.scene('Chapter One: the lit bay');
+  await t.wait(7000); // Pip's "Huh. That's new." and the Overseer's closing line
+  t.event('chapter-end', 'quests done: ' + seen.join(', '));
+  t.progress(1);
+}
+
 const RUN = {
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish, race: stageRace,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, race: stageRace,
 };
-// (island-race skips the tour's own stages: it signs in, then races.)
-const PLANS = { 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'] };
-const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'island-race': 'race' };
+const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'island-race': 'race' };
 
 // ---------------------------------------------------------------------------------------------- the contract
 let api = null;
@@ -464,14 +566,14 @@ export function install() {
         for (const [k, a, b] of prior.events) { if (k === 's') sc(a); else ev(a, b); events.push([k, a, b]); }
         ev('page-changed', 'landing page > /play/sandbox');
       }
-      const list = PLANS[id] || STAGES;
-      const to = list.indexOf(options.to && list.includes(options.to) ? options.to : ENDS[id]);
+      const to = STAGES.indexOf(options.to && STAGES.includes(options.to) ? options.to : ENDS[id]);
       const from = prior || onSandbox() ? 1 : 0;
-      t.event('plan', `${id}: ${list[from]} to ${list[to]}${isLive() ? ' (live: no sign-up)' : ''}`);
+      t.event('plan', `${id}: ${STAGES[from]} to ${STAGES[to]}${isLive() ? ' (live: no sign-up)' : ''}`);
       let named = '';
       try {
-        for (let i = from; i <= to; i++) {
-          named = list[i];
+        const seq = ORDERS[id] ? ORDERS[id].slice(ORDERS[id].indexOf(STAGES[from])) : STAGES.slice(from, to + 1);
+        for (const stage of seq) {
+          named = stage;
           if ((await RUN[named](t, ctx)) === 'stop') return;
           t.event('stage-done', named);
         }

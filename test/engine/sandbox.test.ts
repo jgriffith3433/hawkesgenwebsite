@@ -28,7 +28,7 @@ const Guest = sandboxCtx.window.HawkesGuestCore;
 function start() {
   errors.length = 0;
   // (What the script keeps on window across a hot reload is a fresh page's here.)
-  for (const k of ['__islandEarly', '__islandNudged', '__islandRescue', '__islandPlayed', '__islandAsked', '__islandJourney']) delete g.window[k];
+  for (const k of ['__islandEarly', '__islandNudged', '__islandRescue', '__islandPlayed', '__islandAsked', '__islandJourney', '__islandNoticed', '__islandFuelled', '__islanderDid', '__islanderHeard', '__islanderLog', '__islanderListening']) delete g.window[k];
   run(H, { ...scene, config: { ...scene.config, look: false, shadows: false } }, { mode: 'play', scripts: { 'scripts/main.js': bundle.files['scripts/main.js'] } });
   return H.game;
 }
@@ -86,14 +86,14 @@ test('sandbox: the tour asks for the Overseer in the chat, and passes that step 
   H.tick(1);
   const q = game.events.quests;
   const steps = (scene.config.quests[0].steps as any[]).map((st) => st.id);
-  assert.deepEqual(steps.slice(-3), ['spawn', 'ask', 'fly'], 'asking the Overseer comes after spawning, before the helicopter');
+  assert.deepEqual(steps, ['drive', 'rod', 'fish', 'boom', 'spawn', 'ask', 'hill', 'fly', 'launch'], 'Chapter One in order: the hill is quest 6, the helicopter 7, the launch pad 8');
   if (q.state('tour') !== 'active') q.start('tour');
   H.tick(0.5);
   for (const id of ['drive', 'rod', 'fish', 'boom', 'spawn']) { if (q.step('tour') === id) q.advance('tour'); H.tick(0.3); }
   assert.equal(q.step('tour'), 'ask');
   // No editor here (window.HawkesBuild): the step passes by itself within a couple of seconds.
   for (let i = 0; i < 40 && q.step('tour') === 'ask'; i++) H.tick(0.1);
-  assert.equal(q.step('tour'), 'fly');
+  assert.equal(q.step('tour'), 'hill');
   // (The quest tracker draws its panel and arrow from innerHTML, which this harness's page doesn't parse: those lines
   // are the harness's, not the game's.)
   assert.deepEqual([...errors, ...errorBox()].filter((e) => !/^quests: Cannot (read|set) properties of (null|undefined)/.test(e)), []);
@@ -108,14 +108,14 @@ test('sandbox: the tour tracker shows the step, the count, a hint after 20 s and
   const el = () => game.ui.el('tour-track');
   assert.ok(el() && !el().hidden, 'the tracker is up');
   assert.match(el().children[1].textContent, /Drive the 4x4 to the dock/);
-  assert.match(el().children[0].textContent, /1 of 7/);
+  assert.match(el().children[0].textContent, /2 of 8/);
   assert.ok(!el().classList.contains('hint'), 'no hint yet');
   H.tick(21);
   assert.ok(el().classList.contains('hint'), 'a hint after 20 s');
   assert.ok(el().children[2].textContent.length > 10);
   q.advance('tour');
   H.tick(0.5);
-  assert.match(el().children[0].textContent, /2 of 7/);
+  assert.match(el().children[0].textContent, /3 of 8/);
   assert.ok(el().classList.contains('flash'), 'a flourish');
   assert.ok(!el().classList.contains('hint'), 'the hint starts over');
   // (The quest module's screen-edge arrow needs a real DOM's lastChild: the fake one has none.)
@@ -212,7 +212,7 @@ test('sandbox: Stuck? brings destroyed barrels and a lost launcher back on the b
   H.tick(0.5);
   assert.equal((game.all('Fuel barrel') || []).filter((b: any) => b.alive).length, 5, 'five barrels again');
   assert.equal(game.player.tool, 'rocket-launcher');
-  for (const id of ['boom', 'spawn', 'ask']) { if (q.step('tour') === id) q.advance('tour'); H.tick(0.3); }
+  for (const id of ['boom', 'spawn', 'ask', 'hill']) { if (q.step('tour') === id) q.advance('tour'); H.tick(0.3); }
   H.tick(3);
   game.all('Helicopter').forEach((h: any) => h.destroy());
   H.tick(3);
@@ -227,7 +227,9 @@ test('sandbox: Stuck? brings destroyed barrels and a lost launcher back on the b
 test('sandbox: steps done out of order pass when the tour gets to them', () => {
   const { game, q } = tourOn();
   // Flying first and firing the barrels first: the deeds are kept.
+  game.emit('sandbox-planet', { height: 1200, mine: true });
   game.emit('sandbox-high', { height: 300, mine: true });
+  game.emit('sandbox-hill', { mine: true });
   game.emit('explosion', { at: [50, 1, -18] });
   game.emit('spawned', { what: 'cow', count: 1 });
   game.emit('asked', { skipped: true });
@@ -242,8 +244,8 @@ test('sandbox: steps done out of order pass when the tour gets to them', () => {
   game.emit('catch', { fish: 'tuna', mine: true });
   for (let i = 0; i < 80 && q.state('tour') === 'active'; i++) H.tick(0.25);
   assert.equal(q.state('tour'), 'done', 'the tour finishes');
-  assert.deepEqual(played.filter((s) => ['drive', 'fish', 'boom', 'spawn', 'ask', 'fly'].includes(s)), ['drive', 'fish', 'boom', 'spawn', 'ask', 'fly'].filter((s) => played.includes(s)));
-  for (const s of ['drive', 'fish', 'boom', 'spawn', 'ask', 'fly']) assert.ok(played.includes(s), `${s} has its moment`);
+  assert.deepEqual(played.filter((s) => ['drive', 'fish', 'boom', 'spawn', 'ask', 'hill', 'fly', 'launch'].includes(s)), ['drive', 'fish', 'boom', 'spawn', 'ask', 'hill', 'fly', 'launch'].filter((s) => played.includes(s)));
+  for (const s of ['drive', 'fish', 'boom', 'spawn', 'ask', 'hill', 'fly', 'launch']) assert.ok(played.includes(s), `${s} has its moment`);
   assert.deepEqual(clean(), []);
 });
 
@@ -255,19 +257,19 @@ test('sandbox: after the last step the Overseer invites them up, a beam and an a
   o.speak = (t: string) => { said.push(t); };
   const journey: string[] = [];
   game.on('journey', (d: any) => journey.push(d.state + (d.why ? `:${d.why}` : '')));
-  for (const id of ['drive', 'rod', 'fish', 'boom', 'spawn', 'ask']) { if (q.step('tour') === id) q.advance('tour'); H.tick(0.3); }
+  for (const id of ['drive', 'rod', 'fish', 'boom', 'spawn', 'ask', 'hill']) { if (q.step('tour') === id) q.advance('tour'); H.tick(0.3); }
   assert.equal(q.step('tour'), 'fly');
-  assert.equal(g.window.__islandJourney.state, 'off', 'nothing before the tour is done');
+  assert.equal(g.window.__islandJourney.state, 'off', 'nothing before the last quest is reached');
   game.emit('sandbox-high', { height: 300, mine: true });
-  for (let i = 0; i < 80 && q.state('tour') === 'active'; i++) H.tick(0.25);
-  assert.equal(q.state('tour'), 'done');
+  for (let i = 0; i < 80 && q.step('tour') === 'fly'; i++) H.tick(0.25);
+  assert.equal(q.step('tour'), 'launch');
   for (let i = 0; i < 60 && g.window.__islandJourney.state === 'off'; i++) H.tick(0.25);
   assert.equal(g.window.__islandJourney.state, 'invited');
-  assert.ok(said.includes('Come and see where I live.'), `the invitation (${said.join(' | ')})`);
   H.tick(0.6);
   const box = game.ui.el('journey-track');
   assert.ok(box && !box.hidden, 'the tracker is up');
-  assert.match(box.children[1].textContent, /Come and see where I live/);
+  assert.match(box.children[1].textContent, /Rolo's rocket/);
+  assert.ok(game.ui.el('tour-track').hidden, 'and the tour tracker gives way to it');
   assert.ok(g.window.__islandJourney.beam, 'a beam over the rocket');
   assert.ok(g.window.__islandJourney.mark, 'and an arrow over it');
   assert.ok(game.ui.el('tour-stuck') && !game.ui.el('tour-stuck').hidden, 'Stuck? stays for the journey');
@@ -305,4 +307,231 @@ test('sandbox: Pip nudges after 30 s on a step, once per step', () => {
   H.tick(10);
   assert.deepEqual(nudges, ['drive', 'rod'], 'the next step has its own');
   assert.deepEqual(clean(), []);
+});
+
+// ------------------------------------------------------------------ the islanders (islanders.js; docs/story.md 5b)
+const CAST_IDS = ['bobbin', 'ember', 'rolo', 'dolores', 'channel'];
+const islanderLines = () => {
+  const chat: any[] = [];
+  H.chat = { ...(H.chat || {}), line: (m: any) => { chat.push(m); } };
+  return chat;
+};
+const resetIslanders = () => { for (const k of ['__islanderDid', '__islanderHeard', '__islanderLog', '__islanderListening', '__islanders']) delete g.window[k]; };
+// (The harness has no intro to end, so the mirror stays "about to open"; here it has been answered.)
+const mirrorDone = (game: any) => { try { game.mirror.close(); } catch { /* none open */ } Object.defineProperty(game, 'mirror', { value: { pending: false }, configurable: true }); H.tick(0.3); };
+const stand = (game: any, id: string, d = 1.8) => { const e = H.world.byId.get(id); game.player.position = [e.x - d, e.y + 0.5, e.z]; H.tick(0.7); return e; };
+const BODY_WORDS = /\b(toaster|duck|cactus|roll-?bot|robot|television|shoe|potato|banana|teapot|mushroom|cone|dog|cat|fox|pig|bear|rabbit|penguin|chicken|cow|sheep|horse|dinosaur|person|human)\b/i;
+
+test('sandbox islanders: five named neighbours stand on the island, in the mirror\'s bodies, with talk in the chat only', () => {
+  resetIslanders();
+  const game = start();
+  H.tick(2);
+  for (const id of CAST_IDS) {
+    const e = H.world.byId.get(id);
+    assert.ok(e && e.alive, id);
+    // (Bobbin stands on the pier's planks, 1.1 m up over the sea's edge.)
+    const ground = id === 'bobbin' ? 1.1 : game.terrain.heightAt(e.x, e.z);
+    assert.ok(ground > 0, `${id} is on land (${ground.toFixed(1)})`);
+    assert.ok(e.y > ground - 0.3 && e.y < ground + 3.5, `${id} stands at ${e.y.toFixed(2)} over ${ground.toFixed(2)}`);
+    assert.equal(e.living.friend.talk, false, `${id} has no phrasebook panel: the chat window is where they talk`);
+    assert.ok(e.living.friend.look && e.living.friend.look.what, `${id} wears a body`);
+  }
+  assert.deepEqual(CAST_IDS.map((id) => H.world.byId.get(id).living.friend.look.what), ['duck', 'toaster', 'rollbot', 'cactus', 'tvbot']);
+  // The tag they carry is their name; none of the scene's voice lines or assets are new.
+  assert.deepEqual(CAST_IDS.map((id) => H.world.byId.get(id).name), ['Admiral Bobbin', 'Mrs Ember', 'Rolo', 'Dolores', 'Channel']);
+  assert.ok(!Object.keys(bundle.files).some((f) => /islander|bobbin|ember|rolo|dolores|channel/i.test(f) && /\.(mp3|wav|ogg)$/.test(f)), 'no voice files');
+  assert.deepEqual(clean(), []);
+});
+
+test('sandbox islanders: E near one (H.use) puts a short line in the chat window, and phones get the same button', () => {
+  resetIslanders();
+  const chat = islanderLines();
+  const game = start();
+  H.tick(2);
+  stand(game, 'rolo');
+  const spoken: any[] = [];
+  game.on('islander', (d: any) => spoken.push(d));
+  const offers = H.use.offers(game.player);
+  assert.ok(offers.some((o: any) => o.name === 'island:talk' && /Talk to Rolo/.test(o.label)), 'Talk to Rolo is on offer');
+  assert.equal(offers[0].name, 'island:talk', 'it is the best offer near him');
+  const before = chat.length;
+  H.use.act();
+  assert.ok(chat.length > before, 'a line in the chat window');
+  const m = chat[chat.length - 1];
+  assert.equal(m.kind, 'npc');
+  assert.equal(m.who, 'Rolo');
+  assert.ok(m.text.length > 5 && m.text.length < 200, 'short');
+  // Never the same line twice in a row, however often you ask.
+  const texts = [m.text];
+  for (let i = 0; i < 8; i++) { H.use.act(); texts.push(chat[chat.length - 1].text); }
+  for (let i = 1; i < texts.length; i++) assert.notEqual(texts[i], texts[i - 1]);
+  assert.ok(spoken.length >= 1);
+  assert.deepEqual(clean(), []);
+});
+
+test('sandbox islanders: what the player did changes what at least four of them say, and nobody names what the mirror made them', () => {
+  resetIslanders();
+  const chat = islanderLines();
+  const game = start();
+  H.tick(2);
+  H.presence.look = { ...(H.presence.look || {}), name: 'Plink', what: 'shoe' };
+  mirrorDone(game);
+  assert.ok(!game.mirror.pending, 'the mirror is done: they greet only after it');
+  const said = (id: string) => { stand(game, id); const n = chat.length; H.use.act(); return chat.slice(n).map((c: any) => c.text).join(' | '); };
+  const topic = (id: string) => g.window.__islanderLog.filter((l: any) => l.id === id).map((l: any) => l.topic);
+  // Before doing anything: hellos (they come by themselves when you walk up) and ordinary lines.
+  for (const id of CAST_IDS) { stand(game, id); }
+  for (const id of CAST_IDS) assert.equal(topic(id)[0], 'hello', `${id} greets`);
+  // The deeds: a fish, a blast, a flight.
+  game.emit('catch', { fish: 'tuna', mine: true });
+  game.emit('explosion', { at: [50, 1, -18] });
+  game.emit('sandbox-high', { height: 300, mine: true });
+  H.tick(0.5);
+  const after: Record<string, string> = {};
+  for (const id of CAST_IDS) after[id] = said(id);
+  const reacted = CAST_IDS.filter((id) => !topic(id).slice(-1).includes('base') && topic(id).slice(-1)[0] !== 'hello');
+  assert.ok(reacted.length >= 4, `at least four react to a deed (${reacted.join(', ')}): ${JSON.stringify(topic('bobbin'))}`);
+  assert.match(after.bobbin, /cast/i, 'Bobbin rates the cast');
+  assert.match(after.channel, /BOOM|Sources/, 'Channel reports the blast');
+  assert.match(after.dolores, /helicopter/i, 'Dolores watched the climb');
+  assert.match(after.rolo + ' ' + after.ember, /./);
+  // The name they chose is used; what the mirror made them is never mentioned, by anyone, in any line.
+  const all = CAST_IDS.flatMap((id) => g.window.__islanders.CAST[id] ? [id] : []);
+  assert.equal(all.length, 5);
+  for (const id of CAST_IDS) for (let i = 0; i < 12; i++) said(id);
+  const lines: string[] = g.window.__islanderLog.map((l: any) => l.text);
+  assert.ok(lines.some((t) => t.includes('Plink')), 'the name they chose is used');
+  for (const t of lines) assert.ok(!BODY_WORDS.test(t.replace(/Rolo|Channel/g, '')), `no remark on a body: ${t}`);
+  // A different player body changes nothing in how they talk to them.
+  assert.deepEqual(clean(), []);
+});
+
+test('sandbox islanders: an earlier visit is remembered (H.memory), the ordinary lines carry no work talk, and they stay clear of the tour', () => {
+  resetIslanders();
+  const chat = islanderLines();
+  const game = start();
+  H.tick(2);
+  const mem = H.memory.get();
+  const old = H.memory.get;
+  H.memory.get = () => ({ ...mem, visits: 3, name: null, n: { ...mem.n, fish: 4, boom: 3 } });
+  try {
+    stand(game, 'bobbin'); H.use.act(); // hello was said on arrival; this is the first real line
+    const topics = () => g.window.__islanderLog.filter((l: any) => l.id === 'bobbin').map((l: any) => l.topic);
+    for (let i = 0; i < 4; i++) H.use.act();
+    assert.ok(topics().includes('fish3') || topics().includes('back'), `Bobbin remembers earlier visits: ${topics()}`);
+    const t = g.window.__islanderLog.find((l: any) => l.id === 'bobbin' && l.topic === 'fish3');
+    if (t) assert.match(t.text, /Fish number 4/);
+  } finally { H.memory.get = old; }
+  // The story's rules: no office or game talk in anyone's mouth.
+  const src = fs.readFileSync(path.join(ROOT, 'src', 'overseer-games', 'islanders.js'), 'utf8');
+  assert.ok(!/\b(quest|level|achievement|unlock|credits?|price|meeting|deadline|boss|office|salary|invoice|customer|subscribe)\b/i.test(src.split('const CAST')[1].split('const ids')[0]), 'no work, game or business words in the lines');
+  // The tracker and the Stuck? button are not touched: the islanders add no screen element of their own.
+  assert.ok(!src.includes('game.ui.'), 'no HUD of their own (phones keep the tracker and buttons clear)');
+  assert.deepEqual(clean(), []);
+});
+
+// ------------------------------------------------------------------ Chapter One's new quests (docs/story.md section 5: 6 and 8)
+test('sandbox chapter one: quest 6, the hill: Dolores says hello, the quest passes with her line, a beam on the helicopter', () => {
+  const { game, q } = tourOn();
+  mirrorDone(game);
+  const chat = islanderLines();
+  const beats: any[] = [];
+  game.on('beat', (d: any) => beats.push(d));
+  const tour: string[] = [];
+  game.on('tour', (d: any) => tour.push(d.step));
+  for (const id of ['drive', 'rod', 'fish', 'boom', 'spawn', 'ask']) { if (q.step('tour') === id) q.advance('tour'); H.tick(0.3); }
+  assert.equal(q.step('tour'), 'hill');
+  stand(game, 'dolores', 3);
+  for (let i = 0; i < 10 && q.step('tour') === 'hill'; i++) H.tick(0.3);
+  assert.equal(q.step('tour'), 'fly', 'saying hello passed the hill');
+  H.tick(3);
+  assert.ok(tour.includes('hill'));
+  assert.ok(chat.some((m: any) => m.who === 'Dolores' && /wasn't waiting|was not waiting/.test(m.text)), 'Dolores says she was not waiting');
+  assert.ok(beats.some((b: any) => b.who === 'Dolores' && /pad is free/.test(b.text)), 'and the pad is free');
+  assert.deepEqual(clean(), []);
+});
+
+test('sandbox chapter one: quest 8, the launch pad: fuel, the planet whole, and the two closing lines, nothing about why', () => {
+  const { game, q } = tourOn();
+  mirrorDone(game);
+  const said: string[] = []; const pipSaid: string[] = [];
+  const o = game.overseer; o.say = (t: string) => { said.push(t); }; o.speak = (t: string) => { said.push(t); };
+  const pip = game.all('Pip')[0]; pip.say = (t: string) => { pipSaid.push(t); };
+  const chat = islanderLines();
+  const events: string[] = [];
+  game.on('bay-lit', () => events.push('bay-lit'));
+  game.on('rocket-fuelled', () => events.push('fuelled'));
+  for (const id of ['drive', 'rod', 'fish', 'boom', 'spawn', 'ask', 'hill', 'fly']) { if (q.step('tour') === id) q.advance('tour'); H.tick(0.3); }
+  assert.equal(q.step('tour'), 'launch');
+  H.tick(3);
+  assert.equal(g.window.__islandJourney.state, 'invited', 'Rolo\'s rocket is pointed at');
+  assert.ok(chat.some((m: any) => m.who === 'Rolo'), 'Rolo speaks');
+  // E at the rocket pours in the last of the fuel.
+  const rocket = game.all('Rocket')[0];
+  game.player.position = [rocket.x + 3, rocket.y, rocket.z];
+  H.tick(0.6);
+  const offer = H.use.offers(game.player).find((o: any) => /tank/.test(o.label));
+  assert.ok(offer, 'E at the rocket offers to fill its tank'); offer.act();
+  game.emit('sandbox-planet', { height: 1200, mine: true });
+  for (let i = 0; i < 40 && q.state('tour') === 'active'; i++) H.tick(0.25);
+  H.tick(5);
+  assert.equal(q.state('tour'), 'done', 'the chapter is done');
+  assert.ok(events.includes('bay-lit'), 'the lit bay on the sphere');
+  assert.ok(pipSaid.includes("Huh. That's new."), `Pip (${pipSaid.join(' | ')})`);
+  assert.ok(said.includes('It is yours, if you come.'), `the Overseer (${said.join(' | ')})`);
+  const all = [...said, ...pipSaid, ...chat.map((m: any) => m.text)].join(' ');
+  assert.doesNotMatch(all, /\b(because|credit|price|account|why I|I wanted|I gave)\b/i, 'the Overseer never says why');
+  assert.deepEqual(clean(), []);
+});
+
+test('sandbox chapter one: any quest can be done early and the rest are not blocked (the hill and the planet first)', () => {
+  const { game, q } = tourOn();
+  mirrorDone(game);
+  game.emit('sandbox-planet', { height: 1200, mine: true });
+  stand(game, 'dolores', 3);
+  H.tick(1);
+  assert.equal(q.step('tour'), 'drive', 'the first quest still waits for its deed');
+  game.player.position = [60, 3, 0];
+  H.tick(0.7);
+  game.emit('pickup', { gives: 'tool', tool: 'rod' });
+  game.emit('catch', { fish: 'tuna', mine: true });
+  game.emit('explosion', { at: [50, 1, -18] });
+  game.emit('spawned', { what: 'cow', count: 1 });
+  game.emit('asked', { skipped: true });
+  game.emit('sandbox-high', { height: 300, mine: true });
+  for (let i = 0; i < 120 && q.state('tour') === 'active'; i++) H.tick(0.25);
+  assert.equal(q.state('tour'), 'done', `stuck on ${q.step('tour')}`);
+  assert.deepEqual(clean(), []);
+});
+
+test('sandbox chapter one: small things to notice (planks, logbook, "I saw the sea"), quiet and never frightening', () => {
+  const { game } = tourOn();
+  mirrorDone(game);
+  const chat = islanderLines();
+  const noticed: string[] = [];
+  game.on('notice', (d: any) => noticed.push(d.id));
+  assert.ok(H.world.byId.get('logbook') && H.world.byId.get('harbour_desk'), 'the logbook lies on the harbour desk');
+  // E at the planks and at the logbook (the offers the script registered with H.use).
+  const offerAt = (x: number, z: number) => { game.player.position = [x, 3, z]; H.tick(0.6); return H.use.offers(game.player).find((o: any) => /planks|logbook/.test(o.label)); };
+  const planks = offerAt(68, 0);
+  assert.ok(planks, 'planks offer'); planks.act();
+  const book = offerAt(62.5, 4.2);
+  assert.ok(book, 'logbook offer'); book.act();
+  assert.ok(chat.some((m: any) => /cut by hand/.test(m.text)) && chat.some((m: any) => /torn out/.test(m.text)));
+  assert.deepEqual(noticed, ['planks', 'logbook']);
+  const said: string[] = [];
+  game.overseer.say = (t: string) => { said.push(t); };
+  game.emit('asked', { chars: 30, text: 'What did you see before me?' });
+  H.tick(2);
+  assert.ok(said.includes('I saw the sea.'), `the Overseer says only that (${said.join(' | ')})`);
+  assert.ok(noticed.includes('sea'));
+  assert.deepEqual(clean(), []);
+});
+
+test('sandbox chapter one: the funnel keeps its events and adds one per new quest', () => {
+  assert.match(guestSrc, /STEP_N = \{ drive: 1, fish: 2, boom: 3, spawn: 4, ask: 5, fly: 6, hill: 7, launch: 8 \}/, 'older steps keep their n');
+  assert.match(guestSrc, /'sandbox_quest_' \+ d\.step/);
+  assert.match(guestSrc, /sandbox_bay_lit/);
+  assert.match(guestSrc, /'sandbox_tour_start'/);
+  assert.match(guestSrc, /'sandbox_tour_done'/);
 });

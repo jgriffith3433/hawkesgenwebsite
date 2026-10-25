@@ -29,6 +29,11 @@
   /** Two soft steps: the underside takes the shade, the top the light, the sides the pick. */
   const toon = (t, ny) => { const s = clamp(ny * 1.5, -1, 1); return s < 0 ? mix3(t.base, t.shade, smooth(-s)) : mix3(t.base, t.light, smooth(s)); };
 
+  // The detail the meshes are built at: 1 near, 0.5 for the far level (half the segments and rings, the same silhouette to
+  // within a pixel at 30 m: a 0.2 m radius with 6 sides instead of 12 is 1.3 cm off, a third of a pixel on a phone).
+  let DQ = 1;
+  const dq = (n, least = 2) => Math.max(least, Math.round(n * DQ));
+
   class Geo {
     constructor() { this.p = []; this.n = []; this.c = []; this.i = []; }
     count() { return this.p.length / 3; }
@@ -47,7 +52,7 @@
   }
   /** Profile points [radius, y, normalRadius, normalY] turned around the y axis. */
   function lathe(g, profile, o) {
-    const segs = o.segs || 10, T = xf(o), base = g.count(), m = profile.length;
+    const segs = dq(o.segs || 10, 5), T = xf(o), base = g.count(), m = profile.length;
     for (let k = 0; k < m; k++) {
       const [r, y] = profile[k];
       let nr = profile[k][2], ny = profile[k][3];
@@ -64,10 +69,10 @@
     }
   }
   const ELL = {};
-  const ellipsoid = (rings) => ELL[rings] || (ELL[rings] = Array.from({ length: rings + 1 }, (_, k) => { const th = Math.PI - (Math.PI * k) / rings; return [Math.sin(th), Math.cos(th), Math.sin(th), Math.cos(th)]; }));
+  const ellipsoid = (n) => { const rings = dq(n); return ELL[rings] || (ELL[rings] = Array.from({ length: rings + 1 }, (_, k) => { const th = Math.PI - (Math.PI * k) / rings; return [Math.sin(th), Math.cos(th), Math.sin(th), Math.cos(th)]; })); };
   /** A tapered capsule along y: bottom cap centered at y0 (radius r0), top at y1 (r1). */
-  function capsule(y0, r0, y1, r1, rings = 4) {
-    const out = [];
+  function capsule(y0, r0, y1, r1, n = 4) {
+    const out = [], rings = dq(n, 1);
     for (let k = 0; k <= rings; k++) { const th = Math.PI - (Math.PI / 2) * (k / rings); out.push([r0 * Math.sin(th), y0 + r0 * Math.cos(th), Math.sin(th), Math.cos(th)]); }
     for (let k = 0; k <= rings; k++) { const th = Math.PI / 2 - (Math.PI / 2) * (k / rings); out.push([r1 * Math.sin(th), y1 + r1 * Math.cos(th), Math.sin(th), Math.cos(th)]); }
     return out;
@@ -75,7 +80,7 @@
   const cone = [[0.0, 0, 0, -1], [1, 0, 0.9, -0.3], [0.55, 0.5, 0.9, 0.3], [0, 1, 0.5, 0.85]];
   /** Part of a sphere around the top: ring i runs from the top down to thetaMax(phi), so hair can stop higher at the front. */
   function dome(g, o) {
-    const rows = o.rows || 7, cols = o.cols || 16, base = g.count();
+    const rows = dq(o.rows || 7, 3), cols = dq(o.cols || 16, 6), base = g.count();
     for (let i = 0; i <= rows; i++) for (let j = 0; j < cols; j++) {
       const phi = (j / cols) * Math.PI * 2, th = (i / rows) * o.thetaMax(phi);
       const d = [Math.sin(th) * Math.sin(phi), Math.cos(th), Math.sin(th) * Math.cos(phi)];
@@ -288,16 +293,62 @@
 
   // ------------------------------------------------------------------ build
   /** Builds the person on `rig` (presence.js makeRig): joints, meshes, face. `h` is makeRig's { joint, part } kit. */
+  /** How finely the near level is built: half the budget's `detail` over a base of a half (phones 0.75, desktop 1). */
+  const nearDetail = () => Math.min(1, 0.5 + 0.5 * (H.budget && Number.isFinite(H.budget.detail) ? H.budget.detail : 1)) || 1;
+  P.nearDetail = nearDetail;
+  const J = (...a) => JSON.stringify(a);
+  function geoToMesh(m, g, updatable) {
+    const vd = new B.VertexData();
+    vd.positions = g.p; vd.normals = g.n; vd.colors = g.c; vd.indices = g.i;
+    vd.applyToMesh(m, Boolean(updatable));
+    return m;
+  }
+  /** Shared sources (the crowd's cost, docs/characters.md "A crowd"): the geometry of one part for one look, built once per
+   *  scene at full detail, with its half-detail twin as the source's level of detail past H.budget.farCharacter. Every body
+   *  with that look draws instances of it: one batch for all of them, one copy of the vertices. Returns { name: source }. */
+  function shared(scene, mat, key, make) {
+    const q0 = nearDetail();
+    key += `|${q0}`;
+    const cache = scene.__prGeo || (scene.__prGeo = new Map());
+    let set = cache.get(key);
+    if (set) { cache.delete(key); cache.set(key, set); return set; } // (the least recently used go first)
+    const far = Number(H.budget && H.budget.farCharacter) || 30;
+    set = { m: {}, lows: {}, meta: null };
+    for (const [q, level] of [[q0, 'm'], [0.5, 'lows']]) {
+      DQ = q;
+      try {
+        for (const [name, g] of Object.entries(make())) {
+          if (!(g instanceof Geo)) { set.meta = g; continue; }
+          const m = geoToMesh(new B.Mesh(`pr-src-${name}${level === 'lows' ? '-far' : ''}`, scene), g);
+          m.material = mat; m.isVisible = false; m.isPickable = false;
+          set[level][name] = m;
+        }
+      } finally { DQ = 1; }
+    }
+    for (const name of Object.keys(set.m)) set.m[name].addLODLevel(far, set.lows[name]);
+    cache.set(key, set);
+    if (cache.size > 64) for (const [k, old] of cache) { // (a look nobody wears any more: its sources go)
+      if (cache.size <= 48) break;
+      if (Object.values(old.m).every((m) => !m.hasInstances)) { for (const m of [...Object.values(old.m), ...Object.values(old.lows)]) m.dispose(); cache.delete(k); }
+    }
+    return set;
+  }
   function build(rig, look, h) {
     const scene = rig.scene, pose = rig.pose;
     const pal = C().palette(look);
     const mat = toyMat(scene, pal.rim);
-    const mesh = (name, g, parent, updatable) => {
+    const own = (name, g, parent) => { // one mesh of its own: the face, whose points are rewritten
       const m = new B.Mesh(`pr-${name}`, scene);
-      const vd = new B.VertexData();
-      vd.positions = g.p; vd.normals = g.n; vd.colors = g.c; vd.indices = g.i;
-      vd.applyToMesh(m, Boolean(updatable));
+      geoToMesh(m, g, true);
       m.parent = parent; m.material = mat; m.isPickable = false; m.metadata = { decor: true, entity: rig.e };
+      if (rig.shadows) try { rig.shadows.addShadowCaster(m); } catch { /* none */ }
+      rig.meshes.push(m);
+      return m;
+    };
+    // The rest are instances of shared sources (one per distinct leg, arm, torso, head and hair; the far level is the source's LOD).
+    const inst = (name, src, parent) => {
+      const m = src.createInstance(`pr-${name}`);
+      m.parent = parent; m.isPickable = false; m.metadata = { decor: true, entity: rig.e };
       if (rig.shadows) try { rig.shadows.addShadowCaster(m); } catch { /* none */ }
       rig.meshes.push(m);
       return m;
@@ -307,25 +358,31 @@
     rig.chest = h.joint('chest', [0, HIP_Y, 0]);
     rig.neck = h.joint('neck', [0, NECK_Y, 0]); rig.neck.scaling.set(HS, HS, HS);
 
-    const leg = new Geo(); buildLeg(leg, pal, 1); mesh('legL', leg, rig.hipL); mesh('legR', leg, rig.hipR);
-    const arm = new Geo(); buildArm(arm, pal); mesh('armL', arm, rig.shL); mesh('armR', arm, rig.shR);
-    const torso = new Geo(); buildTorso(torso, pal); rig.torso = mesh('torso', torso, rig.chest);
+    const leg = shared(scene, mat, `leg|${J(pal.bottom, pal.shoes)}`, () => { const g = new Geo(); buildLeg(g, pal, 1); return { g }; });
+    inst('legL', leg.m.g, rig.hipL); inst('legR', leg.m.g, rig.hipR);
+    const arm = shared(scene, mat, `arm|${J(pal.top, pal.skin)}`, () => { const g = new Geo(); buildArm(g, pal); return { g }; });
+    inst('armL', arm.m.g, rig.shL); inst('armR', arm.m.g, rig.shR);
+    const torso = shared(scene, mat, `torso|${J(pal.top, pal.bottom)}`, () => { const g = new Geo(); buildTorso(g, pal); return { g }; });
+    rig.torso = inst('torso', torso.m.g, rig.chest);
 
-    const head = new Geo(), moving = { g: new Geo(), pivot: [0, 0, 0], kind: 'puff' };
-    buildHead(head, pal, look);
-    buildHair(look, pal, head, moving);
-    rig.head = mesh('head', head, rig.neck);
+    const hd = shared(scene, mat, `head|${J(pal.skin, pal.hair, pal.accent, pal.eye, pal.cheek, look.hair, look.face)}`, () => {
+      const head = new Geo(), moving = { g: new Geo(), pivot: [0, 0, 0], kind: 'puff' };
+      buildHead(head, pal, look);
+      buildHair(look, pal, head, moving);
+      return { head, hair: moving.g, meta: { pivot: moving.pivot } };
+    });
+    rig.head = inst('head', hd.m.head, rig.neck);
     const hairJ = new B.TransformNode('pr-hair', scene);
-    hairJ.parent = rig.neck; hairJ.position.set(moving.pivot[0], moving.pivot[1], moving.pivot[2]);
+    hairJ.parent = rig.neck; hairJ.position.set(hd.meta.pivot[0], hd.meta.pivot[1], hd.meta.pivot[2]);
     rig.hairJ = hairJ;
-    rig.hairMesh = mesh('hair', moving.g, hairJ);
+    rig.hairMesh = inst('hair', hd.m.hair, hairJ);
 
     let face = null, faceMesh = null;
     if (look.face === 'eyes' || look.face === 'smile') {
       face = makeFace(pal, look);
       const p0 = face.fill(RESTING);
       const d = face.data(), g = new Geo(); g.p = Array.from(p0); g.n = d.nrm; g.c = d.col; g.i = d.idx;
-      faceMesh = mesh('face', g, rig.neck, true);
+      faceMesh = own('face', g, rig.neck);
     }
     rig.faceY = EYE_Y; rig.faceZ = 0.205;
     if (look.face === 'visor') {
@@ -387,6 +444,8 @@
     const e = rig.e, t = rig.time || 0, pose = rig.pose, speed = rig.speed || 0;
     const forced = rig.forcePose || null;
     const w = H.world;
+    if (rig.lod && !forced) { simple(rig, dt); return; } // far, or past the animated cap: stride only (presence.js updateRigs)
+    if (pp.settled) pp.settled = false;
 
     // ---- what is it doing?
     let grounded = e.grounded !== false, vy = 0, lift = 0, crouch = 0, swim = false, seated = false;
@@ -537,6 +596,24 @@
 
     // ---- the face: where it looks, the blink, the expression
     face(rig, dt, expr, em);
+  }
+  /** The cheap level (docs/characters.md "A crowd"): the legs and arms swing with the stride (presence.js animate did that), the
+   *  body leans into a run; no springs, no gaze, no blinking. The face is settled once (lids open) and left as it is. */
+  function simple(rig, dt) {
+    const pp = rig.person, speed = rig.speed || 0;
+    const run01 = clamp((speed - 2.5) / 3.5, 0, 1);
+    rig.pose.rotation.x = 0.2 * run01;
+    rig.hairJ.rotation.set(0, 0, 0); rig.hairJ.scaling.set(1, 1, 1);
+    rig.chest.rotation.set(0, 0, 0);
+    if (pp.settled) return;
+    pp.settled = true;
+    pp.blink.start = -1; pp.blink.next = (rig.time || 0) + 1;
+    pp.head.yaw = pp.head.pitch = 0; pp.gaze.x = pp.gaze.y = 0;
+    if (!pp.faceMesh) return;
+    const cur = pp.expr;
+    pp.lastKey = '';
+    pp.faceMesh.updateVerticesData(B.VertexBuffer.PositionKind, pp.face.fill({ gx: 0, gy: 0, lid: cur.lid, open: cur.open, smile: cur.smile, width: cur.width, raise: cur.raise, tilt: cur.tilt, pupil: 1 }), true);
+    void dt;
   }
   function angleDiff(a, b) { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; }
 

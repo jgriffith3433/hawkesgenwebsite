@@ -25,7 +25,7 @@
     const e = living._make({ ...shape, species, temper: shape.temper || 'pet', follow: shape.follow === false ? null : shape.follow || 'player' }, { ...o, name }, spec);
     e.kind = 'friend';
     const r = e.living;
-    r.friend = { name, personality: String(shape.personality || '').slice(0, 400), lines: Array.isArray(shape.lines) ? shape.lines.map(String).slice(0, 30) : null, talk: shape.talk !== false, log: [], greeted: false, key: spec && spec.id ? spec.id : `friend:${name}` };
+    r.friend = { name, personality: String(shape.personality || '').slice(0, 400), lines: Array.isArray(shape.lines) ? shape.lines.map(String).slice(0, 30) : null, talk: shape.talk !== false, look: shape.look && typeof shape.look === 'object' ? shape.look : null, log: [], greeted: false, key: spec && spec.id ? spec.id : `friend:${name}` };
     if (shape.follow === false) r.follow = null;
     // A friend who stays (a guide at their post): never follows, comes, rides along or wanders off, whatever you say.
     r.friend.stays = shape.stays === true;

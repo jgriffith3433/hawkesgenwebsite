@@ -21,6 +21,7 @@ changes it through `config.presence`.
   bunny, helmet, chef), a face (eyes, smile, visor, none: the person has a real one, eyes that follow and blink, brows, a mouth), hair (short, long, ponytail, curly, spiky, bun) and clothes colors (top, bottom, shoes) and up to three extras (glasses, shades, scarf, backpack, cape,
   bowtie, wings, tail), the eyes' color and one of twelve accessories in a color of its own (headphones, goggles, monocle, mustache, eyepatch, flower, antenna, medal, bell, jetpack, bandana, earrings: small meshes on the head, face, neck or back of any body). Other players see them, and a player's tag carries their main color and accessory icon. Or a model, by a community model's asset id (its animations named wave, dance... play the
   emotes). Signed-in players keep their look in every game; guests get a random fun one.
+- **Islanders:** an AI friend (`type: "friend"`) with `shape.look` (a look: `what`, `name`, colors) wears that body, a toaster or a rubber duck, like a player's; its creature body is hidden. It takes the same name tag.
 - **Who's here** (Tab, or 👥): everyone in the room, friends first, the host marked; + Friend (a request; friends once
   both ask), Mute (their chat and emotes stop showing for you), 👁 Watch.
 - **Spectate:** watch another player over their shoulder (◀ ▶ or the arrow keys cycle, Esc stops). Games use it when
@@ -54,3 +55,5 @@ false` keeps one untagged. Scripts tag anything with `game.presence.tag(thing, '
   song starts): every player, AI friend and pet in the room dances.
 - "When you're out, watch the others" → in the game's elimination code: `game.presence.spectate('next')`; back in play:
   `game.presence.spectate(null)`.
+
+**Finding each other.** In a shared world every other player is either under a name tag, marked (a small label with their name and distance over them when they are on screen but too far for a tag), or shown as an arrow on the screen's edge pointing toward them (off screen or behind you). Tapping a marker, an arrow, a name in Who's here (Tab, 👥) or its ✦ Go button beams you next to that player. Names are filtered for everyone: an empty, link-like or abusive name (a small blocklist) shows as "Player 1234"; any player can Mute or Report another from Who's here. `config.presence.markers: false` turns the markers off.
