@@ -2,10 +2,16 @@
 // releases are broadcast to everyone in the game; presence says who is here and which file each has open. Each stream
 // gets a connection id, which the editor sends back with its writes (X-Conn) so it can skip its own echoes.
 import type { ServerResponse } from 'node:http';
-import { id } from './util.ts';
+import { id, PortalError, envInt } from './util.ts';
+import { env } from './config.ts';
 
 type Conn = { id: string; res: ServerResponse; userId: string; name: string; file: string | null; color: string };
 const rooms = new Map<string, Map<string, Conn>>();
+
+// Streams are long-lived, so they are capped: PORTAL_LIVE_PER_USER (6) for one account, PORTAL_LIVE_MAX (2000) in all.
+export const liveCaps = () => ({ perUser: envInt(env, 'PORTAL_LIVE_PER_USER', 6), total: envInt(env, 'PORTAL_LIVE_MAX', 2000) });
+let streams = 0;
+const streamsByUser = new Map<string, number>();
 
 // Every durable event gets an id `<boot>-<n>` and the last few of a game are kept, so a stream that drops and comes back
 // (the browser sends Last-Event-ID itself; a manual reconnect sends ?last=) gets what it missed, once. A new boot has a
@@ -54,6 +60,11 @@ const presence = (gameId: string) => [...(rooms.get(gameId)?.values() ?? [])].ma
 
 /** Opens an editor's stream; it lives until the browser goes away. */
 export function join(gameId: string, user: { id: string; name: string | null }, res: ServerResponse, onClose: () => void = () => {}, last?: string | null, beatMs = 25_000) {
+  const caps = liveCaps();
+  if ((streamsByUser.get(user.id) ?? 0) >= caps.perUser) throw new PortalError('Too many editor windows open on this account; close one and try again', { status: 429 });
+  if (streams >= caps.total) throw new PortalError('The editor is busy; try again in a moment', { status: 503 });
+  streams++;
+  streamsByUser.set(user.id, (streamsByUser.get(user.id) ?? 0) + 1);
   res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no', Connection: 'keep-alive' });
   const c: Conn = { id: id('c_', 6), res, userId: user.id, name: user.name ?? 'someone', file: null, color: colorFor(user.id) };
   if (!rooms.has(gameId)) rooms.set(gameId, new Map());
@@ -67,6 +78,9 @@ export function join(gameId: string, user: { id: string; name: string | null }, 
   }, beatMs);
   res.on('error', () => {}); // a browser that vanished mid-write is a close, not a crash
   res.on('close', () => {
+    streams--;
+    const left = (streamsByUser.get(user.id) ?? 1) - 1;
+    if (left > 0) streamsByUser.set(user.id, left); else streamsByUser.delete(user.id);
     clearInterval(beat);
     rooms.get(gameId)?.delete(c.id);
     if (!rooms.get(gameId)?.size) rooms.delete(gameId);

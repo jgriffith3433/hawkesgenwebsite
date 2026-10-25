@@ -13,6 +13,8 @@ process.env.HAWKESGEN_URL = 'http://127.0.0.1:9';
 process.env.HAWKESGEN_KEY = 'hg_test';
 process.env.SIGNUPS_PER_HOUR = '100';
 process.env.PORTAL_DEV_OPEN_PLAY = '0';
+process.env.PORTAL_WS_PER_IP = '100'; // (the test fills a room from one address)
+process.env.PORTAL_WS_PER_MIN = '1000';
 
 const { handle } = await import('../src/server.ts');
 const rooms = await import('../src/rooms.ts');
