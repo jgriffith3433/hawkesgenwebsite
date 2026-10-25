@@ -114,6 +114,7 @@
   const setLook = (part) => {
     if (PR() && PR().setLook) PR().setLook(part);
     refreshReflection();
+    if (fx) fx.dirty = true;
     // Anywhere, the picture follows their size (a shoe needs the camera lower than a horse).
     if (session && !session.mirror && (part.what || part.shape)) {
       // Now, and again once the new body is drawn (next frames), measured.
@@ -128,14 +129,14 @@
    *  intro's last shot, or from behind the player, to the reflection). */
   let glideObs = null;
   function stopGlide() { const w = W(); if (glideObs && w) w.scene.onBeforeRenderObservable.remove(glideObs); glideObs = null; }
-  function shot(pos, at, glide) {
+  function shot(pos, at, glide, ms = 1500) {
     const w = W();
     stopGlide();
     const cam = w.camera.babylon;
     if (!glide || !cam || !cam.getTarget) return w.camera.internal(() => w.camera.api.fixed(pos, at));
     const p0 = cam.position.clone(), t0 = cam.getTarget().clone();
     const p1 = new B.Vector3(pos[0], pos[1], pos[2]), t1 = new B.Vector3(at[0], at[1], at[2]);
-    const start = performance.now(), ms = 1500;
+    const start = performance.now();
     const put = (k) => { const a = B.Vector3.Lerp(p0, p1, k), b = B.Vector3.Lerp(t0, t1, k); w.camera.internal(() => w.camera.api.fixed([a.x, a.y, a.z], [b.x, b.y, b.z])); };
     put(0);
     glideObs = w.scene.onBeforeRenderObservable.add(() => {
@@ -147,7 +148,7 @@
   }
 
   /** Stands the player in front of the mirror, facing it; the camera over their shoulder, looking at the reflection. */
-  function stage(p, e, glide) {
+  function stage(p, e, glide, step) {
     const w = W();
     if (!e) {
       // Anywhere (dressing up without a mirror): the camera a few meters off, on the first side with nothing in the
@@ -196,9 +197,12 @@
     // bottom on a phone), so the picture leans the other way to keep the reflection clear of them.
     const phone = typeof window !== 'undefined' && window.innerWidth < 700;
     const side = phone ? 0.35 : 0.8, aim = phone ? 0.15 : 1.0;
-    const cam = stand.add(f.scale(phone ? 3.9 : 3.3)).add(right.scale(side));
+    // Each question has its own distance (ZOOM): the camera eases in as they get to the details, and to the face.
+    const k = ZOOM[step || (session && session.steps[session.i])] || 1;
+    if (session) session.geo = { f, right, stand, ground, m };
+    const cam = stand.add(f.scale((phone ? 3.9 : 3.3) * k)).add(right.scale(side * k));
     // (On a phone the questions take the bottom: the camera looks down a little more, so the glass sits up top.)
-    shot([cam.x, ground + (phone ? 2.6 : 2.25), cam.z], [m.x + right.x * aim, ground + (phone ? -0.35 : 1.1), m.z + right.z * aim], glide);
+    shot([cam.x, ground + (phone ? 2.6 : 2.25) * (0.55 + 0.45 * k), cam.z], [m.x + right.x * aim * k, ground + (phone ? -0.35 : 1.1) + (1 - k) * 0.7, m.z + right.z * aim * k], glide, glide === 'dolly' ? 900 : 1500);
   }
 
   /** A sharper reflection while someone's in front of it (it's the picture they're looking at), the usual one after. */
@@ -207,7 +211,8 @@
       const mesh = e.node.getChildMeshes(true).find((m) => m.name === 'mirror-surface');
       const tex = mesh && mesh.material && mesh.material.reflectionTexture;
       if (!tex || !tex.resize) return;
-      const want = on ? (H.device && H.device.tier === 'phone' ? 512 : 1024) : 512;
+      const phone = H.device && H.device.tier === 'phone';
+      const want = on ? (phone ? 512 : 1024) : phone ? 256 : 512;
       if (tex.getSize().width !== want) tex.resize(want);
     } catch { /* keeps its size */ }
   }
@@ -227,7 +232,8 @@
     p._mirrorShow = true;
     hush();
     try { stage(p, e, true); } catch (err) { H.report(err, 'mirror'); }
-    if (e) { e._mirrorFast = true; sharpen(e, true); }
+    if (e) { e._mirrorFast = true; e._mirrorEvery = 0; sharpen(e, true); }
+    try { fxStart(session); } catch (err) { H.report(err, 'mirror'); }
     try { if (g && g.input && g.input.release) g.input.release(); } catch { /* fine */ }
     show();
     emit({ state: 'open', auto: session.auto });
@@ -247,7 +253,8 @@
     // Whatever was still to be said about the questions is dropped; done, the Overseer has the last word.
     if (skipped) hush(); else for (let i = lines.length - 1; i >= 0; i--) if (lines[i].kind !== 'line') lines.splice(i, 1);
     p._mirrorShow = false;
-    if (s.mirror) { s.mirror._mirrorFast = false; sharpen(s.mirror, false); }
+    try { fxStop(s); } catch (err) { H.report(err, 'mirror'); }
+    if (s.mirror) { s.mirror._mirrorFast = false; s.mirror._mirrorEvery = 0; sharpen(s.mirror, false); }
     if (p.alive) {
       p.controls = s.saved.controls !== false;
       if (H.mode === 'build') p.flying = s.saved.flying;
@@ -274,8 +281,111 @@
     session.i = Math.max(0, i);
     const st = MC.STEPS.find((x) => x.id === session.steps[session.i]);
     render();
+    // The camera eases to this question's distance (not on the first: open() glides there).
+    if (session.mirror && fx && fx.arrived) try { stage(session.p, session.mirror, 'dolly', st && st.id); } catch (err) { H.report(err, 'mirror'); }
     if (st) narrate(st.say, st.voice, undefined, 0, 'step');
     emit({ state: 'step', step: st ? st.id : null });
+  }
+
+
+  // ------------------------------------------------------------------ the glass, the light and the little show
+  // At a mirror: a warm key light in front of the player and a cool rim light behind them (lighting only their own
+  // meshes, so the world isn't touched), a short entrance (they step up to the glass and give a first wave), and,
+  // when they become something else, a squash-and-spring "pop" with sparkles. One observer runs it all and watches
+  // the frame rate: below ~32 fps it drops the rim light, then the reflection's size, then the sparkles (phones).
+  const ZOOM = { what: 1, look: 0.86, name: 0.74, view: 1 };
+  let fx = null;
+  const ease = (k) => 1 - Math.pow(1 - Math.min(1, Math.max(0, k)), 3);
+  function fxStart(s) {
+    const w = W();
+    if (!w || !s.p || !s.p.node) return;
+    fx = { obs: null, key: null, rim: null, enter: null, pop: null, dirty: true, level: 0, arrived: !s.mirror, scale0: s.p.node.scaling.clone(), t0: performance.now(), frames: 0, tick: performance.now(), meshAt: 0, glow: s.mirror ? s.mirror._mat : null };
+    if (s.mirror && s.geo) {
+      const { f, right, stand, ground } = s.geo;
+      const at = (a, b, y) => { const v = stand.add(f.scale(a)).add(right.scale(b)); return new B.Vector3(v.x, ground + y, v.z); };
+      fx.key = new B.PointLight('mirror-key', at(-1.3, -1.1, 2.7), w.scene);
+      fx.key.diffuse = new B.Color3(1, 0.78, 0.55); fx.key.specular = new B.Color3(0.5, 0.4, 0.3); fx.key.range = 9; fx.key.intensity = 0;
+      fx.rim = new B.PointLight('mirror-rim', at(1.5, 1.2, 2.5), w.scene);
+      fx.rim.diffuse = new B.Color3(0.45, 0.7, 1); fx.rim.specular = new B.Color3(0.4, 0.6, 1); fx.rim.range = 9; fx.rim.intensity = 0;
+      // The entrance: from a few steps back, walking up to the glass.
+      const from = stand.add(f.scale(2.4));
+      s.p.position = [from.x, stand.y, from.z];
+      fx.enter = { t0: performance.now(), from, to: stand, ms: 900 };
+    }
+    fx.obs = w.scene.onBeforeRenderObservable.add(() => { try { fxTick(); } catch (err) { H.report(err, 'mirror'); fxStop(session); } });
+  }
+  function fxStop(s) {
+    if (!fx) return;
+    const w = W(), f = fx;
+    fx = null;
+    if (f.obs && w) w.scene.onBeforeRenderObservable.remove(f.obs);
+    for (const l of [f.key, f.rim]) if (l) l.dispose();
+    if (f.glow) f.glow.emissiveColor = new B.Color3(0, 0, 0);
+    if (s && s.p && s.p.node && f.scale0) s.p.node.scaling.copyFrom(f.scale0);
+  }
+  function fxTick() {
+    const s = session, f = fx;
+    if (!s || !f) return;
+    const now = performance.now();
+    const p = s.p;
+    // Entrance
+    if (f.enter) {
+      const k = ease((now - f.enter.t0) / f.enter.ms);
+      p.position = [f.enter.from.x + (f.enter.to.x - f.enter.from.x) * k, f.enter.to.y, f.enter.from.z + (f.enter.to.z - f.enter.from.z) * k];
+      p.velocity = [0, 0, 0];
+      if (k >= 1) {
+        f.enter = null; f.arrived = true;
+        p.position = [s.geo.stand.x, s.geo.stand.y, s.geo.stand.z];
+        try { if (PR() && PR().emote) PR().emote('wave'); } catch { /* no emote */ }
+        try { stage(p, s.mirror, 'dolly', s.steps[s.i]); } catch (err) { H.report(err, 'mirror'); }
+        emit({ state: 'arrive' });
+      }
+    }
+    // Light: faded in over half a second; follows their meshes (rebuilt whenever the look changes)
+    if (f.key) {
+      const a = Math.min(1, (now - f.t0) / 600);
+      f.key.intensity = 1.15 * a;
+      if (f.rim) f.rim.intensity = f.level >= 1 ? 0 : 0.95 * a;
+      if (f.glow) f.glow.emissiveColor = new B.Color3(0.28 * a, 0.2 * a, 0.1 * a);
+      if (f.dirty || now - f.meshAt > 400) {
+        f.dirty = false; f.meshAt = now;
+        const ms = p.node.getChildMeshes(false);
+        f.key.includedOnlyMeshes = ms; if (f.rim) f.rim.includedOnlyMeshes = ms;
+      }
+    }
+    // The pop
+    if (f.pop) {
+      const k = (now - f.pop.t0) / 480;
+      let sc = 1;
+      if (k < 0.2) sc = 1 - 0.45 * (k / 0.2);
+      else if (k < 1) { const u = (k - 0.2) / 0.8; sc = 1 - 0.45 * Math.cos(u * Math.PI * 1.5) * (1 - u); }
+      if (k >= 1) { p.node.scaling.copyFrom(f.scale0); f.pop = null; }
+      else p.node.scaling.set(f.scale0.x * (1 + (1 - sc) * 0.5), f.scale0.y * sc, f.scale0.z * (1 + (1 - sc) * 0.5));
+    }
+    // The frame rate: a second at a time, after the first second and a half
+    f.frames++;
+    if (now - f.tick >= 1000) {
+      const fps = (f.frames * 1000) / (now - f.tick);
+      f.frames = 0; f.tick = now;
+      if (now - f.t0 > 2500 && fps < 32 && f.level < 3) {
+        f.level++;
+        if (f.level === 2 && s.mirror) { s.mirror._mirrorEvery = 3; try { const t = s.mirror._mirrorTex; if (t && t.resize && t.getSize().width > 256) t.resize(256); } catch { /* keeps it */ } }
+        emit({ state: 'quality', level: f.level, fps: Math.round(fps) });
+      }
+    }
+  }
+  /** Becoming something else: the body squashes and springs up, with sparkles. */
+  function transform() {
+    const s = session, g = G();
+    if (!s || !fx) return;
+    fx.pop = { t0: performance.now() };
+    fx.dirty = true;
+    if (!g || !g.burst || fx.level >= 3) return;
+    const p = s.p, phone = H.device && H.device.tier === 'phone';
+    const n = fx.level >= 2 ? 8 : phone ? 14 : 34;
+    g.burst([p.x, p.y + 0.9, p.z], { color: '#ffe9a8', count: n, speed: 4.2, size: 0.16, life: 0.7 });
+    if (fx.level < 2) g.burst([p.x, p.y + 1.3, p.z], { color: '#9fd4ff', count: Math.round(n * 0.7), speed: 3.4, size: 0.13, life: 0.8 });
+    try { if (fx.level < 1 && g.hasAsset && g.hasAsset('level-up.mp3')) g.sound('level-up.mp3', { volume: 0.2 }); } catch { /* no sound */ }
   }
 
   // ------------------------------------------------------------------ on screen: the questions
@@ -429,7 +539,7 @@
     if (t.dataset.view) {
       session.view = t.dataset.view;
       try { session.p.view = session.view; } catch { /* fine */ }
-      stage(session.p, session.mirror, false); // (the view moves the camera: back to the mirror's)
+      stage(session.p, session.mirror, false, 'view'); // (the view moves the camera: back to the mirror's)
       return render();
     }
   }
@@ -442,9 +552,12 @@
     const part = { what: id };
     if (lk.what !== id) { part.body = w.colors[0]; part.accent = w.colors[1]; part.head = w.colors[2]; if (w.body !== 'person') part.face = 'eyes'; }
     setLook(part);
+    const changed = lk.what !== id;
+    if (changed) try { transform(); } catch (err) { H.report(err, 'mirror'); }
     clearTimeout(reactT);
-    reactT = setTimeout(() => narrate(w.line, `overseer-is-${id}.mp3`, 4.5, 0, 'react'), 350);
-    emit({ state: 'pick', what: id });
+    // The Overseer reacts as the new body lands (the pop is under half a second).
+    reactT = setTimeout(() => narrate(w.line, `overseer-is-${id}.mp3`, 4.5, 0, 'react'), changed ? 250 : 350);
+    emit({ state: 'pick', what: id, pop: changed });
   }
 
   // ------------------------------------------------------------------ E near a mirror
@@ -492,7 +605,7 @@
   M.finish = (skipped) => finish(skipped);
   M.go = (i) => go(i);
   Object.defineProperty(M, 'session', { get: () => session, configurable: true });
-  M._internal = { lines: () => lines.slice(), speaking: () => speaking, pickWhat, nearestMirror, autoMirror, configOf, get pending() { return pending; }, forget: () => { seenOnPage.clear(); store.set(seenKey(), ''); } };
+  M._internal = { fx: () => fx && { arrived: fx.arrived, level: fx.level, lights: [fx.key, fx.rim].filter(Boolean).length, popping: Boolean(fx.pop), entering: Boolean(fx.enter) }, transform, lines: () => lines.slice(), speaking: () => speaking, pickWhat, nearestMirror, autoMirror, configOf, get pending() { return pending; }, forget: () => { seenOnPage.clear(); store.set(seenKey(), ''); } };
 
   // ------------------------------------------------------------------ building: the mirror's own settings (its card's 🪞)
   const kind = H.kinds.get('mirror');
