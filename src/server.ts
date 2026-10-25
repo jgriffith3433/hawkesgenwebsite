@@ -273,6 +273,8 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       const s = stripeStatus();
       return send(res, 200, { packs: PACKS, firstPurchaseBonus: FIRST_PURCHASE_BONUS, stripe: { configured: s.configured, publishableKey: s.publishableKey, mode: s.mode } });
     }
+    // Gen's quotes for the tools in the landing page's table (prices.ts): credits at the floor, 1 credit = $0.01.
+    if (route === '/v1/prices' && method === 'GET') { res.setHeader('Cache-Control', 'public, max-age=300'); return send(res, 200, { tools: await (await import('./prices.ts')).toolPrices() }); }
     if (route === '/v1/plans' && method === 'GET') return send(res, 200, { plans: PLANS, aiCredits: AI_CREDITS() });
     const tb = /^\/v1\/play-template\/([a-z0-9-]+)$/.exec(route);
     if (tb && method === 'GET') {
