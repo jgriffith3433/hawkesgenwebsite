@@ -475,3 +475,27 @@ do with credits: credits stay the paid currency and **nothing here is for sale**
 - **Kept** in the Overseer's memory: in the account when signed in, on the device and in the kept island otherwise.
 - **Names for the points, for J to choose:** *Glints* (specks of the Overseer's light), *Wishes* (it grants you free will; you
   collect small ones), *Motes* (dust in a beam). Until chosen: *sparks*, one line in `progress-core.js` (`POINTS`).
+
+### Visitors (built: `src/invites.ts`, `public/play/guest.js`)
+
+A player can bring a friend to their island. **Invite a friend** (the button top right, and the pause menu on Esc twice;
+on a phone the native share sheet) makes a link, `/play/sandbox?invite=<token>`, to the island's own room. It needs no account,
+for either of them. The link holds for a day. If the inviter has an account, their referral code rides in it
+(`&ref=<code>`), kept like the landing page's `?ref=`: a sign-up through it credits them as the site does today.
+
+**The friend's first minutes** are the island's, shorter: the same loading screen, then a short beginning (the beam and one
+line, *"Do with it what you will."*, no voice clip), the mirror (who they are; the name they give is what the inviter sees),
+and the account sheet right after it, as for everyone (J's rule). At the mirror's end they are in the room and **beamed in
+beside the inviter** (a signed-in friend keeps their own island and gets no sheet). A friend who has been here before skips
+the beginning and the mirror, as every return does.
+
+**The inviter** sees the beam come down with the newcomer's name over it, and the Overseer says, in the chat, *"Someone is
+coming."*, a moment later *"<name> is here."* The friend hears *"<name> is here. Go to them."* The Overseer does not explain
+or announce a system; it says who is coming.
+
+**When it cannot be done** the friend gets plain words and one way on, *Start my own island*, never an empty island made by
+accident: *closed* (the inviter left; the room exists only while someone is in it), *full* (32 people), *run out* (a day), or a
+link we cannot read. Nothing in this is paid and nothing starts Gen work.
+
+Not built yet: a standing invitation that outlives the inviter's visit (the room is the inviter's presence), a list of who
+came, and a reward beyond the referral the site already gives.

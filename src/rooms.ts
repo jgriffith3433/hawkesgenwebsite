@@ -22,6 +22,12 @@ type Room = relay.Room;
 const rooms = new Map<string, Room>();
 const COLORS = ['#4a9eff', '#a855f7', '#34d399', '#fbbf24', '#ef4444', '#f97316', '#22d3ee', '#ec4899'];
 export const ROOM_LIMITS = relay.LIMITS;
+/** How a room is right now (an island invitation asks before the friend loads anything: invites.ts). A room exists while
+ *  someone is in it, so a room that isn't there is closed. */
+export function roomState(key: string) {
+  const r = rooms.get(key);
+  return { open: Boolean(r && r.conns.size), people: r?.conns.size ?? 0, limit: ROOM_LIMITS.people };
+}
 let seq = 0;
 
 // One timer sends every room's bundles (relay.ts flush: interest, priority, the byte budget).
@@ -66,6 +72,8 @@ export function upgrade(req: IncomingMessage, raw: Duplex) {
     }
     name = String(url.searchParams.get('name') ?? '').replace(/[^\p{L}\p{N} _.-]/gu, '').trim().slice(0, 24) || '';
   }
+  // A friend answering an invitation (join=1) joins the island that is there; it never makes an empty one.
+  if (!edit && url.searchParams.get('join') === '1' && !roomState(key).open) return deny('This island is closed');
   const room = rooms.get(key) ?? relay.newRoom(key, gameId, edit);
   if (room.conns.size >= ROOM_LIMITS.people) return deny('This room is full');
   // (Nothing heard for 20 s: the player is gone, and a host that went quiet hands the world on.)

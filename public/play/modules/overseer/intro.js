@@ -1,7 +1,7 @@
 // The beginning (J's story): the first time a player enters a world, the camera looks up at the Overseer in the sky,
 // the Overseer beams the player down and says: "I have given you the power of free will. Do with it what you will."
 // About ten seconds; any key or a tap skips it. After that (or on a later visit), being beamed in is enough.
-//   - config.overseer.intro: "first" (the default: once per player, remembered on this device), "always", or false.
+//   - config.overseer.intro: "first" (the default: once per player, remembered on this device), "always", "short" (a friend answering an invitation: the beam and one line, about 4.5 s) or false.
 //   - The sound: a score made here (a hum, the beam's swell and whoosh, a chime, a tone under each line). The voice: a
 //     sound asset named "overseer-intro" in the game, else the Overseer's own line (overseer.js VOICES).
 //   - With sound still blocked by the browser (no click or key yet), it first shows the gateway: the Overseer's ring, one
@@ -30,7 +30,7 @@
     if (!c) return false;
     const v = c.intro;
     if (v === false || v === 'off' || v === 'never' || v === 'none') return false;
-    return v === 'always' ? 'always' : 'first';
+    return v === 'always' || v === 'short' ? 'always' : 'first';
   }
   function seen() {
     try { if (window.localStorage.getItem(KEY)) return true; } catch { /* a sandboxed page: ask the bundle */ }
@@ -58,6 +58,8 @@
     return !seen() && !playedThisPage;
   }
   OV.introWanted = wanted;
+  /** "short" (a friend answering an invitation, guest.js): the beam and one line over ~4.5 s, no voice clip. */
+  const isShort = () => Boolean(OV.config && OV.config.intro === 'short');
 
   /** The voice line, when the game has one (a sound named "overseer-intro"). */
   function voice() {
@@ -193,6 +195,8 @@
     playedThisPage = true;
     await waitForSound();
     if (W() !== w || !p.alive) return { skipped: true };
+    const short = isShort();
+    const SEC = short ? 4.5 : SECONDS;
     const at = [p.x, p.bottom, p.z];
     // Toward the ship across the ground, and the side.
     let hx = c[0] - at[0], hz = c[2] - at[2];
@@ -204,8 +208,8 @@
     const k2 = [at[0] - hx * 3.2, at[1] + 1.6, at[2] - hz * 3.2];
     const keys = [
       { pos: k0, look: lookUp(k0, 0.36), at: 0 },
-      { pos: k1, look: lookUp(k1, 0.27), at: SECONDS * 0.62 },
-      { pos: k2, look: [at[0] + hx * 6, at[1] + 1.4, at[2] + hz * 6], at: SECONDS },
+      { pos: k1, look: lookUp(k1, 0.27), at: SEC * 0.62 },
+      { pos: k2, look: [at[0] + hx * 6, at[1] + 1.4, at[2] + hz * 6], at: SEC },
     ];
     const vis = p.node.visibility;
     p.node.visibility = 0;
@@ -227,18 +231,21 @@
     if (H.speech) H.speech.hold('intro');
     g.emit('intro', { state: 'start' });
     // The beam: the player appears in it.
-    later(1.3, () => {
-      OV.beam(p, { radius: 1.5, seconds: 3.4 });
+    later(short ? 0.6 : 1.3, () => {
+      OV.beam(p, { radius: 1.5, seconds: short ? 2.4 : 3.4 });
       const s0 = performance.now();
       const fadeIn = () => { if (!playing || !p.alive) return; const k = smooth(0.25, 1.1, (performance.now() - s0) / 1000); p.node.visibility = k; if (k < 1) requestAnimationFrame(fadeIn); };
       fadeIn();
     });
-    later(2.7, () => { audio = voice(); if (audio) audio.play().catch(() => {}); });
-    later(3.0, () => OV.say(LINES[0], 3.1, { owner: 'intro', priority: 'important', external: true }));
-    later(6.2, () => OV.say(LINES[1], 3.6, { owner: 'intro', priority: 'important', external: true }));
+    if (short) later(1.4, () => OV.say(LINES[1], 2.8, { owner: 'intro', priority: 'important', external: true }));
+    else {
+      later(2.7, () => { audio = voice(); if (audio) audio.play().catch(() => {}); });
+      later(3.0, () => OV.say(LINES[0], 3.1, { owner: 'intro', priority: 'important', external: true }));
+      later(6.2, () => OV.say(LINES[1], 3.6, { owner: 'intro', priority: 'important', external: true }));
+    }
     let r = { skipped: true };
     try {
-      r = await g.cinematic.path(keys, { seconds: SECONDS, fade: { in: 0.9, out: 0.6 }, letterbox: true, skippable: true, ease: 'inOut' });
+      r = await g.cinematic.path(keys, { seconds: SEC, fade: { in: 0.9, out: 0.6 }, letterbox: true, skippable: true, ease: 'inOut' });
     } catch (err) { H.report(err, 'intro'); }
     for (const t of timers) clearTimeout(t);
     window.removeEventListener('keydown', onKey, true);
@@ -250,7 +257,7 @@
     if (W() === w && p.alive) {
       p.node.visibility = vis;
       // Skipped before the beam came: still beamed in.
-      if (r.skipped && performance.now() - t0 < 1500) OV.beam(p, { radius: 1.3, seconds: 1.6 });
+      if (r.skipped && performance.now() - t0 < (short ? 700 : 1500)) OV.beam(p, { radius: 1.3, seconds: 1.6 });
     }
     remember();
     if (G()) G().emit('intro', { state: 'end', skipped: Boolean(r.skipped) });
