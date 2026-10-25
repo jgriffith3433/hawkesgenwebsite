@@ -127,3 +127,15 @@ test('the landing page sends visitors to play first, and keeps "Start building" 
   assert.ok(play > 0 && build > play, 'Play now comes first, Start building second');
   assert.match(hero, /Play now/);
 });
+
+test('what a message to the Overseer costs is quoted before sending, charges nothing, and needs the account', async () => {
+  const s = await call('/v1/users/signup', { body: { email: 'quote@example.test', password: 'correct horse battery', name: 'Quote' } });
+  const cookie = s.cookie!;
+  const game = await call('/v1/games', { cookie, body: { title: 'Quote island', template: 'sandbox' } });
+  const q = await call(`/v1/games/${game.body.id}/ai/quote`, { cookie });
+  assert.equal(q.status, 200, JSON.stringify(q.body));
+  assert.ok(q.body.credits >= 8, 'never under what a message costs at least');
+  assert.equal(q.body.balance, 50, 'asking the price takes nothing');
+  assert.equal(q.body.canAfford, true);
+  assert.equal((await call(`/v1/games/${game.body.id}/ai/quote`)).status, 401);
+});
