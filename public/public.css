@@ -157,6 +157,16 @@ textarea.form-input { resize: vertical; }
   .hg-nav-links.open a { padding: 12px; font-size: 15px; }
   .bar .grow { display: none; }
 }
+/* Phones: brand, Menu and both account buttons fit one row at 360px and up, each whole and 44px tall. */
+@media (max-width: 560px) {
+  .hg-navbar .wrap { padding: 0 12px; }
+  .hg-navbar-inner { gap: 6px; }
+  .hg-brand { flex: none; }
+  .hg-brand .wordmark { font-size: 15px; }
+  .site-menu-btn { flex: none; padding: 8px 10px; }
+  .hg-nav-actions { flex: none; gap: 4px; margin-left: 0; }
+  .hg-nav-actions .btn { padding: 8px 10px; font-size: 13px; }
+}
 
 /* ------------------------------------------------------------ hero */
 .hero { padding: 100px 0 80px; }
