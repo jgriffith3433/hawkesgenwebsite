@@ -3,7 +3,7 @@
 // people (SSE /live), the assistant (which gets told what you're looking at), and the Advanced drawer (code, assets,
 // settings, docs). The game frame and this page talk with postMessage; the game never sees the cookie.
 /* global CodeMirror marked */
-import { createBridge } from '/editor-bridge.js';
+import { createBridge, safeHref } from '/editor-bridge.js';
 const API = '/v1';
 const gameId = /\/app\/g\/(g_[0-9a-f]+)/.exec(location.pathname)?.[1];
 if (!gameId) location.replace('/app');
@@ -162,6 +162,41 @@ function askLater(o, ms = 2500) { setTimeout(() => { try { hga()?.ask({ theme: A
 // The assistant: when each request of mine went, to time its answer (and say when it's slow or fails).
 let askedAt = 0;
 
+// A link from the game or its chat is a link only when it is ours (editor-bridge.js safeHref); otherwise the line is plain text.
+const linkOf = (href) => safeHref(href, [location.origin]);
+
+// The share window: the game is sandboxed (no cookies), so this page opens /share/new and carries the photo or clip
+// between the two. The game asks ('share-open', in the tap, so the click still counts) and sends the media ('share-media').
+const shareWins = new Map(); // id -> { win, payload, ready }
+const SHARE_MAX = 64 * 1024 * 1024;
+function shareOpen(id) {
+  id = String(id || '').slice(0, 40);
+  if (!id) return;
+  for (const [k, v] of shareWins) if (!v.win || v.win.closed) shareWins.delete(k);
+  let win = null;
+  if (shareWins.size < 4) { try { win = window.open('/share/new', `hg-share-${id}`, 'popup,width=640,height=820'); } catch { win = null; } }
+  if (win) shareWins.set(id, { win, payload: null, ready: false });
+  toStage({ type: 'share-opened', id, ok: Boolean(win) });
+}
+function shareMedia(m) {
+  const w = shareWins.get(String(m.id || '').slice(0, 40));
+  const p = m.payload;
+  if (!w || !p || p.source !== 'hawkes-share' || p.type !== 'media' || !(p.blob instanceof Blob) || p.blob.size > SHARE_MAX) return;
+  w.payload = p;
+  if (w.ready) sendShare(w);
+}
+function sendShare(w) { try { w.win.postMessage(w.payload, location.origin); } catch {} }
+window.addEventListener('message', (e) => {
+  for (const [id, w] of shareWins) {
+    if (e.source !== w.win) continue;
+    const m = e.data || {};
+    if (e.origin !== location.origin || m.source !== 'hawkes-share') return;
+    if (m.type === 'ready') { w.ready = true; if (w.payload) sendShare(w); }
+    if (m.type === 'shared' && m.url) toStage({ type: 'share-done', id, url: String(m.url).slice(0, 300) });
+    return;
+  }
+});
+
 window.addEventListener('message', (e) => {
   if (e.source !== stage.contentWindow) return;
   const m = e.data || {};
@@ -219,7 +254,7 @@ async function fromGame(m) {
     case 'chat-line': {
       const text = String(m.text || '').trim().slice(0, 400);
       if (!text) return;
-      if (m.kind === 'overseer') { const last = chatHistory.at(-1); if (!(last && last.local && last.text === text && Date.now() - last.at < 5000)) addOverseer(text, m.action && m.action.href ? { action: { label: String(m.action.label || 'Open'), href: String(m.action.href) } } : {}); return; }
+      if (m.kind === 'overseer') { const last = chatHistory.at(-1); if (!(last && last.local && last.text === text && Date.now() - last.at < 5000)) addOverseer(text, m.action && linkOf(m.action.href) ? { action: { label: String(m.action.label || 'Open'), href: linkOf(m.action.href) } } : {}); return; }
       if (m.kind === 'sys') { addSystem(text); return; }
       const msg = { id: `local_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, role: 'other', kind: m.kind, name: m.kind === 'me' ? (me && me.name) || 'You' : String(m.who || 'Someone').slice(0, 40), text, local: true, at: Date.now() };
       chatHistory.push(msg);
@@ -277,6 +312,8 @@ async function fromGame(m) {
     case 'mode': setPlaying(m.mode === 'play'); return;
     case 'menu': openMenu(); return;
     case 'card': return;
+    case 'share-open': return shareOpen(m.id);
+    case 'share-media': return shareMedia(m);
     case 'selected':
       // What you opened is what you're talking about: it shows in the assistant's line as @name.
       if (m.entity && m.entity.id) setMention({ id: m.entity.id, name: m.entity.name || m.entity.id, fromCard: true });
@@ -412,12 +449,12 @@ function renderChat(fresh) {
     if (d.changed && d.changed.length) did.push(`edited ${d.changed.join(', ')}`);
     if (did.length) { const c = document.createElement('span'); c.className = 'changed'; c.textContent = did.join(' · '); div.appendChild(c); }
     // A line with something to do (out of credits: get more), a link that opens beside the game.
-    if (msg.action) {
+    if (msg.action && linkOf(msg.action.href)) {
       const a = document.createElement('span');
       a.className = 'sugg';
       const link = document.createElement('a');
       link.className = 'sugg-link';
-      link.href = msg.action.href; link.target = '_blank'; link.rel = 'noopener';
+      link.href = linkOf(msg.action.href); link.target = '_blank'; link.rel = 'noopener';
       link.textContent = msg.action.label;
       if (msg.action.onclick) link.onclick = msg.action.onclick;
       a.appendChild(link);

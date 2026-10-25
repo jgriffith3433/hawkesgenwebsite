@@ -492,6 +492,16 @@ Spending credits and acting on the account belong to the person, in the editor (
   person presses Enter, and `sendChat` (the only thing that calls `/ai`) runs from their own key. The tour's `asked` step completes then.
 - **`ops` and `spawn-community` stay automatic** (that is the person building), but are limited: `ops` 30 a second,
   `spawn-community` 2 a second. The excess is dropped, with one console warning per type.
+- **`share-open` and `share-media` carry a photo or clip to the share window.** A game page has no cookies and a window it
+  opens is sandboxed too (no `allow-popups-to-escape-sandbox`), so it cannot open `/share/new` itself: it posts `share-open`
+  in the tap (the click still counts; the editor answers `share-opened {ok}`), then `share-media` with the payload, and the
+  editor hands it to the window it opened when that says `ready` (`share-done {url}` goes back). `share-open` is limited to 2 a
+  second. A sandboxed page played on its own has no page around it and says sharing works from the editor.
+- **Links are ours or plain text.** A chat line's `action.href` (editor.js, chat.js) is a link only if `safeHref`
+  (editor-bridge.js) accepts it: a path with one `/`, or https on hawkesgen.com / this page's origin. Anything else is shown as text.
+- **The page's policy.** A game page carries a Content-Security-Policy beside its sandbox (`src/server.ts playCsp`, hosts in
+  `PLAY_HOSTS`): a script's `fetch` to a site not listed is refused. Add a host there when the engine starts using one
+  (test `test/play-csp.test.ts` finds engine files that name one that is not listed). Inline scripts of play.html get a nonce per load.
 - **The server is the second guard:** `POST /v1/games/:id/generate` takes 10 a minute and 40 an hour per account (429), and
   `/ai` allows one message at a time per game (429 while the Overseer is working).
 

@@ -211,6 +211,12 @@
     if (!B.Inspector && !document.querySelector(`script[src="${INSPECTOR}"]`)) {
       await new Promise((ok, fail) => { const s = document.createElement('script'); s.src = INSPECTOR; s.onload = ok; s.onerror = fail; document.head.appendChild(s); }).catch(() => {});
     }
+    // (A game page's policy lists the CDN the Inspector comes from, server.ts PLAY_HOSTS; without it, say so.)
+    if (!B.Inspector) {
+      const b = el && el.querySelector('[data-a="inspector"]');
+      if (b) { b.textContent = 'Inspector off'; b.title = 'The Inspector did not load here (blocked or offline)'; b.disabled = true; }
+      return;
+    }
     // The Inspector docks on the right: the monitor moves over to the left while it's open.
     if (scene.debugLayer.isVisible()) scene.debugLayer.hide();
     else await scene.debugLayer.show({ embedMode: true, overlay: true }).catch(() => {});

@@ -91,3 +91,14 @@ test('the engine\'s own messages to the editor are all on the list', async () =>
   assert.ok(used.has('generate') && used.has('ops'));
   for (const t of used) assert.ok(ALLOWED.has(t), `${t} is allowed`);
 });
+
+test('the share window messages are answered, and share-open is limited', () => {
+  const ran: string[] = [];
+  let t = 1;
+  const bridge = createBridge({ now: () => t, warn: () => {}, run: (m: any) => { ran.push(m.type); } });
+  assert.ok(ALLOWED.has('share-open') && ALLOWED.has('share-media'));
+  for (let i = 0; i < 10; i++) bridge.handle({ source: 'hawkes-play', type: 'share-open', id: `s${i}` });
+  assert.equal(ran.filter((x) => x === 'share-open').length, 2);
+  bridge.handle({ source: 'hawkes-play', type: 'share-media', id: 's0', payload: {} });
+  assert.ok(ran.includes('share-media'));
+});
