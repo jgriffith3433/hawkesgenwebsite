@@ -2,7 +2,7 @@
 // this script is how it feels: once the Overseer has beamed you down and you've been to the mirror (who you are:
 // modules/mirror, by itself after the intro), Pip comes over, greets you and offers the tour, every step
 // done has its moment (a sound, confetti, Pip's line, the Overseer's words), and the island sounds like one: the sea
-// and the birds, gentle music, all through the engine's sound (they start with your first click or key).
+// and the birds, gentle music, all through the engine's sound (asked for once the intro starts, faded in once loaded).
 // Sounds and music are assets by name (the community library's); a game without one plays on quietly.
 
 const H = window.HawkesPlay;
@@ -23,30 +23,54 @@ const confetti = () => {
 };
 
 // ------------------------------------------------------------------ the island's sound
-// The music loops with game.music; the sea and the birds are loops of their own through the engine's output.
-const loops = (window.__islandLoops = window.__islandLoops || []);
-for (const a of loops.splice(0)) { try { a.pause(); } catch { /* gone */ } }
-function loop(name, volume) {
+// The music, the sea and the birds are loops of their own through the engine's output. None is fetched before the world
+// is playable: the elements are made with preload "none" (no request) and only asked for once the intro has started (the
+// intro's voice is warmed first and goes first), and each one fades in only after it has loaded, so nothing waits on a
+// download and the first frame is never held up by sound. (J, 2026-10-25: the files were 2.66 MB of the first play.)
+const sounds = (window.__islandLoops = window.__islandLoops || []);
+for (const s of sounds.splice(0)) { try { s.el.pause(); } catch { /* gone */ } }
+// What was asked of the network and what played, for the playtest's timeline (the page's console shows it too).
+const audioLog = (window.__islandAudioLog = []);
+const logAudio = (what, name) => { audioLog.push({ t: Math.round(performance.now()), what, name }); try { console.log(`island audio: ${what} ${name}`); } catch { /* fine */ } };
+const FADE_IN = 1.5; // seconds from silent to the sound's own level, once it has loaded
+const MUSIC_VOLUME = 0.14; // (Quiet enough to talk over: J, 2026-10-24, "I can't hear the voices".)
+function loop(name, target) {
   if (!game.hasAsset(name) || !H || !H.audio || !H.audio.media) return null;
   try {
-    const a = new Audio(game.asset(name));
-    a.crossOrigin = 'anonymous';
-    a.loop = true;
-    a.volume = volume;
-    H.audio.media(a, { background: true }); // (background: it dips under the Overseer's voice)
-    loops.push(a);
-    a.play().catch(() => {});
-    return a;
+    const el = new Audio();
+    el.preload = 'none'; // (no request until load() below)
+    el.crossOrigin = 'anonymous';
+    el.loop = true;
+    el.volume = 0;
+    el.src = game.asset(name);
+    H.audio.media(el, { background: true }); // (background: it dips under the Overseer's voice)
+    const s = { name, el, target, fade: 0, ready: false };
+    sounds.push(s);
+    return s;
   } catch { return null; }
+}
+const music = loop('meadow.mp3', MUSIC_VOLUME);
+const sea = loop('ocean-waves.mp3', 0);
+const birds = loop('forest.mp3', 0.05);
+/** Asks for the file now; it plays and fades in when the browser says it can play through. */
+function fetchSound(s) {
+  if (!s || s.asked) return;
+  s.asked = true;
+  const ready = () => { if (s.ready) return; s.ready = true; logAudio('ready', s.name); playSound(s); };
+  s.el.addEventListener('canplaythrough', ready, { once: true });
+  s.el.preload = 'auto';
+  logAudio('request', s.name);
+  try { s.el.load(); } catch { /* it tries again on play */ }
+}
+function playSound(s) {
+  s.el.play().then(() => { if (!s.started) { s.started = true; s.fadeFrom = performance.now(); logAudio('start', s.name); } }).catch(() => {});
 }
 let sounding = false;
 function startSound() {
   if (sounding || game.mode !== 'play') return;
   sounding = true;
-  // (Quiet enough to talk over: J, 2026-10-24, "I can't hear the voices".)
-  if (game.hasAsset('meadow.mp3')) game.music('meadow.mp3', { volume: 0.14 });
-  loop('ocean-waves.mp3', 0);
-  loop('forest.mp3', 0.05);
+  // The music first (it carries the first minute), then the sea and the birds.
+  for (const s of [music, sea, birds]) fetchSound(s);
 }
 // The sea is heard by the shore: quiet, and fading out as you walk inland (silent ~70 m from the water) or go up; the
 // birds stay over the land. (A loop the browser held back starts as soon as sound is allowed: the first click or key.)
@@ -64,8 +88,14 @@ function seaDistance(x, z) {
 }
 let seaVol = 0;
 game.every(0.25, () => {
-  if (!loops.length || !game.player) return;
-  if (H.audio.context && H.audio.context.state === 'running') for (const a of loops) if (a.paused) a.play().catch(() => {});
+  if (!game.player) return;
+  const now = performance.now();
+  for (const s of sounds) {
+    if (!s.ready) continue;
+    // A loop the browser held back starts as soon as sound is allowed: the first click or key.
+    if (s.el.paused && H.audio.context && H.audio.context.state === 'running') playSound(s);
+    s.fade = s.started ? Math.min(1, (now - s.fadeFrom) / (FADE_IN * 1000)) : 0;
+  }
   const p = game.player;
   const h = game.planet ? game.planet.height(p.position) : p.y;
   const d = seaDistance(p.x, p.z);
@@ -73,9 +103,11 @@ game.every(0.25, () => {
   const up = Math.max(0, 1 - Math.max(0, h - 8) / 120);
   const want = SEA_MAX * near * up;
   seaVol += (want - seaVol) * 0.35; // (eased: no jumps as you walk)
-  if (loops[0]) loops[0].volume = Math.max(0, Math.min(1, seaVol));
+  const level = (s, v) => { if (s) s.el.volume = Math.max(0, Math.min(1, v * s.fade)); };
+  level(music, music && music.target);
+  level(sea, seaVol);
   const onLand = d > 0;
-  if (loops[1]) loops[1].volume = onLand && h < 60 ? 0.05 : 0.01;
+  level(birds, onLand && h < 60 ? 0.05 : 0.01);
 });
 
 // ------------------------------------------------------------------ the beginning: Pip offers the tour
@@ -104,14 +136,31 @@ function begin() {
 const mirrorBusy = () => Boolean(game.mirror && game.mirror.pending);
 function afterMirror() { if (!mirrorBusy()) begin(); }
 game.on('mirror', (d) => { if (d && (d.state === 'done' || d.state === 'skip')) game.after(1.6, begin); });
-game.on('intro', (d) => { if (d && d.state === 'end') game.after(1, afterMirror); });
+// The intro's voice is warmed first, the moment the world is playable (the one file asked for before the music), so it is
+// ready when the intro speaks; the music and loops are asked for when the intro starts (or a second after the start when
+// there is none), once the voice is in or after 1.5 s, whichever is first.
+let voiceWarm = Promise.resolve();
+const VOICE = 'overseer-intro.mp3';
+function warmVoice() {
+  if (!game.hasAsset(VOICE) || typeof fetch !== 'function') return;
+  logAudio('request', VOICE);
+  voiceWarm = fetch(game.asset(VOICE), { mode: 'cors' }).then((r) => r.arrayBuffer()).then(() => logAudio('ready', VOICE)).catch(() => {});
+}
+function soundAfterVoice() {
+  if (sounding) return;
+  Promise.race([voiceWarm, new Promise((r) => setTimeout(r, 1500))]).then(() => startSound());
+}
+game.on('intro', (d) => {
+  if (!d) return;
+  if (d.state === 'start') soundAfterVoice();
+  if (d.state === 'end') game.after(1, afterMirror);
+});
 game.onStart(() => {
   const intro = Boolean(H && H.overseer && H.overseer.introWanted && H.overseer.introWanted());
   // (An intro that never ends: begin anyway, unless the mirror is open: then when it closes.)
+  if (intro) warmVoice(); else game.after(1, soundAfterVoice);
   game.after(intro ? 40 : 2.5, afterMirror);
 });
-window.addEventListener('pointerdown', startSound, { once: true });
-window.addEventListener('keydown', startSound, { once: true });
 
 // ------------------------------------------------------------------ each step done: its moment
 // The Overseer speaks each moment (the community library's Overseer voice, by name), and its words show as a caption.

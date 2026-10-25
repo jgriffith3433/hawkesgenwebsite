@@ -396,7 +396,7 @@ engine's AudioContext (one for everything; it starts running at the first click,
 in tests). `H.audio.effect(name, node)` puts a filter between everything and the speakers (water muffles the world
 under water: `effect('water', lowpass)`, `null` takes it out); `H.audio.media(audioElement)` routes an `<audio>` (music,
 loops) through it; `H.audio.volume` is the master volume; `H.audio.output` is what reaches the speakers (after the
-effects: record from it, as share's clips do). `game.sound(name)` and `game.music(name)` already use it.
+effects: record from it, as share's clips do). `H.audio.hold(owner, on)` silences everything but the background (music and ambience, `media(el, { background: true })`) while any owner holds (the account sheet over the sandbox uses it). `game.sound(name)` and `game.music(name)` already use it.
 
 ## 7c2. Slow motion (`H.timeScale`, `H.slow`)
 

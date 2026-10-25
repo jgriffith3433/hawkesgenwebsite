@@ -7,9 +7,11 @@ export const sha256 = (s: Buffer | string) => crypto.createHash('sha256').update
 /** An error with the HTTP status it answers with. */
 export class PortalError extends Error {
   status: number;
-  constructor(message: string, { status = 400 } = {}) {
+  code?: string;
+  constructor(message: string, { status = 400, code }: { status?: number; code?: string } = {}) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
