@@ -522,7 +522,7 @@ async function sendChat(text, about, ctx) {
     askedAt = Date.now();
     hga()?.track('assistant_ask', { chars: message.length, mention: Boolean(target), errors: errors.length });
     // The game hears it too (game.on('asked'): the island's tour has a step for it).
-    toStage({ type: 'event', name: 'asked', data: { chars: message.length } });
+    toStage({ type: 'event', name: 'asked', data: { chars: message.length, text: String(message).slice(0, 200) } });
   } catch (err) {
     // 402 (no credits) is told by site-analytics.js from the answer itself.
     if (err.status === 429) frustrated('assistant_busy');

@@ -17,7 +17,7 @@
 import { installPlaytest } from './hawkes-playtest.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'presence'];
+const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
 const ORDERS = { 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'] };
 const SCENARIOS = [
@@ -26,6 +26,11 @@ const SCENARIOS = [
     id: 'sandbox-first-minutes', title: 'Play /play/sandbox as a new player: veil, intro, mirror, sign-up, drive to the dock, fish', seconds: 210, tags: ['full'],
     starts: ['sandbox'],
     description: 'options: to (veil, intro, mirror, sheet, drive, fish), signup (false: never sign up; always off on live), fish ("strict": a fishing failure fails the run), watch (seconds of intro to watch), at ("sandbox")',
+  },
+  {
+    id: 'sandbox-chapter-one', title: 'Chapter One "What Are You?": the eight quests to the launch pad, the lit bay and the two closing lines', seconds: 420, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path, then quests 6 (walk up to Dolores) and 8 (Rolo\'s rocket) with real input; quests 4, 5 and 7 are named setup shortcuts (the quest line advanced); options as sandbox-first-minutes, plus rocket ("shortcut": skip the climb)',
   },
   {
     id: 'presence-who', title: 'A shared world: who is there (list, marker or edge arrow), tap a name to beam next to them, mute, an abusive name replaced', seconds: 230, tags: ['full'],
@@ -356,10 +361,54 @@ async function stageFish(t, ctx) {
   } finally { pointer('pointerup', window); }
 }
 
+/** Chapter One's last quests. Setup shortcuts (named in the timeline): quests 4, 5 and 7 are advanced through the quest line;
+ *  quests 6 and 8 are played with real input: walk up to Dolores, then fill and fly Rolo's rocket. */
+async function stageChapter(t, ctx) {
+  const q = () => G().events.quests;
+  const step = () => (q().state('tour') === 'active' ? q().step('tour') : null);
+  const seen = [];
+  G().on('tour', (d) => { seen.push(d.step); t.event('quest-done', d.step); });
+  G().on('beat', (d) => t.event('islander-line', `${d.who}: ${d.text}`));
+  G().on('bay-lit', () => t.event('bay-lit', 'the Overseer\'s bay is lit on the sphere'));
+  const shortcut = async (until, why) => {
+    for (let i = 0; i < 9 && step() && step() !== until; i++) { t.event('setup-shortcut', `${why}: passed "${step()}"`); q().advance('tour'); await t.wait(1500); }
+  };
+  releaseAll();
+  if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
+  await shortcut('hill', 'quests 2 to 5 (the tour so far)');
+  if (step() !== 'hill') throw new Error(`the quest line is on "${step()}", not the hill`);
+  t.scene('Quest 6: up the hill');
+  await walkTo(t, 'dolores', 3.2, 70000, 'Dolores on the hill');
+  await t.until(() => step() !== 'hill', 12000, 'Dolores to say hello (the hill quest)');
+  t.event('hill-hello', 'Dolores greeted the player; quest 6 passed');
+  t.scene('Quest 6: Dolores says hello');
+  await t.wait(3500);
+  await shortcut('launch', 'quest 7 (the helicopter flight)');
+  if (step() !== 'launch') throw new Error(`the quest line is on "${step()}", not the launch pad`);
+  t.scene('Quest 8: Rolo\'s rocket');
+  await t.wait(2500);
+  await walkTo(t, 'rocket', 4.5, 80000, 'Rolo\'s rocket on the launch pad');
+  const riding = () => { try { const r = HP().vehicles && HP().vehicles.current; return Boolean(r && r.alive); } catch { return false; } };
+  for (let i = 0; i < 4 && !riding(); i++) { await tap(t, 'e'); await t.wait(900); } // (the first E fills the tank, the next gets in)
+  t.event(riding() ? 'rocket-boarded' : 'rocket-not-boarded');
+  if (riding() && ctx.options.rocket !== 'shortcut') {
+    keyEv('keydown', ' ');
+    t.scene('Quest 8: the burn');
+    await t.until(() => step() !== 'launch', 60000, 'the rocket to carry the player up until the planet is whole').catch(() => {});
+    keyEv('keyup', ' ');
+  }
+  if (step() === 'launch') { t.problem('warning', 'the climb did not reach the planet in time; the last step was passed by a setup shortcut'); t.event('setup-shortcut', 'planet whole (sandbox-planet)'); G().emit('sandbox-planet', { height: 1000, mine: true }); }
+  await t.until(() => q().state('tour') === 'done', 15000, 'the chapter to end');
+  t.scene('Chapter One: the lit bay');
+  await t.wait(7000); // Pip's "Huh. That's new." and the Overseer's closing line
+  t.event('chapter-end', 'quests done: ' + seen.join(', '));
+  t.progress(1);
+}
+
 const RUN = {
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish, presence: stagePresence,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence,
 };
-const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'presence-who': 'presence' };
+const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence' };
 
 // ---------------------------------------------------------------------------------------------- the contract
 let api = null;

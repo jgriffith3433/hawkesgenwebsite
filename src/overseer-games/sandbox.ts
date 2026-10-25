@@ -107,7 +107,10 @@ const QUEST = {
     { id: 'boom', text: 'Blow up the fuel barrels on the beach with the rocket launcher', marker: 'barrel_1', goal: { event: 'explosion' }, done: [{ emit: 'tour', data: { step: 'boom' } }] },
     { id: 'spawn', text: 'Spawn something (hold Q, or the ➕ button): the Overseer beams it down', goal: { event: 'spawned' }, done: [{ emit: 'tour', data: { step: 'spawn' } }] },
     { id: 'ask', text: 'Tell the Overseer what you want: type it in the chat (try "a castle on the hill")', goal: { event: 'asked' }, done: [{ emit: 'tour', data: { step: 'ask' } }] },
+    // Chapter One's quests 6 to 8 (docs/story.md section 5): Dolores on the hill, the helicopter, Rolo's rocket.
+    { id: 'hill', text: 'Walk up the hill and say hello to Dolores', marker: 'dolores', goal: { event: 'sandbox-hill' }, done: [{ emit: 'tour', data: { step: 'hill' } }] },
     { id: 'fly', text: 'Take the helicopter up high and look down at the planet', marker: 'heli', goal: { event: 'sandbox-high' }, done: [{ emit: 'tour', data: { step: 'fly' } }] },
+    { id: 'launch', text: "Fill Rolo's rocket, fire it and go up until the planet is whole", marker: 'rocket', goal: { event: 'sandbox-planet' }, done: [{ emit: 'tour', data: { step: 'launch' } }] },
   ],
   reward: { score: 100, text: 'The whole planet is yours' },
 };
@@ -182,6 +185,9 @@ export const SANDBOX = {
     add(thing('sign_text', 'text', 'Sign words', [58.44, groundAt(58.5, -3.6) + 1.5, -3.6], { shape: { text: "PIP'S PIER\nfishing · boats", size: 0.2, billboard: false, color: '#3a2614' }, transform: yaw(90) }));
     // The catch board at Pip's pier: it lists your best catches (water's fishing.js), and E there opens the catch log.
     add(thing('catch_board', 'box', 'Catch board', [58.5, groundAt(58.5, 3.6) + 1.5, 3.6], { shape: { size: [1.9, 1.05, 0.08] }, material: { color: '#6b4a2f', texture: A.oldWood, tile: [1, 1] }, transform: yaw(-90), data: { catchBoard: true } }));
+    // Chapter One's small things to notice (sandbox.js: E near them): the pier's hand-cut planks and the harbour desk's logbook.
+    add(thing('harbour_desk', 'box', "Harbour desk", [62.5, groundAt(62.5, 5.6) + 0.45, 5.6], { shape: { size: [1.3, 0.9, 0.75] }, material: { color: '#8a6a4a', texture: A.oldWood, tile: [1, 1] }, transform: yaw(90) }));
+    add(thing('logbook', 'box', 'Logbook', [62.5, groundAt(62.5, 5.6) + 0.95, 5.6], { shape: { size: [0.4, 0.07, 0.3] }, material: { color: '#3b2a1c' }, transform: yaw(90), shadow: false }));
     add(thing('catch_board_post', 'cylinder', 'Board post', [58.5, groundAt(58.5, 3.6) + 0.5, 3.66], { shape: { radius: 0.07, height: 1.1 }, material: { color: '#6b4a2f', texture: A.oldWood } }));
     add({ id: 'rod', type: 'tool-pickup', name: 'Fishing rod', shape: { tool: 'rod', respawn: 5 }, transform: { position: [86.5, pierY + 0.2, -0.4] } });
     add({ id: 'boat', type: 'boat', name: 'Speedboat', shape: { model: A.speedboat }, material: { color: '#e5e7eb' }, transform: { position: [73, -1.2, 4.4], rotation: [0, 90, 0] } });
