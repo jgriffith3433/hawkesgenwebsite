@@ -40,7 +40,7 @@ function page() {
     on: (t: string, f: Function) => { (handlers[t] ||= []).push(f); },
     onStart: (f: Function) => { starts.push(f); },
     after: (s: number, f: Function) => { timers.push({ at: now + s * 1000, fn: f }); },
-    every: () => {}, all: () => [], terrain: { heightAt: () => -10 }, planet: { height: () => 0 },
+    every: () => {}, input: { onKey() {} }, all: () => [], terrain: { heightAt: () => -10 }, planet: { height: () => 0 },
   } as any, { get: (t, k) => (k in t ? t[k] : () => ({})) });
   const H = { audio: { media: () => {}, context: { state: 'running' } }, overseer: { introWanted: () => true } };
   const win: any = { HawkesPlay: H, addEventListener() {} };
