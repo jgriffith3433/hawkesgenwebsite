@@ -448,7 +448,7 @@
     if (playClip(rig, em.def.clip || em.def.name)) return;
     const o = Math.sin(k * 10);
     // An animal or a thing emotes with its whole self: a hop, a spin, a lie-down (arms, where it has them, below).
-    if (rig.what !== 'person') {
+    if (rig.what !== 'person' && !rig.thing) {
       const n = em.def.name, b = Math.sin(k * 7);
       r.pose.position.y = n === 'sit' || n === 'sleep' ? -0.15 : Math.abs(b) * 0.18;
       r.pose.rotation.y = n === 'dance' ? Math.sin(k * 3.5) * 0.9 : n === 'laugh' ? Math.sin(k * 20) * 0.08 : 0;
