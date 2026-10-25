@@ -38,6 +38,8 @@
   const st = { kind: null, caption: '', at: 0, still: null, shownAt: null, lastCaption: '', timer: null, state: 'idle', link: null, tourStart: null, caught: false, jumps: M.jumpWatch(), item: null, busy: false };
   const emit = (state, more) => { st.state = state; try { H.game && H.game.emit('moment', { state, kind: st.kind, caption: st.caption, ...(more || {}) }); } catch { /* fine */ } };
   Mo.state = () => ({ state: st.state, kind: st.kind, caption: st.caption, link: st.link });
+  /** Milliseconds since Pip's tour began on this page (null: it has not, or was picked up from an earlier visit). */
+  Mo.tourAge = () => (st.tourStart == null ? null : performance.now() - st.tourStart);
   Object.defineProperty(Mo, 'visible', { get: () => chip.classList.contains('on') });
 
   const settings = () => { const s = S.settings(); return { ...s, moments: !s.off && s.momentsOn }; };

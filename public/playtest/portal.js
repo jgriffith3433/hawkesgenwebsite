@@ -100,6 +100,11 @@ const SCENARIOS = [
     description: 'the first-minutes path to the account sheet (a throwaway sign-up, never on live), then the Invite button (a real click: the link, its ?invite= and ?ref=), the pause menu (Esc twice) offering it too, the invitation read back (open); the friend is a named setup-shortcut socket in the room (the friend\'s own page, its mirror and sheet, is covered by the engine and relay tests), and the inviter must show the beam (joined), the name over the newcomer and the Overseer\'s "Someone is coming."; then the friend\'s page is opened on an island nobody is on (closed): the message and "Start my own island" (a real click). Full and expired links are the tests\' (test/invite.test.ts).',
   },
   {
+    id: 'share-moment', title: 'Share this moment: a big explosion offers a chip (not in the first minute of the tour), one tap keeps the last 8 s, a guest is taken to the sign-up sheet and comes back to the same moment, and the link opens a page with the character, the Overseer\'s line and a card image', seconds: 420, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the account sheet (a throwaway sign-up, never on live), then Share this moment (modules/share/moments.js): the rocket launcher in hand (named setup-shortcut) and a blast at fuel barrels with real input within the first minute of the tour: no chip (chip-held-back); after the minute another blast: the chip appears (chip-shown); the player is signed out first (a named setup-shortcut: a guest) and taps the chip (a real click): the account sheet opens for it (sheet-for-share), signs back in with the throwaway account, closes, and the chip is the same moment still (same-moment) and becomes the link (share-link). The link\'s page (share-page) has the character\'s name and the Overseer\'s line and its Open Graph card has an image that loads (og-image); the page is shown in a frame for the screenshot.',
+  },
+  {
     id: 'sandbox-return', title: 'A second visit: no intro and no mirror, beamed in and welcomed back by name, the tour where it stopped', seconds: 330, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first visit as a new player (veil, intro, mirror, account sheet with a throwaway sign-up, then driving to the dock: the tour is on its second step), in that order; then the page is opened again as a returning player would (the same browser storage). It checks that the intro and the mirror do not play, that the player is beamed in and the Overseer says "Welcome back, <name>", and that Pip\'s tour is on the step it was left on (not the first). Never on live (no sign-up there). options as sandbox-first-minutes',
@@ -300,7 +305,9 @@ async function stageSheet(t, ctx) {
   const set = (id, v) => { const el = $(id); el.focus(); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); };
   set('#gsEmail', email);
   await t.wait(500);
-  set('#gsPw', `Pt-${rand(14)}`);
+  const password = `Pt-${rand(14)}`;
+  ctx.account = { email, password }; // (share-moment signs back in with it)
+  set('#gsPw', password);
   t.event('signup-submit', `throwaway ${email.replace(/^[^@]+/, 'playtest-…')}`);
   await t.wait(800);
   $('#gsGo').click();
@@ -1761,15 +1768,109 @@ const RUN = {
 // Island invitations (island-invite): after the sheet, the inviter's stage, then the friend's page on a closed island.
 STAGES.push('invite', 'gone', 'own');
 ORDERS['island-invite'] = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'invite', 'gone', 'own'];
-ENDS['island-invite'] = 'own';
 RUN.invite = stageInvite;
 RUN.gone = stageGone;
 RUN.own = stageOwn;
+// Share this moment (share-moment): after the sheet, the blast stage's rocket at fresh barrels, the chip, the tap, the link.
+STAGES.push('moment');
+ORDERS['share-moment'] = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'moment'];
+RUN.moment = stageMoment;
 /** The stages a page that follows a leg change carries on with (the first-minutes ones are already done). */
 const legSeq = (id, prior) => (id === 'island-invite' && prior && (prior.leg === 'gone' || prior.leg === 'own') ? [prior.leg] : null);
 
-const ENDS = { 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models' };
+const ENDS = { 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models' };
 
+
+// ---------------------------------------------------------------------------------------------- share-moment
+/** A big blast with the rocket launcher at three fresh barrels ten metres ahead (real input: the camera turned, the click). */
+async function blastAhead(t, booms) {
+  const P = W().player;
+  const yaw = camYaw();
+  G().mayhem.spawnMany('barrel', 3, { at: [P.x + Math.sin(yaw) * 10, P.y, P.z + Math.cos(yaw) * 10], pattern: 'line', spacing: 1.3 });
+  await t.wait(700);
+  const n = booms.length;
+  await holdMouse(t, 160);
+  await t.until(() => booms.length > n, 9000, 'the rocket to land');
+}
+/** The chip after a big explosion; a guest taps it, signs in on the sheet and comes back to the same moment, and the link opens a page. */
+async function stageMoment(t, ctx) {
+  await t.until(() => G() && G().mayhem && W() && W().player && HP().share && HP().share.moments, 90000, 'the island and the share module');
+  await t.wait(1500);
+  const Mo = () => HP().share.moments;
+  const states = [];
+  G().on('moment', (d) => states.push(d));
+  const booms = [];
+  G().on('explosion', (d) => booms.push(d));
+  W().player.tool = 'rocket-launcher';
+  t.event('setup-shortcut', 'the rocket launcher put in hand (the tour gives it at the barrels)');
+  // 1. Inside the tour's first minute: a big blast, and no chip.
+  const age = Mo().tourAge();
+  if (age !== null && age < 50000) {
+    await blastAhead(t, booms);
+    await t.wait(1500);
+    if (Mo().visible) t.problem('error', 'the chip appeared in the first minute of the tour');
+    else t.event('chip-held-back', `a rocket blast ${Math.round(age / 1000)} s into the tour: no chip`);
+    t.scene('First minute: no chip');
+  } else t.event('chip-held-back-skipped', age === null ? 'the tour has not begun on this page' : `already ${Math.round(age / 1000)} s into the tour`);
+  // 2. Past the minute (and the quiet after the last chip): wait it out.
+  await t.until(() => { const a = Mo().tourAge(); return a === null || a > 62000; }, 90000, 'the first minute of the tour to pass');
+  // The player is a guest now (NAMED SHORTCUT: signed out, the page unchanged; the island stays as it is).
+  await fetch('/v1/users/logout', { method: 'POST', credentials: 'same-origin' });
+  const user = await fetch('/v1/users/me', { credentials: 'same-origin' }).then((r) => r.json()).then((d) => d.user).catch(() => null);
+  t.event('setup-shortcut', `signed out, as a guest${user ? ' (still signed in: the sign-out did not take)' : ''}`);
+  await blastAhead(t, booms);
+  await t.until(() => Mo().visible, 6000, 'the Share this moment chip');
+  const first = Mo().state();
+  t.scene('Share this moment: the chip');
+  t.event('chip-shown', `${first.kind}: "${first.caption}", ${(document.querySelector('.sh-moment') || {}).textContent || ''}`.replace(/\s+/g, ' '));
+  // 3. One tap: the guest gets the sheet.
+  document.querySelector('.sh-moment [data-a="keep"]').click();
+  t.event('chip-tapped', 'one tap on the chip');
+  await t.until(() => $('#gsEmail'), 40000, 'the account sheet to open for the moment');
+  t.scene('The sign-up sheet, from the moment');
+  t.event('sheet-for-share', ($('#gsTitle') || {}).textContent || '');
+  if (!ctx.account) throw new Error('no throwaway account from the sheet stage');
+  const set = (id, v) => { const el = $(id); el.focus(); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); };
+  const swap = $('#gsSwap [data-swap]');
+  if (swap && /sign in/i.test(swap.textContent)) swap.click();
+  set('#gsEmail', ctx.account.email);
+  set('#gsPw', ctx.account.password);
+  await t.wait(600);
+  $('#gsGo').click();
+  await t.until(() => !$('#gsEmail') || ($('#gsErr') && !$('#gsErr').hidden && $('#gsErr').textContent.trim()), 25000, 'the sign-in to answer');
+  if ($('#gsEmail')) throw new Error(`the sign-in was refused: ${$('#gsErr').textContent.trim().slice(0, 160)}`);
+  t.event('signed-in', 'the sheet closed; the island carries on');
+  // 4. The same moment, and the link.
+  const done = await t.until(() => states.find((s) => s.state === 'link') || (states.find((s) => s.state === 'failed') && 'failed'), 90000, 'the share link');
+  if (done === 'failed') throw new Error(`the moment did not become a link: ${(states.find((s) => s.state === 'failed') || {}).reason}`);
+  if (done.kind !== first.kind || done.caption !== first.caption) t.problem('error', `the moment changed over the sheet (${first.kind} > ${done.kind})`);
+  else t.event('same-moment', `${done.kind}: "${done.caption}" is still the moment after the sheet`);
+  t.event('share-link', `${done.url} (${done.media})`);
+  t.scene('Share this moment: the link');
+  // 5. The page and its card.
+  const html = await fetch(done.url, { credentials: 'omit' }).then((r) => r.text());
+  const name = (((HP().presence || {}).look || {}).name || '');
+  const hasCaption = html.includes(first.caption.replace(/'/g, '&#39;')) || html.includes(first.caption);
+  const hasName = !name || html.includes(name);
+  const og = /<meta property="og:image" content="([^"]+)"/.exec(html);
+  if (!hasCaption || !hasName) t.problem('error', `the share page misses ${!hasName ? 'the character name' : 'the Overseer\'s line'}`);
+  else t.event('share-page', `shows ${name ? `"${name}" and ` : ''}the Overseer's line, in the sky with the ship (${html.includes('sh-pearl') ? 'pearl' : 'no pearl'})`);
+  if (!og) t.problem('error', 'the share page has no og:image');
+  else {
+    const img = await fetch(og[1], { credentials: 'omit' });
+    if (!img.ok || !/^image\//.test(img.headers.get('content-type') || '')) t.problem('error', `the card image does not load (${img.status})`);
+    else t.event('og-image', `${og[1]} loads (${img.headers.get('content-type')})`);
+  }
+  const frame = document.createElement('iframe');
+  frame.src = new URL(done.url).pathname;
+  frame.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;border:0;z-index:2147483000;background:#fff';
+  document.body.appendChild(frame);
+  await new Promise((res) => { frame.onload = res; setTimeout(res, 8000); });
+  await t.wait(1500);
+  t.scene('The share page');
+  frame.remove();
+  t.progress(1);
+}
 
 // ---------------------------------------------------------------------------------------------- island-invite
 /** The inviter: the Invite button gives a link, the pause menu offers it too, the island's room opens, a friend arrives. */
