@@ -4,6 +4,8 @@
 (function (root) {
   'use strict';
 
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
   /** A small seeded random (mulberry32): the same seed gives the same numbers on every player's machine. */
   function rng(seed) {
     let a = (Number(seed) >>> 0) || 0x9e3779b9;
@@ -115,7 +117,55 @@
   /** Where something thrown is after t seconds (a grenade's arc): from + v t + g t² / 2. */
   function arc(from, v, g, t) { return [from[0] + v[0] * t, from[1] + v[1] * t + 0.5 * g * t * t, from[2] + v[2] * t]; }
 
-  const math = { rng, hashSeed, layout, fracture, falloff, score, arc, POINTS, PATTERNS };
+
+  // ------------------------------------------------------------------ game feel (mayhem-feel.js uses these)
+  const num = (v, d) => (Number.isFinite(Number(v)) ? Number(v) : d);
+  /** Seconds a sound takes to reach you from `dist` m (a stylised 170 m/s, never over `cap`): the flash first, the boom after. */
+  const soundDelay = (dist, speed = 170, cap = 1.1) => clamp(Math.max(0, num(dist, 0)) / Math.max(1, speed), 0, cap);
+  /** When each barrel in a chain goes off, in seconds from now (same order as `dists`, metres from the blast that set
+   *  them off): the shock takes dist / speed to reach it, and no two go off closer than `gap`, so a row rolls
+   *  one after another instead of all at once. The whole roll never takes longer than `cap`. */
+  function chainSchedule(dists, o = {}) {
+    const speed = Math.max(1, num(o.speed, 16)), gap = Math.max(0, num(o.gap, 0.12)), cap = Math.max(0.2, num(o.cap, 2.4));
+    const order = dists.map((d, i) => [Math.max(0, num(d, 0)), i]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const out = new Array(dists.length);
+    const step = order.length > 1 ? Math.min(gap, (cap - 0.08) / (order.length - 1)) : gap; // (many barrels: the gap shrinks to fit the cap)
+    let last = -Infinity;
+    order.forEach(([d, i], rank) => {
+      const t = Math.min(cap - step * (order.length - 1 - rank), Math.max(0.06 + d / speed, last + step)); // (leave room for the ones after it)
+      out[i] = Math.round(t * 1000) / 1000; last = t;
+    });
+    return out;
+  }
+  /** How much of a blast's show to make, so a chain of ten stays inside the budget. chain: how many blasts in a row (0 =
+   *  the first); live: effects alive now; level: Mayhem's quality (0 all, 1 phone, 2 minimum). Returns { k (0-1 scale of
+   *  particles and debris), light (a fireball light), embers, ring } . */
+  function detail(chain, live = 0, level = 0, cap = 40) {
+    const base = [1, 0.75, 0.55, 0.4, 0.3][Math.min(4, Math.max(0, Math.floor(num(chain, 0))))];
+    const crowd = clamp(1 - num(live, 0) / Math.max(4, cap), 0.15, 1);
+    const k = clamp(base * [1, 0.7, 0.45][clamp(Math.floor(num(level, 0)), 0, 2)] * (0.4 + 0.6 * crowd), 0.12, 1);
+    return { k: Math.round(k * 100) / 100, light: num(chain, 0) < 2 && level < 2 && crowd > 0.4, embers: k >= 0.3, ring: k >= 0.2 };
+  }
+  /** The three layers of a boom heard from `dist` m: a crack (bright, straight away, fades fastest with distance), the
+   *  boom (low) and a rumble that trails behind it; each with a delay in seconds, a gain 0-1 and a lowpass cutoff in Hz
+   *  (far blasts are duller). size: the blast radius. */
+  function boomLayers(size, dist) {
+    const R = clamp(num(size, 5), 0.5, 40), d = Math.max(0, num(dist, 0)), big = clamp(R / 6, 0.5, 2);
+    const delay = soundDelay(d);
+    const air = clamp(1.2 - d / 70, 0.05, 1);
+    const cutoff = clamp(9000 - d * 110, 700, 9000);
+    return {
+      crack: { delay, gain: clamp(air * air * 0.9, 0, 1), cutoff },
+      boom: { delay: delay + 0.03, gain: clamp(air * 1, 0, 1), cutoff: Math.min(cutoff, 2400), seconds: 1.5 * big },
+      rumble: { delay: delay + 0.18 + d / 400, gain: clamp(air * 0.55, 0, 1), cutoff: Math.min(cutoff, 500), seconds: 1.8 * big },
+    };
+  }
+  /** Embers a blast throws: they scale with the radius and the detail asked (0 when the show is cut down). */
+  const emberCount = (radius, k = 1) => Math.round(clamp(6 + num(radius, 5) * 2.2, 6, 60) * clamp(num(k, 1), 0, 1));
+  /** A launcher's kick: how far the model comes back (0-1.7), the camera's nudge and how long the muzzle flash lasts. */
+  const launcherKick = (power = 1) => ({ model: clamp(1 + 0.7 * num(power, 1), 1, 1.7), camera: clamp(0.14 * num(power, 1), 0.04, 0.3), flash: 0.07 });
+
+  const math = { soundDelay, chainSchedule, detail, boomLayers, emberCount, launcherKick, rng, hashSeed, layout, fracture, falloff, score, arc, POINTS, PATTERNS };
   if (root && root.HawkesPlay) root.HawkesPlay.mayhemMath = math;
   if (typeof module !== 'undefined' && module.exports) module.exports = math;
   if (root) root.HawkesMayhemMath = math;

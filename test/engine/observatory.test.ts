@@ -233,3 +233,66 @@ test('in the engine: beamIn (the way back from a game) stands you at the board, 
   const b = ob.board[1];
   assert.ok(Math.hypot(H.world.player.position[0] - b.at[0], H.world.player.position[2] - b.at[2]) < 8, 'at the board');
 });
+
+test('the wardrobe: what is owned, a gift every third visit, the colors that come with a gift, a plain request', () => {
+  const none = M.owned(null, { accessory: 'none', accessoryColor: '#ffffff' });
+  assert.deepEqual(none.acc, ['none']);
+  assert.ok(none.col.length >= 4, 'everyone starts with a few colors');
+  const o = M.owned({ acc: ['medal'], col: ['fbbf24'] }, { accessory: 'bell', accessoryColor: '#facc15' });
+  assert.deepEqual(o.acc, ['none', 'medal', 'bell'], 'what is worn is owned');
+  assert.ok(o.col.includes('#fbbf24') && o.col.includes('#facc15'));
+  assert.equal(M.laterGift({ acc: [] }, 'Ada', 2), null);
+  const g = M.laterGift({ acc: ['medal'] }, 'Ada', 3);
+  assert.ok(g && g.id !== 'medal', 'a third visit leaves something new');
+  assert.equal(M.laterGift({ acc: M.GIFTS.map((x: any) => x.id) }, 'Ada', 6), null, 'nothing left to give');
+  const cols = M.giftColors(M.GIFTS[0], { col: [] }, 'Ada');
+  assert.ok(cols.length >= 2 && cols.every((c: string) => /^#[0-9a-f]{6}$/.test(c)));
+  assert.equal(M.requestText('   '), '');
+  assert.ok(M.requestText('a hat made of clouds <b>').startsWith('Make me something to wear: a hat made of clouds'));
+  assert.ok(!/<|>/.test(M.requestText('<x>')));
+  for (const t of [M.WARDROBE_LINES.open, M.WARDROBE_LINES.kept, M.WARDROBE_LINES.ask, M.WARDROBE_LINES.sent, M.WARDROBE_LINES.later({ label: 'a bell' })]) assert.ok(!/!/.test(t), t);
+});
+
+test('in the engine: the mirror hangs in the room; the wardrobe shows what you own, a live preview, a price, and puts it back', async () => {
+  H.lines.reset();
+  H.memory.reset();
+  const { ob } = dock();
+  H.presence.setLook({ name: 'Ada', accessory: 'none' });
+  H.use.act();
+  for (let t = 0; t < 6 && ob.state !== 'inside'; t += 0.1) H.tick(0.1);
+  assert.equal(ob.state, 'inside');
+  for (let t = 0; t < 45 && ob.scene; t += 0.5) H.tick(0.5);
+  assert.ok(ob.gift, 'the first gift was given');
+  assert.ok(ob.mirror, 'a mirror in the room');
+  assert.ok(H.memory.wardrobe.get().acc.includes(ob.gift), 'and it is in the wardrobe');
+  const wd = ob.wardrobe;
+  H.world.player.position = [wd[0], wd[1] + 0.4, wd[2]];
+  H.tick(0.2);
+  assert.equal(H.use.act(), 'observatory:wardrobe', 'E at the wardrobe');
+  assert.ok(H.wardrobe.isOpen);
+  assert.equal(H.world.player.controls, false, 'held while choosing');
+  const mine = H.wardrobe.owned();
+  assert.ok(mine.acc.includes(ob.gift) && mine.acc.includes('none'));
+  // a live preview: the look is the choice at once
+  assert.ok(H.wardrobe.wear({ accessory: ob.gift }));
+  assert.equal(H.presence.look.accessory, ob.gift);
+  const col = mine.col[1];
+  assert.ok(H.wardrobe.wear({ accessoryColor: col }));
+  assert.equal(String(H.presence.look.accessoryColor).toLowerCase(), col);
+  assert.equal(H.wardrobe.wear({ accessory: 'jetpack' }), false, 'what is not owned cannot be worn');
+  // asking: the price first, then the same paid message
+  const sent: string[] = [];
+  H.assistant = { quote: async () => ({ credits: 8, balance: 120 }), ask: async (t: string) => { sent.push(t); } };
+  H.wardrobe.close();
+  H.use.act();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(H.wardrobe.price && H.wardrobe.price.credits, 8, 'the price is known before anything is sent');
+  assert.equal(sent.length, 0);
+  assert.ok(await H.wardrobe.ask('a hat made of clouds'));
+  assert.ok(sent[0].includes('a hat made of clouds'));
+  H.wardrobe.restore();
+  H.wardrobe.close(true);
+  assert.ok(!H.wardrobe.isOpen);
+  assert.notEqual(H.world.player.controls, false, 'controls are back');
+  delete H.assistant;
+});

@@ -16,6 +16,8 @@
 //   H.memory.fishLog      the catch log (get(), set(fish, points)): kept with the rest, in the account when signed in
 //   H.memory.raceBests    the best race times (race module): get() { course: ms }, set(course, ms) keeps the lower
 //   H.memory.journal      the neighbours met and the lore found (ids): get() { met, lore }, meet(id), find(id) -> true when new
+//   H.memory.wardrobe     what the player owns to wear (the Observatory's wardrobe): get() { acc, col }, add({ acc, col }) -> true when new
+//   H.memory.progress     points, firsts and meters (modules/progress): get() { p, f, d, s }, set(next)
 //   H.memory.core             the pure parts: VARIANTS, facts(), pick(), merge(), clean()
 (function () {
   'use strict';
@@ -30,7 +32,7 @@
   const RECENT = 8;
 
   // ------------------------------------------------------------------ the record
-  const blank = () => ({ v: 1, visits: 0, firstAt: 0, lastAt: 0, name: null, what: null, last: null, n: Object.fromEntries(COUNTS.map((k) => [k, 0])), driveS: 0, playS: 0, fish: {}, fishPts: 0, race: {}, met: [], lore: [], greet: { last: null, recent: [] } });
+  const blank = () => ({ v: 1, visits: 0, firstAt: 0, lastAt: 0, name: null, what: null, last: null, n: Object.fromEntries(COUNTS.map((k) => [k, 0])), driveS: 0, playS: 0, fish: {}, fishPts: 0, race: {}, met: [], lore: [], own: { acc: [], col: [] }, prog: { p: 0, f: [], d: 0, s: 1 }, greet: { last: null, recent: [] } });
   const num = (x, max) => { const n = Math.floor(Number(x)); return Number.isFinite(n) && n > 0 ? Math.min(n, max) : 0; };
   // The catch log (water's fishing.js): species id -> [times caught, heaviest in grams/10 (kg x 100), longest in cm].
   const FISH_MAX = 48;
@@ -73,6 +75,14 @@
     return out;
   }
   const unionIds = (a, b) => cleanIds([...cleanIds(a), ...cleanIds(b)]);
+  // The wardrobe (observatory.js): the accessories (ids) and colors (hex without the #) the player has been given or has made theirs.
+  const cleanOwn = (o) => ({ acc: cleanIds(o && o.acc), col: cleanIds(o && o.col).filter((c) => /^[0-9a-f]{6}$/i.test(c)).map((c) => c.toLowerCase()) });
+  const mergeOwn = (a, b) => ({ acc: unionIds(a && a.acc, b && b.acc), col: cleanOwn({ col: [...cleanOwn(a).col, ...cleanOwn(b).col] }).col });
+  // Progress (modules/progress): points, the firsts done, meters driven, the highest level whose moment was shown. The rules are
+  // the module's (progress-core.js, loaded later); this keeps the shape and the limits, and cleanMemory in src/presence.ts agrees.
+  const FIRSTS = ['first-drive', 'first-fish', 'first-boom', 'first-build', 'first-dock', 'first-space', 'first-race', 'first-ask', 'first-help'];
+  const cleanProg = (p) => ({ p: num(p && p.p, 1e7), f: Array.isArray(p && p.f) ? [...new Set(p.f.filter((x) => FIRSTS.includes(x)))] : [], d: num(p && p.d, 1e9), s: Math.max(1, num(p && p.s, 20) || 1) });
+  const mergeProg = (a, b) => { const x = cleanProg(a), y = cleanProg(b); return { p: Math.max(x.p, y.p), f: [...new Set([...x.f, ...y.f])], d: Math.max(x.d, y.d), s: Math.max(x.s, y.s) }; };
   /** Two catch logs of one player: each species keeps the larger count, heaviest and longest. */
   function mergeFish(a, b) {
     const out = cleanFish(a);
@@ -93,6 +103,8 @@
     out.driveS = num(v.driveS, 1e8); out.playS = num(v.playS, 1e8);
     out.fish = cleanFish(v.fish); out.fishPts = num(v.fishPts, 1e9); out.race = cleanRace(v.race);
     out.met = cleanIds(v.met); out.lore = cleanIds(v.lore);
+    out.own = cleanOwn(v.own);
+    out.prog = cleanProg(v.prog);
     const g = v.greet || {};
     out.greet.last = typeof g.last === 'string' && /^[a-z0-9-]{1,32}$/.test(g.last) ? g.last : null;
     out.greet.recent = Array.isArray(g.recent) ? g.recent.filter((x) => typeof x === 'string' && /^[a-z0-9-]{1,32}$/.test(x)).slice(-RECENT) : [];
@@ -103,7 +115,9 @@
     const fish = mergeFish(a && a.fish, b && b.fish), pts = Math.max(num(a && a.fishPts, 1e9), num(b && b.fishPts, 1e9));
     const race = mergeRace(a && a.race, b && b.race);
     const met = unionIds(a && a.met, b && b.met), lore = unionIds(a && a.lore, b && b.lore);
-    const whole = (r) => { const c = clean(r); c.fish = fish; c.fishPts = pts; c.race = race; c.met = met; c.lore = lore; return c; };
+    const own = mergeOwn(a && a.own, b && b.own);
+    const prog = mergeProg(a && a.prog, b && b.prog);
+    const whole = (r) => { const c = clean(r); c.prog = prog; c.fish = fish; c.fishPts = pts; c.race = race; c.met = met; c.lore = lore; c.own = own; return c; };
     if (!a || !a.visits) return b && b.visits ? whole(b) : whole(a);
     if (!b || !b.visits) return whole(a);
     return whole(b.lastAt > a.lastAt ? b : a);
@@ -395,6 +409,22 @@
       get: () => ({ met: [...m.met], lore: [...m.lore] }),
       meet(id) { return add('met', id); },
       find(id) { return add('lore', id); },
+    },
+    /** The wardrobe (observatory.js): what the player owns to wear. get() { acc, col }; add({ acc, col }) keeps new ones and says whether any was new. */
+    wardrobe: {
+      get: () => ({ acc: [...m.own.acc], col: [...m.own.col] }),
+      add(part) {
+        const before = JSON.stringify(m.own);
+        m.own = mergeOwn(m.own, cleanOwn({ acc: part && part.acc ? [].concat(part.acc) : [], col: part && part.col ? [].concat(part.col).map((c) => String(c).replace('#', '')) : [] }));
+        if (JSON.stringify(m.own) === before) return false;
+        save();
+        return true;
+      },
+    },
+    /** Progress (modules/progress): get() { p, f, d, s }; set(next) keeps it in the record (never lower than what is kept). */
+    progress: {
+      get: () => JSON.parse(JSON.stringify(m.prog)),
+      set(next) { m.prog = mergeProg(m.prog, next); save(); },
     },
     reload() { m = readLocal(); prior = null; ctx = null; begun = false; return m; },
     reset() { m = blank(); prior = null; ctx = null; begun = false; signedIn = false; store.set(KEY, ''); if (H.bundle) delete H.bundle.overseerMemory; },

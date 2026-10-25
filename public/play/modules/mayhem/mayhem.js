@@ -253,10 +253,10 @@
     chunkSrc.position.y = -10000; chunkSrc.alwaysSelectAsActiveMesh = false;
     return chunkSrc;
   }
-  function debrisBits(at, radius) {
+  function debrisBits(at, radius, k = 1) {
     if (cfg.debris === false) return;
     const src = chunkMesh();
-    const n = q(Math.round(8 + radius * 1.5));
+    const n = Math.max(3, Math.round(q(Math.round(8 + radius * 1.5)) * k));
     const bits = [];
     for (let i = 0; i < n; i++) {
       const b = src.createInstance('mh-bit');
@@ -646,13 +646,16 @@
     const chain = now() - lastBoom.t < 900 ? lastBoom.chain + 1 : 0;
     lastBoom = { at, t: now(), chain };
     if (d.effects !== false) {
-      flash(at, R * 0.55, d.color || (d.fire ? '#ff9a3c' : '#ffd27a'));
-      shockwave(at, R);
-      sparks(at, { color: d.color || '#ff8a3d', speed: 5 + R, count: Math.round(30 + R * 8) });
-      smoke(at, { radius: R * 0.35, count: Math.round(20 + R * 4), life: 2 + R * 0.25 });
-      debrisBits(at, R);
+      // (mayhem-feel.js: a chain's later blasts make less, so ten barrels stay inside the budget.)
+      const F2 = H.mayhem.feel, dt = F2 ? F2.note(at, chain) : { k: 1, light: true, embers: false, ring: true };
+      if (dt.light) flash(at, R * 0.55, d.color || (d.fire ? '#ff9a3c' : '#ffd27a'));
+      if (dt.ring) shockwave(at, R);
+      sparks(at, { color: d.color || '#ff8a3d', speed: 5 + R, count: Math.max(6, Math.round((30 + R * 8) * dt.k)) });
+      smoke(at, { radius: R * 0.35, count: Math.max(6, Math.round((20 + R * 4) * dt.k)), life: 2 + R * 0.25 });
+      debrisBits(at, R, dt.k);
+      if (dt.embers && F2) F2.embers(at, R, dt.k);
       shake(at, Math.min(0.9, 0.15 + R * 0.06), 0.25 + R * 0.03);
-      sound('boom', { at, size: R, asset: d.sound });
+      if (F2) F2.boomSound(at, R, d.sound, dt.k); else sound('boom', { at, size: R, asset: d.sound });
     }
     knockPlayer(at, R * 1.1, F);
     if (authoritative) {
@@ -696,7 +699,7 @@
   // Barrels, explosives and breakables with health: when they die (the engine's damage), they go off or break.
   function onDeath({ entity: e }) {
     if (!e) return;
-    if (e.data && (e.data.explosive || e.data.barrel) && !e._exploded) blowUp(e, 0.06 + Math.random() * 0.14);
+    if (e.data && (e.data.explosive || e.data.barrel) && !e._exploded) (H.mayhem.feel ? H.mayhem.feel.chain(e) : blowUp(e, 0.06 + Math.random() * 0.14));
     else if (e._break && !e._shattered) { if (e.sceneId) shatterAction({ id: e.sceneId }); else shatterLocal(e, { keep: true }); }
     else if (e.living && !e._shattered) shatterLocal(e, { keep: true, pieces: 6, force: 5, color: creatureColor(e) });
     if (e.living && (credit() || !online())) addScore('kill');
@@ -999,6 +1002,8 @@
   H.mayhem = {
     explode, shatter, ignite, extinguish, tumble, spawnMany, specFor, slowMotion, sound, shake, flash, smoke, sparks,
     addScore, blowUp, panic, launch,
+    // For mayhem-feel.js (and other modules): effects alive, a glow material, the noise buffer, quality-scaled counts.
+    addFx, glowMat, noise, q, fxCount: () => fx.size, hasSound: (kind, own) => Boolean(soundAsset(kind, own)),
     clear: () => clearAction({}),
     isBurning: (e) => burning.has(e),
     flammable,

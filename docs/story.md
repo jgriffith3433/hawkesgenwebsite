@@ -324,8 +324,8 @@ first place that is the Overseer's own rather than a landing place, and it is ke
 
 - **The room.** Curved walls that are mostly glass: tall windows onto the planet below and the stars. A model of the planet
   turns slowly on a stand in the middle. The lights are soft and rise a little while the Overseer speaks. A quiet music bed
-  (a slow chord and a low hum). Three places stand against the wall: **a mirror** and **a wardrobe** (empty for now: "hung soon", "filled soon") and **a travel
-  board** (lit: see below). Nothing is promised beyond that.
+  (a slow chord and a low hum). Three places stand against the wall: **a mirror**, **a wardrobe** and **a travel
+  board** (see below). Nothing is promised beyond that.
 - **The Overseer is here, and it is not a body.** It is a pearl of light that drifts over to the player and stops a few steps
   off, a little above head height. It does not follow like a pet and does not leave. It is the same voice as everywhere.
 - **The first time** (once per device; about forty seconds, skippable): it says the character's name from the mirror and asks
@@ -345,7 +345,21 @@ first place that is the Overseer's own rather than a landing place, and it is ke
   Observatory** (and a button in the corner), and a beam puts them down at the board with *"Name. You are back from Leap.
   The stars kept your place."* The sandbox stays home: the return skips the intro and the mirror.
 
-*Open for later tasks:* the mirror and the wardrobe are placeholders until their own tasks land. The cracked
+- **The mirror** (built). A real mirror hangs on the wall: the same one as on the island, with its reflection and its entrance.
+  E at it (*"Change who you are"*) asks the three questions again, any time: *What are you? How do you look? What are you
+  called?* The Overseer narrates as before. The answers are the player's look at once, saved to the account and sent to the
+  room, so others see it as it happens. It never opens by itself here.
+- **The wardrobe** (built). A tall cabinet with two lit doors. E opens a panel (a bottom sheet on a phone) with everything the
+  player owns to wear: accessories and colors. The camera comes round the front of them, and each tap is their look at once
+  (the room sees it too). *"Put it back"* returns the look they came with; *Done* keeps it. What they own: the first gift and
+  the colors that come with it, **one new thing on every third visit** (*"I left something in the wardrobe for you: a bell."*,
+  never a thing they own), and what they already wear. Kept in the Overseer's memory (`own`), so it follows the account. Under
+  the grid: **Ask the Overseer for something new**: a line to type, the price of a message (Gen's quote through the portal)
+  shown first, then the same paid message the chat sends. The Overseer never charges for the wardrobe itself and says what a
+  request costs before it is sent, as everywhere. *"Tell me what, and I will tell you what it costs first."*
+
+*Open for later tasks:* a thing the Overseer makes on request arrives through the usual asset flow; wearing a Gen-made model
+on the character's anchors (a made hat) comes with the Gen-model bodies (`presence-models.js`). The cracked
 mirror of Chapter Three is not here: it is in the hangar, facing the wall, and this room does not mention it.
 
 ### The "seems good" ledger
@@ -441,3 +455,23 @@ that the mirror is there (**L**, or the "Change my look" button, opens its quest
 plays on and Pip's tour **resumes on the step they left** (Pip: *"Right, where were we?"*; no moment is told twice, the tools
 that finished steps gave are in the belt). A guest who never made an account still meets the sheet next: the order of a first
 time (intro, mirror, account, tour) is not moved. Storage cleared: no flag, no record, the whole beginning.
+
+
+### Progress (built: `modules/progress`)
+
+A light sense that you have been doing things, and that the Overseer noticed. It is not a coin economy and it has nothing to
+do with credits: credits stay the paid currency and **nothing here is for sale**; the Overseer gives, it does not charge.
+
+- **What earns.** Points (a placeholder name, *sparks*, until J picks one of the three below) for the *first* of each thing,
+  which is worth more (a first drive, fish, boom, thing made, dock, time above the air, race, ask, help), and then for the
+  things themselves: each fish, something broken (a chain of barrels is one blast), each 250 m at the wheel, a race finished, a
+  quest done, a neighbour met, something found, a friend helped. Small numbers, so a level comes in minutes, not evenings.
+- **What shows.** A small pill at the top left: *Level 3*, a bar, and for a moment what was just earned. It waits for the intro
+  and the mirror to finish. Nothing pops over the picture.
+- **What a level gives.** An accessory or a color (they appear in the Observatory's wardrobe), or a tool (it is put on the tool
+  belt, Q switches). The Overseer says so in one short line, in its voice, when it is free to speak (*"A new one, from me:
+  goggles."*, *"Take grenades. Be kind to the scenery, or not."*). Later parts: emote styles, vehicle paint and name-tag
+  styles are in the design but not built; no line promises them yet.
+- **Kept** in the Overseer's memory: in the account when signed in, on the device and in the kept island otherwise.
+- **Names for the points, for J to choose:** *Glints* (specks of the Overseer's light), *Wishes* (it grants you free will; you
+  collect small ones), *Motes* (dust in a beam). Until chosen: *sparks*, one line in `progress-core.js` (`POINTS`).

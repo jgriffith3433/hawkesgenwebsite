@@ -338,7 +338,9 @@
     w.camera.yaw = heading;
     const flying = ['plane', 'heli', 'rocket', 'ship'].includes(D.class);
     const speed = v.vel.length();
-    cam.fov += ((local.saved.fov || 1) + (v.boosting ? 0.14 : 0) + clamp(speed / 90, 0, 0.12) - cam.fov) * Math.min(1, dt * 4);
+    // How driving feels (vehicles-feel.js): the view widens with speed, trails, dips after a landing, swings into a drift.
+    const F = V.feel ? V.feel.camera(v, speed, flying, v.boosting) : { fov: (v.boosting ? 0.14 : 0) + clamp(speed / 90, 0, 0.12), rate: flying ? 7 : 9, back: 0, dip: 0, yaw: 0 };
+    cam.fov += ((local.saved.fov || 1) + F.fov - cam.fov) * Math.min(1, dt * 4);
     if (local.cam === 'cockpit') {
       const eye = B.Vector3.TransformCoordinates(new B.Vector3(D.eye[0], D.eye[1], D.eye[2]), M);
       const look = B.Quaternion.RotationAxis(upv, local.yaw).multiply(B.Quaternion.RotationAxis(B.Vector3.TransformNormal(B.Axis.X, M).normalize(), local.pitch));
@@ -350,9 +352,9 @@
     }
     cam.upVector = new B.Vector3(0, 1, 0);
     const far = local.cam === 'far' ? 1.7 : 1;
-    const dist = D.cam.distance * far, height = D.cam.height * far;
+    const dist = (D.cam.distance + F.back) * far, height = D.cam.height * far;
     const basePitch = D.class === 'plane' ? clamp(Math.asin(clamp(-fwd.y, -1, 1)) * 0.7, -0.6, 0.6) + 0.14 : 0.2;
-    const yaw = heading + local.yaw, pitch = basePitch + local.pitch;
+    const yaw = heading + local.yaw - F.yaw, pitch = basePitch + local.pitch;
     const target = n.position.add(new B.Vector3(0, D.size[1] * 0.4 + 0.4, 0));
     const back = new B.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
     let want = target.add(back.scale(dist)).addInPlaceFromFloats(0, height * 0.45, 0);
@@ -364,9 +366,10 @@
       if (hit && hit.hit) want = target.add(toCam.scale(Math.max(0.15, (hit.distance - 0.4) / len)));
     }
     if (!local.camPos || B.Vector3.Distance(local.camPos, want) > 60) local.camPos = want.clone();
-    const k = 1 - Math.exp(-dt * (flying ? 7 : 9));
+    const k = 1 - Math.exp(-dt * F.rate);
     local.camPos = B.Vector3.Lerp(local.camPos, want, k);
     cam.position.copyFrom(local.camPos);
+    cam.position.y += F.dip; // (the view is only dipped, the followed position is not)
     // A game's framing (H.cameraAim: the Overseer's bay ahead while a rocket climbs): the look swings toward a point, the
     // ship and the planet below staying in view because the camera itself stays behind and above.
     let look = target.add(fwd.scale(flying ? 6 : 2));
@@ -649,7 +652,8 @@ body.veh-touching #veh-hud .hint{display:none}
       const mine = local && local.v === v;
       const gain = (mine ? 1 : 0.7) / (1 + d / 14);
       const top = v.def.engine.top || 30;
-      const rpm = clamp(v.def.class === 'heli' ? v.spool * (0.6 + v.collective * 0.6) : v.def.class === 'plane' ? 0.15 + v.throttle * 0.85 : v.def.class === 'rocket' || v.def.class === 'ship' ? 0.1 + (v.throttleNow || 0) * 0.9 : (v.vel.length() / top) * 0.85 + Math.abs(v.throttleNow || 0) * 0.25, 0, 1.3) * (v.boosting ? 1.15 : 1);
+      const feelRpm = V.feel ? V.feel.rpm(v) : null;
+      const rpm = feelRpm !== null ? feelRpm : clamp(v.def.class === 'heli' ? v.spool * (0.6 + v.collective * 0.6) : v.def.class === 'plane' ? 0.15 + v.throttle * 0.85 : v.def.class === 'rocket' || v.def.class === 'ship' ? 0.1 + (v.throttleNow || 0) * 0.9 : (v.vel.length() / top) * 0.85 + Math.abs(v.throttleNow || 0) * 0.25, 0, 1.3) * (v.boosting ? 1.15 : 1);
       const t = ac.currentTime;
       try {
         voice.out.gain.setTargetAtTime(v.type === 'bicycle' ? 0 : gain, t, 0.1);

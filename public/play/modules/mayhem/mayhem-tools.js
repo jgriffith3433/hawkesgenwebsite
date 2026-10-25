@@ -194,6 +194,13 @@
     tip(`Got the <b>${title}</b>${belt.length > 1 ? ` · ${H.touchUi ? '⇄' : 'Q'} switches tools` : ''}`, 3);
   }
   X.giveTool = giveTool;
+  /** Puts a tool on the belt without taking it in hand (progress.js: what a level gave, back on the belt each visit). True when it was new. */
+  X.addToBelt = (name, opts = {}) => {
+    const n = String(name);
+    if (!H.tools.get(n) || belt.some((b) => b.name === n)) return false;
+    belt.push({ name: n, opts: opts || {} });
+    return true;
+  };
   Object.defineProperty(X, 'belt', { get: () => belt.map((b) => b.name), configurable: true });
   X.leaves.push(() => { belt.length = 0; hud.held = null; for (const r of [...ropes]) dropRope(r); projectiles.length = 0; myStickies.clear(); remoteFlames.clear(); });
   // config.player.tools: the belt a world starts with.
@@ -253,7 +260,7 @@
     const dir = new B.Vector3(...d.dir).normalize();
     node.lookAt(node.position.add(dir));
     // Fire and smoke behind it.
-    const trail = new B.ParticleSystem('mh-trail', 160, sc);
+    const trail = new B.ParticleSystem('mh-trail', 220, sc);
     trail.particleTexture = W().dot; trail.emitter = node;
     trail.minEmitBox = trail.maxEmitBox = new B.Vector3(0, 0, -0.35);
     trail.color1 = new B.Color4(1, 0.7, 0.3, 1); trail.color2 = new B.Color4(0.5, 0.48, 0.45, 0.6); trail.colorDead = new B.Color4(0.3, 0.3, 0.3, 0);
@@ -261,8 +268,10 @@
     trail.minLifeTime = 0.2; trail.maxLifeTime = 0.7; trail.emitRate = 160;
     trail.direction1 = new B.Vector3(-0.2, -0.2, -0.2); trail.direction2 = new B.Vector3(0.2, 0.2, 0.2); trail.minEmitPower = 0.2; trail.maxEmitPower = 0.6;
     trail.blendMode = B.ParticleSystem.BLENDMODE_STANDARD;
+    if (X.feel) { trail.maxLifeTime = 1.3; trail.emitRate = X.q(130); trail.colorDead = new B.Color4(0.22, 0.22, 0.22, 0); } // (a flame that fades into smoke that stays behind)
     trail.start();
     const real = !online() || d.by === me();
+    if (X.feel) X.feel.muzzle(d.from, d.dir, d.by === me() || !online());
     projectiles.push({ node, mats: [mat, glow], v: dir.scale(d.o.speed || 32), life: 0, real, o: d.o, trail, by: d.by });
     X.sound('whoosh', { at: d.from });
   }
@@ -297,7 +306,7 @@
       const st = ctx.state, o = ctx.opts;
       if (trigger(st) && st.cool <= 0) {
         st.cool = 1 / (Number(o.rate) || 1.4);
-        st.vm.kick = 1;
+        st.vm.kick = X.feel ? X.feel.math.launcherKick(1).model : 1;
         const r = aimRay();
         // Aim from the hand at what the crosshair is on.
         const hand = handPos(st);
@@ -306,7 +315,7 @@
         const dir = [to[0] - hand[0], to[1] - hand[1], to[2] - hand[2]];
         const l = Math.hypot(...dir) || 1;
         rocketAction({ from: r2v(hand), dir: dir.map((x) => r2(x / l)), by: me(), o: { radius: Number(o.radius) || 5.5, force: Number(o.force ?? 20), damage: Number(o.damage ?? 60), fire: Boolean(o.fire), speed: Number(o.speed) || 32, color: o.color || null } });
-        G().camera.shake(0.12, 0.12);
+        if (!X.feel) G().camera.shake(0.12, 0.12); // (with mayhem-feel.js the kick is made when the rocket leaves, for everyone)
         X.credit();
       }
     },

@@ -31,7 +31,7 @@
 
   // ------------------------------------------------------------------ the mirrors in the world
   const configOf = (e) => MC.cleanConfig(e ? e._mirrorSpec : undefined);
-  const mirrors = () => (W() ? [...W().entities].filter((e) => e.alive && e.kind === 'mirror' && !configOf(e).off) : []);
+  const mirrors = () => (W() ? [...W().entities].filter((e) => e.alive && e.kind === 'mirror' && !configOf(e).off && (!e.node || !e.node.isEnabled || e.node.isEnabled())) : []);
   const playing = () => H.mode !== 'build' && !H.hooks.codex;
   function nearestMirror(p, reach) {
     let best = null, bd = Infinity;
@@ -619,6 +619,17 @@
   });
   /** For presence's 🎨 Customize: the same questions anywhere. */
   M.dress = (cfg) => open(null, { anywhere: true, cfg });
+  /** For the Observatory's wardrobe: the camera round the front of the player, as when dressing anywhere. Returns { again, end }:
+   *  again() frames them anew (a new body or size), end() gives the camera and the view back. */
+  M.frame = (p) => {
+    const saved = p._view || 'first';
+    p._mirrorShow = true;
+    try { stage(p, null, true); } catch (err) { H.report(err, 'mirror'); }
+    return {
+      again() { try { stage(p, null); } catch { /* keeps it */ } },
+      end() { stopGlide(); p._mirrorShow = false; try { p.view = saved; } catch (err) { H.report(err, 'mirror'); } },
+    };
+  };
   M.open = (e, o) => open(e, o);
   M.finish = (skipped) => finish(skipped);
   M.go = (i) => go(i);

@@ -22,9 +22,9 @@
 import { installPlaytest } from './hawkes-playtest.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'leave', 'back', 'introc', 'arrivals', 'back2', 'models'];
+const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'progress', 'models'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'] };
+const ORDERS = { 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
 const SCENARIOS = [
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
   {
@@ -38,9 +38,29 @@ const SCENARIOS = [
     description: 'options: laps (default 1; the world has 3), touch (true: the phone controls, ?touch=1, and the frame rate is measured), ghost (false: one run only), signup (false: stop at the account sheet; always on live), watch (seconds of intro to watch), name, what',
   },
   {
+    id: 'vehicle-feel', title: 'Game feel in the 4x4: the view widens, the body leans, dust, the engine climbs, the handbrake drift squeals, and a landing dips the view with dust and a thud', seconds: 240, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the account sheet, then the 4x4 driven with real keys (straight, bends, handbrake) and one named jump shortcut; logs fov-widened, engine-pitch, dust, body-roll, drift-squeal, landing and the frame rate (driveFps). Options: touch (true: the phone controls, ?touch=1, and under 30 fps is a problem), signup (false: stop at the account sheet; always on live), watch',
+  },
+  {
+    id: 'rocket-blast-feel', title: 'Game feel of the rocket launcher: recoil and muzzle flash, a smoke trail, hit-stop, shake, a shockwave, debris and embers, and ten barrels that explode in a rolling chain (30 fps on the phone tier)', seconds: 300, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the account sheet, then the rocket launcher fired with a real click at the fuel barrels on the beach (five more spawned beside them by one named shortcut, so ten), walking closer and firing again until they go; logs launcher-recoil, rocket-trail, blast-effects (hit-stop, shake, shockwave, debris, embers), chain-rolling (the gaps between the ten explosions: not all at once) and chain-fps (metric chainFps, chainWorstFrameMs). Options: touch (true: the phone controls, ?touch=1, and under 30 fps is a problem), signup (false: stop at the account sheet; always on live), watch',
+  },
+  {
     id: 'touch-controls', title: 'Every tour action with touch alone (stick, look drag, jump, B, steer, brake, fish, tools, spawn wheel, helicopter and rocket flight, Stuck?, hide the HUD): no overlaps, buttons 48 px or more, inside the safe area', seconds: 420, tags: ['full'],
     starts: ['sandbox'],
     description: 'opens /play/sandbox?touch=1 (the phone controls), plays the first minutes to the account sheet, then uses only pointer events of type touch on the stick, the buttons and the game; at every step H.touchLayout.audit() measures the real page and logs a touch-audit event (a failing audit is an error). Run it at 390x844 and again at 844x390: the browser\'s size is what is judged, the other orientation by the layout math. The helicopter and rocket are reached by named setup shortcuts. options as sandbox-first-minutes (the defaults here: at "sandbox", touch true)',
+  },
+  {
+    id: 'ask-the-overseer', title: 'After the sign-up: the Overseer says the real balance, offers three priced asks to tap, and an empty balance gets Get credits', seconds: 200, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path through the throwaway sign-up (never on live), then, in the chat with no reload: the Overseer\'s line carries the balance /v1/users/me reports; three example asks are offered, each with its price (the quote) and a Send; nothing is spent before a click; a real click sends one. The empty balance is a named setup shortcut (the game told the balance is 0): the Overseer says so with a Get credits link and no request is made. options as sandbox-first-minutes',
+  },
+  {
+    id: 'sandbox-progress', title: 'Progress: points in the HUD for driving, a level with the Overseer\'s moment, the unlocks in the wardrobe and on the tool belt, kept after a return', seconds: 300, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the account sheet, then real input: walk to the 4x4, E, W held (points for the first drive and the meters in the HUD); the points of a few quests are earned by a named setup shortcut (the same table), a level-up gives goggles and a color (the wardrobe) and at level 4 the grenades (the tool belt), each with the Overseer\'s moment; the Overseer\'s memory re-read from the device (a named shortcut) shows them kept. options as sandbox-first-minutes',
   },
   {
     id: 'island-journal', title: 'The journal: opened from its button (desktop, or the phone at 390x844), the eight quests, the neighbours met, four lore items found on the island and read in it, and kept after a return', seconds: 300, tags: ['full'],
@@ -56,6 +76,11 @@ const SCENARIOS = [
     id: 'sandbox-observatory', title: 'Docking, the lift to the Observatory: the first arrival (windows, music, the pearl, a gift by name), the quick return, and the way back to the bay', seconds: 330, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first-minutes path to the sign-up sheet, then the Observatory with real input (E at the lift, walking in the room, E again); docking itself is a named setup shortcut (the rocket put on the pad, the player beside the lift); options as sandbox-first-minutes, plus again (false: skip the quick return)',
+  },
+  {
+    id: 'observatory-wardrobe', title: 'The Observatory mirror and wardrobe: redo the three questions at the mirror, browse and wear what you own with a live preview, ask the Overseer for more (the price shown first); kept and sent to the room; with touch too', seconds: 420, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the sign-up sheet, then docking (a named setup shortcut) and the lift; in the room, a named walk to the mirror, then E ("Change who you are") and the three questions answered again (the look and name change); a named walk to the wardrobe, E, the panel (the accessories and colors owned, every button 48 px or more, the price of a message to the Overseer), a different accessory and color tapped on (the look changes at once; the account holds it: look-kept), Put it back, Done. options as sandbox-first-minutes, plus touch (true: ?touch=1, taps as touch pointers)',
   },
   {
     id: 'sandbox-travel-board', title: 'The Observatory travel board: three featured games as planets with live counts; beam down into each with your character and name, and Return to the Observatory from its pause menu', seconds: 600, tags: ['full'],
@@ -277,6 +302,48 @@ async function stageSheet(t, ctx) {
   if ($('#gsEmail')) throw new Error(`the sign-up was refused: ${$('#gsErr').textContent.trim().slice(0, 160)}`);
   t.event('signup-ok', 'the account was made; the island carries on');
   t.progress(0.6);
+}
+
+async function stageAsks(t) {
+  const me = () => fetch('/v1/users/me', { credentials: 'same-origin' }).then((r) => r.json()).then((d) => d.user);
+  const lines = () => [...document.querySelectorAll('.hc-log p')];
+  const sends = () => lines().filter((p) => p.classList.contains('sys') && /credits/.test(p.textContent) && p.querySelector('.act'));
+  const before = await me();
+  t.scene('After sign-up: the Overseer\'s line');
+  const told = await t.until(() => lines().map((p) => p.textContent).find((x) => /you have [\d,]+ credits/.test(x)), 30000, 'the Overseer to tell the balance after the sign-up');
+  const said = Number(/you have ([\d,]+) credits/.exec(told)[1].replace(/,/g, ''));
+  if (said !== Number(before.credits)) t.problem('error', `the Overseer said ${said} credits but /v1/users/me says ${before.credits}`);
+  else t.event('balance-told', `the Overseer said ${said} credits; the account has ${before.credits}`);
+  t.progress(0.7);
+  await t.until(() => sends().length >= 3, 30000, 'the three example asks');
+  t.scene('Three asks to tap');
+  for (const p of sends()) t.event('ask-offered', p.textContent.replace(/\s+/g, ' ').trim());
+  if (!sends().every((p) => /\d+ credits/.test(p.textContent))) t.problem('error', 'an example ask has no price');
+  await t.wait(1500);
+  const idle = await me();
+  if (idle.credits !== before.credits) t.problem('error', `credits changed (${before.credits} > ${idle.credits}) before any ask was sent`);
+  else t.event('nothing-charged', 'no credits taken before a click');
+  // A real click on the first Send.
+  const first = sends()[0];
+  const label = first.textContent.replace(/\s+/g, ' ').trim();
+  first.querySelector('.act').click();
+  t.event('ask-tapped', label);
+  await t.until(() => lines().some((p) => /Sent|thinking/i.test(p.textContent)) || document.querySelector('.hc-status'), 15000, 'the tapped ask to go out').catch(() => {});
+  t.scene('An ask sent');
+  await t.wait(2500);
+  // The empty balance (named setup shortcut: the game is told the balance is 0).
+  t.event('setup-shortcut', 'the game told the balance is 0');
+  const calls = [];
+  const realFetch = window.fetch;
+  window.fetch = function (u, o) { if (/\/v1\/games\/[^/]+\/ai$/.test(String(u)) && o && o.method === 'POST') calls.push(String(u)); return realFetch.apply(this, arguments); };
+  window.HawkesGuest.pretendCredits(0);
+  const msg = await t.until(() => lines().find((p) => /gone quiet/.test(p.textContent) && p.querySelector('a.act[href*="credits"]')), 15000, 'the Overseer\'s out-of-credits line with Get credits');
+  t.scene('Out of credits');
+  t.event('get-credits-shown', msg.textContent.replace(/\s+/g, ' ').trim());
+  window.fetch = realFetch;
+  if (calls.length) t.problem('error', 'a request to the Overseer was made with an empty balance');
+  else t.event('no-failed-request', 'nothing was sent to the Overseer');
+  t.progress(1);
 }
 
 async function stageDrive(t, ctx) {
@@ -736,6 +803,119 @@ async function stageChapter(t, ctx) {
   t.progress(1);
 }
 
+/** The Observatory's mirror and wardrobe (touch: true taps with touch pointers, on the context button and the panel). Docking is
+ *  a named setup shortcut, as in stageObservatory; the rest is played: E (or a tap) at the lift, a named walk to the mirror, E
+ *  ("Change who you are") and the three questions answered again, a named walk to the wardrobe, E, the panel (every accessory
+ *  and color owned, the price of asking), wearing a different accessory and color (the look changes at once, is saved to the
+ *  account, and is what the room is sent), "Put it back", and Done. */
+async function stageWardrobe(t, ctx) {
+  const OB = () => HP().overseer && HP().overseer.observatory;
+  const PR = () => HP().presence;
+  const touch = Boolean(ctx.options.touch);
+  const hit = async (el) => { if (touch) await tapButton(t, el); else { el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' })); el.click(); } };
+  const useBtn = (label) => [...document.querySelectorAll('.hp-use button')].find((b) => b.textContent.includes(label));
+  const useAt = async (label, state) => { // E, or a tap on the context button, until the state is reached
+    for (let i = 0; i < 5 && !state(); i++) { const b = useBtn(label); if (touch && b) await tapButton(t, b); else await tap(t, 'e'); await t.wait(700); }
+  };
+  G().on('wardrobe', (d) => { if (['open', 'wear', 'keep', 'restore', 'price', 'close', 'ask'].includes(d.state)) t.event(`wardrobe-${d.state}`, [d.accessory, d.color, d.credits].filter((x) => x != null).join(' ')); });
+  releaseAll();
+  await t.until(() => W() && W().player && W().player.alive && OB() && OB().on, 60000, 'the Overseer\'s hangar and lift');
+  if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
+  const hg = HP().overseer.hangar, rocket = G().entity('rocket'), l = OB().lift;
+  if (rocket) { rocket.position = [hg.pad[0], hg.pad[1] + 3, hg.pad[2]]; rocket.velocity = [0, 0, 0]; }
+  W().player.position = [l[0], l[1] + 1.2, l[2] - 1];
+  t.event('setup-shortcut', 'docked: the rocket on the pad, the player by the lift in the hangar');
+  await t.wait(2500);
+  await useAt('lift up', () => OB().state !== 'bay');
+  await t.until(() => OB().state === 'inside', 15000, 'the lift to reach the Observatory');
+  t.scene('The Observatory');
+  await t.until(() => OB().gift || !OB().first, 60000, 'the gift');
+  if (OB().scene) { t.event('setup-shortcut', 'the first-arrival scene skipped (the gift is still given)'); OB().skip(); }
+  await t.wait(1500);
+  // 1. The mirror: it is in the room, E at it, the three questions again.
+  if (!OB().mirror) throw new Error('the Observatory has no mirror');
+  const look0 = { ...PR().look };
+  const m = OB().mirror.at;
+  t.event('setup-shortcut', 'the walk across the room to the mirror');
+  W().player.position = [m[0], m[1] - 1.8, m[2]]; // (the mirror module stands them in front of the glass)
+  await t.wait(800);
+  await useAt('Change who you are', () => $('.mr .mr-q'));
+  await t.until(() => $('.mr .mr-q'), 10000, 'the mirror to open in the Observatory');
+  t.scene('Observatory mirror: what are you' + (touch ? ' (touch)' : ''));
+  t.event('observatory-mirror-open', ($('.mr .mr-q') || {}).textContent || '');
+  await t.wait(1200);
+  const question = () => ($('.mr .mr-q') || {}).textContent || '';
+  const card = $('.mr [data-what="cactus"]') || $('.mr [data-what]');
+  const chosen = card.dataset.what;
+  await hit(card);
+  t.event('mirror-answer', `what: ${chosen}`);
+  await t.wait(900);
+  const next = async (from) => { await hit($('.mr [data-a="next"]')); await t.until(() => question() !== from, 8000, `the mirror to leave "${from}"`); };
+  await next(question());
+  const dice = $('.mr [data-a="randomLook"]');
+  if (dice) { await hit(dice); t.event('mirror-answer', 'look: surprise me'); await t.wait(900); }
+  await next(question());
+  const field = await t.until(() => $('.mr .mr-name:not(.mr-model)'), 8000, 'the name field').then(() => $('.mr .mr-name:not(.mr-model)'));
+  const who = `Redo ${rand(3)}`;
+  field.focus(); field.value = who; field.dispatchEvent(new Event('input', { bubbles: true }));
+  await t.wait(900);
+  field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  await t.until(() => !$('.mr'), 10000, 'the mirror to close');
+  const now = PR().look;
+  t.event('observatory-mirror-redone', `${look0.what || '?'} "${look0.name || ''}" -> ${now.what} "${now.name}"`);
+  if (now.what !== chosen || now.name !== who) t.problem('error', `the mirror's answers did not become the look (${now.what}, ${now.name})`);
+  await t.wait(1500);
+  // 2. The wardrobe.
+  const w = OB().wardrobe;
+  if (!w) throw new Error('the Observatory has no wardrobe');
+  t.event('setup-shortcut', 'the walk across the room to the wardrobe');
+  W().player.position = [w[0], w[1] + 0.4, w[2]];
+  await t.wait(800);
+  await useAt('Open the wardrobe', () => HP().wardrobe && HP().wardrobe.isOpen);
+  await t.until(() => $('.ow'), 10000, 'the wardrobe panel');
+  t.scene('Observatory wardrobe' + (touch ? ' (touch)' : ''));
+  const mine = HP().wardrobe.owned();
+  t.event('wardrobe-owned', `${mine.acc.length} accessories (${mine.acc.join(', ')}), ${mine.col.length} colors`);
+  if (mine.acc.length < 2) t.problem('error', 'the wardrobe holds nothing but "none": the first gift should be there');
+  // every button is a comfortable target
+  const small = [...document.querySelectorAll('.ow button')].filter((b) => { const r = b.getBoundingClientRect(); return r.width < 47.5 || r.height < 47.5; });
+  t.event('wardrobe-targets', small.length ? `${small.length} buttons under 48 px` : 'every button is 48 px or more');
+  if (small.length) t.problem('error', `${small.length} wardrobe buttons are under 48 px`);
+  await t.until(() => HP().wardrobe.price !== undefined || !HP().assistant, 8000, 'the price of asking').catch(() => {});
+  const price = HP().wardrobe.price;
+  t.event('wardrobe-price', price ? `a message costs ${price.credits} credits` : 'no price shown (no account on this page)');
+  await t.wait(800);
+  const before = PR().look.accessory;
+  const other = [...document.querySelectorAll('.ow [data-acc]')].find((b) => b.dataset.acc !== before && b.dataset.acc !== 'none') || [...document.querySelectorAll('.ow [data-acc]')].find((b) => b.dataset.acc !== before);
+  await hit(other);
+  await t.wait(700);
+  const swatch = [...document.querySelectorAll('.ow [data-col]')].find((b) => b.dataset.col !== String(PR().look.accessoryColor).toLowerCase());
+  if (swatch) { await hit(swatch); await t.wait(700); }
+  const worn = { ...PR().look };
+  t.event('wardrobe-worn', `${worn.accessory} in ${worn.accessoryColor} (it was ${before})`);
+  if (worn.accessory !== other.dataset.acc) t.problem('error', `tapping ${other.dataset.acc} did not put it on (${worn.accessory})`);
+  t.scene('Observatory wardrobe: the live preview');
+  await t.wait(1500);
+  // kept: the look saved to the account (what the room is sent is the same look: presence.setLook saves and resends together)
+  await t.wait(1500);
+  const saved = await fetch('/v1/users/me/avatar', { credentials: 'include' }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  const sv = saved && (saved.avatar || saved);
+  if (sv && sv.accessory) {
+    t.event('look-kept', `the account holds ${sv.accessory} in ${sv.accessoryColor}`);
+    if (sv.accessory !== worn.accessory) t.problem('error', `the account has ${sv.accessory}, the player wears ${worn.accessory}`);
+  } else t.event('look-kept', 'no account answer (a guest page keeps it on this device)');
+  await hit($('.ow [data-a="restore"]'));
+  await t.wait(600);
+  t.event('wardrobe-restored', `back to ${PR().look.accessory}`);
+  await hit($('.ow [data-a="done"]'));
+  await t.until(() => !$('.ow'), 6000, 'the wardrobe to close');
+  if (W().player.controls === false) throw new Error('the player was left without controls after the wardrobe');
+  t.scene('Back in the room');
+  await t.wait(1500);
+  t.event('wardrobe-done', touch ? 'with touch' : 'with the keyboard and mouse');
+  t.progress(1);
+}
+
 /** The Observatory. Docking itself is a named setup shortcut (the rocket put on the pad, the player on foot beside the lift);
  *  the rest is played: E at the lift, the first arrival, walking in the room, E at the lift down, and later the quick return. */
 async function stageObservatory(t, ctx) {
@@ -867,6 +1047,64 @@ async function stageJournal(t, ctx) {
   t.scene('Journal: after a return');
   J().close();
   t.event('journal-done', summary());
+  t.progress(1);
+}
+
+/** Progress (docs/story.md, "Progress"): drive (real input) and see points in the HUD, reach a level (quests earned by a named
+ *  shortcut), hear the Overseer's moment, find the unlocks in the wardrobe and on the tool belt, and see them kept after a return. */
+async function stageProgress(t, ctx) {
+  const PG = () => HP().progress;
+  const hud = () => $('.pg-hud');
+  const hudText = () => { const h = hud(); return h && !h.hidden ? h.textContent.replace(/\s+/g, ' ').trim() : ''; };
+  G().on('progress', (d) => { if (d.state === 'earn') t.event('points-earned', `+${d.pts} ${d.label}; ${d.total} total, level ${d.level}`); else if (d.state === 'level') t.event('level-up', `level ${d.level}: ${d.unlocks.join(', ')}`); else if (d.state === 'unlock') t.event('unlock', `${d.key} (${d.label})`); else if (d.state === 'moment') t.event('overseer-moment', d.text); });
+  G().on('overseer-line', (d) => t.event('overseer-said', d.text));
+  releaseAll();
+  await t.until(() => W() && W().player && W().player.alive && PG() && PG().state.loaded, 60000, 'progress to load');
+  await t.until(() => hudText(), 20000, 'the progress HUD');
+  t.event('hud-visible', hudText());
+  t.scene('Progress: the HUD');
+  // Real input: into the 4x4, forward for a while (the first drive, then the meters).
+  const before = PG().state.pts;
+  const jeep = () => W().byId.get('jeep');
+  const driving = () => G().player && G().player.controller === 'drive';
+  if (!driving()) {
+    await walkTo(t, 'jeep', 3.2, 40000, 'the 4x4');
+    for (let i = 0; i < 4 && !driving(); i++) { await tap(t, 'e'); await t.wait(700); }
+  }
+  if (!driving()) throw new Error('timed out getting into the 4x4 with E');
+  keyEv('keydown', 'w'); down.add('w');
+  await t.until(() => PG().state.pts > before, 20000, 'points for the first drive');
+  await t.wait(6000);
+  releaseAll();
+  t.event('driving-earned', `${PG().state.pts - before} points; HUD: ${hudText()}`);
+  t.scene('Progress: points after driving');
+  if (!(PG().state.pts > before)) t.problem('error', 'driving earned nothing');
+  await tap(t, 'e'); await t.wait(900);
+  // A level: quests done are earned by a named shortcut (the quest line itself is another scenario's).
+  const lvl0 = PG().state.level;
+  t.event('setup-shortcut', 'quests done: the points of a few quests, earned through the same table');
+  while (PG().state.level < 2) { if (!PG().earn('quest')) await t.wait(300); }
+  await t.until(() => PG().waiting === 0, 40000, 'the Overseer\'s moment');
+  t.event('level-reached', `level ${lvl0} -> ${PG().state.level}; HUD: ${hudText()}`);
+  t.scene('Progress: level up');
+  await t.wait(1500);
+  const wardrobe = () => HP().memory.wardrobe.get();
+  if (!wardrobe().acc.includes('goggles')) t.problem('error', 'the goggles are not in the wardrobe after level 2');
+  t.event('wardrobe-has', `accessories ${wardrobe().acc.join(', ')}; colors ${wardrobe().col.join(', ')}`);
+  // The tool belt: level 4 gives the grenades.
+  while (PG().state.level < 4) { if (!PG().earn('quest')) await t.wait(300); }
+  await t.until(() => PG().waiting === 0, 40000, 'the second moment');
+  await t.until(() => HP().mayhem && HP().mayhem.belt.includes('grenade'), 10000, 'the grenades on the tool belt');
+  t.event('belt-has', HP().mayhem.belt.join(', '));
+  t.scene('Progress: the tool belt');
+  // Kept after a return: the memory re-read from this device (a named shortcut: the page is not reloaded).
+  const pts = PG().state.pts;
+  t.event('setup-shortcut', 'return: the Overseer\'s memory re-read from the device');
+  HP().memory.reload();
+  HP().memory.progress.get();
+  const kept = HP().memory.progress.get();
+  t.event('kept-after-return', `${kept.p} points (had ${pts}); wardrobe ${wardrobe().acc.length} accessories`);
+  if (kept.p < pts || !wardrobe().acc.includes('goggles')) t.problem('error', 'progress or its unlocks were lost on a return');
   t.progress(1);
 }
 
@@ -1348,11 +1586,172 @@ async function stageModels(t, ctx) {
   t.progress(1);
 }
 
+// `vehicle-feel`: the same way in to the account, then the 4x4 driven for the game-feel pass (vehicles-feel.js): the view
+// widens, the body leans, dust is kicked, the engine climbs with speed, the handbrake squeals, and a landing dips the view
+// with dust and a thud. Real keys; the jump is one named shortcut (a push upward at speed). touch: true is the phone: the
+// frame rate while driving is measured and under 30 is a problem.
+async function stageFeel(t, ctx) {
+  await t.until(() => G() && G().vehicles && W().byId.get('jeep'), 90000, 'the island and its 4x4');
+  await t.wait(1500);
+  const jeep = () => W().byId.get('jeep');
+  const driving = () => G().player && G().player.controller === 'drive';
+  if (!driving()) {
+    await walkTo(t, 'jeep', 3.2, 60000, 'the 4x4');
+    for (let i = 0; i < 4 && !driving(); i++) { await tap(t, 'e'); await t.wait(700); }
+    if (!driving()) throw new Error('timed out getting into the 4x4 with E');
+  }
+  const F = () => HP().vehicles.feel;
+  if (!F()) throw new Error('the vehicles feel layer is not loaded');
+  const cam = () => W().scene.activeCamera;
+  t.event('in-the-4x4');
+  await t.wait(800);
+  const idle = F().sample(), fov0 = cam().fov;
+  t.event('feel-idle', `view ${fov0.toFixed(3)} rad, engine note ${idle.rpm === null || idle.rpm === undefined ? '-' : idle.rpm.toFixed(2)}`);
+  t.scene('4x4: standing');
+  t.progress(0.65);
+  // fps while driving (the phone tier must hold 30)
+  let frames = 0, running = true;
+  const t0 = performance.now();
+  const raf = () => { frames++; if (running) requestAnimationFrame(raf); };
+  requestAnimationFrame(raf);
+  // 1) straight ahead: speed, view, engine
+  const seen = { fov: 0, rpm: 0, roll: 0, skid: 0, speed: 0 };
+  const peek = () => { const s = F().sample(), j = jeep(); seen.fov = Math.max(seen.fov, s.fov); seen.rpm = Math.max(seen.rpm, s.rpm || 0); seen.roll = Math.max(seen.roll, Math.abs(s.roll)); seen.skid = Math.max(seen.skid, s.skid); seen.speed = Math.max(seen.speed, j ? j.speed : 0); return s; };
+  const puffs0 = F().sample().puffs;
+  setKeys({ w: true });
+  const marks = [];
+  for (let i = 0; i < 9; i++) {
+    await t.wait(500);
+    const s = peek();
+    if (i === 1 || i === 8) marks.push({ speed: jeep().speed, fov: cam().fov - fov0, rpm: s.rpm || 0, back: s.camBack });
+    if (i === 8) t.scene('4x4: at speed');
+  }
+  if (marks.length === 2) t.event('speed-feel', `at ${marks[0].speed.toFixed(0)} m/s the view is ${marks[0].fov.toFixed(3)} rad wider and the engine ${marks[0].rpm.toFixed(2)}; at ${marks[1].speed.toFixed(0)} m/s ${marks[1].fov.toFixed(3)} rad and ${marks[1].rpm.toFixed(2)}, the camera ${marks[1].back.toFixed(2)} m farther back`);
+  t.event('fov-widened', `${seen.fov.toFixed(3)} rad at ${seen.speed.toFixed(0)} m/s`);
+  t.event('engine-pitch', `note ${idle.rpm === null || idle.rpm === undefined ? '0' : idle.rpm.toFixed(2)} standing, ${seen.rpm.toFixed(2)} at speed`);
+  t.event('dust', `${F().sample().puffs - puffs0} puffs kicked up on the way`);
+  // 2) weave: the body leans
+  for (let i = 0; i < 4; i++) {
+    setKeys({ w: true, d: i % 2 === 0, a: i % 2 === 1 });
+    await t.wait(700);
+    peek();
+    if (i === 1) t.scene('4x4: leaning in a bend');
+  }
+  t.event('body-roll', `leaned up to ${(seen.roll * 57.3).toFixed(1)} degrees in the bends`);
+  // 3) the handbrake: a drift
+  setKeys({ w: true, a: true });
+  keyEv('keydown', ' ');
+  for (let i = 0; i < 6; i++) { await t.wait(250); peek(); }
+  keyEv('keyup', ' ');
+  setKeys({ w: true });
+  t.event('drift-squeal', `tire squeal up to ${seen.skid.toFixed(2)}`);
+  t.scene('4x4: drifting');
+  // 4) a jump: a push upward at speed (named shortcut), then the landing
+  await t.wait(900);
+  const before = F().sample(), sounds0 = HP().juice && HP().juice.sound ? HP().juice.sound.played : 0;
+  const v = jeep().vehicle;
+  v.vel.y += 9;
+  t.event('setup-shortcut', 'the 4x4 given an upward push at speed to jump (no ramp on the island is reliable)');
+  let dip = 0;
+  for (let i = 0; i < 24; i++) { await t.wait(100); dip = Math.min(dip, F().sample().dip); if (i === 3) t.scene('4x4: in the air'); }
+  const after = F().sample();
+  releaseAll();
+  const sounds = (HP().juice && HP().juice.sound ? HP().juice.sound.played : 0) - sounds0;
+  if (after.landed > before.landed) t.event('landing', `camera dip ${dip.toFixed(3)} m, ${after.puffs - before.puffs} puffs of dust, ${sounds} sounds`);
+  else t.problem('warning', 'the 4x4 did not land from the jump in time');
+  t.scene('4x4: landed');
+  running = false;
+  const fps = Math.round(frames / ((performance.now() - t0) / 1000));
+  t.metric('driveFps', fps);
+  t.event('drive-fps', `${fps} fps while driving${ctx.options.touch ? ' (phone controls)' : ''}`);
+  if (ctx.options.touch && fps < 30) t.problem('error', `the phone tier held ${fps} fps while driving (30 needed)`);
+  t.progress(1);
+}
+
+// `rocket-blast-feel`: the same way in to the account, then the rocket launcher at the fuel barrels (mayhem-feel.js): the
+// launcher kicks and flashes, the rocket leaves a trail, the blast shakes, stops time for a beat, throws a ring, debris and
+// embers, and ten barrels go off one after another. Real input (walking, a click); the launcher in hand and five more
+// barrels beside the five on the beach are one named shortcut. touch: true is the phone: the frame rate through the chain
+// is measured and under 30 is a problem.
+async function stageBlast(t, ctx) {
+  await t.until(() => G() && G().mayhem && G().mayhem.feel && W().byId.get('barrel_1'), 90000, 'the island, its barrels and the game feel layer');
+  await t.wait(1500);
+  const P = () => W().player;
+  const barrels = () => [...W().entities].filter((e) => e.data && (e.data.barrel || e.data.explosive) && !e._exploded);
+  const b1 = W().byId.get('barrel_1');
+  // Setup (named shortcut): the launcher in hand; five more barrels beside the five on the beach.
+  G().mayhem.spawnMany('barrel', 5, { at: [b1.x + 2.6, b1.y, b1.z], pattern: 'line', spacing: 1.3 });
+  P().tool = 'rocket-launcher';
+  t.event('setup-shortcut', 'the rocket launcher put in hand and five more fuel barrels spawned beside the five on the beach, so ten in all');
+  await t.wait(1200);
+  const total = barrels().length;
+  t.event('barrels-ready', `${total} barrels, ${HP().device ? HP().device.tier : '?'} tier${ctx.options.touch ? ', touch controls' : ''}`);
+  t.progress(0.65);
+  await walkTo(t, 'barrel_1', 9, 60000, 'the fuel barrels');
+  const F = () => G().mayhem.feel;
+  const J = () => (HP().juice && HP().juice.feel) || {};
+  const booms = [];
+  G().on('explosion', (d) => booms.push({ t: performance.now(), r: d.radius }));
+  let tries = 0;
+  const fire = async () => {
+    const p = W().byId.get('barrel_1');
+    await lookAt(t, Math.atan2(p.x - P().x, p.z - P().z));
+    F().reset();
+    const s0 = { hit: J().hitstops || 0, slow: J().slowmos || 0 };
+    // fps through the shot and the chain
+    let frames = 0, worst = 0, running = true, last = performance.now();
+    const t0 = last;
+    const raf = (n) => { frames++; worst = Math.max(worst, n - last); last = n; if (running) requestAnimationFrame(raf); };
+    requestAnimationFrame(raf);
+    await holdMouse(t, 160);
+    t.event('rocket-fired', `shot ${tries + 1}`);
+    await t.wait(90);
+    t.scene('Launcher: muzzle flash and smoke');
+    const kick = F().sample();
+    t.event('launcher-recoil', `${kick.muzzle} muzzle flash with puff and backblast, the model and the view kicked back`);
+    await t.wait(260);
+    t.scene('Rocket: the trail');
+    const first = booms.length;
+    await t.until(() => booms.length > first || performance.now() - t0 > 6000, 8000, 'the rocket to land');
+    if (booms.length === first) { running = false; return false; }
+    t.event('rocket-trail', 'flame fading into smoke behind the rocket (until it lands)');
+    await t.wait(350);
+    t.scene('Blast: shockwave, debris and the chain starting');
+    await t.wait(500);
+    t.scene('Blast: the chain rolling');
+    await t.wait(1100);
+    t.scene('Blast: embers and smoke');
+    await t.wait(2600);
+    running = false;
+    const s = F().sample(), fps = Math.round(frames / ((performance.now() - t0) / 1000));
+    const mine = booms.slice(first);
+    const at0 = mine.length ? mine[0].t : 0;
+    const gaps = mine.slice(1).map((b, i) => Math.round(b.t - mine[i].t));
+    t.event('blast-effects', `${J().hitstops - s0.hit} hit-stop, ${J().slowmos - s0.slow} slow motion, shockwave rings and debris with every blast, ${s.embers} embers bursts, ${s.layers} boom sounds in three layers, at most ${s.maxLive} effects alive (cap ${s.cap})`);
+    t.event('chain-rolling', `${mine.length} explosions over ${Math.round((mine.length ? mine[mine.length - 1].t - at0 : 0))} ms; gaps ms: ${gaps.join(', ')}`);
+    if (mine.length < Math.min(8, total)) t.problem('warning', `only ${mine.length} of ${total} barrels went off in the chain`);
+    if (mine.length > 3 && mine[mine.length - 1].t - at0 < 700) t.problem('error', 'the barrels went off almost all at once (no visible chain)');
+    t.metric('chainFps', fps);
+    t.metric('chainWorstFrameMs', Math.round(worst));
+    t.event('chain-fps', `${fps} fps through the shot and the ${mine.length}-barrel chain (worst frame ${Math.round(worst)} ms)${ctx.options.touch ? ', phone controls' : ''}`);
+    if (ctx.options.touch && fps < 30) t.problem('error', `the phone tier held ${fps} fps through the chain (30 needed)`);
+    return mine.length >= 2;
+  };
+  while (tries < 4) {
+    if (await fire()) break;
+    tries++;
+    await walkTo(t, 'barrel_1', Math.max(3.5, 9 - tries * 1.8), 20000, 'the fuel barrels');
+  }
+  releaseAll();
+  if (tries >= 4 && !booms.length) throw new Error('the rockets never landed');
+  t.progress(1);
+}
+
 const RUN = {
   models: stageModels,
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, race: stageRace, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
 };
-const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'island-race': 'race', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models' };
+const ENDS = { 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models' };
 
 // ---------------------------------------------------------------------------------------------- the contract
 let api = null;
@@ -1366,6 +1765,8 @@ export function install() {
     stallSeconds: 120,
     isReady: () => (onSandbox() || onGame() ? Boolean(W() && W().player) || document.readyState === 'complete' : document.readyState === 'complete'),
     async start(id, options, t) {
+      if (id === 'observatory-wardrobe' && options.touch) options = { at: 'sandbox', ...options }; // (touch: straight to the island with the phone controls)
+      if ((id === 'vehicle-feel' || id === 'rocket-blast-feel') && options.touch) options = { at: 'sandbox', ...options };
       if (id === 'touch-controls') options = { at: 'sandbox', touch: true, ...options }; // (the phone controls, straight to the island)
       const events = [];
       // Everything the run says is kept, so the page that follows can carry the whole report.
