@@ -100,7 +100,7 @@ test('a guest\'s changed island becomes their first game: the template, then the
 
 test('the landing page sends visitors to play first, and keeps "Start building" second', async () => {
   const html = await (await fetch(`${base}/`)).text();
-  const hero = html.slice(html.indexOf('class="hero"'), html.indexOf('class="hero-demo"'));
+  const hero = html.slice(html.indexOf('class="sky"'), html.indexOf('id="how-it-works"'));
   const play = hero.indexOf('href="/play/sandbox"');
   const build = hero.indexOf('Start building');
   assert.ok(play > 0 && build > play, 'Play now comes first, Start building second');
