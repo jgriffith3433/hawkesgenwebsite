@@ -19,11 +19,12 @@
   const doc = typeof document !== 'undefined' ? document : null;
   function script(src) {
     if (done.has(src)) return done.get(src);
+    prog.total++; tick();
     const p = new Promise((resolve, reject) => {
       const s = doc.createElement('script');
       s.src = src;
       s.async = false; // scripts added this way still run in the order they were added
-      s.onload = () => resolve();
+      s.onload = () => { prog.done++; tick(); resolve(); };
       s.onerror = () => reject(new Error(`Could not load ${src.replace(/\?.*$/, '')}`));
       doc.head.appendChild(s);
     });
@@ -31,6 +32,9 @@
     return p;
   }
   const all = (list) => Promise.all(list.map(script));
+  // Real progress for the loading screen (play.html): scripts and the game's own fetch, counted as they start and finish.
+  const prog = M.progress = { done: 0, total: 0 };
+  const tick = () => { try { if (typeof M.onprogress === 'function') M.onprogress(prog.done, prog.total); } catch { /* a screen never breaks loading */ } };
 
   // The big downloads start now, in parallel with the page's own work (the guest page, the bundle's fetch).
   function preload(href, as, cors) {
@@ -131,6 +135,7 @@
     const havok = typeof window.HavokPhysics === 'function' || !M.havok ? [] : [M.havok];
     const eager = M.eager || M.scripts;
     const base = all([...babylon, ...havok, ...eager]);
+    if ('bundle' in o && o.bundle !== undefined) { prog.total++; tick(); Promise.resolve(o.bundle).then(() => { prog.done++; tick(); }, () => {}); }
     const want = 'bundle' in o && o.bundle !== undefined ? Promise.resolve(o.bundle).then((b) => M.needs(b), () => mods().map((m) => m.name)) : Promise.resolve(mods().map((m) => m.name));
     return want.then((names) => Promise.all([base, bring(names)])).then(() => { later(); return window.HawkesPlay && window.HawkesPlay.ready; });
   };

@@ -813,7 +813,7 @@
         const user = await me();
         if (user && (store.get() || intent === 'tour')) {
           track('sandbox_signup', { intent, method: 'google' });
-          document.getElementById('loading').hidden = true;
+          if (window.HawkesLoadScreen) window.HawkesLoadScreen.done(); else document.getElementById('loading').hidden = true;
           return claim(WHY[intent] ? intent : 'save', user);
         }
       }
