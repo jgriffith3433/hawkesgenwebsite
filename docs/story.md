@@ -186,6 +186,27 @@ Two options each; the content picks one, or alternates.
 - *"You came back. The sea kept your place."*
 - *"Hello again. It rained while you were gone."*
 
+### Returning: what it remembers (built: `modules/overseer/memory.js`)
+
+It *notes*, it never *watches*. The Overseer keeps a small record of what happened **in the game**, and nothing from
+outside it: the character's name and body from the mirror, how many visits, the last thing done (a fish, something
+blown up, a thing made, the hangar, a flight, the wheel, asking, a fall), a few counts, and when it was last here. A
+return begins with a greeting picked from what is *true* of that record (thirty-odd variants, in the voice above):
+
+- **Second visit:** the name, and the last thing they did, plainly. *"Welcome back, Ada. A fish, when you were last here. You waited well."*
+- **Later visits:** the same, or the body (*"You came as a toaster last time. I am still pleased about that."*), the count
+  (*"Your fourth time here. The door was open."*), the time away (*"It has been three days. The sea kept your place."*),
+  or something remarkable that the record can show: the hangar never visited, always at the wheel, a great many things broken.
+- **Nothing on record:** a plain warm greeting that claims nothing (*"Hello again. The sea kept your place."*).
+- **Never twice in a row**, and rarely one of the last eight. **Never a guess:** a fact is only said if it is on record and
+  was true last visit; no name means no name; the last thing counts only if it happened in the visit before this one.
+- **Never creepy:** no clock-of-day, no devices, no accounts, no other places, no "I saw you", no "watching". It remembers
+  the world, and the world is all it speaks of.
+
+Kept in the account when signed in (`GET/POST /v1/users/me/overseer`), and on the device otherwise (the guest sandbox's
+kept island carries on from it); signing in merges the two, the newer record wins. A page reloaded within 30 seconds is
+the same visit.
+
 ## The story bible (proposed, not canon until J approves)
 
 > **Proposed for J.** Everything in this section, every name included, is *proposed*. It builds on the Canon and the

@@ -1,6 +1,6 @@
 // The Overseer's first-time lines (docs/story.md, "First-time moments"): the first thing built, the first fish, the first
-// fall, the first dock, the first time above the air, the first vehicle blown up, the first friend to join, and coming
-// back after a week. Each is said once per device (localStorage "hg_overseer_lines"; the editor's page keeps it for the
+// fall, the first dock, the first time above the air, the first vehicle blown up, the first friend to join. Coming back
+// ('return') is not once per device: memory.js picks a greeting from what is true, each visit. Each is said once per device (localStorage "hg_overseer_lines"; the editor's page keeps it for the
 // sandboxed stage, and gives it back in the bundle), as a line in the game's one chat (H.overseer.speak: the words, and
 // a voice where an existing clip says the very same words).
 //
@@ -26,7 +26,7 @@
   // Order is importance: when several wait, the first listed is said first.
   // `text` may be a list (two options, one picked); `voice` only where the clip says the very same words.
   const LINES = {
-    return: { priority: 8, text: ['You came back. The sea kept your place.', 'Hello again. It rained while you were gone.'] },
+    return: { priority: 8, stale: 300, text: ['You came back. The sea kept your place.', 'Hello again. It rained while you were gone.'] },
     dock: { priority: 7, text: ['You came all this way. The door was open.', 'Welcome in. Stay as long as you like.'] },
     space: { priority: 6, text: ['There. That is the whole planet. Take a moment.', 'It gets quiet up here. I like it. You may too.'] },
     death: { priority: 5, text: ['Down you go again. The light is patient.', 'That was a fall worth watching. Come back.'] },
@@ -108,7 +108,13 @@
     const o = OV();
     if (!def || !o) return false;
     const list = def.text;
-    const text = list[Math.min(list.length - 1, Math.floor(lines.rand() * list.length))];
+    let text = list[Math.min(list.length - 1, Math.floor(lines.rand() * list.length))];
+    // A return is greeted from what the Overseer remembers (memory.js): different each time, only what is true.
+    if (id === 'return' && H.memory) {
+      const g = H.memory.greeting();
+      if (!g) return false;
+      text = g.text;
+    }
     said[id] = lines.now();
     save();
     ours = true;
@@ -132,7 +138,7 @@
 
   function pump() {
     const t = lines.clock();
-    for (let i = queue.length - 1; i >= 0; i--) if (t - queue[i].at > STALE || (said[queue[i].id] && queue[i].id !== 'return')) queue.splice(i, 1);
+    for (let i = queue.length - 1; i >= 0; i--) if (t - queue[i].at > (LINES[queue[i].id].stale || STALE) || (said[queue[i].id] && queue[i].id !== 'return')) queue.splice(i, 1);
     if (!queue.length || blocked()) return;
     queue.sort((a, b) => LINES[b.id].priority - LINES[a.id].priority || a.at - b.at);
     deliver(queue.shift().id);
@@ -182,8 +188,10 @@
     game.on('landed', () => { if (settled()) ask('build'); });
   });
 
-  // Coming back: it has been a week since this device was last here. (Marked said now, so it only asks once a visit.)
+  // Coming back: memory.js counts the visit when a world starts and asks for 'return' when this is a new one. Without
+  // it (a page that does not load the module) it has been a week since this device was last here.
   function visit() {
+    if (H.memory) return;
     const last = Number(store.get(LAST)) || 0;
     const t = lines.now();
     store.set(LAST, String(t));

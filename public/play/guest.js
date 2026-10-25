@@ -635,6 +635,8 @@
       catch (x) { busy.remove(); if (x.status === 402) return gamesFull(el('', 'gs-veil'), x.message, intent); throw x; }
       // The look they made at the mirror is theirs now (it replaces what the account had: they just chose it).
       if (look) await api('POST', '/v1/users/me/avatar', { avatar: look }).catch((e) => console.warn('sandbox: look not saved', e));
+      // What the Overseer remembered of them on this device goes into the account (the newer record wins).
+      try { if (H.memory) await H.memory.sync(); } catch { /* fine */ }
       const ops = Core.toOps(session.base || { config: {}, entities: {} }, snap);
       for (const part of Core.chunks(ops, 200)) await api('POST', `/v1/games/${game.id}/scene`, { ops: part });
       // Their island: no Overseer's beginning or mirror again (they've seen them; the mirror is still there to use).
