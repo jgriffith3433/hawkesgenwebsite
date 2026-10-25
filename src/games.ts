@@ -500,13 +500,13 @@ export function draftBundle(user: User, gameId: string) {
 
 // ------------------------------------------------------------------ the world (scene.json), changed by ops
 /** Applies world edits (scene.ts ops) to the game's scene.json, in one transaction, and saves it. */
-export function sceneOps(user: User | null, gameId: string, ops: unknown, o: { by?: string } = {}) {
+export function sceneOps(user: User | null, gameId: string, ops: unknown, o: { by?: string; conn?: string } = {}) {
   if (user) memberGame(user, gameId);
   return tx(() => {
     const cur = db.prepare("SELECT content, rev FROM game_files WHERE game_id = ? AND path = 'scene.json'").get(gameId) as { content: string; rev: number } | undefined;
     const r = applyOps(parseScene(cur?.content), ops);
     let rev = cur?.rev ?? 0;
-    if (r.applied.length) rev = writeFile(user, gameId, { path: 'scene.json', content: sceneText(r.scene) }, { by: o.by ?? (user ? nameOf(user.id) : 'Assistant'), ops: true }).rev;
+    if (r.applied.length) rev = writeFile(user, gameId, { path: 'scene.json', content: sceneText(r.scene) }, { by: o.by ?? (user ? nameOf(user.id) : 'Assistant'), ops: true, conn: o.conn }).rev;
     return { ...r, rev };
   });
 }
