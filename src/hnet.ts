@@ -1,7 +1,8 @@
-// Hawkes Net for the games here (hawkesgen docs/net.md): the engine's rooms run on Hawkes Gen's relay nodes and peer to
-// peer, not in this process. This file hands out tickets for them (the game pages are sandboxed and hold no keys, so
-// they ask here and the portal asks Gen with its key), sends the world edits this server saves into the rooms, and says
-// whether an invitation's room is open.
+// Hawkes Net for the games here (hawkesgen docs/net.md): the engine's rooms run on the Hawkes Net service
+// (https://net.hawkesgen.com, its own box: tickets, rooms and the relay) and peer to peer, not in this process. This file
+// hands out tickets for them (the game pages are sandboxed and hold no keys, so they ask here and the portal asks the
+// service with its Gen key, which the service checks with Gen), sends the world edits this server saves into the rooms,
+// and says whether an invitation's room is open. PORTAL_NET_URL names the service (default https://net.hawkesgen.com).
 //
 // Room names (one Hawkes Net project, "hawkesgenwebsite"):
 //   g/<gameId>/edit          the game's members in the editor (a signed edit token from /bundle)
@@ -11,8 +12,8 @@
 //
 // PORTAL_NET: "auto" (the default: Hawkes Net when Gen says a node is up, else the rooms in this process), "hawkesnet"
 // or "local". The rooms in this process (rooms.ts) stay for "local" and for pages already open on /v1/ws.
-import { env, genUrl } from './config.ts';
-import { genFetch, gen } from './gen.ts';
+import { env } from './config.ts';
+import { genHeaders, type GenCall } from './gen.ts';
 import { verify } from './sign.ts';
 import { PortalError, Limiter } from './util.ts';
 import { getUser, type User } from './users.ts';
@@ -25,6 +26,26 @@ const CODE = /^[a-z0-9]{4,16}$/;
 const ticketsByIp = new Limiter(40, 60_000);
 const customerTickets = new Limiter(600, 60_000);
 
+/** The Hawkes Net service: tickets, room info and publish go here (not through Gen, which only checks the key). */
+export const netUrl = () => (env('PORTAL_NET_URL') ?? 'https://net.hawkesgen.com').replace(/\/+$/, '');
+async function netFetch(route: string, o: GenCall = {}) {
+  return fetch(`${netUrl()}${route}`, {
+    method: o.method ?? (o.body !== undefined ? 'POST' : 'GET'),
+    headers: genHeaders(o.as, o.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+    body: o.body !== undefined ? JSON.stringify(o.body) : undefined,
+    signal: o.signal ?? AbortSignal.timeout(15_000),
+  });
+}
+/** A call to the Hawkes Net service, its JSON answer or a PortalError (a 401 there is our key's problem: 502). */
+async function net<T = any>(route: string, o: GenCall = {}): Promise<T> {
+  let r: Response;
+  try { r = await netFetch(route, o); }
+  catch (e: any) { throw new PortalError(`Multiplayer is not answering (${e.name === 'TimeoutError' ? 'timed out' : e.message}); try again in a minute`, { status: 503 }); }
+  const data: any = await r.json().catch(() => ({}));
+  if (!r.ok) throw new PortalError(data?.error ?? `Multiplayer answered ${r.status}`, { status: r.status === 401 ? 502 : r.status });
+  return data as T;
+}
+
 let state = { at: 0, up: false };
 /** Should the engine use Hawkes Net? (Gen's /v1/net/status, asked at most every 30 s.) */
 export async function netUp(): Promise<boolean> {
@@ -34,7 +55,7 @@ export async function netUp(): Promise<boolean> {
   if (Date.now() - state.at < 30_000) return state.up;
   state.at = Date.now();
   try {
-    const r = await genFetch('/v1/net/status', { signal: AbortSignal.timeout(4000) });
+    const r = await netFetch('/v1/net/status', { signal: AbortSignal.timeout(4000) });
     state.up = r.ok && Boolean((await r.json() as any)?.up);
   } catch { state.up = false; }
   return state.up;
@@ -42,10 +63,10 @@ export async function netUp(): Promise<boolean> {
 /** The last answer, without asking (for code that can't wait). */
 export const netUpCached = () => (env('PORTAL_NET') === 'hawkesnet' ? true : env('PORTAL_NET') === 'local' ? false : state.up);
 
-/** The relay hosts a game page must be allowed to reach (its Content-Security-Policy): the node inside Gen, plus any
- *  relay boxes named in PORTAL_NET_HOSTS (wss://net.hawkesgen.com,...). */
+/** What a game page must be allowed to reach (its Content-Security-Policy): the Hawkes Net service's sockets, plus any
+ *  other relay boxes named in PORTAL_NET_HOSTS (wss://net2.hawkesgen.com,...). */
 export function netHosts(): string[] {
-  const g = new URL(genUrl());
+  const g = new URL(netUrl());
   const own = `${g.protocol === 'https:' ? 'wss' : 'ws'}://${g.host}`;
   const extra = (env('PORTAL_NET_HOSTS') ?? '').split(',').map((h) => h.trim().replace(/\/+$/, '')).filter((h) => /^wss?:\/\/[a-z0-9.-]+(:\d+)?$/i.test(h));
   return [...new Set([own, ...extra])];
@@ -74,7 +95,7 @@ export async function ticket(body: any, ip: string) {
     const code = String(body?.room ?? '').toLowerCase();
     if (!CODE.test(code)) throw new PortalError('A room code is 4 to 16 letters and numbers');
     room = `d/${code}`; name = clean(body?.name) || null; transport = 'auto';
-    const r: any = await gen('/v1/net/ticket', { body: { project: NET_PROJECT, room, name, transport, role: 'player', config: { profile: 'light', maxPlayers: 32, p2pMax: 8 }, client: { sdk: String(body?.sdk ?? ''), protocols: [3] } } });
+    const r: any = await net('/v1/net/ticket', { body: { project: NET_PROJECT, room, name, transport, role: 'player', config: { profile: 'light', maxPlayers: 32, p2pMax: 8 }, client: { sdk: String(body?.sdk ?? ''), protocols: [3] } } });
     return { mode: 'hawkesnet', room, ...r };
   } else {
     if (!ticketsByIp.hit(ip)) throw new PortalError('Too many joins from here; wait a moment', { status: 429 });
@@ -99,7 +120,7 @@ export async function ticket(body: any, ip: string) {
     // The public live room of a game is many people: the relay from the start. Rooms of friends start peer to peer.
     transport = code === 'live' ? 'relay' : 'auto';
   }
-  const r: any = await gen('/v1/net/ticket', { body: { project: NET_PROJECT, room, name, sub, transport, role: 'player', client: { sdk: String(body?.sdk ?? ''), protocols: [3] } } });
+  const r: any = await net('/v1/net/ticket', { body: { project: NET_PROJECT, room, name, sub, transport, role: 'player', client: { sdk: String(body?.sdk ?? ''), protocols: [3] } } });
   return { mode: 'hawkesnet', room, ...r };
 }
 
@@ -119,7 +140,7 @@ export async function customerTicket(user: User, body: any) {
   const transport = ['auto', 'p2p', 'relay'].includes(body?.transport) ? body.transport : 'auto';
   const config = body?.config && typeof body.config === 'object' ? { maxPlayers: body.config.maxPlayers, p2pMax: body.config.p2pMax, profile: body.config.profile, sendHz: body.config.sendHz } : undefined;
   const role = body?.role === 'spectator' ? 'spectator' : 'player';
-  const r: any = await gen('/v1/net/ticket', { as: project, body: { project, room, name: clean(body?.name) || null, sub: typeof body?.sub === 'string' ? body.sub.slice(0, 64) : undefined, transport, role, config, client: { sdk: String(body?.sdk ?? ''), protocols: [3] } } });
+  const r: any = await net('/v1/net/ticket', { as: project, body: { project, room, name: clean(body?.name) || null, sub: typeof body?.sub === 'string' ? body.sub.slice(0, 64) : undefined, transport, role, config, client: { sdk: String(body?.sdk ?? ''), protocols: [3] } } });
   return r;
 }
 
@@ -128,7 +149,7 @@ const paid = (userId: string) => !!db.prepare("SELECT 1 FROM credit_ledger WHERE
 /** Is a room open and how full? (Invitations ask before a friend loads anything.) */
 export async function roomInfo(room: string): Promise<{ open: boolean; people: number; limit: number }> {
   try {
-    const r: any = await gen('/v1/net/room', { body: { project: NET_PROJECT, room } });
+    const r: any = await net('/v1/net/room', { body: { project: NET_PROJECT, room } });
     return { open: Boolean(r.open), people: Number(r.players) || 0, limit: Number(r.limit) || 32 };
   } catch { return { open: false, people: 0, limit: 32 }; }
 }
@@ -136,19 +157,19 @@ export async function roomInfo(room: string): Promise<{ open: boolean; people: n
 /** World edits this server saved: into the game's editor room and every play room of it. Never waits on the caller. */
 export function publishOps(gameId: string, ops: unknown[], by: string, fx: string | null, except?: string) {
   if (!netUpCached() || !ops.length) return;
-  void gen('/v1/net/publish', { body: { project: NET_PROJECT, room: `g/${gameId}/*`, ops, by, fx, except: except ?? null } }).catch((e) => console.warn(`[portal] hawkes net publish: ${e.message}`));
+  void net('/v1/net/publish', { body: { project: NET_PROJECT, room: `g/${gameId}/*`, ops, by, fx, except: except ?? null } }).catch((e) => console.warn(`[portal] hawkes net publish: ${e.message}`));
 }
 /** Puts people out of a game's rooms on Hawkes Net: everyone in rooms under `room` ("g/<id>/p/*": a world an admin
  *  closed), or only those who joined as `sub` (a removed member: their account id). Their page leaves and does not
  *  come back, since this site gives them no new ticket. */
 export function kick(room: string, sub?: string) {
   if (!netUpCached()) return;
-  void gen('/v1/net/publish', { body: { project: NET_PROJECT, room, kick: { sub: sub ?? null } } }).catch((e) => console.warn(`[portal] hawkes net kick: ${e.message}`));
+  void net('/v1/net/publish', { body: { project: NET_PROJECT, room, kick: { sub: sub ?? null } } }).catch((e) => console.warn(`[portal] hawkes net kick: ${e.message}`));
 }
 /** A server event to the editor room (an asset arrived, a script was saved). */
 export function publishEvent(gameId: string, name: string, data: unknown) {
   if (!netUpCached()) return;
-  void gen('/v1/net/publish', { body: { project: NET_PROJECT, room: `g/${gameId}/edit`, event: { name, data } } }).catch(() => {});
+  void net('/v1/net/publish', { body: { project: NET_PROJECT, room: `g/${gameId}/edit`, event: { name, data } } }).catch(() => {});
 }
 
 // Warm the answer at start, so the first page doesn't wait on it.
