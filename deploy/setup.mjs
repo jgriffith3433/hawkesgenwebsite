@@ -40,7 +40,9 @@ step('services');
 put(path.join(HERE, 'hawkesgen-portal.service'), '/etc/systemd/system/hawkesgen-portal.service', 644);
 put(path.join(HERE, 'hawkesgen-portal-pull.service'), '/etc/systemd/system/hawkesgen-portal-pull.service', 644);
 put(path.join(HERE, 'hawkesgen-portal-pull.timer'), '/etc/systemd/system/hawkesgen-portal-pull.timer', 644);
-ssh('sudo systemctl daemon-reload && sudo systemctl enable -q hawkesgen-portal hawkesgen-portal-pull.timer && sudo systemctl restart hawkesgen-portal && sudo systemctl start hawkesgen-portal-pull.timer');
+put(path.join(HERE, 'hawkesgen-portal-backup.service'), '/etc/systemd/system/hawkesgen-portal-backup.service', 644);
+put(path.join(HERE, 'hawkesgen-portal-backup.timer'), '/etc/systemd/system/hawkesgen-portal-backup.timer', 644);
+ssh('sudo systemctl daemon-reload && sudo systemctl enable -q hawkesgen-portal hawkesgen-portal-pull.timer hawkesgen-portal-backup.timer && sudo systemctl restart hawkesgen-portal && sudo systemctl start hawkesgen-portal-pull.timer hawkesgen-portal-backup.timer');
 console.log(ssh('sleep 3; curl -s -m 5 http://127.0.0.1:8800/v1/health'));
 
 step('Caddy');
