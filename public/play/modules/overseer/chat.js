@@ -19,6 +19,17 @@
   const H = window.HawkesPlay;
   if (!H || H.chat) return;
   // (The editor's game frame is /play/_draft: there the editor page shows the chat. Anywhere else, even in someone's iframe, it's here.)
+  /** The same rule as the editor's (editor-bridge.js safeHref): a path on this site or an https page of ours, else null. */
+  function safeHref(href) {
+    const s = String(href == null ? '' : href).trim();
+    if (!s || /[\u0000-\u001f\u007f\\]/.test(s)) return null;
+    if (s[0] === '/') return s[1] === '/' ? null : s;
+    try {
+      const u = new URL(s);
+      const own = ['https://hawkesgen.com', 'https://www.hawkesgen.com', location.protocol + '//' + location.host];
+      return u.protocol === 'https:' && own.includes(u.origin) ? u.href : null;
+    } catch { return null; }
+  }
   const embedded = (() => { try { return window.parent !== window && location.pathname.replace(/\/+$/, '') === '/play/_draft'; } catch { return false; } })();
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const KEEP = 14; // seconds a line stays before fading (all of them show again while you type)
@@ -152,8 +163,11 @@ body.pr-touch .hc-form:not(.on){display:none}`;
       a.onclick = (e) => { e.preventDefault(); e.stopPropagation(); try { m.action.onclick(a); } catch { /* fine */ } };
       p.appendChild(a);
     } else if (m.action && m.action.href) {
-      const a = document.createElement('a');
-      a.className = 'act'; a.href = m.action.href; a.target = '_blank'; a.rel = 'noopener';
+      // A link only when it is ours; anything else (another site, javascript:) is plain text.
+      const href = safeHref(m.action.href);
+      const a = document.createElement(href ? 'a' : 'span');
+      a.className = 'act';
+      if (href) { a.href = href; a.target = '_blank'; a.rel = 'noopener'; }
       a.textContent = m.action.label || 'Open';
       p.appendChild(a);
     }

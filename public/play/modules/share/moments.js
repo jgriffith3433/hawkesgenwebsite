@@ -199,7 +199,7 @@
     emit('tap', {});
     // Where games run sandboxed (no cookies) the share window does the account part: open it now, while the tap counts.
     const win = sandboxed && S.openShareWindow ? S.openShareWindow() : null;
-    if (sandboxed && !win) { st.workText = 'Allow pop-ups to share'; render('error'); emit('failed', { reason: 'popup' }); return; }
+    if (sandboxed && !win) { st.workText = S.shareProblem ? S.shareProblem() : 'Allow pop-ups to share'; render('error'); emit('failed', { reason: 'popup' }); return; }
     st.busy = true; st.workText = 'Keeping the last eight seconds…'; render('working');
     run(kind, caption, who, win).catch((err) => { st.workText = (err && err.message) || 'That did not get through'; render('error'); emit('failed', { reason: String(st.workText).slice(0, 80) }); try { win && win.close(); } catch { /* fine */ } }).finally(() => { st.busy = false; });
   }
