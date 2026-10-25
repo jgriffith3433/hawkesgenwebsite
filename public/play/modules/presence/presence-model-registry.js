@@ -72,7 +72,8 @@
   // Gen-made hats (docs/characters.md "Gen hats"): files in public/play/models, made through Hawkes Gen (prop3d steps), about 1.3k triangles each,
   // base at y = 0, front +z. `width` is the body of the hat in head units (the unit head is 0.43 wide), `sink` how far it sits into the head,
   // `tint` whether the look's accent colours it (the model is white where it should take the pick), `flat` a colour for a hat whose bake failed.
-  // A hat with no row (halo, horns, bunny) keeps its procedural shape.
+  // halo, horns and bunny are built from geometry (tools/hat-glbs.mjs: a small cap with the ring on a post, the horns or the ears growing out of it), one
+  // piece each, so `flat` colours them. A hat with no row keeps its procedural shape.
   const hat = (kind, o) => ({ url: `/play/models/hat-${kind}.glb`, ...o });
   P.hatRegistry = {
     cap: hat('cap', { width: 0.46, sink: 0.04, tint: true }),
@@ -83,5 +84,8 @@
     party: hat('party', { width: 0.3, tint: true }),
     helmet: hat('helmet', { width: 0.5, sink: 0.15, tint: 'body' }),
     chef: hat('chef', { width: 0.46 }),
+    halo: hat('halo', { width: 0.44, sink: 0.02, flat: '#fde047' }),
+    horns: hat('horns', { width: 0.46, sink: 0.03, flat: '#e5e7eb' }),
+    bunny: hat('bunny', { width: 0.4, sink: 0.03, flat: '#ffffff' }),
   };
 })();
