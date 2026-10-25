@@ -101,6 +101,13 @@ function cleanRace(r: unknown) {
   return out;
 }
 const cleanIds = (x: unknown): string[] => (Array.isArray(x) ? [...new Set(x.filter((i): i is string => typeof i === 'string' && /^[a-z0-9-]{1,32}$/.test(i)))].slice(0, 16) : []);
+const dayOf = (x: unknown) => (typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x) && Number.isFinite(Date.parse(`${x}T00:00:00Z`)) ? x : null);
+function cleanWish(w: any) {
+  const n = (x: unknown, max: number) => { const v = Math.floor(Number(x)); return Number.isFinite(v) && v > 0 ? Math.min(v, max) : 0; };
+  const last = dayOf(w?.last), st = last ? Math.max(1, n(w?.st, 100000)) : 0;
+  const set = Array.isArray(w?.set) ? [...new Set((w.set as unknown[]).filter((x): x is string => typeof x === 'string' && /^[a-z0-9-]{1,32}$/.test(x)))].slice(0, 8) : [];
+  return { last, st, best: Math.max(st, n(w?.best, 100000)), day: dayOf(w?.day), n: n(w?.n, 1e6), set, said: w?.said ? 1 : 0 };
+}
 export function cleanMemory(v: unknown) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) throw new PortalError('overseer must be an object');
   if (JSON.stringify(v).length > MEMORY.maxBytes) throw new PortalError(`overseer is too big (${MEMORY.maxBytes} bytes at most)`, { status: 413 });
@@ -126,6 +133,8 @@ export function cleanMemory(v: unknown) {
     own: { acc: cleanIds(a.own?.acc), col: cleanIds(a.own?.col).filter((c) => /^[0-9a-f]{6}$/i.test(c)).map((c) => c.toLowerCase()) },
     // Progress (modules/progress): points, the firsts done, meters driven, the highest level whose moment was shown.
     prog: { p: int(a.prog?.p, 1e7), f: Array.isArray(a.prog?.f) ? [...new Set((a.prog.f as unknown[]).filter((x): x is string => typeof x === 'string' && MEMORY.firsts.includes(x)))] : [], d: int(a.prog?.d, 1e9), s: Math.max(1, int(a.prog?.s, 20)) },
+    // The daily wish (modules/wish): the day of the last wish done, its streak, and today's progress (days are UTC dates).
+    wish: cleanWish(a.wish),
     greet: { last: id(g.last), recent: Array.isArray(g.recent) ? g.recent.map(id).filter((x): x is string => x !== null).slice(-MEMORY.recent) : [] },
   };
 }
@@ -211,10 +220,12 @@ export async function presenceRoute(req: IncomingMessage, res: ServerResponse, r
   const body = method === 'POST' ? await readJson(req) : {};
   const me = caller(req, body.t ?? url.searchParams.get('t'));
   if (route === '/v1/presence/who' && method === 'POST') return send(res, 200, who(me, body.badges));
+  // ?soft=1: a page asking who it is before sign-in gets a plain "nobody" instead of a 401 in the console
+  if (!me && method === 'GET' && url.searchParams.get('soft')) return send(res, 200, { user: null, avatar: null, badge: null, friends: [], overseer: null });
   if (!me) return send(res, 401, { error: 'Sign in to keep your look and make friends' });
   if (route === '/v1/users/me/avatar' && method === 'GET') return send(res, 200, { user: { id: me.id, name: me.name }, avatar: getAvatar(me.id), badge: badgeFor(me), friends: listFriends(me.id).map((f) => f.id) });
   if (route === '/v1/users/me/avatar' && method === 'POST') return send(res, 200, { avatar: setAvatar(me.id, body.avatar ?? null) });
-  if (route === '/v1/users/me/overseer' && method === 'GET') return send(res, 200, { overseer: getMemory(me.id) });
+  if (route === '/v1/users/me/overseer' && method === 'GET') return send(res, 200, { user: { id: me.id }, overseer: getMemory(me.id) });
   if (route === '/v1/users/me/overseer' && method === 'POST') return send(res, 200, { overseer: setMemory(me.id, body.overseer ?? null) });
   if (route === '/v1/friends/request' && method === 'POST') return send(res, 200, requestFriend(me, body.to));
   return send(res, 405, { error: 'Method not allowed' });

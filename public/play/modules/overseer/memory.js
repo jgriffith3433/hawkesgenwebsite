@@ -18,6 +18,7 @@
 //   H.memory.journal      the neighbours met and the lore found (ids): get() { met, lore }, meet(id), find(id) -> true when new
 //   H.memory.wardrobe     what the player owns to wear (the Observatory's wardrobe): get() { acc, col }, add({ acc, col }) -> true when new
 //   H.memory.progress     points, firsts and meters (modules/progress): get() { p, f, d, s }, set(next)
+//   H.memory.wish         the daily wish (modules/wish): get() { last, st, best, day, n, set, said }, set(next)
 //   H.memory.core             the pure parts: VARIANTS, facts(), pick(), merge(), clean()
 (function () {
   'use strict';
@@ -32,7 +33,7 @@
   const RECENT = 8;
 
   // ------------------------------------------------------------------ the record
-  const blank = () => ({ v: 1, visits: 0, firstAt: 0, lastAt: 0, name: null, what: null, last: null, n: Object.fromEntries(COUNTS.map((k) => [k, 0])), driveS: 0, playS: 0, fish: {}, fishPts: 0, race: {}, met: [], lore: [], own: { acc: [], col: [] }, prog: { p: 0, f: [], d: 0, s: 1 }, greet: { last: null, recent: [] } });
+  const blank = () => ({ v: 1, visits: 0, firstAt: 0, lastAt: 0, name: null, what: null, last: null, n: Object.fromEntries(COUNTS.map((k) => [k, 0])), driveS: 0, playS: 0, fish: {}, fishPts: 0, race: {}, met: [], lore: [], own: { acc: [], col: [] }, prog: { p: 0, f: [], d: 0, s: 1 }, wish: { last: null, st: 0, best: 0, day: null, n: 0, set: [], said: 0 }, greet: { last: null, recent: [] } });
   const num = (x, max) => { const n = Math.floor(Number(x)); return Number.isFinite(n) && n > 0 ? Math.min(n, max) : 0; };
   // The catch log (water's fishing.js): species id -> [times caught, heaviest in grams/10 (kg x 100), longest in cm].
   const FISH_MAX = 48;
@@ -83,6 +84,21 @@
   const FIRSTS = ['first-drive', 'first-fish', 'first-boom', 'first-build', 'first-dock', 'first-space', 'first-race', 'first-ask', 'first-help'];
   const cleanProg = (p) => ({ p: num(p && p.p, 1e7), f: Array.isArray(p && p.f) ? [...new Set(p.f.filter((x) => FIRSTS.includes(x)))] : [], d: num(p && p.d, 1e9), s: Math.max(1, num(p && p.s, 20) || 1) });
   const mergeProg = (a, b) => { const x = cleanProg(a), y = cleanProg(b); return { p: Math.max(x.p, y.p), f: [...new Set([...x.f, ...y.f])], d: Math.max(x.d, y.d), s: Math.max(x.s, y.s) }; };
+  // The daily wish (modules/wish): the day of the last wish done and its streak, today's progress. wish-core.js has the rules; the shape is here.
+  const DAY_KEY = /^\d{4}-\d{2}-\d{2}$/;
+  const dateOf = (x) => (typeof x === 'string' && DAY_KEY.test(x) && Number.isFinite(Date.parse(`${x}T00:00:00Z`)) ? x : null);
+  function cleanWish(w) {
+    const last = dateOf(w && w.last), st = last ? Math.max(1, num(w && w.st, 100000)) : 0;
+    return { last, st, best: Math.max(st, num(w && w.best, 100000)), day: dateOf(w && w.day), n: num(w && w.n, 1e6), set: Array.isArray(w && w.set) ? [...new Set(w.set.filter((x) => typeof x === 'string' && /^[a-z0-9-]{1,32}$/.test(x)))].slice(0, 8) : [], said: w && w.said ? 1 : 0 };
+  }
+  function mergeWish(a, b) {
+    const x = cleanWish(a), y = cleanWish(b);
+    const l = (x.last || '') >= (y.last || '') ? x : y;
+    const day = (x.day || '') >= (y.day || '') ? x.day : y.day;
+    const out = { last: l.last, st: l.st, best: Math.max(x.best, y.best), day, n: 0, set: [], said: 0 };
+    for (const r of [x, y]) if (r.day === day) { out.n = Math.max(out.n, r.n); out.set = [...new Set([...out.set, ...r.set])].slice(0, 8); out.said = out.said || r.said; }
+    return out;
+  }
   /** Two catch logs of one player: each species keeps the larger count, heaviest and longest. */
   function mergeFish(a, b) {
     const out = cleanFish(a);
@@ -105,6 +121,7 @@
     out.met = cleanIds(v.met); out.lore = cleanIds(v.lore);
     out.own = cleanOwn(v.own);
     out.prog = cleanProg(v.prog);
+    out.wish = cleanWish(v.wish);
     const g = v.greet || {};
     out.greet.last = typeof g.last === 'string' && /^[a-z0-9-]{1,32}$/.test(g.last) ? g.last : null;
     out.greet.recent = Array.isArray(g.recent) ? g.recent.filter((x) => typeof x === 'string' && /^[a-z0-9-]{1,32}$/.test(x)).slice(-RECENT) : [];
@@ -116,8 +133,8 @@
     const race = mergeRace(a && a.race, b && b.race);
     const met = unionIds(a && a.met, b && b.met), lore = unionIds(a && a.lore, b && b.lore);
     const own = mergeOwn(a && a.own, b && b.own);
-    const prog = mergeProg(a && a.prog, b && b.prog);
-    const whole = (r) => { const c = clean(r); c.prog = prog; c.fish = fish; c.fishPts = pts; c.race = race; c.met = met; c.lore = lore; c.own = own; return c; };
+    const prog = mergeProg(a && a.prog, b && b.prog), wish = mergeWish(a && a.wish, b && b.wish);
+    const whole = (r) => { const c = clean(r); c.prog = prog; c.wish = wish; c.fish = fish; c.fishPts = pts; c.race = race; c.met = met; c.lore = lore; c.own = own; return c; };
     if (!a || !a.visits) return b && b.visits ? whole(b) : whole(a);
     if (!b || !b.visits) return whole(a);
     return whole(b.lastAt > a.lastAt ? b : a);
@@ -292,7 +309,7 @@
     begun = true;
     const local = readLocal();
     let remote = null;
-    try { const j = await memory.api('/v1/users/me/overseer'); signedIn = true; remote = j && j.overseer ? clean(j.overseer) : null; } catch { signedIn = false; }
+    try { const j = await memory.api('/v1/users/me/overseer?soft=1'); signedIn = Boolean(j && j.user); remote = j && j.overseer ? clean(j.overseer) : null; } catch { signedIn = false; }
     m = merge(local, remote);
     const now = memory.now();
     const returning = m.visits > 0 && now - m.lastAt >= GAP;
@@ -388,8 +405,8 @@
     /** Signed in just now: merge this device's record with the account's and keep both. */
     async sync() {
       try {
-        const j = await memory.api('/v1/users/me/overseer');
-        signedIn = true;
+        const j = await memory.api('/v1/users/me/overseer?soft=1');
+        signedIn = Boolean(j && j.user);
         m = merge(m, j && j.overseer ? clean(j.overseer) : null);
         save();
       } catch { /* not signed in */ }
@@ -425,6 +442,11 @@
     progress: {
       get: () => JSON.parse(JSON.stringify(m.prog)),
       set(next) { m.prog = mergeProg(m.prog, next); save(); },
+    },
+    /** The daily wish (modules/wish): get() { last, st, best, day, n, set, said }; set(next) merges it into the record (the later day wins, the same day's progress is never lower). */
+    wish: {
+      get: () => JSON.parse(JSON.stringify(m.wish)),
+      set(next) { m.wish = mergeWish(m.wish, next); save(); },
     },
     reload() { m = readLocal(); prior = null; ctx = null; begun = false; return m; },
     reset() { m = blank(); prior = null; ctx = null; begun = false; signedIn = false; store.set(KEY, ''); if (H.bundle) delete H.bundle.overseerMemory; },

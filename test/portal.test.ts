@@ -445,3 +445,24 @@ test("analytics: a game page's batch is passed on to Gen with our key, the origi
   assert.equal(JSON.parse(/window\.HAWKES_PLAY_IDS=(\{.*?\});/.exec((await call('/play/other-game', { cookie: c.cookie })).body)![1]).anon, ids.anon, 'the same id every time');
   assert.doesNotMatch((await call('/play/sandbox', { cookie: c.cookie })).body, /window.HAWKES_PLAY_IDS=/, 'the guest sandbox keeps its own');
 });
+
+test('unknown paths: the styled 404 for a browser, JSON for the rest; brand files and cards', async () => {
+  const page = await fetch(base + '/no/such/page', { headers: { Accept: 'text/html' } });
+  assert.equal(page.status, 404);
+  assert.match(page.headers.get('content-type') ?? '', /text\/html/);
+  const html = await page.text();
+  assert.match(html, /Nothing here/);
+  assert.match(html, /href="\/"/);
+  assert.match(html, /href="\/play\/sandbox"/);
+  const json = await fetch(base + '/no/such/page');
+  assert.equal(json.status, 404);
+  assert.equal((await json.json() as any).error, 'Not found');
+  assert.equal((await fetch(base + '/v1/nope', { headers: { Accept: 'text/html' } })).headers.get('content-type')?.includes('json'), true);
+  for (const f of ['/favicon.ico', '/brand/favicon-16.png', '/brand/favicon-32.png', '/brand/apple-touch-icon.png', '/brand/icon-192.png', '/brand/icon-512.png', '/brand/og.png', '/offline.html', '/sw.js']) assert.equal((await fetch(base + f)).status, 200, f);
+  assert.equal(JSON.parse(await (await fetch(base + '/manifest.webmanifest')).text()).icons.length, 3);
+  for (const route of ['/', '/games']) {
+    const h = await (await fetch(base + route)).text();
+    for (const k of ['og:title', 'og:image', 'twitter:card', 'twitter:image']) assert.match(h, new RegExp(`(property|name)="${k}"`), `${route} ${k}`);
+    assert.match(h, /apple-touch-icon/);
+  }
+});

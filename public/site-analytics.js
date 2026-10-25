@@ -87,7 +87,7 @@
     return busy;
   }
   async function check() {
-    const me = ((await getJson('/v1/users/me')) || {}).user || null;
+    const me = ((await getJson('/v1/users/me?soft=1')) || {}).user || null;
     run('identify', me ? me.id : null);
     run('setContext', { account: me ? 'user' : 'guest', plan: me ? me.plan || 'free' : null });
     if (!me) return;

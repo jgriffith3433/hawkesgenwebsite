@@ -296,3 +296,26 @@ test('in the engine: the mirror hangs in the room; the wardrobe shows what you o
   assert.notEqual(H.world.player.controls, false, 'controls are back');
   delete H.assistant;
 });
+
+test('on a round world the lift works after the frame has turned (the playtest\'s docking shortcut: a player put at the hangar far round the planet)', () => {
+  H.lines.reset();
+  const start = { type: 'spawn', name: 'Start', transform: { position: [0, 0.05, 0] }, data: { role: 'player' } };
+  world(H, sceneOf({ start, rocket: { type: 'rocket', transform: { position: [10, 0.5, 10] } } }, { planet: { sphere: true, radius: 50000 }, overseer: { intro: false, position: [9700, 4200, -3000] } }));
+  H.tick(1);
+  const ob = H.overseer.observatory;
+  const hg = H.overseer.hangar;
+  const rocket = H.game.entity('rocket');
+  rocket.position = [hg.pad[0], hg.pad[1] + 3, hg.pad[2]];
+  rocket.velocity = [0, 0, 0];
+  const l = ob.lift;
+  H.world.player.position = [l[0], l[1] + 1.2, l[2] - 1];
+  H.tick(2.5); // (the frame moves to the player: a thousand metres from the ship's middle the hangar turned with it)
+  assert.ok(H.planet.frame.rebases > 0, 'the frame moved');
+  assert.equal(H.overseer.hangar.inside, true, 'the player is inside the hangar');
+  const now = ob.lift;
+  const p = H.world.player.position;
+  assert.ok(Math.hypot(p[0] - now[0], p[1] - now[1], p[2] - now[2]) < 6, 'the lift is where the player stands');
+  assert.equal(H.use.act(), 'observatory:lift', 'E at the lift');
+  H.tick(8);
+  assert.equal(ob.state, 'inside', 'up in the Observatory');
+});
