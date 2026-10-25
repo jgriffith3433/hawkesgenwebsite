@@ -64,9 +64,10 @@
     for (const n of inst.rootNodes) n.parent = fit;
     holder.computeWorldMatrix(true); fit.computeWorldMatrix(true);
     for (const n of inst.rootNodes) n.computeWorldMatrix(true);
-    // The file's front is +z like every Gen model, which the loader turns to -z: turn it back (`yaw`), then put the base of the hat at
+    // The file's front is +z like every Gen model, and the loader keeps it at +z (it only mirrors x: the cap's peak is at the front of the
+    // head with no turn; J, 2026-10-25, the bodies were backwards with a turn of pi): `yaw` turns it if a row needs, then put the base of the hat at
     // the origin, centred, with the file's width along x (the body of the hat, not its brim) as the row says.
-    fit.rotation.y = Number.isFinite(r.yaw) ? r.yaw : Math.PI;
+    fit.rotation.y = Number.isFinite(r.yaw) ? r.yaw : 0;
     fit.computeWorldMatrix(true);
     const bb = fit.getHierarchyBoundingVectors(true);
     const s = (r.width || 0.5) / Math.max(1e-4, bb.max.x - bb.min.x);

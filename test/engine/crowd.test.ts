@@ -8,6 +8,7 @@ import { measureCrowd } from './crowd-measure.ts';
 
 const H = await load();
 const P = H.presence;
+P.modelRegistry = {}; // (the crowd of procedural bodies is measured here: a Gen model's own body is hidden until its file has loaded, and no file loads in Node)
 const B = (globalThis as any).BABYLON;
 
 // The phone tier's budget for ten bodies in view (docs/characters.md, "A crowd"): the numbers below are the page's.

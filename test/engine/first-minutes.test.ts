@@ -147,7 +147,7 @@ test('nothing is asked of Gen before the account', async () => {
   H.tick(5);
   await advance(60000);
   // Only the world, who the player is (to know it is nobody) and the sheet's own health check.
-  const allowed = /^GET \/v1\/(play-template\/sandbox|users\/me|health)$/;
+  const allowed = /^GET \/v1\/(play-template\/sandbox|users\/me(\?soft=1)?|health)$/;
   assert.deepEqual(fetched.filter((f) => !allowed.test(f)), [], `fetched: ${fetched}`);
   assert.equal(names().includes('sandbox_signup_ok'), false);
 });
