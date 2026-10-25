@@ -26,13 +26,16 @@ the settings; this is for scripts.
 | `game.water.fish.add({ id, name, rarity, water, kg, cm, color, strength, points, chance, model })` | A species of your own (`rarity`: common, uncommon, rare, legendary, junk; `water`: fresh, salt, any; `strength` 0 to 1: how it fights; `model`: an asset name). `remove(id)`. |
 | `game.water.fish.in(pos)` | The species living in the water there. `roll(pos)`: a random catch from there. |
 | `game.water.fish.give(id, { weight })` | Counts as a catch for this player (the card, the log, the `catch` event for everyone). |
-| `game.water.fish.journal()` | This player's catch log: `{ fish: { trout: { count, best, longest } }, total, points }`. `log()` opens it on screen, `clear()` empties it. |
+| `game.water.fish.journal()` | This player's catch log: `{ fish: { trout: { count, best, longest } }, total, points }`. `log()` opens it on screen (species caught with their best, the rest as silhouettes; J, or 📖 on phones), `clear()` empties it. Kept with the Overseer's memory: in the account when signed in, on this device otherwise. |
+| `game.water.fish.odds(pos, { hour, depth, luck })` | `[{ id, p }]`: the chance of each species there. A species has `hours: [from, to]` (it bites 2.5x likelier then, 0.3x otherwise; wraps past midnight) and `depth: "shallow" \| "mid" \| "deep"` (1.8x / 0.4x; a longer cast reaches deeper: under 3.5 m shallow, under 6 mid). Nothing is ever ruled out. `hour` is the world's clock (`game.sky.hour`). |
+| `game.water.fish.board()` | Rewrites the catch boards: any thing with `data: { catchBoard: true }` shows your species count and three biggest, and E near it opens the log. |
 
 ### Events (`game.on`)
 
 | event | data |
 |---|---|
 | `'catch'` | `{ fish: { id, name, rarity, weight, length, points }, by: { id, name }, mine, entity }`: on every player's screen, for every catch (contests) |
+| `'species'` | `{ fish: { id, name, rarity, weight, length }, entity }`: this player's first catch of a species (not junk): a banner and confetti, and the Overseer notes it. `'catch'` data has `fish.first` |
 | `'cast'`, `'bite'`, `'hooked'`, `'escape'`, `'snap'` | the fishing steps, on the fisher's screen |
 | `'splash'` | `{ at, size, entity }`: something went into the water (or water landed: `bucket: true`) |
 | `'soaked'` | `{ at, radius, entities, volume }`: dumped water landed |

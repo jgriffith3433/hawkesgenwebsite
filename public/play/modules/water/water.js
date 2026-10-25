@@ -750,6 +750,17 @@ void main(void) {
 .water-log .fish { display: flex; gap: 8px; align-items: center; padding: 5px 0; border-top: 1px solid rgba(255,255,255,.1); }
 .water-log .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
 .water-log .fish.unknown { opacity: .45; }
+.water-log .sum { opacity: .8; margin-bottom: 4px; }
+.water-log .fish .what { flex: 1; } .water-log .fish .best { text-align: right; font-size: 12px; opacity: .9; }
+.water-log .sil { flex: none; }
+.water-log .fish.unknown { opacity: .75; } .water-log .fish.unknown .best { opacity: .6; }
+.water-new { position: fixed; left: 50%; top: 32%; transform: translateX(-50%); z-index: 7; pointer-events: none; text-align: center; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.7); animation: water-new 2.5s ease-out forwards; }
+.water-new .head { font: 800 13px/1 system-ui, sans-serif; letter-spacing: .2em; text-transform: uppercase; color: var(--c, #fde047); }
+.water-new .sp { font: 900 34px/1.1 system-ui, sans-serif; margin-top: 4px; }
+.water-new i { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; border-radius: 2px; animation: water-bit 1.4s ease-out forwards; }
+@keyframes water-new { 0% { opacity: 0; transform: translateX(-50%) scale(.6); } 12% { opacity: 1; transform: translateX(-50%) scale(1.08); } 20% { transform: translateX(-50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translateX(-50%) translateY(-18px); } }
+@keyframes water-bit { from { transform: translate(0, 0) rotate(0); opacity: 1; } to { transform: translate(var(--x), var(--y)) rotate(320deg); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .water-new i { display: none; } .water-new { animation-duration: 2.5s; } }
 .water-log .x { position: absolute; right: 10px; top: 8px; background: none; border: 0; color: #fff; font-size: 20px; cursor: pointer; pointer-events: auto; }
 `;
       document.head.appendChild(st);

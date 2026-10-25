@@ -13,6 +13,7 @@
 //   H.memory.greeting()       { id, text } for this visit, and remembers that it was said; null when this is not a return
 //   H.memory.facts()          what the greeting may use: { visit, name, what, deed, gapMs, ... }
 //   H.memory.begin()          reads the record, counts the visit, and asks H.lines to say 'return' (once, on entering a world)
+//   H.memory.fishLog      the catch log (get(), set(fish, points)): kept with the rest, in the account when signed in
 //   H.memory.core             the pure parts: VARIANTS, facts(), pick(), merge(), clean()
 (function () {
   'use strict';
@@ -27,8 +28,29 @@
   const RECENT = 8;
 
   // ------------------------------------------------------------------ the record
-  const blank = () => ({ v: 1, visits: 0, firstAt: 0, lastAt: 0, name: null, what: null, last: null, n: Object.fromEntries(COUNTS.map((k) => [k, 0])), driveS: 0, playS: 0, greet: { last: null, recent: [] } });
+  const blank = () => ({ v: 1, visits: 0, firstAt: 0, lastAt: 0, name: null, what: null, last: null, n: Object.fromEntries(COUNTS.map((k) => [k, 0])), driveS: 0, playS: 0, fish: {}, fishPts: 0, greet: { last: null, recent: [] } });
   const num = (x, max) => { const n = Math.floor(Number(x)); return Number.isFinite(n) && n > 0 ? Math.min(n, max) : 0; };
+  // The catch log (water's fishing.js): species id -> [times caught, heaviest in grams/10 (kg x 100), longest in cm].
+  const FISH_MAX = 48;
+  function cleanFish(f) {
+    const out = {};
+    if (!f || typeof f !== 'object' || Array.isArray(f)) return out;
+    for (const id of Object.keys(f)) {
+      if (Object.keys(out).length >= FISH_MAX) break;
+      const e = f[id];
+      if (!/^[a-z0-9-]{1,32}$/.test(id) || !Array.isArray(e)) continue;
+      const n = num(e[0], 100000);
+      if (n) out[id] = [n, num(e[1], 1e7), num(e[2], 2000)];
+    }
+    return out;
+  }
+  /** Two catch logs of one player: each species keeps the larger count, heaviest and longest. */
+  function mergeFish(a, b) {
+    const out = cleanFish(a);
+    const o = cleanFish(b);
+    for (const id of Object.keys(o)) out[id] = out[id] ? [Math.max(out[id][0], o[id][0]), Math.max(out[id][1], o[id][1]), Math.max(out[id][2], o[id][2])] : o[id];
+    return cleanFish(out);
+  }
   /** Any record, cleaned: unknown keys dropped, every value checked. Keep in step with src/presence.ts cleanMemory. */
   function clean(v) {
     const out = blank();
@@ -40,6 +62,7 @@
     if (v.last && typeof v.last === 'object' && DEEDS.includes(v.last.id)) out.last = { id: v.last.id, at: num(v.last.at, 4e12), visit: num(v.last.visit, 100000) };
     for (const k of COUNTS) out.n[k] = num(v.n && v.n[k], 100000);
     out.driveS = num(v.driveS, 1e8); out.playS = num(v.playS, 1e8);
+    out.fish = cleanFish(v.fish); out.fishPts = num(v.fishPts, 1e9);
     const g = v.greet || {};
     out.greet.last = typeof g.last === 'string' && /^[a-z0-9-]{1,32}$/.test(g.last) ? g.last : null;
     out.greet.recent = Array.isArray(g.recent) ? g.recent.filter((x) => typeof x === 'string' && /^[a-z0-9-]{1,32}$/.test(x)).slice(-RECENT) : [];
@@ -47,9 +70,11 @@
   }
   /** Two records of the same player (this device's and the account's): the one most recently seen wins whole. */
   function merge(a, b) {
-    if (!a || !a.visits) return b && b.visits ? clean(b) : clean(a);
-    if (!b || !b.visits) return clean(a);
-    return clean(b.lastAt > a.lastAt ? b : a);
+    const fish = mergeFish(a && a.fish, b && b.fish), pts = Math.max(num(a && a.fishPts, 1e9), num(b && b.fishPts, 1e9));
+    const whole = (r) => { const c = clean(r); c.fish = fish; c.fishPts = pts; return c; };
+    if (!a || !a.visits) return b && b.visits ? whole(b) : whole(a);
+    if (!b || !b.visits) return whole(a);
+    return whole(b.lastAt > a.lastAt ? b : a);
   }
 
   // ------------------------------------------------------------------ words
@@ -303,7 +328,7 @@
 
   H.memory = Object.assign(memory, {
     KEY, GAP, SETTLE, DEEDS,
-    core: { VARIANTS, facts, pick, merge, clean, since, blank },
+    core: { VARIANTS, facts, pick, merge, clean, since, blank, cleanFish },
     begin, greeting,
     get: () => JSON.parse(JSON.stringify(m)),
     facts: () => ctx,
@@ -315,6 +340,11 @@
         m = merge(m, j && j.overseer ? clean(j.overseer) : null);
         save();
       } catch { /* not signed in */ }
+    },
+    /** The catch log (fishing.js): { fish: { id: [count, kg x 100, cm] }, points }; setFish keeps it in the record. */
+    fishLog: {
+      get: () => ({ fish: JSON.parse(JSON.stringify(m.fish)), points: m.fishPts }),
+      set(fish, points) { m.fish = cleanFish(fish); m.fishPts = num(points, 1e9); save(); },
     },
     reload() { m = readLocal(); prior = null; ctx = null; begun = false; return m; },
     reset() { m = blank(); prior = null; ctx = null; begun = false; signedIn = false; store.set(KEY, ''); if (H.bundle) delete H.bundle.overseerMemory; },

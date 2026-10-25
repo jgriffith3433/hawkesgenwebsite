@@ -70,11 +70,24 @@ export function cleanAvatar(v: unknown) {
 
 /** What the Overseer may remember of a player (public/play/modules/overseer/memory.js clean(): keep in step). Only in-game facts. */
 export const MEMORY = {
-  maxBytes: 2048,
+  maxBytes: 4096,
+  fishMax: 48,
   deeds: ['fish', 'boom', 'build', 'dock', 'high', 'space', 'drive', 'ask', 'fall'],
   counts: ['fish', 'boom', 'build', 'dock', 'high', 'space', 'ask', 'fall'],
   recent: 8,
 };
+function cleanFish(f: unknown) {
+  const out: Record<string, number[]> = {};
+  if (!f || typeof f !== 'object' || Array.isArray(f)) return out;
+  const int = (x: unknown, max: number) => { const n = Math.floor(Number(x)); return Number.isFinite(n) && n > 0 ? Math.min(n, max) : 0; };
+  for (const [id, e] of Object.entries(f as Record<string, unknown>)) {
+    if (Object.keys(out).length >= MEMORY.fishMax) break;
+    if (!/^[a-z0-9-]{1,32}$/.test(id) || !Array.isArray(e)) continue;
+    const n = int(e[0], 100000);
+    if (n) out[id] = [n, int(e[1], 1e7), int(e[2], 2000)];
+  }
+  return out;
+}
 export function cleanMemory(v: unknown) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) throw new PortalError('overseer must be an object');
   if (JSON.stringify(v).length > MEMORY.maxBytes) throw new PortalError(`overseer is too big (${MEMORY.maxBytes} bytes at most)`, { status: 413 });
@@ -90,6 +103,8 @@ export function cleanMemory(v: unknown) {
     last,
     n: Object.fromEntries(MEMORY.counts.map((k) => [k, int(a.n?.[k], 100000)])),
     driveS: int(a.driveS, 1e8), playS: int(a.playS, 1e8),
+    // The catch log (fishing): species id -> [times caught, heaviest in kg x 100, longest in cm].
+    fish: cleanFish(a.fish), fishPts: int(a.fishPts, 1e9),
     greet: { last: id(g.last), recent: Array.isArray(g.recent) ? g.recent.map(id).filter((x): x is string => x !== null).slice(-MEMORY.recent) : [] },
   };
 }

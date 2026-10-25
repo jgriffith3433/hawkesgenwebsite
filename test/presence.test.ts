@@ -114,17 +114,18 @@ test('what the Overseer remembers is kept per account, cleaned and size-limited'
   const kim = await signup('kim@example.test', 'Kim');
   const none = await call('/v1/users/me/overseer', { cookie: kim.cookie });
   assert.equal(none.body.overseer, null, 'nothing on record until the game writes some');
-  const rec = { visits: 3, firstAt: 1000, lastAt: 5000, name: '  Sir <b>Laces</b> ', what: 'shoe', last: { id: 'fish', at: 4000, visit: 3 }, n: { fish: 2, boom: 1, evil: 9 }, driveS: 12, playS: 300, greet: { last: 'fish-a', recent: ['fish-a', 'Bad Id!'] }, secret: 'x' };
+  const rec = { visits: 3, firstAt: 1000, lastAt: 5000, name: '  Sir <b>Laces</b> ', what: 'shoe', last: { id: 'fish', at: 4000, visit: 3 }, n: { fish: 2, boom: 1, evil: 9 }, fish: { tuna: [2, 9000, 180], 'Bad Id': [1, 1, 1] }, fishPts: 50, driveS: 12, playS: 300, greet: { last: 'fish-a', recent: ['fish-a', 'Bad Id!'] }, secret: 'x' };
   const saved = await call('/v1/users/me/overseer', { cookie: kim.cookie, body: { overseer: rec } });
   assert.equal(saved.status, 200);
   const m = saved.body.overseer;
   assert.equal(m.visits, 3); assert.equal(m.what, 'shoe'); assert.equal(m.name, 'Sir b Laces /b');
   assert.deepEqual(m.last, { id: 'fish', at: 4000, visit: 3 });
+  assert.deepEqual(m.fish, { tuna: [2, 9000, 180] }); assert.equal(m.fishPts, 50, 'the catch log is kept');
   assert.equal(m.n.fish, 2); assert.equal(m.n.evil, undefined); assert.equal(m.secret, undefined);
   assert.deepEqual(m.greet, { last: 'fish-a', recent: ['fish-a'] });
   assert.deepEqual((await call('/v1/users/me/overseer', { cookie: kim.cookie })).body.overseer, m, 'it stays');
   assert.equal((await call('/v1/users/me/overseer', { body: { overseer: rec } })).status, 401, 'no account, no memory here (the device keeps it)');
-  assert.equal((await call('/v1/users/me/overseer', { cookie: kim.cookie, body: { overseer: { ...rec, name: 'x'.repeat(3000) } } })).status, 413);
+  assert.equal((await call('/v1/users/me/overseer', { cookie: kim.cookie, body: { overseer: { ...rec, name: 'x'.repeat(5000) } } })).status, 413);
   assert.equal((await call('/v1/users/me/overseer', { cookie: kim.cookie, body: { overseer: { last: { id: 'spy' }, what: 'hacker' } } })).body.overseer.last, null, 'only in-game deeds');
   // Someone else's is theirs.
   const lee = await signup('lee@example.test', 'Lee');
