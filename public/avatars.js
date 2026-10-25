@@ -3,7 +3,7 @@
 // and moved by the same animate(), in the real runtime like /entities. No account, no network but the engine's own files.
 //
 // Screenshot mode, for a playtest or a review:  /avatars?body=shoe&pose=idle&bg=night
-//   body  an id from WHATS, or "all" (a contact sheet)       pose  idle walk run jump fall swim drive, or an emote (wave dance ...)
+//   body  an id from WHATS, or "all" (a contact sheet)       pose  idle walk run jump fall swim drive, an emote (wave dance ...), gag or react (a thing's)
 //   bg    day night studio grass                              face  visor eyes smile none (the person's)
 //   expr  neutral happy surprised sad angry sleepy mischief    hair  short long ponytail curly spiky bun (the person's)
 //   hat, shape, c1 c2 c3 (hex without #: body, accent, detail)   t  seconds into the motion to freeze at (default 1.2)
@@ -30,11 +30,12 @@ const BGS = {
   grass: { sky: '#bfe3ff', floor: '#5fa34a', ambient: 0.7, sun: 0.9 },
 };
 const EMOTES = C ? C.EMOTES.map((e) => e.name) : [];
+const THING_POSES = ['gag', 'react']; // the things' own: the idle gag and the signature reaction, each looped (presence-things.js)
 const BUDGET = { tris: 2500, draws: 6, mats: 3 }; // docs/characters.md "Budget": the hard limit per character
 
 const state = {
   id: WHATS.find((w) => w.id === q.get('body'))?.id || WHATS.find((w) => w.id === location.hash.slice(1))?.id || (WHATS[0] && WHATS[0].id),
-  pose: POSES.includes(q.get('pose')) || EMOTES.includes(q.get('pose')) ? q.get('pose') : 'idle',
+  pose: POSES.includes(q.get('pose')) || THING_POSES.includes(q.get('pose')) || EMOTES.includes(q.get('pose')) ? q.get('pose') : 'idle',
   bg: BGS[q.get('bg')] ? q.get('bg') : shot ? 'night' : 'studio',
   turn: shot ? q.get('turn') === '1' : q.get('turn') !== '0',
   face: C && C.LOOK.faces.includes(q.get('face')) ? q.get('face') : 'eyes',
@@ -128,7 +129,7 @@ function step(dt) {
   if (em && !rig.emote) rig.emote = { def: em, t0: rig.time || 0, seconds: em.loop ? undefined : em.seconds };
   if (!em && rig.emote) rig.emote = null;
   // The person has every pose of its own (presence-person.js, played here on a loop); the other bodies get the approximations.
-  rig.forcePose = rig.person && POSES.includes(state.pose) ? state.pose : null;
+  rig.forcePose = rig.person && POSES.includes(state.pose) ? state.pose : rig.thing && THING_POSES.includes(state.pose) ? state.pose : null;
   rig.exprName = state.expr;
   if (rig.person && state.expr) rig.person.rest = state.expr;
   P.showcase.animate(rig, dt);
@@ -154,7 +155,7 @@ function refreshUi() {
   $('say').textContent = w.line;
   $('hudBody').textContent = w.id;
   for (const c of document.querySelectorAll('.av-card')) c.classList.toggle('on', c.dataset.id === w.id);
-  $('poses').replaceChildren(...POSES.map((p) => button(p, state.pose === p, () => { state.pose = p; state.freeze = false; cur.t = 0; refreshUi(); })));
+  $('poses').replaceChildren(...[...POSES, ...(cur && cur.rig.thing ? THING_POSES : [])].map((p) => button(p, state.pose === p, () => { state.pose = p; state.freeze = false; cur.t = 0; refreshUi(); })));
   $('emotes').replaceChildren(...EMOTES.map((p) => button(p, state.pose === p, () => { state.pose = p; state.freeze = false; if (cur) cur.rig.emote = null; refreshUi(); })));
   const person = w.body === 'person';
   $('faces').replaceChildren(...C.LOOK.faces.map((f) => { const b = button(f, state.face === f, () => { state.face = f; build(); }); b.disabled = !person; return b; }));
@@ -268,7 +269,7 @@ if (!WHATS.length) {
   loop();
   if (running) {
     // A window for tests and playtests: the same things the buttons do.
-    window.hawkesAvatars = { bodies: WHATS.map((w) => w.id), poses: [...POSES, ...EMOTES], get state() { return { id: state.id, pose: state.pose, bg: state.bg, ...cur.stats }; }, select: (id) => pick(id, false), pose: (p) => { state.pose = p; state.freeze = false; refreshUi(); } };
+    window.hawkesAvatars = { bodies: WHATS.map((w) => w.id), poses: [...POSES, ...THING_POSES, ...EMOTES], get state() { return { id: state.id, pose: state.pose, bg: state.bg, ...cur.stats }; }, select: (id) => pick(id, false), pose: (p) => { state.pose = p; state.freeze = false; refreshUi(); } };
     thumbnails(cards);
   } else if (!document.body.dataset.ready) document.body.dataset.ready = 'error';
 }

@@ -134,6 +134,8 @@ async function loadStage() {
   try { if (localStorage.getItem('hg_overseer_intro')) bundle.overseen = true; } catch {}
   // And which of the Overseer's first-time lines it has said (public/play/modules/overseer/lines.js).
   try { bundle.overseerLines = JSON.parse(localStorage.getItem('hg_overseer_lines') || '{}'); } catch {}
+  // And what the Overseer remembers of the player when there is no account side to ask (memory.js).
+  try { bundle.overseerMemory = JSON.parse(localStorage.getItem('hg_overseer_memory') || 'null') || undefined; } catch {}
   const send = () => toStage({ type: 'bundle', bundle, mode: 'build' });
   if (stageReady) send(); else stageBundle = send;
   toStage({ type: 'advanced', on: $('advTools').checked });
@@ -174,6 +176,9 @@ window.addEventListener('message', async (e) => {
     case 'analytics-activity': try { analytics()?.activity?.(); } catch {} return;
     case 'overseer-lines':
       try { if (m.lines && typeof m.lines === 'object') localStorage.setItem('hg_overseer_lines', JSON.stringify(m.lines)); } catch {}
+      return;
+    case 'overseer-memory':
+      try { if (m.memory && typeof m.memory === 'object') localStorage.setItem('hg_overseer_memory', JSON.stringify(m.memory)); } catch {}
       return;
     case 'overseer-seen':
       try { localStorage.setItem('hg_overseer_intro', String(Date.now())); } catch {}

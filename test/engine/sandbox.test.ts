@@ -27,6 +27,8 @@ const Guest = sandboxCtx.window.HawkesGuestCore;
 
 function start() {
   errors.length = 0;
+  // (What the script keeps on window across a hot reload is a fresh page's here.)
+  for (const k of ['__islandEarly', '__islandNudged', '__islandRescue', '__islandPlayed', '__islandAsked']) delete g.window[k];
   run(H, { ...scene, config: { ...scene.config, look: false, shadows: false } }, { mode: 'play', scripts: { 'scripts/main.js': bundle.files['scripts/main.js'] } });
   return H.game;
 }
@@ -144,4 +146,121 @@ test('sandbox: the sheet holds the game still (controls, keys and sounds) and gi
   // The engine's hold is a no-op without WebAudio (Node), and reports itself.
   assert.equal(H.audio.hold('t', true), true);
   assert.equal(H.audio.hold('t', false), false);
+});
+
+// ------------------------------------------------------------------ rescue, out of order, Pip's nudge
+const tourOn = () => {
+  const game = start();
+  H.tick(3);
+  const q = game.events.quests;
+  if (q.state('tour') !== 'active') q.start('tour');
+  H.tick(0.5);
+  return { game, q };
+};
+const clean = () => [...errors, ...errorBox()].filter((e) => !/^quests: .*(textContent|properties of (null|undefined))/.test(e));
+const upY = (e: any) => { const v = e.vehicle; return v && v.up ? v.up.y : 1; };
+
+test('sandbox: Stuck? puts a flipped 4x4 and the player back, with a beam and the Overseer\'s line', () => {
+  const { game, q } = tourOn();
+  const jeep = H.world.byId.get('jeep');
+  jeep.position = [30, 9, 40]; jeep.rotation = [0, 0, 180];
+  const seen: any[] = []; const beams: any[] = []; const said: string[] = [];
+  game.on('rescue', (d: any) => seen.push(d));
+  game.on('beam', (d: any) => beams.push(d));
+  const o = game.overseer; const say0 = o && o.say;
+  if (o) o.say = (t: string) => { said.push(t); };
+  game.player.position = [40, 6, 40];
+  H.tick(3);
+  g.window.__islandRescueNow('button');
+  H.tick(1);
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].step, 'drive');
+  assert.ok(Math.hypot(jeep.x - 4, jeep.z - 6.5) < 3, `the 4x4 is back by the start (${jeep.x.toFixed(1)}, ${jeep.z.toFixed(1)})`);
+  assert.ok(upY(jeep) > 0.5, 'and the right way up');
+  assert.ok(Math.hypot(game.player.x - jeep.x, game.player.z - jeep.z) < 12, 'the player is beside it');
+  assert.ok(beams.length >= 1, 'a beam');
+  assert.ok(said.length >= 1, 'the Overseer speaks');
+  if (o) o.say = say0;
+  assert.equal(q.step('tour'), 'drive', 'rescuing does not move the tour');
+  assert.deepEqual(clean(), []);
+});
+
+test('sandbox: Stuck? gets the player out of the sea to the step\'s place, and the same press twice in a row is ignored', () => {
+  const { game } = tourOn();
+  const q = game.events.quests;
+  for (const id of ['drive', 'rod']) { if (q.step('tour') === id) q.advance('tour'); H.tick(0.3); }
+  assert.equal(q.step('tour'), 'fish');
+  game.player.position = [95, -1, 12]; // in the sea beyond the pier
+  H.tick(0.5);
+  const rescue = g.window.__islandRescueNow;
+  assert.equal(rescue('sea'), true);
+  H.tick(0.5);
+  assert.ok(game.player.x < 90 && Math.abs(game.player.z) < 3, `on the pier (${game.player.x.toFixed(1)}, ${game.player.z.toFixed(1)})`);
+  assert.equal(game.player.tool, 'rod', 'the rod is in hand');
+  assert.equal(rescue('key'), false, 'not twice in two seconds');
+});
+
+test('sandbox: Stuck? brings destroyed barrels and a lost launcher back on the boom step, and a wrecked helicopter on the last', () => {
+  const { game } = tourOn();
+  const q = game.events.quests;
+  for (const id of ['drive', 'rod', 'fish']) { if (q.step('tour') === id) q.advance('tour'); H.tick(0.3); }
+  assert.equal(q.step('tour'), 'boom');
+  for (let i = 1; i <= 5; i++) H.world.byId.get(`barrel_${i}`).destroy();
+  game.player.tool = null;
+  H.tick(0.5);
+  g.window.__islandRescueNow('key');
+  H.tick(0.5);
+  assert.equal((game.all('Fuel barrel') || []).filter((b: any) => b.alive).length, 5, 'five barrels again');
+  assert.equal(game.player.tool, 'rocket-launcher');
+  for (const id of ['boom', 'spawn', 'ask']) { if (q.step('tour') === id) q.advance('tour'); H.tick(0.3); }
+  H.tick(3);
+  game.all('Helicopter').forEach((h: any) => h.destroy());
+  H.tick(3);
+  g.window.__islandRescueNow('key');
+  H.tick(1);
+  const heli = game.all('Helicopter').find((h: any) => h.alive);
+  assert.ok(heli, 'a helicopter again');
+  assert.ok(Math.hypot(heli.x - 30, heli.z - 30) < 4, 'on its pad');
+  assert.deepEqual(clean(), []);
+});
+
+test('sandbox: steps done out of order pass when the tour gets to them', () => {
+  const { game, q } = tourOn();
+  // Flying first and firing the barrels first: the deeds are kept.
+  game.emit('sandbox-high', { height: 300, mine: true });
+  game.emit('explosion', { at: [50, 1, -18] });
+  game.emit('spawned', { what: 'cow', count: 1 });
+  game.emit('asked', { skipped: true });
+  H.tick(2);
+  assert.equal(q.step('tour'), 'drive', 'the tour waits for the first four steps');
+  const played: string[] = [];
+  game.on('tour', (d: any) => played.push(d.step));
+  game.player.position = [60, 3, 0]; // the dock
+  H.tick(0.7);
+  // The rod and the fish are done for real; then the rest pass by themselves, each with its moment.
+  game.emit('pickup', { gives: 'tool', tool: 'rod' });
+  game.emit('catch', { fish: 'tuna', mine: true });
+  for (let i = 0; i < 80 && q.state('tour') === 'active'; i++) H.tick(0.25);
+  assert.equal(q.state('tour'), 'done', 'the tour finishes');
+  assert.deepEqual(played.filter((s) => ['drive', 'fish', 'boom', 'spawn', 'ask', 'fly'].includes(s)), ['drive', 'fish', 'boom', 'spawn', 'ask', 'fly'].filter((s) => played.includes(s)));
+  for (const s of ['drive', 'fish', 'boom', 'spawn', 'ask', 'fly']) assert.ok(played.includes(s), `${s} has its moment`);
+  assert.deepEqual(clean(), []);
+});
+
+test('sandbox: Pip nudges after 30 s on a step, once per step', () => {
+  const { game, q } = tourOn();
+  const nudges: string[] = [];
+  game.on('nudge', (d: any) => nudges.push(d.step));
+  H.tick(25);
+  assert.deepEqual(nudges, [], 'not yet');
+  H.tick(8);
+  assert.deepEqual(nudges, ['drive']);
+  H.tick(40);
+  assert.deepEqual(nudges, ['drive'], 'once per step');
+  q.advance('tour');
+  H.tick(25);
+  assert.deepEqual(nudges, ['drive']);
+  H.tick(10);
+  assert.deepEqual(nudges, ['drive', 'rod'], 'the next step has its own');
+  assert.deepEqual(clean(), []);
 });
