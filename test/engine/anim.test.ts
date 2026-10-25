@@ -23,7 +23,7 @@ world(H, sceneOf({}, { player: false }), { mode: 'play' });
 const scene = H.world.scene;
 
 const readJson = (f: string) => JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8'));
-const FILES: Record<string, any> = { mixamo: readJson('public/play/anim/mixamo.json'), quadruped: readJson('public/play/anim/quadruped.json'), object: readJson('public/play/anim/object.json') };
+const FILES: Record<string, any> = { mixamo: readJson('test/fixtures/mixamo-starter.json') /* the starter idle and walk: these tests are about the sampler; the real set is checked by mixamo-poses.test.ts */, quadruped: readJson('public/play/anim/quadruped.json'), object: readJson('public/play/anim/object.json') };
 for (const [cls, f] of Object.entries(FILES)) A.setData(cls, f);
 const registryBefore = JSON.parse(JSON.stringify(P.modelRegistry));
 

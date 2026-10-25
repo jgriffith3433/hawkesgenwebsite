@@ -3,13 +3,13 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { PORT, ROOT, USER_ID, genKey, env } from './config.ts';
 import { genFetch, gen } from './gen.ts';
-import { send, readJson, readBody, PortalError } from './util.ts';
+import { send, readJson, readBody, PortalError, Limiter, clientIp } from './util.ts';
 import * as users from './users.ts';
 import { PACKS, FIRST_PURCHASE_BONUS, stripeStatus, checkout, ledger, stripeWebhook } from './billing.ts';
 import { quote, submit, settle, watch } from './jobs.ts';
@@ -20,7 +20,7 @@ import { caller } from './caller.ts';
 import { handleMcp } from './mcp.ts';
 import { serveDownload, receiveUpload, uploadLink } from './files.ts';
 import { resumeTasks, recentTasks, getTask, results } from './tasks.ts';
-import { publicUrl } from './config.ts';
+import { cdnHosts, publicUrl } from './config.ts';
 import * as mail from './mail.ts';
 import * as google from './google.ts';
 import { PLANS, subscription, choosePlan, setCancel, billingPortal } from './plans.ts';
@@ -30,11 +30,14 @@ import { presenceRoute } from './presence.ts';
 import { askAssistant, askQuote, generateAsset, pendingGens, markSuggestion, resumeGens, KINDS, AI_CREDITS } from './gameai.ts';
 import { join as joinLive, setPresence, closeAll as closeLive } from './live.ts';
 import { templateBundle, featured } from './templates.ts';
+import { details, countRequest, trackServer } from './metrics.ts';
+import { serveVendor } from './vendor.ts';
 import { loaderScript, engineDoc, manifest } from './engine.ts';
 const engineVersion = () => manifest().version;
 import * as community from './community.ts';
 import { upgrade as joinRoom, broadcastOps, markHere, liveCounts, roomState } from './rooms.ts';
 import * as invites from './invites.ts';
+import { digest } from './sign.ts';
 import * as shares from './shares.ts';
 import { relayAnalytics, playIds, playIdsScript } from './analytics.ts';
 import type { Duplex } from 'node:stream';
@@ -49,45 +52,33 @@ const PASS_POST = [/^\/v1\/jobs\/j_[0-9a-f]+\/cancel$/, /^\/v1\/recipes\/check$/
 const UPLOADS = [/^\/v1\/assets$/, /^\/v1\/blobs$/];
 const UPLOAD_LIMIT = 64 * 1024 * 1024;
 
-const clientIp = (req: IncomingMessage) => {
-  const peer = req.socket.remoteAddress ?? '';
-  const fwd = String(req.headers['x-forwarded-for'] ?? '').split(',').pop()?.trim();
-  return /^(127\.0\.0\.1|::1|::ffff:127\.0\.0\.1)$/.test(peer) && fwd ? fwd : peer;
-};
 
+// In-memory limits (util.ts Limiter: a sliding window per key, swept every minute, a cap on keys).
 // Sign-in attempts per address: 20 a quarter hour.
-const attempts = new Map<string, number[]>();
-function limitLogins(ip: string) {
-  const now = Date.now();
-  const recent = (attempts.get(ip) ?? []).filter((t) => now - t < 15 * 60_000);
-  if (recent.length >= 20) throw new PortalError('Too many sign-in attempts; wait a few minutes', { status: 429 });
-  recent.push(now);
-  attempts.set(ip, recent);
-}
+const attempts = new Limiter(20, 15 * 60_000);
+const limitLogins = (ip: string) => attempts.take(ip, 'Too many sign-in attempts; wait a few minutes');
 
-const inviteMade = new Map<string, number[]>();
+/** Reports an address may send an hour (games.reportGame). */
+const reportsMade = new Limiter(10, 3600_000);
+const limitReports = (ip: string) => reportsMade.take(ip, 'You have sent a lot of reports; try again in a while');
+
 /** Links an address may make an hour (a link is only a signed token, but a room code per call is not worth abusing). */
-function limitInvites(ip: string) {
-  const now = Date.now();
-  const recent = (inviteMade.get(ip) ?? []).filter((t) => now - t < 3600_000);
-  if (recent.length >= 30) throw new PortalError('That is a lot of invitations; try again in a while', { status: 429 });
-  recent.push(now);
-  inviteMade.set(ip, recent);
-}
+const inviteMade = new Limiter(30, 3600_000);
+const limitInvites = (ip: string) => inviteMade.take(ip, 'That is a lot of invitations; try again in a while');
 
-const genMade = new Map<string, number[]>();
 /** Generations an account may start from a game: 10 a minute and 40 an hour. A second guard: the editor asks the person
  *  first (docs/engine-modules.md, "What a game may ask the editor"), but a script can post to the route itself. */
+const genPerMinute = new Limiter(10, 60_000);
+const genPerHour = new Limiter(40, 3600_000);
 function limitGenerations(userId: string) {
-  const now = Date.now();
-  const recent = (genMade.get(userId) ?? []).filter((t) => now - t < 3600_000);
-  if (recent.length >= 40 || recent.filter((t) => now - t < 60_000).length >= 10) {
-    genMade.set(userId, recent);
-    throw new PortalError('That is a lot of things to make at once; give it a minute and try again.', { status: 429 });
-  }
-  recent.push(now);
-  genMade.set(userId, recent);
+  if (genPerMinute.over(userId) || genPerHour.over(userId)) throw new PortalError('That is a lot of things to make at once; give it a minute and try again.', { status: 429 });
+  genPerMinute.hit(userId);
+  genPerHour.hit(userId);
 }
+
+// The open write routes, per address (analytics beacons from published games, the "I'm here" ping of a play page).
+const analyticsPosts = new Limiter(120, 60_000);
+const herePings = new Limiter(6, 60_000);
 
 /** Gen's answer straight to the customer: status, the headers that matter, the body as it streams. */
 /** Streams Gen's answer to the browser. A body that errors late (its timeout fires after a player's <audio> stopped
@@ -128,7 +119,44 @@ async function readForm(req: IncomingMessage) {
 
 // A game runs in a sandbox: its own opaque origin, so its scripts can't read this site's cookies or call its API as the
 // player. Set on the page itself (not only on the editor's iframe) so a game opened directly is sandboxed too.
-const PLAY_SANDBOX = 'sandbox allow-scripts allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation';
+// No allow-popups-to-escape-sandbox and no top navigation: a popup a game opens stays sandboxed, and a game cannot send
+// the tab away. The share window is opened by the page around the game (editor.js, 'share-open'), not by the game.
+const PLAY_SANDBOX = 'sandbox allow-scripts allow-pointer-lock allow-popups';
+/** What a game page may load and call (the Content-Security-Policy beside the sandbox). A game's scripts run with
+ *  new Function, so script-src needs 'unsafe-eval'; they must not be able to send anything to a site we have not named.
+ *  ADD A HOST HERE when the engine starts to use one (the realtime host, the realtime host,
+ *  Gen's analytics origin moving with Gen) and only then; a game's own fetch to anywhere else is meant to fail. */
+const PLAY_HOSTS = {
+  /** Hawkes Gen: the analytics SDK (play.html) and its relay. */
+  gen: ['https://gen.hawkesgen.com'],
+  /** The stand-in boombox model (kinds.js). */
+  models: ['https://models.babylonjs.com'],
+  /** Realtime (play/net.js) is the page's own host today; list net.hawkesgen.com here when the rooms move there. */
+  realtime: [] as string[],
+  /** Where public assets come from when Gen has them on its CDN (cdn.hawkesgen.com; config.ts cdnHosts; CORS is open there). */
+  get assets(): string[] { return cdnHosts(); },
+};
+export function playCsp(nonce: string): string {
+  const self = new URL(publicUrl()).host;
+  const ws = `${publicUrl().startsWith('https:') ? 'wss' : 'ws'}://${self}`;
+  const list = (...a: string[][]) => a.flat().join(' ');
+  return [
+    PLAY_SANDBOX,
+    "default-src 'none'",
+    // Inline scripts of play.html carry the nonce; scripts the page adds (modules, the SDK) come from 'self' or a host above.
+    `script-src 'self' 'nonce-${nonce}' 'unsafe-eval' 'wasm-unsafe-eval' ${list(PLAY_HOSTS.gen)}`,
+    // blob: and data: are fetched by Babylon for models and textures; they cannot leave the page.
+    `connect-src 'self' blob: data: ${ws} ${list(PLAY_HOSTS.realtime, PLAY_HOSTS.gen, PLAY_HOSTS.models, PLAY_HOSTS.assets)}`,
+    `img-src 'self' data: blob: ${list(PLAY_HOSTS.assets, PLAY_HOSTS.models)}`,
+    `media-src 'self' data: blob: ${list(PLAY_HOSTS.assets)}`,
+    "font-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "worker-src blob: 'self'",
+    "frame-src 'none'",
+    "form-action 'none'",
+    "base-uri 'none'",
+  ].map((d) => d.replace(/\s+/g, ' ').trim()).join('; ');
+}
 /** Local testing only: some test browsers refuse scripts from a sandboxed page on a local address. PORTAL_DEV_OPEN_PLAY=1
  *  serves games unsandboxed, and only to requests for localhost / 127.0.0.1. Never set it on the box. */
 export const devOpenPlay = (req: IncomingMessage) => env('PORTAL_DEV_OPEN_PLAY') === '1' && /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(String(req.headers.host ?? ''));
@@ -136,11 +164,13 @@ function servePlayPage(res: ServerResponse, req: IncomingMessage, o: { guest?: b
   // The guest sandbox (/play/sandbox) runs only our own template (src/templates.ts 'sandbox'), never a customer's
   // scripts, and signs the guest up on this site: it is served without the play sandbox (play/guest.js).
   const open = devOpenPlay(req) || o.guest === true;
-  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', ...(open ? {} : { 'Content-Security-Policy': PLAY_SANDBOX }), 'X-Content-Type-Options': 'nosniff' });
+  const nonce = randomBytes(16).toString('base64');
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', ...(open ? {} : { 'Content-Security-Policy': playCsp(nonce) }), 'X-Content-Type-Options': 'nosniff' });
   // A signed-in player's analytics ids (src/analytics.ts): the sandboxed page has no storage to keep its own.
   const ids = o.guest ? null : playIds(users.authenticate(req));
-  if (!ids) return void pipeline(fs.createReadStream(path.join(PUBLIC, 'play', 'play.html')), res).catch(() => {});
-  res.end(fs.readFileSync(path.join(PUBLIC, 'play', 'play.html'), 'utf8').replace('</head>', `${playIdsScript(ids)}</head>`));
+  let html = fs.readFileSync(path.join(PUBLIC, 'play', 'play.html'), 'utf8');
+  if (ids) html = html.replace('</head>', `${playIdsScript(ids)}</head>`);
+  res.end(html.replace(/<script>/g, `<script nonce="${nonce}">`));
 }
 
 /** A game's asset file, from Gen, for anyone playing it (open CORS: the game's sandbox has no origin). */
@@ -264,7 +294,12 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       // down from the Observatory keeps their look and name (this site's storage) and the way back is a plain page load.
       const featuredId = /^\/play\/t\/([a-z0-9-]+)$/.exec(route)?.[1];
       if (featuredId && featured().some((f: any) => f.id === featuredId)) return servePlayPage(res, req, { guest: true });
-      if (/^\/play\/(_draft|t\/[a-z0-9-]+|[a-z0-9-]+(\/v\/\d+)?)$/.test(route) && route !== '/play/runtime.js') return servePlayPage(res, req);
+      if (/^\/play\/(_draft|t\/[a-z0-9-]+|[a-z0-9-]+(\/v\/\d+)?)$/.test(route) && route !== '/play/runtime.js') {
+        // A world an admin closed: a plain page, with no scripts and no bundle (public/closed.html).
+        const closed = /^\/play\/([a-z0-9-]+)(?:\/v\/\d+)?$/.exec(route)?.[1];
+        if (closed && closed !== '_draft' && games.isClosed(closed)) return void res.writeHead(410, { 'Content-Type': TYPES['.html'], 'Cache-Control': 'no-store', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'", 'X-Content-Type-Options': 'nosniff' }).end(method === 'HEAD' ? undefined : fs.readFileSync(path.join(PUBLIC, 'closed.html')));
+        return servePlayPage(res, req);
+      }
       let pa = /^\/play-asset\/d\/([\w-]+\.[\w-]+)\/[^/]+$/.exec(route);
       // ?lod=<level>&v=<hash>: a level of detail of an image or model (Gen's LOD system: lods.ts).
       const lod = { lod: Number(url.searchParams.get('lod')) || undefined, v: url.searchParams.get('v') };
@@ -280,13 +315,21 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     }
 
     if (!route.startsWith('/v1/')) {
-      if ((method === 'GET' || method === 'HEAD') && (await serveStatic(route, res, url.search))) return;
+      if (route.startsWith('/vendor/')) { if ((method === 'GET' || method === 'HEAD') && serveVendor(req, res, route)) return; }
+      else if ((method === 'GET' || method === 'HEAD') && (await serveStatic(route, res, url.search))) return;
       return sendPage(req, res, 404, '404.html', { error: 'Not found' });
     }
 
     // ------------------------------------------------------------ open to everyone
     // Player analytics from game pages that have no origin of their own: passed on to Gen (src/analytics.ts).
+    if (route === '/v1/analytics/collect' && method === 'POST' && !analyticsPosts.hit(clientIp(req))) return void res.writeHead(429, { 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store', 'Content-Type': 'application/json' }).end('{"ok":false}');
     if (route === '/v1/analytics/collect' && (method === 'POST' || method === 'OPTIONS')) return await relayAnalytics(req, res, clientIp(req));
+    if (route === '/v1/health/details') {
+      // Admins, or a request from this machine itself (no proxy in front: clientIp is then a loopback address).
+      const local = /^(127\.0\.0\.1|::1|::ffff:127\.0\.0\.1)$/.test(clientIp(req));
+      if (!local && users.authenticate(req)?.role !== 'admin') return send(res, 404, { error: 'Not found' });
+      return send(res, 200, details(url.searchParams.get('reset') === '1')); // ?reset=1 starts a new event-loop window
+    }
     if (route === '/v1/health') return send(res, 200, { ok: true, service: 'hawkesgen-portal', gen: Boolean(genKey()), payments: stripeStatus().configured, google: google.googleEnabled(), mail: mail.mailOn() });
     // What Gen makes for a game, with its price (the codex reads it, so it never drifts from gameai.ts KINDS).
     if (route === '/v1/asset-kinds' && method === 'GET') return send(res, 200, Object.fromEntries(Object.entries(KINDS).map(([k, v]) => [k, { title: v.title, credits: v.credits }])));
@@ -345,16 +388,29 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (ph && method === 'POST') {
       const t = /^t\/(.+)$/.exec(ph[1]);
       const g = t ? null : games.gameBySlug(ph[1]);
-      if (!t && !g) return send(res, 404, { error: 'No such game' });
+      if (!t && (!g || g.hidden)) return send(res, 404, { error: 'No such game' });
       const gid = t ? `t:${t[1]}` : g!.id;
+      if (!herePings.hit(`${clientIp(req)}:${gid}`)) { res.setHeader('Access-Control-Allow-Origin', '*'); return send(res, 429, { error: 'Once every few seconds is enough' }); }
       markHere(gid, (await readJson(req)).s);
       res.setHeader('Access-Control-Allow-Origin', '*');
       return send(res, 200, liveCounts(gid));
     }
+    // Report a world (games.reportGame): from its pause menu or the gallery, signed in or not. text/plain keeps it a simple
+    // request, so the sandboxed play page needs no preflight; open CORS because that page has no origin.
+    const rp = /^\/v1\/play\/([a-z0-9-]+)\/report$/.exec(route);
+    if (rp && (method === 'POST' || method === 'OPTIONS')) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      if (method === 'OPTIONS') return void res.writeHead(204, { 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Max-Age': '86400' }).end();
+      limitReports(clientIp(req));
+      let b: any = {};
+      try { b = JSON.parse((await readBody(req, 4096)).toString('utf8') || '{}'); } catch { throw new PortalError('That report could not be read'); }
+      return send(res, 200, games.reportGame(rp[1], b, users.authenticate(req)?.id ?? null, clientIp(req)));
+    }
     let pb = /^\/v1\/play\/([a-z0-9-]+)$/.exec(route);
     if (pb && method === 'GET') {
       res.setHeader('Access-Control-Allow-Origin', '*');
-      return send(res, 200, games.playBundle(pb[1], url.searchParams.get('v') ? Number(url.searchParams.get('v')) : null));
+      const me = users.authenticate(req);
+      return send(res, 200, games.playBundle(pb[1], url.searchParams.get('v') ? Number(url.searchParams.get('v')) : null, me ? me.id : `ip:${digest(clientIp(req)).slice(0, 22)}`));
     }
     // Island invitations (invites.ts): the inviter (a guest or an account) makes a link to their island's room; the friend's
     // page asks what it is worth before loading anything. Open routes: neither starts Gen work or touches credits.
@@ -372,13 +428,13 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (pb && method === 'GET') return send(res, 200, games.inviteInfo(pb[1]));
     if (route === '/v1/billing/webhook' && method === 'POST') return send(res, 200, stripeWebhook(await readBody(req), String(req.headers['stripe-signature'] ?? '')));
     if (route === '/v1/users/signup' && method === 'POST') {
-      const r = users.signup(await readJson(req), clientIp(req), users.originOf(req));
+      const r = await users.signup(await readJson(req), clientIp(req), users.originOf(req));
       users.setSessionCookie(res, req, r.sessionToken);
       return send(res, 200, { user: r.user, apiKey: r.apiKey });
     }
     if (route === '/v1/users/login' && method === 'POST') {
       limitLogins(clientIp(req));
-      const r = users.login(await readJson(req));
+      const r = await users.login(await readJson(req));
       users.setSessionCookie(res, req, r.sessionToken);
       return send(res, 200, { user: r.user });
     }
@@ -392,7 +448,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (route === '/v1/users/password' && method === 'POST') {
       limitLogins(clientIp(req));
       const b = await readJson(req);
-      const r = users.setPasswordWithToken(b.token, b.password);
+      const r = await users.setPasswordWithToken(b.token, b.password);
       users.setSessionCookie(res, req, r.sessionToken);
       return send(res, 200, { user: r.user });
     }
@@ -542,6 +598,9 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       if (route === '/v1/admin/overview' && method === 'GET') return send(res, 200, admin.overview());
       if (route === '/v1/admin/community/sync' && method === 'POST') return send(res, 200, await community.syncStarter());
       if (route === '/v1/admin/users' && method === 'GET') return send(res, 200, admin.listUsers({ search: url.searchParams.get('q'), limit: Number(url.searchParams.get('limit')), offset: Number(url.searchParams.get('offset')) }));
+      if (route === '/v1/admin/reports' && method === 'GET') return send(res, 200, games.reportedGames());
+      const hg = /^\/v1\/admin\/games\/(g_[\w-]+)\/(hide|unhide)$/.exec(route);
+      if (hg && method === 'POST') return send(res, 200, { game: games.summary(games.setHidden(user.email, hg[1], hg[2] === 'hide', (await readJson(req)).reason)) });
       if (route === '/v1/admin/jobs' && method === 'GET') return send(res, 200, { jobs: admin.recentJobs(Number(url.searchParams.get('limit')) || 100) });
       if (route === '/v1/admin/purchases' && method === 'GET') return send(res, 200, { purchases: admin.purchases(Number(url.searchParams.get('limit')) || 100) });
       if (m && !m[2] && method === 'GET') return send(res, 200, admin.userDetail(m[1]));
@@ -618,6 +677,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
 /** The portal's HTTP server: sane timeouts, a handler that never throws, upgrades for the game rooms. Tests use it too. */
 export function createPortalServer() {
   const server = http.createServer((req, res) => {
+    countRequest();
     // A handler's stray rejection must never leave a socket hanging or take the process down.
     handle(req, res).catch((e) => {
       console.error('[portal] handler:', e);
@@ -632,6 +692,7 @@ export function createPortalServer() {
   server.requestTimeout = 0; // uploads and streams (events, assets) run long; the handlers set their own limits
   server.on('clientError', (_e, socket) => { if (socket.writable) socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n'); else socket.destroy(); });
   server.on('upgrade', onUpgrade);
+  trackServer(server);
   return server;
 }
 

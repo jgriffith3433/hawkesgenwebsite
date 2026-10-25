@@ -24,11 +24,16 @@
 //                      animates (its own GLB clips), and ten animating characters: the cost of the animation and the draw numbers
 export const AVATAR_ANIMATIONS = {
   id: 'avatar-animations', title: 'Animation clips as data: a walk drawn from the class file for a dog, a toaster and a Mixamo-skeleton puppet; the bone checks; the person and the robot on the real Mixamo skeleton (upright, hat on the head, walk, run, jump, wave, triangle budgets); the fallbacks; ten characters animating',
-  description: 'no sign-up, no game. Opens /avatars in a frame per model (scenes "Clip: dog walk 0.25 s" ...), logs clip-file, bone-checks, mixamo-skeleton, mixamo-upright, mixamo-hat-on-head, mixamo-walk-moves, mixamo-budget (the person and the robot), fallback-procedural, template-biped-animates and ten-characters. Options: mixamo: false (skips the person and the robot), mixamoBodies, bodies (["dog","toaster","puppet"]), crowd (seconds the ten run, default 2), quadruped: false (skips the quadruped sheet), sheet (clips for the contact sheet, default walk trot run jump fall swim sit sleep), all: true (the sheet for all 29)',
+  description: 'no sign-up, no game. Opens /avatars in a frame per model (scenes "Clip: dog walk 0.25 s" ...), logs clip-file, bone-checks, mixamo-skeleton, mixamo-upright, mixamo-hat-on-head, mixamo-walk-moves, mixamo-budget (the person and the robot), humanoid-clips, humanoid-no-broken-pose, humanoid-loops-close, humanoid-footsteps, humanoid-same-clips, humanoid-unfit (the humanoid set on the person at four moments each, the robot, and the penguin and cat until they are re-rigged), fallback-procedural, template-biped-animates and ten-characters. Options: humanoid: false, humanoidSheet (clips for the person contact sheet), mixamo: false (skips the person and the robot), mixamoBodies, bodies (["dog","toaster","puppet"]), crowd (seconds the ten run, default 2), quadruped: false (skips the quadruped sheet), sheet (clips for the contact sheet, default walk trot run jump fall swim sit sleep), all: true (the sheet for all 29)',
   seconds: 600, tags: ['full'],
 };
 
 const QUAD_CLIPS = ['idle', 'idle_sniff', 'idle_fidget', 'walk', 'trot', 'run', 'jump_start', 'jump', 'land', 'fall', 'swim', 'sit', 'lie_down', 'sleep', 'drive', 'wave', 'dance', 'cheer', 'laugh', 'point', 'clap', 'thumbsup', 'heart', 'bark', 'shake_off', 'shrug', 'hurt', 'knock_down', 'get_up'];
+// docs/animations.md 2A: every P0 and P1 clip of the humanoid set (tools/mixamo-clips.mjs for the library's, tools/mixamo-own-clips.mjs for ours)
+const HUMANOID_CLIPS = ['idle', 'idle_look', 'idle_fidget', 'walk', 'run', 'jump_start', 'jump', 'fall', 'land', 'swim_idle', 'swim', 'sit', 'sit_down', 'stand_up', 'sleep', 'drive', 'wave', 'dance', 'cheer', 'laugh', 'point', 'clap', 'thumbsup', 'heart', 'shrug', 'hurt', 'knock_down', 'get_up'];
+const HUMANOID_SHEET = ['walk', 'run', 'jump', 'fall', 'swim', 'sit', 'wave', 'cheer', 'clap', 'heart', 'sleep', 'get_up'];
+const LYING = ['sleep', 'get_up', 'knock_down', 'swim', 'swim_idle'];
+const HX = ['mixamorig:Hips', 'mixamorig:Head', 'mixamorig:LeftUpLeg', 'mixamorig:LeftLeg', 'mixamorig:LeftFoot', 'mixamorig:RightUpLeg', 'mixamorig:RightLeg', 'mixamorig:RightFoot', 'mixamorig:LeftArm', 'mixamorig:LeftForeArm', 'mixamorig:LeftHand', 'mixamorig:RightArm', 'mixamorig:RightForeArm', 'mixamorig:RightHand', 'mixamorig:LeftToeBase'];
 const QUAD_SHEET = ['walk', 'trot', 'run', 'jump', 'fall', 'swim', 'sit', 'sleep'];
 const QUAD_BONES = ['Root', 'Body', 'Head', 'LegFL', 'LegFR', 'LegBL', 'LegBR'];
 const MODELS = {
@@ -158,6 +163,9 @@ export async function runAvatarAnimations(t, options = {}) {
     }
     t.progress(0.7);
   }
+
+  // ---- the humanoid set (docs/animations.md 2A, 2D): every P0 and P1 clip on the person at four moments, the checks a person makes by eye, the loops, the robot
+  if (options.humanoid !== false) await humanoidSet(t, options);
 
   // ---- the quadruped set: the dog's contact sheet, the gaits, the loops, and the same clips on the fox, sheep and horse
   if (options.quadruped !== false) {
@@ -356,6 +364,73 @@ async function objectSet(t, options) {
     const inf = g.win.hawkesAvatars.anim();
     if (!inf || inf.cls !== 'object') t.problem('bug', `${id} should be in the object class (${JSON.stringify(inf)})`);
     else t.event('rollbot-keeps-roll', `${id}: walking is its own roll, the set takes idle, emotes and hurt (${a && b ? 'body y ' + a.mover.y.toFixed(3) + ' to ' + b.mover.y.toFixed(3) : 'no probe'})`);
+    g.close();
+  }
+}
+
+/** The humanoid set on the real Mixamo models: all the clips are there, four moments of each on the person, no broken pose, loops close, the same clips on the robot. */
+async function humanoidSet(t, options) {
+  const f = await openFrame(t, '/avatars?body=person&bg=studio&pose=idle', 'humanoid set on the person');
+  await t.until(() => f.win.hawkesAvatars.anim() && f.win.hawkesAvatars.probe(HX), 20000, 'the person');
+  const info = f.win.hawkesAvatars.anim(), A = f.win.HawkesPlay.presence.anim;
+  if (!info || info.cls !== 'mixamo' || info.state !== 'ready') { t.problem('bug', `the person did not take the Mixamo set (${JSON.stringify(info)})`); f.close(); return; }
+  const missing = HUMANOID_CLIPS.filter((c) => !info.clips.includes(c));
+  if (missing.length) t.problem('bug', `mixamo.json lacks ${missing.join(', ')}`);
+  else t.event('humanoid-clips', `all ${HUMANOID_CLIPS.length} P0 and P1 clips of docs/animations.md 2A are in mixamo.json (${info.clips.length} in the set, ${info.problems.length ? info.problems.length + ' problems' : 'sound'})`);
+  const set = A.setOf('mixamo'), sheet = options.all ? HUMANOID_CLIPS : (Array.isArray(options.humanoidSheet) && options.humanoidSheet.length ? options.humanoidSheet : HUMANOID_SHEET).filter((c) => set.clips[c]);
+  const hat = (p) => p.pos, len = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+  await f.win.hawkesAvatars.setPose('idle', 0); await t.wait(250);
+  const rest = f.win.hawkesAvatars.probe(HX), floor = Math.min(hat(rest)['mixamorig:LeftFoot'][1], hat(rest)['mixamorig:RightFoot'][1], hat(rest)['mixamorig:LeftToeBase'][1]);
+  const tall = hat(rest)['mixamorig:Head'][1] - floor, bend0 = {};
+  for (const s of ['Left', 'Right']) { const P = hat(rest), th = [P[`mixamorig:${s}Leg`][1] - P[`mixamorig:${s}UpLeg`][1], P[`mixamorig:${s}Leg`][2] - P[`mixamorig:${s}UpLeg`][2]], sh = [P[`mixamorig:${s}Foot`][1] - P[`mixamorig:${s}Leg`][1], P[`mixamorig:${s}Foot`][2] - P[`mixamorig:${s}Leg`][2]]; bend0[s] = Math.atan2(th[0] * sh[1] - th[1] * sh[0], th[0] * sh[0] + th[1] * sh[1]) * 180 / Math.PI; }
+  const broken = [], stuck = [];
+  for (const name of HUMANOID_CLIPS) {
+    const c = set.clips[name]; if (!c) continue;
+    const seen = [];
+    for (let k = 0; k < 4; k++) {
+      f.win.hawkesAvatars.setPose(name, c.seconds * k / 4); await t.wait(sheet.includes(name) ? 320 : 90);
+      if (sheet.includes(name)) t.scene(`Sheet: person ${name} ${k + 1}/4 (${(c.seconds * k / 4).toFixed(2)} s)`);
+      const p = f.win.hawkesAvatars.probe(HX); seen.push(p);
+      const P = hat(p);
+      if (!P || HX.some((b) => !P[b] || P[b].some((x) => !Number.isFinite(x)))) { broken.push(`${name} ${k + 1}/4: a bone did not draw`); continue; }
+      const low = Math.min(...HX.map((b) => P[b][1])) - floor;
+      if (low < -0.04 * tall) broken.push(`${name} ${k + 1}/4: a joint ${(-low).toFixed(2)} m under the floor`);
+      if (!LYING.includes(name)) for (const s of ['Left', 'Right']) {
+        const th = [P[`mixamorig:${s}Leg`][1] - P[`mixamorig:${s}UpLeg`][1], P[`mixamorig:${s}Leg`][2] - P[`mixamorig:${s}UpLeg`][2]], sh = [P[`mixamorig:${s}Foot`][1] - P[`mixamorig:${s}Leg`][1], P[`mixamorig:${s}Foot`][2] - P[`mixamorig:${s}Leg`][2]];
+        const bend = Math.atan2(th[0] * sh[1] - th[1] * sh[0], th[0] * sh[0] + th[1] * sh[1]) * 180 / Math.PI - bend0[s];
+        if (bend < -8) broken.push(`${name} ${k + 1}/4: ${s} knee bends backwards (${bend.toFixed(0)} degrees)`);
+        const reach = len(P[`mixamorig:${s}Hand`], P[`mixamorig:${s}Arm`]) / (len(P[`mixamorig:${s}ForeArm`], P[`mixamorig:${s}Arm`]) + len(P[`mixamorig:${s}Hand`], P[`mixamorig:${s}ForeArm`]));
+        if (reach > 1.03) broken.push(`${name} ${k + 1}/4: ${s} arm stretched past its length`);
+      }
+    }
+    let most = 0;
+    for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) for (const b of HX) if (seen[i].bones[b] && seen[j].bones[b]) most = Math.max(most, angle(seen[i].bones[b], seen[j].bones[b]));
+    if (most < 1) stuck.push(name);
+  }
+  if (stuck.length) t.problem('bug', `person: ${stuck.join(', ')} look the same at all four moments`);
+  if (broken.length) t.problem('bug', `person: broken poses: ${broken.slice(0, 8).join('; ')}${broken.length > 8 ? ` (and ${broken.length - 8} more)` : ''}`);
+  else if (!stuck.length) t.event('humanoid-no-broken-pose', `${HUMANOID_CLIPS.filter((c) => set.clips[c]).length} clips at four moments each: no knee backwards, no arm stretched, nothing under the floor, every clip moves`);
+  // the loops close: the last frame runs into the first
+  const open = HUMANOID_CLIPS.filter((n) => set.clips[n] && set.clips[n].loop).filter((n) => { const c = A.compile(set.clips[n]); const a = A.sampleClip(c, 0.9999), b = A.sampleClip(c, 0); return [...b].some(([bone, v]) => { const w = a.get(bone); return v.q && w && w.q && 2 * Math.acos(Math.min(1, Math.abs(v.q[0] * w.q[0] + v.q[1] * w.q[1] + v.q[2] * w.q[2] + v.q[3] * w.q[3]))) * 180 / Math.PI > 2.5; }); });
+  if (open.length) t.problem('bug', `loops that do not close: ${open.join(', ')}`); else t.event('humanoid-loops-close', `${HUMANOID_CLIPS.filter((n) => set.clips[n] && set.clips[n].loop).length} looping clips close (the last frame runs into the first)`);
+  // the footsteps that will drive the sound
+  const steps = ['walk', 'run'].filter((n) => set.clips[n] && (set.clips[n].events || []).filter((e) => e.name === 'footstep').length >= 2);
+  if (steps.length === 2) t.event('humanoid-footsteps', `walk and run carry a footstep for each foot (walk at ${set.clips.walk.events.map((e) => e.foot + ' ' + e.t).join(', ')})`); else t.problem('bug', 'walk and run lack their two footstep events');
+  f.close();
+  // the same clips on the other models on the Mixamo skeleton (the robot now; the penguin and the cat once they are re-rigged, until then they keep their own clips)
+  for (const id of ['robot', 'penguin', 'cat']) {
+    const g = await openFrame(t, `/avatars?body=${id}&bg=studio&pose=walk&t=0.25`, `${id} humanoid set`);
+    await t.wait(500);
+    const inf = g.win.hawkesAvatars.anim();
+    if (!inf || inf.state !== 'ready') { t.event('humanoid-unfit', `${id}: not on the Mixamo skeleton yet (${inf ? inf.state : 'no set'}): it keeps its own clips`); g.close(); continue; }
+    let bad = 0;
+    for (const name of HUMANOID_CLIPS) for (const u of [0, 0.25, 0.5, 0.75]) {
+      g.win.hawkesAvatars.setPose(name, set.clips[name].seconds * u); await t.wait(40);
+      const p = g.win.hawkesAvatars.probe(HX);
+      if (!p || HX.some((b) => !p.pos[b] || p.pos[b].some((x) => !Number.isFinite(x)))) bad++;
+    }
+    for (const name of ['walk', 'wave', 'cheer']) { g.win.hawkesAvatars.setPose(name, set.clips[name].seconds * 0.25); await t.wait(300); t.scene(`Sheet: ${id} ${name} 2/4`); }
+    if (bad) t.problem('bug', `${id}: ${bad} moments of the humanoid clips did not draw`); else t.event('humanoid-same-clips', `${id}: all ${HUMANOID_CLIPS.length} clips at four moments each play on its Mixamo bones`);
     g.close();
   }
 }

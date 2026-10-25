@@ -23,6 +23,10 @@ export const PORT = Number(env('PORT') ?? 8800);
 export const genUrl = () => (env('HAWKESGEN_URL') ?? 'https://gen.hawkesgen.com').replace(/\/+$/, '');
 export const genKey = () => env('HAWKESGEN_KEY') ?? '';
 /** This site's own address (Stripe's return links). */
+/** Where Gen hands out public asset links (its CDN, settings.storage.cdn). A game page's CSP names exactly these hosts
+ *  (server.ts PLAY_HOSTS.assets) and bundles carry a CDN link only from one of them, so a link a game can't load never
+ *  goes out. PORTAL_CDN_HOSTS (comma separated origins) adds another, e.g. for a test CDN. */
+export const cdnHosts = () => [...new Set(['https://cdn.hawkesgen.com', ...(env('PORTAL_CDN_HOSTS') ?? '').split(',').map((h) => h.trim().replace(/\/+$/, '')).filter((h) => /^https:\/\/[a-z0-9.-]+(:\d+)?$/.test(h))])];
 export const publicUrl = () => (env('PUBLIC_URL') ?? 'https://hawkesgen.com').replace(/\/+$/, '');
 /**
  * Customers' projects in Gen are this prefix plus their id; the portal's Gen key is scoped to `${PROJECT_PREFIX}*`.

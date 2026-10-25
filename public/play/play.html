@@ -252,6 +252,13 @@
       .card { width: calc(100vw - 24px); }
     }
       .corner .here { font: 700 11px Rajdhani, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #9ff3c9; padding: 6px 10px; background: rgba(6,14,26,.7); }
+    #reportBox { position: fixed; inset: 0; z-index: 12; display: flex; align-items: center; justify-content: center; background: rgba(3, 6, 12, .72); }
+    #reportBox[hidden] { display: none; }
+    #reportBox .rb { width: min(360px, calc(100% - 32px)); background: rgba(10, 16, 28, .96); border: 1px solid var(--line); border-radius: 12px; padding: 18px; color: #fff; font: 14px/1.45 var(--sans); }
+    #reportBox h2 { margin: 0 0 4px; font-size: 18px; }
+    #reportBox p { margin: 0 0 12px; color: #aab6d3; }
+    #reportBox button { display: block; width: 100%; box-sizing: border-box; min-height: 44px; margin: 6px 0 0; font: 500 14px var(--sans); color: #fff; background: var(--glass); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; cursor: pointer; text-align: left; }
+    #reportBox button:hover, #reportBox button:focus-visible { border-color: var(--accent); outline: none; }
     .corner #buildBtn { background: linear-gradient(90deg, #4a9eff, #a855f7); color: #fff; }
 </style>
 </head>
@@ -323,12 +330,14 @@
     })();
   </script>
   <div id="error" hidden></div>
+  <div id="reportBox" role="dialog" aria-modal="true" aria-labelledby="rbTitle" hidden><div class="rb"><h2 id="rbTitle"></h2><p id="rbText"></p><div id="rbItems"></div></div></div>
   <div class="corner" id="corner" hidden>
     <span class="here" id="hereCount" hidden></span>
     <button type="button" id="returnBtn" hidden>↩ Return to the Observatory</button>
     <button type="button" id="buildBtn" hidden>Help build</button>
     <button type="button" id="friendsBtn">Play with friends</button>
     <a id="remixBtn" target="_top">Remix</a>
+    <button type="button" id="reportBtn" hidden title="Tell us this world is broken, scary, rude or a scam">Report</button>
     <a id="badge" href="https://hawkesgen.com/" target="_top">Made with Hawkes Gen</a>
   </div>
   <!-- The engine: its manifest and loader (src/engine.ts). HawkesModules.load() brings Babylon, Havok, the core and
@@ -464,6 +473,75 @@
           if (look && ++tries < 40) setTimeout(apply, 500);
         };
         window.__obsFadeUp = function () { fadeUp(); apply(); };
+      })();
+      // Reporting a world (src/games.ts reportGame): the page's own pause menu (Esc twice) and a corner button, for any
+      // published game. This page is ours, not the game's, so a game's scripts cannot take the way out away. The report is
+      // a text/plain POST (a simple request: this page is sandboxed, with no origin).
+      if (!tpl && slug !== 'sandbox' && window.parent === window) (function () {
+        var box = document.getElementById('reportBox');
+        var title = document.getElementById('rbTitle');
+        var text = document.getElementById('rbText');
+        var items = document.getElementById('rbItems');
+        var rbtn = document.getElementById('reportBtn');
+        var open = false;
+        var last = 0;
+        var show = function (t, p, buttons) {
+          open = true;
+          box.hidden = false;
+          title.textContent = t;
+          text.textContent = p;
+          items.textContent = '';
+          buttons.forEach(function (b) {
+            var el = document.createElement('button');
+            el.type = 'button';
+            el.textContent = b.label;
+            el.onclick = b.go;
+            if (b.id) el.setAttribute('data-report', b.id);
+            items.appendChild(el);
+          });
+          if (document.pointerLockElement) document.exitPointerLock();
+          items.firstChild && items.firstChild.focus();
+        };
+        var close = function () { open = false; box.hidden = true; };
+        var send = function (reason) {
+          show('Sending…', '', []);
+          fetch('/v1/play/' + encodeURIComponent(slug) + '/report', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ reason: reason }) })
+            .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'Could not send that'); }); })
+            .then(function () { window.HawkesReported = { slug: slug, reason: reason }; show('Thank you', 'We will look at this world.', [{ label: 'Back to the game', go: close, id: 'done' }]); })
+            .catch(function (e) { show('That did not go', e.message, [{ label: 'Back to the game', go: close }]); });
+        };
+        var reasons = function () {
+          show('Report this world', 'What is wrong with it?', [
+            { label: 'Broken', id: 'broken', go: function () { send('broken'); } },
+            { label: 'Scary or rude', id: 'scary', go: function () { send('scary'); } },
+            { label: 'Scam', id: 'scam', go: function () { send('scam'); } },
+            { label: 'Other', id: 'other', go: function () { send('other'); } },
+            { label: 'Cancel', go: close }
+          ]);
+        };
+        var pause = function () {
+          show('Paused', '', [{ label: 'Resume', go: close, id: 'resume' }, { label: 'Report this world', go: reasons, id: 'report' }]);
+        };
+        rbtn.hidden = false;
+        rbtn.onclick = reasons;
+        window.HawkesReport = { open: pause, reasons: reasons };
+        // Studio's playtest (public/playtest/world-report.js) plays this page from a frame of the site, and a sandboxed page
+        // cannot be reached any other way. Only a browser under automation answers, only to its parent, and only for this dialog:
+        // 'esc' (the Escape key, as the keydown the page listens for), 'click' (a button of the dialog or the corner), 'state'.
+        if (navigator.webdriver && window.parent !== window) window.addEventListener('message', function (e) {
+          var m = e.data;
+          if (e.source !== window.parent || !m || m.hawkesPlaytest !== 'report') return;
+          if (m.do === 'esc') document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+          if (m.do === 'click') { var b = m.id === 'corner' ? rbtn : items.querySelector('[data-report="' + String(m.id).replace(/[^a-z]/g, '') + '"]'); if (b) b.click(); }
+          var scripts = Array.prototype.map.call(document.scripts, function (x) { return x.src; }).filter(Boolean);
+          window.parent.postMessage({ hawkesPlaytest: 'report-state', open: open, title: title.textContent, text: text.textContent, buttons: Array.prototype.map.call(items.children, function (x) { return x.textContent; }), cornerShown: !rbtn.hidden, reported: window.HawkesReported || null, scripts: scripts.length }, '*');
+        });
+        document.addEventListener('keydown', function (e) {
+          if (e.key !== 'Escape') { if (open) e.stopPropagation(); return; }
+          if (open) { close(); e.stopPropagation(); return; }
+          var now = Date.now();
+          if (now - last < 700) { last = 0; pause(); } else last = now;
+        }, true);
       })();
       // The game and the engine at once; the engine brings only the modules this game uses (the rest come after).
       var bundle = fetch(tpl ? '/v1/play-template/' + encodeURIComponent(tpl) : '/v1/play/' + encodeURIComponent(slug) + v).then(function (r) {

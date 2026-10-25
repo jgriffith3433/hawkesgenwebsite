@@ -3,6 +3,7 @@
 // Either way the file lands in Gen as the customer's asset and is used as "asset:a_...".
 import dns from 'node:dns/promises';
 import net from 'node:net';
+import https from 'node:https';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { db } from './db.ts';
 import { publicUrl } from './config.ts';
@@ -85,8 +86,52 @@ export function publicAddress(ip: string) {
   return !(v === '::1' || v === '::' || v.startsWith('fc') || v.startsWith('fd') || v.startsWith('fe80'));
 }
 
-/** Fetches a public https file into the customer's library. Private and local addresses are refused. */
-export async function fetchIntoLibrary(user: User, url: string) {
+type Resolved = { address: string; family: number };
+
+/** The addresses of a name, all of which must be public (one private answer refuses the lot). */
+export async function resolvePublic(hostname: string, lookup: (host: string) => Promise<Resolved[]> = (h) => dns.lookup(h, { all: true })): Promise<Resolved[]> {
+  const host = hostname.replace(/^\[|\]$/g, '');
+  const addrs = net.isIP(host) ? [{ address: host, family: net.isIPv6(host) ? 6 : 4 }] : await lookup(host).catch(() => []);
+  if (!addrs.length || addrs.some((a) => !publicAddress(a.address))) throw new PortalError("That address can't be fetched");
+  return addrs;
+}
+
+/** A `lookup` for node:https that answers only with the address we already vetted, whatever the name now resolves to. */
+export function pinnedLookup(addr: Resolved) {
+  return (_host: string, opts: any, cb: (err: Error | null, address?: any, family?: number) => void) => {
+    if (opts && opts.all) cb(null, [{ address: addr.address, family: addr.family }]);
+    else cb(null, addr.address, addr.family);
+  };
+}
+
+/** GETs an https URL, connecting to the vetted address only (the name is still sent for TLS and the Host header). A
+ *  redirect is refused. The body is read up to UPLOAD_LIMIT. */
+export function fetchPinned(u: URL, addr: Resolved, timeoutMs = 60_000) {
+  return new Promise<{ status: number; type: string; body: Uint8Array }>((resolve, reject) => {
+    const req = https.request(u, { method: 'GET', lookup: pinnedLookup(addr) as any, timeout: timeoutMs, headers: { 'User-Agent': 'hawkesgen-portal', Accept: '*/*' } }, (r) => {
+      const status = r.statusCode ?? 0;
+      if (status >= 300 && status < 400) { r.resume(); return reject(new Error('it redirects, which is not followed')); }
+      if (status < 200 || status >= 300) { r.resume(); return resolve({ status, type: '', body: new Uint8Array() }); }
+      if (Number(r.headers['content-length'] ?? 0) > UPLOAD_LIMIT) { r.resume(); return reject(new PortalError('Files up to 64 MB', { status: 413 })); }
+      const chunks: Buffer[] = [];
+      let size = 0;
+      r.on('data', (c: Buffer) => {
+        size += c.length;
+        if (size > UPLOAD_LIMIT) { req.destroy(new PortalError('Files up to 64 MB', { status: 413 })); return; }
+        chunks.push(c);
+      });
+      r.on('end', () => resolve({ status, type: String(r.headers['content-type'] ?? 'application/octet-stream'), body: new Uint8Array(Buffer.concat(chunks)) }));
+      r.on('error', reject);
+    });
+    req.on('timeout', () => req.destroy(new Error('timed out')));
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+/** Fetches a public https file into the customer's library. Private and local addresses are refused, and the connection
+ *  goes to the address that was checked, so a name that changes between the check and the fetch reaches nothing private. */
+export async function fetchIntoLibrary(user: User, url: string, resolver?: (host: string) => Promise<Resolved[]>) {
   let u: URL;
   try {
     u = new URL(url);
@@ -94,13 +139,10 @@ export async function fetchIntoLibrary(user: User, url: string) {
     throw new PortalError('Not a valid URL');
   }
   if (u.protocol !== 'https:') throw new PortalError('Only https:// links can be fetched');
-  const addrs = await dns.lookup(u.hostname, { all: true }).catch(() => []);
-  if (!addrs.length || addrs.some((a) => !publicAddress(a.address))) throw new PortalError("That address can't be fetched");
-  const r = await fetch(u, { redirect: 'error', signal: AbortSignal.timeout(60_000) }).catch((e) => { throw new PortalError(`Could not fetch it: ${e.message}`); });
-  if (!r.ok) throw new PortalError(`Could not fetch it (${r.status})`);
-  if (Number(r.headers.get('content-length') ?? 0) > UPLOAD_LIMIT) throw new PortalError('Files up to 64 MB', { status: 413 });
-  const buf = new Uint8Array(await r.arrayBuffer());
-  const type = r.headers.get('content-type') ?? 'application/octet-stream';
+  const [addr] = await resolvePublic(u.hostname, resolver);
+  const r = await fetchPinned(u, addr).catch((e) => { if (e instanceof PortalError) throw e; throw new PortalError(`Could not fetch it: ${e.message}`); });
+  if (r.status < 200 || r.status >= 300) throw new PortalError(`Could not fetch it (${r.status})`);
+  const type = r.type;
   const name = decodeURIComponent(u.pathname.split('/').pop() || 'file') || `file${extFor(type)}`;
-  return putFile(user, buf, name.includes('.') ? name : `${name}${extFor(type)}`, type);
+  return putFile(user, r.body, name.includes('.') ? name : `${name}${extFor(type)}`, type);
 }

@@ -11,6 +11,8 @@ import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { accept, type Socket } from './ws.ts';
 import { verify } from './sign.ts';
+import { env } from './config.ts';
+import { Limiter, clientIp, envInt } from './util.ts';
 import { getUser } from './users.ts';
 import { gameBySlug, getGame } from './games.ts';
 import { templateBundle } from './templates.ts';
@@ -30,6 +32,26 @@ export function roomState(key: string) {
 }
 let seq = 0;
 
+// Caps, so a crowd (or one address) can't use up the process. All from the environment, read at each connection.
+//   PORTAL_WS_MAX 3000 sockets in all, PORTAL_WS_PER_IP 12 at once from one address, PORTAL_ROOMS_MAX 1000 rooms,
+//   PORTAL_WS_PER_MIN 30 new connections a minute from one address. A refusal is a real status (429 for the address,
+//   503 for the server) with a plain sentence; a room already running is never touched by them.
+export const wsCaps = () => ({
+  total: envInt(env, 'PORTAL_WS_MAX', 3000),
+  perIp: envInt(env, 'PORTAL_WS_PER_IP', 12),
+  rooms: envInt(env, 'PORTAL_ROOMS_MAX', 1000),
+  perMinute: envInt(env, 'PORTAL_WS_PER_MIN', 30),
+});
+let sockets = 0;
+const socketsByIp = new Map<string, number>();
+const newByIp = new Map<number, Limiter>(); // (one limiter per cap value, so a changed env takes effect)
+function perMinute(max: number) {
+  let l = newByIp.get(max);
+  if (!l) newByIp.set(max, (l = new Limiter(max, 60_000)));
+  return l;
+}
+export const socketStats = () => ({ sockets, addresses: socketsByIp.size });
+
 // One timer sends every room's bundles (relay.ts flush: interest, priority, the byte budget).
 let timer: ReturnType<typeof setInterval> | null = null;
 function tick() {
@@ -46,7 +68,12 @@ export function editToken(sign: (p: Record<string, unknown>, ttl: number) => str
 /** An upgrade request for /v1/ws: joins a room or answers why not. `v=2` on the URL: the bundled protocol (relay.ts). */
 export function upgrade(req: IncomingMessage, raw: Duplex) {
   const url = new URL(req.url ?? '/', 'http://x');
-  const deny = (why: string) => raw.end(`HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n${why}`);
+  const deny = (why: string, status = 403, reason = 'Forbidden') => raw.end(`HTTP/1.1 ${status} ${reason}\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n${why}`);
+  const ip = clientIp(req);
+  const caps = wsCaps();
+  if (!perMinute(caps.perMinute).hit(ip)) return deny('Too many connections from this address; wait a minute', 429, 'Too Many Requests');
+  if ((socketsByIp.get(ip) ?? 0) >= caps.perIp) return deny('Too many games open from this address', 429, 'Too Many Requests');
+  if (sockets >= caps.total) return deny('The game servers are full; try again in a moment', 503, 'Service Unavailable');
   let key: string, gameId: string, edit = false, user: string | null = null, name: string;
   const t = url.searchParams.get('t');
   if (t) {
@@ -67,19 +94,22 @@ export function upgrade(req: IncomingMessage, raw: Duplex) {
       key = `play:t/${t[1]}:${code}`; gameId = `t:${t[1]}`;
     } else {
       const g = gameBySlug(slug);
-      if (!g) return deny('No such game');
+      if (!g || g.hidden) return deny('No such game');
       key = `play:${g.slug}:${code}`; gameId = g.id;
     }
     name = String(url.searchParams.get('name') ?? '').replace(/[^\p{L}\p{N} _.-]/gu, '').trim().slice(0, 24) || '';
   }
   // A friend answering an invitation (join=1) joins the island that is there; it never makes an empty one.
   if (!edit && url.searchParams.get('join') === '1' && !roomState(key).open) return deny('This island is closed');
+  if (!rooms.has(key) && rooms.size >= caps.rooms) return deny('The game servers are full; try again in a moment', 503, 'Service Unavailable');
   const room = rooms.get(key) ?? relay.newRoom(key, gameId, edit);
   if (room.conns.size >= ROOM_LIMITS.people) return deny('This room is full');
   // (Nothing heard for 20 s: the player is gone, and a host that went quiet hands the world on.)
   const s = accept(req, raw, { maxMessage: ROOM_LIMITS.message, idleMs: 20_000 });
   if (!s) return;
   rooms.set(key, room);
+  sockets++;
+  socketsByIp.set(ip, (socketsByIp.get(ip) ?? 0) + 1);
   if (!timer) { timer = setInterval(tick, ROOM_LIMITS.flushMs); timer.unref?.(); }
   const id = `c${(++seq).toString(36)}`;
   const used = new Set([...room.conns.values()].map((c) => c.color));
@@ -90,7 +120,12 @@ export function upgrade(req: IncomingMessage, raw: Duplex) {
   c.s = s;
   relay.join(room, c, Date.now());
   s.onMessage = (text) => relay.receive(room, c, text, Date.now());
-  s.onClose = () => { if (relay.leave(room, c) && !room.conns.size) rooms.delete(room.key); };
+  s.onClose = () => {
+    sockets--;
+    const left = (socketsByIp.get(ip) ?? 1) - 1;
+    if (left > 0) socketsByIp.set(ip, left); else socketsByIp.delete(ip);
+    if (relay.leave(room, c) && !room.conns.size) rooms.delete(room.key);
+  };
 }
 
 /** Saved world changes: everyone in the game's rooms applies them (except the connection that made them). */
@@ -109,6 +144,11 @@ export function roomEvent(gameId: string, name: string, data: unknown) {
 export function kickFromRooms(gameId: string, userId: string) {
   const room = rooms.get(`edit:${gameId}`);
   if (room) for (const c of room.conns.values()) if (c.user === userId) (c as Conn).s.close(4003, 'removed');
+}
+
+/** An admin closed a game: everyone playing it together is let go. */
+export function closePlayRooms(slug: string) {
+  for (const [key, room] of rooms) if (key.startsWith(`play:${slug}:`)) for (const c of room.conns.values()) (c as Conn).s.close(4003, 'closed');
 }
 
 export const roomStats = () => ({ rooms: rooms.size, people: [...rooms.values()].reduce((n, r) => n + r.conns.size, 0) });

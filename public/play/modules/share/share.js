@@ -582,7 +582,7 @@
       const btn = e.currentTarget;
       // Open the window first, while the click still counts (pop-up blockers), then cut and send.
       const win = openShareWindow();
-      if (!win) { note.textContent = 'Allow pop-ups for this game to save or share.'; return; }
+      if (!win) { note.textContent = `${S.shareProblem()}.`; return; }
       btn.disabled = true;
       try { S.share(await final(), win); } catch (err) { note.textContent = `Could not save it: ${err.message}`; try { win.close(); } catch {} } finally { btn.disabled = false; }
     };
@@ -662,18 +662,45 @@
     return { game: null, title: b.title || '' };
   }
   S.gameRef = gameRef;
+  // A sandboxed game has no cookies and a window it opens is sandboxed too, so it cannot open the share window itself:
+  // it asks the page around it (the editor, editor.js 'share-open'), which opens /share/new and carries the media across.
+  const framed = (() => { try { return window.parent !== window; } catch { return false; } })();
+  const relays = new Map(); // id -> { handle, opened(ok) }
+  window.addEventListener('message', (e) => {
+    if (!framed || e.source !== window.parent) return;
+    const m = e.data || {};
+    const r = m && relays.get(m.id);
+    if (!r) return;
+    if (m.type === 'share-opened') { r.opened(Boolean(m.ok)); if (!m.ok) r.handle.closed = true; }
+    if (m.type === 'share-done' && m.url) S.toast('Share link made');
+  });
+  /** Opens the share window now (call it in the tap). Returns a handle, or null where a window cannot be had. */
   function openShareWindow() {
+    if (sandboxed) {
+      if (!framed) return null;
+      const id = `sh${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+      const handle = { relay: true, id, closed: false, opened: null };
+      handle.opened = new Promise((ok) => { relays.set(id, { handle, opened: ok }); setTimeout(() => ok(false), 4000); });
+      try { window.parent.postMessage({ source: 'hawkes-play', type: 'share-open', id }, '*'); } catch { return null; }
+      return handle;
+    }
     try { return window.open('/share/new', `hg-share-${Date.now()}`, 'popup,width=640,height=820'); } catch { return null; }
   }
   S.openShareWindow = openShareWindow;
+  S.shareProblem = () => (sandboxed && !framed ? 'Sharing works from the editor, where you are signed in' : 'Allow pop-ups for this game to save or share');
   /** Sends a photo or clip to the share window (opened now unless given): download there, or upload for a link. */
   S.share = async (item, win) => {
     const w = win || openShareWindow();
-    if (!w) { S.toast('Allow pop-ups for this game to save or share'); return false; }
+    if (!w) { S.toast(S.shareProblem()); return false; }
+    if (w.relay && !(await w.opened)) { S.toast(S.shareProblem()); return false; }
     let poster = item.poster || null;
     if (!poster && item.kind === 'clip') poster = await posterOf(item.blob, item.from || 0).catch(() => null);
     const ref = gameRef();
     const payload = { source: 'hawkes-share', type: 'media', kind: item.kind, blob: item.blob, mime: item.mime, poster, seconds: item.seconds || null, width: item.width || null, height: item.height || null, title: item.title || ref.title || '', moment: item.moment || null, game: ref.game, gameTitle: ref.title, filename: fileName(item) };
+    if (w.relay) {
+      try { window.parent.postMessage({ source: 'hawkes-play', type: 'share-media', id: w.id, payload }, '*'); } catch (err) { S.toast(`Could not send it: ${err.message}`); return false; }
+      return true;
+    }
     const started = Date.now();
     const onMsg = (e) => {
       if (e.source !== w) return;

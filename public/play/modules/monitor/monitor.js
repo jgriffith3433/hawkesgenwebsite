@@ -8,7 +8,7 @@
   const H = window.HawkesPlay;
   if (!H) return;
   const B = window.BABYLON;
-  const INSPECTOR = 'https://cdn.jsdelivr.net/npm/babylonjs-inspector@7.54.3/babylon.inspector.bundle.js';
+  const INSPECTOR = '/vendor/babylonjs-inspector@7.54.3/babylon.inspector.bundle.js';
   const W = () => H.world;
   let el = null, sceneI = null, engineI = null, timer = 0, stepStart = 0, stepMs = 0, stepAvg = 0;
   const fpsHistory = [];
@@ -210,6 +210,12 @@
     if (!scene) return;
     if (!B.Inspector && !document.querySelector(`script[src="${INSPECTOR}"]`)) {
       await new Promise((ok, fail) => { const s = document.createElement('script'); s.src = INSPECTOR; s.onload = ok; s.onerror = fail; document.head.appendChild(s); }).catch(() => {});
+    }
+    // (A game page's policy lists the CDN the Inspector comes from, server.ts PLAY_HOSTS; without it, say so.)
+    if (!B.Inspector) {
+      const b = el && el.querySelector('[data-a="inspector"]');
+      if (b) { b.textContent = 'Inspector off'; b.title = 'The Inspector did not load here (blocked or offline)'; b.disabled = true; }
+      return;
     }
     // The Inspector docks on the right: the monitor moves over to the left while it's open.
     if (scene.debugLayer.isVisible()) scene.debugLayer.hide();

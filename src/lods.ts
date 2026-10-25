@@ -8,9 +8,14 @@
 //                            or still being made, is asked for in the background, many in one request, for next time
 //   refreshLods(ids)         that request: GET /v1/lods?ids=... (Gen queues any asset made before it had LODs)
 //   levelUrls(summary, url)  the summary as the engine takes it: each level at `${url}?lod=<level>&v=<its hash>` (a
-//                            link that always means the same file: cached for good)
+//                            link that always means the same file: cached for good), or at Gen's CDN link when the level
+//                            is backed up (`cdn`, public assets only: see publicUrls)
+//   cdnOf(ids)               Gen's public CDN link of each asset known to be backed up (rememberLods keeps it with the
+//                            summary, `gen_lods.cdn`, so a bundle never asks Gen per asset)
+//   publicAssetUrl(id, proxy)     the CDN link when there is one, else the proxy link (a draft never uses this: its links are signed)
 import { db } from './db.ts';
 import { gen } from './gen.ts';
+import { cdnHosts } from './config.ts';
 
 db.exec(`
 -- (Before Gen had its LOD system, beta's portal made images' copies itself: those tables are gone.)
@@ -23,20 +28,48 @@ CREATE TABLE IF NOT EXISTS gen_lods (
   fetched INTEGER NOT NULL
 );
 `);
+// Gen's public CDN link of the original (set when the file is in its S3 bucket and the CDN is on). Files are named by their hash, so a link never changes meaning.
+if (!(db.prepare('PRAGMA table_info(gen_lods)').all() as { name: string }[]).some((c) => c.name === 'cdn')) db.exec('ALTER TABLE gen_lods ADD COLUMN cdn TEXT');
 
-export type GenLevel = { level: number; bytes: number; w?: number; h?: number; tris?: number; tex?: number; role?: string; sha: string };
-export type GenLods = { kind: 'image' | 'mesh'; state: string; size?: [number, number]; tris?: number; tex?: number; bytes: number; sha: string; levels: GenLevel[] };
+export type GenLevel = { level: number; bytes: number; w?: number; h?: number; tris?: number; tex?: number; role?: string; sha: string; inS3?: boolean; cdn?: string };
+export type GenLods = { kind: 'image' | 'mesh'; state: string; size?: [number, number]; tris?: number; tex?: number; bytes: number; sha: string; inS3?: boolean; cdn?: string; levels: GenLevel[] };
 
 /** How long an answer is good for: levels still being made are asked again soon; made ones rarely (a new LOD version). */
-const FRESH = { made: 24 * 3600_000, making: 60_000, none: 10 * 60_000 };
+const FRESH = { made: 24 * 3600_000, making: 60_000, none: 10 * 60_000, notBackedUp: 15 * 60_000 };
+/** Only links on a CDN host the play page's CSP names (config.ts cdnHosts) are kept: they go into public bundles. */
+const CDN_URL = /^(https:\/\/[a-z0-9.-]+(?::\d+)?)\/sha256\/[0-9a-f]+$/;
+const goodCdn = (x: unknown): string | null => { const m = typeof x === 'string' ? CDN_URL.exec(x) : null; return m && cdnHosts().includes(m[1]) ? x as string : null; };
 
 /** Keeps what Gen said. `asked`: the answer to GET /v1/lods, which also queues anything Gen hasn't made levels for; an
- *  asset answer without levels (made before the LOD system) is asked about there at its next use. */
-export function rememberLods(asset: string, lods: GenLods | null | undefined, o: { asked?: boolean } = {}) {
-  if (!/^a_[0-9a-f]+$/.test(asset) || lods === undefined) return;
-  db.prepare('INSERT INTO gen_lods (asset, lods, state, fetched) VALUES (?, ?, ?, ?) ON CONFLICT(asset) DO UPDATE SET lods = excluded.lods, state = excluded.state, fetched = excluded.fetched')
-    .run(asset, lods ? JSON.stringify(lods) : null, lods?.state ?? null, lods || o.asked ? Date.now() : 0);
+ *  asset answer without levels (made before the LOD system) is asked about there at its next use. `cdn`: the asset answer's
+ *  own CDN link (sounds, videos and other files have no summary but are backed up too); the summary's takes its place. */
+export function rememberLods(asset: string, lods: GenLods | null | undefined, o: { asked?: boolean; cdn?: unknown } = {}) {
+  if (!/^a_[0-9a-f]+$/.test(asset)) return;
+  const cdn = goodCdn(lods?.cdn) ?? goodCdn(o.cdn);
+  if (lods === undefined) {
+    if (cdn) db.prepare('INSERT INTO gen_lods (asset, lods, state, fetched, cdn) VALUES (?, NULL, NULL, 0, ?) ON CONFLICT(asset) DO UPDATE SET cdn = excluded.cdn').run(asset, cdn);
+    return;
+  }
+  db.prepare('INSERT INTO gen_lods (asset, lods, state, fetched, cdn) VALUES (?, ?, ?, ?, ?) ON CONFLICT(asset) DO UPDATE SET lods = excluded.lods, state = excluded.state, fetched = excluded.fetched, cdn = COALESCE(excluded.cdn, gen_lods.cdn)')
+    .run(asset, lods ? JSON.stringify(lods) : null, lods?.state ?? null, lods || o.asked ? Date.now() : 0, cdn);
 }
+
+/** An asset as Gen answered it (GET /v1/assets/:id, a list row): its summary and its CDN link. */
+export const rememberAsset = (a: { id?: string; lods?: GenLods | null; cdn?: unknown } | null | undefined) => { if (a?.id) rememberLods(a.id, a.lods ?? null, { cdn: a.cdn }); };
+
+/** The CDN links known for these assets (only those Gen has backed up and given a link for). Images and models whose
+ *  link isn't known are re-asked about now and then (lodsOf), so a link appears once the file is backed up. */
+export function cdnOf(ids: (string | null | undefined)[]): Record<string, string> {
+  const list = [...new Set(ids.filter((x): x is string => typeof x === 'string' && /^a_[0-9a-f]+$/.test(x)))];
+  const out: Record<string, string> = {};
+  for (let i = 0; i < list.length; i += 400) {
+    const chunk = list.slice(i, i + 400);
+    for (const r of db.prepare(`SELECT asset, cdn FROM gen_lods WHERE cdn IS NOT NULL AND asset IN (${chunk.map(() => '?').join(',')})`).all(...chunk) as { asset: string; cdn: string }[]) out[r.asset] = r.cdn;
+  }
+  return out;
+}
+/** A public link to the asset: Gen's CDN when it has one, else the portal's own (`proxy`). */
+export const publicAssetUrl = (id: string | null | undefined, proxy: string) => (id ? cdnOf([id])[id] : undefined) ?? proxy;
 
 const wanted = new Set<string>();
 let timer: NodeJS.Timeout | null = null;
@@ -47,13 +80,15 @@ export function lodsOf(ids: (string | null | undefined)[]): Record<string, GenLo
   const now = Date.now();
   for (let i = 0; i < list.length; i += 400) {
     const chunk = list.slice(i, i + 400);
-    const rows = db.prepare(`SELECT asset, lods, state, fetched FROM gen_lods WHERE asset IN (${chunk.map(() => '?').join(',')})`).all(...chunk) as { asset: string; lods: string | null; state: string | null; fetched: number }[];
+    const rows = db.prepare(`SELECT asset, lods, state, fetched, cdn FROM gen_lods WHERE asset IN (${chunk.map(() => '?').join(',')})`).all(...chunk) as { asset: string; lods: string | null; state: string | null; fetched: number; cdn: string | null }[];
     const seen = new Set<string>();
     for (const r of rows) {
       seen.add(r.asset);
       if (r.lods) { const s = JSON.parse(r.lods) as GenLods; if (s.levels?.length) out[r.asset] = s; }
       const age = now - r.fetched;
-      if (age > (r.state === 'done' || r.state === 'skipped' ? FRESH.made : r.state ? FRESH.making : FRESH.none)) wanted.add(r.asset);
+      // (Made but not on the CDN yet: asked again sooner, since backing up comes after.)
+      const made = r.state === 'done' || r.state === 'skipped';
+      if (age > (made ? (r.cdn || !r.lods ? FRESH.made : FRESH.notBackedUp) : r.state ? FRESH.making : FRESH.none)) wanted.add(r.asset);
     }
     for (const id of chunk) if (!seen.has(id)) wanted.add(id);
   }
@@ -83,11 +118,13 @@ export async function refreshLods(ids: string[]) {
 
 export type EngineLevel = { level: number; url: string; bytes: number; w?: number; h?: number; tris?: number; tex?: number; role?: string };
 export type EngineLods = { kind: 'image' | 'mesh'; size?: [number, number]; tris?: number; tex?: number; bytes: number; levels: EngineLevel[] };
-/** A summary as the engine (public/play/textures.js, kinds.js) and the library pages take it: each level with its link. */
-export function levelUrls(s: GenLods, url: string): EngineLods {
+/** A summary as the engine (public/play/textures.js, kinds.js) and the library pages take it: each level with its link.
+ *  `url` is the asset's portal link, which each level extends (`?lod=<level>&v=<hash>`); with `cdn` (public assets only), a
+ *  level that Gen has backed up is at its own CDN link instead, and one that isn't stays on the portal's. */
+export function levelUrls(s: GenLods, url: string, o: { cdn?: boolean } = {}): EngineLods {
   const join = url.includes('?') ? '&' : '?';
   return {
     kind: s.kind, ...(s.size ? { size: s.size } : {}), ...(s.tris ? { tris: s.tris, tex: s.tex ?? 0 } : {}), bytes: s.bytes,
-    levels: s.levels.map(({ sha, ...l }) => ({ ...l, url: `${url}${join}lod=${l.level}&v=${sha}` })),
+    levels: s.levels.map(({ sha, cdn, inS3, ...l }) => ({ ...l, url: (o.cdn && goodCdn(cdn)) || `${url}${join}lod=${l.level}&v=${sha}` })),
   };
 }

@@ -165,6 +165,7 @@ function renderGames(r) {
         <div class="body">
           <a href="/app/g/${g.id}" class="title" style="text-decoration:none;color:#fff">${esc(g.title)}</a>
           <div class="meta"><span>${g.playing || g.building ? `● ${g.playing} playing${g.building ? ` · ${g.building} building` : ''}` : 'live'}</span><span>${esc(g.role)}</span><span>${g.members.length} ${g.members.length === 1 ? 'person' : 'people'}</span><span>${ago(g.updated)}</span></div>
+          ${g.closed ? `<div class="notice-closed" role="status" style="margin:6px 0;padding:6px 8px;border-radius:6px;background:rgba(255,120,90,.12);color:var(--bad);font-size:12px;line-height:1.4"><b>Closed to players.</b> ${esc(g.closed.reason)}${g.role === 'owner' ? ' Change what was wrong and ask us to open it again.' : ''}</div>` : ''}
           <div class="actions">
             <a class="btn btn-ghost btn-sm" href="/app/g/${g.id}">Open</a>
             <button class="btn btn-ghost btn-sm" data-share="${g.id}" title="Get invite link">Share</button>
