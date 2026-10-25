@@ -45,7 +45,8 @@ export const SANDBOX_ASSETS: Record<string, string> = {
   // The helicopter coming back after a wreck (sandbox.js). (The mirror's remarks and the ship's "Welcome aboard" come
   // from the Overseer's own lines, overseer.js VOICES, in every game.)
   'overseer-a-new-one.mp3': 'a_2e4236a4f60b4f15',
-  // Sound: the island (ambience), gentle music, and a sound for each moment.
+  // Sound: the island (ambience), gentle music, and a sound for each moment. The music and the two loops (2.5 MB) are not
+  // fetched until the intro starts (sandbox.js; test/sandbox-audio.test.ts): only the intro voice before that.
   'ocean-waves.mp3': 'a_d998f214d5f7be98', 'forest.mp3': 'a_f69c9b828dba9342', 'meadow.mp3': 'a_58c72e4ca54f1b54', 'ocean-drift.mp3': 'a_dce85c4cf4bb730b',
   'level-up.mp3': 'a_39a9c6daee1e4450', 'power-up.mp3': 'a_67e1ecc6f6db5125', 'confirm.mp3': 'a_d9173a67938251db', 'teleport.mp3': 'a_da988c2a3ef17441',
   'explosion.mp3': 'a_36c3b4b30fbf86a5', 'splash.mp3': 'a_5717103de477ec99', 'wood-break.mp3': 'a_dc0dfae4b6bc1da9', 'bird-chirp.mp3': 'a_671a42a3b6f17705', 'victory.mp3': 'a_59258c64f6975010',
