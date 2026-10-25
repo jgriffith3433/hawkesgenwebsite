@@ -21,10 +21,11 @@ const D = Math.PI / 180;
 const qx = (deg: number) => [Math.sin(deg * D / 2), 0, 0, Math.cos(deg * D / 2)];
 
 // ---- a GLB: Armature (turned like Blender's export) > Hips > Spine > Head, and a leg chain; two animations at 30 fps
-function makeGlb(file: string, legTilt = false) {
+function makeGlb(file: string, legTilt = false, lying = false) {
   const names = ['Armature', 'mixamorig:Hips', 'mixamorig:Spine', 'mixamorig:Head', 'mixamorig:LeftUpLeg', 'mixamorig:LeftLeg', 'mixamorig:RightUpLeg', 'mixamorig:RightLeg', 'Cube'];
   const nodes: any[] = names.map((name) => ({ name }));
   nodes[0].children = [1]; nodes[0].scale = [1, 1, 1];
+  if (lying) nodes[0].rotation = qx(-90); // as Gen's mesh.rig writes a character: lying on its back
   nodes[1].translation = [0, 1, 0]; nodes[1].children = [2, 4, 6];
   nodes[2].translation = [0, 0.3, 0]; nodes[2].children = [3]; nodes[3].translation = [0, 0.5, 0];
   nodes[4].translation = [0.1, -0.05, 0]; nodes[4].children = [5]; nodes[5].translation = legTilt ? [0.15, -0.42, 0] : [0, -0.45, 0]; // (a rest with the leg 20 degrees out, as an A-pose rig has it)
@@ -147,6 +148,13 @@ test('a GLB whose rest is not the T-pose: limbs are written as T-pose deltas, so
   assert.ok(Math.abs(ang(fixed[0]) - tilt) < 0.3, `the T-pose delta at rest is the tilt, ${ang(fixed[0]).toFixed(1)} of ${tilt.toFixed(1)} degrees`);
   const straight = importFile(path.join(tmp, 'person-clips.glb'), { only: ['Walk_Loop'] }).walk.tracks.LeftUpLeg.q;
   assert.ok(ang(straight[0]) < 0.1, 'a model already in the T-pose is not changed');
+});
+
+test('a GLB that lies on its back (mesh.rig\'s own output) is stood up first: the same clips as the upright one', () => {
+  const up = path.join(tmp, 'person-clips.glb'), lie = path.join(tmp, 'lying.glb'); makeGlb(lie, false, true);
+  const a = importFile(up, { only: ['Walk_Loop'] }).walk, b = importFile(lie, { only: ['Walk_Loop'] }).walk;
+  assert.deepEqual(b.tracks.LeftUpLeg.q.map((k: number[]) => k.map((v) => Math.round(v * 100) / 100)), a.tracks.LeftUpLeg.q.map((k: number[]) => k.map((v) => Math.round(v * 100) / 100)), 'a thigh swings the same about the model\'s x');
+  assert.ok(Math.abs(b.tracks.Hips.pos[1][2] - a.tracks.Hips.pos[1][2]) < 0.005, 'the Hips bob the same, in heights of the stood-up model');
 });
 
 test('a GLB: travel is kept on request', () => {

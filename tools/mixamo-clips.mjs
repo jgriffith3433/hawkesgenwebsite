@@ -93,6 +93,26 @@ function worlds(nodes) {
   nodes.forEach((_, i) => go(i));
 }
 
+/**
+ * Gen's mesh.rig writes the character lying on its back (the skeleton along -z, the front +y; tools/mixamo-upright.mjs stands the game's
+ * models up with +90 degrees about x on the root, and that is what a model in the game has). Clips are deltas in the model's axes, so a
+ * lying file is stood up the same way before its rest is read: when the Hips-to-Head line is not mostly +y, the skeleton's root turns +90 about x.
+ */
+export function standUp(skel) {
+  const find = (n) => skel.nodes.find((x) => norm(x.name) === n);
+  const hips = find('Hips'), head = find('Head');
+  if (!hips || !head) return skel;
+  const v = [head.wp[0] - hips.wp[0], head.wp[1] - hips.wp[1], head.wp[2] - hips.wp[2]], l = Math.hypot(...v) || 1;
+  if (v[1] / l >= 0.5) return skel;
+  const turn = [Math.SQRT1_2, 0, 0, Math.SQRT1_2];
+  let root = hips; while (root.parent >= 0) root = skel.nodes[root.parent]; // (the skeleton's own root, like the Armature: a mesh beside it stays)
+  root.q = qmul(turn, root.q); root.p = qrot(turn, root.p);
+  worlds(skel.nodes);
+  skel.stood = true;
+  if (skel.measure) skel.height = skel.measure();
+  return skel;
+}
+
 // ------------------------------------------------------------------------------------------------------------ GLB
 export function readGlb(buf) {
   if (buf.readUInt32LE(0) !== 0x46546c67) throw new Error('not a GLB');
@@ -120,19 +140,22 @@ export function readGlb(buf) {
     return { name: n.name || `node${i}`, parent: parent[i], q: n.rotation ? qnorm(n.rotation) : [0, 0, 0, 1], p: n.translation || [0, 0, 0], s };
   });
   worlds(nodes);
-  // the character's height: the mesh's box in the world
-  let lo = Infinity, hi = -Infinity;
-  N.forEach((n, i) => {
-    if (n.mesh === undefined) return;
-    for (const prim of J.meshes[n.mesh].primitives) {
-      const a = J.accessors[prim.attributes.POSITION]; if (!a.min || !a.max) continue;
-      const w = nodes[i];
-      for (const x of [a.min[0], a.max[0]]) for (const y of [a.min[1], a.max[1]]) for (const z of [a.min[2], a.max[2]]) {
-        const r = qrot(w.wq, [x * w.ws, y * w.ws, z * w.ws]); lo = Math.min(lo, w.wp[1] + r[1]); hi = Math.max(hi, w.wp[1] + r[1]);
+  // the character's height: the mesh's box in the world (measured again once the file is stood up)
+  const measure = () => {
+    let lo = Infinity, hi = -Infinity;
+    N.forEach((n, i) => {
+      if (n.mesh === undefined) return;
+      for (const prim of J.meshes[n.mesh].primitives) {
+        const a = J.accessors[prim.attributes.POSITION]; if (!a.min || !a.max) continue;
+        const w = nodes[i];
+        for (const x of [a.min[0], a.max[0]]) for (const y of [a.min[1], a.max[1]]) for (const z of [a.min[2], a.max[2]]) {
+          const r = qrot(w.wq, [x * w.ws, y * w.ws, z * w.ws]); lo = Math.min(lo, w.wp[1] + r[1]); hi = Math.max(hi, w.wp[1] + r[1]);
+        }
       }
-    }
-  });
-  const height = hi > lo ? hi - lo : 0;
+    });
+    return hi > lo ? hi - lo : 0;
+  };
+  const height = measure();
   const takes = (J.animations || []).map((an, ai) => {
     const take = { name: an.name || `clip${ai}`, seconds: 0, rot: new Map(), pos: new Map() };
     for (const ch of an.channels) {
@@ -143,7 +166,7 @@ export function readGlb(buf) {
     }
     return take;
   });
-  return { nodes, takes, height };
+  return { nodes, takes, height, measure };
 }
 
 // ------------------------------------------------------------------------------------------------------------ FBX (binary, what mixamo.com gives)
@@ -355,7 +378,7 @@ function footsteps(name, tracks, loop) {
 
 export function importFile(file, o = {}) {
   const buf = fs.readFileSync(file), ext = path.extname(file).toLowerCase();
-  const skel = ext === '.fbx' ? readFbx(buf, path.basename(file, '.fbx')) : readGlb(buf);
+  const skel = standUp(ext === '.fbx' ? readFbx(buf, path.basename(file, '.fbx')) : readGlb(buf));
   const only = o.only && new Set(o.only), clips = {};
   const takes = skel.takes.filter((t) => !only || only.has(t.name));
   if (!takes.length) throw new Error(`${file} has no clips${only ? ` named ${[...only].join(', ')}` : ''}`);
