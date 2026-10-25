@@ -13,6 +13,7 @@ Name tags, chat, emotes, looks and spectating for scripts. `game.presence` is th
 | `presence.emotes()` | the list: `[{ name, icon, label, loop }]` |
 | `presence.tag(thing, text, { color, kind })` | a name tag on anything (`kind`: npc, pet, ai, thing); `presence.tag(thing, null)` removes it |
 | `presence.players()` | everyone here, you first then friends: `[{ id, name, me, friend, host, typing, muted, user, entity }]` |
+| `presence.float(true/false)` | the Overseer's eye: a floating camera with no character (WASD, Q/E, drag; others see no body); `/play/<slug>?spectate=1` starts in it, "Join the game" ends it. `presence.floating()` |
 | `presence.spectate(who)` | watch a player: `'next'`, `'prev'`, a player id, or `null` to stop. `presence.spectating()` is the one watched |
 | `presence.mute(id, on)`, `presence.muted(id)` | mute a player's chat and emotes (for you only) |
 | `presence.look`, `presence.setLook({ ... })`, `presence.randomLook()` | your look: `{ body, head, accent: '#hex', shape, hat, face, extras: [], model, hair, hairColor, bottom, shoes, eyeColor: '#hex', accessory, accessoryColor: '#hex' }` (`accessory`: none, headphones, goggles, monocle, mustache, eyepatch, flower, antenna, medal, bell, jetpack, bandana, earrings; `core.ACCESSORIES` lists them with icon, label and anchor) (the person's hair: short, long, ponytail, curly, spiky, bun; `body` is the top, `bottom` the trousers, `shoes` the shoes, `head` the skin) (saved to your account when signed in) |

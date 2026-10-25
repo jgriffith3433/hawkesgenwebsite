@@ -22,7 +22,7 @@ async function loadGames() {
   }
 }
 
-function card({ title, sub, by, plays, cover, emoji, play, remix, playing = 0, building = 0, visitors }) {
+function card({ title, sub, by, plays, cover, emoji, play, spectate, remix, playing = 0, building = 0, visitors }) {
   const el = document.createElement('div');
   el.className = 'game-card';
   el.innerHTML = `
@@ -31,10 +31,11 @@ function card({ title, sub, by, plays, cover, emoji, play, remix, playing = 0, b
       <div class="title">${escapeHtml(title)}</div>
       ${sub ? `<div class="muted" style="font-size:13px;line-height:1.4">${escapeHtml(sub.slice(0, 110))}${sub.length > 110 ? '…' : ''}</div>` : ''}
       ${by || plays !== undefined ? `<div class="meta">${by ? `<span>by ${escapeHtml(by)}</span>` : ''}${plays !== undefined ? `<span>▸ ${plays} plays</span>` : ''}</div>` : ''}
-      <div class="actions"><button type="button" class="btn btn-primary btn-sm" data-a="play">Play</button><button type="button" class="btn btn-secondary btn-sm" data-a="remix" title="Make your own copy to change">Remix</button></div>
+      <div class="actions"><button type="button" class="btn btn-primary btn-sm" data-a="play">${playing ? `Join (${playing} playing)` : 'Play'}</button>${spectate ? '<button type="button" class="btn btn-secondary btn-sm" data-a="spectate" title="Float over the world as a camera, no character">Spectate</button>' : ''}<button type="button" class="btn btn-secondary btn-sm" data-a="remix" title="Make your own copy to change">Remix</button></div>
     </div>`;
   el.querySelector('[data-a="play"]').onclick = play;
   el.querySelector('.cover').onclick = play;
+  if (spectate) el.querySelector('[data-a="spectate"]').onclick = spectate;
   el.querySelector('[data-a="remix"]').onclick = remix;
   return el;
 }
@@ -71,7 +72,7 @@ function render() {
   const empty = document.getElementById('empty');
   grid.innerHTML = '';
   empty.hidden = Boolean(games.length);
-  for (const g of games) grid.appendChild(card({ title: g.title, sub: g.description, by: g.by, plays: g.plays || 0, cover: g.cover, playing: g.playing, building: g.building, visitors: g.visitors, play: () => enterGame(g.url), remix: () => remixIt({ slug: g.slug }) }));
+  for (const g of games) grid.appendChild(card({ title: g.title, sub: g.description, by: g.by, plays: g.plays || 0, cover: g.cover, playing: g.playing, building: g.building, visitors: g.visitors, play: () => enterGame(g.url), spectate: g.visitors === 'play' || g.visitors === 'build' ? () => enterGame(`${g.url}?spectate=1`, { label: 'WATCHING' }) : null, remix: () => remixIt({ slug: g.slug }) }));
 }
 
 /** A copy of a game, yours to change: then straight into it. */
@@ -85,6 +86,10 @@ async function remixIt(what) {
   } catch (err) { alert(err.message); }
 }
 let pendingRemix = null;
+
+// The live counts, fresh every 30 s (not while the tab is hidden).
+setInterval(() => { if (!document.hidden) loadGames(); }, 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) loadGames(); });
 
 // ===================================================================== sort
 document.querySelectorAll('[data-sort]').forEach(btn => {

@@ -1,7 +1,7 @@
 // /community: the community library (src/community.ts). Shelves from GET /v1/community/categories, things from
 // GET /v1/community (search, kind, category, sort, a page at a time), one opened in a panel: a model live in Babylon, a
 // picture big, a sound with a player. The URL keeps what's shown (?kind=&category=&q=&sort=&open=), so a shelf or a
-// thing can be linked.
+// thing can be linked. In the Overseer's voice where it speaks (headings, empty states); every label says what a thing is.
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const PAGE = 48;
@@ -19,6 +19,21 @@ const HOW = {
   music: 'Background music for a level or a menu.',
   ambience: 'A loop that sets the place: play it under everything else.',
   sfx: 'A short sound for an action or an event.',
+};
+
+/** What each shelf says about itself: the Overseer's voice, then what is actually on it. */
+const SHELF_VOICE = {
+  '': ['Everything in the archive.', 'All of it, on one shelf. Pick a kind on the left, or ask for a word above.'],
+  model: ['Things to stand in a world.', '3D models (.glb). Each comes with a low-detail copy for when it is far away.'],
+  texture: ['Surfaces for the ground and walls.', 'Seamless tiles (.png), to use as materials on floors, walls and terrain.'],
+  sky: ['Skies to hang over a planet.', '360° panoramas (.png), to set as your game\'s sky.'],
+  sprite: ['Small things that glow in a hand.', 'Transparent pictures (.png): icons, pickups and effects.'],
+  image: ['Pictures.', 'Images (.png) shared by builders.'],
+  music: ['Music for a level or a menu.', 'Songs (.mp3). Press play to hear one.'],
+  ambience: ['The sound of a place.', 'Loops (.mp3) that sit under everything else.'],
+  sfx: ['A sound for every action.', 'Short sound effects (.mp3) for actions and events.'],
+  voice: ['Voices.', 'Voice lines (.mp3).'],
+  video: ['Moving pictures.', 'Video clips (.mp4).'],
 };
 
 const url = new URL(location.href);
@@ -64,9 +79,15 @@ function card(it) {
   const tile = ['texture', 'sky'].includes(it.kind);
   const sub = [KIND[it.kind]?.[1] ?? it.kind, it.category && shelfName(it.category)].filter(Boolean).join(' · ');
   return `<button type="button" class="card" data-id="${esc(it.id)}">
-    <div class="thumb${tile ? ' tile' : ''}">${thumbOf(it)}${AUDIO.has(it.kind) ? `<span class="play" data-play="${esc(it.id)}" role="button" aria-label="Play ${esc(it.title)}">▶</span>` : ''}</div>
+    <div class="thumb${tile ? ' tile' : ''}">${thumbOf(it)}<span class="badge">${esc(KIND[it.kind]?.[1] ?? it.kind)}</span>${AUDIO.has(it.kind) ? `<span class="play" data-play="${esc(it.id)}" role="button" aria-label="Play ${esc(it.title)}">▶</span>` : ''}</div>
     <div class="meta"><span class="title">${esc(it.title)}</span><span class="sub">${esc(sub)}${it.by && it.by !== 'Hawkes' ? ` · by ${esc(it.by)}` : ''}</span></div>
   </button>`;
+}
+
+function renderShelfHead() {
+  const [h, p] = SHELF_VOICE[state.kind] ?? [KIND[state.kind]?.[0] ?? state.kind, ''];
+  const cat = state.category ? ` On the ${shelfName(state.category)} shelf.` : '';
+  $('shelfHead').innerHTML = `<h2>${esc(state.category ? shelfName(state.category) : h)}</h2><p>${esc(p + cat)}</p>`;
 }
 
 function where(total) {
@@ -84,16 +105,17 @@ async function load(append = false) {
   try {
     r = await api(`/v1/community?${qs}`);
   } catch (e) {
-    $('grid').innerHTML = `<div class="empty"><h3>The library didn't load</h3><p>${esc(e.message)}. Try again in a moment.</p></div>`;
+    $('grid').innerHTML = `<div class="empty"><h3>The archive didn't open</h3><p>The library didn't load (${esc(e.message)}). Try again in a moment.</p></div>`;
     return;
   }
   shown = shown.concat(r.items);
   state.offset += r.items.length;
+  renderShelfHead();
   $('where').textContent = where(r.total);
   if (!shown.length) {
     $('grid').innerHTML = shelves.total
-      ? `<div class="empty"><h3>Nothing matches</h3><p>Try other words, or another shelf.</p></div>`
-      : `<div class="empty"><h3>The library is being stocked</h3><p>Hawkes is making the starter pack: five of each kind of thing in every category. They show up here as they're finished. You can share your own from the editor (Create &gt; Yours, ⇪).</p></div>`;
+      ? `<div class="empty"><h3>The Overseer finds nothing for that.</h3><p>Nothing in the library matches. Try other words, or another shelf.</p></div>`
+      : `<div class="empty"><h3>The shelves are still being filled.</h3><p>The library is empty for now. Hawkes is making the starter pack: five of each kind of thing in every category. They show up here as they're finished. You can share your own from the editor (Create &gt; Yours, ⇪).</p></div>`;
   } else {
     $('grid').innerHTML = shown.map(card).join('');
   }
@@ -112,7 +134,7 @@ function stopViewer() {
 async function showModel(it) {
   const B = window.BABYLON;
   if (!B?.SceneLoader) { $('pView').innerHTML = it.thumb ? `<img src="${esc(it.thumb)}" alt="">` : ''; return; }
-  $('pView').innerHTML = '<canvas id="pCanvas" aria-label="3D preview"></canvas><span class="hint">drag to turn · scroll to zoom</span>';
+  $('pView').innerHTML = '<canvas id="pCanvas" aria-label="3D preview"></canvas><span class="hint">drag to turn · scroll or pinch to zoom</span>';
   const canvas = $('pCanvas');
   const engine = new B.Engine(canvas, true, { preserveDrawingBuffer: false, stencil: true });
   const scene = new B.Scene(engine);
@@ -147,25 +169,105 @@ async function showModel(it) {
   }
 }
 
+/** A sound: a big play button, a bar of the sound's length, the time, a seek slider. */
+let panelAudio = null;
+const fmt = (t) => (Number.isFinite(t) ? `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}` : '0:00');
+function stopSound() { if (panelAudio) { panelAudio.pause(); panelAudio.src = ''; panelAudio = null; } }
+function showSound(it, k) {
+  const loop = it.kind === 'ambience' || it.kind === 'music';
+  const bars = Array.from({ length: 48 }, (_, i) => `<i style="height:${14 + Math.round(Math.abs(Math.sin(i * 1.7) * Math.cos(i * 0.45)) * 54)}px"></i>`).join('');
+  $('pView').innerHTML = `<div class="snd">${it.thumb ? `<img src="${esc(it.thumb)}" alt="">` : `<span class="kindname">${esc(k[1])}</span>`}
+    <div class="wave" aria-hidden="true">${bars}</div>
+    <div class="bar"><button type="button" class="pp" id="pPlay" aria-label="Play">▶</button><span id="pTime">0:00 / 0:00</span><span>${loop ? 'loops' : ''}</span>
+      <div class="seek"><input type="range" id="pSeek" min="0" max="1000" value="0" aria-label="Position in ${esc(it.title)}"></div></div></div>`;
+  const a = new Audio(it.file);
+  a.loop = loop;
+  panelAudio = a;
+  const bs = [...$('pView').querySelectorAll('.wave i')];
+  const btn = $('pPlay'), seek = $('pSeek');
+  const paint = () => {
+    const d = a.duration || 0, f = d ? a.currentTime / d : 0;
+    $('pTime').textContent = `${fmt(a.currentTime)} / ${fmt(d)}`;
+    seek.value = String(Math.round(f * 1000));
+    bs.forEach((b, i) => b.classList.toggle('done', i / bs.length < f));
+  };
+  a.addEventListener('timeupdate', paint);
+  a.addEventListener('loadedmetadata', paint);
+  a.addEventListener('play', () => { btn.textContent = '❚❚'; btn.setAttribute('aria-label', 'Pause'); });
+  a.addEventListener('pause', () => { btn.textContent = '▶'; btn.setAttribute('aria-label', 'Play'); });
+  btn.addEventListener('click', () => { if (a.paused) a.play().catch(() => {}); else a.pause(); });
+  seek.addEventListener('input', () => { if (a.duration) a.currentTime = (Number(seek.value) / 1000) * a.duration; });
+  a.play().catch(() => {});
+}
+
+// "Use in a game": the signed-in builder's games, one tap. Signed out, the button goes to /app to start.
+let myGames = null;
+async function loadGames() {
+  if (myGames) return myGames;
+  try { myGames = (await api('/v1/games')).games ?? []; } catch { myGames = []; }
+  return myGames;
+}
+async function setupUse(it) {
+  const note = $('pUseNote'), sel = $('pGame'), use = $('pUse');
+  note.className = 'note';
+  note.textContent = 'Free to use. It goes into your game\'s own assets.';
+  use.textContent = 'Use in a game';
+  use.setAttribute('href', '/app');
+  use.onclick = null;
+  sel.hidden = true; $('pGameLabel').hidden = true;
+  const games = await loadGames();
+  if (it !== current) return;
+  if (!games.length) { note.textContent = 'Free to use. Start a game and this goes in with one tap: sign in or make a free account first.'; return; }
+  sel.innerHTML = games.map((g) => `<option value="${esc(g.id)}">${esc(g.title || 'Untitled game')}</option>`).join('');
+  sel.hidden = false; $('pGameLabel').hidden = false;
+  use.removeAttribute('href');
+  use.setAttribute('role', 'button');
+  use.setAttribute('tabindex', '0');
+  use.onclick = async (e) => {
+    e.preventDefault();
+    use.setAttribute('aria-disabled', 'true');
+    try {
+      const r = await fetch(`/v1/games/${encodeURIComponent(sel.value)}/community`, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id }) });
+      const b = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(b.error || `HTTP ${r.status}`);
+      note.className = 'note ok';
+      note.innerHTML = `Added to the game. <a href="/app/g/${encodeURIComponent(sel.value)}">Open it</a> and it is already in the world's assets.`;
+      use.textContent = 'Added ✓';
+    } catch (err) {
+      note.className = 'note err';
+      note.textContent = `That did not go in: ${err.message}`;
+    }
+    use.removeAttribute('aria-disabled');
+  };
+  use.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') use.click(); };
+}
+
+let current = null;
 function open(it) {
+  current = it;
+  stopSound();
   stopViewer();
   const k = KIND[it.kind] ?? [it.kind, it.kind, ''];
+  $('pLabel').textContent = k[0];
   $('pTitle').textContent = it.title;
   $('pKv').innerHTML = `<b>${esc(k[1])}</b>${it.category ? ` · <a href="?kind=${encodeURIComponent(it.kind)}&category=${encodeURIComponent(it.category)}">${esc(shelfName(it.category))}</a>` : ''} · by ${esc(it.by)}<br>used in ${it.uses} ${it.uses === 1 ? 'game' : 'games'}${it.likes ? ` · ${it.likes} ${it.likes === 1 ? 'builder' : 'builders'} picked it` : ''}${it.low ? ' · comes with a low-detail copy' : ''}`;
   $('pTags').innerHTML = it.tags.map((t) => `<a href="?q=${encodeURIComponent(t)}">${esc(t)}</a>`).join('');
   $('pHow').innerHTML = `${esc(HOW[it.kind] ?? '')} Open your game and pick it under <code>Create › Community</code>, or tell the assistant "${esc(it.title.toLowerCase())}".`;
   const name = `${it.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'asset'}${k[2]}`;
+  void setupUse(it);
   $('pFile').href = it.file;
   $('pFile').setAttribute('download', name);
   // Shown first: the 3D view sizes its canvas from the open panel.
   $('sheet').hidden = false;
   if (it.kind === 'model') void showModel(it);
-  else if (AUDIO.has(it.kind)) $('pView').innerHTML = `<div style="width:100%;padding:24px;display:grid;gap:16px;place-items:center">${it.thumb ? `<img src="${esc(it.thumb)}" alt="" style="max-height:220px">` : `<span class="glyph" style="font:600 14px var(--mono);color:#9aa3b8;letter-spacing:.12em;text-transform:uppercase">${esc(k[1])}</span>`}<audio controls autoplay src="${esc(it.file)}"${it.kind === 'ambience' || it.kind === 'music' ? ' loop' : ''}></audio></div>`;
+  else if (AUDIO.has(it.kind)) showSound(it, k);
   else $('pView').innerHTML = `<img src="${esc(it.file)}" alt="${esc(it.title)}">`;
   keepUrl(it.id);
   $('pClose').focus();
 }
 function close() {
+  current = null;
+  stopSound();
   stopViewer();
   $('pView').innerHTML = '';
   $('sheet').hidden = true;
