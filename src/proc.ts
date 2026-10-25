@@ -16,3 +16,7 @@ export const slot = () => Math.max(0, Math.floor(Number(process.env.PORTAL_WEB_I
 export const procName = () => (clustered() ? `${role() === 'worker' ? 'k' : 'w'}${slot()}` : 'p');
 /** The unix socket the worker listens on and every web process connects to. */
 export const busPath = (dataDir: string) => process.env.PORTAL_BUS || `${dataDir.replace(/\/+$/, '')}/bus.sock`;
+/** This process has been asked to leave (a restart): it takes nothing new. */
+let leaving = false;
+export const isLeaving = () => leaving;
+export const setLeaving = () => { leaving = true; };

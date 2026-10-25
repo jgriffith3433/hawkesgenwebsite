@@ -32,7 +32,7 @@ import { SharedLimiter, sweepShared } from './shared.ts';
 import cluster from 'node:cluster';
 import { runPrimary } from './primary.ts';
 import { hostHub, connectHub } from './bus.ts';
-import { role, busPath } from './proc.ts';
+import { role, busPath, setLeaving, isLeaving } from './proc.ts';
 import { join as joinLive, setPresence, closeAll as closeLive } from './live.ts';
 import { templateBundle, featured } from './templates.ts';
 import { details, countRequest, trackServer } from './metrics.ts';
@@ -40,7 +40,7 @@ import { serveVendor } from './vendor.ts';
 import { loaderScript, engineDoc, manifest } from './engine.ts';
 const engineVersion = () => manifest().version;
 import * as community from './community.ts';
-import { upgrade as joinRoom, broadcastOps, markHere, liveCounts, roomState } from './rooms.ts';
+import { upgrade as joinRoom, closeAllRooms, broadcastOps, markHere, liveCounts, roomState } from './rooms.ts';
 import * as invites from './invites.ts';
 import * as hnet from './hnet.ts';
 import { digest } from './sign.ts';
@@ -730,8 +730,10 @@ const leaveWith = (server: http.Server, afterClose: () => void = () => {}) => {
   return () => {
     if (leaving) return;
     leaving = true;
+    setLeaving();
     afterClose();
     closeLive();
+    closeAllRooms();
     server.close(() => process.exit(0));
     const sweep = setInterval(() => server.closeIdleConnections(), 50);
     sweep.unref();
@@ -778,6 +780,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(ROOT, 'src
       process.on('message', (m: any, handle: any) => {
         if (m?.t === 'leave') return leave();
         if (m?.t !== 'ws-handoff' || !handle) return;
+        if (isLeaving()) return void process.send?.(m, handle); // (sent to a process just leaving: the primary has the new one)
         server.emit('connection', handle);
         handle.unshift(Buffer.from(m.head, 'base64'));
       });

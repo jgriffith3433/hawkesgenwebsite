@@ -20,7 +20,7 @@ import * as relay from './relay.ts';
 import { publishOps, publishEvent, kick } from './hnet.ts';
 import { presenceCount } from './live.ts';
 import { publish, on } from './bus.ts';
-import { clustered, procName, procs, role, slot } from './proc.ts';
+import { clustered, isLeaving, procName, procs, role, slot } from './proc.ts';
 
 type Conn = relay.Conn & { s: Socket };
 type Room = relay.Room;
@@ -90,7 +90,8 @@ function handoff(req: IncomingMessage, raw: Duplex, head: Buffer, owner: number)
   for (let i = 0; i < req.rawHeaders.length; i += 2) lines.push(`${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}`);
   lines.push('X-Hg-Handoff: 1');
   const bytes = Buffer.concat([Buffer.from(`${lines.join('\r\n')}\r\n\r\n`), head ?? Buffer.alloc(0)]);
-  return process.send({ t: 'ws-handoff', to: owner, head: bytes.toString('base64') }, raw as any);
+  // (send() answers false when the channel is merely backed up, the message still goes: only an error means it did not.)
+  try { process.send({ t: 'ws-handoff', to: owner, head: bytes.toString('base64') }, raw as any); return true; } catch { return false; }
 }
 
 /** An upgrade request for /v1/ws: joins a room or answers why not. `v=2` on the URL: the bundled protocol (relay.ts). */
@@ -99,7 +100,8 @@ export function upgrade(req: IncomingMessage, raw: Duplex, head?: Buffer) {
   if (clustered() && role() === 'web' && procs() > 1 && !req.headers['x-hg-handoff']) {
     const key = routeKey(url);
     const owner = key ? ownerOf(key) : slot();
-    if (owner !== slot() && handoff(req, raw, head ?? Buffer.alloc(0), owner)) return;
+    // (A process on its way out passes everyone on, its own rooms' players too: the slot now belongs to its replacement.)
+    if ((owner !== slot() || isLeaving()) && handoff(req, raw, head ?? Buffer.alloc(0), owner)) return;
   }
   const deny = (why: string, status = 403, reason = 'Forbidden') => raw.end(`HTTP/1.1 ${status} ${reason}\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n${why}`);
   const ip = clientIp(req);
@@ -193,6 +195,11 @@ export function closePlayRooms(slug: string, gameId?: string) {
   if (gameId) kick(`g/${gameId}/p/*`);
 }
 on('room-close', (m) => { for (const [key, room] of rooms) if (key.startsWith(`play:${m.slug}:`)) for (const c of room.conns.values()) (c as Conn).s.close(4003, 'closed'); });
+
+/** This process is leaving (a restart): every player is told so (1012), and their page reconnects to the process that comes up. */
+export function closeAllRooms() {
+  for (const room of rooms.values()) for (const c of room.conns.values()) try { (c as Conn).s.close(1012, 'restarting'); } catch {}
+}
 
 export const roomStats = () => ({ rooms: rooms.size, people: [...rooms.values()].reduce((n, r) => n + r.conns.size, 0) });
 

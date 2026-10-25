@@ -40,6 +40,8 @@ class Player {
       });
       sock.on('data', (chunk) => {
         this.rx += chunk.length;
+        if (process.env.CROWD_LOG && this.restarts && !up) console.log('p', this.i, 'first bytes', chunk.subarray(0, 30).toString('latin1').replace(/\r\n/g, '|'), chunk.length);
+        if (process.env.CROWD_LOG && up && chunk.subarray(0, 4).toString() === 'HTTP') console.log('p', this.i, 'second HTTP after up', chunk.length);
         buf = buf.length ? Buffer.concat([buf, chunk]) : chunk;
         if (!up) {
           const end = buf.indexOf('\r\n\r\n');
@@ -58,11 +60,18 @@ class Player {
           if (buf.length < off + len) break;
           const op = buf[0] & 15;
           if (op === 1 && len < 400) { const t = buf.toString('utf8', off, off + len); if (t.includes('"pong"')) this.pong(t); }
-          if (op === 8) { this.closedByServer = true; }
+          if (op === 8) { this.closedByServer = true; this.closeCode = len >= 2 ? buf.readUInt16BE(off) : 0; if (process.env.CROWD_LOG) console.log('close frame', buf.subarray(0, off + len).toString('hex')); }
           buf = buf.subarray(off + len);
         }
       });
-      const gone = () => { if (this.state === 'open') { this.state = 'reset'; } else done('reset'); };
+      const gone = () => {
+        if (sock !== this.sock || this.restarting) return;
+        if (this.state === 'open' && this.closeCode === 1012) {
+          this.restarting = true; this.pingAt = 0; // the server said it is restarting: come back, as a page does
+          this.state = 'new'; this.restarts = (this.restarts ?? 0) + 1; this.closeCode = 0; this.closedByServer = false;
+          setTimeout(() => { this.restarting = false; this.connect().then((s) => { if (s === 'open') this.state = 'open'; }); }, 200 + Math.random() * 600);
+        } else if (this.state === 'open') { this.state = 'reset'; if (process.env.CROWD_LOG) console.log('reset', this.i, 'close code', this.closeCode, 'by server', this.closedByServer); } else done('reset');
+      };
       sock.on('error', gone);
       sock.on('close', gone);
     });
@@ -110,7 +119,7 @@ parentPort.on('message', async (m) => {
     parentPort.postMessage({ cmd: 'reset', resets: players.filter((p) => p.state === 'reset').length });
   } else if (m.cmd === 'report') {
     const open = players.filter((p) => p.state === 'open');
-    parentPort.postMessage({ cmd: 'report', rtt: players.flatMap((p) => p.rtt), open: open.length, resets: players.filter((p) => p.state === 'reset').length, refused: players.filter((p) => p.state === 'refused').length, rx: open.reduce((n, p) => n + p.rx, 0), tx: open.reduce((n, p) => n + p.tx, 0), loopP99: r1(Math.max(0, mine.percentile(99) / 1e6 - 10)) });
+    parentPort.postMessage({ cmd: 'report', rtt: players.flatMap((p) => p.rtt), open: open.length, resets: players.filter((p) => p.state === 'reset').length, refused: players.filter((p) => p.state === 'refused').length, restarts: players.reduce((n, p) => n + (p.restarts ?? 0), 0), rx: open.reduce((n, p) => n + p.rx, 0), tx: open.reduce((n, p) => n + p.tx, 0), loopP99: r1(Math.max(0, mine.percentile(99) / 1e6 - 10)) });
   } else if (m.cmd === 'stop') { for (const p of players) p.close(); process.exit(0); }
 });
 parentPort.postMessage({ cmd: 'ready' });

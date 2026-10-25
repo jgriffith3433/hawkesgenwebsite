@@ -8,6 +8,9 @@
 //   node tools/crowd.mjs --url https://hawkesgenwebsite.hawkesgen.com --cookie 'hawkes_session=...' --levels 50,100,200
 //   options: --hold <s> per level (8)  --room 16 players per room  --pages 5 page/asset loads a second  --editors 6 live streams
 //            --signins 3 sign-ins per level  --json (one JSON line)  --tiny (what npm test runs: 6 players, 1.5 s)
+//            --web N  start the portal as a cluster of N web processes and a worker (PORTAL_ROLE=web), not one process
+//            --roll   restart the cluster's processes one at a time (SIGUSR2) during the last level, saving files as it goes:
+//                     no request may fail and every editor stream must come back with every save, once (needs --web, local)
 //
 // What a player sends is what a real one does (public/play/net.js, test/engine/netsim.ts): its pose ('me') every 66 ms
 // inside a 'b' bundle, a ping every 2 s (a real page pings every 5 s: more samples), and one player in eight drives a
@@ -36,6 +39,9 @@ const pagesPerS = Number(arg('pages', tiny ? 4 : 5));
 const editorCount = Number(arg('editors', tiny ? 3 : 6));
 const signinsPer = Number(arg('signins', tiny ? 1 : 3));
 const json = flag('json');
+const webProcs = Number(arg('web', 0));
+const roll = flag('roll');
+if (roll && !webProcs) { console.error('--roll needs --web N'); process.exit(2); }
 const cookie = arg('cookie', '');
 const urlArg = arg('url', '');
 const log = (...a) => { if (!json) console.log(...a); };
@@ -57,11 +63,11 @@ else {
   await new Promise((r) => stub.listen(0, '127.0.0.1', r));
   dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'portal-crowd-'));
   child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', 'src/server.ts'], {
-    cwd: ROOT, stdio: ['ignore', 'ignore', 'ignore'],
-    env: { ...process.env, PORT: String(port), PORTAL_DATA_DIR: dataDir, HAWKESGEN_URL: `http://127.0.0.1:${stub.address().port}`, HAWKESGEN_KEY: 'hg_crowd', SIGNUPS_PER_HOUR: '100000', PORTAL_PROJECT_PREFIX: 'ubeta_' },
+    cwd: ROOT, stdio: process.env.CROWD_LOG ? 'inherit' : ['ignore', 'ignore', 'ignore'],
+    env: { ...process.env, PORT: String(port), PORTAL_DATA_DIR: dataDir, HAWKESGEN_URL: `http://127.0.0.1:${stub.address().port}`, HAWKESGEN_KEY: 'hg_crowd', SIGNUPS_PER_HOUR: '100000', PORTAL_PROJECT_PREFIX: 'ubeta_', ...(webProcs ? { PORTAL_ROLE: 'web', PORTAL_WEB_PROCS: String(webProcs) } : {}) },
   });
   base = new URL(`http://127.0.0.1:${port}`);
-  for (let i = 0; i < 100; i++) { try { if ((await fetch(new URL('/v1/health', base))).ok) break; } catch {} await new Promise((r) => setTimeout(r, 100)); }
+  for (let i = 0; i < 200; i++) { try { if ((await fetch(new URL('/v1/health', base))).ok && (!webProcs || fs.existsSync(path.join(dataDir, 'roll.json')))) break; } catch {} await new Promise((r) => setTimeout(r, 100)); }
 }
 const secure = base.protocol === 'https:';
 const local = !urlArg;
@@ -71,9 +77,14 @@ const stop = async () => { child?.kill('SIGTERM'); stub?.close(); if (dataDir) s
 const pctl = (xs, p) => (xs.length ? xs.slice().sort((a, b) => a - b)[Math.min(xs.length - 1, Math.floor(xs.length * p))] : 0);
 const r1 = (n) => Math.round(n * 10) / 10;
 let ipSeq = 0;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const fakeIp = () => `11.${(++ipSeq >> 8) & 255}.${ipSeq & 255}.1`; // (the portal reads X-Forwarded-For from a local peer)
 const authHeaders = () => ({ ...(cookie ? { Cookie: cookie } : {}), ...(local ? { 'X-Forwarded-For': fakeIp() } : {}) });
 
+// The whole cluster's CPU and memory (Linux): the primary and everything below it.
+const tree = (root) => { const kids = new Map(); for (const d of fs.readdirSync('/proc')) { if (!/^\d+$/.test(d)) continue; try { const f = fs.readFileSync(`/proc/${d}/stat`, 'utf8'); const after = f.slice(f.lastIndexOf(')') + 2).split(' '); const ppid = after[1]; (kids.get(ppid) ?? kids.set(ppid, []).get(ppid)).push(d); } catch {} } const out = [String(root)]; for (let i = 0; i < out.length; i++) out.push(...(kids.get(out[i]) ?? [])); return out; };
+const treeUsage = () => { let ticks = 0, rss = 0; for (const p of tree(child.pid)) { try { const f = fs.readFileSync(`/proc/${p}/stat`, 'utf8').slice(0); const a = f.slice(f.lastIndexOf(')') + 2).split(' '); ticks += Number(a[11]) + Number(a[12]); rss += Number(a[21]) * 4096; } catch {} } return { cpu: ticks / 100, rssMB: rss / 1048576, procs: tree(child.pid).length }; };
+let usageAt = null;
 async function details(reset) {
   if (!local) return null; // (admins only elsewhere: the notes say how to read it by hand)
   try { return await (await fetch(new URL(`/v1/health/details${reset ? '?reset=1' : ''}`, base))).json(); } catch { return null; }
@@ -118,17 +129,67 @@ async function makeAccount() {
   return a;
 }
 const streams = [];
+/** An editor stream that comes back by itself with Last-Event-ID, as a browser does, and keeps the saves it saw. */
+async function runStream(s) {
+  let raw = '';
+  while (!s.ctl.signal.aborted) {
+    try {
+      const r = await fetch(new URL(`/v1/games/${s.a.game}/live`, base), { headers: { Cookie: s.a.cookie, Accept: 'text/event-stream', ...(s.last ? { 'Last-Event-ID': s.last } : {}), ...authHeaders() }, signal: s.ctl.signal });
+      s.ok = s.ok || r.ok; s.status = r.status;
+      if (!r.ok || !r.body) { await sleep(300); continue; }
+      raw = '';
+      for await (const c of r.body) {
+        s.bytes += c.length;
+        raw += Buffer.from(c).toString('utf8');
+        let i;
+        while ((i = raw.indexOf('\n\n')) >= 0) {
+          const block = raw.slice(0, i); raw = raw.slice(i + 2);
+          const id = /^id: (.+)$/m.exec(block)?.[1];
+          if (id) s.last = id;
+          if (/^event: file$/m.test(block)) { try { s.got.push(JSON.parse(/^data: (.+)$/m.exec(block)[1]).content); } catch {} }
+        }
+      }
+    } catch {}
+    if (s.ctl.signal.aborted) return;
+    s.reconnects++;
+    await sleep(150);
+  }
+}
 async function openStreams(want) {
   while (streams.length < want) {
     let a = accounts.find((x) => x.game && streams.filter((s) => s.a === x).length < 5);
     if (!a) a = await makeAccount();
     if (!a?.game) return;
-    const s = { a, bytes: 0, ok: false, ctl: new AbortController() };
+    const s = { a, bytes: 0, ok: false, ctl: new AbortController(), last: '', got: [], reconnects: 0 };
     streams.push(s);
-    fetch(new URL(`/v1/games/${a.game}/live`, base), { headers: { Cookie: a.cookie, Accept: 'text/event-stream', ...authHeaders() }, signal: s.ctl.signal })
-      .then(async (r) => { s.ok = r.ok; s.status = r.status; if (!r.body) return; for await (const c of r.body) s.bytes += c.length; })
-      .catch(() => {});
+    void runStream(s);
   }
+}
+/** A rolling restart under way: saves go in every 150 ms while the cluster restarts its processes one at a time. */
+async function rolling() {
+  const a = streams[0].a, saved = [];
+  const t0 = performance.now();
+  let go = true, failures = 0, n = 0;
+  const saver = (async () => {
+    while (go) {
+      const content = `// roll ${n++}`;
+      const r = await fetch(new URL(`/v1/games/${a.game}/files`, base), { method: 'PUT', headers: { 'Content-Type': 'application/json', Cookie: a.cookie, ...authHeaders() }, body: JSON.stringify({ path: 'roll.js', content }) }).catch(() => ({ status: 0 }));
+      if (r.status === 200) saved.push(content); else failures++;
+      await sleep(150);
+    }
+  })();
+  fs.rmSync(path.join(dataDir, 'roll.json'), { force: true });
+  child.kill('SIGUSR2');
+  let state = 'rolling';
+  for (let i = 0; i < 600 && state === 'rolling'; i++) { await sleep(100); try { state = JSON.parse(fs.readFileSync(path.join(dataDir, 'roll.json'), 'utf8')).state; } catch {} }
+  await sleep(1500);
+  go = false;
+  await saver;
+  await sleep(1000);
+  const mine = streams.filter((s) => s.a === a);
+  const missed = mine.reduce((m, s) => m + saved.filter((c) => !s.got.includes(c)).length, 0);
+  const twice = mine.reduce((m, s) => m + s.got.length - new Set(s.got).size, 0);
+  return { state, ms: Math.round(performance.now() - t0), saves: saved.length, saveFailures: failures, streamsWatched: mine.length, streamsMissedSaves: missed, streamsDuplicateSaves: twice, streamReconnects: streams.reduce((m, s) => m + s.reconnects, 0) };
 }
 
 // ---------------------------------------------------------------- the ramp
@@ -159,10 +220,14 @@ for (const level of levels) {
       if (r.status !== 200) sign.failed++;
     }
   })();
+  const rollJob = roll && level === levels.at(-1) ? sleep(Math.min(2000, holdS * 200)).then(rolling) : null;
+  const cpu0 = webProcs ? treeUsage().cpu : 0;
   await pageLoads(until, pages);
+  const rolled = rollJob ? await rollJob : null;
   await signer;
   await pages.inflight;
   const secs = (performance.now() - start) / 1000;
+  const use = webProcs ? treeUsage() : null;
   const d = await details(false);
   const reports = await ask('report');
   const rtt = reports.flatMap((r) => r.rtt);
@@ -177,23 +242,27 @@ for (const level of levels) {
     signinP99Ms: r1(pctl(sign.lat, 0.99)), signinFailed: sign.failed,
     editorStreams: streams.filter((s) => s.ok).length, editorStreamsAsked: streams.length,
     serverLoopP50Ms: d?.eventLoopMs?.p50 ?? null, serverLoopP99Ms: d?.eventLoopMs?.p99 ?? null, serverLoopMaxMs: d?.eventLoopMs?.max ?? null,
-    serverCpuPercent: d?.cpuPercent ?? null, serverRssMB: d?.memoryMB?.rss ?? null, serverHeapMB: d?.memoryMB?.heapUsed ?? null,
+    serverCpuPercent: use ? Math.round(((use.cpu - cpu0) / secs) * 1000) / 10 : d?.cpuPercent ?? null, serverRssMB: use ? Math.round(use.rssMB) : d?.memoryMB?.rss ?? null, serverHeapMB: d?.memoryMB?.heapUsed ?? null,
     kbPerPlayerPerSecDown: open ? r1(sum('rx') / open / secs / 1024) : 0,
     kbPerPlayerPerSecUp: open ? r1(sum('tx') / open / secs / 1024) : 0,
     generatorLoopP99Ms: Math.max(...reports.map((r) => r.loopP99)),
+    ...(webProcs ? { webProcesses: webProcs, serverProcessesRunning: use.procs, playerReconnects: sum('restarts') } : {}),
+    ...(rolled ? { roll: rolled } : {}),
   };
   previous = refusedAll;
-  row.rssKBPerPlayer = row.serverRssMB != null && baseline && level ? Math.round(((row.serverRssMB - baseline.memoryMB.rss) * 1024) / level) : null; // (growth over the idle process, per player)
+  row.rssKBPerPlayer = !webProcs && row.serverRssMB != null && baseline && level ? Math.round(((row.serverRssMB - baseline.memoryMB.rss) * 1024) / level) : null; // (growth over the idle process, per player)
   row.generatorSaturated = row.generatorLoopP99Ms > 50;
-  row.held = row.pingP99Ms < 100 && row.pageP99Ms < 100 && row.refused === 0 && resets === 0 && row.open === level && !row.generatorSaturated;
+  row.rollClean = rolled ? rolled.state === 'done' && rolled.saveFailures === 0 && rolled.streamsMissedSaves === 0 && rolled.streamsDuplicateSaves === 0 && row.pageErrors === 0 : null;
+  row.held = (row.rollClean !== false) && row.pingP99Ms < 100 && row.pageP99Ms < 100 && row.refused === 0 && resets === 0 && row.open === level && !row.generatorSaturated;
   results.push(row);
   log(`  ${String(level).padStart(5)} players: ping p50 ${row.pingP50Ms} / p99 ${row.pingP99Ms} ms, pages p99 ${row.pageP99Ms} ms, refused ${row.refused}, resets ${row.resets}, server loop p99 ${row.serverLoopP99Ms ?? '-'} ms, cpu ${row.serverCpuPercent ?? '-'}%, rss ${row.serverRssMB ?? '-'} MB, ${row.kbPerPlayerPerSecDown} KB/s down ${row.kbPerPlayerPerSecUp} up per player${row.generatorSaturated ? '  [generator saturated]' : ''} -> ${row.held ? 'held' : 'NOT held'}`);
+  if (rolled) log(`        rolling restart: ${rolled.state} in ${rolled.ms} ms, ${rolled.saves} saves (${rolled.saveFailures} failed), ${rolled.streamsWatched} streams saw every save once: ${rolled.streamsMissedSaves === 0 && rolled.streamsDuplicateSaves === 0 ? 'yes' : `NO (${rolled.streamsMissedSaves} missed, ${rolled.streamsDuplicateSaves} twice)`}, ${rolled.streamReconnects} stream reconnects, ${row.playerReconnects} player reconnects, page errors ${row.pageErrors}`);
   misses = row.held ? 0 : misses + 1;
-  if (misses >= 2 || row.refused || resets) break; // more would only repeat it
+  if (misses >= 2 || row.refused || (resets && !webProcs)) break; // more would only repeat it
 }
 const heldLevels = results.filter((r) => r.held).map((r) => r.players);
 const report = {
-  target: base.origin, local, node: process.version, cores: os.cpus().length, playerThreads: shards, at: new Date().toISOString(),
+  target: base.origin, local, webProcesses: webProcs || 1, node: process.version, cores: os.cpus().length, playerThreads: shards, at: new Date().toISOString(),
   levels: results, largestHeld: heldLevels.length ? Math.max(...heldLevels) : 0,
   note: 'largestHeld is the largest level where ping and page p99 stayed under 100 ms with nobody refused or reset and the generator keeping up.',
 };

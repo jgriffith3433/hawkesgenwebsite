@@ -174,3 +174,29 @@ test('a rolling restart drops no request and no editor stream', async () => {
     }
   } finally { stop = true; for (const e of eds) e.stop(); c.child.kill('SIGTERM'); }
 });
+
+test('a game room is on one web process: players who arrive at different ones are in the same room', async () => {
+  const c = await startCluster(2);
+  const socks: net.Socket[] = [];
+  try {
+    const joined: number[] = [];
+    for (let i = 0; i < 6; i++) {
+      const hello = await new Promise<any>((res, rej) => {
+        const s = net.connect(c.port, '127.0.0.1', () => s.write(`GET /v1/ws?play=t/arena&room=abcd1234&v=2&name=P${i} HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n`));
+        socks.push(s);
+        let buf = '';
+        s.setEncoding('latin1');
+        s.on('data', (d: string) => {
+          buf += d;
+          if (!buf.startsWith('HTTP/1.1 101')) return void (buf.includes('\r\n\r\n') && rej(new Error(buf.split('\r\n')[0])));
+          const at = buf.indexOf('{"t":"hello"');
+          if (at < 0) return;
+          try { res(JSON.parse(Buffer.from(buf.slice(at), 'latin1').toString('utf8').replace(/\}[^}]*$/, '}'))); } catch { /* the rest of the frame is still on its way */ }
+        });
+        s.on('error', rej);
+      });
+      joined.push(Object.keys(hello.peers ?? {}).length || (hello.peers?.length ?? 0));
+    }
+    assert.deepEqual(joined, [1, 2, 3, 4, 5, 6], 'each one met everyone already there (the list holds themselves too)');
+  } finally { for (const s of socks) s.destroy(); c.child.kill('SIGTERM'); }
+});

@@ -9,6 +9,8 @@ import { db } from './db.ts';
 import { listBackups } from './backup.ts';
 import { roomStats, socketStats } from './rooms.ts';
 import { liveStats } from './live.ts';
+import { procName, role, procs } from './proc.ts';
+import { busMode } from './bus.ts';
 
 const loop = monitorEventLoopDelay({ resolution: 10 });
 loop.enable();
@@ -87,6 +89,7 @@ export function details(resetLoop = false) {
   const sock = socketStats(), rm = roomStats(), live = liveStats();
   return {
     ok: true,
+    process: { name: procName(), role: role(), webProcesses: procs(), bus: busMode() },
     uptimeSeconds: Math.round(process.uptime()),
     eventLoopMs: eventLoop(resetLoop),
     memoryMB: { heapUsed: mb(mem.heapUsed), heapTotal: mb(mem.heapTotal), rss: mb(mem.rss) },
