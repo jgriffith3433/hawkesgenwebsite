@@ -263,10 +263,10 @@
   const cyl = (top, bottom, h, n = 14) => (s) => B.MeshBuilder.CreateCylinder('c', { diameterTop: top, diameterBottom: bottom, height: h, tessellation: tess(n) }, s);
   const ball = (d, n = 10) => (s) => B.MeshBuilder.CreateSphere('s', { diameter: d, segments: tess(n) }, s);
   const ring = (d, t) => (s) => B.MeshBuilder.CreateTorus('t', { diameter: d, thickness: t, tessellation: tess(18) }, s);
-  function makeRig(e, look, color) {
+  function makeRig(e, look, color, opts = {}) {
     const w = W();
     const scene = w.scene;
-    const rig = { e, scene, look, meshes: [], lookKey: JSON.stringify(look) + color, emote: null, phase: 0, last: null, speed: 0, model: null, mood: C.mood() };
+    const rig = { e, scene, look, meshes: [], lookKey: JSON.stringify(look) + color, emote: null, phase: 0, last: null, speed: 0, model: null, mood: C.mood(), noModel: opts.model === false };
     const root = new B.TransformNode('pr-rig', scene);
     root.parent = e.node;
     rig.root = root;
@@ -284,17 +284,28 @@
     const what = C.WHAT && C.WHAT.get(rig.what);
     if (what && what.body !== 'person' && P.bodies && P.bodies.build(rig, what, look, shade)) {
       for (const [n, at] of [['hipL', [0.11, -0.36, 0]], ['hipR', [-0.11, -0.36, 0]], ['shL', [0.31, 0.24, 0]], ['shR', [-0.31, 0.24, 0]]]) if (!rig[n]) rig[n] = joint(n, at);
+      rig.bodyMeshes = rig.meshes.length; rig.dressArgs = [look, acc, body];
       dress(rig, look, acc, body);
       if (look.model) loadModel(rig, look.model);
+      if (P.models) P.models.attach(rig); // (a Gen model for this type, when the registry has one: presence-models.js)
       return rig;
     }
     rig.what = 'person';
     // The soft toy person (presence-person.js): a rounded body, a big head with a face, hair, clothes in the look's colors.
     P.softPerson.build(rig, look, { joint, part, box });
+    rig.bodyMeshes = rig.meshes.length; rig.dressArgs = [look, acc, body];
     dress(rig, look, acc, body);
     if (look.model) loadModel(rig, look.model);
+    if (P.models) P.models.attach(rig);
     return rig;
   }
+  /** Puts a rig's hat, extras and accessory on again, after its anchors moved (a Gen model took the body: presence-models.js). */
+  P._redress = (rig) => {
+    if (!rig.dressArgs) return;
+    for (const m of rig.meshes.splice(rig.bodyMeshes)) try { m.dispose(); } catch {}
+    rig.cape = rig.tail = rig.wings = null;
+    dress(rig, ...rig.dressArgs);
+  };
   /** The hat, extras and accessory. What a body wears is still: its parts are joined into one mesh per joint and color
    *  (H.mergeParts); the cape, wings and tail swing, so they stay as they are. Built twice, the second at less than half the
    *  tessellation, and joined the same way: each far mesh is the near one's level of detail past H.budget.farCharacter (the
@@ -338,9 +349,10 @@
    */
   function accessory(rig, kind, color) {
     if (!kind || kind === 'none') return;
-    const n = rig.neck, p = rig.pose, c = color || '#ffffff';
+    const n = rig.neck, c = color || '#ffffff';
+    const mt = rig.mounts, p = mt ? mt.neck : rig.pose, pBack = mt ? mt.back : rig.pose; // (a Gen model: the mounts are under its own nodes)
     const fy = rig.faceY ?? 0.27, fz = rig.faceZ ?? 0.215, y = 0.44;
-    const dy = n.position.y - 0.29, dz = n.position.z;
+    const dy = mt ? 0 : n.position.y - 0.29, dz = mt ? 0 : n.position.z;
     const at = (x, yy, z) => [x, yy + dy, z + dz];
     const dark = '#1f2937';
     switch (kind) {
@@ -397,9 +409,9 @@
       }
       case 'jetpack': {
         for (const sx of [1, -1]) {
-          part(rig, `tank${sx}`, cyl(0.14, 0.14, 0.4, 10), p, at(sx * 0.11, 0.0, -0.24), c);
-          part(rig, `nozzle${sx}`, cyl(0.1, 0.13, 0.06, 10), p, at(sx * 0.11, -0.22, -0.24), dark);
-          part(rig, `flame${sx}`, cyl(0.1, 0, 0.14, 8), p, at(sx * 0.11, -0.32, -0.24), '#fb923c', true);
+          part(rig, `tank${sx}`, cyl(0.14, 0.14, 0.4, 10), pBack, at(sx * 0.11, 0.0, -0.24), c);
+          part(rig, `nozzle${sx}`, cyl(0.1, 0.13, 0.06, 10), pBack, at(sx * 0.11, -0.22, -0.24), dark);
+          part(rig, `flame${sx}`, cyl(0.1, 0, 0.14, 8), pBack, at(sx * 0.11, -0.32, -0.24), '#fb923c', true);
         }
         break;
       }
@@ -433,21 +445,21 @@
     }
   }
   function extra(rig, kind, acc, body) {
-    const p = rig.pose, n = rig.neck;
+    const mt = rig.mounts, p = mt ? mt.neck : rig.pose, pBack = mt ? mt.back : rig.pose, pRump = mt ? mt.rump : rig.pose, n = rig.neck;
     // On the face (glasses): where this body's face is (presence-bodies.js), a person's otherwise. On the body: placed
     // as on a person, moved to follow where this body's head is.
     const fy = rig.faceY ?? 0.27, fz = rig.faceZ ?? 0.215;
-    const dy = n.position.y - 0.29, dz = n.position.z;
+    const dy = mt ? 0 : n.position.y - 0.29, dz = mt ? 0 : n.position.z;
     const at = (x, y, z) => [x, y + dy, z + dz];
     switch (kind) {
       case 'glasses': part(rig, 'lensL', box(0.13, 0.1, 0.02), n, [0.1, fy, fz], '#1f2937'); part(rig, 'lensR', box(0.13, 0.1, 0.02), n, [-0.1, fy, fz], '#1f2937'); part(rig, 'bridge', box(0.08, 0.025, 0.02), n, [0, fy + 0.02, fz], '#1f2937'); break;
       case 'shades': part(rig, 'shades', box(0.4, 0.1, 0.03), n, [0, fy, fz], '#020617'); break;
       case 'scarf': { const m = part(rig, 'scarf', ring(0.44, 0.1), p, at(0, 0.28, 0), acc); m.scaling.z = 0.75; part(rig, 'tailS', box(0.1, 0.3, 0.05), p, at(0.12, 0.12, 0.17), acc); break; }
-      case 'backpack': part(rig, 'pack', box(0.38, 0.44, 0.18), p, at(0, 0.0, -0.24), acc === '#ffffff' ? '#7c2d12' : acc); break;
+      case 'backpack': part(rig, 'pack', box(0.38, 0.44, 0.18), pBack, at(0, 0.0, -0.24), acc === '#ffffff' ? '#7c2d12' : acc); break;
       case 'cape': { const m = part(rig, 'cape', box(0.5, 0.78, 0.03), p, at(0, -0.1, -0.18), acc === '#ffffff' ? '#dc2626' : acc); m.rotation.x = 0.12; rig.cape = m; break; }
       case 'bowtie': part(rig, 'bowL', box(0.09, 0.08, 0.03), p, at(0.05, 0.24, 0.16), acc === '#ffffff' ? '#dc2626' : acc); part(rig, 'bowR', box(0.09, 0.08, 0.03), p, at(-0.05, 0.24, 0.16), acc === '#ffffff' ? '#dc2626' : acc); break;
-      case 'wings': { const a = part(rig, 'wingL', box(0.42, 0.5, 0.03), p, at(0.24, 0.08, -0.2), '#f8fafc'); a.rotation.y = 0.5; const b = part(rig, 'wingR', box(0.42, 0.5, 0.03), p, at(-0.24, 0.08, -0.2), '#f8fafc'); b.rotation.y = -0.5; rig.wings = [a, b]; break; }
-      case 'tail': { const m = part(rig, 'tail', cyl(0.04, 0.1, 0.5, 8), p, at(0, -0.3, -0.3), body); m.rotation.x = -0.9; rig.tail = m; break; }
+      case 'wings': { const a = part(rig, 'wingL', box(0.42, 0.5, 0.03), pBack, at(0.24, 0.08, -0.2), '#f8fafc'); a.rotation.y = 0.5; const b = part(rig, 'wingR', box(0.42, 0.5, 0.03), pBack, at(-0.24, 0.08, -0.2), '#f8fafc'); b.rotation.y = -0.5; rig.wings = [a, b]; break; }
+      case 'tail': { const m = part(rig, 'tail', cyl(0.04, 0.1, 0.5, 8), pRump, at(0, -0.3, -0.3), body); m.rotation.x = -0.9; rig.tail = m; break; }
       default: break;
     }
   }
@@ -479,6 +491,7 @@
     }).catch(() => {});
   }
   function disposeRig(rig) {
+    if (P.models) P.models.dispose(rig);
     if (rig.model) for (const m of rig.model.meshes) try { m.dispose(); } catch {}
     for (const m of rig.meshes) try { m.dispose(); } catch {}
     try { rig.root.dispose(); } catch {}
@@ -617,10 +630,12 @@
     r.shL.rotation.set(-swing * 0.8, 0, 0.06); r.shR.rotation.set(swing * 0.8, 0, -0.06);
     r.neck.rotation.set(0, 0, 0);
     feedFace(rig, t);
-    if (rig.person) P.softPerson.animate(rig, dt, em); // its own pose, springs and face (the emotes below go on top)
+    const modelOn = Boolean(rig.pm && rig.pm.on); // a Gen model has the body (presence-models.js): it moves itself, emotes included
+    if (rig.person && !modelOn) P.softPerson.animate(rig, dt, em); // its own pose, springs and face (the emotes below go on top)
     if (rig.cape) rig.cape.rotation.x = 0.12 + s * 0.5;
     if (rig.tail) rig.tail.rotation.y = Math.sin(t * 3) * 0.3;
     if (rig.wings) { rig.wings[0].rotation.y = 0.5 + Math.sin(t * 2) * 0.1; rig.wings[1].rotation.y = -0.5 - Math.sin(t * 2) * 0.1; }
+    if (modelOn) { P.models.animate(rig, dt, em); return; }
     if (rig.what !== 'person' && P.bodies) P.bodies.animate(rig, dt, s);
     if (!em) { playClip(rig, null); return; }
     const k = t - em.t0;
@@ -1151,6 +1166,6 @@
     sayAction = (d) => onSay(d, null);
   }
   // The showcase (/avatars) builds and moves bodies on stand-in entities ({ node, x, y, z, alive }) with the very code the game runs.
-  P.showcase = { make: makeRig, animate: (rig, dt) => animate(rig, dt, null), dispose: disposeRig };
+  P.showcase = { make: (e, look, color, opts) => makeRig(e, look, color, opts), animate: (rig, dt) => animate(rig, dt, null), dispose: disposeRig };
   P._internal = { rigs, people, reactions, peerInfo, verified, onSay, onEmote, mine, draw, collect };
 })();
