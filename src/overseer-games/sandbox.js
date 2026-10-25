@@ -14,6 +14,8 @@ const overseer = (text, seconds = 5, voice = null) => {
   if (voice && game.overseer && game.overseer.speak) game.overseer.speak(text, voice, seconds);
   else if (game.overseer && game.overseer.say) game.overseer.say(text, seconds);
 };
+// A neighbour's line in the chat window (text only, like islanders.js), for a quest's beat.
+const npc = (who, color, text) => { if (H && H.chat && H.chat.line) H.chat.line({ kind: 'npc', who, text, color, keep: 14 }); game.emit('beat', { who, text }); };
 const confetti = () => {
   const p = game.player;
   if (!p) return;
@@ -168,14 +170,18 @@ game.onStart(() => {
 // The Overseer speaks each moment (the community library's Overseer voice, by name), and its words show as a caption.
 // "Do with it what you will" is the beginning's alone: said once, in the intro.
 const MOMENTS = {
-  drive: { sound: 'level-up.mp3', pip: 'You made it! The rod is at the end of the pier. Hold click to cast, click when the bobber dips.', overseer: 'You found your way. Good.', voice: 'overseer-found-your-way.mp3' },
-  fish: { sound: 'power-up.mp3', pip: 'A fish! Here, take the rocket launcher. See the barrels up the beach? Go on.', overseer: 'The sea gives. Remember that.', voice: 'overseer-the-sea-gives.mp3', give: ['rocket-launcher'] },
-  boom: { sound: 'level-up.mp3', pip: 'BOOM! Now ask the Overseer for something: hold Q and pick anything.', overseer: 'Destruction is a kind of freedom too.', voice: 'overseer-destruction.mp3' },
+  drive: { sound: 'level-up.mp3', pip: 'You made it! That was Gravel Road, I named it just now. The rod is at the end of the pier. Hold click to cast, click when the bobber dips.', overseer: 'You found your way. Good.', voice: 'overseer-found-your-way.mp3' },
+  fish: { sound: 'power-up.mp3', npc: ['Admiral Bobbin', '#facc15', 'Fine cast. Eight out of ten. The two is for the wind, which I take personally.'], pip: 'A fish! Here, take the rocket launcher. See the barrels up the beach? Go on.', overseer: 'The sea gives. Remember that.', voice: 'overseer-the-sea-gives.mp3', give: ['rocket-launcher'] },
+  boom: { sound: 'level-up.mp3', npc: ['Channel', '#7dd3fc', 'Breaking: BOOM, live from the beach. Eyewitnesses: one. Ratings: record.'], pip: 'BOOM! Goodbye, Barrel! Goodbye, Other Barrel! Now ask the Overseer for something: hold Q and pick anything.', overseer: 'Destruction is a kind of freedom too.', voice: 'overseer-destruction.mp3' },
   // (The Overseer's "Ask, and I will send it down" is said when they first hold Q: below.)
   spawn: { sound: 'teleport.mp3', pip: 'It came from the Overseer! It listens, too: tell it what you want in the chat. Anything!' },
   // The Overseer in the chat: what you ask for, it makes (on the player's credits). Its answer is in the chat too.
-  ask: { sound: 'teleport.mp3', pip: 'It heard you! Last one: the helicopter on the hill. Go up, way up.', overseer: 'I heard you. Watch the sky.' },
+  ask: { sound: 'teleport.mp3', npc: ['Mrs Ember', '#fb923c', 'A letter came for the new one, dear. It says: mind the third plank, it sticks. That is all. Sorry.'], pip: 'It heard you! Now go up the hill. Dolores lives there. Say hello, she pretends she does not mind.', overseer: 'I heard you. Watch the sky.' },
+  // Quest 6: the hill. Dolores was not waiting. The reward is the view and the pad (a beam on the helicopter).
+  hill: { sound: 'power-up.mp3', npc: ['Dolores', '#4ade80', 'I was not waiting. The pad is free. Use it. I will not watch.'], pip: 'Told you! She likes you. The helicopter is right there on the pad. Go up, way up.', seconds: 5, pad: true },
   fly: { sound: 'victory.mp3', pip: 'Look down! That speck in the sea is our island. The spawn gun and the gravity gun are yours too.', overseer: 'That is your world. All of it.', voice: 'overseer-your-world.mp3', seconds: 6, give: ['spawn-gun', 'gravity-gun'] },
+  // Quest 8: the launch pad. Rolo's rocket goes up; the planet is whole and the Overseer's bay is lit on its hull, far off and open.
+  launch: { sound: 'victory.mp3', npc: ['Rolo', '#22d3ee', 'huh. it flew. that is fine. that is mostly fine.'], pip: "Huh. That's new.", overseer: 'It is yours, if you come.', seconds: 6, bay: true },
 };
 // Each moment plays once: a step the quest enters again (a restored or re-synced quest state, a second blast of the
 // same barrels) must not make the Overseer say its line again. Kept on window: a script that runs again (hot reload)
@@ -189,7 +195,10 @@ game.on('tour', (d) => {
   confetti();
   game.camera.shake(0.08, 0.2);
   game.after(0.6, () => say(m.pip, 6));
-  if (m.overseer) game.after(1.4, () => overseer(m.overseer, m.seconds || 5, m.voice));
+  if (m.npc) game.after(0.2, () => npc(m.npc[0], m.npc[1], m.npc[2]));
+  if (m.pad) game.after(1.2, () => { const h = game.all('Helicopter').find((e) => e.alive); const O = H && H.overseer; try { if (h && O && O.beam) O.beam(h, { radius: 2.4, seconds: 3 }); } catch { /* fine */ } });
+  if (m.bay) game.after(1, () => game.emit('bay-lit', { far: true }));
+  if (m.overseer) game.after(m.bay ? 3.2 : 1.4, () => overseer(m.overseer, m.seconds || 5, m.voice));
   if (m.give && game.mayhem && game.mayhem.giveTool) game.after(1, () => { for (const t of m.give) game.mayhem.giveTool(t); });
 });
 
@@ -238,6 +247,67 @@ game.onUpdate(() => {
   if (h > 280) { high = true; game.emit('sandbox-high', { height: Math.round(h), mine: true }); }
 });
 
+// ------------------------------------------------------------------ quest 6: up the hill, hello to Dolores
+// Dolores greets whoever comes within a few meters (islanders.js says it and tells the game); that is the hello.
+game.on('islander', (d) => { if (d && d.id === 'dolores') game.emit('sandbox-hill', { mine: true }); });
+
+// ------------------------------------------------------------------ quest 8: the planet whole
+// High enough up (in Rolo's rocket, or any way there is) that the planet is a ball below and the Overseer's bay is lit far off.
+let whole = false;
+game.onUpdate(() => {
+  const p = game.player;
+  if (whole || !p || game.mode !== 'play') return;
+  const h = game.planet ? game.planet.height(p.position) : p.y;
+  if (h > PLANET_WHOLE) { whole = true; game.emit('sandbox-planet', { height: Math.round(h), mine: true }); }
+});
+const PLANET_WHOLE = 1000; // meters up
+
+// ------------------------------------------------------------------ small things to notice (Chapter One's hints; never frightening)
+// E near the pier's planks, the harbour desk's logbook; the Overseer, asked what it saw before you. Each says one quiet thing, once a visit.
+const noticed = (window.__islandNoticed = window.__islandNoticed || new Set());
+function notice(id, text, who) {
+  if (!noticed.has(id)) { noticed.add(id); game.emit('notice', { id }); }
+  if (H && H.chat && H.chat.line) H.chat.line({ kind: 'npc', who: who || 'You notice', text, color: '#e5d9b8', keep: 14 });
+}
+if (H && H.use && H.use.register) {
+  const PLANKS = [68, 0], DESK = [62.5, 5.6];
+  H.use.register('island:notice', {
+    near(p) {
+      if (game.mode !== 'play') return null;
+      const dp = Math.hypot(p.x - PLANKS[0], p.z - PLANKS[1]), dd = Math.hypot(p.x - DESK[0], p.z - DESK[1]);
+      if (dp < 2.4 && p.y > 0) return { label: 'Look at the planks', priority: 3, distance: dp, act: () => { notice('planks', 'The planks are cut by hand. The joints fit a hand a little bigger than yours.'); game.after(1.6, () => say('Huh.', 2)); } };
+      if (dd < 2.4) return { label: 'Look at the logbook', priority: 3, distance: dd, act: () => { notice('logbook', 'The harbour logbook. Some pages near the middle are torn out, cleanly.'); game.after(1.4, () => npc('Admiral Bobbin', '#facc15', 'A gull. Do not look at me like that. A gull.')); } };
+      return null;
+    },
+  });
+}
+game.on('asked', (d) => {
+  const t = d && typeof d.text === 'string' ? d.text : '';
+  if (/\b(before me|before us|before i|before we|what did you see|who was here|who lived|saw before)\b/i.test(t)) game.after(1.5, () => { overseer('I saw the sea.', 4, null); game.emit('notice', { id: 'sea' }); });
+});
+
+// ------------------------------------------------------------------ Rolo's rocket: the last of its fuel
+// E at the rocket on its pad pours in the last can. The ground fills the tank anyway, so it is never in the way.
+if (H && H.use && H.use.register) {
+  H.use.register('island:rocket-fuel', {
+    near(p) {
+      if (game.mode !== 'play' || window.__islandFuelled) return null;
+      const r = (game.all('Rocket') || []).find((e) => e && e.alive);
+      if (!r) return null;
+      const d = Math.hypot(r.x - p.x, r.z - p.z);
+      if (d > 5.5 || (p._vehRider || p.controller === 'drive')) return null;
+      return { label: "Fill the rocket's tank", priority: 4, distance: d, act: () => {
+        window.__islandFuelled = true;
+        const v = r.vehicle;
+        try { if (v && v.def && v.def.engine) v.fuel = v.def.engine.fuel || v.fuel; } catch { /* the ground fills it */ }
+        sfx('confirm.mp3', { volume: 0.5 });
+        npc('Rolo', '#22d3ee', 'huh. that is the last can. it holds. probably it holds.');
+        game.emit('rocket-fuelled', {});
+      } };
+    },
+  });
+}
+
 // ------------------------------------------------------------------ the helicopter is the tour's last step
 // Blow it up (the rocket launcher is yours by then) and the tour could never finish: a new one lands on the helipad a few
 // seconds after the wreck, the old one cleared away. (Any helicopter that is wrecked, the spawned ones too.)
@@ -263,7 +333,6 @@ game.on('wrecked', (d) => {
 // again keeps its old listeners) and, when the quest reaches the step, it passes at once, its moment and all. Nothing is
 // removed: every step still ends in its own moment, in order.
 const early = (window.__islandEarly = window.__islandEarly || new Set());
-const TOUR_ORDER = ['drive', 'rod', 'fish', 'boom', 'spawn', 'ask', 'fly'];
 const tourStep = () => { const q = game.events && game.events.quests; return q && game.mode === 'play' && q.state('tour') === 'active' ? q.step('tour') : null; };
 const mark = (step) => { if (!early.has(step)) early.add(step); };
 game.on('pickup', (d) => { if (d && d.gives === 'tool' && d.tool === 'rod') mark('rod'); });
@@ -272,6 +341,8 @@ game.on('explosion', () => mark('boom'));
 game.on('spawned', () => mark('spawn'));
 game.on('asked', () => mark('ask'));
 game.on('sandbox-high', () => mark('fly'));
+game.on('sandbox-hill', () => mark('hill'));
+game.on('sandbox-planet', () => mark('launch'));
 // The dock is reached on foot or by 4x4 at any time, whatever the quest is on.
 game.every(0.5, () => {
   const p = game.player, dock = game.find && game.find('dock');
@@ -353,7 +424,8 @@ function ensureBarrels() {
 const RESCUE_LINES = {
   drive: 'Back at the start. The 4x4 is right there.', rod: 'The rod is where it was. Walk to it.', fish: 'The rod is in your hands. Cast.',
   boom: 'The barrels are as they were. The launcher is in your hands.', spawn: 'Back where you started. Ask for something.',
-  ask: 'Back where you started. Speak, and I will hear.', fly: 'The helicopter is on its pad. Go up.',
+  ask: 'Back where you started. Speak, and I will hear.', hill: 'The hill is east of the hut. Dolores is up by the pad.', fly: 'The helicopter is on its pad. Go up.',
+  launch: 'The rocket is on its pad, full. The way is up.',
   rocket: 'The rocket is on its pad, full. The way is up.',
 };
 function rescue(why) {
@@ -370,6 +442,8 @@ function rescue(why) {
   else if (step === 'rod') { ensureRod(); spot = HOME.dock; thing = game.find && game.find('rod'); }
   else if (step === 'fish') { if (game.mayhem && game.mayhem.giveTool) game.mayhem.giveTool('rod'); spot = HOME.rodStand; }
   else if (step === 'boom') { ensureBarrels(); if (game.mayhem && game.mayhem.giveTool) game.mayhem.giveTool('rocket-launcher'); spot = HOME.beach; thing = game.find && game.find('barrel_1'); }
+  else if (step === 'hill') { const d = game.find && game.find('dolores'); spot = [HOME.heli[0] - 4, HOME.heli[1] - 8]; thing = d && d.alive ? d : null; }
+  else if (step === 'launch') { thing = bringVehicle('Rocket', 'rocket', HOME.rocket, 'rocket'); spot = [HOME.rocket[0] + 7, HOME.rocket[1] + 4]; endBeam(); }
   else if (step === 'fly') { thing = bringVehicle('Helicopter', 'heli', HOME.heli, 'heli'); spot = [HOME.heli[0] - 6, HOME.heli[1] - 4]; }
   else if (step === 'rocket') { thing = bringVehicle('Rocket', 'rocket', HOME.rocket, 'rocket'); spot = [HOME.rocket[0] + 7, HOME.rocket[1] + 4]; endBeam(); }
   const to = at(spot[0], ground(spot[0], spot[1]) + 1, spot[1]);
@@ -407,6 +481,8 @@ const NUDGES = {
   boom: 'The fuel barrels are up the beach. Switch to the rocket launcher and fire!',
   spawn: 'Hold Q and pick anything. The Overseer will beam it down.',
   ask: 'Type what you want in the chat. Anything at all!',
+  hill: 'Up the slope past my hut, to the helipad. Dolores is the cactus. She will say she was not waiting.',
+  launch: "Rolo's rocket is on the pad across the island. E to fill it, E to get in, hold SPACE.",
   fly: 'The helicopter is on the hill. Get in and keep going up.',
 };
 const NUDGE_AFTER = 30; // seconds on one step
@@ -425,10 +501,13 @@ game.every(1, () => {
 // Pip's line is gone in a few seconds; this stays: the step in one line, "2 of 7", a flourish when one is done, a hint with
 // the controls after 20 s without progress, and a marker over the place (it fades as you get there). Top left, under the
 // safe area, clear of the stick and buttons at the bottom. The quest list's own tracker would say the same thing twice.
-const STEPS = ['drive', 'rod', 'fish', 'boom', 'spawn', 'ask', 'fly'];
+const STEPS = ['drive', 'rod', 'fish', 'boom', 'spawn', 'ask', 'hill', 'fly', 'launch'];
+// Chapter One's eight quests (docs/story.md section 5): the mirror is the first; the rod and the fish are one (the sea gives), spawning and asking one (ask).
+const QUEST_NO = { drive: 2, rod: 3, fish: 3, boom: 4, spawn: 5, ask: 5, hill: 6, fly: 7, launch: 8 };
 const SHORT = {
   drive: 'Drive the 4x4 to the dock', rod: 'Grab the fishing rod at the end of the pier', fish: 'Catch a fish',
-  boom: 'Blow up the fuel barrels', spawn: 'Spawn something', ask: 'Ask the Overseer for something', fly: 'Fly the helicopter up high',
+  boom: 'Blow up the fuel barrels', spawn: 'Spawn something', ask: 'Ask the Overseer for something', hill: 'Walk up the hill and say hello to Dolores', fly: 'Fly the helicopter up high',
+  launch: "Fill Rolo's rocket and go up until the planet is whole",
 };
 // What to press, for the step, on a keyboard and on a phone.
 const HINTS = {
@@ -438,9 +517,11 @@ const HINTS = {
   boom: ['Press Q until the rocket launcher is in your hands, then click to fire at the barrels.', 'Tap ⇄ until the rocket launcher is in your hands, then tap the screen to fire at the barrels.'],
   spawn: ['Hold Q and pick anything from the wheel.', 'Tap the ➕ button and pick anything.'],
   ask: ['Type what you want in the chat at the bottom (try "a castle on the hill").', 'Type what you want in the chat (try "a castle on the hill").'],
+  hill: ['Walk up the slope behind the hut to the helipad. Dolores is the cactus: stand near her.', 'Use the stick to walk up the slope behind the hut to the helipad. Dolores is the cactus: stand near her.'],
+  launch: ["Go to the rocket on the launch pad. E fills its tank, E again gets you in. Hold SPACE and keep going up.", "Go to the rocket on the launch pad. Tap B to fill its tank, then to get in. Hold the up button and keep going up."],
   fly: ['Get in the helicopter with E. Hold W to climb, or use the mouse to tilt up.', 'Tap B at the helicopter. Push the stick up and keep going up.'],
 };
-const NAMES = { drive: 'Dock', rod: 'Fishing rod', fish: 'Fishing rod', boom: 'Fuel barrel', fly: 'Helicopter' };
+const NAMES = { drive: 'Dock', rod: 'Fishing rod', fish: 'Fishing rod', boom: 'Fuel barrel', hill: 'Dolores', fly: 'Helicopter' };
 const HINT_AFTER = 20; // seconds without progress
 const FADE_NEAR = 14; // the marker is gone by here (meters), fully there from FADE_FAR
 const FADE_FAR = 30;
@@ -501,7 +582,8 @@ function drawTour() {
   const active = Boolean(q && game.mode === 'play' && q.state('tour') === 'active');
   const step = active ? q.step('tour') : null;
   if (typeof document !== 'undefined' && document.body) document.body.classList.toggle('tour-on', active && !!step);
-  if (!active || !step || !STEPS.includes(step)) {
+  // (The last quest is led by the Overseer's beam and the rocket lesson: the journey's own tracker, not this one.)
+  if (!active || !step || !STEPS.includes(step) || (step === 'launch' && journey.state === 'invited')) {
     const el = game.ui.el('tour-track');
     if (el) el.hidden = true;
     const sb = game.ui.el('tour-stuck');
@@ -519,10 +601,9 @@ function drawTour() {
     el.classList.remove('hint');
     if (!first) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } // (a short flourish: the step before is done)
   }
-  const i = STEPS.indexOf(step) + 1;
   if (tour.shown !== step) {
     tour.shown = step;
-    tour.n.textContent = `The tour · ${i} of ${STEPS.length}`;
+    tour.n.textContent = `Chapter One · ${QUEST_NO[step]} of 8`;
     tour.t.textContent = SHORT[step];
     tour.h.textContent = (HINTS[step] || [])[H && H.touchUi ? 1 : 0] || '';
   }
@@ -546,8 +627,8 @@ game.every(0.2, drawTour);
 // A step done: draw at once, so the flourish is on the same beat as the confetti.
 game.on('quest', (d) => { if (d && d.id === 'tour') drawTour(); });
 
-// ------------------------------------------------------------------ after the tour: "Come and see where I live."
-// The tour's last step done (high enough to see the planet), the Overseer invites them up. A beam from its ship comes
+// ------------------------------------------------------------------ quest 8: Rolo's rocket
+// The quest line reaches the launch pad: Pip and Rolo point at the rocket. A beam from its ship comes
 // down on the rocket on its pad across the island (and an arrow over it), the tracker says what to do, and a short rocket
 // lesson follows them in: hold to burn, lean it toward the ship, cut the engine and coast, line up with the bay (the
 // approach readout and the catch are the engine's: modules/overseer/dock.js). A climb that fails is never a dead end:
@@ -559,17 +640,18 @@ function clearJourneyMark() { if (journey.mark) { try { journey.mark.close(); } 
 function invite() {
   if (journey.state !== 'off' || game.mode !== 'play') return;
   journey.state = 'invited'; journey.tut = 'burn'; journey.tilted = false; journey.since = game.time;
-  overseer('Come and see where I live.', 5, null);
+  say("Rolo built a rocket and can't say why! It's on the pad across the island. Fill it up and go.", 6);
+  npc('Rolo', '#22d3ee', 'huh. it is built. i cannot say why. it is fine. mostly fine.');
   game.emit('journey', { state: 'invited' });
   drawJourney();
 }
-game.on('tour', (d) => { if (d && d.step === 'fly') game.after(9, invite); });
-// (A player who flew first and finished the tour some other way is invited when the quest completes.)
-game.on('quest', (d) => { if (d && d.id === 'tour' && d.state === 'done') game.after(10, invite); });
+// Quest 8 begins when the quest line reaches it (Rolo's rocket): the beam and the lesson lead there. A player who has already
+// been up high in it has nothing to be led to.
+game.on('quest', (d) => { if (d && d.id === 'tour' && d.state === 'step' && tourStep() === 'launch' && !early.has('launch')) game.after(1.5, invite); });
 
 // The words for each moment: the tracker's title and what to press, keyboard first, phone second.
 const JOURNEY = {
-  invited: ['Come and see where I live', 'Go to the rocket on the launch pad (follow the beam) and press E to get in.', 'Go to the rocket on the launch pad (follow the beam) and tap B to get in.'],
+  invited: ["Rolo's rocket", 'Go to the rocket on the launch pad (follow the beam) and press E to get in.', 'Go to the rocket on the launch pad (follow the beam) and tap B to get in.'],
   burn: ['Hold to burn', 'Hold SPACE: the engine burns while you hold it, and keeps burning when you let go. C cuts it.', 'Hold the up button: the engine burns while you hold it. The down button cuts it.'],
   steer: ['Steer toward the Overseer', 'W / S tip the nose, A / D lean it. It points where it flies: tip it toward the big ship in the sky.', 'The stick tips the nose and leans it. It flies where it points: tip it toward the big ship in the sky.'],
   stage: ['Stage: cut the engine and coast', 'Up in the thin air, press C to cut the engine. Coast. Burn again (SPACE) only to correct your way.', 'Up in the thin air, cut the engine with the down button. Coast. Burn again only to correct your way.'],
