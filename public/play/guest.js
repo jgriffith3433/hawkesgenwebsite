@@ -14,6 +14,12 @@
 // back to /play/sandbox?claim=<intent>). Signed in, the snapshot becomes their first game: POST /v1/games (template
 // 'sandbox') and the difference as scene ops (POST /v1/games/:id/scene), then the editor (/app/g/<id>).
 //
+// Coming back (J, 2026-10-25): a second visit does not repeat the beginning. `hg_sandbox_return` (the `ret` record: the
+// character's name, the tour step they are on, who they were signed in as) is written when the mirror is done and as the
+// tour moves; with the intro's own flag (`hg_overseer_intro`) it makes a visit a return. A return skips the intro and the
+// mirror (config as in the Observatory's return), is beamed in, is welcomed back by name, and the tour resumes on the step
+// they left (sandbox.js reads HawkesGuest.resume and fast-forwards Pip's quest silently). L or "Change my look" opens the
+// mirror's questions anywhere. Storage cleared: no record, no intro flag, the full beginning.
 // Analytics (Hawkes analytics, gen.hawkesgen.com/sdk/analytics@1.js): sandbox_start, sandbox_first_action,
 // sandbox_try (each thing to try, once), sandbox_objective (each step of Pip's tour), sandbox_prompt (a button),
 // signup_open, sandbox_signup, sandbox_claimed.
@@ -248,7 +254,7 @@
     const touring = () => { try { return H.game.events.quests.state('tour') === 'active'; } catch { return false; } };
 
     // The buttons that open the account side.
-    const acts = el(`<button type="button" class="primary" data-intent="save">Save this world</button><button type="button" class="opt" data-intent="build">Build your own</button><button type="button" class="opt" data-intent="assistant">Ask the Overseer</button><button type="button" class="opt" data-intent="invite">Invite a friend</button><button type="button" class="more" data-more aria-label="More">⋯</button>`, 'gs-acts');
+    const acts = el(`<button type="button" class="primary" data-intent="save">Save this world</button><button type="button" class="opt" data-intent="build">Build your own</button><button type="button" class="opt" data-intent="assistant">Ask the Overseer</button><button type="button" class="opt" data-intent="invite">Invite a friend</button><button type="button" class="opt" data-look title="Change how you look (L)">Change my look</button><button type="button" class="more" data-more aria-label="More">⋯</button>`, 'gs-acts');
     acts.querySelectorAll('[data-intent]').forEach((b) => { b.onclick = () => { acts.classList.remove('open'); want(b.dataset.intent, 'button'); }; });
     acts.querySelector('[data-more]').onclick = () => acts.classList.toggle('open');
     session.acts = acts;
@@ -308,17 +314,23 @@
     const reach = (step) => { if (reached.has(step)) return; reached.add(step); track('sandbox_tour_step', { step, n: STEP_N[step] }); };
     // A stable event per new quest, once each: when the quest is done.
     const questDone = new Set();
-    on('tour', (d) => { if (d && (d.step === 'hill' || d.step === 'launch') && !questDone.has(d.step)) { questDone.add(d.step); track('sandbox_quest_' + d.step, { s: Math.round((performance.now() - t0) / 1000), touch }); } });
+    // (A resumed tour fast-forwards the steps already done: sandbox.js lists them in HawkesGuest.skipped; they are not counted again.)
+    const skipped = (step) => Boolean(window.HawkesGuest.skipped && window.HawkesGuest.skipped.has(step));
+    on('tour', (d) => { if (d && (d.step === 'hill' || d.step === 'launch') && !skipped(d.step) && !questDone.has(d.step)) { questDone.add(d.step); track('sandbox_quest_' + d.step, { s: Math.round((performance.now() - t0) / 1000), touch }); } });
     on('bay-lit', () => track('sandbox_bay_lit', {}));
     on('tour', (d) => {
-      if (!d || !d.step) return;
+      if (!d || !d.step || skipped(d.step)) return;
+      { const i = STEPS.indexOf(d.step); if (i >= 0) ret.patch({ tour: STEPS[i + 1] || 'done' }); }
       track('sandbox_objective', { step: d.step, s: Math.round((performance.now() - t0) / 1000), touch });
       const i = STEPS.indexOf(d.step);
       if (i >= 0 && i + 1 < STEPS.length) reach(STEPS[i + 1]);
     });
     on('quest', (d) => {
       if (!d || d.id !== 'tour') return;
+      if (d.state === 'start' && !(ret.get() || {}).tour) ret.patch({ tour: STEPS[0] });
+      if (d.state === 'start' && window.HawkesGuest.resumed) return; // (picking the tour up, not starting it)
       if (d.state === 'start') { track('sandbox_objective', { step: 'start', s: Math.round((performance.now() - t0) / 1000), touch }); track('sandbox_tour_start', {}); reach(STEPS[0]); }
+      if (d.state === 'done' && skipped('launch')) return; // (finished on an earlier visit)
       if (d.state === 'done') {
         track('sandbox_tour_done', {});
         nudge(7000);
@@ -343,11 +355,35 @@
     }
     setTimeout(() => highlightAssistant('5min'), 5 * 60 * 1000);
     on('terrain', (d) => { for (const x of (d && d.edits) || []) if (edits.length < MAX_EDITS) edits.push(x); });
-    // The mirror's questions answered (or skipped): now the account (once; the sheet can't be put away).
     let gated = false;
+    // Changing how you look is always one press away (L, or the button): the mirror's questions, anywhere.
+    const look = () => { try { if (H.mirror && H.mirror.dress && !H.mirror.isOpen) { track('sandbox_look_open', { returning: Boolean(session.returning) }); H.mirror.dress(); } } catch { /* fine */ } };
+    acts.querySelector('[data-look]').onclick = () => { acts.classList.remove('open'); look(); };
+    window.addEventListener('keydown', (e) => {
+      if (e.key !== 'l' && e.key !== 'L') return;
+      if (e.ctrlKey || e.metaKey || e.altKey || document.body.dataset.gsSheet || inUi(e)) return;
+      const t = e.target;
+      if (t && (t.isContentEditable || /^(input|textarea|select)$/i.test(t.tagName))) return;
+      look();
+    });
+    // A return (the beginning was seen and the mirror done here before): the Overseer welcomes them back by name. A guest
+    // still without an account gets the sheet next (the order is J's: intro, mirror, account, tour); a signed-in player's
+    // welcome is goLive's, and the tour picks up on its own.
+    if (session.returning) {
+      const rec = session.returning;
+      track('sandbox_return', { signedIn: Boolean(rec.signedIn), tour: rec.tour || null });
+      const name = lookName(H) || rec.name || '';
+      if (!rec.signedIn) {
+        setTimeout(() => { if (H.chat) H.chat.line({ kind: 'overseer', keep: 30, text: name ? `Welcome back, ${name}. The mirror is there if you want a new look: press L.` : 'Welcome back. The mirror is there if you want a new look: press L.' }); }, 2600);
+        gated = true;
+        setTimeout(() => want('tour', 'return'), 6500);
+      }
+    }
+    // The mirror's questions answered (or skipped): now the account (once; the sheet can't be put away).
     on('mirror', (d) => {
       if (gated || !d || (d.state !== 'done' && d.state !== 'skip')) return;
       gated = true;
+      ret.patch({ name: lookName(H) || null });
       track('sandbox_gate', { s: Math.round((performance.now() - t0) / 1000), named: Boolean(lookName(H)) });
       setTimeout(() => want('tour', 'mirror'), 1400);
     });
@@ -629,6 +665,13 @@
   // room (the Overseer's world changes arrive like any builder's, live) and its feed (the Overseer's answers, what it
   // makes, new assets), the chat talks to the Overseer (H.chat, modules/overseer/chat.js), Pip's tour goes on, and what
   // they do is saved every 20 s and on leaving. Building (the editor) is a page of its own, when they choose it.
+  const RET = 'hg_sandbox_return';
+  const ret = {
+    get() { try { const v = JSON.parse(localStorage.getItem(RET) || 'null'); return v && v.v === 1 ? v : null; } catch { return null; } },
+    patch(p) { try { localStorage.setItem(RET, JSON.stringify({ ...(ret.get() || { v: 1 }), ...p, v: 1, at: Date.now() })); } catch { /* fine */ } },
+    /** A return: they went through the beginning here before (the intro's flag is still there and the mirror was done). */
+    is() { try { return Boolean(localStorage.getItem('hg_overseer_intro') && ret.get()); } catch { return false; } },
+  };
   const KEPT = 'hg_sandbox_island';
   const kept = {
     get() { try { return JSON.parse(localStorage.getItem(KEPT) || 'null'); } catch { return null; } },
@@ -698,11 +741,12 @@
     autosave();
     signedInButtons();
     const n = Number(user.credits) || 0;
-    const name = (H.presence && H.presence.look && H.presence.look.name) || user.name || '';
+    ret.patch({ user: user.id });
+    const name = (H.presence && H.presence.look && H.presence.look.name) || (ret.get() || {}).name || user.name || '';
     const hi = name ? `Welcome, ${name}.` : 'Welcome.';
     const say = (text, action) => H.chat && H.chat.line({ kind: 'overseer', text, action, keep: 30 });
     setTimeout(() => {
-      if (!fresh) say(`${hi} Your island, as you left it. Talk to me here any time.`);
+      if (!fresh) say(`${name ? `Welcome back, ${name}.` : 'Welcome back.'} Your island, as you left it${window.HawkesGuest.resumed && window.HawkesGuest.resumed !== 'done' ? ', and the tour where you stopped' : ''}. Press L to change how you look; talk to me here any time.`);
       else if (n > 0) say(`${hi} This island is yours now, and I am here: talk to me in this chat${isTouch() ? ' (the 💬 button)' : ' (press Enter)'}. Ask for anything ("a castle on the hill") and I will beam it down. What I make uses your credits: you have ${n.toLocaleString()}.`);
       else say(`${hi} This island is yours now, and I am here: talk to me in this chat. What I make uses credits, and you have none right now.`, { label: 'Get credits', href: '/app#credits' });
     }, 1200);
@@ -920,6 +964,8 @@
   window.HawkesGuest = {
     /** Pip waits for this: the account comes first (the mirror opens the sheet; signed in, the tour goes on here). */
     accountFirst: true,
+    /** A return (public/play/guest.js): the tour step they left on (sandbox.js picks the tour up there), and the steps it fast-forwarded. */
+    resume: null, resumed: null, skipped: null,
     async boot(o = {}) {
       const t0 = performance.now();
       const q = new URLSearchParams(location.search);
@@ -941,6 +987,10 @@
           try {
             const gb = await api('GET', `/v1/games/${was.id}/bundle`);
             await window.HawkesModules.load('play', { bundle: Promise.resolve(gb) });
+            // Back again: the tour picks up on the step they left (sandbox.js reads this) and they are welcomed by name (goLive).
+            const rec = ret.get();
+            if (rec && rec.user === user.id && rec.tour) window.HawkesGuest.resumed = window.HawkesGuest.resume = rec.tour;
+            session.returning = { ...(rec || {}), signedIn: true };
             window.HawkesPlay.run(gb, { mode: 'play' });
             let base = null;
             try { base = JSON.parse(gb.files['scene.json']); } catch { /* fine */ }
@@ -964,14 +1014,17 @@
         const b = await bundle;
         let base = null;
         try { base = JSON.parse(b.files['scene.json']); } catch { /* the template is ours: never */ }
-        // Back from a featured game (the Observatory's travel board): no intro and no mirror again, the Observatory beams them in.
-        if (q.get('return') === 'observatory' && base) {
+        // Back from a featured game (the Observatory's travel board), or a second visit: no intro and no mirror again (the
+        // Observatory beams them in; a return is beamed in and welcomed back, startUi). Storage cleared: the full beginning.
+        const comingBack = ret.is();
+        if ((q.get('return') === 'observatory' || comingBack) && base) {
           try {
             base.config = { ...(base.config || {}), overseer: { ...((base.config || {}).overseer || {}), intro: false } };
             if (base.entities && base.entities.mirror) base.entities.mirror = { ...base.entities.mirror, shape: { ...(base.entities.mirror.shape || {}), character: { ...((base.entities.mirror.shape || {}).character || {}), start: false } } };
             b.files['scene.json'] = JSON.stringify(base);
           } catch { /* the usual start */ }
         }
+        if (comingBack && q.get('return') !== 'observatory') session.returning = { ...ret.get(), signedIn: false };
         window.HawkesPlay.run(b, { mode: 'play' });
         track('sandbox_world_built', {});
         requestAnimationFrame(() => requestAnimationFrame(() => track('sandbox_first_frame', {})));
