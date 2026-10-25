@@ -103,7 +103,7 @@ const closeAll = async (socks: net.Socket[]) => { for (const s of socks) s.destr
 test('past the per-address cap new connections are refused with 429 while players already in rooms keep playing', async () => {
   process.env.PORTAL_WS_PER_IP = '3';
   process.env.PORTAL_WS_PER_MIN = '1000';
-  const mine = [];
+  const mine: net.Socket[] = [];
   for (let i = 0; i < 3; i++) { const c = await open(ws('abcd'), '10.1.1.1'); assert.equal(c.status, 101); mine.push(c.sock); }
   const fourth = await open(ws('abcd'), '10.1.1.1');
   assert.equal(fourth.status, 429);
@@ -177,7 +177,7 @@ test('analytics beacons are limited per address (120 a minute) and the here ping
   for (let i = 0; i < 125; i++) if ((await fetch(`${base}/v1/analytics/collect`, { method: 'POST', headers: hdr, body: '[]' })).status === 429) refused++;
   assert.equal(refused, 5);
   assert.equal((await fetch(`${base}/v1/analytics/collect`, { method: 'POST', headers: { 'X-Forwarded-For': '10.4.0.2' }, body: '[]' })).status, 202, 'another address is fine');
-  const statuses = [];
+  const statuses: number[] = [];
   for (let i = 0; i < 8; i++) statuses.push((await call('/v1/play/t/sandbox/here', { body: { s: 'tab' }, headers: hdr })).status);
   assert.deepEqual(statuses, [200, 200, 200, 200, 200, 200, 429, 429]);
 });
