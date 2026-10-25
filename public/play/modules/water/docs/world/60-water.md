@@ -101,7 +101,7 @@ Give the player a rod: `{ "op": "config", "patch": { "player": { "tool": "rod" }
 `{ "type": "rod", "luck": 2, "bite": 1.5, "strength": 1.2 }`: luck makes rare fish likelier, bite makes them bite sooner,
 strength makes the line harder to snap). Hold the mouse (phones: 🎣) to charge, let go to cast; the bobber floats
 where it lands. Nibbles, then a bite (the bobber goes under, "!"): click (tap) in time to hook it. Then hold to reel
-and keep the tension in the green: too much snaps the line, slack too long and it gets away. J (📖) opens the catch log.
+and keep the tension in the green: too much snaps the line, slack too long and it gets away. The first fish a player ever catches is made easy: a bite within about 5 s of the cast, a common fish, a longer window to hook it, and a line that holds. J (📖) opens the catch log.
 
 The fish (`id`: name, rarity, water, kg):
 
