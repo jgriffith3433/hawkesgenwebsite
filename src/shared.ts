@@ -7,6 +7,7 @@ db.exec(`
 CREATE TABLE IF NOT EXISTS locks (name TEXT PRIMARY KEY, holder TEXT NOT NULL, until INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS rate_hits (key TEXT NOT NULL, at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS rate_hits_key ON rate_hits (key, at);
+CREATE TABLE IF NOT EXISTS live_seq (game TEXT PRIMARY KEY, n INTEGER NOT NULL);
 `);
 
 const holders = new Map<string, string>();
@@ -54,3 +55,8 @@ export class SharedLimiter {
 }
 /** Forgets hits older than a day (the worker does this now and then). */
 export const sweepShared = () => void db.prepare('DELETE FROM rate_hits WHERE at < ?').run(Date.now() - 86_400_000);
+
+/** The next number in a game's live feed: one count for every web process, kept across restarts, so an event's id means the same everywhere. */
+export function nextSeq(game: string) {
+  return Number((db.prepare('INSERT INTO live_seq (game, n) VALUES (?, 1) ON CONFLICT(game) DO UPDATE SET n = n + 1 RETURNING n').get(game) as { n: number }).n);
+}

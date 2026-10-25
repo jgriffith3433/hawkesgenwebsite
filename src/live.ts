@@ -4,10 +4,11 @@
 import type { ServerResponse } from 'node:http';
 import { id, PortalError, envInt } from './util.ts';
 import { env } from './config.ts';
-import { publish, missed, on, onConnect, catchUp, markHeard } from './bus.ts';
+import { publish, missed, on, onConnect, catchUp } from './bus.ts';
+import { nextSeq } from './shared.ts';
 import { procName, procs } from './proc.ts';
 
-type Conn = { id: string; res: ServerResponse; userId: string; name: string; file: string | null; color: string; pending: { event: string; data: unknown; id?: string }[] | null };
+type Conn = { id: string; res: ServerResponse; userId: string; name: string; file: string | null; color: string; pending: { event: string; data: unknown; n?: number }[] | null; got: Set<number>; max: number; floor: number };
 const rooms = new Map<string, Map<string, Conn>>();
 
 // Streams are long-lived, so they are capped: PORTAL_LIVE_PER_USER (6) for one account in a process, PORTAL_LIVE_MAX (2000) in all (shared out among the web processes).
@@ -16,12 +17,12 @@ let streams = 0;
 export const liveStats = () => ({ streams, users: streamsByUser.size });
 const streamsByUser = new Map<string, number>();
 
-// Every durable event gets an id `<boot>-<n>` from the bus's hub (the worker's, src/bus.ts) and the last few of a game are
-// kept there, so a stream that drops and comes back (the browser sends Last-Event-ID itself; a manual reconnect sends
-// ?last=), to this process or another, gets what it missed, once. A new boot has a new prefix: ids from before a restart
-// replay nothing (the editor reloads its state from `hello`, nothing is repeated). Presence, cursors and the hello are
-// state, not history: they are never replayed. Every event goes through the hub and comes back to every web process, so
-// each editor's stream gets it once wherever it is connected.
+// Every durable event of a game has a number (shared.ts nextSeq: one count in the database for all the processes, so it means
+// the same everywhere and survives restarts) and is sent as the SSE `id`. The last few of a game are kept by every web process and by
+// the bus's hub, so a stream that drops and comes back (the browser sends Last-Event-ID itself; a manual reconnect sends
+// ?last=), to this process or another, gets what it missed, and each stream writes a number once. Presence, cursors and the hello
+// are state, not history: they have no number and are never replayed. Every event goes through the hub and comes back to every
+// web process, so each editor's stream gets it once wherever it is connected.
 const RETRY_MS = 3000;
 const PROC = procName();
 // Who has the editor open, as the hub last told us: game -> process -> its streams. This process's own entry is always
@@ -33,37 +34,46 @@ const colorFor = (userId: string) => COLORS[[...userId].reduce((h, c) => (h * 31
 
 const frame = (event: string, data: unknown, evId?: string) => `${evId ? `id: ${evId}\n` : ''}event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 
-const write = (c: Conn, event: string, data: unknown, evId?: string) => {
+const write = (c: Conn, event: string, data: unknown, n?: number) => {
   if (c.res.destroyed || c.res.writableEnded) return;
+  if (n) { // (a durable event reaches a stream once, however many ways it came: live, replay, said again)
+    if (n <= c.floor || c.got.has(n)) return;
+    c.got.add(n);
+    if (c.got.size > 600) c.got.delete(c.got.values().next().value!);
+    c.max = Math.max(c.max, n);
+  }
   try {
-    c.res.write(frame(event, data, evId));
+    // (The id is the highest number this stream has had, so one that arrives late never makes a reconnect say an older id.)
+    c.res.write(frame(event, data, n ? String(c.max) : undefined));
   } catch {}
 };
 
 export function broadcast(gameId: string, event: string, data: unknown) {
-  publish({ t: 'live', game: gameId, event, data });
+  publish({ t: 'live', game: gameId, event, data, n: NOT_REPLAYED.has(event) ? undefined : nextSeq(gameId) });
 }
-
-const seqOf = (evId?: string) => Number(/-(\d+)$/.exec(evId ?? '')?.[1] ?? 0);
+/** State, not history: never numbered or replayed. */
+const NOT_REPLAYED = new Set(['presence', 'cursor', 'hello', 'thinking']);
 
 // The last events of each game as this process heard them, with their ids. Every web process hears every event, so a stream
 // that comes back here (or to another process that was up) can be given what it missed from this, even when the worker
 // restarted meanwhile and the hub's own ids are from another boot. The hub's history serves a process that is newer than the event.
-const recent = new Map<string, { id: string; event: string; data: unknown }[]>();
+const recent = new Map<string, { n: number; event: string; data: unknown }[]>();
 const KEEP = 200;
-const remember = (game: string, id: string, event: string, data: unknown) => {
+const remember = (game: string, n: number, event: string, data: unknown) => {
   let r = recent.get(game);
   if (!r) recent.set(game, (r = []));
-  r.push({ id, event, data });
+  if (r.some((e) => e.n === n)) return;
+  r.push({ n, event, data });
+  r.sort((a, b) => a.n - b.n);
   if (r.length > KEEP) r.shift();
 };
 
 on('live', (m) => {
-  if (m.id) remember(m.game, m.id, m.event, m.data);
+  if (m.n) remember(m.game, m.n, m.event, m.data);
   const room = rooms.get(m.game);
   if (room) for (const c of room.values()) {
-    if (c.pending) c.pending.push({ event: m.event, data: m.data, id: m.id });
-    else write(c, m.event, m.data, m.id);
+    if (c.pending) c.pending.push({ event: m.event, data: m.data, n: m.n });
+    else write(c, m.event, m.data, m.n);
   }
 });
 on('presence', (m) => {
@@ -102,25 +112,30 @@ export function join(gameId: string, user: { id: string; name: string | null }, 
   streams++;
   streamsByUser.set(user.id, (streamsByUser.get(user.id) ?? 0) + 1);
   res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no', Connection: 'keep-alive' });
-  const c: Conn = { id: `${id('c_', 6)}`, res, userId: user.id, name: user.name ?? 'someone', file: null, color: colorFor(user.id), pending: null };
+  const c: Conn = { id: `${id('c_', 6)}`, res, userId: user.id, name: user.name ?? 'someone', file: null, color: colorFor(user.id), pending: null, got: new Set(), max: 0, floor: 0 };
   if (!rooms.has(gameId)) rooms.set(gameId, new Map());
   rooms.get(gameId)!.set(c.id, c);
   res.write(`retry: ${RETRY_MS}\n\n`); // how long the browser waits before it comes back on its own
   write(c, 'hello', { conn: c.id, proc: PROC, color: c.color, presence: presence(gameId), resumed: !!last });
   // What it missed: at once when the hub is in this process; else it asks the worker, and what arrives meanwhile waits
   // behind it, so nothing is written twice or out of order.
-  const ring = recent.get(gameId);
-  const at = last && ring ? ring.findIndex((e) => e.id === last) : -1;
-  const gone = at >= 0 ? ring!.slice(at + 1).map((e) => ({ ...e, n: seqOf(e.id) })) : missed(gameId, last);
-  if (Array.isArray(gone)) for (const e of gone) { write(c, e.event, e.data, e.id); markHeard((e as any).mid); }
-  else {
-    c.pending = [];
-    void gone.then((list) => {
-      for (const e of list) { write(c, e.event, e.data, e.id); markHeard(e.mid); }
-      const upto = Math.max(0, ...list.map((e) => e.n));
-      for (const e of c.pending ?? []) if (!e.id || seqOf(e.id) > upto) write(c, e.event, e.data, e.id);
-      c.pending = null;
-    });
+  const after = /^\d+$/.test(last ?? '') ? Number(last) : null;
+  // Nothing at or before what this stream has already had (or, for a new one, what the editor loads as its state) is sent to it
+  // again, however late it reaches this process (the worker restarted and said it again).
+  c.floor = Math.max(after ?? 0, recent.get(gameId)?.at(-1)?.n ?? 0); 
+  if (after !== null) { // (an id that is not a number is from before: nothing to replay)
+    c.floor = after;
+    const ring = recent.get(gameId);
+    const gone = ring?.length && ring[0].n <= after + 1 ? ring.filter((e) => e.n > after) : missed(gameId, after);
+    if (Array.isArray(gone)) for (const e of gone) write(c, e.event, e.data, e.n);
+    else {
+      c.pending = [];
+      void gone.then((list) => {
+        for (const e of list) write(c, e.event, e.data, e.n);
+        for (const e of c.pending ?? []) write(c, e.event, e.data, e.n);
+        c.pending = null;
+      });
+    }
   }
   announce(gameId);
   const beat = setInterval(() => {

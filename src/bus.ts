@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import { id } from './util.ts';
 
 export type Msg = { t: string; [k: string]: any };
-export type LiveEvent = { id: string; n: number; event: string; data: unknown; mid?: string };
+export type LiveEvent = { n: number; event: string; data: unknown; mid?: string };
 type Sub = { send(m: Msg): void; procs: Set<string> };
 
 const KEEP = 200;
@@ -20,9 +20,8 @@ const hubHandlers = new Map<string, (m: Msg) => void>();
 export const onHub = (t: string, fn: (m: Msg) => void) => void hubHandlers.set(t, fn);
 
 export class Hub {
-  readonly boot = id('b', 3);
   readonly subs = new Set<Sub>();
-  private history = new Map<string, { seq: number; events: { n: number; event: string; data: unknown; mid?: string }[] }>();
+  private history = new Map<string, LiveEvent[]>();
   private presence = new Map<string, Map<string, unknown[]>>();
   private heard = new Set<string>(); // message ids already handled (a web process says its last few seconds again when the worker has been away)
 
@@ -46,15 +45,13 @@ export class Hub {
       if (this.heard.size > 20_000) this.heard.delete(this.heard.values().next().value!);
     }
     if (m.t === 'live') {
-      let evId: string | undefined;
-      if (!NOT_REPLAYED.has(m.event)) {
+      if (m.n) { // a durable event: its number comes from the database (shared.ts nextSeq), the hub only keeps the recent ones
         let h = this.history.get(m.game);
-        if (!h) this.history.set(m.game, (h = { seq: 0, events: [] }));
-        h.events.push({ n: ++h.seq, event: m.event, data: m.data, mid: m.mid });
-        if (h.events.length > KEEP) h.events.shift();
-        evId = `${this.boot}-${h.seq}`;
+        if (!h) this.history.set(m.game, (h = []));
+        h.push({ n: m.n, event: m.event, data: m.data, mid: m.mid });
+        if (h.length > KEEP) h.shift();
       }
-      return this.fan({ t: 'live', game: m.game, event: m.event, data: m.data, id: evId, mid: m.mid });
+      return this.fan(m);
     }
     if (m.t === 'presence-set') {
       const by = this.presence.get(m.game) ?? new Map<string, unknown[]>();
@@ -64,7 +61,7 @@ export class Hub {
       return this.sendPresence(m.game);
     }
     if (m.t === 'history') { // a process that was away: everything the hub kept for these games (it drops what it has heard, by `mid`)
-      for (const game of m.games ?? []) for (const e of this.history.get(game)?.events ?? []) from?.send({ t: 'live', game, event: e.event, data: e.data, id: `${this.boot}-${e.n}`, mid: e.mid, replay: true });
+      for (const game of m.games ?? []) for (const e of this.history.get(game) ?? []) from?.send({ t: 'live', game, event: e.event, data: e.data, n: e.n, mid: e.mid, replay: true });
       return void from?.send({ t: 'history-done' });
     }
     if (m.t === 'missed') return void from?.send({ t: 'missed-reply', rid: m.rid, events: this.missed(m.game, m.last) });
@@ -72,12 +69,9 @@ export class Hub {
     if (h) return h(m);
     this.fan(m);
   }
-  /** The events after `last` (an id from this boot), or none when the id is from before a restart or too old to be kept. */
-  missed(game: string, last: string | null | undefined): LiveEvent[] {
-    const m = /^(\w+)-(\d+)$/.exec(last ?? '');
-    const h = this.history.get(game);
-    if (!m || m[1] !== this.boot || !h) return [];
-    return h.events.filter((e) => e.n > Number(m[2])).map((e) => ({ id: `${this.boot}-${e.n}`, n: e.n, event: e.event, data: e.data, mid: e.mid }));
+  /** The events after number `last` that the hub still has, in order. */
+  missed(game: string, last: number): LiveEvent[] {
+    return (this.history.get(game) ?? []).filter((e) => e.n > last).sort((a, b) => a.n - b.n);
   }
 }
 
@@ -117,8 +111,8 @@ export function publish(m: Msg) {
   else localHub().receive(local, m);
 }
 
-/** What a stream that comes back after `last` missed: now when the hub is in this process, else after asking it. */
-export function missed(game: string, last: string | null | undefined): LiveEvent[] | Promise<LiveEvent[]> {
+/** What a stream that comes back after event number `last` missed: now when the hub is in this process, else after asking it. */
+export function missed(game: string, last: number): LiveEvent[] | Promise<LiveEvent[]> {
   if (client) return client.ask({ t: 'missed', game, last });
   return localHub().missed(game, last);
 }

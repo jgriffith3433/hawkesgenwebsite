@@ -51,8 +51,11 @@ function editor(base: string, cookie: string, game: string) {
   const seen: { event: string; data: any; id?: string }[] = [];
   const procs = new Set<string>();
   let last = '', stopped = false, reconnects = 0, req: http.ClientRequest | null = null;
+  let live = 0;
+  const again = () => { if (stopped || live === 0) return; live = 0; reconnects++; setTimeout(connect, 150); }; // (once per connection, whether it ended or errored)
   const connect = () => {
     if (stopped) return;
+    live = 1;
     let raw = '';
     req = http.get(`${base}/v1/games/${game}/live`, { headers: { Cookie: cookie, Accept: 'text/event-stream', ...(last ? { 'Last-Event-ID': last } : {}) }, agent: false }, (r) => {
       r.setEncoding('utf8');
@@ -70,9 +73,9 @@ function editor(base: string, cookie: string, game: string) {
           seen.push({ event: e.event, data, id: e.id });
         }
       });
-      r.on('close', () => { if (!stopped) { reconnects++; setTimeout(connect, 150); } });
+      r.on('close', again);
     });
-    req.on('error', () => { if (!stopped) { reconnects++; setTimeout(connect, 150); } });
+    req.on('error', again);
   };
   connect();
   return { seen, procs, get reconnects() { return reconnects; }, stop() { stopped = true; req?.destroy(); },

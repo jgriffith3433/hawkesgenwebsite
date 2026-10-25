@@ -3,7 +3,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { join, broadcast, closeAll } from '../src/live.ts';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+process.env.PORTAL_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'portal-live-test-'));
+const { join, broadcast, closeAll } = await import('../src/live.ts');
 
 const server = http.createServer((req, res) => {
   const u = new URL(req.url!, 'http://x');
@@ -56,7 +61,7 @@ test('a dropped stream comes back with what it missed, once', async () => {
   b.req.destroy();
 });
 
-test('retry hint first, heartbeats while idle, and an id from another boot replays nothing', async () => {
+test('retry hint first, heartbeats while idle, and an id that is not one of ours replays nothing', async () => {
   const c = open({ 'Last-Event-ID': 'bxxxxxx-1' });
   await until(() => c.beats >= 2);
   assert.deepEqual(names(c), []);
