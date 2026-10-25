@@ -64,10 +64,12 @@
     for (const n of inst.rootNodes) n.parent = fit;
     holder.computeWorldMatrix(true); fit.computeWorldMatrix(true);
     for (const n of inst.rootNodes) n.computeWorldMatrix(true);
-    // the base of the hat at the origin, its width as the row says, whatever the file's size and origin
+    // The file's front is +z like every Gen model, which the loader turns to -z: turn it back (`yaw`), then put the base of the hat at
+    // the origin, centred, with the file's width along x (the body of the hat, not its brim) as the row says.
+    fit.rotation.y = Number.isFinite(r.yaw) ? r.yaw : Math.PI;
+    fit.computeWorldMatrix(true);
     const bb = fit.getHierarchyBoundingVectors(true);
-    const w = Math.max(1e-4, bb.max.x - bb.min.x, bb.max.z - bb.min.z);
-    const s = (r.width || 0.5) / w;
+    const s = (r.width || 0.5) / Math.max(1e-4, bb.max.x - bb.min.x);
     fit.scaling.setAll(s);
     fit.position.set(-(bb.min.x + bb.max.x) / 2 * s, -bb.min.y * s - (r.sink ?? 0.02), -(bb.min.z + bb.max.z) / 2 * s);
     holder.parent = rig.neck; holder.position.set(0, HAT_Y, 0);
@@ -75,8 +77,11 @@
     for (const m of meshes) { m.isPickable = false; m.metadata = { decor: true, entity: rig.e }; if (rig.shadows) try { rig.shadows.addShadowCaster(m); } catch {} }
     const mats = [...new Set(meshes.map((m) => m.material).filter(Boolean))];
     const h = { kind, holder, mats, tris: c.tris, tinted: false };
-    if (r.tint && accent && accent !== '#ffffff') { tint(h, accent); h.tinted = true; }
-    else if (r.tint && r.tint === 'body' && body) { tint(h, body); h.tinted = true; }
+    if (r.flat) { for (const m of mats) { m.albedoTexture = null; m.albedoColor = B.Color3.FromHexString(r.flat); } } // (a bake that came out black: the colour it should be)
+    else if (r.tint) {
+      const col = accent && accent !== '#ffffff' ? accent : (r.tint === 'body' ? body : null); // (white is "no pick": a helmet then takes the body colour, as the procedural one does)
+      if (col) { tint(h, col); h.tinted = true; }
+    }
     return h;
   }
   function put(rig, kind, accent, body) {

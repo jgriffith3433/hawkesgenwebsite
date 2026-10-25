@@ -57,7 +57,7 @@ test('a loaded hat model sits on the head anchor of the person, scaled by the ro
   const bb = holder.getHierarchyBoundingVectors(true);
   t.rig.neck.computeWorldMatrix(true);
   const k = t.rig.neck.absoluteScaling.y; // (the head is scaled up from the unit head)
-  assert.ok(Math.abs((bb.max.x - bb.min.x) / k - 0.5) < 0.02 || Math.abs((bb.max.z - bb.min.z) / k - 0.5) < 0.02, `0.5 wide in head units, got ${(bb.max.x - bb.min.x) / k}`);
+  assert.ok(Math.abs((bb.max.x - bb.min.x) / k - 0.5) < 0.02, `0.5 wide in head units, got ${(bb.max.x - bb.min.x) / k}`);
   holder.computeWorldMatrix(true);
   const lo = (bb.min.y - holder.getAbsolutePosition().y) / k;
   assert.ok(Math.abs(lo) < 0.05, `its base is at the head's top: ${lo}`);
@@ -133,4 +133,31 @@ test('the hat rows in the registry name a file that is there and a hat the mirro
     assert.ok(C.LOOK.hats.includes(kind), `${kind} is a hat`);
     assert.ok(fs.existsSync(path.join(process.cwd(), 'public', r.url)), `${r.url} exists`);
   }
+});
+
+test('every hat file is a GLB of at most ~1.5k triangles with its base at the origin, and the registry holds the made hats', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const made = Object.keys(hatsBefore);
+  assert.ok(made.length >= 8, `made hats: ${made.join(',')}`);
+  for (const kind of made) {
+    const b = fs.readFileSync(path.join(process.cwd(), 'public', hatsBefore[kind].url));
+    const j = JSON.parse(b.subarray(20, 20 + b.readUInt32LE(12)).toString());
+    let tris = 0;
+    for (const m of j.meshes) for (const p of m.primitives) tris += j.accessors[p.indices].count / 3;
+    assert.ok(tris > 100 && tris <= 1500, `${kind}: ${tris} triangles`);
+    const pos = j.accessors[j.meshes[0].primitives[0].attributes.POSITION];
+    assert.ok(Math.abs(pos.min[1]) < 0.02, `${kind}: base at y = 0 (${pos.min[1]})`);
+  }
+});
+
+test('a hat with a flat colour drops its texture, and a helmet with no pick takes the body colour', async () => {
+  hats({ crown: { url: '/c.glb', width: 0.44, flat: '#facc15' }, helmet: { url: '/h.glb', width: 0.5, tint: 'body' } });
+  const a = wear('person', 'crown');
+  await done(a.rig);
+  assert.equal(a.rig.hatModel.mats[0].albedoColor.toHexString().toLowerCase(), '#facc15');
+  const b = wear('person', 'helmet', { accent: '#ffffff', body: '#2563eb' });
+  await done(b.rig);
+  assert.equal(b.rig.hatModel.mats[0].albedoColor.toHexString().toLowerCase(), '#2563eb');
+  for (const t of [a, b]) { P.showcase.dispose(t.rig); t.node.dispose(); }
 });
