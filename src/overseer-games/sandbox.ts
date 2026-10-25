@@ -118,7 +118,8 @@ export const SANDBOX = {
     background: '#74b9ea', ambient: 0.78, sun: 1, gravity: -24, time: 'afternoon', motes: '#fff3d6',
     fog: { color: '#a9d4f2', start: 260, end: 2200 },
     planet: PLANET,
-    overseer: { intro: 'always' },
+    // (The start faces east, down the path to the dock: the Overseer hangs ahead of it, about 15 degrees wide.)
+    overseer: { intro: 'always', position: [9700, 4200, -3000] },
     terrain: TERRAIN,
     water: { level: -1.5, waves: 0.15, color: '#1b86b8', fish: 'salt' },
     // Tools come with the tour: none at first (the rocket launcher at the barrels, the rest when it's done).

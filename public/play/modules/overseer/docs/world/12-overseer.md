@@ -12,8 +12,13 @@ building stays fast and clear.
 
 ### The Overseer: `config.overseer`
 
-On in every game by default (nothing to add). It sits about 5 km up, off to one side so it's in the sky ahead of the
-spawn; hazy by day, glowing at night. Beams come from the emitter at its lowest point, and it flares as it sends.
+On in every game by default (nothing to add). It hangs about 11 km away and 1.4 km across, so from the spawn it is a
+disc about 15 degrees wide, a little left of straight ahead (the default start faces +z), low enough to be on screen
+without looking up: findable in the first seconds, by day and at night. A game whose start faces another way sets
+`position` to be ahead of it (the Playground faces -z, the sandbox faces +x). Hazy by day (the haze is capped so a
+daytime disc always differs from the sky behind it), glowing at night, its halo breathing gently. It is drawn in the
+sky's far layer; if that layer can't be built it is drawn as a stand-in sphere of the same size on screen, pulled inside
+the camera's reach. Beams come from the emitter at its lowest point, and it flares as it sends.
 
 ### How things arrive (automatic; an op's `"arrive"` picks)
 
@@ -41,13 +46,13 @@ the whole game (`"none"`: things just appear; `"beam"`: nothing falls).
 - "Things should just appear, no beams" → `{ "op": "config", "patch": { "overseer": { "arrive": "none" } } }`.
 
 ```json
-{ "op": "config", "patch": { "overseer": { "position": [-2600, 5200, 8200], "radius": 560, "color": "#eef1f6", "glow": "#8fd8ff", "intro": "first", "beams": true } } }
+{ "op": "config", "patch": { "overseer": { "position": [-3000, 4200, 9700], "radius": 1400, "color": "#eef1f6", "glow": "#8fd8ff", "intro": "first", "beams": true } } }
 ```
 
 | field | what | default |
 |---|---|---|
-| `position` | where its middle is, meters (keep it high: several km) | `[-2600, 5200, 8200]` |
-| `radius` | its size, meters | 560 |
+| `position` | where its middle is, meters (keep it high and far, and ahead of where the start faces) | `[-3000, 4200, 9700]` |
+| `radius` | its size, meters | 1400 |
 | `color`, `glow` | the hull; the seams, rings and beams | white pearl, pale blue |
 | `intro` | `"first"` (the first time a player enters any world, remembered on their device), `"always"`, or `false` | `"first"` |
 | `beams` | `false`: things just appear (no beam, nothing falls) | true |
