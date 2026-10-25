@@ -126,11 +126,12 @@ function begin() {
   if (p && living && living.command) { try { living.command(p, 'come', { target: 'player' }); } catch { /* Pip stays */ } game.after(7, () => { try { living.command(p, 'stay'); } catch { /* fine */ } }); }
   const me = H && H.presence && H.presence.look;
   const name = me && me.name;
-  game.after(1.2, () => say(name ? `Hi, ${name}! I'm Pip. Welcome to the island!` : 'Hi! I\'m Pip. Welcome to the island!', 4));
+  const back = window.HawkesGuest && window.HawkesGuest.resume; // a return: the step they left on (guest.js)
+  game.after(1.2, () => say(back ? (name ? `Hey, ${name}! You're back!` : "Hey, you're back!") : name ? `Hi, ${name}! I'm Pip. Welcome to the island!` : 'Hi! I\'m Pip. Welcome to the island!', 4));
   game.after(3.4, () => {
     const q = game.events && game.events.quests;
     if (q && q.state('tour') === 'available') q.start('tour');
-    say('Come on, I\'ll show you around. The 4x4 first!', 4);
+    say(back ? (back === 'done' ? 'The island is all yours now.' : 'Right, where were we?') : 'Come on, I\'ll show you around. The 4x4 first!', 4);
   });
 }
 // After the Overseer's intro (it plays every time here) and the mirror that follows it, or straight away when there
@@ -200,6 +201,30 @@ game.on('tour', (d) => {
   if (m.bay) game.after(1, () => game.emit('bay-lit', { far: true }));
   if (m.overseer) game.after(m.bay ? 3.2 : 1.4, () => overseer(m.overseer, m.seconds || 5, m.voice));
   if (m.give && game.mayhem && game.mayhem.giveTool) game.after(1, () => { for (const t of m.give) game.mayhem.giveTool(t); });
+});
+
+// ------------------------------------------------------------------ a return: the tour picks up where it stopped
+// guest.js (a second visit, signed in) sets HawkesGuest.resume to the step they left on, or 'done'. When Pip starts the
+// tour, the steps before it are done silently: their moments are marked played (no lines again), the tools they gave are
+// handed over, and guest.js is told which steps were skipped so it does not count them twice.
+const TOUR_ORDER = ['drive', 'fish', 'boom', 'spawn', 'ask', 'hill', 'fly', 'launch'];
+const TOUR_TOOLS = { fish: ['rocket-launcher'], fly: ['spawn-gun', 'gravity-gun'] };
+game.on('quest', (d) => {
+  const GU = window.HawkesGuest;
+  if (!d || d.id !== 'tour' || d.state !== 'start' || !GU || !GU.resume) return;
+  const to = GU.resume;
+  GU.resume = null;
+  const n = to === 'done' ? TOUR_ORDER.length : TOUR_ORDER.indexOf(to);
+  if (n <= 0) return;
+  const before = TOUR_ORDER.slice(0, n);
+  GU.skipped = new Set(before);
+  for (const s of before) played.add(s);
+  game.after(0.1, () => {
+    const q = game.events && game.events.quests;
+    for (let i = 0; i < n && q && q.state('tour') === 'active'; i++) q.advance('tour');
+    if (game.mayhem && game.mayhem.giveTool) for (const s of before) for (const t of TOUR_TOOLS[s] || []) game.mayhem.giveTool(t);
+    game.emit('tour-resumed', { step: to });
+  });
 });
 
 // ------------------------------------------------------------------ the first time they ask (hold Q: the spawn wheel)

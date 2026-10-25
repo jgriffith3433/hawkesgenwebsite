@@ -22,9 +22,9 @@
 import { installPlaytest } from './hawkes-playtest.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'race', 'board', 'journal', 'touch'];
+const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'race', 'board', 'journal', 'touch', 'leave', 'back'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'] };
+const ORDERS = { 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'] };
 const SCENARIOS = [
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
   {
@@ -61,6 +61,11 @@ const SCENARIOS = [
     id: 'sandbox-travel-board', title: 'The Observatory travel board: three featured games as planets with live counts; beam down into each with your character and name, and Return to the Observatory from its pause menu', seconds: 600, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first-minutes path to the sign-up sheet, then docking (a named setup shortcut) and the lift; at the board it checks the three planets and their live counts, stands under each (a named setup shortcut: the walk across the room) and presses E; the Overseer speaks, the screen fades and the game page opens (a page change: the run crosses it) where it checks the character and name arrived, presses Esc twice, clicks Return to the Observatory and checks it stands at the board again; for all three games. options as sandbox-first-minutes, plus games (a list of ids to visit; default all three)',
+  },
+  {
+    id: 'sandbox-return', title: 'A second visit: no intro and no mirror, beamed in and welcomed back by name, the tour where it stopped', seconds: 330, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first visit as a new player (veil, intro, mirror, account sheet with a throwaway sign-up, then driving to the dock: the tour is on its second step), in that order; then the page is opened again as a returning player would (the same browser storage). It checks that the intro and the mirror do not play, that the player is beamed in and the Overseer says "Welcome back, <name>", and that Pip\'s tour is on the step it was left on (not the first). Never on live (no sign-up there). options as sandbox-first-minutes',
   },
   {
     id: 'presence-who', title: 'A shared world: who is there (list, marker or edge arrow), tap a name to beam next to them, mute, an abusive name replaced', seconds: 230, tags: ['full'],
@@ -772,6 +777,51 @@ async function stageGame(t, ctx) {
   throw new Error(`Return to the Observatory did not leave ${name}`);
 }
 
+// ---------------------------------------------------------------------------------------------- a second visit
+/** The end of the first visit: what is true now is written down, and the island is opened again (the page changes). */
+async function stageLeave(t, ctx) {
+  const q = G().events.quests;
+  const look = HP().presence && HP().presence.look;
+  ctx.name = look && look.name;
+  ctx.tour = q.state('tour') === 'active' ? q.step('tour') : q.state('tour');
+  t.event('first-visit-done', `intro, mirror, account and tour all played; named "${ctx.name || ''}"; the tour is on "${ctx.tour}"`);
+  if (ctx.tour === 'drive' || !ctx.tour) t.problem('error', 'the tour did not move past the first step on the first visit');
+  await t.wait(4000); // (the record and the island are saved)
+  t.scene('Leaving the island');
+  writeRun({ ...ctx.saved(), leg: 'return' });
+  t.event('second-visit', 'opening /play/sandbox again, same storage');
+  location.href = '/play/sandbox';
+  await t.wait(30000);
+  throw new Error('the island did not reopen');
+}
+
+/** The second visit: nothing of the beginning plays, the Overseer welcomes the player by name, the tour is where it was. */
+async function stageBack(t, ctx) {
+  let intro = false;
+  await stageVeil(t, ctx);
+  await t.until(() => G() && G().on, 20000, 'the game events').catch(() => {});
+  G().on('intro', (d) => { if (d && d.state === 'start') intro = true; });
+  const q = () => G().events && G().events.quests;
+  t.event('returned', `${location.pathname}; intro wanted: ${Boolean(HP().overseer && HP().overseer.introWanted && HP().overseer.introWanted())}`);
+  t.scene('Second visit: beamed in');
+  const name = ctx.name || '';
+  const said = await t.until(() => document.body.innerText.includes(name ? `Welcome back, ${name}` : 'Welcome back'), 30000, 'the Overseer to welcome the player back by name').then(() => true, (e) => { t.problem('error', e.message); return false; });
+  if (said) t.event('welcomed-back', name ? `by name: ${name}` : 'no name given');
+  t.scene('Second visit: welcomed back');
+  // The tour picks up on the step it was left on.
+  await t.until(() => q() && q().state('tour') === 'active' && q().step('tour') === ctx.tour, 60000, `the tour to resume on "${ctx.tour}"`).then(
+    () => t.event('tour-resumed', `on "${q().step('tour')}" (left on "${ctx.tour}")`),
+    (e) => t.problem('error', `${e.message}; it is ${q() ? q().state('tour') + ' ' + q().step('tour') : 'missing'}`));
+  await t.wait(6000);
+  if (intro || (HP().overseer && HP().overseer.introPlaying)) t.problem('error', 'the Overseer\'s intro played again on the second visit');
+  const m = G().mirror;
+  if (m && (m.isOpen || m.pending)) t.problem('error', 'the mirror opened again on the second visit');
+  else t.event('beginning-skipped', 'no intro, no mirror, no account sheet');
+  if ($('#gsEmail')) t.problem('error', 'the account sheet opened for a player who is signed in');
+  t.scene('Second visit: the tour where it stopped');
+  t.progress(1);
+}
+
 // ---------------------------------------------------------------------------------------------- touch controls
 /** Every tour action with touch alone (the phone controls: ?touch=1): pointer events of type "touch" on the stick, the buttons
  *  and the canvas, as a thumb does. At each step the real page is measured (H.touchLayout.audit(): controls that overlap,
@@ -997,9 +1047,9 @@ async function stageTouch(t, ctx) {
 }
 
 const RUN = {
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, observatory: stageObservatory, race: stageRace, board: stageBoard, game: stageGame, journal: stageJournal, touch: stageTouch,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, observatory: stageObservatory, race: stageRace, board: stageBoard, game: stageGame, journal: stageJournal, touch: stageTouch, leave: stageLeave, back: stageBack,
 };
-const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'island-race': 'race', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'touch-controls': 'touch' };
+const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'island-race': 'race', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'touch-controls': 'touch', 'sandbox-return': 'back' };
 
 // ---------------------------------------------------------------------------------------------- the contract
 let api = null;
@@ -1022,11 +1072,12 @@ export function install() {
       t.scene = (name) => { events.push(['s', name]); sc(name); };
       const ctx = {
         options,
-        saved: () => ({ id, options: { ...options, resumed: undefined }, events, name: ctx.name, what: ctx.what, visit: ctx.visit }),
+        saved: () => ({ id, options: { ...options, resumed: undefined }, events, name: ctx.name, what: ctx.what, visit: ctx.visit, tour: ctx.tour }),
         leg: options.resumed && options.resumed.leg,
         visit: (options.resumed && options.resumed.visit) || 0,
         name: options.resumed && options.resumed.name,
         what: options.resumed && options.resumed.what,
+        tour: options.resumed && options.resumed.tour,
       };
       const prior = options.resumed;
       if (prior) { // the landing page's part of the run, replayed
@@ -1038,7 +1089,7 @@ export function install() {
       t.event('plan', `${id}: ${STAGES[from]} to ${STAGES[to]}${isLive() ? ' (live: no sign-up)' : ''}`);
       let named = '';
       try {
-        const seq = id === 'sandbox-travel-board' && prior && prior.leg === 'game' ? ['game'] : id === 'sandbox-travel-board' && prior && prior.leg === 'back' ? ['board'] : ORDERS[id] ? ORDERS[id].slice(ORDERS[id].indexOf(STAGES[from])) : STAGES.slice(from, to + 1);
+        const seq = id === 'sandbox-return' && prior && prior.leg === 'return' ? ['back'] : id === 'sandbox-travel-board' && prior && prior.leg === 'game' ? ['game'] : id === 'sandbox-travel-board' && prior && prior.leg === 'back' ? ['board'] : ORDERS[id] ? ORDERS[id].slice(ORDERS[id].indexOf(STAGES[from])) : STAGES.slice(from, to + 1);
         for (const stage of seq) {
           named = stage;
           if ((await RUN[named](t, ctx)) === 'stop') return;
