@@ -161,23 +161,10 @@ test('a line that waits too long gives up, and is not counted as said', () => {
   assert.deepEqual(said, ['fish']);
 });
 
-test('coming back after seven days says so, sooner does not', () => {
+test('coming back is greeted from the Overseer\'s memory (test/engine/memory.test.ts), and is not once per device', () => {
+  assert.ok(H.memory, 'memory.js is loaded before lines.js');
+  assert.ok(L.LINES.return.stale > L.STALE, 'a greeting waits out the intro and the mirror');
   fresh();
-  const now = Date.now();
-  const store: Record<string, string> = {};
-  const ls = (globalThis as any).window.localStorage;
-  const real = ls ? { g: ls.getItem, s: ls.setItem } : null;
-  const win = (globalThis as any).window;
-  const prior = win.localStorage;
-  win.localStorage = { getItem: (k: string) => store[k] ?? null, setItem: (k: string, v: string) => { store[k] = String(v); } };
-  try {
-    L.now = () => now;
-    store.hg_overseer_lastvisit = String(now - 3 * 24 * 3600 * 1000);
-    L.visit(); step(); assert.deepEqual(said, [], 'three days is not a return');
-    store.hg_overseer_lastvisit = String(now - 8 * 24 * 3600 * 1000);
-    L.visit(); step();
-    assert.deepEqual(said, ['return']);
-    assert.equal(store.hg_overseer_lastvisit, String(now), 'the visit is kept');
-  } finally { win.localStorage = prior; L.now = () => Date.now(); }
-  void real;
+  // Asking again is allowed (it is said each visit), where a first-time line is not.
+  assert.equal(L.say('return'), true);
 });

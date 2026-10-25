@@ -341,7 +341,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       return send(res, 200, { ok: true });
     }
 
-    if (/^\/v1\/(users\/me\/avatar|presence\/who|friends\/request)$/.test(route)) return await presenceRoute(req, res, route, method); // presence.ts: looks, badges, friend requests (open to the game's sandbox)
+    if (/^\/v1\/(users\/me\/(avatar|overseer)|presence\/who|friends\/request)$/.test(route)) return await presenceRoute(req, res, route, method); // presence.ts: looks, badges, friend requests (open to the game's sandbox)
 
     // ------------------------------------------------------------ a customer
     const user = users.authenticate(req);
