@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -113,7 +113,46 @@ async function readForm(req: IncomingMessage) {
 
 // A game runs in a sandbox: its own opaque origin, so its scripts can't read this site's cookies or call its API as the
 // player. Set on the page itself (not only on the editor's iframe) so a game opened directly is sandboxed too.
-const PLAY_SANDBOX = 'sandbox allow-scripts allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation';
+// No allow-popups-to-escape-sandbox and no top navigation: a popup a game opens stays sandboxed, and a game cannot send
+// the tab away. The share window is opened by the page around the game (editor.js, 'share-open'), not by the game.
+const PLAY_SANDBOX = 'sandbox allow-scripts allow-pointer-lock allow-popups';
+/** What a game page may load and call (the Content-Security-Policy beside the sandbox). A game's scripts run with
+ *  new Function, so script-src needs 'unsafe-eval'; they must not be able to send anything to a site we have not named.
+ *  ADD A HOST HERE when the engine starts to use one (Babylon and Havok moving to our own CDN, the realtime host,
+ *  Gen's analytics origin moving with Gen) and only then; a game's own fetch to anywhere else is meant to fail. */
+const PLAY_HOSTS = {
+  /** Babylon, its loaders and Havok's wasm (play/engine.json) until they are self-hosted; the monitor's Inspector. */
+  cdn: ['https://cdn.jsdelivr.net'],
+  /** Hawkes Gen: the analytics SDK (play.html) and its relay. */
+  gen: ['https://gen.hawkesgen.com'],
+  /** The stand-in boombox model (kinds.js). */
+  models: ['https://models.babylonjs.com'],
+  /** Realtime (play/net.js) is the page's own host today; list net.hawkesgen.com here when the rooms move there. */
+  realtime: [] as string[],
+  /** Where assets come from when they leave the portal for a CDN (cdn.hawkesgen.com, later). */
+  assets: [] as string[],
+};
+export function playCsp(nonce: string): string {
+  const self = new URL(publicUrl()).host;
+  const ws = `${publicUrl().startsWith('https:') ? 'wss' : 'ws'}://${self}`;
+  const list = (...a: string[][]) => a.flat().join(' ');
+  return [
+    PLAY_SANDBOX,
+    "default-src 'none'",
+    // Inline scripts of play.html carry the nonce; scripts the page adds (modules, the SDK) come from 'self' or a host above.
+    `script-src 'self' 'nonce-${nonce}' 'unsafe-eval' 'wasm-unsafe-eval' ${list(PLAY_HOSTS.cdn, PLAY_HOSTS.gen)}`,
+    // blob: and data: are fetched by Babylon for models and textures; they cannot leave the page.
+    `connect-src 'self' blob: data: ${ws} ${list(PLAY_HOSTS.realtime, PLAY_HOSTS.cdn, PLAY_HOSTS.gen, PLAY_HOSTS.models, PLAY_HOSTS.assets)}`,
+    `img-src 'self' data: blob: ${list(PLAY_HOSTS.assets, PLAY_HOSTS.models)}`,
+    `media-src 'self' data: blob: ${list(PLAY_HOSTS.assets)}`,
+    "font-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "worker-src blob: 'self'",
+    "frame-src 'none'",
+    "form-action 'none'",
+    "base-uri 'none'",
+  ].map((d) => d.replace(/\s+/g, ' ').trim()).join('; ');
+}
 /** Local testing only: some test browsers refuse scripts from a sandboxed page on a local address. PORTAL_DEV_OPEN_PLAY=1
  *  serves games unsandboxed, and only to requests for localhost / 127.0.0.1. Never set it on the box. */
 export const devOpenPlay = (req: IncomingMessage) => env('PORTAL_DEV_OPEN_PLAY') === '1' && /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(String(req.headers.host ?? ''));
@@ -121,11 +160,13 @@ function servePlayPage(res: ServerResponse, req: IncomingMessage, o: { guest?: b
   // The guest sandbox (/play/sandbox) runs only our own template (src/templates.ts 'sandbox'), never a customer's
   // scripts, and signs the guest up on this site: it is served without the play sandbox (play/guest.js).
   const open = devOpenPlay(req) || o.guest === true;
-  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', ...(open ? {} : { 'Content-Security-Policy': PLAY_SANDBOX }), 'X-Content-Type-Options': 'nosniff' });
+  const nonce = randomBytes(16).toString('base64');
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', ...(open ? {} : { 'Content-Security-Policy': playCsp(nonce) }), 'X-Content-Type-Options': 'nosniff' });
   // A signed-in player's analytics ids (src/analytics.ts): the sandboxed page has no storage to keep its own.
   const ids = o.guest ? null : playIds(users.authenticate(req));
-  if (!ids) return void pipeline(fs.createReadStream(path.join(PUBLIC, 'play', 'play.html')), res).catch(() => {});
-  res.end(fs.readFileSync(path.join(PUBLIC, 'play', 'play.html'), 'utf8').replace('</head>', `${playIdsScript(ids)}</head>`));
+  let html = fs.readFileSync(path.join(PUBLIC, 'play', 'play.html'), 'utf8');
+  if (ids) html = html.replace('</head>', `${playIdsScript(ids)}</head>`);
+  res.end(html.replace(/<script>/g, `<script nonce="${nonce}">`));
 }
 
 /** A game's asset file, from Gen, for anyone playing it (open CORS: the game's sandbox has no origin). */
