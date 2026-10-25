@@ -17,6 +17,13 @@
 // Analytics (Hawkes analytics, gen.hawkesgen.com/sdk/analytics@1.js): sandbox_start, sandbox_first_action,
 // sandbox_try (each thing to try, once), sandbox_objective (each step of Pip's tour), sandbox_prompt (a button),
 // signup_open, sandbox_signup, sandbox_claimed.
+// The funnel, in order, each with `ms` (since the page loaded; track() adds it) and nothing personal (no email, name or
+// password; failures give a reason code): sandbox_open (landing page) > sandbox_scripts_ready > sandbox_world_built >
+// sandbox_first_frame > sandbox_start > sandbox_veil_shown > sandbox_veil_passed > sandbox_intro_start >
+// sandbox_intro_skip | sandbox_intro_end > sandbox_mirror_open > sandbox_mirror_answer {step} | sandbox_mirror_skip {step} >
+// sandbox_sheet_shown > sandbox_sheet_focus {field} > sandbox_google_popup {opened} > sandbox_signup_submit {mode} >
+// sandbox_signup_ok {mode, method} | sandbox_signup_failed {mode, reason} > sandbox_tour_start > sandbox_tour_step {step, n}
+// (drive, fish, boom, spawn, ask, fly) > sandbox_tour_done; sandbox_first_{drive,fish,boom,ask,fly}. Listed in AGENTS.md.
 (function () {
   'use strict';
   const KEY = 'hg_guest_world';
@@ -89,6 +96,7 @@
   // ------------------------------------------------------------------ analytics
   const queue = [];
   function track(name, props) {
+    props = Object.assign({ ms: Math.round(performance.now()) }, props);
     const a = window.hawkesAnalytics;
     if (a && a.track) { try { a.track(name, props || {}); } catch { /* never break the game */ } } else queue.push([name, props]);
   }
@@ -101,6 +109,8 @@
     s.onload = () => { try { window.hawkesAnalytics.setContext({ entry: 'sandbox', account: 'guest' }); } catch { /* fine */ } for (const [n, p] of queue.splice(0)) track(n, p); };
     document.head.appendChild(s);
   })();
+  // For the engine's own moments that happen before (or outside) the game events (the click-to-enter veil).
+  window.hgFunnel = (name, props) => { try { track(name, props); } catch { /* never break the game */ } };
 
   // ------------------------------------------------------------------ storage and the account side
   const store = {
@@ -202,6 +212,7 @@
     function tick(id) {
       if (done.has(id) || !TRIES.includes(id)) return;
       done.add(id);
+      if (['drive', 'fish', 'boom', 'fly'].includes(id)) first1(id);
       track('sandbox_try', { what: id, n: done.size, s: Math.round((performance.now() - t0) / 1000) });
       if (done.size === 2 && !touring()) nudge(4000);
     }
@@ -235,18 +246,47 @@
     const game = H.game;
     const on = (ev, f) => { try { game.on(ev, f); } catch { /* an event this build doesn't have */ } };
     // The Overseer's intro (modules/overseer/intro.js) plays first here: did they watch it?
-    on('intro', (d) => { if (d && d.state === 'end') track('sandbox_intro', { skipped: Boolean(d.skipped) }); });
+    on('intro', (d) => {
+      if (!d) return;
+      if (d.state === 'start') track('sandbox_intro_start', {});
+      if (d.state === 'end') { track('sandbox_intro', { skipped: Boolean(d.skipped) }); track(d.skipped ? 'sandbox_intro_skip' : 'sandbox_intro_end', {}); }
+    });
+    // The first time they drive, fish, blow something up, ask the Overseer or fly (a try, once each).
+    const firsts = new Set();
+    const first1 = (what) => { if (firsts.has(what)) return; firsts.add(what); track('sandbox_first_' + what, {}); };
+    on('asked', () => first1('ask'));
+    // The mirror: each question answered (the next one is reached, or the last is done) or skipped.
+    let mirrorStep = null;
+    const mirrorAnswered = new Set();
+    const answered = () => { if (mirrorStep && !mirrorAnswered.has(mirrorStep)) { mirrorAnswered.add(mirrorStep); track('sandbox_mirror_answer', { step: mirrorStep }); } };
+    on('mirror', (d) => {
+      if (!d) return;
+      if (d.state === 'open') track('sandbox_mirror_open', { auto: Boolean(d.auto) });
+      else if (d.state === 'step') { if (d.step !== mirrorStep) answered(); mirrorStep = d.step || null; }
+      else if (d.state === 'done') { answered(); mirrorStep = null; }
+      else if (d.state === 'skip') { if (mirrorStep) track('sandbox_mirror_skip', { step: mirrorStep }); mirrorStep = null; }
+    });
     on('explosion', () => tick('boom'));
     on('cast', () => tick('fish'));
     on('catch', () => tick('fish'));
     on('spawned', () => tick('spawn'));
     on('sandbox-high', () => tick('fly'));
     // The tour's steps (Pip's quest line), each once, and its end: the moment to offer keeping the island.
-    on('tour', (d) => { if (d && d.step) track('sandbox_objective', { step: d.step, s: Math.round((performance.now() - t0) / 1000), touch }); });
+    // (sandbox_tour_step: the step they have reached, in the tour's order; a finished step reaches the next.)
+    const STEPS = ['drive', 'fish', 'boom', 'spawn', 'ask', 'fly'];
+    const reached = new Set();
+    const reach = (step) => { if (reached.has(step)) return; reached.add(step); track('sandbox_tour_step', { step, n: STEPS.indexOf(step) + 1 }); };
+    on('tour', (d) => {
+      if (!d || !d.step) return;
+      track('sandbox_objective', { step: d.step, s: Math.round((performance.now() - t0) / 1000), touch });
+      const i = STEPS.indexOf(d.step);
+      if (i >= 0 && i + 1 < STEPS.length) reach(STEPS[i + 1]);
+    });
     on('quest', (d) => {
       if (!d || d.id !== 'tour') return;
-      if (d.state === 'start') track('sandbox_objective', { step: 'start', s: Math.round((performance.now() - t0) / 1000), touch });
+      if (d.state === 'start') { track('sandbox_objective', { step: 'start', s: Math.round((performance.now() - t0) / 1000), touch }); track('sandbox_tour_start', {}); reach(STEPS[0]); }
       if (d.state === 'done') {
+        track('sandbox_tour_done', {});
         nudge(7000);
         setTimeout(() => highlightAssistant('done'), 9000);
         // The tour's end is the natural pause to ask how it was (the SDK's card, once a session; never mid-tour).
@@ -319,6 +359,7 @@
     const why = o.name && intent === 'tour' ? `${o.name}. ${whyText}` : whyText;
     const forced = Boolean(o.forced);
     track('signup_open', { from: 'sandbox', intent, forced });
+    track('sandbox_sheet_shown', { intent, forced });
     try { if (document.pointerLockElement) document.exitPointerLock(); } catch { /* fine */ }
     // Sign-in first (J, 2026-10-24): Google signs in and signs up the same way; "Create an account" is one tap away.
     let mode = 'login';
@@ -354,6 +395,12 @@
       $('gsNote').hidden = true;
     };
     setMode('login');
+    // Which field they reach for (once each; never what they type).
+    const focused = new Set();
+    veil.addEventListener('focusin', (e) => {
+      const f = { gsName: 'name', gsEmail: 'email', gsPw: 'password' }[e.target && e.target.id];
+      if (f && !focused.has(f)) { focused.add(f); track('sandbox_sheet_focus', { field: f, intent }); }
+    });
     if (o.name) $('gsName').value = o.name;
     const note = (text) => { $('gsNote').textContent = text; $('gsNote').hidden = false; $('gsErr').hidden = true; };
     const fail = (text) => { $('gsErr').textContent = text; $('gsErr').hidden = false; $('gsNote').hidden = true; };
@@ -375,16 +422,18 @@
       track('sandbox_signup_google', { intent });
       let w = null;
       try { w = window.open('/auth/google?next=' + encodeURIComponent('/auth/popup'), 'hg-google', 'popup,width=500,height=660'); } catch { w = null; }
+      track('sandbox_google_popup', { intent, opened: Boolean(w) });
       if (!w) return;
       e.preventDefault();
       note('Finish signing in with Google in the window that opened.');
       const onMsg = async (ev) => {
         if (ev.origin !== location.origin || !ev.data || ev.data.type !== 'hg-auth') return;
         removeEventListener('message', onMsg);
-        if (!ev.data.ok) { note('Google sign-in was cancelled. Try again, or use your email.'); return; }
+        if (!ev.data.ok) { track('sandbox_signup_failed', { mode: 'google', reason: 'cancelled', intent }); note('Google sign-in was cancelled. Try again, or use your email.'); return; }
         const u = await me();
-        if (!u) { fail("Google didn't sign you in. Try again, or use your email."); return; }
+        if (!u) { track('sandbox_signup_failed', { mode: 'google', reason: 'no_session', intent }); fail("Google didn't sign you in. Try again, or use your email."); return; }
         track('sandbox_login', { intent, method: 'google' });
+        track('sandbox_signup_ok', { mode: 'google', method: 'google', intent });
         close();
         await signedIn(intent, u);
       };
@@ -403,18 +452,23 @@
       err.hidden = true;
       $('gsNote').hidden = true;
       const body = { email: $('gsEmail').value.trim(), password: $('gsPw').value };
-      if (!body.email || !body.password) { err.textContent = 'Your email and a password, please.'; err.hidden = false; return; }
-      if (mode === 'signup' && body.password.length < 8) { err.textContent = 'The password needs 8 characters or more.'; err.hidden = false; $('gsPw').focus(); return; }
+      track('sandbox_signup_submit', { mode, intent });
+      if (!body.email || !body.password) { track('sandbox_signup_failed', { mode, reason: 'missing_fields', intent }); err.textContent = 'Your email and a password, please.'; err.hidden = false; return; }
+      if (mode === 'signup' && body.password.length < 8) { track('sandbox_signup_failed', { mode, reason: 'short_password', intent }); err.textContent = 'The password needs 8 characters or more.'; err.hidden = false; $('gsPw').focus(); return; }
       if (mode === 'signup') body.name = $('gsName').value.trim();
       go.disabled = true;
       try {
         const d = await api('POST', mode === 'signup' ? '/v1/users/signup' : '/v1/users/login', body);
         if (d.apiKey) try { localStorage.setItem('hg_last_minted_key', d.apiKey); } catch { /* fine */ }
         track(mode === 'signup' ? 'sandbox_signup' : 'sandbox_login', { intent, method: 'email' });
+        track('sandbox_signup_ok', { mode, method: 'email', intent });
         close();
         await signedIn(intent, d.user);
       } catch (x) {
         go.disabled = false;
+        // Why, as a code: never the email, the password or the server's wording (which can repeat them).
+        const st = Number(x && x.status) || 0;
+        track('sandbox_signup_failed', { mode, intent, status: st || null, reason: x && x.wall ? 'studio_wall' : st === 409 ? 'exists' : st === 401 ? 'bad_credentials' : st === 429 ? 'rate_limited' : st === 400 || st === 422 ? 'invalid' : st >= 500 ? 'server' : st >= 400 ? 'rejected' : 'network' });
         if (x.wall) return studioWall(x.wall);
         // That email already has an account: it's theirs to sign in to (with its password, or Google if made that way).
         if (mode === 'signup' && x.status === 409) {
@@ -790,10 +844,13 @@
       const bundle = fetch('/v1/play-template/sandbox').then((r) => r.json().then((b) => { if (!r.ok) throw new Error(b.error || 'Could not load the sandbox'); return b; }));
       try {
         await window.HawkesModules.load('play', { bundle }); // (only the modules the island uses; the rest after)
+        track('sandbox_scripts_ready', {});
         const b = await bundle;
         let base = null;
         try { base = JSON.parse(b.files['scene.json']); } catch { /* the template is ours: never */ }
         window.HawkesPlay.run(b, { mode: 'play' });
+        track('sandbox_world_built', {});
+        requestAnimationFrame(() => requestAnimationFrame(() => track('sandbox_first_frame', {})));
         startUi(window.HawkesPlay, base, t0);
       } catch (e) {
         if (o.failed) o.failed(e);
