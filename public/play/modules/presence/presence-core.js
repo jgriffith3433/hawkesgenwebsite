@@ -14,10 +14,12 @@
     hats: ['none', 'cap', 'beanie', 'tophat', 'crown', 'cowboy', 'party', 'halo', 'horns', 'bunny', 'helmet', 'chef'],
     extras: ['glasses', 'shades', 'scarf', 'backpack', 'cape', 'bowtie', 'wings', 'tail'],
     faces: ['visor', 'eyes', 'smile', 'none'],
+    hairs: ['short', 'long', 'ponytail', 'curly', 'spiky', 'bun'],
     maxExtras: 3,
     // Body shapes: [width, height, depth] of the body, times normal.
     sizes: { normal: [1, 1, 1], tall: [0.92, 1.18, 0.92], short: [1.08, 0.82, 1.05], wide: [1.32, 0.98, 1.2], tiny: [0.72, 0.7, 0.72], big: [1.25, 1.22, 1.2] },
     palette: ['#4a9eff', '#a855f7', '#34d399', '#fbbf24', '#ef4444', '#f97316', '#22d3ee', '#ec4899', '#f5f5f4', '#1f2937', '#84cc16', '#8b5cf6'],
+    hairColors: ['#2b1d14', '#4a3322', '#8a5a2b', '#d9a441', '#c2410c', '#1f2937', '#e5e7eb', '#a855f7'],
     skins: ['#f2c9a0', '#e0ac69', '#c68642', '#8d5524', '#5c3a1e', '#ffdbac', '#9ad0ff', '#b4f8c8'],
   };
 
@@ -66,9 +68,11 @@
     const extras = Array.isArray(a.extras) ? [...new Set(a.extras.filter((x) => LOOK.extras.includes(x)))].slice(0, LOOK.maxExtras) : [];
     return {
       body: color(a.body, '#4a9eff'), head: color(a.head, '#f2c9a0'), accent: color(a.accent, '#ffffff'),
-      shape: one(a.shape, LOOK.shapes, 'normal'), hat: one(a.hat, LOOK.hats, 'none'), face: one(a.face, LOOK.faces, 'visor'),
+      shape: one(a.shape, LOOK.shapes, 'normal'), hat: one(a.hat, LOOK.hats, 'none'), face: one(a.face, LOOK.faces, 'eyes'),
       extras, model: typeof a.model === 'string' && /^a_[0-9a-f]{6,40}$/.test(a.model) ? a.model : null,
       what: WHAT.has(a.what) ? a.what : 'person', name: cleanName(a.name) || null,
+      // The person's hair and outfit (body is the top): the clothes' bottom and shoes, the hair's style and color.
+      hair: one(a.hair, LOOK.hairs, 'short'), hairColor: color(a.hairColor, '#4a3322'), bottom: color(a.bottom, '#3b4a6b'), shoes: color(a.shoes, '#f2f2ee'),
     };
   }
   /** A random fun look (guests get one): the same seed gives the same look. */
@@ -82,7 +86,10 @@
     let accent = pick(LOOK.palette);
     const body = pick(LOOK.palette);
     if (accent === body) accent = '#ffffff';
-    return cleanLook({ body, head: pick(LOOK.skins), accent, shape: pick(['normal', 'normal', 'tall', 'short', 'wide', 'tiny', 'big']), hat: pick(LOOK.hats.filter((h) => h !== 'halo' && h !== 'crown')), face: pick(['visor', 'eyes', 'smile']), extras });
+    const look = { body, head: pick(LOOK.skins), accent, shape: pick(['normal', 'normal', 'tall', 'short', 'wide', 'tiny', 'big']), hat: pick(LOOK.hats.filter((h) => h !== 'halo' && h !== 'crown')), face: pick(['eyes', 'smile', 'eyes']), extras };
+    // (picked last, so the same seed still gives the same body, hat and face as before)
+    const bottom = pick(LOOK.palette);
+    return cleanLook({ ...look, hair: pick(LOOK.hairs), hairColor: pick(LOOK.hairColors), bottom: bottom === body ? '#3b4a6b' : bottom, shoes: pick(['#f2f2ee', '#1f2937', '#ef4444', '#fbbf24']) });
   }
   const seedOf = (str) => { let h = 2166136261; for (const ch of String(str)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
 
@@ -195,5 +202,59 @@
     };
   }
 
-  P.core = { LOOK, WHATS, WHAT, cleanName, NAME_MAX, cleanLook, randomLook, seedOf, EMOTES, emote, TAGS, layoutTags, BUBBLES, bubbleSeconds, wrap, bubbles, CHAT, cleanLine, limiter };
+  // ------------------------------------------------------------------ the palette (docs/characters.md 1): every tone from one pick
+  const hsl = (hex) => {
+    const n = parseInt(hex.slice(1), 16), r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+    let h = 0, sat = 0;
+    if (d > 1e-6) {
+      sat = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+      h = mx === r ? ((g - b) / d + (g < b ? 6 : 0)) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      h *= 60;
+    }
+    return [h, sat, l];
+  };
+  const hexOf = (h, sat, l) => {
+    h = ((h % 360) + 360) % 360; sat = Math.max(0, Math.min(1, sat)); l = Math.max(0, Math.min(1, l));
+    const c = (1 - Math.abs(2 * l - 1)) * sat, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2;
+    const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+    return '#' + [r, g, b].map((v) => Math.round((v + m) * 255).toString(16).padStart(2, '0')).join('');
+  };
+  /** Turn `hex`'s hue toward `target` degrees by `deg` (the short way round). */
+  const turn = (h, target, deg) => { let d = ((target - h + 540) % 360) - 180; return h + Math.max(-deg, Math.min(deg, d)); };
+  const mixHex = (a, b, k) => { const x = parseInt(a.slice(1), 16), y = parseInt(b.slice(1), 16); const m = (s) => Math.round(((x >> s) & 255) * (1 - k) + ((y >> s) & 255) * k); return '#' + [16, 8, 0].map((s) => m(s).toString(16).padStart(2, '0')).join(''); };
+  const EYE = '#fbfbf6', INK = '#14161d';
+  /** The tones of one color: base (the pick), shade (18% darker, 8 degrees toward blue: undersides, legs), light (10% lighter,
+   *  6 degrees toward yellow: the top), rim (the light's color, 70% over base, for the fresnel edge). */
+  function tones(hex) {
+    const [h, s, l] = hsl(hex);
+    const shade = hexOf(turn(h, 220, 8), s, l - 0.18), light = hexOf(turn(h, 55, 6), s, l + 0.10);
+    return { base: hex, shade, light, rim: mixHex(hex, '#fff6e0', 0.7) };
+  }
+  /** Every color a body uses, from its look: the doc's `base shade light rim eye ink cheek` for the body color, and the same
+   *  tones for the person's `top`, `bottom`, `shoes`, `skin` and `hair`. Parts take their color from here, never a literal. */
+  function palette(look) {
+    const l = cleanLook(look);
+    const t = tones(l.body);
+    const [ah, as, al] = hsl(l.accent === '#ffffff' ? '#f4a3b5' : l.accent);
+    return { ...t, accent: l.accent, eye: EYE, ink: INK, cheek: mixHex(hexOf(ah, as, al), '#ff9fb2', 0.45), top: t, bottom: tones(l.bottom), shoes: tones(l.shoes), skin: tones(l.head), hair: tones(l.hairColor) };
+  }
+
+  // ------------------------------------------------------------------ expressions: five numbers (docs/characters.md 1)
+  // open and smile (-1..1) and width of the mouth, raise and tilt of the brows (tilt > 0: inner ends down, angry; < 0: sad), lid: how
+  // closed the eyes rest (0..1).
+  const EXPRESSIONS = {
+    neutral: { open: 0, smile: 0.15, width: 1, raise: 0, tilt: 0, lid: 0 },
+    happy: { open: 0.25, smile: 1, width: 1.25, raise: 0.35, tilt: 0, lid: 0.12 },
+    surprised: { open: 0.9, smile: 0, width: 0.55, raise: 1, tilt: 0, lid: 0 },
+    sad: { open: 0, smile: -0.8, width: 0.85, raise: 0.25, tilt: -1, lid: 0.2 },
+    angry: { open: 0.1, smile: -0.5, width: 1, raise: -0.6, tilt: 1, lid: 0.25 },
+    sleepy: { open: 0, smile: 0.1, width: 0.8, raise: -0.25, tilt: 0, lid: 0.55 },
+    mischief: { open: 0.1, smile: 0.75, width: 1.1, raise: 0.25, tilt: 0.55, lid: 0.18 },
+  };
+  /** The expression an emote or a pose shows ('' when it leaves the face alone). */
+  const EMOTE_FACE = { wave: 'happy', dance: 'happy', cheer: 'happy', laugh: 'happy', point: 'mischief', sit: 'neutral', sleep: 'sleepy', clap: 'happy', thumbsup: 'mischief', heart: 'happy' };
+  const POSE_FACE = { jump: 'surprised', fall: 'surprised', swim: 'happy', drive: 'neutral', run: 'neutral' };
+
+  P.core = { palette, tones, hsl, hexOf, mixHex, EXPRESSIONS, EMOTE_FACE, POSE_FACE, LOOK, WHATS, WHAT, cleanName, NAME_MAX, cleanLook, randomLook, seedOf, EMOTES, emote, TAGS, layoutTags, BUBBLES, bubbleSeconds, wrap, bubbles, CHAT, cleanLine, limiter };
 })();
