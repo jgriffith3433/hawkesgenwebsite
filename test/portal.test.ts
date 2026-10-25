@@ -93,6 +93,7 @@ test('pages and the open routes', async () => {
   for (const p of ['/legal', '/terms', '/privacy', '/refunds']) assert.match((await call(p)).body, /Refunds/);
   assert.equal((await call('/v1/portfolio')).body.items.length, 3);
   assert.equal((await call('/v1/billing/packs')).body.packs.length, 3);
+  { const pr = (await call('/v1/prices')).body.tools; assert.ok(pr['audio.sfx'] > 0 && pr['music.nope'] === undefined); }
   assert.equal((await call('/../src/config.ts')).status, 404);
   assert.equal((await call('/v1/jobs')).status, 401);
 });
