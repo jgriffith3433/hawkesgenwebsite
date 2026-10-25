@@ -294,9 +294,11 @@ game.every(1, passEarly);
 // step you are on, the thing it needs goes there too (made again when it was destroyed), with the Overseer's beam over both
 // and a line in its voice. R on a keyboard, the "Stuck?" button anywhere. (R is also reload: not while a gun is out.)
 const HOME = {
-  jeep: [4, 6.5, 90], heli: [30, 30, 200], rod: [86.5, -0.4], rodStand: [82, 0], dock: [58, 0], start: [-3, 1],
+  jeep: [4, 6.5, 90], heli: [30, 30, 200], rocket: [-38, -30, 0], rod: [86.5, -0.4], rodStand: [82, 0], dock: [58, 0], start: [-3, 1],
   barrels: [[50, -18], [51.2, -18.4], [50.5, -19.5], [51.7, -17.2], [49.6, -16.9]], beach: [55, -14],
 };
+// The journey up (below): 'off' until the tour is done, then 'invited' (a marker leads to the rocket) until they dock.
+const journey = (window.__islandJourney = window.__islandJourney || { state: 'off', beam: null, mark: null, tut: 'burn', tilted: false, replacing: false });
 const rescueMeta = (window.__islandRescue = window.__islandRescue || { count: 0, last: -99 });
 const RESCUE_COOLDOWN = 2; // seconds
 const ground = (x, z) => { const t = game.terrain && game.terrain.heightAt ? game.terrain.heightAt(x, z) : null; return t === null || t === undefined ? 4 : t; };
@@ -318,15 +320,15 @@ const aliveOne = (name) => (game.all(name) || []).find((e) => e && e.alive && !(
 function bringVehicle(name, id, home, kind) {
   let e = aliveOne(name);
   const [hx, hz, yw] = home;
-  const y = ground(hx, hz) + (kind === 'heli' ? 1.55 : 1.4);
+  const y = ground(hx, hz) + (kind === 'heli' ? 1.55 : kind === 'rocket' ? 6.55 : 1.4); // (the rocket stands on its pad: 1.8 m of it)
   if (e) { settle(e, at(hx, y, hz), yw); return e; }
   const old = (game.all(name) || [])[0];
   const model = old && old.shape && old.shape.model;
   try { if (old && old.alive) old.destroy(); } catch { /* gone */ }
-  const maker = kind === 'heli' ? game.helicopter : game.truck;
+  const maker = kind === 'heli' ? game.helicopter : kind === 'rocket' ? game.rocket : game.truck;
   if (typeof maker !== 'function') return null;
   const [lx, ly, lz] = at(hx, y, hz);
-  const opts = { x: lx, y: ly, z: lz, rotation: [0, yw, 0], name, ...(model ? { model } : {}), ...(kind === 'heli' ? { color: '#2b5fd9' } : { color: '#3f7d3a' }) };
+  const opts = { x: lx, y: ly, z: lz, rotation: [0, yw, 0], name, ...(model ? { model } : {}), ...(kind === 'heli' ? { color: '#2b5fd9' } : kind === 'rocket' ? {} : { color: '#3f7d3a' }) };
   e = maker.call(game, opts);
   return e || null;
 }
@@ -352,6 +354,7 @@ const RESCUE_LINES = {
   drive: 'Back at the start. The 4x4 is right there.', rod: 'The rod is where it was. Walk to it.', fish: 'The rod is in your hands. Cast.',
   boom: 'The barrels are as they were. The launcher is in your hands.', spawn: 'Back where you started. Ask for something.',
   ask: 'Back where you started. Speak, and I will hear.', fly: 'The helicopter is on its pad. Go up.',
+  rocket: 'The rocket is on its pad, full. The way is up.',
 };
 function rescue(why) {
   const p = game.player;
@@ -359,7 +362,7 @@ function rescue(why) {
   const now = game.time;
   if (now - rescueMeta.last < RESCUE_COOLDOWN) return false;
   rescueMeta.last = now; rescueMeta.count++;
-  const step = tourStep() || (early.has('fly') ? 'fly' : 'drive');
+  const step = tourStep() || (journey.state !== 'off' ? 'rocket' : early.has('fly') ? 'fly' : 'drive');
   const from = [p.x, p.y, p.z];
   getOut();
   let spot = HOME.start, thing = null;
@@ -368,6 +371,7 @@ function rescue(why) {
   else if (step === 'fish') { if (game.mayhem && game.mayhem.giveTool) game.mayhem.giveTool('rod'); spot = HOME.rodStand; }
   else if (step === 'boom') { ensureBarrels(); if (game.mayhem && game.mayhem.giveTool) game.mayhem.giveTool('rocket-launcher'); spot = HOME.beach; thing = game.find && game.find('barrel_1'); }
   else if (step === 'fly') { thing = bringVehicle('Helicopter', 'heli', HOME.heli, 'heli'); spot = [HOME.heli[0] - 6, HOME.heli[1] - 4]; }
+  else if (step === 'rocket') { thing = bringVehicle('Rocket', 'rocket', HOME.rocket, 'rocket'); spot = [HOME.rocket[0] + 7, HOME.rocket[1] + 4]; endBeam(); }
   const to = at(spot[0], ground(spot[0], spot[1]) + 1, spot[1]);
   // A beam where you were, a beam where you land and over the thing: the Overseer sends you back.
   const O = H && H.overseer;
@@ -389,7 +393,7 @@ game.input.onKey('r', () => {
 let wet = 0;
 game.every(0.5, () => {
   const p = game.player;
-  if (!p || game.mode !== 'play' || !tourStep()) { wet = 0; return; }
+  if (!p || game.mode !== 'play' || !(tourStep() || journey.state !== 'off')) { wet = 0; return; }
   const swimming = Boolean(H && H.water && H.water.swimming && H.water.swimming());
   wet = swimming ? wet + 0.5 : 0;
   if (wet >= 8) { wet = 0; rescue('sea'); }
@@ -501,7 +505,7 @@ function drawTour() {
     const el = game.ui.el('tour-track');
     if (el) el.hidden = true;
     const sb = game.ui.el('tour-stuck');
-    if (sb) sb.hidden = true;
+    if (sb && journey.state !== 'invited') sb.hidden = true; // (the journey up keeps it)
     clearMark();
     return;
   }
@@ -541,3 +545,151 @@ function drawTour() {
 game.every(0.2, drawTour);
 // A step done: draw at once, so the flourish is on the same beat as the confetti.
 game.on('quest', (d) => { if (d && d.id === 'tour') drawTour(); });
+
+// ------------------------------------------------------------------ after the tour: "Come and see where I live."
+// The tour's last step done (high enough to see the planet), the Overseer invites them up. A beam from its ship comes
+// down on the rocket on its pad across the island (and an arrow over it), the tracker says what to do, and a short rocket
+// lesson follows them in: hold to burn, lean it toward the ship, cut the engine and coast, line up with the bay (the
+// approach readout and the catch are the engine's: modules/overseer/dock.js). A climb that fails is never a dead end:
+// the Overseer says so, the rocket fills on the ground or a new one stands on the pad (free), and R / "Stuck?" bring them back.
+const rocketOf = () => aliveOne('Rocket');
+const rideOf = () => { const r = H && H.vehicles && H.vehicles.current; return r && r.alive && r.vehicle && r.vehicle.def && r.vehicle.def.class === 'rocket' ? r : null; };
+function endBeam() { if (journey.beam) { try { journey.beam.end(false); } catch { /* gone */ } } journey.beam = null; journey.beamFor = null; }
+function clearJourneyMark() { if (journey.mark) { try { journey.mark.close(); } catch { /* gone */ } } journey.mark = null; journey.markFor = null; }
+function invite() {
+  if (journey.state !== 'off' || game.mode !== 'play') return;
+  journey.state = 'invited'; journey.tut = 'burn'; journey.tilted = false; journey.since = game.time;
+  overseer('Come and see where I live.', 5, null);
+  game.emit('journey', { state: 'invited' });
+  drawJourney();
+}
+game.on('tour', (d) => { if (d && d.step === 'fly') game.after(9, invite); });
+// (A player who flew first and finished the tour some other way is invited when the quest completes.)
+game.on('quest', (d) => { if (d && d.id === 'tour' && d.state === 'done') game.after(10, invite); });
+
+// The words for each moment: the tracker's title and what to press, keyboard first, phone second.
+const JOURNEY = {
+  invited: ['Come and see where I live', 'Go to the rocket on the launch pad (follow the beam) and press E to get in.', 'Go to the rocket on the launch pad (follow the beam) and tap B to get in.'],
+  burn: ['Hold to burn', 'Hold SPACE: the engine burns while you hold it, and keeps burning when you let go. C cuts it.', 'Hold the up button: the engine burns while you hold it. The down button cuts it.'],
+  steer: ['Steer toward the Overseer', 'W / S tip the nose, A / D lean it. It points where it flies: tip it toward the big ship in the sky.', 'The stick tips the nose and leans it. It flies where it points: tip it toward the big ship in the sky.'],
+  stage: ['Stage: cut the engine and coast', 'Up in the thin air, press C to cut the engine. Coast. Burn again (SPACE) only to correct your way.', 'Up in the thin air, cut the engine with the down button. Coast. Burn again only to correct your way.'],
+  bay: ['Line up with the bay', 'Follow the readout: slow down as you near it, keep the align low. The Overseer will catch you if you are careful.', 'Follow the readout: slow down as you near it, keep the align low. The Overseer will catch you if you are careful.'],
+};
+function journeyKey() {
+  if (journey.state !== 'invited') return null;
+  const ride = rideOf();
+  if (!ride) return 'invited';
+  if (journey.tut === 'burn' || journey.tut === 'steer' || journey.tut === 'stage') return journey.tut;
+  return 'bay';
+}
+function advanceLesson(ride) {
+  const v = ride.vehicle;
+  const tilt = Math.acos(Math.max(-1, Math.min(1, v.up ? v.up.y : 1))) * 57.3;
+  const alt = game.planet && game.planet.height ? game.planet.height(ride.position) : ride.y;
+  const gauge = H && H.overseer && H.overseer.approach;
+  if (tilt > 12) journey.tilted = true;
+  if (journey.tut === 'burn' && (v.throttle > 0.3 && alt > 25)) journey.tut = 'steer';
+  if (journey.tut === 'steer' && (journey.tilted || alt > 600)) journey.tut = 'stage';
+  if (journey.tut === 'stage' && ((alt > 500 && v.throttle < 0.05) || (gauge && gauge.distance < 2500))) journey.tut = 'bay';
+}
+function ensureBeam() {
+  const r = rocketOf();
+  if (!r || rideOf()) { endBeam(); return r; }
+  if (journey.beamFor !== r) {
+    endBeam();
+    const O = H && H.overseer;
+    try { journey.beam = O && O.beam ? O.beam(r, { hold: true, radius: 3, ring: true }) : null; } catch { journey.beam = null; }
+    journey.beamFor = r;
+  }
+  return r;
+}
+function drawJourney() {
+  const key = journeyKey();
+  const el = game.ui.el('journey-track');
+  if (!key) {
+    if (el) el.hidden = true;
+    const sb = game.ui.el('tour-stuck');
+    if (sb && journey.state === 'off') sb.hidden = true;
+    endBeam(); clearJourneyMark();
+    return;
+  }
+  let box = el;
+  if (!box) {
+    box = game.ui.html('journey-track', '', { class: 'tour-track' });
+    box.removeAttribute('style');
+    for (const k of ['n', 't', 'h']) { const s = document.createElement('span'); s.className = k; box.appendChild(s); }
+  }
+  box.hidden = false;
+  stuckButton().hidden = false;
+  const touch = H && H.touchUi ? 2 : 1;
+  const [title, ...hints] = JOURNEY[key];
+  const [n, t, h] = box.children;
+  if (n) n.textContent = 'The Overseer';
+  if (t) t.textContent = title;
+  if (h) h.textContent = hints[touch - 1] || hints[0];
+  box.classList.add('hint'); // (the lesson is short: its words stay up)
+  const r = ensureBeam();
+  const p = game.player;
+  if (r && key === 'invited') {
+    if (journey.markFor !== r) {
+      clearJourneyMark();
+      journey.markFor = r;
+      journey.mark = game.ui.attach('journey-mark', r, { html: '▼', class: 'tour-mark', offset: 6 });
+    }
+    const m = game.ui.el('journey-mark');
+    if (m && p) m.style.opacity = String(Math.max(0, Math.min(1, (Math.hypot(r.x - p.x, r.z - p.z) - FADE_NEAR) / (FADE_FAR - FADE_NEAR))));
+  } else clearJourneyMark();
+}
+game.every(0.25, () => {
+  if (journey.state !== 'invited') return;
+  const ride = rideOf();
+  if (ride) advanceLesson(ride);
+  drawJourney();
+});
+game.on('docked-pad', () => {
+  if (journey.state !== 'invited') return;
+  journey.state = 'docked';
+  confetti();
+  drawJourney();
+  game.emit('journey', { state: 'docked' });
+});
+game.on('bay-catch', () => { if (journey.state === 'invited' && !journey.caught) { journey.caught = true; overseer('I have you. Let the engine rest.', 4, null); } });
+
+// A climb that failed (the engine says so: modules/overseer/dock.js `ascent-failed`): the Overseer answers and the way
+// back up is open: the rocket fills on the ground, and one that is wrecked or gone is replaced on the pad (free).
+function newRocket(why) {
+  if (journey.replacing) return;
+  journey.replacing = true;
+  game.after(why === 'wrecked' ? 5 : 3, () => {
+    journey.replacing = false;
+    if (journey.state !== 'invited') return;
+    const old = (game.all('Rocket') || []).find((e) => e && e.alive && !(e.vehicle && e.vehicle.wrecked));
+    if (old) { endBeam(); return; } // (still standing: it only needs fuel, and the ground fills it)
+    const wreck = (game.all('Rocket') || [])[0];
+    try { if (wreck && wreck.alive) wreck.destroy(); } catch { /* gone */ }
+    const made = bringVehicle('Rocket', 'rocket', HOME.rocket, 'rocket');
+    const O = H && H.overseer;
+    try { if (made && O && O.beam) O.beam(made, { radius: 2.6, seconds: 2 }); } catch { /* fine */ }
+    overseer('A new one, from me.', 4, 'overseer-a-new-one.mp3');
+    game.emit('journey', { state: 'new-rocket', why });
+  });
+}
+game.on('ascent-failed', (d) => {
+  if (!d || journey.state !== 'invited') return;
+  d.handled = true;
+  const lines = {
+    wrecked: 'That one is gone. I will send another.',
+    fuel: 'The fire has gone out. Fall gently. The ground will fill it again.',
+    fell: 'Down you came. It is a long way up. Go again.',
+  };
+  overseer(lines[d.why] || lines.fell, 5, null);
+  journey.tut = 'burn'; journey.tilted = false; journey.caught = false;
+  if (d.why === 'wrecked') newRocket('wrecked');
+  game.emit('journey', { state: 'retry', why: d.why });
+});
+// A wrecked rocket (a crash on the way up, the launcher turned on it): a new one stands on the pad either way.
+game.on('wrecked', (d) => {
+  const wreck = d && d.vehicle;
+  if (!wreck || journey.state !== 'invited' || !String(wreck.type || '').includes('rocket')) return;
+  newRocket('wrecked');
+});
