@@ -18,21 +18,21 @@
   //   `hunts`), angry (hunts players too), neutral (minds its business, fights back), person.
   // group: herd / flock / pack / solo: herds and flocks keep together and stampede together.
   const SPECIES = {
-    cow: { plan: 'quad', len: 1.9, h: 0.85, w: 0.8, legH: 0.7, legW: 0.17, head: [0.42, 0.42, 0.5], neck: null, tail: [0.06, 0.75, -60], ears: 1, horns: 1, nose: '#e8a3a0', spots: '#2a2522', colors: { body: '#f2efe8', head: '#f2efe8', legs: '#f2efe8', accent: '#2a2522' }, walk: 1.2, run: 5.5, temper: 'calm', group: 'herd', diet: 'grass', hp: 160, mass: 400, shy: 3.5, sound: 'moo', clips: {} },
-    sheep: { plan: 'quad', len: 1.05, h: 0.62, w: 0.7, legH: 0.42, legW: 0.11, fluffy: 1, head: [0.26, 0.3, 0.34], tail: [0.08, 0.15, -40], ears: 1, colors: { body: '#efe9da', head: '#3b332d', legs: '#3b332d', accent: '#3b332d' }, walk: 1.1, run: 5, temper: 'calm', group: 'herd', diet: 'grass', hp: 60, mass: 60, shy: 5, sound: 'baa' },
-    pig: { plan: 'quad', len: 1.1, h: 0.6, w: 0.62, legH: 0.32, legW: 0.13, head: [0.38, 0.36, 0.3], tail: [0.04, 0.2, 20], ears: 1, nose: '#d9828c', colors: { body: '#f2a7b0', head: '#f2a7b0', legs: '#e8959f', accent: '#c96f7c' }, walk: 1.1, run: 4.5, temper: 'calm', group: 'herd', diet: 'grass', hp: 80, mass: 120, shy: 3, sound: 'oink' },
-    horse: { plan: 'quad', len: 2.0, h: 0.8, w: 0.6, legH: 1.0, legW: 0.15, neck: [0.28, 0.8, 50], head: [0.26, 0.3, 0.62], tail: [0.1, 0.8, -55], ears: 1, mane: 1, colors: { body: '#8a5a36', head: '#8a5a36', legs: '#6b4428', accent: '#2a1d14' }, walk: 1.6, run: 11, temper: 'calm', group: 'herd', diet: 'grass', hp: 180, mass: 450, shy: 5, rideable: true, sound: 'neigh' },
-    deer: { plan: 'quad', len: 1.3, h: 0.55, w: 0.45, legH: 0.85, legW: 0.09, neck: [0.18, 0.55, 55], head: [0.2, 0.22, 0.38], tail: [0.08, 0.15, 30], ears: 1, antlers: 1, colors: { body: '#a8713f', head: '#a8713f', legs: '#8f5f34', accent: '#f1e6d4' }, walk: 1.3, run: 10, temper: 'shy', group: 'herd', diet: 'grass', hp: 60, mass: 80, shy: 14, sound: 'deer' },
-    dog: { plan: 'quad', len: 0.8, h: 0.36, w: 0.32, legH: 0.38, legW: 0.09, head: [0.26, 0.26, 0.32], tail: [0.05, 0.4, 35], ears: 1, nose: '#1d1d1d', colors: { body: '#c98f4f', head: '#c98f4f', legs: '#b07a41', accent: '#3a2a1c' }, walk: 2, run: 8, temper: 'pet', group: 'solo', diet: 'meat', hp: 60, mass: 25, sound: 'bark', fetches: true },
-    cat: { plan: 'quad', len: 0.55, h: 0.24, w: 0.2, legH: 0.22, legW: 0.06, head: [0.2, 0.18, 0.18], tail: [0.04, 0.45, 70], ears: 1, nose: '#e7a0a6', colors: { body: '#5d5d66', head: '#5d5d66', legs: '#4b4b52', accent: '#f2f2f2' }, walk: 1.4, run: 7, temper: 'pet', aloof: true, group: 'solo', diet: 'meat', hp: 30, mass: 5, sound: 'meow' },
-    wolf: { plan: 'quad', len: 1.2, h: 0.45, w: 0.36, legH: 0.55, legW: 0.1, head: [0.3, 0.28, 0.42], tail: [0.08, 0.5, -20], ears: 1, nose: '#151515', colors: { body: '#7d7f86', head: '#8c8e95', legs: '#6c6e75', accent: '#d8d8dc' }, walk: 1.6, run: 9.5, temper: 'predator', hunts: ['sheep', 'chicken', 'deer', 'rabbit', 'pig'], group: 'pack', diet: 'meat', hp: 90, mass: 50, bite: 12, sound: 'howl' },
-    bear: { plan: 'quad', len: 1.7, h: 0.95, w: 0.9, legH: 0.55, legW: 0.24, head: [0.48, 0.44, 0.48], tail: [0.1, 0.12, 0], ears: 1, nose: '#2a1a12', colors: { body: '#5a3a24', head: '#5a3a24', legs: '#4a2f1d', accent: '#2a1a12' }, walk: 1.1, run: 8, temper: 'neutral', group: 'solo', diet: 'meat', hp: 320, mass: 350, bite: 22, guard: 3, sound: 'growl' },
-    rabbit: { plan: 'quad', len: 0.42, h: 0.26, w: 0.24, legH: 0.12, legW: 0.07, head: [0.18, 0.18, 0.2], tail: [0.08, 0.08, 40], longEars: 1, colors: { body: '#c8b6a0', head: '#c8b6a0', legs: '#b8a690', accent: '#ffffff' }, walk: 1.5, run: 7, hops: true, temper: 'shy', group: 'herd', diet: 'grass', hp: 20, mass: 3, shy: 6, sound: 'squeak' },
-    chicken: { plan: 'bird', len: 0.45, h: 0.38, w: 0.32, legH: 0.18, legW: 0.035, head: [0.16, 0.18, 0.16], beak: '#f0b429', comb: '#d62f2f', wings: 1, tail: [0.18, 0.2, 50], colors: { body: '#f6f1e6', head: '#f6f1e6', legs: '#e8a32a', accent: '#d62f2f' }, walk: 1, run: 4.5, temper: 'shy', group: 'flock', diet: 'seeds', hp: 15, mass: 2.5, shy: 4, sound: 'cluck' },
-    bird: { plan: 'bird', len: 0.3, h: 0.18, w: 0.16, legH: 0.08, legW: 0.02, head: [0.12, 0.12, 0.12], beak: '#f0b429', wings: 1, flies: true, tail: [0.1, 0.18, 10], colors: { body: '#3f7fd9', head: '#3f7fd9', legs: '#5a4630', accent: '#f4f4f4' }, walk: 0.8, run: 3, fly: 6, temper: 'shy', group: 'flock', diet: 'seeds', hp: 5, mass: 0.3, shy: 7, sound: 'tweet' },
-    penguin: { plan: 'bird', upright: 1, len: 0.38, h: 0.62, w: 0.36, legH: 0.06, legW: 0.06, head: [0.22, 0.2, 0.2], beak: '#f09a29', wings: 1, belly: '#f4f4f4', colors: { body: '#1e2430', head: '#1e2430', legs: '#f09a29', accent: '#f4f4f4' }, walk: 0.7, run: 2.2, temper: 'calm', group: 'flock', diet: 'meat', hp: 30, mass: 20, shy: 3, sound: 'squawk' },
-    dinosaur: { plan: 'bird', dino: 1, len: 2.6, h: 1.1, w: 0.9, legH: 1.3, legW: 0.3, head: [0.6, 0.6, 1.0], arms: 1, tail: [0.35, 2.2, -10], colors: { body: '#4d7a3a', head: '#4d7a3a', legs: '#3f6630', accent: '#e9d8a6' }, walk: 1.8, run: 8.5, temper: 'angry', hunts: ['cow', 'sheep', 'pig', 'horse', 'deer', 'person'], group: 'solo', diet: 'meat', hp: 600, mass: 2000, bite: 30, sight: 18, rideable: true, sound: 'roar' },
-    fish: { plan: 'fish', len: 0.6, h: 0.32, w: 0.16, legH: 0, legW: 0, head: null, colors: { body: '#f08a2c', head: '#f08a2c', legs: '#f08a2c', accent: '#ffffff' }, walk: 0.6, run: 2, swims: true, temper: 'shy', group: 'solo', diet: 'none', hp: 10, mass: 1.5, shy: 3, sound: 'splash' },
+    cow: { plan: 'quad', gait: 'cow', idle: 'chew', len: 1.9, h: 0.85, w: 0.8, legH: 0.7, legW: 0.17, head: [0.42, 0.42, 0.5], neck: null, tail: [0.06, 0.75, -60], ears: 1, horns: 1, nose: '#e8a3a0', spots: '#2a2522', colors: { body: '#f2efe8', head: '#f2efe8', legs: '#f2efe8', accent: '#2a2522' }, walk: 1.2, run: 5.5, temper: 'calm', group: 'herd', diet: 'grass', hp: 160, mass: 400, shy: 3.5, sound: 'moo', clips: {} },
+    sheep: { plan: 'quad', gait: 'sheep', idle: 'chew', len: 1.05, h: 0.62, w: 0.7, legH: 0.42, legW: 0.11, fluffy: 1, head: [0.26, 0.3, 0.34], tail: [0.08, 0.15, -40], ears: 1, colors: { body: '#efe9da', head: '#3b332d', legs: '#3b332d', accent: '#3b332d' }, walk: 1.1, run: 5, temper: 'calm', group: 'herd', diet: 'grass', hp: 60, mass: 60, shy: 5, sound: 'baa' },
+    pig: { plan: 'quad', gait: 'pig', idle: 'sniff', len: 1.1, h: 0.6, w: 0.62, legH: 0.32, legW: 0.13, head: [0.38, 0.36, 0.3], tail: [0.04, 0.2, 20], ears: 1, nose: '#d9828c', colors: { body: '#f2a7b0', head: '#f2a7b0', legs: '#e8959f', accent: '#c96f7c' }, walk: 1.1, run: 4.5, temper: 'calm', group: 'herd', diet: 'grass', hp: 80, mass: 120, shy: 3, sound: 'oink' },
+    horse: { plan: 'quad', gait: 'horse', idle: 'paw', len: 2.0, h: 0.8, w: 0.6, legH: 1.0, legW: 0.15, neck: [0.28, 0.8, 50], head: [0.26, 0.3, 0.62], tail: [0.1, 0.8, -55], ears: 1, mane: 1, colors: { body: '#8a5a36', head: '#8a5a36', legs: '#6b4428', accent: '#2a1d14' }, walk: 1.6, run: 11, temper: 'calm', group: 'herd', diet: 'grass', hp: 180, mass: 450, shy: 5, rideable: true, sound: 'neigh' },
+    deer: { plan: 'quad', gait: 'deer', idle: 'alert', len: 1.3, h: 0.55, w: 0.45, legH: 0.85, legW: 0.09, neck: [0.18, 0.55, 55], head: [0.2, 0.22, 0.38], tail: [0.08, 0.15, 30], ears: 1, antlers: 1, colors: { body: '#a8713f', head: '#a8713f', legs: '#8f5f34', accent: '#f1e6d4' }, walk: 1.3, run: 10, temper: 'shy', group: 'herd', diet: 'grass', hp: 60, mass: 80, shy: 14, sound: 'deer' },
+    dog: { plan: 'quad', gait: 'dog', idle: 'pant', len: 0.8, h: 0.36, w: 0.32, legH: 0.38, legW: 0.09, head: [0.26, 0.26, 0.32], tail: [0.05, 0.4, 35], ears: 1, nose: '#1d1d1d', colors: { body: '#c98f4f', head: '#c98f4f', legs: '#b07a41', accent: '#3a2a1c' }, walk: 2, run: 8, temper: 'pet', group: 'solo', diet: 'meat', hp: 60, mass: 25, sound: 'bark', fetches: true },
+    cat: { plan: 'quad', gait: 'cat', idle: 'stretch', len: 0.55, h: 0.24, w: 0.2, legH: 0.22, legW: 0.06, head: [0.2, 0.18, 0.18], tail: [0.04, 0.45, 70], ears: 1, nose: '#e7a0a6', colors: { body: '#5d5d66', head: '#5d5d66', legs: '#4b4b52', accent: '#f2f2f2' }, walk: 1.4, run: 7, temper: 'pet', aloof: true, group: 'solo', diet: 'meat', hp: 30, mass: 5, sound: 'meow' },
+    wolf: { plan: 'quad', gait: 'wolf', idle: 'pant', len: 1.2, h: 0.45, w: 0.36, legH: 0.55, legW: 0.1, head: [0.3, 0.28, 0.42], tail: [0.08, 0.5, -20], ears: 1, nose: '#151515', colors: { body: '#7d7f86', head: '#8c8e95', legs: '#6c6e75', accent: '#d8d8dc' }, walk: 1.6, run: 9.5, temper: 'predator', hunts: ['sheep', 'chicken', 'deer', 'rabbit', 'pig'], group: 'pack', diet: 'meat', hp: 90, mass: 50, bite: 12, sound: 'howl' },
+    bear: { plan: 'quad', gait: 'bear', idle: 'sway', len: 1.7, h: 0.95, w: 0.9, legH: 0.55, legW: 0.24, head: [0.48, 0.44, 0.48], tail: [0.1, 0.12, 0], ears: 1, nose: '#2a1a12', colors: { body: '#5a3a24', head: '#5a3a24', legs: '#4a2f1d', accent: '#2a1a12' }, walk: 1.1, run: 8, temper: 'neutral', group: 'solo', diet: 'meat', hp: 320, mass: 350, bite: 22, guard: 3, sound: 'growl' },
+    rabbit: { plan: 'quad', gait: 'rabbit', idle: 'twitch', len: 0.42, h: 0.26, w: 0.24, legH: 0.12, legW: 0.07, head: [0.18, 0.18, 0.2], tail: [0.08, 0.08, 40], longEars: 1, colors: { body: '#c8b6a0', head: '#c8b6a0', legs: '#b8a690', accent: '#ffffff' }, walk: 1.5, run: 7, hops: true, temper: 'shy', group: 'herd', diet: 'grass', hp: 20, mass: 3, shy: 6, sound: 'squeak' },
+    chicken: { plan: 'bird', gait: 'chicken', idle: 'fluff', len: 0.45, h: 0.38, w: 0.32, legH: 0.18, legW: 0.035, head: [0.16, 0.18, 0.16], beak: '#f0b429', comb: '#d62f2f', wings: 1, tail: [0.18, 0.2, 50], colors: { body: '#f6f1e6', head: '#f6f1e6', legs: '#e8a32a', accent: '#d62f2f' }, walk: 1, run: 4.5, temper: 'shy', group: 'flock', diet: 'seeds', hp: 15, mass: 2.5, shy: 4, sound: 'cluck' },
+    bird: { plan: 'bird', gait: 'bird', idle: 'fluff', len: 0.3, h: 0.18, w: 0.16, legH: 0.08, legW: 0.02, head: [0.12, 0.12, 0.12], beak: '#f0b429', wings: 1, flies: true, tail: [0.1, 0.18, 10], colors: { body: '#3f7fd9', head: '#3f7fd9', legs: '#5a4630', accent: '#f4f4f4' }, walk: 0.8, run: 3, fly: 6, temper: 'shy', group: 'flock', diet: 'seeds', hp: 5, mass: 0.3, shy: 7, sound: 'tweet' },
+    penguin: { plan: 'bird', gait: 'penguin', idle: 'fluff', upright: 1, len: 0.38, h: 0.62, w: 0.36, legH: 0.06, legW: 0.06, head: [0.22, 0.2, 0.2], beak: '#f09a29', wings: 1, belly: '#f4f4f4', colors: { body: '#1e2430', head: '#1e2430', legs: '#f09a29', accent: '#f4f4f4' }, walk: 0.7, run: 2.2, temper: 'calm', group: 'flock', diet: 'meat', hp: 30, mass: 20, shy: 3, sound: 'squawk' },
+    dinosaur: { plan: 'bird', gait: 'dino', idle: 'roar', dino: 1, len: 2.6, h: 1.1, w: 0.9, legH: 1.3, legW: 0.3, head: [0.6, 0.6, 1.0], arms: 1, tail: [0.35, 2.2, -10], colors: { body: '#4d7a3a', head: '#4d7a3a', legs: '#3f6630', accent: '#e9d8a6' }, walk: 1.8, run: 8.5, temper: 'angry', hunts: ['cow', 'sheep', 'pig', 'horse', 'deer', 'person'], group: 'solo', diet: 'meat', hp: 600, mass: 2000, bite: 30, sight: 18, rideable: true, sound: 'roar' },
+    fish: { plan: 'fish', gait: 'fish', len: 0.6, h: 0.32, w: 0.16, legH: 0, legW: 0, head: null, colors: { body: '#f08a2c', head: '#f08a2c', legs: '#f08a2c', accent: '#ffffff' }, walk: 0.6, run: 2, swims: true, temper: 'shy', group: 'solo', diet: 'none', hp: 10, mass: 1.5, shy: 3, sound: 'splash' },
     person: { plan: 'human', len: 0.42, h: 0.62, w: 0.42, legH: 0.8, legW: 0.15, walk: 1.5, run: 5.5, temper: 'person', group: 'solo', diet: 'none', hp: 100, mass: 70, sound: 'hey', colors: { body: '#3f7fd9', head: '#f1c27d', legs: '#2f3b52', accent: '#3a2a1c' } },
     robot: { plan: 'human', robot: 1, len: 0.46, h: 0.66, w: 0.46, legH: 0.78, legW: 0.16, walk: 1.4, run: 4.5, temper: 'neutral', group: 'solo', diet: 'none', hp: 200, mass: 150, sound: 'beep', colors: { body: '#aab4c3', head: '#c9d2df', legs: '#7d8796', accent: '#3ee6ff' } },
   };
@@ -103,6 +103,7 @@
     if (!p) { p = { src: new Map(), mats: new Map(), models: new Map() }; pools.set(scene, p); }
     return p;
   }
+  const rimmed = (c) => c.r * 0.3 + c.g * 0.59 + c.b * 0.11 > 0.14;
   function mat(scene, color, glow) {
     const p = pool(scene), key = `${color}|${glow ? 1 : 0}`;
     let m = p.mats.get(key);
@@ -111,6 +112,14 @@
       m.diffuseColor = H.lib.hex(color, '#cccccc');
       m.specularColor = new B.Color3(0.06, 0.06, 0.06);
       if (glow) { m.emissiveColor = H.lib.hex(color); m.disableLighting = true; }
+      else if (rimmed(m.diffuseColor)) {
+        // A fur-like edge: a soft light fresnel in the color's own tint, so every body keeps its shape against any sky
+        // and a fluffy edge reads without geometry (docs/characters.md "Light"). Dark details (pupils) go without.
+        try {
+          const rim = B.Color3.Lerp(m.diffuseColor, new B.Color3(1, 0.96, 0.88), 0.6);
+          m.emissiveFresnelParameters = new B.FresnelParameters({ bias: 0.12, power: 2.2, leftColor: new B.Color3(rim.r * 0.5, rim.g * 0.5, rim.b * 0.5), rightColor: new B.Color3(0, 0, 0) });
+        } catch { /* no fresnel in this Babylon */ }
+      }
       m.freeze();
       p.mats.set(key, m);
     }
@@ -119,7 +128,7 @@
   /** A soft box: a sphere pushed out toward a cube (rounded edges, smooth shading), width x height x depth. Bodies are
    *  made of these rather than sharp cubes, so creatures and people read as soft toys, not as blocks. */
   function softBox(name, o, scene) {
-    const m = B.MeshBuilder.CreateSphere(name, { diameter: 2, segments: 10, updatable: true }, scene);
+    const m = B.MeshBuilder.CreateSphere(name, { diameter: 2, segments: 6, updatable: true }, scene);
     const p = m.getVerticesData(B.VertexBuffer.PositionKind);
     const w = (o.width ?? o.size ?? 1) / 2, h = (o.height ?? o.size ?? 1) / 2, d = (o.depth ?? o.size ?? 1) / 2;
     const k = 0.32; // 1 is a sphere, toward 0 a cube
@@ -134,7 +143,9 @@
   const MAKE = {
     box: (s) => B.MeshBuilder.CreateBox('lv-box', { size: 1 }, s),
     soft: (s) => softBox('lv-soft', { size: 1 }, s),
-    sphere: (s) => B.MeshBuilder.CreateSphere('lv-sphere', { diameter: 1, segments: 8 }, s),
+    sphere: (s) => B.MeshBuilder.CreateSphere('lv-sphere', { diameter: 1, segments: 6 }, s),
+    ball: (s) => B.MeshBuilder.CreateIcoSphere('lv-ball', { radius: 0.5, subdivisions: 2, flat: false }, s), // eyes, muzzles, noses: round in 80 triangles
+    bead: (s) => B.MeshBuilder.CreateIcoSphere('lv-bead', { radius: 0.5, subdivisions: 1, flat: false }, s), // pupils, tongues: 20
     cyl: (s) => B.MeshBuilder.CreateCylinder('lv-cyl', { diameter: 1, height: 1, tessellation: 10 }, s),
     cone: (s) => B.MeshBuilder.CreateCylinder('lv-cone', { diameterTop: 0, diameterBottom: 1, height: 1, tessellation: 8 }, s),
   };
@@ -181,6 +192,51 @@
   const SKINS = ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac'];
   const HAIR = ['#3a2a1c', '#14110f', '#d9b25f', '#8e3b1f', '#bdbdbd'];
 
+  const mixHex = (a, b, t) => B.Color3.Lerp(H.lib.hex(a, '#cccccc'), H.lib.hex(b, '#ffffff'), t).toHexString();
+  const EARS = { dog: 'floppy', pig: 'floppy', cow: 'floppy', sheep: 'floppy', cat: 'point', wolf: 'point', bear: 'round', horse: 'point', deer: 'point' };
+  /** Real eyes (docs/characters.md "Eyes"): a white ball with a dark pupil and one glint, on a joint that blinks (scaled
+   *  shut) and a pupil joint that looks (animal.js moves both). `e` is the eye's width; cats get a bright eye and a slit. */
+  function makeEyes(scene, rig, head, sp, o) {
+    const cat = sp.gait === 'cat', prey = ['cow', 'sheep', 'horse', 'deer', 'rabbit'].includes(sp.gait);
+    const e = Math.min(o.hw * 0.34, Math.max(0.034 * o.s, o.hh * (cat ? 0.44 : 0.36)));
+    rig.eyes = [];
+    for (const sx of [-1, 1]) {
+      const eye = joint(scene, head, [sx * o.hw * (prey ? 0.5 : o.x), o.y, o.z], 'lv-eye');
+      eye.rotation.y = sx * (prey ? 0.5 : 0.18);
+      part(scene, eye, 'ball', cat ? '#e3ee8c' : '#fbfbf6', [e, e * 1.08, e * 0.7], [0, 0, 0]);
+      const pj = joint(scene, eye, [0, 0, e * 0.24], 'lv-pupil');
+      part(scene, pj, 'bead', '#14161d', [e * (cat ? 0.3 : 0.66), e * (cat ? 0.92 : 0.7), e * 0.3], [0, 0, 0]);
+      part(scene, pj, 'box', '#ffffff', [e * 0.16, e * 0.16, e * 0.05], [e * 0.1, e * 0.14, e * 0.14], null);
+      rig.eyes.push({ n: eye, p: pj, r: e });
+    }
+  }
+  /** Ears on joints so they can move (flop, perk, flick, trail the head): point, floppy, round or long. */
+  function makeEars(scene, rig, head, sp, c, hw, hh, hl, s) {
+    const style = sp.longEars ? 'long' : sp.ears ? (EARS[sp.gait] || 'point') : null;
+    rig.ears = [];
+    if (!style) return;
+    for (const sx of [-1, 1]) {
+      let j, z0;
+      if (style === 'long') {
+        j = joint(scene, head, [sx * hw * 0.25, hh * 0.45, hl * 0.25], 'lv-ear'); z0 = -sx * 0.14;
+        part(scene, j, 'box', c.body, [hw * 0.22, hh * 1.4, 0.04 * s], [0, hh * 0.7, 0]);
+      } else if (style === 'floppy') {
+        const len = hh * 0.66;
+        j = joint(scene, head, [sx * hw * 0.38, hh * 0.46, hl * 0.28], 'lv-ear'); z0 = sx * 0.6;
+        part(scene, j, 'box', c.head === c.body ? c.accent : c.head, [hw * 0.2, len, hl * 0.26], [0, -len / 2, 0]);
+      } else if (style === 'round') {
+        j = joint(scene, head, [sx * hw * 0.4, hh * 0.5, hl * 0.12], 'lv-ear'); z0 = -sx * 0.3;
+        part(scene, j, 'ball', c.body, [hw * 0.3, hw * 0.3, 0.07 * s], [0, hw * 0.08, 0]);
+        part(scene, j, 'ball', c.accent, [hw * 0.17, hw * 0.17, 0.05 * s], [0, hw * 0.07, hl * 0.04]);
+      } else {
+        const len = hh * 0.66;
+        j = joint(scene, head, [sx * hw * 0.34, hh * 0.46, hl * 0.25], 'lv-ear'); z0 = -sx * 0.28;
+        part(scene, j, 'cone', c.body, [hw * 0.36, len, hw * 0.2], [0, len / 2, 0]);
+      }
+      j.rotation.z = z0;
+      rig.ears.push({ n: j, side: sx, z0, style, x: { p: 0, v: 0 }, z: { p: 0, v: 0 } });
+    }
+  }
   /** Builds a stand-in body under `vis` (feet at y = 0, facing +z). Returns the rig the animator moves. */
   function buildBody(scene, vis, sp, o) {
     const s = o.size || 1;
@@ -188,16 +244,18 @@
     if (o.color) { c.body = o.color; if (!o.colors || !o.colors.head) c.head = sp.colors.head === sp.colors.body ? o.color : c.head; }
     const rig = { vis, hips: [], arms: [], wings: [], head: null, headBase: 0, tail: null, tailBase: 0, torso: null, plan: sp.plan, size: s };
     const L = sp.len * s, Ht = sp.h * s, Wd = sp.w * s, legH = sp.legH * s, legW = Math.max(0.02, sp.legW * s);
-    const eyes = (head, hw, hh, hl, z = hl * 0.8) => { for (const sx of [-1, 1]) part(scene, head, 'box', '#141414', [0.03 * s + hw * 0.08, hh * 0.16, 0.02 * s], [sx * hw * 0.42, hh * 0.15, z], null); };
+    rig.sp = sp;
     if (sp.plan === 'quad') {
       const top = legH + Ht;
       const torso = part(scene, vis, sp.fluffy ? 'sphere' : 'box', c.body, sp.fluffy ? [Wd * 1.25, Ht * 1.35, L * 1.1] : [Wd, Ht, L], [0, legH + Ht / 2, 0]);
-      rig.torso = torso;
+      rig.torso = torso; rig.torsoBase = torso.scaling.clone();
+      // Light underside and muzzle (countershading): the soft two-step the doc asks for, in the body's own color.
+      if (!sp.fluffy && !sp.spots && sp.plan === 'quad') part(scene, vis, 'ball', mixHex(c.body, '#fff6e0', 0.3), [Wd * 0.8, Ht * 0.5, L * 0.7], [0, legH + Ht * 0.2, 0]);
       for (const [sx, sz] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) {
         const hip = joint(scene, vis, [sx * (Wd / 2 - legW * 0.6), legH, sz * (L / 2 - legW * 0.9)], 'lv-hip');
         part(scene, hip, 'box', c.legs, [legW, legH, legW], [0, -legH / 2, 0]);
         if (sp.hops && sz < 0) hip.scaling.set(1.3, 1, 1.6);
-        rig.hips.push({ n: hip, ph: sp.plan === 'quad' ? (sx * sz > 0 ? 0 : Math.PI) : 0, front: sz > 0 });
+        rig.hips.push({ n: hip, ph: sp.plan === 'quad' ? (sx * sz > 0 ? 0 : Math.PI) : 0, front: sz > 0, idx: rig.hips.length, side: sx });
       }
       if (sp.spots) for (const [sx, z, y] of [[1, 0.15, 0.6], [-1, -0.2, 0.5], [1, -0.3, 0.35], [-1, 0.25, 0.3]]) part(scene, vis, 'box', sp.spots, [0.02 * s, Ht * 0.38, L * 0.22], [sx * (Wd / 2 + 0.006), legH + Ht * y + Ht * 0.1, L * z]);
       // The neck (horses, deer) or straight onto the body.
@@ -215,18 +273,27 @@
       const head = joint(scene, headParent, headAt, 'lv-head');
       if (sp.neck) head.rotation.x = (90 - sp.neck[2]) * RAD; // level again
       part(scene, head, 'box', c.head, [hw, hh, hl], [0, 0, hl / 2]);
-      if (sp.nose) part(scene, head, 'box', sp.nose, [hw * 0.7, hh * 0.4, 0.04 * s], [0, -hh * 0.2, hl]);
-      eyes(head, hw, hh, hl, hl * 0.72);
-      if (sp.ears) for (const sx of [-1, 1]) part(scene, head, 'box', c.head === c.body ? c.accent : c.head, [hw * 0.28, hh * 0.38, 0.05 * s], [sx * hw * 0.42, hh * 0.6, hl * 0.25], [0, 0, sx * -18]);
-      if (sp.longEars) for (const sx of [-1, 1]) part(scene, head, 'box', c.body, [hw * 0.22, hh * 1.4, 0.04 * s], [sx * hw * 0.25, hh * 1.1, hl * 0.25], [0, 0, sx * -8]);
+      if (['dog', 'cat', 'wolf', 'bear'].includes(sp.gait)) part(scene, head, 'ball', mixHex(c.body, '#fff6e0', 0.4), [hw * 0.66, hh * 0.46, hl * 0.42], [0, -hh * 0.16, hl * 0.82]);
+      if (sp.nose) rig.nose = part(scene, head, sp.gait === 'pig' ? 'ball' : 'box', sp.nose, sp.gait === 'pig' ? [hw * 0.6, hh * 0.5, 0.07 * s] : [hw * 0.34, hh * 0.22, 0.04 * s], sp.gait === 'pig' ? [0, -hh * 0.12, hl * 0.98] : [0, hh * 0.02, hl * 1.0]);
+      if (sp.idle === 'pant') { rig.tongue = part(scene, head, 'bead', '#e8707e', [hw * 0.26, hh * 0.1, hl * 0.2], [0, -hh * 0.42, hl * 0.84]); rig.tongue.setEnabled(false); }
+      makeEyes(scene, rig, head, sp, { hw, hh, x: 0.4, y: hh * 0.14, z: hl * 0.9, s });
+      makeEars(scene, rig, head, sp, c, hw, hh, hl, s);
       if (sp.horns) for (const sx of [-1, 1]) part(scene, head, 'cone', '#e9e1cf', [0.07 * s, 0.22 * s, 0.07 * s], [sx * hw * 0.55, hh * 0.62, hl * 0.3], [0, 0, sx * -55]);
       if (sp.antlers) for (const sx of [-1, 1]) { part(scene, head, 'box', '#d8c6a4', [0.03 * s, 0.38 * s, 0.03 * s], [sx * hw * 0.35, hh * 0.9, hl * 0.25], [0, 0, sx * -20]); part(scene, head, 'box', '#d8c6a4', [0.03 * s, 0.2 * s, 0.03 * s], [sx * hw * 0.62, hh * 1.05, hl * 0.4], [-30, 0, sx * -60]); }
-      rig.head = head; rig.headBase = head.rotation.x;
+      rig.head = head; rig.headBase = head.rotation.x; rig.headPos = head.position.clone();
       if (sp.tail) {
         const [tw, tl, up] = [sp.tail[0] * s, sp.tail[1] * s, sp.tail[2]];
         const tail = joint(scene, vis, [0, top - Ht * 0.15, -L / 2], 'lv-tail');
         tail.rotation.x = -up * RAD;
-        part(scene, tail, sp.fluffy || tl < tw * 2.5 ? 'sphere' : 'box', c.accent && sp.tail[1] < 0.2 ? c.accent : c.body, [tw, tw, tl], [0, 0, -tl / 2]);
+        const tc = c.accent && sp.tail[1] < 0.2 ? c.accent : c.body;
+        if (sp.fluffy || tl < tw * 2.5) part(scene, tail, 'sphere', tc, [tw, tw, tl], [0, 0, -tl / 2]);
+        else {
+          // Two joints, so the tip trails the root (a swish that whips, a wag that rolls out to the end).
+          part(scene, tail, 'box', tc, [tw, tw, tl * 0.56], [0, 0, -tl * 0.28]);
+          const tip = joint(scene, tail, [0, 0, -tl * 0.56], 'lv-tailtip');
+          part(scene, tip, 'box', sp.gait === 'cat' ? c.body : tc, [tw * 0.9, tw * 0.9, tl * 0.48], [0, 0, -tl * 0.24]);
+          rig.tailTip = tip;
+        }
         rig.tail = tail; rig.tailBase = tail.rotation.x;
       }
       rig.height = top + (sp.neck ? sp.neck[1] * s * 0.7 : hh * 0.3);
@@ -238,12 +305,12 @@
       if (sp.dino) torso.rotation.x = -12 * RAD;
       part(scene, torso, sp.dino ? 'box' : 'sphere', c.body, [Wd, Ht, L], [0, 0, 0]);
       if (sp.belly) part(scene, torso, 'sphere', sp.belly, [Wd * 0.75, Ht * 0.8, L * 0.35], [0, -Ht * 0.04, L * 0.34]);
-      rig.torso = torso;
+      rig.torso = torso; rig.torsoBase = torso.scaling.clone();
       for (const sx of [-1, 1]) {
         const hip = joint(scene, vis, [sx * Wd * 0.22, legH, sp.dino ? -L * 0.05 : 0], 'lv-hip');
         part(scene, hip, 'box', c.legs, [legW, Math.max(0.02, legH), legW], [0, -legH / 2, 0]);
         part(scene, hip, 'box', c.legs, [legW * 2.2, legW * 0.6, legW * 3], [0, -legH + legW * 0.3, legW]);
-        rig.hips.push({ n: hip, ph: sx > 0 ? 0 : Math.PI, front: true });
+        rig.hips.push({ n: hip, ph: sx > 0 ? 0 : Math.PI, front: true, idx: rig.hips.length, side: sx });
       }
       const [hw, hh, hl] = (sp.head || [0.15, 0.15, 0.15]).map((v) => v * s);
       const head = joint(scene, vis, upright ? [0, legH + Ht * 0.98, L * 0.05] : [0, bodyY + Ht * 0.45, L / 2 - hl * 0.1], 'lv-head');
@@ -251,8 +318,8 @@
       if (sp.dino) { part(scene, head, 'box', c.accent, [hw * 0.9, hh * 0.25, hl * 0.9], [0, -hh * 0.15, hl * 0.35]); for (let i = -2; i <= 2; i++) part(scene, head, 'cone', '#ffffff', [0.05 * s, 0.1 * s, 0.05 * s], [i * hw * 0.18, -hh * 0.02, hl * 0.78], [180, 0, 0]); }
       if (sp.beak) part(scene, head, 'cone', sp.beak, [hw * 0.35, hl * 0.6, hw * 0.35], [0, hh * 0.25, hl * 0.3 + hl * 0.6], [90, 0, 0]);
       if (sp.comb) part(scene, head, 'box', sp.comb, [0.03 * s, hh * 0.45, hl * 0.6], [0, hh * 0.85, hl * 0.3]);
-      eyes(head, hw, hh, hl, hl * 0.62);
-      rig.head = head; rig.headBase = 0;
+      makeEyes(scene, rig, head, sp, { hw, hh, x: sp.dino ? 0.46 : 0.42, y: hh * (sp.dino ? 0.42 : 0.34), z: hl * (sp.dino ? 0.5 : 0.6), s });
+      rig.head = head; rig.headBase = 0; rig.headPos = head.position.clone();
       if (sp.wings) for (const sx of [-1, 1]) {
         const wj = joint(scene, vis, [sx * Wd * 0.45, upright ? legH + Ht * 0.7 : bodyY + Ht * 0.15, upright ? 0 : L * 0.05], 'lv-wing');
         part(scene, wj, 'box', c.body === '#f6f1e6' ? '#ebe4d4' : c.body, upright ? [0.04 * s, Ht * 0.6, L * 0.35] : [Wd * 0.7 * (sp.flies ? 1.8 : 1), 0.03 * s, L * 0.6], upright ? [0, -Ht * 0.28, 0] : [sx * Wd * 0.35 * (sp.flies ? 1.8 : 1), 0, 0]);
@@ -313,10 +380,18 @@
       const torso = joint(scene, vis, [0, Ht / 2, 0], 'lv-torso');
       part(scene, torso, 'sphere', c.body, [Wd, Ht, L], [0, 0, 0]);
       part(scene, torso, 'box', c.accent, [0.02 * s, Ht * 0.5, L * 0.2], [0, Ht * 0.45, 0]);
-      for (const sx of [-1, 1]) part(scene, torso, 'box', '#141414', [0.02 * s, 0.05 * s, 0.05 * s], [sx * Wd * 0.42, Ht * 0.12, L * 0.33]);
+      rig.eyes = [];
+      for (const sx of [-1, 1]) {
+        const e = Math.max(0.04 * s, Ht * 0.3), eye = joint(scene, torso, [sx * Wd * 0.38, Ht * 0.12, L * 0.28], 'lv-eye');
+        eye.rotation.y = sx * 1.1;
+        part(scene, eye, 'bead', '#fbfbf6', [e, e * 1.05, e * 0.6], [0, 0, 0]);
+        const pj = joint(scene, eye, [0, 0, e * 0.2], 'lv-pupil');
+        part(scene, pj, 'bead', '#14161d', [e * 0.62, e * 0.66, e * 0.3], [0, 0, 0]);
+        rig.eyes.push({ n: eye, p: pj, r: e });
+      }
       const tail = joint(scene, torso, [0, 0, -L / 2], 'lv-tail');
       part(scene, tail, 'box', c.accent === '#ffffff' ? c.body : c.accent, [0.03 * s, Ht * 0.9, L * 0.3], [0, 0, -L * 0.12]);
-      rig.tail = tail; rig.tailBase = 0; rig.torso = torso;
+      rig.tail = tail; rig.tailBase = 0; rig.torso = torso; rig.torsoBase = torso.scaling.clone();
       rig.height = Ht; rig.length = L;
     }
     return rig;
@@ -409,13 +484,17 @@
     a.tip = lerp(a.tip, state === 'knocked' && e.grounded ? 1 : 0, Math.min(1, dt * (state === 'knocked' ? 6 : 2.5)));
     a.eat = lerp(a.eat, state === 'eat' ? 1 : 0, Math.min(1, dt * 4));
     const vis = rig.vis;
+    // Animals (animal.js): the gait, the idle, the eyes, ears and tail; it hands back how the whole body sits (fx).
+    const alive = !rig.model && rig.plan !== 'human' && living.drive;
+    const fx = alive ? living.drive(rig, a, { dt, speed, state, sp: r.sp, happy: r.happy, flying: r.flying, inWater: r.inWater, grounded: e.grounded, seed: r.seed || 0, look: living.lookAt ? living.lookAt(rig, e, r) : null }) : null;
     // Tumbling through the air after a blast: spin; on the ground after it: lie on the side.
     if (state === 'knocked' && !e.grounded) { a.spin += dt * (r.spinRate || 9); vis.rotation.x = a.spin; vis.rotation.z = a.spin * 0.6; }
     else {
       a.spin = 0;
-      vis.rotation.x = lerp(vis.rotation.x, 0, k);
-      vis.rotation.z = lerp(vis.rotation.z, (rig.plan === 'fish' && !r.inWater ? Math.PI / 2 : 0) + a.tip * Math.PI / 2 * (r.tipSide || 1), k);
+      vis.rotation.x = lerp(vis.rotation.x, fx ? fx.pitch : 0, k);
+      vis.rotation.z = lerp(vis.rotation.z, (rig.plan === 'fish' && !r.inWater ? Math.PI / 2 : 0) + a.tip * Math.PI / 2 * (r.tipSide || 1) + (fx ? fx.roll : 0), k);
     }
+    if (alive) { vis.position.y = r.visY + fx.dy; return; }
     if (rig.model) {
       // A model without clips: a little bob and lean, so it doesn't glide.
       if (!rig.clips.length) { const moving = speed > 0.2; a.phase += dt * (moving ? 6 + speed : 1); rig.model.position.y = (moving ? Math.abs(Math.sin(a.phase)) * 0.05 * s : 0) - a.lie * (rig.height * 0.3); rig.model.rotation.x = state === 'eat' ? 0.25 : 0; }
