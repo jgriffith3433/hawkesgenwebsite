@@ -113,7 +113,12 @@
     try { r = await fetch(url, { method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin', keepalive: Boolean(o.keepalive) }); }
     catch { const e = new Error("Couldn't reach Hawkes Gen. Check your connection and try again."); e.status = 0; throw e; }
     const d = await r.json().catch(() => ({}));
-    if (!r.ok) { const e = new Error(d.error || `That did not work (${r.status})`); e.status = r.status; throw e; }
+    if (!r.ok) {
+      const e = new Error(d.error || `That did not work (${r.status})`); e.status = r.status;
+      // Studio's login in front of the beta site (not the portal): its 401 says where to sign in.
+      if (r.status === 401 && typeof d.signin === 'string' && /^https:\/\//.test(d.signin)) e.wall = d.signin;
+      throw e;
+    }
     return d;
   };
   const me = () => fetch('/v1/users/me', { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null)).then((d) => (d && d.user) || null).catch(() => null);
@@ -151,6 +156,7 @@
 .gs-sheet .go{width:100%;font:700 15px var(--sans);color:#fff;background:linear-gradient(90deg,#4a9eff,#a855f7);border:0;border-radius:10px;padding:12px;cursor:pointer;min-height:46px}
 .gs-sheet .go:disabled{opacity:.6}
 .gs-sheet .err{color:#fca5a5;font:13px var(--sans);margin:0 0 10px}
+.gs-sheet .err a{color:#93c5fd}
 .gs-sheet .note{color:#bfe3ff;font:13px/1.45 var(--sans);margin:0 0 10px;padding:8px 10px;border-radius:8px;background:rgba(74,158,255,.12);border:1px solid rgba(74,158,255,.35)}
 .gs-sheet a.back{display:block;text-align:center;text-decoration:none}
 .gs-sheet [hidden]{display:none !important}
@@ -409,6 +415,7 @@
         await signedIn(intent, d.user);
       } catch (x) {
         go.disabled = false;
+        if (x.wall) return studioWall(x.wall);
         // That email already has an account: it's theirs to sign in to (with its password, or Google if made that way).
         if (mode === 'signup' && x.status === 409) {
           track('sandbox_signup_exists', { intent });
@@ -422,6 +429,28 @@
         fail(x.message);
       }
     });
+    // The beta site (Studio's login in front of it, which a window not signed in to Studio meets): sign in to Studio in a
+    // popup, then the same form goes again by itself. The island keeps running behind it.
+    function studioWall(signin) {
+      track('sandbox_studio_wall', { intent });
+      fail('');
+      $('gsErr').innerHTML = 'This is the beta site: it needs a Studio sign-in first. <a href="#" data-studio>Sign in to Studio</a>, then your account is made here.';
+      $('gsErr').querySelector('[data-studio]').onclick = (e) => {
+        e.preventDefault();
+        let w = null;
+        const back = `${location.origin}/auth/popup?studio=1`;
+        try { w = window.open(`${signin}?next=${encodeURIComponent(back)}`, 'hg-studio', 'popup,width=520,height=680'); } catch { w = null; }
+        if (!w) { note('Your browser blocked the window. Sign in to Studio in another tab, then press the button again.'); return; }
+        note('Sign in to Studio in the window that opened.');
+        const onMsg = (ev) => {
+          if (ev.origin !== location.origin || !ev.data || ev.data.type !== 'hg-auth') return;
+          removeEventListener('message', onMsg);
+          if (!ev.data.ok) { note('Studio sign-in was cancelled.'); return; }
+          $('gsForm').requestSubmit();
+        };
+        addEventListener('message', onMsg);
+      };
+    }
     setTimeout(() => $('gsEmail').focus(), 50);
   }
 
