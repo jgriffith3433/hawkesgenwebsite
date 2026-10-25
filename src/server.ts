@@ -9,7 +9,7 @@ import { pipeline } from 'node:stream/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { PORT, ROOT, USER_ID, genKey, env } from './config.ts';
 import { genFetch, gen } from './gen.ts';
-import { send, readJson, readBody, PortalError } from './util.ts';
+import { send, readJson, readBody, PortalError, Limiter, clientIp } from './util.ts';
 import * as users from './users.ts';
 import { PACKS, FIRST_PURCHASE_BONUS, stripeStatus, checkout, ledger, stripeWebhook } from './billing.ts';
 import { quote, submit, settle, watch } from './jobs.ts';
@@ -35,6 +35,7 @@ const engineVersion = () => manifest().version;
 import * as community from './community.ts';
 import { upgrade as joinRoom, broadcastOps, markHere, liveCounts, roomState } from './rooms.ts';
 import * as invites from './invites.ts';
+import { digest } from './sign.ts';
 import * as shares from './shares.ts';
 import { relayAnalytics, playIds, playIdsScript } from './analytics.ts';
 import type { Duplex } from 'node:stream';
@@ -49,45 +50,29 @@ const PASS_POST = [/^\/v1\/jobs\/j_[0-9a-f]+\/cancel$/, /^\/v1\/recipes\/check$/
 const UPLOADS = [/^\/v1\/assets$/, /^\/v1\/blobs$/];
 const UPLOAD_LIMIT = 64 * 1024 * 1024;
 
-const clientIp = (req: IncomingMessage) => {
-  const peer = req.socket.remoteAddress ?? '';
-  const fwd = String(req.headers['x-forwarded-for'] ?? '').split(',').pop()?.trim();
-  return /^(127\.0\.0\.1|::1|::ffff:127\.0\.0\.1)$/.test(peer) && fwd ? fwd : peer;
-};
 
+// In-memory limits (util.ts Limiter: a sliding window per key, swept every minute, a cap on keys).
 // Sign-in attempts per address: 20 a quarter hour.
-const attempts = new Map<string, number[]>();
-function limitLogins(ip: string) {
-  const now = Date.now();
-  const recent = (attempts.get(ip) ?? []).filter((t) => now - t < 15 * 60_000);
-  if (recent.length >= 20) throw new PortalError('Too many sign-in attempts; wait a few minutes', { status: 429 });
-  recent.push(now);
-  attempts.set(ip, recent);
-}
+const attempts = new Limiter(20, 15 * 60_000);
+const limitLogins = (ip: string) => attempts.take(ip, 'Too many sign-in attempts; wait a few minutes');
 
-const inviteMade = new Map<string, number[]>();
 /** Links an address may make an hour (a link is only a signed token, but a room code per call is not worth abusing). */
-function limitInvites(ip: string) {
-  const now = Date.now();
-  const recent = (inviteMade.get(ip) ?? []).filter((t) => now - t < 3600_000);
-  if (recent.length >= 30) throw new PortalError('That is a lot of invitations; try again in a while', { status: 429 });
-  recent.push(now);
-  inviteMade.set(ip, recent);
-}
+const inviteMade = new Limiter(30, 3600_000);
+const limitInvites = (ip: string) => inviteMade.take(ip, 'That is a lot of invitations; try again in a while');
 
-const genMade = new Map<string, number[]>();
 /** Generations an account may start from a game: 10 a minute and 40 an hour. A second guard: the editor asks the person
  *  first (docs/engine-modules.md, "What a game may ask the editor"), but a script can post to the route itself. */
+const genPerMinute = new Limiter(10, 60_000);
+const genPerHour = new Limiter(40, 3600_000);
 function limitGenerations(userId: string) {
-  const now = Date.now();
-  const recent = (genMade.get(userId) ?? []).filter((t) => now - t < 3600_000);
-  if (recent.length >= 40 || recent.filter((t) => now - t < 60_000).length >= 10) {
-    genMade.set(userId, recent);
-    throw new PortalError('That is a lot of things to make at once; give it a minute and try again.', { status: 429 });
-  }
-  recent.push(now);
-  genMade.set(userId, recent);
+  if (genPerMinute.over(userId) || genPerHour.over(userId)) throw new PortalError('That is a lot of things to make at once; give it a minute and try again.', { status: 429 });
+  genPerMinute.hit(userId);
+  genPerHour.hit(userId);
 }
+
+// The open write routes, per address (analytics beacons from published games, the "I'm here" ping of a play page).
+const analyticsPosts = new Limiter(120, 60_000);
+const herePings = new Limiter(6, 60_000);
 
 /** Gen's answer straight to the customer: status, the headers that matter, the body as it streams. */
 /** Streams Gen's answer to the browser. A body that errors late (its timeout fires after a player's <audio> stopped
@@ -327,6 +312,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
 
     // ------------------------------------------------------------ open to everyone
     // Player analytics from game pages that have no origin of their own: passed on to Gen (src/analytics.ts).
+    if (route === '/v1/analytics/collect' && method === 'POST' && !analyticsPosts.hit(clientIp(req))) return void res.writeHead(429, { 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store', 'Content-Type': 'application/json' }).end('{"ok":false}');
     if (route === '/v1/analytics/collect' && (method === 'POST' || method === 'OPTIONS')) return await relayAnalytics(req, res, clientIp(req));
     if (route === '/v1/health') return send(res, 200, { ok: true, service: 'hawkesgen-portal', gen: Boolean(genKey()), payments: stripeStatus().configured, google: google.googleEnabled(), mail: mail.mailOn() });
     // What Gen makes for a game, with its price (the codex reads it, so it never drifts from gameai.ts KINDS).
@@ -388,6 +374,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       const g = t ? null : games.gameBySlug(ph[1]);
       if (!t && !g) return send(res, 404, { error: 'No such game' });
       const gid = t ? `t:${t[1]}` : g!.id;
+      if (!herePings.hit(`${clientIp(req)}:${gid}`)) { res.setHeader('Access-Control-Allow-Origin', '*'); return send(res, 429, { error: 'Once every few seconds is enough' }); }
       markHere(gid, (await readJson(req)).s);
       res.setHeader('Access-Control-Allow-Origin', '*');
       return send(res, 200, liveCounts(gid));
@@ -395,7 +382,8 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     let pb = /^\/v1\/play\/([a-z0-9-]+)$/.exec(route);
     if (pb && method === 'GET') {
       res.setHeader('Access-Control-Allow-Origin', '*');
-      return send(res, 200, games.playBundle(pb[1], url.searchParams.get('v') ? Number(url.searchParams.get('v')) : null));
+      const me = users.authenticate(req);
+      return send(res, 200, games.playBundle(pb[1], url.searchParams.get('v') ? Number(url.searchParams.get('v')) : null, me ? me.id : `ip:${digest(clientIp(req)).slice(0, 22)}`));
     }
     // Island invitations (invites.ts): the inviter (a guest or an account) makes a link to their island's room; the friend's
     // page asks what it is worth before loading anything. Open routes: neither starts Gen work or touches credits.
@@ -413,13 +401,13 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (pb && method === 'GET') return send(res, 200, games.inviteInfo(pb[1]));
     if (route === '/v1/billing/webhook' && method === 'POST') return send(res, 200, stripeWebhook(await readBody(req), String(req.headers['stripe-signature'] ?? '')));
     if (route === '/v1/users/signup' && method === 'POST') {
-      const r = users.signup(await readJson(req), clientIp(req), users.originOf(req));
+      const r = await users.signup(await readJson(req), clientIp(req), users.originOf(req));
       users.setSessionCookie(res, req, r.sessionToken);
       return send(res, 200, { user: r.user, apiKey: r.apiKey });
     }
     if (route === '/v1/users/login' && method === 'POST') {
       limitLogins(clientIp(req));
-      const r = users.login(await readJson(req));
+      const r = await users.login(await readJson(req));
       users.setSessionCookie(res, req, r.sessionToken);
       return send(res, 200, { user: r.user });
     }
@@ -433,7 +421,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (route === '/v1/users/password' && method === 'POST') {
       limitLogins(clientIp(req));
       const b = await readJson(req);
-      const r = users.setPasswordWithToken(b.token, b.password);
+      const r = await users.setPasswordWithToken(b.token, b.password);
       users.setSessionCookie(res, req, r.sessionToken);
       return send(res, 200, { user: r.user });
     }

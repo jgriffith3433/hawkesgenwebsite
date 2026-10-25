@@ -10,7 +10,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { db, tx } from './db.ts';
 import { USER_ID } from './config.ts';
-import { send, readJson, PortalError } from './util.ts';
+import { send, readJson, PortalError, Limiter } from './util.ts';
 import { sign, verify } from './sign.ts';
 import { authenticate, getUser, type User } from './users.ts';
 import { addFriend, areFriends, listFriends } from './friends.ts';
@@ -176,6 +176,9 @@ export function who(me: User | null, badges: unknown) {
   return { who: out };
 }
 
+// Friend requests, a few a minute per player on top of the daily count in the table (a script in a game can post to the route).
+const friendAsks = new Limiter(10, 60_000);
+
 export function requestFriend(me: User, to: unknown) {
   const id = String(to ?? '');
   if (!new RegExp(`^${USER_ID}$`).test(id)) throw new PortalError('to must be a player id');
@@ -183,6 +186,7 @@ export function requestFriend(me: User, to: unknown) {
   const them = getUser(id);
   if (!them || them.disabled) throw new PortalError('No such player', { status: 404 });
   if (areFriends(me.id, id)) return { status: 'friends' as const };
+  friendAsks.take(me.id, 'Slow down a little; try again in a minute');
   return tx(() => {
     const asked = db.prepare('SELECT 1 FROM friend_requests WHERE from_id = ? AND to_id = ?').get(id, me.id);
     if (asked) {
