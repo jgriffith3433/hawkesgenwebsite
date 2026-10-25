@@ -607,4 +607,16 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(ROOT, 'src
   const server = http.createServer((req, res) => void handle(req, res));
   server.on('upgrade', onUpgrade);
   server.listen(PORT, '127.0.0.1', () => console.log(`[portal] http://127.0.0.1:${PORT}`));
+  // A restart (every beta push, every deploy) must not reset requests under way: stop taking new
+  // connections, let the running ones finish, drop idle keep-alive ones, and leave after 8 s at most.
+  let leaving = false;
+  const leave = () => {
+    if (leaving) return;
+    leaving = true;
+    server.close(() => process.exit(0));
+    server.closeIdleConnections();
+    setTimeout(() => process.exit(0), 8000).unref();
+  };
+  process.on('SIGTERM', leave);
+  process.on('SIGINT', leave);
 }
