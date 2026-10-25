@@ -130,3 +130,12 @@ ob.traveling;              // { game, phase, href } while a trip lasts
 game.on('observatory', ({ state }) => {}); // + 'travel', 'beam-down', 'return', 'travel-failed'
 ```
 A featured game page opened with `?from=observatory` has a corner button and a pause menu (Esc twice) with "Return to the Observatory".
+
+### It is alive (presence)
+
+The ship reacts, with the same meshes (no draw calls added): while the speech desk has a line, the halo brightens and the rings turn about three times as fast; before a beam opens the emitter flares (the shaft follows 0.28 s later); at night the seams glow much stronger; when the player asks it something (the chat, or `game.emit('asked')`) it turns its bay toward them for 14 s (seen from afar, where the ship is drawn in the sky; close up the real hangar stays put); after 40 s of nothing it idles with slow, deeper breathing. A low hum (two sines and a soft triangle, through the background so a voice ducks it and the music slider sets it) is silent on the ground and rises as the player climbs and the ship gets near.
+
+```js
+game.overseer.presence();   // { speaking, flare, idle, quiet, attending, turn, halo: {alpha, scale}, rings: {speed}, seams: {glow}, night, hum: {level, playing, altitude, distance}, beams }
+HawkesPlay.overseer.attend(seconds);   // face the player, as a question does
+```

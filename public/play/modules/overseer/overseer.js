@@ -7,6 +7,11 @@
 //     spot (a ring on the ground, the thing growing into being); the player spawning, things the assistant and the
 //     builder add (scene ops with fx "materialize" / "arrive"), spawn guns and spawnMany (one wide beam for a batch),
 //     and Hawkes Gen assets as they arrive all use it. A few at once at most (cheap on phones).
+//   - Alive: it reacts (presence, below): the halo brightens and the rings quicken while it speaks (the speech desk's
+//     line, for as long as it lasts), the emitter flares before a beam opens, the seams glow stronger at night, a message
+//     to it turns its bay toward the player (seen from afar), a long silence is slow breathing, and a low hum rises as the
+//     player climbs toward it (silent on the ground; through the background, so a voice ducks it). Same meshes, no new
+//     draw calls. game.overseer.presence() samples all of it.
 //   - config.overseer: true (the default: every game has it) or false, or { position: [x, y, z], radius, color, glow,
 //     intro: "first" | "always" | false, beams: false }. A model asset for the word "overseer" replaces the stand-in
 //     hull when J makes one (H.assets.for('overseer')).
@@ -156,14 +161,16 @@
     const seam = seams(scene, r, bay.yaw); seam.material = mats.seam; seam.parent = decor;
     const ringA = dashedRing(scene, 'ov-ring-a', r * 1.42, r * 0.018, PHONE ? 48 : 72, 0.28); ringA.material = mats.ring;
     const ringB = dashedRing(scene, 'ov-ring-b', r * 1.66, r * 0.011, PHONE ? 64 : 96, 0.45); ringB.material = mats.ring;
-    const tiltA = new B.TransformNode('ov-tilt-a', scene); tiltA.parent = decor; tiltA.rotation.set(14 * RAD, 0, 8 * RAD); ringA.parent = tiltA;
-    const tiltB = new B.TransformNode('ov-tilt-b', scene); tiltB.parent = decor; tiltB.rotation.set(-24 * RAD, 30 * RAD, -12 * RAD); ringB.parent = tiltB;
+    const turn = new B.TransformNode('ov-turn', scene); turn.parent = decor; // (the bay turns toward whoever asked: presence)
+    seam.parent = turn;
+    const tiltA = new B.TransformNode('ov-tilt-a', scene); tiltA.parent = turn; tiltA.rotation.set(14 * RAD, 0, 8 * RAD); ringA.parent = tiltA;
+    const tiltB = new B.TransformNode('ov-tilt-b', scene); tiltB.parent = turn; tiltB.rotation.set(-24 * RAD, 30 * RAD, -12 * RAD); ringB.parent = tiltB;
     const halo = B.MeshBuilder.CreatePlane('ov-halo', { size: r * 4.4 }, scene);
-    halo.material = mats.halo; halo.billboardMode = B.Mesh.BILLBOARDMODE_ALL; halo.parent = decor;
+    halo.material = mats.halo; halo.billboardMode = B.Mesh.BILLBOARDMODE_ALL; halo.parent = turn;
     // The bay's light, seen from afar (the hangar itself is dock.js's, close up).
     const bayGlow = B.MeshBuilder.CreatePlane('ov-bay-glow', { width: bay.halfW * 2, height: bay.top - bay.floor }, scene);
     bayGlow.material = mat(scene, 'ov-bay', { emissive: new B.Color3(1, 0.86, 0.62), unlit: true });
-    bayGlow.parent = decor;
+    bayGlow.parent = turn;
     const bayDist = Math.sqrt(Math.max(0, r * r - bay.halfW * bay.halfW)) * 0.985;
     bayGlow.position.set(Math.sin(bay.yaw) * bayDist, (bay.floor + bay.top) / 2, Math.cos(bay.yaw) * bayDist);
     bayGlow.rotation.y = bay.yaw + Math.PI;
@@ -172,7 +179,7 @@
     farHull.material = mats.hull;
     const decorMeshes = [seam, ringA, ringB, halo, bayGlow];
     for (const m of [farHull, ...decorMeshes]) { m.isPickable = false; m.metadata = { decor: true, noGlow: true, overseer: true }; m.receiveShadows = false; m.alwaysSelectAsActiveMesh = true; }
-    return { cfg, scene, r, bay, mats, decor, seam, ringA, ringB, halo, bayGlow, farHull, decorMeshes, lod: null, near: null, model: null, t: 0 };
+    return { cfg, scene, r, bay, mats, decor, turn, seam, ringA, ringB, halo, bayGlow, farHull, decorMeshes, lod: null, near: null, model: null, t: 0 };
   }
 
   /** The most the air hazes it, and the least it differs from the sky behind it (0..1 brightness) however hazy. */
@@ -265,13 +272,14 @@
         else O.mats.hull.emissiveColor = O.mats.hull.emissiveColor.add(new B.Color3(gap, gap, gap));
       }
     }
-    const shine = 0.75 + 0.9 * night + 0.25 * sky.space + flareK * 1.6;
+    // Alive (presence): night brings the seams up, speech lifts them a little, a long silence breathes.
+    const pulse = Math.sin(P.ph);
+    const shine = 0.75 + NIGHT_SEAMS * night + 0.25 * sky.space + flareK * 1.6 + 0.25 * P.speak + 0.12 * P.idle * pulse;
     O.mats.seam.emissiveColor = B.Color3.Lerp(glow.scale(shine), hor, hz * 0.4);
-    O.mats.ring.emissiveColor = B.Color3.Lerp(B.Color3.Lerp(glow, new B.Color3(1, 1, 1), 0.45).scale(0.65 + 0.7 * night), hor, hz * 0.5);
-    // A gentle pulse of the halo (about every seven seconds): a little in size, a little in brightness.
-    const pulse = Math.sin(O.t * 0.9);
-    O.halo.scaling.setAll(1 + 0.04 * pulse);
-    O.mats.halo.alpha = clamp(0.18 + 0.5 * night + 0.15 * sky.space - hz * 0.1 + flareK * 0.35 + 0.05 * pulse, 0.08, 0.95);
+    O.mats.ring.emissiveColor = B.Color3.Lerp(B.Color3.Lerp(glow, new B.Color3(1, 1, 1), 0.45).scale(0.65 + 0.7 * night + 0.45 * P.speak), hor, hz * 0.5);
+    // A gentle pulse of the halo (about every seven seconds; quicker while it speaks, slower and deeper when it is idle).
+    O.halo.scaling.setAll(1 + (0.04 + 0.05 * P.idle) * pulse + 0.07 * P.speak);
+    O.mats.halo.alpha = clamp(0.18 + 0.5 * night + 0.15 * sky.space - hz * 0.1 + flareK * 0.35 + 0.05 * pulse + 0.24 * P.speak, 0.08, 0.95);
   }
   /** The emitter flares as the ship sends something down (arrive.js): seams and halo brighten, then settle. */
   let flareK = 0;
@@ -281,10 +289,111 @@
     if (flareK > 0.001) flareK *= Math.exp(-dt * 2.2); else flareK = 0;
     if (!O) return;
     O.t += dt;
-    O.ringA.rotation.y += dt * 0.035;
-    O.ringB.rotation.y -= dt * 0.022;
+    presenceStep(dt);
+    const quick = 1 + RINGS_SPEAKING * P.speak;
+    O.ringA.rotation.y += dt * 0.035 * quick;
+    O.ringB.rotation.y -= dt * 0.022 * quick;
     O.seam.rotation.y += dt * 0.004;
   });
+
+  // ------------------------------------------------------------------ presence: the ship is alive
+  const NIGHT_SEAMS = 1.3, RINGS_SPEAKING = 3.2, IDLE_AFTER = 40, ATTEND = 14, WINDUP = 0.28;
+  /** speak 0..1 (it is saying a line), idle 0..1 (silent a long time: breathing), quiet (seconds since anything), attend
+   *  (seconds left of facing the player), turn (the bay's turn, radians), ph (the halo's phase), hum 0..1 (the hum's level). */
+  const P = { speak: 0, idle: 0, quiet: 0, attend: 0, turn: 0, ph: 0, hum: 0, idleAfter: IDLE_AFTER };
+  const TV = new B.Vector3(), TQ = new B.Quaternion();
+  const wrapPi = (a) => a - Math.PI * 2 * Math.round(a / (Math.PI * 2));
+  /** Where the hum is at: 0 on the ground, then up as the player climbs and the ship gets near (altitude in meters above
+   *  the surface, distance to the ship in meters, radius). */
+  function humFor(alt, dist, r) {
+    const up = smooth(25, 320, alt);
+    const near = 1 - smooth(r * 1.15, 14000, dist);
+    return up * (0.08 + 0.92 * near);
+  }
+  /** The turn that puts the bay toward the camera (radians from where the bay is built), or 0. */
+  function wantTurn() {
+    const cam = O.scene.activeCamera;
+    if (!cam || !(O.lod === 'far' || O.proxy)) return 0; // (close up the real hangar is where it is)
+    const c = center(), p = cam.globalPosition;
+    TV.set(p.x - c.x, p.y - c.y, p.z - c.z);
+    const q = O.decor.rotationQuaternion;
+    if (q) { q.conjugateToRef(TQ); TV.rotateByQuaternionToRef(TQ, TV); }
+    if (Math.hypot(TV.x, TV.z) < 1) return 0;
+    return wrapPi(Math.atan2(TV.x, TV.z) - O.bay.yaw);
+  }
+  function presenceStep(dt) {
+    const talking = Boolean(H.speech && H.speech.current);
+    const active = talking || beams.length > 0 || P.attend > 0 || flareK > 0.05;
+    P.quiet = active ? 0 : P.quiet + dt;
+    P.attend = Math.max(0, P.attend - dt);
+    P.speak += ((talking ? 1 : 0) - P.speak) * (1 - Math.exp(-dt * (talking ? 5 : 2.5)));
+    P.idle += ((P.quiet > P.idleAfter ? 1 : 0) - P.idle) * (1 - Math.exp(-dt * 0.4));
+    P.ph += dt * (0.9 + 1.8 * P.speak - 0.35 * P.idle);
+    const want = P.attend > 0 ? wantTurn() : 0;
+    P.turn += wrapPi(want - P.turn) * (1 - Math.exp(-dt * 1.4));
+    if (Math.abs(P.turn) < 1e-4 && !want) P.turn = 0;
+    O.turn.rotation.y = P.turn;
+  }
+  /** The player asked it something: it turns its bay toward them for a while. */
+  function attend(seconds = ATTEND) { P.attend = Math.max(P.attend, Math.max(0, Number(seconds) || 0)); P.quiet = 0; }
+
+  // The hum: two low sines and a soft triangle through a low-pass, into the background (so a voice ducks it and the music
+  // slider sets it); made only while it is audible, let go when it is not.
+  let hum = null;
+  function stopHum() {
+    if (!hum) return;
+    const h = hum; hum = null;
+    try { const ac = H.audio.context, t = ac.currentTime; h.out.gain.cancelScheduledValues(t); h.out.gain.setTargetAtTime(0, t, 0.08); for (const o of h.oscs) o.stop(t + 0.5); setTimeout(() => { try { h.out.disconnect(); } catch { /* gone */ } }, 700); } catch { /* gone */ }
+  }
+  function humStep(dt) {
+    let level = 0;
+    const cam = O && O.scene.activeCamera;
+    if (cam) {
+      const c = center(), p = cam.globalPosition;
+      level = humFor(H.sky.altitude, Math.hypot(c.x - p.x, c.y - p.y, c.z - p.z), O.r);
+    }
+    P.hum += (level - P.hum) * (1 - Math.exp(-dt * (level > P.hum ? 0.8 : 1.6)));
+    if (P.hum < 0.002) { P.hum = level === 0 ? 0 : P.hum; if (hum) stopHum(); return; }
+    const a = H.audio, ac = a && a.context;
+    if (!ac || !a.running) return;
+    try {
+      if (!hum) {
+        const bed = a.background;
+        if (!bed) return;
+        const out = ac.createGain(), lp = ac.createBiquadFilter();
+        out.gain.value = 0; lp.type = 'lowpass'; lp.frequency.value = 220;
+        out.connect(lp); lp.connect(bed);
+        const oscs = [[46, 'sine', 1], [69, 'sine', 0.5], [92, 'triangle', 0.22]].map(([f, type, g]) => {
+          const o = ac.createOscillator(), og = ac.createGain();
+          o.type = type; o.frequency.value = f; og.gain.value = g; o.connect(og); og.connect(out); o.start();
+          return o;
+        });
+        hum = { out, lp, oscs, base: [46, 69, 92] };
+      }
+      const t = ac.currentTime;
+      hum.out.gain.setTargetAtTime(P.hum * 0.1, t, 0.25);
+      hum.oscs.forEach((o, i) => o.frequency.setTargetAtTime(hum.base[i] * (1 + 0.35 * P.hum), t, 0.4));
+      hum.lp.frequency.setTargetAtTime(160 + 260 * P.hum, t, 0.4);
+    } catch { /* no sound */ }
+  }
+  H.hooks.frame.push((dt) => { if (O) try { humStep(dt); } catch (err) { H.report(err, 'overseer hum'); } });
+  /** A debug sample of how alive it is: game.overseer.presence(). */
+  function presence() {
+    const r3 = (v) => Math.round(v * 1000) / 1000;
+    const cam = O && O.scene.activeCamera;
+    let distance = null;
+    if (O && cam) { const c = center(), p = cam.globalPosition; distance = Math.round(Math.hypot(c.x - p.x, c.y - p.y, c.z - p.z)); }
+    return {
+      on: Boolean(O),
+      speaking: r3(P.speak), flare: r3(flareK), idle: r3(P.idle), quiet: r3(P.quiet), attending: P.attend > 0, turn: r3(P.turn),
+      halo: O ? { alpha: r3(O.mats.halo.alpha), scale: r3(O.halo.scaling.x) } : null,
+      rings: O ? { speed: r3(1 + RINGS_SPEAKING * P.speak) } : null,
+      seams: O ? { glow: r3(lum(O.mats.seam.emissiveColor)) } : null,
+      night: r3(1 - clamp((H.sky.day - 0.12) / 0.88, 0, 1)),
+      hum: { level: r3(P.hum), playing: Boolean(hum), altitude: Math.round(H.sky.altitude), distance },
+      beams: beams.length,
+    };
+  }
 
   /** A model for the Overseer (the word "overseer" in the game's assets): it replaces the stand-in hull. */
   function wearModel() {
@@ -407,7 +516,7 @@ void main(void) {
     if (ent && ent.alive && !opts.noGrow) { grow = { s: ent.node.scaling.clone(), done: false }; ent.node.scaling.scaleInPlace(0.01); }
     let tgt = target;
     const b = {
-      t: 0, seconds, hold: Boolean(opts.hold), radius, ended: false, endT: 0, alive: true, near, far, ring, nm, fm, color, boost: 0,
+      t: -WINDUP, seconds, hold: Boolean(opts.hold), radius, ended: false, endT: 0, alive: true, near, far, ring, nm, fm, color, boost: 0,
       move(t) { tgt = t; return b; },
       /** A surge down the shaft (something is being sent): brighter for a moment. */
       pulse(k = 1) { b.boost = Math.min(3, b.boost + k); return b; },
@@ -450,7 +559,7 @@ void main(void) {
           const s = b.radius * (0.6 + rt * 1.6);
           ring.position.set(bot.x, bot.y + 0.05, bot.z);
           ring.scaling.set(s, 1, s);
-          ring.material.alpha = (1 - rt) * 0.9 * life;
+          ring.material.alpha = (1 - rt) * 0.9 * life * smooth(0, 0.1, b.t);
           if (rt >= 1 && !b.hold) ring.setEnabled(false);
         }
         if (grow && !grow.done && ent) {
@@ -482,6 +591,7 @@ void main(void) {
     const topK = Math.max(10, radius * 0.5) * (O ? O.r / 1400 : 1) / radius;
     for (const m of [near, far]) if (m) scaleTop(m, topK);
     beams.push(b);
+    flare(0.7); // the emitter flares first; the shaft opens a moment later (WINDUP)
     if (opts.sound !== false) whoosh(at0, radius);
     if (G()) G().emit('beam', { at: at0, radius, entity: ent || null });
     return b;
@@ -565,9 +675,11 @@ void main(void) {
   // ------------------------------------------------------------------ what gets beamed in
   H.hooks.scene.push((scene, w) => { w._overseerKept = Boolean(w.keepPose); });
   H.hooks.world.push({
+    leave() { stopHum(); },
     enter(w) {
       beams = [];
       O = null;
+      stopHum(); Object.assign(P, { speak: 0, idle: 0, quiet: 0, attend: 0, turn: 0, ph: 0, hum: 0 });
       const cfg = localize(read(L.effectiveConfig()));
       if (cfg) {
         try { O = build(w, cfg); } catch (err) { H.report(err, 'overseer'); O = null; }
@@ -643,7 +755,10 @@ void main(void) {
       say: (text, seconds, o) => say(text, seconds, o),
       /** Words and its voice: speak('Welcome aboard.', 'overseer-welcome-aboard.mp3'). Every line it has: VOICES. */
       speak: (text, name, seconds, o) => speak(text, name, seconds, o),
+      /** How alive it is right now (speaking, flare, idle, turn, halo, hum...): a debug sample. */
+      presence: () => presence(),
     };
+    game.on('asked', () => attend());
   });
   /** The Overseer speaks: its words are a line in the game's chat (H.chat; the editor's chat in the editor), never a
    *  caption over the picture (J, 2026-10-24: "All captions should be in the chat window, period"). Every line goes
@@ -740,12 +855,12 @@ void main(void) {
     get lod() { return O ? O.lod : null; },
     /** The emitter (the lowest point), in world meters. */
     emitter() { return O ? [O.cfg.position[0], O.cfg.position[1] - O.r * 0.99, O.cfg.position[2]] : null; },
-    emitterSeen, beam, materialize, growIn, say, setLod, flare,
+    emitterSeen, beam, materialize, growIn, say, setLod, flare, presence, attend,
     get beams() { return beams.length; },
     MAX_BEAMS,
     onEnter(fn) { enterListeners.push(fn); },
     onLeave(fn) { leaveListeners.push(fn); },
     onLod(fn) { lodListeners.push(fn); },
-    _: { mat, bayOf, center, farOffset, farOk, lum, hullSeen, HAZE_MAX, MIN_CONTRAST },
+    _: { P, humFor, NIGHT_SEAMS, WINDUP, mat, bayOf, center, farOffset, farOk, lum, hullSeen, HAZE_MAX, MIN_CONTRAST },
   };
 })();
