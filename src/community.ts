@@ -9,7 +9,7 @@ import { headWord, singular, wordsOf } from './words.ts';
 import { parseScene } from './scene.ts';
 import { getUser, type User } from './users.ts';
 import { PortalError } from './util.ts';
-import { levelUrls, lodsOf, rememberLods } from './lods.ts';
+import { cdnOf, levelUrls, lodsOf, rememberAsset } from './lods.ts';
 
 /**
  * The Gen project Hawkes' own starter pack lives in. The same one for every copy of the portal (a beta portal with its
@@ -67,17 +67,22 @@ const IMAGE_KINDS = ['texture', 'image', 'sprite', 'sky'];
  *  carry their levels of detail (Gen's LOD system, lods.ts: `lods`, each level with its link); the thumb is a small level
  *  (256 px) of the picture when Gen has made them. */
 export function view(r: Row) {
-  const file = (id: string | null) => (id ? `/v1/community/${id}/file` : null);
+  const proxy = (id: string | null) => (id ? `/v1/community/${id}/file` : null);
   const thumbId = r.thumb ?? (IMAGE_KINDS.includes(r.kind) ? r.id : null);
   // (Only images and models have levels: sounds and videos never ask Gen.)
   const lods = lodsOf([IMAGE_KINDS.includes(r.kind) || r.kind === 'model' ? r.id : null, thumbId]);
   const mine = lods[r.id];
   const t = thumbId ? lods[thumbId] : null;
+  // Community things are public: a file Gen has backed up is at its CDN link, the rest through the portal (/v1/community/<id>/file).
+  const cdn = cdnOf([r.id, thumbId]);
+  const file = (id: string | null) => (id ? cdn[id] ?? proxy(id) : null);
   const small = t ? [...t.levels].reverse().find((l) => l.level <= 256) ?? t.levels[0] : null;
+  // The thumb is a small level of the picture when Gen made them: its CDN link, else the portal's with ?lod.
+  const thumb = small ? levelUrls({ ...t!, levels: [small] }, proxy(thumbId)!, { cdn: true }).levels[0].url : file(thumbId);
   return {
     id: r.id, kind: r.kind, mime: r.mime, title: r.title, category: r.category || null, tags: r.tags ? r.tags.split(' ') : [], file: file(r.id),
-    thumb: small ? `${file(thumbId)}?lod=${small.level}&v=${small.sha}` : file(thumbId), thumbFull: file(thumbId),
-    ...(mine ? { lods: levelUrls(mine, file(r.id)!) } : {}),
+    thumb, thumbFull: file(thumbId),
+    ...(mine ? { lods: levelUrls(mine, proxy(r.id)!, { cdn: true }) } : {}),
     low: Boolean(r.low) || Boolean(mine?.levels.some((l) => l.role === 'low')), by: r.by_user ? getUser(r.by_user)?.name ?? 'A player' : 'Hawkes', source: r.source, uses: r.uses, likes: r.likes ?? 0, created: r.created,
   };
 }
@@ -162,7 +167,7 @@ export async function share(user: User, body: { asset?: unknown; title?: unknown
   db.prepare(`INSERT INTO community_assets (id, project, kind, mime, title, tags, category, low, thumb, by_user, source, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'player', ?)
               ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, title = excluded.title, tags = excluded.tags, category = excluded.category, low = excluded.low, thumb = excluded.thumb, hidden = 0`)
     .run(id, user.project, kind, a.mime ?? null, title, tags, cleanCategory(body.category), await own(body.low), await own(body.thumb), user.id, Date.now());
-  rememberLods(id, a.lods ?? null);
+  rememberAsset(a);
   return view(db.prepare('SELECT * FROM community_assets WHERE id = ?').get(id) as Row);
 }
 
@@ -301,8 +306,9 @@ export async function syncStarter() {
     put.run(r.main.id, STARTER_PROJECT, r.kind, r.main.mime ?? null, r.name, r.tags, r.category, r.item, r.low?.id ?? null, r.thumb?.id ?? null, Date.now());
     retire.run(r.item, r.main.id);
     // Each thing's levels of detail came with Gen's list (Gen makes them itself): kept for the library and bundles.
-    rememberLods(r.main.id, r.main.lods ?? null);
-    if (r.thumb) rememberLods(r.thumb.id, r.thumb.lods ?? null);
+    rememberAsset(r.main);
+    if (r.thumb) rememberAsset(r.thumb);
+    if (r.low) rememberAsset(r.low);
     if (!before) added++;
   }
   // Starter things of a kind with a minimum recipe: anything listed that isn't one of this round's good rows goes.

@@ -328,6 +328,12 @@ function checkSelfHosted(t) {
   if (missing.length) t.problem('error', `not fetched from /vendor: ${missing.join(', ')}`);
   else t.event('engine-self-hosted', `${own.length} files from /vendor, ${Math.round(bytes / 1024)} KB over the wire (${own.filter((e) => e.transferSize === 0).length} from cache)`);
   t.metric('vendorKB', Math.round(bytes / 1024));
+  // Models, textures and sounds: from Gen's CDN when it has them backed up, else through this site (/play-asset, /v1/community).
+  const fromCdn = urls.filter((e) => /^https:\/\/cdn\.hawkesgen\.com\/sha256\//.test(e.name));
+  const viaSite = urls.filter((e) => /\/(play-asset\/|v1\/community\/a_)/.test(e.name));
+  t.event('asset-sources', `${fromCdn.length} files from cdn.hawkesgen.com, ${viaSite.length} through the site (not backed up yet, or Gen's CDN is off)`);
+  t.metric('assetsFromCdn', fromCdn.length);
+  t.metric('assetsViaSite', viaSite.length);
 }
 
 async function stageIntro(t, ctx) {
