@@ -1,0 +1,6 @@
+{
+  "title": "Progress: points for doing things, levels, and what they unlock",
+  "order": 88,
+  "scripts": ["progress-core.js", "progress.js"],
+  "kinds": []
+}

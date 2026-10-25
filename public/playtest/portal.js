@@ -22,9 +22,9 @@
 import { installPlaytest } from './hawkes-playtest.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks'];
+const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'progress'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
+const ORDERS = { 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
 const SCENARIOS = [
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
   {
@@ -56,6 +56,11 @@ const SCENARIOS = [
     id: 'ask-the-overseer', title: 'After the sign-up: the Overseer says the real balance, offers three priced asks to tap, and an empty balance gets Get credits', seconds: 200, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first-minutes path through the throwaway sign-up (never on live), then, in the chat with no reload: the Overseer\'s line carries the balance /v1/users/me reports; three example asks are offered, each with its price (the quote) and a Send; nothing is spent before a click; a real click sends one. The empty balance is a named setup shortcut (the game told the balance is 0): the Overseer says so with a Get credits link and no request is made. options as sandbox-first-minutes',
+  },
+  {
+    id: 'sandbox-progress', title: 'Progress: points in the HUD for driving, a level with the Overseer\'s moment, the unlocks in the wardrobe and on the tool belt, kept after a return', seconds: 300, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the account sheet, then real input: walk to the 4x4, E, W held (points for the first drive and the meters in the HUD); the points of a few quests are earned by a named setup shortcut (the same table), a level-up gives goggles and a color (the wardrobe) and at level 4 the grenades (the tool belt), each with the Overseer\'s moment; the Overseer\'s memory re-read from the device (a named shortcut) shows them kept. options as sandbox-first-minutes',
   },
   {
     id: 'island-journal', title: 'The journal: opened from its button (desktop, or the phone at 390x844), the eight quests, the neighbours met, four lore items found on the island and read in it, and kept after a return', seconds: 300, tags: ['full'],
@@ -1040,6 +1045,64 @@ async function stageJournal(t, ctx) {
   t.progress(1);
 }
 
+/** Progress (docs/story.md, "Progress"): drive (real input) and see points in the HUD, reach a level (quests earned by a named
+ *  shortcut), hear the Overseer's moment, find the unlocks in the wardrobe and on the tool belt, and see them kept after a return. */
+async function stageProgress(t, ctx) {
+  const PG = () => HP().progress;
+  const hud = () => $('.pg-hud');
+  const hudText = () => { const h = hud(); return h && !h.hidden ? h.textContent.replace(/\s+/g, ' ').trim() : ''; };
+  G().on('progress', (d) => { if (d.state === 'earn') t.event('points-earned', `+${d.pts} ${d.label}; ${d.total} total, level ${d.level}`); else if (d.state === 'level') t.event('level-up', `level ${d.level}: ${d.unlocks.join(', ')}`); else if (d.state === 'unlock') t.event('unlock', `${d.key} (${d.label})`); else if (d.state === 'moment') t.event('overseer-moment', d.text); });
+  G().on('overseer-line', (d) => t.event('overseer-said', d.text));
+  releaseAll();
+  await t.until(() => W() && W().player && W().player.alive && PG() && PG().state.loaded, 60000, 'progress to load');
+  await t.until(() => hudText(), 20000, 'the progress HUD');
+  t.event('hud-visible', hudText());
+  t.scene('Progress: the HUD');
+  // Real input: into the 4x4, forward for a while (the first drive, then the meters).
+  const before = PG().state.pts;
+  const jeep = () => W().byId.get('jeep');
+  const driving = () => G().player && G().player.controller === 'drive';
+  if (!driving()) {
+    await walkTo(t, 'jeep', 3.2, 40000, 'the 4x4');
+    for (let i = 0; i < 4 && !driving(); i++) { await tap(t, 'e'); await t.wait(700); }
+  }
+  if (!driving()) throw new Error('timed out getting into the 4x4 with E');
+  keyEv('keydown', 'w'); down.add('w');
+  await t.until(() => PG().state.pts > before, 20000, 'points for the first drive');
+  await t.wait(6000);
+  releaseAll();
+  t.event('driving-earned', `${PG().state.pts - before} points; HUD: ${hudText()}`);
+  t.scene('Progress: points after driving');
+  if (!(PG().state.pts > before)) t.problem('error', 'driving earned nothing');
+  await tap(t, 'e'); await t.wait(900);
+  // A level: quests done are earned by a named shortcut (the quest line itself is another scenario's).
+  const lvl0 = PG().state.level;
+  t.event('setup-shortcut', 'quests done: the points of a few quests, earned through the same table');
+  while (PG().state.level < 2) { if (!PG().earn('quest')) await t.wait(300); }
+  await t.until(() => PG().waiting === 0, 40000, 'the Overseer\'s moment');
+  t.event('level-reached', `level ${lvl0} -> ${PG().state.level}; HUD: ${hudText()}`);
+  t.scene('Progress: level up');
+  await t.wait(1500);
+  const wardrobe = () => HP().memory.wardrobe.get();
+  if (!wardrobe().acc.includes('goggles')) t.problem('error', 'the goggles are not in the wardrobe after level 2');
+  t.event('wardrobe-has', `accessories ${wardrobe().acc.join(', ')}; colors ${wardrobe().col.join(', ')}`);
+  // The tool belt: level 4 gives the grenades.
+  while (PG().state.level < 4) { if (!PG().earn('quest')) await t.wait(300); }
+  await t.until(() => PG().waiting === 0, 40000, 'the second moment');
+  await t.until(() => HP().mayhem && HP().mayhem.belt.includes('grenade'), 10000, 'the grenades on the tool belt');
+  t.event('belt-has', HP().mayhem.belt.join(', '));
+  t.scene('Progress: the tool belt');
+  // Kept after a return: the memory re-read from this device (a named shortcut: the page is not reloaded).
+  const pts = PG().state.pts;
+  t.event('setup-shortcut', 'return: the Overseer\'s memory re-read from the device');
+  HP().memory.reload();
+  HP().memory.progress.get();
+  const kept = HP().memory.progress.get();
+  t.event('kept-after-return', `${kept.p} points (had ${pts}); wardrobe ${wardrobe().acc.length} accessories`);
+  if (kept.p < pts || !wardrobe().acc.includes('goggles')) t.problem('error', 'progress or its unlocks were lost on a return');
+  t.progress(1);
+}
+
 const GAMES = [['fps-arena', 'Bot Arena'], ['sky-racer', 'Sky Racer'], ['platform-run', 'Leap']];
 /** The travel board (docs/story.md, "The travel board"). On the sandbox: dock (a named shortcut), the lift, the board's three
  *  planets and their live counts, then E under the next game. On the game's page (stageGame) and back again, three times. */
@@ -1645,9 +1708,9 @@ async function stageBlast(t, ctx) {
 }
 
 const RUN = {
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
 };
-const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2' };
+const ENDS = { 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2' };
 
 // ---------------------------------------------------------------------------------------------- the contract
 let api = null;

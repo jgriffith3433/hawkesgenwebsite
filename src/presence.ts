@@ -73,6 +73,7 @@ export const MEMORY = {
   maxBytes: 4096,
   fishMax: 48,
   raceMax: 8,
+  firsts: ['first-drive', 'first-fish', 'first-boom', 'first-build', 'first-dock', 'first-space', 'first-race', 'first-ask', 'first-help'],
   deeds: ['fish', 'boom', 'build', 'dock', 'high', 'space', 'drive', 'ask', 'fall'],
   counts: ['fish', 'boom', 'build', 'dock', 'high', 'space', 'ask', 'fall'],
   recent: 8,
@@ -123,6 +124,8 @@ export function cleanMemory(v: unknown) {
     met: cleanIds(a.met), lore: cleanIds(a.lore),
     // The wardrobe (the Observatory): accessories owned (ids) and colors (hex without the #).
     own: { acc: cleanIds(a.own?.acc), col: cleanIds(a.own?.col).filter((c) => /^[0-9a-f]{6}$/i.test(c)).map((c) => c.toLowerCase()) },
+    // Progress (modules/progress): points, the firsts done, meters driven, the highest level whose moment was shown.
+    prog: { p: int(a.prog?.p, 1e7), f: Array.isArray(a.prog?.f) ? [...new Set((a.prog.f as unknown[]).filter((x): x is string => typeof x === 'string' && MEMORY.firsts.includes(x)))] : [], d: int(a.prog?.d, 1e9), s: Math.max(1, int(a.prog?.s, 20)) },
     greet: { last: id(g.last), recent: Array.isArray(g.recent) ? g.recent.map(id).filter((x): x is string => x !== null).slice(-MEMORY.recent) : [] },
   };
 }
