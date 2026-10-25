@@ -108,9 +108,9 @@
     set(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); return true; } catch { return false; } },
     clear() { try { localStorage.removeItem(KEY); } catch { /* fine */ } },
   };
-  const api = async (method, url, body) => {
+  const api = async (method, url, body, o = {}) => {
     let r;
-    try { r = await fetch(url, { method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin' }); }
+    try { r = await fetch(url, { method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin', keepalive: Boolean(o.keepalive) }); }
     catch { const e = new Error("Couldn't reach Hawkes Gen. Check your connection and try again."); e.status = 0; throw e; }
     const d = await r.json().catch(() => ({}));
     if (!r.ok) { const e = new Error(d.error || `That did not work (${r.status})`); e.status = r.status; throw e; }
@@ -182,12 +182,15 @@
   // its moments in the template's script. Here we only notice what they do, for the analytics and the nudge.
   const TRIES = ['drive', 'boom', 'fish', 'talk', 'spawn', 'fly'];
 
+  // What the signed-in part needs from the running island (startUi sets it).
+  const session = { H: null, base: null, edits: null, acts: null };
   function startUi(H, base, t0) {
     style();
     const touch = isTouch();
     const done = new Set();
     let first = false;
     const edits = [];
+    Object.assign(session, { H, base, edits });
     track('sandbox_start', { touch, ms: Math.round(performance.now()), loadMs: Math.round(performance.now() - t0) });
 
     function tick(id) {
@@ -203,6 +206,7 @@
     const acts = el(`<button type="button" class="primary" data-intent="save">Save this world</button><button type="button" class="opt" data-intent="build">Build your own</button><button type="button" class="opt" data-intent="assistant">Ask the Overseer</button><button type="button" class="opt" data-intent="invite">Invite a friend</button><button type="button" class="more" data-more aria-label="More">⋯</button>`, 'gs-acts');
     acts.querySelectorAll('[data-intent]').forEach((b) => { b.onclick = () => { acts.classList.remove('open'); want(b.dataset.intent, 'button'); }; });
     acts.querySelector('[data-more]').onclick = () => acts.classList.toggle('open');
+    session.acts = acts;
 
     // One gentle nudge, once: after two things tried, at the end of the tour, or after four minutes.
     let nudged = false;
@@ -275,6 +279,13 @@
     // ------------------------------------------------------------------ wanting more: snapshot, then the account
     async function want(intent, from) {
       track('sandbox_prompt', { intent, from });
+      // Kept already (signed in): Save saves now, Build and Invite open the editor, Ask opens the chat.
+      if (island) {
+        if (intent === 'save') return saveNow(false).then(flashSaved);
+        if (intent === 'build' || intent === 'invite') return toEditor();
+        if (intent === 'assistant') return void (H.chat && H.chat.open());
+        return;
+      }
       try { if (document.pointerLockElement) document.exitPointerLock(); } catch { /* fine */ }
       let snap = null;
       try { snap = Core.snapshot(H, { edits }); } catch (err) { console.warn('sandbox snapshot', err); }
@@ -282,7 +293,7 @@
       try { look = H.presence && H.presence.look ? JSON.parse(JSON.stringify(H.presence.look)) : null; } catch { look = null; }
       store.set({ v: 1, at: Date.now(), intent, scene: snap || base, base, look });
       const user = await me();
-      if (user) return claim(intent, user);
+      if (user) return signedIn(intent, user);
       openSheet(intent, { forced: intent === 'tour', name: lookName(H) });
     }
   }
@@ -352,7 +363,27 @@
       } catch (x) { fail(x.message); }
     };
     fetch('/v1/health').then((r) => r.json()).then((h) => { if (h && h.google) { $('gsGoogle').hidden = false; $('gsOr').hidden = false; } }).catch(() => {});
-    $('gsGoogle').addEventListener('click', () => track('sandbox_signup_google', { intent }));
+    // Google in a popup: the island keeps running behind it (blocked popups: the link takes the page, and the island
+    // comes back from its snapshot through /play/sandbox?claim=).
+    $('gsGoogle').addEventListener('click', (e) => {
+      track('sandbox_signup_google', { intent });
+      let w = null;
+      try { w = window.open('/auth/google?next=' + encodeURIComponent('/auth/popup'), 'hg-google', 'popup,width=500,height=660'); } catch { w = null; }
+      if (!w) return;
+      e.preventDefault();
+      note('Finish signing in with Google in the window that opened.');
+      const onMsg = async (ev) => {
+        if (ev.origin !== location.origin || !ev.data || ev.data.type !== 'hg-auth') return;
+        removeEventListener('message', onMsg);
+        if (!ev.data.ok) { note('Google sign-in was cancelled. Try again, or use your email.'); return; }
+        const u = await me();
+        if (!u) { fail("Google didn't sign you in. Try again, or use your email."); return; }
+        track('sandbox_login', { intent, method: 'google' });
+        close();
+        await signedIn(intent, u);
+      };
+      addEventListener('message', onMsg);
+    });
     const close = () => veil.remove();
     // (Forced: it can't be put away: the way out is leaving the island.)
     if (!forced) veil.querySelector('[data-back]').onclick = close;
@@ -375,7 +406,7 @@
         if (d.apiKey) try { localStorage.setItem('hg_last_minted_key', d.apiKey); } catch { /* fine */ }
         track(mode === 'signup' ? 'sandbox_signup' : 'sandbox_login', { intent, method: 'email' });
         close();
-        await claim(intent, d.user);
+        await signedIn(intent, d.user);
       } catch (x) {
         go.disabled = false;
         // That email already has an account: it's theirs to sign in to (with its password, or Google if made that way).
@@ -394,7 +425,236 @@
     setTimeout(() => $('gsEmail').focus(), 50);
   }
 
-  // ------------------------------------------------------------------ signed in: the snapshot becomes their first game
+
+  // ------------------------------------------------------------------ signed in, without leaving: the island is kept here
+  // (J, 2026-10-24: "I wanted sign in and registration to be seamless".) Signing in closes the sheet and the same world
+  // plays on: it becomes their game in the background (POST /v1/games + the changes so far as ops), joins that game's
+  // room (the Overseer's world changes arrive like any builder's, live) and its feed (the Overseer's answers, what it
+  // makes, new assets), the chat talks to the Overseer (H.chat, modules/overseer/chat.js), Pip's tour goes on, and what
+  // they do is saved every 20 s and on leaving. Building (the editor) is a page of its own, when they choose it.
+  const KEPT = 'hg_sandbox_island';
+  const kept = {
+    get() { try { return JSON.parse(localStorage.getItem(KEPT) || 'null'); } catch { return null; } },
+    set(v) { try { localStorage.setItem(KEPT, JSON.stringify(v)); } catch { /* fine */ } },
+    clear() { try { localStorage.removeItem(KEPT); } catch { /* fine */ } },
+  };
+  let island = null; // { id, base, user }
+  /** After signing in: Build and Invite open the editor (a page of their own); the rest stays on the island. */
+  function signedIn(intent, user) {
+    if (intent === 'build' || intent === 'invite') return island ? toEditor() : claim(intent, user);
+    return keep(intent, user);
+  }
+  async function keep(intent, user) {
+    const H = session.H;
+    if (!H || !H.world) return claim(intent, user);
+    if (island) return afterKeep(intent);
+    const busy = toast('Keeping your island…');
+    try {
+      const snap = Core.snapshot(H, { edits: session.edits });
+      const name = lookName(H);
+      let look = null;
+      try { look = H.presence && H.presence.look ? JSON.parse(JSON.stringify(H.presence.look)) : null; } catch { look = null; }
+      let game;
+      try { game = await api('POST', '/v1/games', { title: name ? `${name}'s island` : 'My island', template: 'sandbox' }); }
+      catch (x) { busy.remove(); if (x.status === 402) return gamesFull(el('', 'gs-veil'), x.message, intent); throw x; }
+      // The look they made at the mirror is theirs now (it replaces what the account had: they just chose it).
+      if (look) await api('POST', '/v1/users/me/avatar', { avatar: look }).catch((e) => console.warn('sandbox: look not saved', e));
+      const ops = Core.toOps(session.base || { config: {}, entities: {} }, snap);
+      for (const part of Core.chunks(ops, 200)) await api('POST', `/v1/games/${game.id}/scene`, { ops: part });
+      // Their island: no Overseer's beginning or mirror again (they've seen them; the mirror is still there to use).
+      await api('POST', `/v1/games/${game.id}/scene`, { ops: [{ op: 'config', patch: { overseer: { intro: false } } }, { op: 'update', id: 'mirror', patch: { shape: { character: { start: false } } } }] }).catch(() => {});
+      island = { id: game.id, base: snap, user: user.id };
+      store.clear();
+      kept.set({ id: game.id, user: user.id });
+      track('sandbox_claimed', { intent, changes: ops.length, user: 'yes', seamless: true });
+      busy.remove();
+      await goLive(user, true);
+      afterKeep(intent);
+    } catch (x) {
+      busy.remove();
+      const forced = intent === 'tour';
+      const sheet = el(`<div class="gs-glass gs-sheet"><h3>Your island wasn't kept yet</h3><p>${esc(x.message)}</p><button type="button" class="go" data-retry>Try again</button>${forced ? '<a class="back" href="/app">Go to my games</a>' : '<button type="button" class="back" data-back>Keep playing</button>'}</div>`, 'gs-veil');
+      sheet.querySelector('[data-retry]').onclick = () => { sheet.remove(); keep(intent, user); };
+      const back = sheet.querySelector('[data-back]');
+      if (back) back.onclick = () => sheet.remove();
+    }
+  }
+  function afterKeep(intent) {
+    if (intent === 'assistant' && session.H && session.H.chat) session.H.chat.open();
+  }
+  /** The island's game, live on this page: its room, its feed, the Overseer in the chat, saving, the buttons. */
+  async function goLive(user, fresh) {
+    const H = session.H;
+    const id = island.id;
+    window.HawkesGuest.accountFirst = false; // (Pip's tour, here)
+    try {
+      const b = await api('GET', `/v1/games/${id}/bundle`);
+      if (b.net && b.net.token && window.HawkesNet) window.HawkesNet.connect({ token: b.net.token });
+    } catch (x) { console.warn('sandbox: no live room', x); }
+    feed(id, user);
+    if (H.chat) H.chat.attach({ send: (t) => ask(id, t), placeholder: isTouch() ? 'Talk to the Overseer…' : 'Press Enter to talk to the Overseer' });
+    autosave();
+    signedInButtons();
+    const n = Number(user.credits) || 0;
+    const name = (H.presence && H.presence.look && H.presence.look.name) || user.name || '';
+    const hi = name ? `Welcome, ${name}.` : 'Welcome.';
+    const say = (text, action) => H.chat && H.chat.line({ kind: 'overseer', text, action, keep: 30 });
+    setTimeout(() => {
+      if (!fresh) say(`${hi} Your island, as you left it. Talk to me here any time.`);
+      else if (n > 0) say(`${hi} This island is yours now, and I am here: talk to me in this chat${isTouch() ? ' (the 💬 button)' : ' (press Enter)'}. Ask for anything ("a castle on the hill") and I will beam it down. What I make uses your credits: you have ${n.toLocaleString()}.`);
+      else say(`${hi} This island is yours now, and I am here: talk to me in this chat. What I make uses credits, and you have none right now.`, { label: 'Get credits', href: '/app#credits' });
+    }, 1200);
+  }
+  /** The game's feed (the editor's: /v1/games/:id/live): the Overseer's answers and offers, its work, new assets, files. */
+  function feed(id, user) {
+    if (typeof EventSource === 'undefined') return;
+    const H = session.H;
+    const seen = new Set();
+    const es = new EventSource(`/v1/games/${id}/live`, { withCredentials: true });
+    let assetsT = null;
+    es.addEventListener('chat', (e) => {
+      let m; try { m = JSON.parse(e.data); } catch { return; }
+      if (!m || !H.chat) return;
+      const firstTime = !seen.has(m.id);
+      seen.add(m.id);
+      if (!firstTime) return;
+      if (m.role === 'ai') {
+        H.chat.line({ kind: 'overseer', text: m.text, keep: 30 });
+        // What it offers to make (a model, a sound...): one tap makes it, paid from their credits.
+        for (const [i, sg] of ((m.data && m.data.assets) || []).entries()) {
+          if (sg.used || sg.task) continue;
+          H.chat.line({ kind: 'sys', text: `I can make it: ${sg.kind}, "${String(sg.prompt).slice(0, 60)}"${sg.credits ? ` (${sg.credits} credits)` : ''}.`, keep: 60, action: { label: 'Make it', onclick: (btn) => make(id, sg, m.id, i, btn) } });
+        }
+      } else if (m.role === 'system') H.chat.line({ kind: 'sys', text: m.text });
+      else H.chat.line({ kind: m.user_id && m.user_id === user.id ? 'me' : 'player', who: m.name || 'Someone', text: m.text });
+    });
+    es.addEventListener('thinking', (e) => { let d = {}; try { d = JSON.parse(e.data); } catch { /* fine */ } if (H.chat) H.chat.status(d.on ? 'The Overseer is thinking…' : null); });
+    es.addEventListener('gen', (e) => {
+      let r; try { r = JSON.parse(e.data); } catch { return; }
+      if (!r || !H.chat) return;
+      if (r.state === 'running') H.chat.status(`Making ${r.name || r.kind}${r.steps ? ` · step ${r.step} of ${r.steps}` : ''}${r.progress != null ? ` · ${Math.round(r.progress * 100)}%` : ''}`);
+      else if (!seen.has(`gen:${r.task_id}:${r.state}`)) {
+        seen.add(`gen:${r.task_id}:${r.state}`);
+        H.chat.status(null);
+        if (r.state === 'done') H.chat.line({ kind: 'overseer', text: `I have made ${r.asset_name || r.name}. It's in your island.` });
+        else H.chat.line({ kind: 'overseer', text: `I couldn't make ${r.name || 'that'}${r.error ? `: ${r.error}` : ''}. Your credits for it were given back.` });
+      }
+    });
+    // A new asset (made, or from the community): the world gets it (stand-ins become the real thing).
+    es.addEventListener('asset', () => {
+      clearTimeout(assetsT);
+      assetsT = setTimeout(async () => { try { const b = await api('GET', `/v1/games/${id}/bundle`); if (b.assets) H.setAssets(b.assets); } catch { /* next time */ } }, 400);
+    });
+    // World edits come through the room; anything else (a script, a new world file) is reloaded in place.
+    es.addEventListener('file', (e) => {
+      let d; try { d = JSON.parse(e.data); } catch { return; }
+      if (!d || !d.path) return;
+      if (!(d.path === 'scene.json' && d.ops) && typeof d.content === 'string') { try { H.reload({ [d.path]: d.content }); } catch (err) { console.warn('sandbox: reload', err); } }
+      rebase();
+    });
+    es.addEventListener('deleted', () => { es.close(); if (H.chat) { H.chat.detach(); H.chat.line({ kind: 'sys', text: 'This island was deleted.' }); } island = null; kept.clear(); });
+  }
+  /** A message to the Overseer, with what the player sees (the editor sends the same: build.js context()). */
+  async function ask(id, text) {
+    const H = session.H;
+    try {
+      await api('POST', `/v1/games/${id}/ai`, { message: text, context: worldContext(H) || undefined });
+      track('assistant_ask', { chars: text.length, where: 'sandbox' });
+      try { H.game.emit('asked', { chars: text.length }); } catch { /* fine */ }
+    } catch (x) {
+      if (x.status === 402) return outOfCredits(x.message);
+      if (x.status === 429) throw new Error("I'm still working on the last request. Ask again when it's done.");
+      if (!x.status || x.status >= 500) throw new Error("I couldn't hear you just now. Nothing was charged; try again in a moment.");
+      throw x;
+    }
+  }
+  async function make(id, sg, messageId, i, btn) {
+    if (btn) { btn.disabled = true; btn.textContent = 'Making…'; }
+    try { await api('POST', `/v1/games/${id}/generate`, { kind: sg.kind, prompt: sg.prompt, name: sg.name, messageId, suggestion: i }); track('asset_make', { kind: sg.kind, where: 'sandbox' }); }
+    catch (x) { if (btn) { btn.disabled = false; btn.textContent = 'Make it'; } if (x.status === 402) outOfCredits(x.message); else if (session.H.chat) session.H.chat.line({ kind: 'sys', text: x.message }); }
+  }
+  /** Out of credits: the Overseer says so, with a way to get more (a new tab: the island keeps running); back here,
+   *  the balance is read again. */
+  let creditsAt = 0;
+  function outOfCredits(message) {
+    const H = session.H;
+    track('credits_out', { where: 'sandbox' });
+    if (Date.now() - creditsAt < 20000) return;
+    creditsAt = Date.now();
+    if (H.chat) H.chat.line({ kind: 'overseer', keep: 60, text: `${message ? `${String(message).replace(/\.?$/, '.')} ` : ''}I make things from credits, and yours have run out. Get more and ask me again: I will remember the island.`, action: { label: 'Get credits', href: '/app#credits' } });
+    const back = async () => {
+      if (document.visibilityState !== 'visible') return;
+      document.removeEventListener('visibilitychange', back);
+      const u = await me();
+      if (u && Number(u.credits) > 0 && H.chat) H.chat.line({ kind: 'overseer', text: `You have ${Number(u.credits).toLocaleString()} credits now. Ask me again.` });
+    };
+    document.addEventListener('visibilitychange', back);
+  }
+  /** What the player sees, for the Overseer: where they are and look, what's near (on a round world, on the planet). */
+  function worldContext(H) {
+    try {
+      const B = window.BABYLON, w = H.world, p = w.player, cam = w.scene.activeCamera;
+      const d = cam.getDirection(B.Axis.Z);
+      const at = p ? p.position : [cam.position.x, cam.position.y, cam.position.z];
+      const sp = H.hooks && H.hooks.space;
+      const pl = (v) => (sp ? sp.toPlanet(v) : v).map(r2);
+      const dl = (v) => (sp ? sp.dirToPlanet(v) : v).map(r2);
+      const near = [...w.entities].filter((e) => e.sceneId && e.alive).map((e) => ({ e, dist: e.distanceTo(at) })).sort((a, b) => a.dist - b.dist).slice(0, 14)
+        .map(({ e, dist }) => ({ id: e.sceneId, name: e.name, distance: r2(dist), at: pl(e.position) }));
+      const hit = w.scene.pickWithRay(cam.getForwardRay(40), (m) => m.isPickable && m.isEnabled());
+      return {
+        mode: 'play',
+        player: { at: pl(at), facing: dl([d.x, d.y, d.z]), ...(sp ? { up: dl([0, 1, 0]) } : {}), flying: Boolean(p && p.flying), standingOn: (p && p.standing && p.standing.sceneId) || null },
+        lookPoint: hit && hit.hit ? pl([hit.pickedPoint.x, hit.pickedPoint.y, hit.pickedPoint.z]) : null,
+        nearby: near,
+        players: [],
+      };
+    } catch { return null; }
+  }
+  // Saving: what changed since the last save, every 20 s, when the tab goes away, and around changes from elsewhere.
+  let saving = false, saveTimer = null, rebaseT = null;
+  async function saveNow(keepalive) {
+    if (!island || saving || !session.H || !session.H.world) return;
+    saving = true;
+    try {
+      const now = Core.snapshot(session.H, { edits: session.edits });
+      const ops = Core.toOps(island.base, now);
+      for (const part of Core.chunks(ops, 200)) await api('POST', `/v1/games/${island.id}/scene`, { ops: part }, { keepalive });
+      island.base = now;
+      if (ops.length) flashSaved();
+    } catch (x) { console.warn('sandbox: not saved yet', x); } finally { saving = false; }
+  }
+  /** The Overseer (or a builder) changed the world: save ours first, then count theirs as already there. */
+  function rebase() {
+    clearTimeout(rebaseT);
+    rebaseT = setTimeout(async () => { await saveNow(false); try { if (island) island.base = Core.snapshot(session.H, { edits: session.edits }); } catch { /* next time */ } }, 1500);
+  }
+  function autosave() {
+    if (saveTimer) return;
+    saveTimer = setInterval(() => saveNow(false), 20000);
+    addEventListener('pagehide', () => saveNow(true));
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveNow(true); });
+  }
+  function toEditor() { return saveNow(false).then(() => { location.href = `/app/g/${island.id}`; }); }
+  /** Signed in: Save shows it's kept (and saves now), Build and Invite open the editor, Ask opens the chat. */
+  function signedInButtons() {
+    const acts = session.acts;
+    if (!acts) return;
+    const b = (k) => acts.querySelector(`[data-intent="${k}"]`);
+    if (b('save')) { b('save').textContent = 'Saved ✓'; b('save').classList.remove('primary'); }
+    if (b('build')) { b('build').textContent = 'Build'; b('build').classList.add('primary'); }
+  }
+  function flashSaved() {
+    const s = session.acts && session.acts.querySelector('[data-intent="save"]');
+    if (!s) return;
+    s.textContent = 'Saved ✓';
+    s.classList.add('glow');
+    setTimeout(() => s.classList.remove('glow'), 1200);
+  }
+  function toast(text) { return el(`<span>${esc(text)}</span>`, 'gs-glass gs-toast'); }
+
+  // ------------------------------------------------------------------ signed in elsewhere: the snapshot becomes their game, in the editor
+  // (Build and Invite, and back from Google's page when the popup was blocked.)
   async function claim(intent, user) {
     const saved = store.get();
     const tour = intent === 'tour';
@@ -444,7 +704,7 @@
 
   // ------------------------------------------------------------------ the page: claim (back from signing in), or play
   window.HawkesGuest = {
-    /** Pip waits for this: the account comes first (the mirror opens the sheet; the tour goes on in the editor). */
+    /** Pip waits for this: the account comes first (the mirror opens the sheet; signed in, the tour goes on here). */
     accountFirst: true,
     async boot(o = {}) {
       const t0 = performance.now();
@@ -458,6 +718,29 @@
           document.getElementById('loading').hidden = true;
           return claim(WHY[intent] ? intent : 'save', user);
         }
+      }
+      // Signed in with an island kept here before: it plays on, as they left it (not the guest sandbox again).
+      const was = kept.get();
+      if (was && was.id) {
+        const user = await me();
+        if (user && user.id === was.user) {
+          try {
+            const gb = await api('GET', `/v1/games/${was.id}/bundle`);
+            await window.HawkesModules.load('play', { bundle: Promise.resolve(gb) });
+            window.HawkesPlay.run(gb, { mode: 'play' });
+            let base = null;
+            try { base = JSON.parse(gb.files['scene.json']); } catch { /* fine */ }
+            startUi(window.HawkesPlay, base, t0);
+            island = { id: was.id, base: base || { config: {}, entities: {} }, user: user.id };
+            setTimeout(() => { try { island.base = Core.snapshot(window.HawkesPlay, { edits: session.edits }); } catch { /* fine */ } }, 3000);
+            track('sandbox_resume', {});
+            await goLive(user, false);
+            return;
+          } catch (x) {
+            if (x.status === 404 || x.status === 403) kept.clear();
+            console.warn('sandbox: the kept island did not load', x);
+          }
+        } else if (!user) { /* signed out: the guest sandbox (the island stays theirs) */ }
       }
       // Fetch the world while the engine loads.
       const bundle = fetch('/v1/play-template/sandbox').then((r) => r.json().then((b) => { if (!r.ok) throw new Error(b.error || 'Could not load the sandbox'); return b; }));

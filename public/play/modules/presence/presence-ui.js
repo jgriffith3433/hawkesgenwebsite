@@ -145,7 +145,14 @@ body.pr-touch .pr-sw button{width:38px;height:38px}body.pr-touch .pr-ch button{m
     chat.addEventListener('pointerdown', (e) => e.stopPropagation());
   }
   function openChat() {
+    // (Where the Overseer is in the chat, 💬 and Enter talk to it: modules/overseer/chat.js.)
+    if (H.chat && H.chat.attached && H.chat.open()) return;
     if (!P.enabled('chat')) return;
+    if (H.chat && !H.chat.embedded) {
+      // Typing goes in the one chat window too (said to the other players), not a box of its own.
+      H.chat.setFallback({ send: (t) => { if (!P.say(t)) throw new Error('Slow down a little…'); }, placeholder: 'Say something… (Enter)' });
+      if (H.chat.open()) return;
+    }
     ensureChat();
     closeWheel();
     chat.hidden = false;
@@ -163,6 +170,8 @@ body.pr-touch .pr-sw button{width:38px;height:38px}body.pr-touch .pr-ch button{m
     const c = document.getElementById('stage'); if (c && c.focus) try { c.focus(); } catch {}
   }
   function line(m) {
+    // Everything said goes in the game's one chat window (H.chat: the editor's chat in the editor), never a log of its own.
+    if (H.chat) { H.chat.line({ kind: m.sys ? 'sys' : m.npc ? 'npc' : m.me ? 'me' : 'player', who: m.name, text: m.text, color: m.color, friend: m.friend }); return; }
     ensureChat();
     const p = document.createElement('p');
     if (m.sys) { p.className = 'sys'; p.textContent = m.text; }

@@ -196,7 +196,20 @@ window.addEventListener('message', async (e) => {
       try { analytics()?.error({ message: String(m.message || 'Error').slice(0, 1000), stack: m.file ? `at ${m.file}:${m.line ?? '?'}` : '' }, 'script', { file: m.file || undefined, line: m.line || undefined }); } catch {}
       return;
     case 'log': return;
-    // The Overseer speaking in the game (a caption, its voice): the same words are its message in the chat.
+    // Everything said in the game (modules/overseer/chat.js: the Overseer, Pip and friends, players) is a line here:
+    // the game draws no chat or captions of its own in the editor.
+    case 'chat-line': {
+      const text = String(m.text || '').trim().slice(0, 400);
+      if (!text) return;
+      if (m.kind === 'overseer') { const last = chatHistory.at(-1); if (!(last && last.local && last.text === text && Date.now() - last.at < 5000)) addOverseer(text, m.action && m.action.href ? { action: { label: String(m.action.label || 'Open'), href: String(m.action.href) } } : {}); return; }
+      if (m.kind === 'sys') { addSystem(text); return; }
+      const msg = { id: `local_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, role: 'other', kind: m.kind, name: m.kind === 'me' ? (me && me.name) || 'You' : String(m.who || 'Someone').slice(0, 40), text, local: true, at: Date.now() };
+      chatHistory.push(msg);
+      renderChat(msg);
+      return;
+    }
+    case 'chat-status': return;
+    // (Older game pages: the Overseer's words alone.)
     case 'overseer-say': {
       const text = String(m.text || '').trim().slice(0, 400);
       const last = chatHistory.at(-1);
@@ -353,7 +366,7 @@ function renderChat(fresh) {
   // Game chat: only the last few lines, fading out as they go up (studio.css), nothing to scroll.
   for (const msg of chatHistory.slice(-6)) {
     const div = document.createElement('div');
-    div.className = `msg ${msg.role === 'user' ? 'user' : msg.role === 'system' ? 'system' : 'ai'}${msg === fresh ? ' new' : ''}`;
+    div.className = `msg ${msg.role === 'user' ? 'user' : msg.role === 'system' ? 'system' : msg.role === 'other' ? `other ${msg.kind || ''}` : 'ai'}${msg === fresh ? ' new' : ''}`;
     if (msg.role !== 'system') div.innerHTML = msg.role === 'ai' ? '<span class="who"><i class="ov-orb" aria-hidden="true"></i>Overseer</span>' : `<span class="who">${esc(msg.name || 'Someone')}</span>`;
     div.appendChild(document.createTextNode(String(msg.text).length > 280 ? `${String(msg.text).slice(0, 280)}…` : msg.text));
     const d = msg.data || {};

@@ -54,7 +54,7 @@ the whole game (`"none"`: things just appear; `"beam"`: nothing falls).
 | `arrive` | how things you create come in, for the whole game: `"auto"` (by what they are, above), `"drop"`, `"grow"`, `"beam"`, `"none"` | `"auto"` |
 | `false` instead of an object | no Overseer in this game (it's in every game unless a game really wants none) | |
 
-The intro's voice: a sound asset named `overseer-intro` if the game has one (the caption shows either way). A model for
+The intro's voice: a sound asset named `overseer-intro` if the game has one (its words are in the chat either way). A model for
 the word "overseer" in the game's assets replaces the stand-in hull.
 
 **Its hangar.** A lit docking bay on the side facing the world's middle, a little below the equator, opens into a hangar

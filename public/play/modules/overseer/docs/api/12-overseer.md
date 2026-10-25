@@ -14,7 +14,7 @@ game.spawnMany('crate', 4, { arrive: 'beam' });            // or say how: 'drop'
 const prize = game.box({ x: 0, y: 0.5, z: 6, color: '#ffd166', physics: 'dynamic' });
 game.arrive(prize, 'drop');
 game.on('landed', ({ thing, at, weight }) => { if (weight > 0.6) game.ui.message('THUD', 1); });
-// The Overseer speaks (words over the picture).
+// The Overseer speaks: a line in the game's chat window, never a caption over the picture.
 game.overseer.say('You found the key. Do with it what you will.', 4);
 // The time of day.
 game.sky.hour = 'night';              // or 21.5

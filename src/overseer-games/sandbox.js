@@ -173,7 +173,8 @@ game.every(0.5, () => {
 // copy of the island, the guest page), the step passes by itself.
 game.every(1, () => {
   const q = game.events && game.events.quests;
-  if (window.HawkesBuild || !q || q.state('tour') !== 'active' || q.step('tour') !== 'ask') return;
+  // (Where the Overseer is in the chat (the editor; the sandbox page signed in: H.chat attached), it waits for a real ask.)
+  if (window.HawkesBuild || (H && H.chat && H.chat.attached) || !q || q.state('tour') !== 'active' || q.step('tour') !== 'ask') return;
   game.emit('asked', { skipped: true });
 });
 
