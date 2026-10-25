@@ -659,13 +659,14 @@ async function stageFish(t, ctx) {
     if (!heldRod()) throw new Error('timed out: the rod is not in hand after picking it up');
     await lookAt(t, Math.PI / 2); // out to sea, east
     t.scene('Island: fishing');
-    let bit = false;
-    G().on('bite', () => { bit = true; });
+    // The rod's documented hook (game.water.fish.assist, docs/api/60-water.md): every cast is a first cast, so the bite comes
+    // in 2.5 to 4.5 s, as a new player's first does; the casting, hooking and reeling below are still real input.
+    try { G().water.fish.assist(true); t.event('setup-shortcut', 'fishing assist on: a quick, common first bite'); } catch { /* the player's own first-catch help applies */ }
+    const biting = () => { try { return G().water.fish.phase() === 'bite'; } catch { return false; } };
     for (let cast = 1; cast <= 4 && step() === 'fish'; cast++) {
-      bit = false;
       await holdMouse(t, 900 + cast * 150);
       t.event('cast', `cast ${cast}`);
-      const bitten = await t.until(() => bit || step() !== 'fish', 22000, 'a bite').then(() => bit, () => false);
+      const bitten = await t.until(() => biting() || step() !== 'fish', 22000, 'a bite').then(() => biting(), () => false);
       if (!bitten) { t.event('no-bite', `cast ${cast}`); continue; }
       t.event('bite');
       pointer('pointerdown', canvas()); await t.wait(90); pointer('pointerup', window); // hook it
@@ -1591,12 +1592,12 @@ async function stageTouch(t, ctx) {
     await t.until(() => $('.water-use'), 8000, 'the fish button');
     t.scene('Touch: fishing');
     audit('fishing');
-    let bit = false; G().on('bite', () => { bit = true; });
+    try { G().water.fish.assist(true); } catch { /* the first-catch help applies */ }
+    const biting = () => { try { return G().water.fish.phase() === 'bite'; } catch { return false; } };
     for (let cast = 1; cast <= 4 && step() === 'fish'; cast++) {
-      bit = false;
       const up = press($('.water-use')); await t.wait(900 + cast * 150); up(); // hold to cast
       t.event('touch-cast', `cast ${cast}`);
-      const bitten = await t.until(() => bit || step() !== 'fish', 22000, 'a bite').then(() => bit, () => false);
+      const bitten = await t.until(() => biting() || step() !== 'fish', 22000, 'a bite').then(() => biting(), () => false);
       if (!bitten) continue;
       await tapButton(t, $('.water-use'), 90); // hook it
       const reel = press($('.water-use')); // and reel while held
