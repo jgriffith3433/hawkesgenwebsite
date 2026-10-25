@@ -53,9 +53,10 @@
       },
       /** Googly eyes: whites and pupils looking slightly up. */
       eyes(at, apart, d) {
+        const eyeColor = (rig.look && rig.look.eyeColor) || '#0b0d12'; // (the look's eye color: dark by default)
         for (const sx of [-1, 1]) {
           k.add(`eye${sx}`, k.sphere(d), [at[0] + sx * apart * 0.5 * 1.25, at[1], at[2]], '#ffffff');
-          k.add(`pupil${sx}`, k.sphere(d * 0.48), [at[0] + sx * apart * 0.5 * 1.25, at[1] + d * 0.1, at[2] + d * 0.4], '#0b0d12');
+          k.add(`pupil${sx}`, k.sphere(d * 0.48), [at[0] + sx * apart * 0.5 * 1.25, at[1] + d * 0.1, at[2] + d * 0.4], eyeColor);
         }
       },
       roll(mesh, radius) { rig.roll = { mesh, radius }; },

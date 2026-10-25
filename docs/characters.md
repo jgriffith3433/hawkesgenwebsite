@@ -197,3 +197,15 @@ All are over the 3-draw target (each moving piece is a mesh) but inside the hard
 
 Texture-based faces versus mesh faces on phones (the doc picks meshes: no texture memory); whether the animals' ears and tails
 get the spring secondary motion first. Voice and sounds for characters are separate (`overseer-mirror-*` lines already exist).
+
+## 5d. The mirror's look: eyes and accessories
+
+`look.eyeColor` (default `#14161d`, as before) colors the person's iris (a dark pupil sits inside it) and the pupils of the
+googly-eyed bodies. `look.accessory` is one of twelve small procedural meshes (`ACCESSORIES` in presence-core.js, built by
+`accessory()` in presence.js) in `look.accessoryColor`. They use the anchors every body already has and nothing else:
+**head** (`rig.neck`, as a hat), **face** (`rig.neck` at `faceY`/`faceZ`, as glasses), **neck** and **back** (`rig.pose`,
+placed as a person's and moved by where this body's head is, as the extras are). So a new body only has to set its anchors
+to wear all twelve. Each is a handful of primitives (under ten meshes) in the look's color plus one dark or lit detail.
+The server's lists (`src/presence.ts AVATAR`) and the client's (`LOOK`) are kept equal by `test/engine/presence.test.ts`.
+Sync needs nothing new: the whole look rides in the presence state, and a player's tag shows their main color and the
+accessory's icon. The things with a screen face (TV robot, roll-bot) keep their own eyes; `eyeColor` does not tint them.

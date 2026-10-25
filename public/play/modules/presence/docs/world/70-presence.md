@@ -19,7 +19,7 @@ changes it through `config.presence`.
   name over their head, dressed up (the editor's profile menu has "Change who you are": the mirror's questions anywhere): body, skin and accent
   colors, a shape (normal, tall, short, wide, tiny, big), a hat (cap, beanie, tophat, crown, cowboy, party, halo, horns,
   bunny, helmet, chef), a face (eyes, smile, visor, none: the person has a real one, eyes that follow and blink, brows, a mouth), hair (short, long, ponytail, curly, spiky, bun) and clothes colors (top, bottom, shoes) and up to three extras (glasses, shades, scarf, backpack, cape,
-  bowtie, wings, tail). Or a model, by a community model's asset id (its animations named wave, dance... play the
+  bowtie, wings, tail), the eyes' color and one of twelve accessories in a color of its own (headphones, goggles, monocle, mustache, eyepatch, flower, antenna, medal, bell, jetpack, bandana, earrings: small meshes on the head, face, neck or back of any body). Other players see them, and a player's tag carries their main color and accessory icon. Or a model, by a community model's asset id (its animations named wave, dance... play the
   emotes). Signed-in players keep their look in every game; guests get a random fun one.
 - **Who's here** (Tab, or 👥): everyone in the room, friends first, the host marked; + Friend (a request; friends once
   both ask), Mute (their chat and emotes stop showing for you), 👁 Watch.

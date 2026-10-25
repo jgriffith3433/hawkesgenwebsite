@@ -15,7 +15,7 @@ Name tags, chat, emotes, looks and spectating for scripts. `game.presence` is th
 | `presence.players()` | everyone here, you first then friends: `[{ id, name, me, friend, host, typing, muted, user, entity }]` |
 | `presence.spectate(who)` | watch a player: `'next'`, `'prev'`, a player id, or `null` to stop. `presence.spectating()` is the one watched |
 | `presence.mute(id, on)`, `presence.muted(id)` | mute a player's chat and emotes (for you only) |
-| `presence.look`, `presence.setLook({ ... })`, `presence.randomLook()` | your look: `{ body, head, accent: '#hex', shape, hat, face, extras: [], model, hair, hairColor, bottom, shoes }` (the person's hair: short, long, ponytail, curly, spiky, bun; `body` is the top, `bottom` the trousers, `shoes` the shoes, `head` the skin) (saved to your account when signed in) |
+| `presence.look`, `presence.setLook({ ... })`, `presence.randomLook()` | your look: `{ body, head, accent: '#hex', shape, hat, face, extras: [], model, hair, hairColor, bottom, shoes, eyeColor: '#hex', accessory, accessoryColor: '#hex' }` (`accessory`: none, headphones, goggles, monocle, mustache, eyepatch, flower, antenna, medal, bell, jetpack, bandana, earrings; `core.ACCESSORIES` lists them with icon, label and anchor) (the person's hair: short, long, ponytail, curly, spiky, bun; `body` is the top, `bottom` the trousers, `shoes` the shoes, `head` the skin) (saved to your account when signed in) |
 | `presence.customize()`, `presence.showPeople()`, `presence.openChat()`, `presence.openEmotes()` | open the panels |
 | `presence.on('say' / 'emote' / 'spectate' / 'people' / 'look', fn)` | hear about it (`say`: `{ name, text, me, friend, npc }`) |
 | `presence.filter = (text) => text` | change chat lines before they show (a word filter) |

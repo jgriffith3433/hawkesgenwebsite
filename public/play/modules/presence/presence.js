@@ -281,6 +281,7 @@
       for (const [n, at] of [['hipL', [0.11, -0.36, 0]], ['hipR', [-0.11, -0.36, 0]], ['shL', [0.31, 0.24, 0]], ['shR', [-0.31, 0.24, 0]]]) if (!rig[n]) rig[n] = joint(n, at);
       hat(rig, look.hat, acc, body);
       for (const x of look.extras) extra(rig, x, acc, body);
+      accessory(rig, look.accessory, look.accessoryColor);
       if (look.model) loadModel(rig, look.model);
       return rig;
     }
@@ -289,8 +290,93 @@
     P.softPerson.build(rig, look, { joint, part, box });
     hat(rig, look.hat, acc, body);
     for (const x of look.extras) extra(rig, x, acc, body);
+    accessory(rig, look.accessory, look.accessoryColor);
     if (look.model) loadModel(rig, look.model);
     return rig;
+  }
+  /**
+   * The mirror's accessory (docs/characters.md 5d): small procedural meshes in the look's accessoryColor on the anchors every
+   * body has: head (rig.neck, as a hat), face (rig.neck at faceY/faceZ, as glasses), neck and back (rig.pose, placed as a
+   * person's and moved to follow where this body's head is, as the extras are).
+   */
+  function accessory(rig, kind, color) {
+    if (!kind || kind === 'none') return;
+    const n = rig.neck, p = rig.pose, c = color || '#ffffff';
+    const fy = rig.faceY ?? 0.27, fz = rig.faceZ ?? 0.215, y = 0.44;
+    const dy = n.position.y - 0.29, dz = n.position.z;
+    const at = (x, yy, z) => [x, yy + dy, z + dz];
+    const dark = '#1f2937';
+    switch (kind) {
+      case 'headphones': {
+        part(rig, 'hpBand', ring(0.5, 0.045), n, [0, y - 0.2, 0], c).rotation.x = Math.PI / 2; // (the band over the top)
+        part(rig, 'hpCupL', cyl(0.15, 0.15, 0.08, 14), n, [0.235, y - 0.2, 0], c).rotation.z = Math.PI / 2;
+        part(rig, 'hpCupR', cyl(0.15, 0.15, 0.08, 14), n, [-0.235, y - 0.2, 0], c).rotation.z = Math.PI / 2;
+        part(rig, 'hpPadL', cyl(0.11, 0.11, 0.1, 12), n, [0.235, y - 0.2, 0], dark).rotation.z = Math.PI / 2;
+        part(rig, 'hpPadR', cyl(0.11, 0.11, 0.1, 12), n, [-0.235, y - 0.2, 0], dark).rotation.z = Math.PI / 2;
+        break;
+      }
+      case 'goggles': {
+        part(rig, 'gStrap', box(0.46, 0.05, 0.03), n, [0, fy + 0.02, fz - 0.02], dark);
+        for (const sx of [1, -1]) {
+          const r = part(rig, `gRim${sx}`, ring(0.15, 0.035), n, [sx * 0.1, fy, fz], c); r.rotation.x = Math.PI / 2;
+          part(rig, `gLens${sx}`, cyl(0.13, 0.13, 0.02, 12), n, [sx * 0.1, fy, fz], '#7dd3fc', true).rotation.x = Math.PI / 2;
+        }
+        break;
+      }
+      case 'monocle': {
+        const r = part(rig, 'mRim', ring(0.15, 0.025), n, [-0.1, fy, fz], c, true); r.rotation.x = Math.PI / 2;
+        part(rig, 'mChain', box(0.012, 0.22, 0.012), n, [-0.17, fy - 0.12, fz - 0.01], c, true);
+        break;
+      }
+      case 'mustache': {
+        for (const sx of [1, -1]) { const m = part(rig, `must${sx}`, box(0.12, 0.05, 0.04), n, [sx * 0.06, fy - 0.1, fz + 0.005], c); m.rotation.z = sx * -0.25; }
+        break;
+      }
+      case 'eyepatch': {
+        part(rig, 'patch', box(0.13, 0.12, 0.025), n, [0.1, fy, fz], c);
+        const s = part(rig, 'patchStrap', box(0.46, 0.025, 0.02), n, [0, fy + 0.07, fz - 0.03], c); s.rotation.z = -0.25;
+        break;
+      }
+      case 'flower': {
+        for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; part(rig, `petal${i}`, ball(0.1, 6), n, [0.16 + Math.sin(a) * 0.075, y + 0.0 + Math.cos(a) * 0.075, 0.08], c); }
+        part(rig, 'core', ball(0.08, 6), n, [0.16, y, 0.08], '#fde047');
+        break;
+      }
+      case 'antenna': {
+        part(rig, 'antStem', cyl(0.025, 0.035, 0.3, 6), n, [0, y + 0.14, 0], dark);
+        part(rig, 'antBall', ball(0.1, 8), n, [0, y + 0.32, 0], c, true);
+        break;
+      }
+      case 'medal': {
+        part(rig, 'ribbonL', box(0.05, 0.2, 0.02), p, at(0.03, 0.12, 0.17), '#dc2626').rotation.z = 0.35;
+        part(rig, 'ribbonR', box(0.05, 0.2, 0.02), p, at(-0.03, 0.12, 0.17), '#2563eb').rotation.z = -0.35;
+        const m = part(rig, 'medal', cyl(0.14, 0.14, 0.03, 16), p, at(0, -0.0, 0.2), c, true); m.rotation.x = Math.PI / 2;
+        break;
+      }
+      case 'bell': {
+        const m = part(rig, 'collar', ring(0.42, 0.04), p, at(0, 0.27, 0), '#dc2626'); m.scaling.z = 0.75;
+        part(rig, 'bell', ball(0.11, 8), p, at(0, 0.2, 0.17), c, true);
+        break;
+      }
+      case 'jetpack': {
+        for (const sx of [1, -1]) {
+          part(rig, `tank${sx}`, cyl(0.14, 0.14, 0.4, 10), p, at(sx * 0.11, 0.0, -0.24), c);
+          part(rig, `nozzle${sx}`, cyl(0.1, 0.13, 0.06, 10), p, at(sx * 0.11, -0.22, -0.24), dark);
+          part(rig, `flame${sx}`, cyl(0.1, 0, 0.14, 8), p, at(sx * 0.11, -0.32, -0.24), '#fb923c', true);
+        }
+        break;
+      }
+      case 'bandana': {
+        const m = part(rig, 'bandana', ring(0.44, 0.09), p, at(0, 0.27, 0), c); m.scaling.z = 0.75;
+        const t = part(rig, 'bandanaTip', cyl(0.18, 0, 0.16, 3), p, at(0, 0.17, 0.17), c); t.rotation.x = Math.PI;
+        break;
+      }
+      case 'earrings': {
+        for (const sx of [1, -1]) part(rig, `ear${sx}`, ball(0.07, 8), n, [sx * 0.235, y - 0.28, 0], c, true);
+        break;
+      }
+      default: break;
+    }
   }
   function hat(rig, kind, acc, body) {
     const t = rig.neck, y = 0.44;
@@ -726,9 +812,11 @@
       const react = reactions.get(it.id);
       const live = bubblesOn ? bub.live(it.id, t) : [];
       const speaking = live.length > 0;
-      const badges = `${pr.host ? '👑' : ''}${BADGE[pr.kind] || ''}${pr.spectating ? '👁' : ''}`;
+      const acc = pr.look && C.ACCESSORY.get(pr.look.accessory);
+      const badges = `${pr.host ? '👑' : ''}${BADGE[pr.kind] || ''}${pr.spectating ? '👁' : ''}${acc && acc.anchor ? acc.icon : ''}`; // (a player's accessory rides on their tag)
+      const lookColor = pr.look && (pr.kind === 'player' || pr.kind === 'friend' || pr.kind === 'me') && pr.look.body;
       const hpOn = pr.hp !== undefined && pr.hp !== null && pr.mx && pr.hp < pr.mx && pr.hp >= 0;
-      const sig = `${it.tag ? 1 : 0}|${pr.name}|${pr.kind}|${badges}|${pr.typing ? 1 : 0}|${speaking ? 1 : 0}|${pr.color || ''}|${colors[pr.kind] || ''}|${pr.kind === 'me' ? 1 : 0}`;
+      const sig = `${it.tag ? 1 : 0}|${pr.name}|${pr.kind}|${badges}|${pr.typing ? 1 : 0}|${speaking ? 1 : 0}|${pr.color || ''}|${colors[pr.kind] || ''}|${pr.kind === 'me' ? 1 : 0}|${lookColor || ''}`;
       if (x.sig !== sig) {
         x.sig = sig;
         x.tag.style.display = it.tag ? '' : 'none';
@@ -738,7 +826,7 @@
         x.dots.style.display = pr.typing ? '' : 'none';
         x.tag.className = `pr-tag pr-${pr.kind}${speaking ? ' pr-speaking' : ''}`;
         x.name.style.color = (c.colors && c.colors[pr.kind]) || ((pr.kind === 'player' || pr.kind === 'me') && pr.color ? '#ffffff' : colors[pr.kind] || '#ffffff');
-        x.tag.style.borderColor = pr.kind === 'friend' ? colors.friend : pr.color || 'rgba(255,255,255,.18)';
+        x.tag.style.borderColor = pr.kind === 'friend' ? colors.friend : lookColor || pr.color || 'rgba(255,255,255,.18)'; // (the tag takes the main color they chose)
       }
       x.hp.style.display = it.tag && hpOn ? '' : 'none';
       if (hpOn) x.bar.style.width = `${Math.max(0, Math.min(100, (pr.hp / pr.mx) * 100))}%`;

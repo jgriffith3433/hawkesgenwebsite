@@ -256,3 +256,22 @@ test('every line the Overseer says at the mirror and the ship has its voice (ove
   const mirror = fs.readFileSync(path.join(ROOT, 'public', 'play', 'modules', 'mirror', 'mirror.js'), 'utf8');
   assert.match(mirror, /overseer-is-\$\{id\}\.mp3/, 'the remark on what you picked is spoken');
 });
+
+test('the look step: Surprise me is one click, Preview all is a short carousel, both only touch how you look', () => {
+  world(H, sceneOf({ floor, start }), { mode: 'play' });
+  tick(0.3);
+  const C = H.presence.core, K = M.core;
+  assert.deepEqual(K.surprise('dog', 5), K.surprise('dog', 5), 'a seed gives the same surprise');
+  const s = K.surprise('person', 11);
+  assert.ok(!('what' in s) && !('name' in s) && !('model' in s), 'not who you are or what you are called');
+  assert.deepEqual(Object.keys(s).sort(), [...K.LOOK_PARTS].sort());
+  assert.ok(K.surprise('dog', 11).head === K.surprise('dog', 11).accent, 'a dog keeps one detail color, not a skin tone');
+  const list = K.previews('person', 99);
+  assert.equal(list.length, K.PREVIEWS, 'a short carousel');
+  assert.ok(new Set(list.map((p: any) => p.accessory)).size >= 6, 'each one dressed differently');
+  H.presence.setLook({ what: 'cat', name: 'Socks' });
+  H.presence.setLook(K.surprise('cat', 4));
+  const lk = H.presence.look;
+  assert.equal(lk.what, 'cat'); assert.equal(lk.name, 'Socks');
+  assert.equal(lk.accessory, C.cleanLook(K.surprise('cat', 4)).accessory, 'and it is on the reflection at once');
+});

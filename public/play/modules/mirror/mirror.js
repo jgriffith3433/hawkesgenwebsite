@@ -267,6 +267,7 @@
     if (!session) return;
     if (i >= session.steps.length) return finish(false);
     session.i = Math.max(0, i);
+    session.carousel = null; // (the look shown stays)
     const st = MC.STEPS.find((x) => x.id === session.steps[session.i]);
     render();
     // The camera eases to this question's distance (not on the first: open() glides there).
@@ -406,7 +407,8 @@
     .mr-foot{display:flex;gap:8px;padding:12px 16px 16px;border-top:1px solid var(--line,rgba(255,255,255,.1))}
     .mr-btn{padding:10px 16px;border-radius:12px;border:1px solid var(--line,rgba(255,255,255,.16));background:rgba(255,255,255,.06);color:inherit;font:600 16px/1 var(--hud,'Rajdhani',sans-serif);cursor:pointer}
     .mr-btn.go{margin-left:auto;background:var(--accent,#4a9eff);border-color:transparent;color:#05101f}.mr-btn:disabled{opacity:.4;cursor:default}
-    .mr-dice{margin-top:10px}
+    .mr-dice{margin-top:10px}.mr-top-dice{display:flex;gap:8px;margin:0 0 4px}.mr-chip.go{background:var(--accent,#4a9eff);border-color:transparent;color:#05101f;font-weight:600}
+    .mr-car{display:flex;flex-direction:column;gap:10px;align-items:flex-start}.mr-car-n{color:var(--fg-2,#a5acc2);font-size:13px}
     @media (max-width:700px){.mr{top:auto;bottom:max(10px,env(safe-area-inset-bottom));transform:none;max-height:46vh;right:10px;width:calc(100vw - 20px);animation:none}.mr-grid{grid-template-columns:repeat(4,1fr)}.mr-q{font-size:21px}}`;
   function show() {
     if (typeof document === 'undefined' || !document.body) return;
@@ -424,6 +426,7 @@
   const HATS = [['none', '—', 'No hat'], ['cap', '🧢', 'Cap'], ['beanie', '🧶', 'Beanie'], ['tophat', '🎩', 'Top hat'], ['crown', '👑', 'Crown'], ['cowboy', '🤠', 'Cowboy'], ['party', '🥳', 'Party'], ['halo', '😇', 'Halo'], ['horns', '😈', 'Horns'], ['bunny', '🐰', 'Bunny ears'], ['helmet', '⛑️', 'Helmet'], ['chef', '👨‍🍳', 'Chef']];
   const FACES = [['visor', '🥽', 'Visor'], ['eyes', '👀', 'Eyes'], ['smile', '🙂', 'Smile'], ['none', '😶', 'Plain']];
   const EXTRAS = [['glasses', '👓', 'Glasses'], ['shades', '🕶️', 'Shades'], ['scarf', '🧣', 'Scarf'], ['backpack', '🎒', 'Backpack'], ['cape', '🦸', 'Cape'], ['bowtie', '🎀', 'Bow tie'], ['wings', '🪽', 'Wings'], ['tail', '🐒', 'Tail']];
+  const eyeNames = { '#14161d': 'Dark', '#5b3a1e': 'Brown', '#2f6fdb': 'Blue', '#22a06b': 'Green', '#8b5cf6': 'Violet', '#e11d48': 'Red', '#f59e0b': 'Amber', '#22d3ee': 'Cyan' };
   const SIZES = [['normal', 'Normal'], ['tall', 'Tall'], ['short', 'Short'], ['wide', 'Wide'], ['tiny', 'Tiny'], ['big', 'Big']];
 
   function render() {
@@ -432,7 +435,7 @@
     const lk = look();
     const last = s.i === s.steps.length - 1;
     const dots = s.steps.map((_, i) => `<i class="${i === s.i ? 'on' : i < s.i ? 'done' : ''}"></i>`).join('');
-    const sub = { what: 'Pick anything. You can come back to the mirror later.', look: 'Your colors, your size, a hat, a face, a few extras.', name: 'What should everyone call you?', view: 'For this game. You can change it at the mirror any time.' }[st.id] || '';
+    const sub = { what: 'Pick anything. You can come back to the mirror later.', look: 'Hit Surprise me, or pick your colors, eyes, a hat and an accessory.', name: 'What should everyone call you?', view: 'For this game. You can change it at the mirror any time.' }[st.id] || '';
     root.innerHTML = `
       <div class="mr-top"><div class="mr-dots">${dots}</div><button type="button" class="mr-x" data-a="skip" aria-label="Close" title="Done for now (Esc)">×</button></div>
       <h2 class="mr-q">${esc(st.title)}</h2><p class="mr-sub">${esc(sub)}</p>
@@ -468,7 +471,15 @@
       const sw = (part, list) => `<div class="mr-row">${list.map((c) => `<button type="button" class="mr-sw ${String(lk[part]).toLowerCase() === c ? 'on' : ''}" style="background:${c}" data-part="${part}" data-c="${c}" aria-label="${c}"></button>`).join('')}<input type="color" data-part="${part}" value="${esc(lk[part])}" aria-label="Any color"></div>`;
       const own = w.colors || [];
       const pal = (extra) => [...new Set([...extra.map((c) => c.toLowerCase()), ...C.LOOK.palette])].slice(0, 12);
-      return `<h4>Main color</h4>${sw('body', pal([own[0] || lk.body]))}
+      const car = session.carousel;
+      if (car) {
+        return `<div class="mr-car"><span class="mr-car-n">${car.i + 1} / ${car.list.length}</span>
+          <div class="mr-row"><button type="button" class="mr-btn" data-a="cprev">← Before</button><button type="button" class="mr-btn" data-a="cnext">Next →</button></div>
+          <div class="mr-row"><button type="button" class="mr-btn go" data-a="ckeep">Keep this one ✓</button><button type="button" class="mr-btn" data-a="cback">Back to mine</button></div></div>`;
+      }
+      const acc = C.ACCESSORY.get(lk.accessory) || C.ACCESSORY.get('none');
+      return `<div class="mr-dice mr-top-dice"><button type="button" class="mr-chip go" data-a="randomLook">🎲 Surprise me</button><button type="button" class="mr-chip" data-a="carousel">👀 Preview all</button></div>
+        <h4>Main color</h4>${sw('body', pal([own[0] || lk.body]))}
         <h4>Second color</h4>${sw('accent', pal([own[1] || lk.accent]))}
         <h4>${person ? 'Skin' : 'Details'}</h4>${sw('head', person ? C.LOOK.skins : pal([own[2] || lk.head]))}
         ${person ? `<h4>Hair</h4><div class="mr-row">${C.LOOK.hairs.map((v) => `<button type="button" class="mr-chip ${lk.hair === v ? 'on' : ''}" data-hair="${v}">${v}</button>`).join('')}</div>${sw('hairColor', C.LOOK.hairColors)}
@@ -476,8 +487,10 @@
         <h4>Size</h4><div class="mr-row">${SIZES.map(([v, t]) => `<button type="button" class="mr-chip ${lk.shape === v ? 'on' : ''}" data-shape="${v}">${t}</button>`).join('')}</div>
         <h4>Hat</h4><div class="mr-row">${HATS.map(([v, ic, t]) => `<button type="button" class="mr-chip ${lk.hat === v ? 'on' : ''}" data-hat="${v}" title="${t}">${ic} ${t}</button>`).join('')}</div>
         ${person ? `<h4>Face</h4><div class="mr-row">${FACES.map(([v, ic, t]) => `<button type="button" class="mr-chip ${lk.face === v ? 'on' : ''}" data-face="${v}">${ic} ${t}</button>`).join('')}</div>` : ''}
+        <h4>Eyes</h4>${sw('eyeColor', C.LOOK.eyeColors)}
+        <h4>Accessory</h4><div class="mr-row">${C.ACCESSORIES.map((a) => `<button type="button" class="mr-chip ${lk.accessory === a.id ? 'on' : ''}" data-acc="${a.id}">${a.icon} ${a.label}</button>`).join('')}</div>
+        ${acc.anchor ? `<h4>${esc(acc.label)} color</h4>${sw('accessoryColor', pal([acc.color]))}` : ''}
         <h4>Extras (up to ${C.LOOK.maxExtras})</h4><div class="mr-row">${EXTRAS.map(([v, ic, t]) => `<button type="button" class="mr-chip ${lk.extras.includes(v) ? 'on' : ''}" data-extra="${v}">${ic} ${t}</button>`).join('')}</div>
-        <div class="mr-dice"><button type="button" class="mr-chip" data-a="randomLook">🎲 Shuffle my look</button></div>
         <details style="margin-top:12px"><summary style="cursor:pointer;color:var(--fg-2,#a5acc2)">Use a 3D model instead</summary>
           <input class="mr-name mr-model" style="font-size:15px;margin-top:6px" placeholder="a_… (a community model's id)" value="${esc(lk.model || '')}" aria-label="A model's asset id"></details>`;
     }
@@ -515,11 +528,25 @@
       if (i >= 0) cur.splice(i, 1); else { cur.push(t.dataset.extra); while (cur.length > C.LOOK.maxExtras) cur.shift(); }
       return setLook({ extras: cur });
     }
-    if (a === 'randomLook') {
-      const r = C.randomLook();
-      const lk = look();
-      return setLook({ body: r.body, accent: r.accent, head: (C.WHAT.get(lk.what) || {}).body === 'person' ? r.head : r.accent, shape: r.shape, hat: r.hat, extras: r.extras, face: r.face, hair: r.hair, hairColor: r.hairColor, bottom: r.bottom, shoes: r.shoes });
+    if (a === 'randomLook') return setLook(MC.surprise(look().what));
+    if (t.dataset.acc) {
+      const acc = C.ACCESSORY.get(t.dataset.acc);
+      return setLook(acc && acc.anchor && look().accessory !== acc.id ? { accessory: acc.id, accessoryColor: acc.color } : { accessory: t.dataset.acc });
     }
+    if (a === 'carousel') {
+      const lk = look();
+      session.carousel = { before: Object.fromEntries(MC.LOOK_PARTS.map((k) => [k, lk[k]])), list: MC.previews(lk.what), i: 0 };
+      setLook(session.carousel.list[0]);
+      return render();
+    }
+    if (a === 'cnext' || a === 'cprev') {
+      const car = session.carousel;
+      car.i = (car.i + (a === 'cnext' ? 1 : car.list.length - 1)) % car.list.length;
+      setLook(car.list[car.i]);
+      return render();
+    }
+    if (a === 'ckeep') { session.carousel = null; return render(); }
+    if (a === 'cback') { const car = session.carousel; session.carousel = null; setLook(car.before); return render(); }
     if (a === 'suggest') {
       const n = MC.suggestName(look().what);
       const inp = root.querySelector('.mr-name:not(.mr-model)');
