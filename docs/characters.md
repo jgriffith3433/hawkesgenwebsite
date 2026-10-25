@@ -284,3 +284,58 @@ The per-body **face spec** (`FACE_SPEC`, `faceSpec(what)`) is the small table of
 whether it blinks and whether its mouth moves when it speaks. Tests: `test/engine/expressions.test.ts`; playtest
 `faces-and-emotes`. The emote wheel is radial on desktop and touch: the six emotes (wave, laugh, cheer, shrug, dance, point) around
 the middle, **More** for sit, sleep, clap, thumbs up and heart; emotes go through `H.sync.action('presence:emote')` to everyone.
+
+## 8. Gen models
+
+Every body in the table of section 5 can be a **model made through Hawkes Gen** instead of the procedural stand-in. The procedural body stays: it is the
+fallback while a type has no model, while one is loading, and if it fails to load (a 404, a bad file); nothing in the mirror, the name tags or the
+presence state changes (`look.what` still says what you are, `look.hat`, `extras` and `accessory` still say what you wear). Code: `presence-models.js`
+(load, build, anchors, motion), data: `presence-model-registry.js`; `presence.js` calls `P.models.attach(rig)` at the end of `makeRig`,
+`P.models.animate` from `animate` and `P.models.dispose` from `disposeRig`.
+
+**The registry** (`P.modelRegistry`, filled in by `presence-model-registry.js`, changed at runtime by `P.models.register(id, patch)`): one row for each of the 26
+types, `{ asset, url, lods, h, form, yaw, head, anchors, clips, stride, parts, radius }`. A row with no `asset` and no `url` has no model yet and keeps its
+procedural body.
+
+| Field | Meaning |
+|---|---|
+| `asset` / `url` | the Gen asset id (a library or community asset, loaded from `/v1/community/<id>/file`) or an address |
+| `lods` | Gen's summary of the asset's levels (`{ kind: 'mesh', tris, tex, levels: [{ tris, tex, url }] }`, the bundle's `assets[name].lods`): `H.kinds.modelLevels` picks the **near** level whose textures fit the device and the lowest as the **low** one. Without it the one file serves both (`low` may name a far file) |
+| `h` | the real height in meters, feet on the ground; default `WHATS h`. The model is scaled to it, never to 1.8 m |
+| `form` | `biped`, `quadruped`, `bird`, `swimmer`, `roller`, `thing` (a thing with legs) or `legless`: how it moves where the file has no clip for it |
+| `yaw` | radians to turn the model so its front looks along +z of the body. Babylon loads a glTF under `__root__` turned half way round, so the default is pi |
+| `head` | the head's width in meters (default a share of `h` by form, `P.models.HEAD_SHARE`: biped 22%, quadruped 30%, thing 50%...). Hats and glasses are drawn for a head 0.43 wide and scaled by `head / 0.43` |
+| `anchors` | `head` (the top of the head: a hat sits on it), `face` (between the eyes, at the front: glasses), `neck` (a scarf's ring, a bow tie, a cape, a collar, a medal), `back` (a backpack, wings, a jetpack), `rump` (a tail). Each `{ node, at, rot, scale }`: `node` the name of a node of the model (a bone of a skinned model is a node, so is any part of a model of rigid parts), `at` an offset in that node's units (from the model's origin, as authored with the front toward +z, when there is no node), `rot` radians to straighten a bone whose axes are not +y up and +z forward, `scale` a multiplier on this anchor's size. An anchor left out comes from the model's bounding box and its form (a head on top and in front for a quadruped, at the top for the rest): good enough to see, a row should name the head at least |
+| `clips` | GLB animation names by role: `idle walk run jump fall swim`, and any emote (`wave dance cheer laugh shrug point sit sleep clap thumbsup heart`). Left out, a role takes the clip with the word in its name |
+| `stride` | meters per second at which the walk and run clips look right (default 1.6 and 4.5): their speed follows the body's |
+| `parts` | named nodes moved by hand when no clip drives them: `{ node, role, axis, amp, ph }` with `role` `leg arm tail ear wing fin head wheel`; a `wheel` rolls with the distance (`radius`) |
+
+**Anchors, hats and the rest.** The procedural meshes are the ones that are used; they are not remade for a model. When the model has loaded, the rig's `neck` (where
+`hat()` and the face things are drawn: its origin is 0.44 below the top of the head) becomes a node under the **head anchor**, scaled to the model's head, and
+`rig.faceY` / `faceZ` are measured from the **face anchor**; `rig.mounts.neck`, `.back` and `.rump` are nodes under the other anchors, scaled the same way, which
+the scarf, bow tie, cape, bell, collar, medal (neck), backpack, wings, jetpack (back) and tail (rump) are put in. Then `P._redress(rig)` makes the hat, extras and
+accessory again there. Because the anchors are under the model's bones (or parts), what is worn follows the head and the body as the clips or the parts move.
+Skinned and rigid-part models both work: a skinned model's joints are the nodes that `node:` names.
+
+**Animation.** With clips: idle, walk and run (blended by speed, the clip's speed following the body's through `stride`), jump and fall (in the air, going up or down), swim (in water), and an emote's own clip by name,
+all cross-faded over about a tenth of a second by weight; out of view the clips are paused and in the cheap crowd levels only the one clip plays. Without a clip for a role, the
+**procedural fallback** moves the whole model (a `mover` node around its middle, feet kept on the ground) and the named `parts`: quadruped bobs, pitches and rolls with a stretch at a gallop; a bird
+waddles; a swimmer sways in water and flops on land; a roller rolls with the distance (the part that rolls is under the model, not the hats); a thing hops, waddles and leans; a legless one waddles and
+hops; a biped bobs and leans. Always: breathing, a stretch on launch, a landing squash (down in 90 ms, back over 220 ms with one overshoot), volume kept. An emote with no clip is done by the
+whole body (hop, spin, lean, lie down: `bodyEmote`). Models carry their own faces: the expressions of section 1 do not apply to them.
+
+**Performance.** One container per file per scene (`fetchContainer`): a player is an instance of it (`instantiateModelsToScene`, geometry and materials shared), so ten
+players who are dogs are one download. A far body (past `H.budget.farCharacter`) takes the **low** level, loaded the first time one is far, and its anchors and parts move
+to it; past the animated cap or out of view a body is cheap. A look change disposes the instance (clips, skeleton, nodes) and the next player gets the cached container. A model's **near level should be at most 8,000
+triangles on the phone tier** (`P.models.TRIS`: 8,000 phone, 14,000 tablet, 30,000 desktop); `/avatars` flags a model over it (the triangles row turns red and says "over").
+
+**How to add one.**
+1. Make the model through Hawkes Gen (a GLB, one mesh or rigid parts or a skinned character, the front toward +z, feet on y = 0 or anywhere: the height is set by the row). Gen makes its levels of detail itself.
+2. Look at it in `/avatars?body=<id>&standin=1` style: put the row in `presence-model-registry.js` (or try it with `P.models.register` in the console): `asset`, `h`, `form`.
+3. Name the anchors from its node names (open the GLB in the showcase: `P.models.stats(rig).missing` lists a node that was not found), then the `clips` and `parts` it needs.
+4. Open `/avatars?body=<id>&compare=1`: the model and the procedural body side by side, with a hat, in every pose; check the triangles against the budget and that the hat, glasses and pack sit right on the front and top.
+
+**The check.** `/avatars?standin=1` fills four types with tiny stand-in models of boxes (`public/avatars-standins.js`: a skinned biped with clips, a quadruped of rigid parts, a fish, a toaster) loaded through Babylon's own
+glTF loader from GLB bytes made in the page; `compare=1` shows each next to its procedural body, `hat=` puts a hat on both. The same files are `test/fixtures/models/standin-*.glb` (`node tools/standin-glbs.mjs`).
+`test/engine/models.test.ts` covers the registry, loading and fallback, the height, the anchors and what is worn, the clips and the procedural motion of every form, the levels, the instances and disposal.
+Nothing here is generated on the GPU; the models are made separately through Hawkes Gen and dropped into the registry.
