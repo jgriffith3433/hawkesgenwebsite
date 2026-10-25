@@ -1,6 +1,7 @@
 // Presence, part 1d: Gen-made models for the mirror's bodies (docs/characters.md "Gen models"). For each "What are you?" type
-// the registry (presence-model-registry.js, data) may name a GLB; while it is missing or loading the procedural body shows,
-// and when it has loaded the model takes its place on the same rig: the look, the name tag and the presence state do not change.
+// the registry (presence-model-registry.js, data) may name a GLB; while it is missing the procedural body shows; while it loads the
+// body is hidden (no old body flashing before the new one; after LOAD_GRACE it shows again, if the network is slow), and when it has
+// loaded the model takes its place on the same rig: the look, the name tag and the presence state do not change.
 //
 //   attach(rig)    makeRig calls it: loads the type's model once per scene (one container, every player an instance of it), then
 //                  builds the model under rig.pose, finds its anchors, hides the procedural body and dresses the model again:
@@ -27,6 +28,8 @@
   const ROLE_RE = { idle: /idle|stand|breath|rest/i, walk: /walk|trot|waddle|hop/i, run: /run|gallop|sprint|dash/i, jump: /jump|leap/i, fall: /fall|air|glide/i, swim: /swim|paddle/i };
   const FALLBACK = { run: ['run', 'walk'], walk: ['walk', 'run'], jump: ['jump', 'fall'], fall: ['fall', 'jump'], swim: ['swim'], idle: ['idle'] };
   const STRIDE = { walk: 1.6, run: 4.5 };
+  /** How long a body stays hidden while its model loads before the procedural one shows (ms): only a slow network gets to see it. */
+  const LOAD_GRACE = 5000;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const lerp = (a, b, k) => a + (b - a) * k;
 
@@ -243,17 +246,44 @@
     const c = fetchContainer(rig.scene, pm.urls.near);
     const go = (v) => {
       if (rig.pm !== pm || !rig.root || rig.root.isDisposed()) return;
-      try { build(rig, pm, v); } catch (err) { pm.state = 'failed'; pm.error = String(err && err.message || err); if (H.report) H.report(err, 'presence'); }
+      try { build(rig, pm, v); } catch (err) { pm.state = 'failed'; pm.error = String(err && err.message || err); if (pm.release) pm.release(); if (H.report) H.report(err, 'presence'); }
     };
     pm.wait = Promise.resolve();
+    // Not loaded yet: the procedural body is hidden meanwhile (the old body must not show and then change to the new one). It comes
+    // back if the file fails, or if the network is slow (LOAD_GRACE), and the model still replaces it whenever it arrives.
+    const hold = () => {
+      if (!rig.pose || pm.held) return;
+      pm.held = [];
+      for (const k of rig.pose.getChildren(undefined, true)) if (k.isEnabled()) { pm.held.push(k); k.setEnabled(false); }
+      pm.graceT = setTimeout(release, LOAD_GRACE);
+    };
+    const release = () => {
+      clearTimeout(pm.graceT);
+      const kids = pm.held; pm.held = null;
+      if (!kids || pm.on || rig.pm !== pm || !rig.root || rig.root.isDisposed()) return;
+      for (const k of kids) if (!k.isDisposed()) k.setEnabled(true);
+    };
+    pm.release = release;
     if (c.value) go(c.value);
-    else if (!c.failed) { c.promise.then(go, () => { if (rig.pm === pm) pm.state = 'failed'; }); pm.wait = c.promise.then(() => {}, () => {}); }
-    else pm.state = 'failed';
+    else if (!c.failed) {
+      hold();
+      c.promise.then((v) => { clearTimeout(pm.graceT); pm.held = null; go(v); }, () => { if (rig.pm === pm) { pm.state = 'failed'; release(); } });
+      pm.wait = c.promise.then(() => {}, () => {});
+    } else pm.state = 'failed';
+  }
+  /** Starts fetching the models of some types so they are there when a player picks one (the mirror calls it as a card is pointed at). */
+  function preload(scene, ids) {
+    for (const id of [].concat(ids || [])) {
+      const ent = entry(id);
+      if (!ent) continue;
+      try { fetchContainer(scene || (H.world && H.world.scene), levels(ent).near); } catch { /* it loads when it is wanted */ }
+    }
   }
   function dispose(rig) {
     const pm = rig.pm;
     if (!pm) return;
     rig.pm = null;
+    clearTimeout(pm.graceT);
     for (const lvl of Object.values(pm.levels || {})) if (lvl) disposeLevel(lvl);
     for (const n of pm.nodes || []) try { n.dispose(); } catch {}
     pm.on = false;
@@ -449,7 +479,7 @@
   }
 
   P.models = {
-    entry, register, levels, attach, animate, dispose, stats, TRIS, HEAD_SHARE, ROLE_RE,
+    entry, register, levels, attach, preload, animate, dispose, stats, TRIS, HEAD_SHARE, ROLE_RE,
     enabled: (id) => Boolean(entry(id)),
     /** A promise that settles once a rig's model has loaded (or failed): for tests and the showcase. */
     ready: (rig) => (rig.pm ? rig.pm.wait : Promise.resolve()),

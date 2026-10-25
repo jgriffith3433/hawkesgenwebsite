@@ -8,7 +8,9 @@
 //             without it the one file is both the near and the far model, `low` (an address) may name a far file
 //   h         real height in meters (feet on the ground), default WHATS h; the model is scaled to it, never to 1.8 m
 //   form      biped | quadruped | bird | swimmer | roller | thing | legless: how it moves when the GLB has no clip for it
-//   yaw       turn in radians so the model's front looks along +z of the body; Babylon loads a glTF facing -z, so the default is pi
+//   yaw       turn in radians so the model's front looks along +z of the body; Babylon loads a glTF facing -z, so the default is pi.
+//             Every Gen-made model below has yaw 0: as made, they already face the way the body walks (J, 2026-10-25: they were
+//             all turned half way round, backwards)
 //   head      the head's width in meters (hats and glasses are scaled to it); default a share of h by form (HEAD_SHARE)
 //   anchors   where things are worn: head (the top of the head, where a hat sits), face (between the eyes, front of the face),
 //             neck (a scarf's ring, a bow tie), back (a backpack, wings), rump (the tail). Each { node, at, rot, scale }: a node of
@@ -69,6 +71,9 @@
     potato: { ...row('thing'), ...mdl('potato'), h: 1, head: 0.6, anchors: A([0, 0.98, 0], [0, 0.65, 0.3], [0, 0.45, 0.1], [0, 0.5, -0.28], [0, 0.2, -0.28]) },
     duck: { ...row('legless'), ...mdl('duck'), h: 0.95, head: 0.5, anchors: A([0, 0.86, 0.05], [0, 0.66, 0.45], [0, 0.5, 0.3], [0, 0.4, -0.35], [0, 0.3, -0.48]) },
   };
+  // J, 2026-10-25: all the Gen-made models faced backwards with the default turn of pi: they are not turned (yaw 0). A row made later, or a test's
+  // stand-in, that names no yaw keeps the default.
+  for (const r of Object.values(P.modelRegistry)) if (!Number.isFinite(r.yaw)) r.yaw = 0;
   // Gen-made hats (docs/characters.md "Gen hats"): files in public/play/models, made through Hawkes Gen (prop3d steps), about 1.3k triangles each,
   // base at y = 0, front +z. `width` is the body of the hat in head units (the unit head is 0.43 wide), `sink` how far it sits into the head,
   // `tint` whether the look's accent colours it (the model is white where it should take the pick), `flat` a colour for a hat whose bake failed.

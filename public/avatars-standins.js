@@ -227,7 +227,7 @@ export function toGlb(spec) {
 /** The registry rows the stand-ins fill (type -> a row naming `url`), and the spec of each by that url. */
 export function standinRows(prefix = 'standin:') {
   const rows = {};
-  for (const [what, key] of Object.entries(STANDIN_FOR)) rows[what] = { ...STANDINS[key].row, url: `${prefix}${key}` };
+  for (const [what, key] of Object.entries(STANDIN_FOR)) rows[what] = { ...STANDINS[key].row, url: `${prefix}${key}`, yaw: Math.PI }; // (a stand-in is drawn facing +z like a file the loader turns round: the default turn; the Gen-made models have yaw 0)
   return rows;
 }
 export const specOf = (url, prefix = 'standin:') => STANDINS[String(url).slice(prefix.length)];
