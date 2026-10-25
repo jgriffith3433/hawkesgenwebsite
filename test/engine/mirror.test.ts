@@ -95,6 +95,16 @@ test('in front of the mirror: stood facing it, three questions, the look changes
   assert.ok(g.mirror.open('Mirror'));
   const s = M.session;
   assert.ok(s && g.mirror.isOpen && g.mirror.step === 'what');
+  // The entrance: they start a few steps back and walk up to the glass, lit by a warm key and a cool rim light.
+  assert.ok(p.z > 3.5, 'starts back');
+  assert.equal(M._internal.fx().entering, true);
+  assert.equal(M._internal.fx().lights, 2);
+  assert.ok(H.world.scene.lights.some((l: any) => l.name === 'mirror-key') && H.world.scene.lights.some((l: any) => l.name === 'mirror-rim'));
+  await new Promise((r) => setTimeout(r, 1100));
+  H.world.scene.render(); // (the effects run on the scene's render)
+  assert.equal(M._internal.fx().entering, false);
+  assert.equal(M._internal.fx().arrived, true);
+  assert.ok(events.some((e) => e.state === 'arrive'), 'arrived');
   // Stood 2.3 m in front of the glass (the mirror faces +z), looking at it, not walking off; and you see yourself.
   assert.ok(Math.abs(p.x - 0) < 0.05 && Math.abs(p.z - 2.3) < 0.05, `stood at ${p.x.toFixed(2)}, ${p.z.toFixed(2)}`);
   assert.equal(p.controls, false);
@@ -104,6 +114,9 @@ test('in front of the mirror: stood facing it, three questions, the look changes
   assert.ok(said.includes('First question. What are you?'));
   // What are you? A shoe: its colors come with it, and the Overseer has a word.
   M._internal.pickWhat('shoe');
+  H.world.scene.render();
+  assert.equal(M._internal.fx().popping, true, 'a transformation pop');
+  assert.ok(events.some((e) => e.state === 'pick' && e.what === 'shoe' && e.pop), 'the pick says it popped');
   assert.equal(P.look.what, 'shoe');
   assert.equal(P.look.body, C.WHAT.get('shoe').colors[0]);
   await new Promise((r) => setTimeout(r, 450));
