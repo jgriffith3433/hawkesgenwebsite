@@ -107,6 +107,10 @@ const SCENARIOS = [
     description: 'the first-minutes path to the account sheet (a throwaway sign-up, never on live), then the Invite button (a real click: the link, its ?invite= and ?ref=), the pause menu (Esc twice) offering it too, the invitation read back (open); the friend is a named setup-shortcut socket in the room (the friend\'s own page, its mirror and sheet, is covered by the engine and relay tests), and the inviter must show the beam (joined), the name over the newcomer and the Overseer\'s "Someone is coming."; then the friend\'s page is opened on an island nobody is on (closed): the message and "Start my own island" (a real click). Full and expired links are the tests\' (test/invite.test.ts).',
   },
   {
+    id: 'island-invite-friend', title: 'The friend\'s browser: opens an invitation signed out (no cookie, a second browser context), is beamed in beside the inviter, or is told kindly that the island is closed, full or out of date', seconds: 150, tags: ['full'],
+    description: 'Run in its OWN browser context, at the same time as island-invite with {"friend":"browser"} (which publishes the link in its invite-link event). options: link (the invitation address; the path and query are opened on this origin), expect ("open" by default; "closed", "full" or "expired" check the friendly card instead), name (the mirror name), what. Signed out: it opens the link, checks the invitation was read (no 401), plays the short intro and the mirror with real input, and must be beamed in next to the inviter (friend-beamed, within 6 m, the Overseer\'s "<name> is here. Go to them."). With expect set it checks the card\'s reason and clicks Start my own island.',
+  },
+  {
     id: 'share-moment', title: 'Share this moment: a big explosion offers a chip (not in the first minute of the tour), one tap keeps the last 8 s, a guest is taken to the sign-up sheet and comes back to the same moment, and the link opens a page with the character, the Overseer\'s line and a card image', seconds: 420, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first-minutes path to the account sheet (a throwaway sign-up, never on live), then Share this moment (modules/share/moments.js): the rocket launcher in hand (named setup-shortcut) and a blast at fuel barrels with real input within the first minute of the tour: no chip (chip-held-back); after the minute another blast: the chip appears (chip-shown); the player is signed out first (a named setup-shortcut: a guest) and taps the chip (a real click): the account sheet opens for it (sheet-for-share), signs back in with the throwaway account, closes, and the chip is the same moment still (same-moment) and becomes the link (share-link). The link\'s page (share-page) has the character\'s name and the Overseer\'s line and its Open Graph card has an image that loads (og-image); the page is shown in a frame for the screenshot.',
@@ -222,6 +226,14 @@ async function stageLanding(t, ctx) {
   await t.until(() => document.readyState === 'complete' && $('[data-play-now]'), 20000, 'the landing page and its Play now button');
   t.event('landing-loaded');
   t.progress(0.04);
+  if (ctx.options.link) { // the friend's browser: straight to the invitation, signed out, on this origin
+    const there = new URL(ctx.options.link, location.origin);
+    t.event('friend-opens', `${there.pathname}?invite=… (no cookie, no account)`);
+    writeRun({ ...ctx.saved(), landed: true });
+    location.href = there.pathname + there.search;
+    await t.wait(30000);
+    throw new Error('the invitation page did not open');
+  }
   if (ctx.options.at === 'sandbox') { t.event('start-at', 'sandbox: skipped the Play click (named shortcut)'); writeRun({ ...ctx.saved(), landed: true }); location.href = ctx.options.touch ? '/play/sandbox?touch=1' : '/play/sandbox'; await t.wait(30000); return; }
   await t.wait(1500);
   t.event('play-click', 'Play now (the hero button)');
@@ -1991,6 +2003,48 @@ ORDERS['island-invite'] = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'invit
 RUN.invite = stageInvite;
 RUN.gone = stageGone;
 RUN.own = stageOwn;
+// The friend's own browser (island-invite-friend): signed out, from the invitation link.
+STAGES.push('fcheck', 'farrive');
+ORDERS['island-invite-friend'] = ['landing', 'fcheck', 'veil', 'intro', 'mirror', 'farrive'];
+/** The page after the link: the island, or the card that says why not. */
+async function stageFriendCheck(t, ctx) {
+  const expect = ctx.options.expect || 'open';
+  await t.until(() => (W() && W().player) || $('[data-invite]'), 90000, 'the island or the invitation card');
+  const box = $('[data-invite]');
+  if (expect === 'open') {
+    if (box) throw new Error(`the invitation did not open: ${box.dataset.invite}: ${(box.querySelector('p') || {}).textContent}`);
+    t.event('invite-read', 'the invitation answered open to a signed-out visitor');
+    return;
+  }
+  t.event('invite-gone', `${box ? box.dataset.invite : 'no card'}: ${box ? (box.querySelector('p') || {}).textContent : ''}`);
+  t.scene('Invitation: ' + expect);
+  if (!box || box.dataset.invite !== expect) throw new Error(`expected a ${expect} invitation, got ${box ? box.dataset.invite : 'the island'}`);
+  const own = box.querySelector('[data-own]');
+  if (!own) throw new Error('no way to start their own island');
+  t.event('own-island-offered', `"${own.textContent}"`);
+  writeRun({ ...ctx.saved(), leg: 'own' });
+  own.click();
+  await t.until(() => W() && W().player && !/[?&]invite=/.test(location.search) && !$('[data-invite]'), 60000, 'their own island');
+  t.event('own-island', `${location.pathname}: their own island loads`);
+  t.finish('done');
+  return 'stop';
+}
+/** Beamed in beside the inviter, who is on the other browser. */
+async function stageFriendArrive(t, ctx) {
+  const host = () => { const N = window.HawkesNet; const peers = N && N.peers && N.peers(); return peers && N.host ? peers.get(N.host) : null; };
+  await t.until(() => { const h = host(); return h && h.state && h.state.p && W() && W().player; }, 60000, 'the inviter to be in the room');
+  t.event('inviter-found', 'the island room has the inviter in it');
+  const p = W().player;
+  await t.until(() => { const h = host().state.p; return Math.hypot(p.x - h[0], p.z - h[2]) < 6; }, 15000, 'the friend to be beamed in beside the inviter');
+  const h = host().state.p;
+  t.event('friend-beamed', `${Math.round(Math.hypot(p.x - h[0], p.z - h[2]) * 10) / 10} m from the inviter`);
+  t.scene('Friend: beside the inviter');
+  await t.until(() => /is here\. Go to them\.|Someone is here\. Go to them\./.test(document.body.innerText), 15000, 'the Overseer to send the friend to them').then(
+    () => t.event('overseer-line', 'the friend hears: Go to them.'), (e) => t.problem('error', e.message));
+  t.progress(1);
+}
+RUN.fcheck = stageFriendCheck;
+RUN.farrive = stageFriendArrive;
 // Share this moment (share-moment): after the sheet, the blast stage's rocket at fresh barrels, the chip, the tap, the link.
 STAGES.push('moment');
 ORDERS['share-moment'] = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'moment'];
@@ -1998,7 +2052,7 @@ RUN.moment = stageMoment;
 /** The stages a page that follows a leg change carries on with (the first-minutes ones are already done). */
 const legSeq = (id, prior) => (id === 'island-invite' && prior && (prior.leg === 'gone' || prior.leg === 'own') ? [prior.leg] : null);
 
-const ENDS = { 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models', 'gen-hats': 'hats' };
+const ENDS = { 'island-invite-friend': 'farrive', 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models', 'gen-hats': 'hats' };
 
 
 // ---------------------------------------------------------------------------------------------- share-moment
@@ -2119,21 +2173,32 @@ async function stageInvite(t, ctx) {
   if (st.state !== 'open') t.problem('error', `the invitation reads "${st.state}" while the inviter is on the island`);
   // The friend. NAMED SHORTCUT: their page (loading, short intro, mirror, sheet) is another browser; here it is a socket in the room,
   // as that page opens after the mirror (join=1), standing where the inviter is.
-  t.event('setup-shortcut', 'the friend is a socket in the island room named Visitor (their page is a second browser)');
-  const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/v1/ws?play=t/sandbox&room=${room}&name=Visitor&join=1&v=2`);
+  // friend: "browser": no shortcut. The invitation is published (the event, window.hawkesInvite, the page title) for a second
+  // browser context, which plays island-invite-friend with this link; the run waits for it to arrive (up to friendWait seconds).
+  const real = ctx.options.friend === 'browser';
+  let ws = null;
   let beat = null;
-  ws.onmessage = (e) => { if (beat || !/"hello"/.test(e.data)) return; beat = setInterval(() => { const p = W().player; if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'me', at: Date.now(), s: { p: [p.x + 1.6, p.y, p.z + 1], y: 0, pi: 0, f: 0 } })); }, 100); };
-  await t.until(() => ws.readyState === 1, 8000, 'the friend to join the room');
-  await t.until(() => /Someone is coming\./.test(document.body.innerText), 15000, 'the Overseer to say someone is coming').then(
+  if (real) {
+    window.hawkesInvite = { link: link.href, room, token };
+    t.event('friend-link', `waiting for a second browser to open ${link.origin}${link.pathname}?invite=… (play island-invite-friend with {"link": the invite-link above})`);
+  } else {
+    t.event('setup-shortcut', 'the friend is a socket in the island room named Visitor (their page is a second browser)');
+    ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/v1/ws?play=t/sandbox&room=${room}&name=Visitor&join=1&v=2`);
+    ws.onmessage = (e) => { if (beat || !/"hello"/.test(e.data)) return; beat = setInterval(() => { const p = W().player; if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'me', at: Date.now(), s: { p: [p.x + 1.6, p.y, p.z + 1], y: 0, pi: 0, f: 0 } })); }, 100); };
+    await t.until(() => ws.readyState === 1, 8000, 'the friend to join the room');
+  }
+  const wait = real ? Number(ctx.options.friendWait || 150) * 1000 : 0;
+  await t.until(() => /Someone is coming\./.test(document.body.innerText), 15000 + wait, 'the Overseer to say someone is coming').then(
     () => t.event('overseer-line', '"Someone is coming." in the chat'), (e) => t.problem('error', e.message));
-  await t.until(() => joined.length, 20000, 'the newcomer to be beamed in').then(
+  await t.until(() => joined.length, 20000 + wait, 'the newcomer to be beamed in').then(
     () => { t.event('beam-seen', `joined: ${joined[0].name}`); t.scene('Island: someone is coming down the beam'); }, (e) => t.problem('error', e.message));
-  await t.until(() => /Visitor is here/.test(document.body.innerText), 10000, 'the Overseer to name the friend').then(
-    () => t.event('friend-named', 'Visitor, in the chat and over the newcomer'), (e) => t.problem('error', e.message));
+  const who = real ? ((joined[0] && joined[0].name) || '') : 'Visitor';
+  await t.until(() => (who ? document.body.innerText.includes(`${who} is here.`) : /\S+ is here\./.test(document.body.innerText)), 15000, 'the Overseer to name the friend').then(
+    () => t.event('friend-named', `${who || 'the friend'}, in the chat and over the newcomer`), (e) => t.problem('error', e.message));
   await t.wait(1500);
   t.scene('Island: the friend beside the inviter');
   clearInterval(beat);
-  ws.close();
+  if (ws) ws.close();
   // The friend's page on an island nobody is on any more: a new invitation (no one in its room) is closed.
   const fresh = await fetch('/v1/island-invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"name":"Playtest"}' }).then((r) => r.json());
   writeRun({ ...ctx.saved(), leg: 'gone' });
