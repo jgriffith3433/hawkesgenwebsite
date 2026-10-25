@@ -20,12 +20,14 @@
 //   always so on live), fish: 'strict' (a fishing failure fails the run; otherwise it is a warning), watch: seconds of the
 //   intro to watch before skipping (default 8), at: 'sandbox' (start on /play/sandbox instead of clicking Play) }.
 import { installPlaytest } from './hawkes-playtest.js';
+import { SITE_LAYOUT, runSiteLayout } from './site-layout.js';
 
 const KEY = 'hg_playtest_run';
 const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'progress', 'models'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
 const ORDERS = { 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
 const SCENARIOS = [
+  SITE_LAYOUT, // the landing page at three sizes (site-layout.js)
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
   {
     id: 'sandbox-first-minutes', title: 'Play /play/sandbox as a new player: veil, intro, mirror, sign-up, drive to the dock, fish', seconds: 210, tags: ['full'],
@@ -1857,6 +1859,7 @@ export function install() {
     stallSeconds: 120,
     isReady: () => (onSandbox() || onGame() ? Boolean(W() && W().player) || document.readyState === 'complete' : document.readyState === 'complete'),
     async start(id, options, t) {
+      if (id === SITE_LAYOUT.id) return runSiteLayout(t, options);
       if (id === 'observatory-wardrobe' && options.touch) options = { at: 'sandbox', ...options }; // (touch: straight to the island with the phone controls)
       if ((id === 'vehicle-feel' || id === 'rocket-blast-feel') && options.touch) options = { at: 'sandbox', ...options };
       if (id === 'touch-controls') options = { at: 'sandbox', touch: true, ...options }; // (the phone controls, straight to the island)
