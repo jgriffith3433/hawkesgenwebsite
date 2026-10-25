@@ -53,7 +53,7 @@
   function ui() {
     if (el || typeof document === 'undefined' || !document.body) return el;
     const st = document.createElement('style');
-    st.textContent = '.hp-use{position:fixed;left:50%;bottom:max(22%,236px);transform:translateX(-50%);z-index:30;display:flex;gap:8px;pointer-events:none}.hp-use button{pointer-events:auto;font:600 15px system-ui,sans-serif;color:#fff;background:rgba(10,14,24,.72);border:1px solid rgba(255,255,255,.25);border-radius:12px;padding:9px 14px;cursor:pointer;backdrop-filter:blur(4px)}.hp-use kbd{display:inline-block;min-width:1.4em;margin-right:6px;padding:1px 6px;border-radius:6px;background:rgba(255,255,255,.18);font:700 13px system-ui}.hp-use:empty{display:none}';
+    st.textContent = '.hp-use{position:fixed;left:50%;bottom:max(22%,236px);transform:translateX(-50%);z-index:30;display:flex;gap:8px;pointer-events:none}.hp-use button{pointer-events:auto;min-height:48px;font:600 15px system-ui,sans-serif;color:#fff;background:rgba(10,14,24,.72);border:1px solid rgba(255,255,255,.25);border-radius:12px;padding:9px 14px;cursor:pointer;backdrop-filter:blur(4px)}.hp-use kbd{display:inline-block;min-width:1.4em;margin-right:6px;padding:1px 6px;border-radius:6px;background:rgba(255,255,255,.18);font:700 13px system-ui}.hp-use:empty{display:none}';
     document.head.appendChild(st);
     el = document.createElement('div');
     el.className = 'hp-use';
