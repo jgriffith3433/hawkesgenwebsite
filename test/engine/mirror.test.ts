@@ -90,7 +90,7 @@ test('in front of the mirror: stood facing it, three questions, the look changes
   g.on('mirror', (d: any) => events.push(d));
   const said: string[] = [];
   const say0 = g.overseer.say;
-  g.overseer.say = (t: string, s: number) => { said.push(t); return say0(t, s); };
+  g.overseer.say = (t: string, s: number, o: any) => { said.push(t); return say0(t, s, o); };
   assert.equal(g.mirror.isOpen, false);
   assert.ok(g.mirror.open('Mirror'));
   const s = M.session;
@@ -140,7 +140,7 @@ test('in front of the mirror: stood facing it, three questions, the look changes
   assert.equal(g.mirror.isOpen, false, 'past the last question: done');
   assert.equal(p.controls, true);
   assert.equal(p._mirrorShow, false);
-  await new Promise((r) => setTimeout(r, 3200)); // (after what was being said when they finished)
+  await new Promise((r) => setTimeout(r, 6500)); // (after what was being said when they finished: each line now holds the desk for as long as it takes to read)
   assert.ok(said.includes('Sir Laces the shoe. I will remember that. Go on, then.'));
   assert.equal(said.filter((t) => /^And what are you called/.test(t)).length <= 1, true, 'questions they skipped past are dropped, not said late');
   const done = events.find((e) => e.state === 'done');

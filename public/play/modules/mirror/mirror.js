@@ -72,8 +72,8 @@
     lines.length = 0;
     if (!speaking) return;
     clearTimeout(speaking.timer); clearTimeout(speaking.wait);
-    try { if (speaking.audio) speaking.audio.pause(); } catch { /* gone */ }
     speaking = null;
+    if (H.speech) H.speech.clear('mirror');
   }
   function speak() {
     if (speaking || !lines.length) return;
@@ -81,28 +81,16 @@
     if (!g) { lines.length = 0; return; }
     const it = lines.shift();
     const read = it.seconds || Math.max(2.6, Math.min(8, it.text.length / 12));
-    if (g.overseer && g.overseer.say) g.overseer.say(it.text, read + 1.5);
     const cur = (speaking = { audio: null, timer: null, wait: null });
     const next = () => { if (speaking !== cur) return; clearTimeout(cur.timer); speaking = null; setTimeout(speak, 350); };
-    // (The game's own asset by that name, else the Overseer's own line from the community library: overseer.js.)
-    const url = !it.file ? null : H.overseer && H.overseer.voiceUrl ? H.overseer.voiceUrl(it.file) : g.hasAsset && g.hasAsset(it.file) && g.asset ? g.asset(it.file) : null;
-    // No voice for it: long enough to read before the next one.
-    if (!url || typeof Audio === 'undefined') { cur.timer = setTimeout(next, Math.min(read, 2.6) * 1000); return; }
+    // The words and the voice go through the Overseer's speech desk (overseer/speech.js): its clip by name (the game's
+    // own asset, else the community library's), the words typed over its length, never over another line of the Overseer's.
+    // A question or a remark on a choice cuts in gently on whatever it was saying (priority important).
     cur.wait = setTimeout(() => {
       if (speaking !== cur) return;
-      try {
-        const a = new Audio(url);
-        a.crossOrigin = 'anonymous';
-        if (H.audio && H.audio.media) H.audio.media(a);
-        if (H.overseer && H.overseer.duckWhile) H.overseer.duckWhile(a); // (the music dips while it speaks)
-        cur.audio = a;
-        a.onended = next;
-        // A voice that won't play: the words stay up long enough to read, as with no voice.
-        a.onerror = () => { clearTimeout(cur.timer); cur.timer = setTimeout(next, Math.min(read, 2.6) * 1000); };
-        const pr = a.play();
-        if (pr && pr.catch) pr.catch(() => { clearTimeout(cur.timer); cur.timer = setTimeout(next, read * 1000); });
-        cur.timer = setTimeout(next, 15000); // (a voice that never says it ended)
-      } catch { cur.timer = setTimeout(next, read * 1000); }
+      if (!(H.speech && g.overseer && g.overseer.say)) { if (g.overseer && g.overseer.say) g.overseer.say(it.text, read + 1.5); cur.timer = setTimeout(next, Math.min(read, 2.6) * 1000); return; }
+      g.overseer.say(it.text, read, { owner: 'mirror', priority: 'important', voice: it.file || undefined, onEnd: next });
+      cur.timer = setTimeout(next, 15000 + 1000 * read); // (the desk's own end below moves on first)
     }, it.delay || 0);
   }
 

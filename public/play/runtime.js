@@ -271,6 +271,8 @@
   // (H.audio.duck) while something must be heard over it: the Overseer speaking.
   let bedNode = null;
   const ducks = new Map();
+  // The Overseer's voice has its own level into the master, and the music its own level (the player's settings), apart from each other.
+  let voiceNode = null, musicLevel = 1, voiceLevel = 1;
   const effects = new Map();
   const mediaRouted = new WeakSet();
   // Only the chain's own links are undone when it changes: whatever else listens to the master or the output (a clip
@@ -324,16 +326,32 @@
       if (!el || mediaRouted.has(el) || !audioApi.master) return el;
       try {
         if (new URL(el.src, location.href).origin !== location.origin) return el;
-        audio.createMediaElementSource(el).connect(o.background ? audioApi.background : masterNode);
+        audio.createMediaElementSource(el).connect(o.background ? audioApi.background : o.voice ? audioApi.voice : masterNode);
         mediaRouted.add(el);
       } catch { /* plays directly */ }
       return el;
     },
+    /** The Overseer's voice (a gain into the master): media(el, { voice: true }) sends a clip through it. */
+    get voice() {
+      if (voiceNode) return voiceNode;
+      if (!audioApi.master) return null;
+      voiceNode = audio.createGain();
+      voiceNode.gain.value = voiceLevel;
+      voiceNode.connect(masterNode);
+      return voiceNode;
+    },
+    /** How loud the Overseer's voice is, 0 to 1 (the player's setting; the music and the rest are not touched). */
+    get voiceVolume() { return voiceLevel; },
+    set voiceVolume(v) { voiceLevel = Math.max(0, Math.min(1, Number(v))); if (!Number.isFinite(voiceLevel)) voiceLevel = 1; if (voiceNode) voiceNode.gain.value = voiceLevel; },
+    /** How loud the music and ambience are, 0 to 1 (the player's setting), under whatever ducks them. */
+    get musicVolume() { return musicLevel; },
+    set musicVolume(v) { musicLevel = Math.max(0, Math.min(1, Number(v))); if (!Number.isFinite(musicLevel)) musicLevel = 1; audioApi.duck('music-level', null); },
     /** The background's level (a gain into the master): what music and ambience go through. */
     get background() {
       if (bedNode) return bedNode;
       if (!audioApi.master) return null;
       bedNode = audio.createGain();
+      bedNode.gain.value = musicLevel;
       wire();
       return bedNode;
     },
@@ -352,6 +370,7 @@
       if (!bed) return 1;
       let k = 1;
       for (const v of ducks.values()) k = Math.min(k, v);
+      k *= musicLevel;
       try { bed.gain.cancelScheduledValues(audio.currentTime); bed.gain.setTargetAtTime(k, audio.currentTime, k < bed.gain.value ? 0.08 : 0.35); } catch { bed.gain.value = k; }
       return k;
     },

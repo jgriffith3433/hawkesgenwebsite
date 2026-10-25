@@ -14,6 +14,8 @@ const said: string[] = [];
 function fresh() {
   t = 100;
   L.clock = () => t;
+  H.speech.clock = () => t; // (one clock: the speech desk lets a line wait for the one before it)
+  H.speech.reset();
   L.rand = () => 0;
   L.reset();
   said.length = 0;

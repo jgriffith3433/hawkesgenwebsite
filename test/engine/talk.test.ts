@@ -84,7 +84,7 @@ test('in a game with no assistant, the box opens and the Overseer answers, free'
   assert.ok(H.chat.open(), 'the box opens on the free fallback');
   const lines: any[] = [];
   const line = H.chat.line;
-  H.chat.line = (m: any) => { lines.push(m); return line(m); };
+  H.chat.line = (m: any) => { if (!m.now) lines.push(m); return line(m); }; // (the speech desk hands a line back with now: true)
   const heard: any[] = [];
   H.game.on('overseer-talk', (d: any) => heard.push(d));
   const r = T.say('who are you');
