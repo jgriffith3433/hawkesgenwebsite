@@ -4,7 +4,11 @@
 //   bobber goes under, "!"): click (phones: tap 🎣) in time to hook it. Reeling: hold to reel; keep the tension in the
 //   green: too much and the line snaps, slack too long and it gets away. J (phones: 📖) opens the catch log.
 //   Species: common, uncommon, rare, legendary (and the odd old boot), fresh or salt water, sizes, stand-in fish shapes;
-//   a model named after a species ("trout", or "fish-trout") is used when the game has one.
+//   a model named after a species ("trout", or "fish-trout") is used when the game has one. Each has habits: the hours it
+//   bites (`hours`) and how deep it lives (`depth`: shallow, mid, deep; a longer cast reaches deeper water). The catch
+//   log (J, or 📖; silhouettes for what you haven't caught), a celebration and an Overseer line for each new species,
+//   and a board by the hut (an entity with data.catchBoard) are kept with the Overseer's memory (memory.js): in the
+//   account when signed in, on this device otherwise.
 /* global HawkesPlay, BABYLON */
 (function () {
   'use strict';
@@ -47,9 +51,38 @@
     { id: 'old-whiskers', name: 'Old Whiskers', rarity: 'legendary', water: 'fresh', kg: [60, 150], cm: [180, 260], color: '#3f3a33', strength: 1, whiskers: true },
     { id: 'swordfish', name: 'Swordfish', rarity: 'legendary', water: 'salt', kg: [50, 300], cm: [200, 400], color: '#4a6b8a', strength: 1, sword: true },
     { id: 'moonfish', name: 'Moonfish', rarity: 'legendary', water: 'any', kg: [2, 6], cm: [30, 50], color: '#c7d2fe', strength: 0.8, glow: true },
+    { id: 'pufferfish', name: 'Pufferfish', rarity: 'uncommon', water: 'salt', kg: [0.3, 1.5], cm: [15, 35], color: '#d9c27a', spots: '#6b5a2a', strength: 0.4 },
+    { id: 'barracuda', name: 'Barracuda', rarity: 'uncommon', water: 'salt', kg: [2, 12], cm: [70, 140], color: '#8d9aa6', strength: 0.7, long: true },
+    { id: 'grouper', name: 'Giant grouper', rarity: 'rare', water: 'salt', kg: [15, 120], cm: [80, 180], color: '#7a5c3a', strength: 0.85 },
+    { id: 'moray', name: 'Moray eel', rarity: 'rare', water: 'salt', kg: [2, 12], cm: [90, 200], color: '#5d6b2c', spots: '#d9c84a', strength: 0.8, long: true },
+    { id: 'anglerfish', name: 'Anglerfish', rarity: 'legendary', water: 'salt', kg: [5, 40], cm: [40, 120], color: '#2a2438', strength: 0.9, glow: true },
     { id: 'old-boot', name: 'Old boot', rarity: 'junk', water: 'any', kg: [0.4, 1.2], cm: [25, 32], color: '#5b4636', strength: 0.1, shape: 'boot' },
     { id: 'tin-can', name: 'Tin can', rarity: 'junk', water: 'any', kg: [0.05, 0.1], cm: [10, 12], color: '#9aa3ad', strength: 0.05, shape: 'can' },
   ];
+  // When each bites (hours of the world's clock, from to; it wraps past midnight) and how deep it lives.
+  const HABITS = {
+    minnow: { hours: [5, 20], depth: 'shallow' }, perch: { hours: [6, 18], depth: 'shallow' }, bluegill: { hours: [8, 17], depth: 'shallow' },
+    carp: { hours: [4, 9], depth: 'mid' }, sardine: { hours: [6, 16], depth: 'shallow' }, mackerel: { hours: [7, 18], depth: 'mid' },
+    trout: { hours: [5, 10], depth: 'mid' }, bass: { hours: [16, 21], depth: 'mid' }, catfish: { hours: [19, 5], depth: 'deep' },
+    snapper: { hours: [9, 17], depth: 'mid' }, pufferfish: { hours: [8, 17], depth: 'shallow' }, barracuda: { hours: [16, 21], depth: 'mid' },
+    pike: { hours: [5, 9], depth: 'mid' }, salmon: { hours: [17, 22], depth: 'mid' }, koi: { hours: [9, 17], depth: 'shallow' },
+    tuna: { hours: [8, 16], depth: 'deep' }, grouper: { hours: [9, 17], depth: 'deep' }, moray: { hours: [20, 4], depth: 'deep' },
+    'golden-carp': { hours: [5, 8], depth: 'shallow' }, 'old-whiskers': { hours: [21, 4], depth: 'deep' }, swordfish: { hours: [17, 21], depth: 'deep' },
+    moonfish: { hours: [21, 3], depth: 'mid' }, anglerfish: { hours: [22, 4], depth: 'deep' },
+  };
+  for (const d of DEFAULTS) Object.assign(d, HABITS[d.id] || {});
+  const DEPTHS = ['shallow', 'mid', 'deep'];
+  /** How deep the line is: shallow under 3.5 m, mid under 6, deep beyond. */
+  const depthTier = (m) => (m < 3.5 ? 'shallow' : m < 6 ? 'mid' : 'deep');
+  const inHours = (h, hour) => (h[0] <= h[1] ? hour >= h[0] && hour < h[1] : hour >= h[0] || hour < h[1]);
+  /** How much likelier (or not) a species is at this hour and line depth: its hours 2.5x (else 0.3x), its depth 1.8x (else 0.4x). */
+  function habit(sp, o = {}) {
+    let k = 1;
+    if (Array.isArray(sp.hours) && Number.isFinite(o.hour)) k *= inHours(sp.hours, ((o.hour % 24) + 24) % 24) ? 2.5 : 0.3;
+    if (DEPTHS.includes(sp.depth) && Number.isFinite(o.depth)) k *= sp.depth === depthTier(o.depth) ? 1.8 : 0.4;
+    return k;
+  }
+  const hourNow = () => { const h = H.sky && H.sky.hour; return Number.isFinite(h) ? h : null; };
   const species = new Map(DEFAULTS.map((s) => [s.id, { ...s }]));
   const norm = (s) => {
     const id = String(s.id || s.name || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-');
@@ -79,7 +112,7 @@
     if (!list.length) return null;
     const luck = Math.max(0, Number(o.luck ?? 1)) * (1 + (H.water.rain || 0) * 0.5);
     let total = 0;
-    const weights = list.map((s) => { const r = RARITY[s.rarity]; let wgt = (s.chance ?? r.weight) * (s.rarity === 'rare' || s.rarity === 'legendary' ? luck : 1); if (o.junk === false && s.rarity === 'junk') wgt = 0; total += wgt; return wgt; });
+    const weights = list.map((s) => { const r = RARITY[s.rarity]; let wgt = (s.chance ?? r.weight) * (s.rarity === 'rare' || s.rarity === 'legendary' ? luck : 1) * habit(s, { hour: o.hour ?? hourNow(), depth: o.depth }); if (o.junk === false && s.rarity === 'junk') wgt = 0; total += wgt; return wgt; });
     if (total <= 0) return null;
     let x = Math.random() * total, sp = list[0];
     for (let i = 0; i < list.length; i++) { x -= weights[i]; if (x <= 0) { sp = list[i]; break; } }
@@ -144,37 +177,81 @@
     return root;
   }
 
-  // ------------------------------------------------------------------ the catch log (per player, kept while the page is open)
-  const journal = () => { const g = G(); return (g && g.load('water:journal', null)) || { fish: {}, total: 0, points: 0 }; };
+  // ------------------------------------------------------------------ the catch log (kept with the Overseer's memory)
+  // Signed in it lives in the account, otherwise on this device (memory.js); without the Overseer module, while the page is open.
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const titleOf = (id) => id.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  /** { fish: { id: { count, best (kg), longest (cm), name, rarity } }, total, points } */
+  function journal() {
+    const mem = H.memory && H.memory.fishLog;
+    if (!mem) { const g = G(); return (g && g.load('water:journal', null)) || { fish: {}, total: 0, points: 0 }; }
+    const log = mem.get();
+    const out = { fish: {}, total: 0, points: log.points };
+    for (const id of Object.keys(log.fish)) {
+      const [count, kg, cm] = log.fish[id], sp = species.get(id);
+      out.fish[id] = { count, best: kg / 100, longest: cm, name: sp ? sp.name : titleOf(id), rarity: sp ? sp.rarity : 'common' };
+      out.total += count;
+    }
+    return out;
+  }
+  function keep(j) {
+    const mem = H.memory && H.memory.fishLog;
+    if (!mem) { if (G()) G().save('water:journal', j); return; }
+    const fish = {};
+    for (const id of Object.keys(j.fish)) fish[id] = [j.fish[id].count, Math.round(j.fish[id].best * 100), Math.round(j.fish[id].longest)];
+    mem.set(fish, j.points);
+  }
   function record(f) {
     const j = journal();
     const e = j.fish[f.id] || (j.fish[f.id] = { count: 0, best: 0, longest: 0, name: f.name, rarity: f.rarity });
-    const first = e.count === 0;
+    const first = e.count === 0, firstEver = j.total === 0;
+    const heavier = !first && f.weight > e.best;
     e.count++; e.best = Math.max(e.best, f.weight); e.longest = Math.max(e.longest, f.length);
     j.total++; j.points += f.points;
-    G().save('water:journal', j);
-    return { first, record: !first && f.weight >= e.best };
+    keep(j);
+    return { first, firstEver, record: heavier };
   }
+  /** The species of the log: this world's water, anything caught, and (with no water at all) every built-in kind. */
+  function logList(j) {
+    const seen = new Map();
+    for (const b of X.live()) for (const s of candidates(b)) seen.set(s.id, s);
+    if (!seen.size) for (const s of DEFAULTS) if (s.rarity !== 'junk') seen.set(s.id, species.get(s.id));
+    for (const id of Object.keys(j.fish)) if (!seen.has(id)) seen.set(id, species.get(id) || { id, name: j.fish[id].name, rarity: j.fish[id].rarity, color: '#888' });
+    return [...seen.values()].sort((a, b) => ORDER.indexOf(a.rarity) - ORDER.indexOf(b.rarity) || a.name.localeCompare(b.name));
+  }
+  /** A fish as a small picture: its colors when you've caught one, a dark shape against its rarity when not. */
+  function silhouette(sp, known) {
+    const r = RARITY[sp.rarity] || RARITY.common;
+    const fill = known ? esc(sp.color || '#7aa6c2') : '#0a0f1a', line = known ? 'rgba(255,255,255,.35)' : esc(r.color);
+    let body;
+    if (sp.shape === 'boot') body = `<path d="M18 4h8v10h10v6H16z"/>`;
+    else if (sp.shape === 'can') body = `<rect x="14" y="5" width="20" height="14" rx="2"/>`;
+    else {
+      const h = sp.long ? 4 : 7;
+      body = `<ellipse cx="22" cy="12" rx="17" ry="${h}"/><path d="M36 12l9-${h + 1}v${2 * h + 2}z"/><path d="M18 ${12 - h}l5-${sp.long ? 2 : 4}l5 ${sp.long ? 2 : 4}z"/>${sp.sword ? '<path d="M6 12H0" stroke-width="2"/>' : ''}`;
+    }
+    return `<svg class="sil" viewBox="0 0 48 24" width="46" height="23" aria-hidden="true" fill="${fill}" stroke="${line}" stroke-width="1.2">${body}</svg>`;
+  }
+  const HOURS = (h) => (h[1] - h[0] + 24) % 24 > 11 ? 'by day' : h[0] >= 19 || h[0] < 4 && h[1] <= 6 ? 'at night' : h[0] < 12 ? 'at dawn' : 'at dusk';
+  const habitText = (sp) => [sp.hours ? `Bites ${HOURS(sp.hours)}` : '', sp.depth ? { shallow: 'near the surface', mid: 'at mid depth', deep: 'in deep water (cast far)' }[sp.depth] : ''].filter(Boolean).join(' · ');
   let logEl = null;
-  /** Opens (or closes) the catch log: every fish in this world's water, the ones you've caught, your best. */
+  /** Opens (or closes) the catch log: every fish in this world's water, the ones you've caught with your best, and the rest as silhouettes. */
   function showLog(open) {
     const want = open === undefined ? !(logEl && logEl.isConnected) : Boolean(open);
     if (logEl) { logEl.remove(); logEl = null; }
     if (!want) return;
     X.overlay();
     const j = journal();
-    const seen = new Map();
-    for (const b of X.live()) for (const s of candidates(b)) seen.set(s.id, s);
-    for (const id of Object.keys(j.fish)) if (!seen.has(id)) { const s = species.get(id); if (s) seen.set(id, s); else seen.set(id, { id, name: j.fish[id].name, rarity: j.fish[id].rarity, color: '#888' }); }
-    const list = [...seen.values()].sort((a, b) => ORDER.indexOf(a.rarity) - ORDER.indexOf(b.rarity) || a.name.localeCompare(b.name));
-    const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+    const list = logList(j);
     const caught = list.filter((s) => j.fish[s.id]).length;
+    const top = Object.entries(j.fish).sort((a, b) => b[1].best - a[1].best)[0];
     logEl = document.createElement('div');
     logEl.className = 'water-log';
-    logEl.innerHTML = `<button class="x" aria-label="Close">×</button><h3>Catch log</h3><div>${caught} of ${list.length} kinds · ${j.total} caught · ${j.points} points</div>${list.length ? '' : '<div class="fish">No fish in this water.</div>'}${list.map((s) => {
+    logEl.dataset.caught = String(caught); logEl.dataset.kinds = String(list.length);
+    logEl.innerHTML = `<button class="x" aria-label="Close">×</button><h3>Catch log</h3><div class="sum">${caught} of ${list.length} species · ${j.total} caught · ${j.points} points</div>${top ? `<div class="sum">Biggest: ${esc(top[1].name)}, ${top[1].best} kg</div>` : ''}${list.length ? '' : '<div class="fish">No fish in this water.</div>'}${list.map((s) => {
       const e = j.fish[s.id], r = RARITY[s.rarity] || RARITY.common;
-      return `<div class="fish${e ? '' : ' unknown'}"><span class="dot" style="background:${e ? esc(s.color) : r.color}"></span><span style="flex:1">${e ? esc(s.name) : '???'} <small style="color:${r.color}">${r.label}</small></span><span>${e ? `×${e.count} · best ${e.best} kg` : ''}</span></div>`;
-    }).join('')}<div style="margin-top:8px;opacity:.7">J or 📖 closes this</div>`;
+      return `<div class="fish${e ? '' : ' unknown'}" data-id="${esc(s.id)}">${silhouette(s, Boolean(e))}<span class="what"><b>${e ? esc(s.name) : '???'}</b> <small style="color:${r.color}">${r.label}</small>${e ? `<br><small>${esc(habitText(s))}</small>` : ''}</span><span class="best">${e ? `×${e.count}<br>best ${e.best} kg · ${e.longest} cm` : 'not caught yet'}</span></div>`;
+    }).join('')}<div style="margin-top:8px;opacity:.7">${H.touchUi ? '📖' : 'J'} closes this</div>`;
     logEl.querySelector('.x').onclick = () => showLog(false);
     document.body.appendChild(logEl);
   }
@@ -192,9 +269,44 @@
   const catchAction = H.sync ? H.sync.action('water:catch', (d) => announce(d)) : announce;
   function landed(f) {
     const r = record(f);
-    const fish = { id: f.id, name: f.name, rarity: f.rarity, weight: f.weight, length: f.length, points: f.points, color: f.color };
+    const fish = { id: f.id, name: f.name, rarity: f.rarity, weight: f.weight, length: f.length, points: f.points, color: f.color, first: r.first };
     catchAction({ fish, by: (H.sync && H.sync.me) || null, who: H.hooks.myName || null });
     return r;
+  }
+  // The Overseer notes a species the first time it's caught (junk is only junk): in its voice, short.
+  const NOTE = {
+    common: ['A {name}. I have written it down.', 'A {name}. A good place to begin.'],
+    uncommon: ['A {name}. That one is not easy to find.', 'A {name}. You looked in the right place.'],
+    rare: ['A {name}. I have not seen one in a long while.', 'A {name}. The sea does not give those twice.'],
+    legendary: ['A {name}. I had begun to think it was a story.', 'A {name}. Hold it up. Let the light see it.'],
+  };
+  const NOTES = { tuna: 'A bluefin. It crossed an ocean to meet you.', swordfish: 'A swordfish. Everything in the water was afraid of it, except you.', moonfish: 'A moonfish. It only comes up when the light goes cold.', 'old-whiskers': 'Old Whiskers. The whole lake has been waiting for you to do that.', anglerfish: 'An anglerfish. It brought its own light, and you came anyway.', 'golden-carp': 'A golden carp. It looked like a coin, and was worth more.' };
+  function overseerNote(f, firstEver) {
+    if (!H.lines || !H.lines.sayText || f.rarity === 'junk') return;
+    // The very first fish of all has the Overseer's own first-fish line (lines.js 'fish').
+    if (firstEver) return;
+    const list = NOTE[f.rarity] || NOTE.common;
+    H.lines.sayText(`species-${f.id}`, NOTES[f.id] || list[Math.floor(Math.random() * list.length)].replace('{name}', f.name), f.rarity === 'legendary' ? 6 : f.rarity === 'rare' ? 4 : 3);
+  }
+  /** A short moment for a new species: a banner, a burst of confetti in its color, a flourish of sound. */
+  function celebrate(f) {
+    const rr = RARITY[f.rarity] || RARITY.common;
+    const el = document.createElement('div');
+    el.className = 'water-new';
+    el.setAttribute('role', 'status');
+    el.innerHTML = `<div class="head">New species!</div><div class="sp"></div>`;
+    el.querySelector('.sp').textContent = f.name;
+    el.style.setProperty('--c', rr.color);
+    for (let i = 0; i < 22; i++) {
+      const c = document.createElement('i');
+      const a = (i / 22) * Math.PI * 2 + Math.random() * 0.3, d = 90 + Math.random() * 120;
+      c.style.cssText = `--x:${Math.round(Math.cos(a) * d)}px;--y:${Math.round(Math.sin(a) * d * 0.7 - 30)}px;background:${i % 3 ? rr.color : f.color};animation-delay:${Math.round(Math.random() * 120)}ms`;
+      el.appendChild(c);
+    }
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 2600);
+    H.water.sound('catch', { volume: 1 });
+    if (f.rarity === 'rare' || f.rarity === 'legendary') setTimeout(() => H.water.sound('catch', { volume: 0.7 }), 260);
   }
   function card(f, r) {
     X.overlay();
@@ -206,6 +318,8 @@
     el.querySelector('.name').textContent = f.name;
     document.body.appendChild(el);
     setTimeout(() => el.remove(), 2800);
+    if (r.first && f.rarity !== 'junk') { celebrate(f); overseerNote(f, r.firstEver); G().emit('species', { fish: { id: f.id, name: f.name, rarity: f.rarity, weight: f.weight, length: f.length }, entity: W().player }); }
+    refreshBoards();
   }
 
   // ------------------------------------------------------------------ the rod
@@ -368,6 +482,9 @@
           s.bob.copyFrom(next);
           if (wa && next.y <= wa.surface) {
             s.body = wa.body; s.anchor = [next.x, next.z];
+            // A longer cast reaches deeper water (to the bottom of this one): what bites depends on it.
+            const tp0 = tipPos(s), reach = Math.hypot(next.x - tp0.x, next.z - tp0.z);
+            s.lineDepth = Math.min(wa.surface - X.bottomOf(wa.body), 1.2 + reach * 0.3);
             H.water.splash([next.x, wa.surface, next.z], 0.25, { sound: false });
             H.water.sound('plop', { at: [next.x, wa.surface, next.z] });
             s.phase = 'waiting';
@@ -389,7 +506,7 @@
             lure.at = s.waited > s.wait * 0.5 ? [s.anchor[0], X.surfaceOf(s.body, s.anchor[0], s.anchor[1]), s.anchor[1]] : null;
             while (s.nibbles.length && s.waited >= s.nibbles[0]) { s.nibbles.shift(); s.dip = -0.09; H.water.ripple(s.anchor[0], s.anchor[1], 0.15); H.water.sound('plop', { at: s.bob, volume: 0.35 }); }
             if (s.waited >= s.wait) {
-              s.fish = roll(s.body, ctx.opts);
+              s.fish = roll(s.body, { ...ctx.opts, depth: s.lineDepth });
               if (!s.fish) { s.wait = Infinity; break; }
               s.phase = 'bite';
               s.biteLeft = s.fish.rarity === 'legendary' ? 0.95 : s.fish.rarity === 'rare' ? 1.15 : 1.4;
@@ -631,11 +748,56 @@
     give(id, o = {}) { const sp = species.get(String(id).toLowerCase()); if (!sp) return null; const f = sized(sp, o.weight); const r = landed(f); card(f, r); delete f.species; return f; },
     /** This player's catch log: { fish: { id: { count, best, longest } }, total, points }. */
     journal: () => JSON.parse(JSON.stringify(journal())),
+    /** The odds of each species in the water there for this hour and line depth: [{ id, p }] (p adds up to 1). o: { hour, depth (m), luck }. */
+    odds(where, o = {}) {
+      const b = where && where.kind && where.world ? where : (() => { const p = X.posOf(where || (G() && G().player)); const wa = X.waterAt(p[0], p[2], p[1] - 1); return wa && wa.body; })();
+      const list = candidates(b), luck = Math.max(0, Number(o.luck ?? 1));
+      const ws = list.map((s) => (s.chance ?? RARITY[s.rarity].weight) * (s.rarity === 'rare' || s.rarity === 'legendary' ? luck : 1) * habit(s, { hour: o.hour ?? hourNow(), depth: o.depth }));
+      const total = ws.reduce((a, c) => a + c, 0) || 1;
+      return list.map((s, i) => ({ id: s.id, p: ws[i] / total }));
+    },
     /** Opens or closes the catch log on screen (log(true), log(false), or log() to toggle). */
     log: (open) => showLog(open),
-    clear() { G().save('water:journal', { fish: {}, total: 0, points: 0 }); },
+    clear() { keep({ fish: {}, total: 0, points: 0 }); refreshBoards(); },
+    /** Rewrites the boards by the hut (a thing with data.catchBoard) from the log. */
+    board: () => refreshBoards(),
     rarities: RARITY,
   };
   // J opens the log for anyone holding a rod (the tool handles it); a script may want it any time.
+  // J opens the log without a rod in hand too (nothing else in the engine uses it); the board by the hut opens it with E.
+  H.hooks.step.push(() => {
+    const g = G();
+    if (g && g.mode === 'play' && !(H.tools.held && H.tools.held.name === 'rod') && !(H.tools.held && H.tools.held.name === 'fishing-rod') && g.input.pressed('j') && !W().paused) showLog();
+  });
+  // ------------------------------------------------------------------ the board (a thing with data.catchBoard shows your best)
+  const boards = new Map(); // entity -> its sign
+  function boardWords() {
+    const j = journal(), list = logList(j).filter((s) => s.rarity !== 'junk');
+    const have = list.filter((s) => j.fish[s.id]);
+    const best = have.sort((a, b) => j.fish[b.id].best - j.fish[a.id].best).slice(0, 3);
+    return `CATCH BOARD\n${have.length} of ${list.length} species\n${best.length ? best.map((s) => `${s.name} ${j.fish[s.id].best} kg`).join('\n') : 'Nothing yet. The rod is on the pier.'}`;
+  }
+  function refreshBoards() {
+    const w = W();
+    if (!w) return;
+    const words = boardWords();
+    for (const e of w.entities) {
+      if (!e.data || !e.data.catchBoard || !e.node) continue;
+      const b = boards.get(e);
+      if (b && b.words === words && !b.mesh.isDisposed()) continue;
+      if (b) b.mesh.dispose();
+      const mesh = H.textPlane(words, { size: 0.11, billboard: false, color: '#f8f1e4', background: 'rgba(40,24,12,0.0)' });
+      mesh.parent = e.node; mesh.position.set(0, 0, 0.06); mesh.rotation.y = Math.PI; mesh.isPickable = false; mesh.metadata = { decor: true };
+      boards.set(e, { mesh, words });
+    }
+  }
+  function boardNear(p) {
+    const w = W();
+    let best = null, bd = 3.2;
+    for (const e of w.entities) { if (!e.data || !e.data.catchBoard || !e.node) continue; const d = Math.hypot(e.x - p.x, e.z - p.z); if (d < bd) { bd = d; best = e; } }
+    return best && { label: 'Read the catch board', distance: bd, act: () => showLog(true) };
+  }
+  H.use.register('water:board', { near: (p) => boardNear(p) });
+  H.hooks.world.push({ enter() { boards.clear(); setTimeout(refreshBoards, 400); setTimeout(refreshBoards, 3000); } });
   H.hooks.world.push({ leave() { showLog(false); document.querySelectorAll('.water-card, .water-hud').forEach((el) => el.remove()); } });
 })();
