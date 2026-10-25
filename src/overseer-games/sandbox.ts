@@ -1,4 +1,4 @@
-// The guest sandbox (/play/sandbox, the landing page's "Play now (no sign-up)"): the first thing many people play, so it
+// The guest sandbox (/play/sandbox, the landing page's "Play now"): the first thing many people play, so it
 // has to be fun in the first minutes. It is a new game's world (the round planet, 50 km across, the Overseer's intro
 // every time) that happens to have an island in its ocean, Pip, a few things going on, and a quest line that walks a
 // new player through the best toys: the 4x4 to the dock, a fish off the pier, the fuel barrels, something beamed down

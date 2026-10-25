@@ -104,5 +104,5 @@ test('the landing page sends visitors to play first, and keeps "Start building" 
   const play = hero.indexOf('href="/play/sandbox"');
   const build = hero.indexOf('Start building');
   assert.ok(play > 0 && build > play, 'Play now comes first, Start building second');
-  assert.match(hero, /Play now \(no sign-up\)/);
+  assert.match(hero, /Play now/);
 });
