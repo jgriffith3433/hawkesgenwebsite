@@ -79,9 +79,11 @@ export const STANDIN_FOR = { person: 'biped', dog: 'quadruped', fish: 'swimmer',
 // ------------------------------------------------------------------ the same model as a Babylon container (Node)
 export function toContainer(B, scene, spec) {
   const c = new B.AssetContainer(scene);
-  // (Babylon's glTF loader hangs a model under __root__, turned half way round: a glTF's front looks toward -z once loaded.)
+  // (Babylon's glTF loader hangs a model under __root__ turned half way round with z mirrored (scaling z -1): a glTF's front, +z, stays +z
+  // once loaded and only x is mirrored: measured with the real loader on the Gen models, 2026-10-25.)
   const root = new B.TransformNode('__root__', scene);
   root.rotationQuaternion = B.Quaternion.RotationAxis(B.Vector3.Up(), Math.PI);
+  root.scaling.z = -1;
   c.transformNodes.push(root);
   const byName = new Map(), mats = new Map();
   const mat = (col) => {
@@ -227,7 +229,7 @@ export function toGlb(spec) {
 /** The registry rows the stand-ins fill (type -> a row naming `url`), and the spec of each by that url. */
 export function standinRows(prefix = 'standin:') {
   const rows = {};
-  for (const [what, key] of Object.entries(STANDIN_FOR)) rows[what] = { ...STANDINS[key].row, url: `${prefix}${key}`, yaw: Math.PI }; // (a stand-in is drawn facing +z like a file the loader turns round: the default turn; the Gen-made models have yaw 0)
+  for (const [what, key] of Object.entries(STANDIN_FOR)) rows[what] = { ...STANDINS[key].row, url: `${prefix}${key}`, yaw: 0 }; // (a stand-in is drawn facing +z like every file, which the loader keeps at +z: no turn, as for the Gen-made models)
   return rows;
 }
 export const specOf = (url, prefix = 'standin:') => STANDINS[String(url).slice(prefix.length)];

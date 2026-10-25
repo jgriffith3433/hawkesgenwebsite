@@ -42,7 +42,7 @@
     const w = C() && C().WHAT.get(id);
     const form = r.form || 'biped';
     const h = Number(r.h) > 0 ? Number(r.h) : (w && w.h) || 1.2;
-    return { ...r, id, form, h, yaw: Number.isFinite(r.yaw) ? r.yaw : Math.PI, head: Number(r.head) > 0 ? Number(r.head) : (HEAD_SHARE[form] || 0.25) * h, anchors: r.anchors || {}, clips: r.clips || {}, parts: r.parts || [], stride: { ...STRIDE, ...(r.stride || {}) } };
+    return { ...r, id, form, h, yaw: Number.isFinite(r.yaw) ? r.yaw : 0, head: Number(r.head) > 0 ? Number(r.head) : (HEAD_SHARE[form] || 0.25) * h, anchors: r.anchors || {}, clips: r.clips || {}, parts: r.parts || [], stride: { ...STRIDE, ...(r.stride || {}) } };
   }
   /** Fills in (or changes) a type's row: P.models.register('dog', { asset: 'a_...', h: 0.9, anchors: {...} }). */
   function register(id, patch) {
@@ -194,9 +194,10 @@
       const a = mk(`a-${name}`, base || holder);
       let at = spec.at || [0, 0, 0];
       const rot = spec.rot || [0, 0, 0];
-      // An offset from the origin is written as the file was authored (front toward +z); the loader turned the model half way round
-      // under __root__, so it is turned too. The anchor's own axes follow the body (+z forward) whatever the model's turn.
-      if (!base) { if (ent.anchors[name] && ent.anchors[name].at) at = [-at[0], at[1], -at[2]]; a.rotation.y = -ent.yaw; }
+      // An offset from the origin is written as the file was authored (front toward +z); the loader hangs the model under __root__
+      // (turned half way round with z mirrored), which keeps +z and mirrors x, so the offset's x is mirrored too. The anchor's own axes
+      // follow the body (+z forward) whatever the model's turn.
+      if (!base) { if (ent.anchors[name] && ent.anchors[name].at) at = [-at[0], at[1], at[2]]; a.rotation.y = -ent.yaw; }
       a.position.set(at[0], at[1], at[2]);
       a.rotation.set(rot[0], a.rotation.y + rot[1], rot[2]);
       pm.anchors[name] = { node: a, spec, bone: base ? spec.node : null };

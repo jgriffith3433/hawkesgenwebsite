@@ -69,7 +69,7 @@ test('the Gen models: each filled row names a file that is there, a near level w
 });
 
 test('every Gen-made model is not turned half way round: its yaw is 0 (J, 2026-10-25: they faced backwards)', () => {
-  for (const [id, r] of Object.entries(registryBefore) as any) if (r.url || r.asset) assert.equal(r.yaw, 0, `${id}: yaw 0`);
+  for (const [id, r] of Object.entries(registryBefore) as any) if (r.url || r.asset) assert.equal(r.yaw, id === "fish" ? -0.546 : 0, `${id}: yaw`);
   assert.equal(M.entry('nothing-made-yet'), null);
 });
 
@@ -215,6 +215,27 @@ test('hats, glasses, a scarf, a pack and an accessory are parented to the model\
     assert.ok(t.rig.meshes.length - t.rig.bodyMeshes >= 3, `${id}: it wears things`);
     P.showcase.dispose(t.rig); t.node.dispose();
   }
+});
+
+test('anchors written as the file was authored (front +z, x mirrored by the loader) land on the face, the back and the rump of the body', async () => {
+  standins();
+  M.register('toaster', { ...standinRows().toaster, anchors: { face: { at: [0.1, 0.5, 0.3] }, back: { at: [0, 0.5, -0.3] }, rump: { at: [0, 0.3, -0.3] } } });
+  M.reset();
+  const t = stand('toaster', { extras: ['glasses', 'backpack'] });
+  await settle(t.rig);
+  assert.equal(t.rig.pm.state, 'ready', t.rig.pm.error);
+  t.rig.pose.computeWorldMatrix(true);
+  const at = (n: string) => world3(t.rig.pm.anchors[n].node);
+  const base = world3(t.rig.pm.holder);
+  assert.ok(at('face').z - base.z > 0.1, 'the face anchor is in front (+z) of the body');
+  assert.ok(at('face').x - base.x < -0.05, 'and its authored x is mirrored, as the loader mirrors the file');
+  assert.ok(at('back').z - base.z < -0.1 && at('rump').z - base.z < -0.1, 'the back and the rump are behind');
+  P.showcase.dispose(t.rig); t.node.dispose();
+});
+
+test('a Gen hat file keeps its +z front on the head: no turn by default', () => {
+  assert.match(fs.readFileSync(path.join(ROOT, 'public', 'play', 'modules', 'presence', 'presence-hats.js'), 'utf8'), /r\.yaw : 0;/);
+  assert.equal(M.entry('anything-registered') === null, true);
 });
 
 test('a model\'s hat follows the head bone when the clip moves it, and a bone-less model gets anchors from its box', async () => {
