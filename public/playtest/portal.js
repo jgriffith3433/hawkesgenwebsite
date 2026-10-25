@@ -1091,9 +1091,12 @@ async function stageProgress(t, ctx) {
   const before = PG().state.pts;
   const jeep = () => W().byId.get('jeep');
   const driving = () => G().player && G().player.controller === 'drive';
+  // Pip comes over after the sign-up and offers the tour in a modal card; while it is open E never reaches the 4x4: close it like a player (Not now).
+  const closeCard = () => { const qs = G().events && G().events.quests; if (qs && qs.close) qs.close(); document.querySelectorAll('.qs-panel').forEach((n) => n.remove()); };
   if (!driving()) {
+    closeCard();
     await walkTo(t, 'jeep', 3.2, 40000, 'the 4x4');
-    for (let i = 0; i < 4 && !driving(); i++) { await tap(t, 'e'); await t.wait(700); }
+    for (let i = 0; i < 4 && !driving(); i++) { closeCard(); await tap(t, 'e'); await t.wait(700); }
   }
   if (!driving()) throw new Error('timed out getting into the 4x4 with E');
   keyEv('keydown', 'w'); down.add('w');
