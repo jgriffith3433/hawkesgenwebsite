@@ -2420,10 +2420,25 @@ async function stageInvite(t, ctx) {
     window.hawkesInvite = { link: link.href, room, token };
     t.event('friend-link', `waiting for a second browser to open ${link.origin}${link.pathname}?invite=… (play island-invite-friend with {"link": the invite-link above})`);
   } else {
-    t.event('setup-shortcut', 'the friend is a socket in the island room named Visitor (their page is a second browser)');
-    ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/v1/ws?play=t/sandbox&room=${room}&name=Visitor&join=1&v=2`);
-    ws.onmessage = (e) => { if (beat || !/"hello"/.test(e.data)) return; beat = setInterval(() => { const p = W().player; if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'me', at: Date.now(), s: { p: [p.x + 1.6, p.y, p.z + 1], y: 0, pi: 0, f: 0 } })); }, 100); };
-    await t.until(() => ws.readyState === 1, 8000, 'the friend to join the room');
+    const via = (window.HawkesNet && window.HawkesNet.via) || { kind: 'site' };
+    const near = () => { const p = W().player; return { t: 'me', at: Date.now(), s: { p: [p.x + 1.6, p.y, p.z + 1], y: 0, pi: 0, f: 0 } }; };
+    if (via.kind === 'hawkesnet') {
+      // The island's room is on Hawkes Net (src/hnet.ts): the friend joins it the way a page does, a ticket from this site.
+      t.event('setup-shortcut', `the friend is a Hawkes Net player in the island room named Visitor (over ${via.transport}; their page is a second browser)`);
+      const mod = await import('/play/hawkes-net.mjs');
+      const ask = async () => { const r = await fetch('/v1/net/ticket', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ play: 't/sandbox', room, name: 'Visitor', join: true, sdk: mod.VERSION }) }); const j = await r.json(); if (!r.ok) throw Object.assign(new Error(j.error || `ticket ${r.status}`), { status: r.status }); return j; };
+      const first = await ask();
+      let used = false;
+      const friend = await mod.join(first.room, { project: 'hawkesgenwebsite', transport: 'auto', leaveOnHide: false, log: false, ticket: async () => (used ? ask() : ((used = true), first)), onRaw: () => {} });
+      beat = setInterval(() => friend.raw.send({ ...near(), at: friend.now() }), 100);
+      ws = { close: () => void friend.leave('done') };
+    } else {
+      t.event('setup-shortcut', 'the friend is a socket in the island room named Visitor (their page is a second browser)');
+      const sock = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/v1/ws?play=t/sandbox&room=${room}&name=Visitor&join=1&v=2`);
+      ws = sock;
+      sock.onmessage = (e) => { if (beat || !/"hello"/.test(e.data)) return; beat = setInterval(() => { if (sock.readyState === 1) sock.send(JSON.stringify(near())); }, 100); };
+      await t.until(() => sock.readyState === 1, 8000, 'the friend to join the room');
+    }
   }
   const wait = real ? Number(ctx.options.friendWait || 150) * 1000 : 0;
   await t.until(() => /Someone is coming\./.test(document.body.innerText), 15000 + wait, 'the Overseer to say someone is coming').then(
