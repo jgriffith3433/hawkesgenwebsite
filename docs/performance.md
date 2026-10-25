@@ -145,6 +145,55 @@ A second run of this branch with the house in view: 18.9 fps, 482 draw calls, st
 phone numbers are an emulated slow phone on a busy laptop (a 4x slower CPU makes each step about 4x longer): far better,
 not yet playable; `catchUp` (3 steps a frame on phones) keeps it from spending ever longer frames catching up.
 
+## Server capacity (2026-10-25)
+
+How many players one portal process holds, measured with `tools/crowd.mjs` (no browser; `test/crowd.test.ts` runs it tiny
+in `npm test`). It starts the portal on a free port with its own database and a stand-in for Gen, and ramps up:
+
+- **Players** over `/v1/ws` (protocol 2) in rooms of 16, each sending what a real page sends: its pose every 66 ms inside a
+  bundle (15 a second), a ping every 2 s (a real page pings every 5 s: more samples), and one player in eight driving a thing
+  it owns (`own`, then `xf` every 33 ms). They live in worker threads (about 200 each) so the tool never measures itself;
+  a level is flagged if the tool's own loop lags (p99 over 50 ms).
+- **Page and asset loads** five a second (the landing page, `/play/sandbox`, `runtime.js`, `modules.js`, WORLD.md, the portfolio...).
+- **Editor live streams** (SSE, 12), and **three sign-ins** a level (scrypt on the thread pool).
+
+A level is **held** when the pings' p99 and the page loads' p99 are both under 100 ms, nobody is refused or reset, and the
+tool kept up. The latency is the round trip of a ping through the portal's event loop.
+
+| Players | Ping p50 / p99 | Page load p99 | Server loop p99 | Server CPU (one core = 100%) | RSS | Down / up per player | Held |
+|---|---|---|---|---|---|---|---|
+| 100 | 0.2 / 4.8 ms | 24 ms | 4.2 ms | 18% | 229 MB | 30.3 / 2.4 KB/s | yes |
+| 300 | 0.8 / 12.5 ms | 21 ms | 9.4 ms | 35% | 329 MB | 31.1 / 2.4 KB/s | yes |
+| **600** | 1.0 / 22.5 ms | 56 ms | 20 ms | 62% | 352 MB | 31.2 / 2.4 KB/s | **yes** |
+| 800 | 12.6 / 28.3 ms | **125 ms** | 28 ms | 81% | 376 MB | 31.5 / 2.4 KB/s | no (page loads) |
+| 1,000 | 13.9 / 46.3 ms | **157 ms** | 48 ms | 100% | 396 MB | 31.1 / 2.4 KB/s | no (page loads) |
+
+(`node tools/crowd.mjs --levels 100,300,600,800,1000 --hold 20 --editors 12`, 8 cores, Node 24.22, 20 s a level, 12 editor
+streams, nothing refused or reset at any level.)
+
+**One process holds 600 players with p99 under 100 ms**, about 800 before pages slow down, and the game traffic itself stays
+good beyond that (pings p99 46 ms at 1,000): the limit is the one thread doing everything. At 1,000 the process uses a whole
+core. Memory is small: about 0.4 GB for 1,000 (roughly 160 KB a player over the idle process). Bandwidth is about 31 KB/s
+down and 2.4 KB/s up for each player in a room of 16, so 600 players are about 19 MB/s out of the server: **the network
+line, not the CPU, may be the first limit on the box** (check it before promising 600 live).
+
+**Read it as a baseline, not a promise.** The load generator and the portal share one machine here, a stand-in Gen answers
+instantly, the players do not run engines, and rooms are 16 (a fuller room costs more per player: every bundle carries
+more avatars). Before this, `PORTAL_WS_MAX` stood at 3,000 sockets, five times what one process keeps responsive: lower it
+(or add a second process) if live traffic ever gets near 600 at once. The slowest thing under load is plain page serving
+(`/play/runtime.js` and the like), not the realtime path: first to look at if capacity matters.
+
+**Beta** runs on the studio's control server next to Gen and Studio, so the tool refuses more than 200 players against any
+address but this machine's:
+`node tools/crowd.mjs --url https://hawkesgenwebsite.hawkesgen.com --cookie '<studio session cookie>' --levels 50,100,200`
+(everyone then arrives from one address, so the per-address caps (12 sockets, 30 new a minute) refuse most of them and are
+reported as refused; `PORTAL_WS_PER_IP` and `PORTAL_WS_PER_MIN` would have to be raised on a test portal to measure more).
+
+**While it runs**, `GET /v1/health/details` (an admin signed in, or a request from the box itself; `?reset=1` starts a new
+event-loop window) shows what the server felt: event-loop delay p50/p99/max, heap and RSS, CPU, open HTTP sockets, game
+sockets and rooms, editor streams, requests a second, Gen call latency and errors, the oldest unsettled job and the last backup.
+`/v1/health` stays the plain, fast 200 Studio asks.
+
 ## What's left
 
 - **KTX2/Basis** (GPU-compressed textures: 4-8x less GPU memory than WebP's RGBA) isn't made yet. It needs an encoder on
