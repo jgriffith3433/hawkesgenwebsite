@@ -8,7 +8,7 @@ load times, phone support, frames per second, RAM.
 
 1. `/play/modules.js` runs: Babylon, the glTF loaders, Havok and **Havok's wasm** start downloading at once (preload
    links), while the page fetches the game. Engine scripts are cached for good (`immutable`, their address has the
-   engine's content hash); Babylon and Havok come pinned from jsDelivr (immutable too).
+   engine's content hash); Babylon, the loaders and Havok come pinned from our own `/vendor/` (below; immutable too).
 2. The loader reads the game (`HawkesModules.needs(bundle)`): **lazy modules** (vehicles, homes, events, share) load only
    when the world uses them; the others come once the world has drawn ~30 frames, when the page is idle.
 3. The bundle carries every image's and model's **levels of detail** inline (`assets[name].lods`, `src/lods.ts`), so no
@@ -26,6 +26,34 @@ load times, phone support, frames per second, RAM.
    whose textures fit the device (`H.budget.maxTexture`: a phone takes the mid, 1024 px).
 6. **Draw distance** (small things far away aren't drawn, nothing past the fog), **shadows** only near, and phones draw a
    3x screen at 2x.
+
+## Pinned libraries on our own address (2026-10-25)
+
+Babylon, its loaders, Havok (and its wasm), the monitor's Inspector, CodeMirror, marked and model-viewer used to load
+from jsDelivr, cdnjs and unpkg with no integrity hashes: a compromised CDN would have run code on hawkesgen.com or in
+every game. They now live in `public/vendor/<name>@<version>/` with their licenses, each with a `.br` and a `.gz` beside
+it. `src/vendor.ts` serves the best one the browser accepts (`Content-Encoding`, `Vary: Accept-Encoding`), `immutable`
+for a year (the version is in the path), open CORS (the play page has no origin), Havok's wasm as `application/wasm`.
+`tools/vendor.mjs` fetches a version, refuses a file whose sha256 is not the one recorded in `tools/vendor.json` and
+writes the compressed copies; `node tools/vendor.mjs add babylonjs 7.55.0` records a new version; `check` is offline.
+The play page's CSP names no CDN any more (`PLAY_HOSTS`). Test `test/vendor.test.ts`.
+
+**First visit, bytes on the wire with brotli (a new game player's engine download, measured 2026-10-25):**
+
+| File | Before (jsDelivr) | After (ours) |
+|---|---|---|
+| babylon.js (6.8 MB) | 1,299,739 | 1,003,659 |
+| babylonjs.loaders.min.js (288 KB) | 63,107 | 53,061 |
+| HavokPhysics_umd.js | 15,062 | 12,640 |
+| HavokPhysics.wasm (2.1 MB) | 642,515 | 500,038 |
+| **Play page total** | **2,020,423** | **1,569,398** (-22%) |
+
+The CDN's brotli is a fast setting; ours is made once at the highest (quality 11, 16 MB window). Besides the play page:
+model-viewer (Creator Studio) 935,194 (unpkg sent it uncompressed) -> 205,284; the editor's CodeMirror core 50,319 and
+marked 13,901 are the same size as before, now from our address (the editor adds three small modes: 17.6 KB total). The
+Inspector (Ctrl+Shift+M > Inspector, ours only) 195,202 either way, fetched only when asked. A repeat visit loads none of
+it: the files are immutable. One request origin fewer on a cold start (no DNS, TLS or connection to a CDN). Not
+changed: model-viewer fetches its own Draco/KTX2 decoders from gstatic.com when a model needs them.
 
 ## Budgets per device (`scale.js`, `H.budgetsFor`)
 

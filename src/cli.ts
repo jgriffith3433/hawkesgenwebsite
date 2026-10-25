@@ -35,7 +35,7 @@ if (cmd === 'backup') {
 } else if (cmd === 'admin' && email) {
   const { publicUrl } = await import('./config.ts');
   const { ensureAdmin, passwordLink } = await import('./users.ts');
-  const u = ensureAdmin(email, rest.join(' '));
+  const u = await ensureAdmin(email, rest.join(' '));
   console.log(`${u.email} is an admin (${u.id}).`);
   console.log(`Set the password (one use, 24 hours): ${passwordLink(u.id, publicUrl())}`);
 } else if (cmd === 'password-link' && email) {

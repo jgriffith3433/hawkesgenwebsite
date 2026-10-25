@@ -19,7 +19,7 @@ import { broadcast, kick } from './live.ts';
 import { addFriend } from './friends.ts';
 import { applyOps, parseScene, sceneText } from './scene.ts';
 import { wordsOf } from './words.ts';
-import { levelUrls, lodsOf, rememberLods } from './lods.ts';
+import { cdnOf, levelUrls, lodsOf, rememberAsset } from './lods.ts';
 import { closePlayRooms, editToken, kickFromRooms, liveCounts } from './rooms.ts';
 
 db.exec(`
@@ -37,6 +37,13 @@ CREATE TABLE IF NOT EXISTS games (
   updated INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS games_owner ON games (owner_id);
+-- A play is counted once per player per game per hour: who is an account id, else a keyed hash of the address.
+CREATE TABLE IF NOT EXISTS play_seen (
+  game_id TEXT NOT NULL,
+  who TEXT NOT NULL,
+  at INTEGER NOT NULL,
+  PRIMARY KEY (game_id, who)
+) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS game_members (
   game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -433,7 +440,7 @@ export async function addAsset(user: User, gameId: string, body: { asset?: unkno
   db.prepare('INSERT INTO game_assets (game_id, name, asset, project, kind, mime, added_by, created, words, title) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(gameId, row.name, row.asset, row.project, row.kind, row.mime, row.added_by, row.created, JSON.stringify(words), title);
   touch(gameId);
   // Its levels of detail, as Gen answered (Gen makes them itself: lods.ts), for the bundle.
-  rememberLods(assetId, a.lods ?? null);
+  rememberAsset(a);
   broadcast(gameId, 'asset', { ...row, by: nameOf(user.id) });
   return row;
 }
@@ -482,12 +489,16 @@ const liveAssetUrl = (g: Game, name: string) => `/play-asset/${g.slug}/live/${en
  *  tris and tex, levels: [{ level, url, bytes, w, h | tris, tex }] }, each at the asset's own link with
  *  ?lod=<level>&v=<its hash> (a link that always means the same file: cached for good). public/play/textures.js picks
  *  an image's first level from the device's budget; kinds.js loads a model's low level far away and its best near. */
-function assetMap(rows: AssetRow[], url: (a: AssetRow) => string) {
+function assetMap(rows: AssetRow[], url: (a: AssetRow) => string, o: { pub: boolean }) {
   const lods = lodsOf(rows.filter((a) => typeOf(a.mime) === 'image' || typeOf(a.mime) === 'model').map((a) => a.asset));
+  // A public bundle (live, a save, a template) points at Gen's CDN for every file Gen has backed up (`cdn`, kept with the
+  // levels: lods.ts), levels included; whatever isn't backed up yet stays on the portal's own link (`url`). A draft's links
+  // are signed and short-lived (drafts aren't public), so a draft never gets a CDN link.
+  const cdn = o.pub ? cdnOf(rows.map((a) => a.asset)) : {};
   return Object.fromEntries(rows.map((a) => {
     const u = url(a);
     const l = lods[a.asset];
-    return [a.name, { url: u, mime: a.mime, kind: a.kind, id: a.asset, type: typeOf(a.mime), title: a.title ?? null, words: wordList(a), ...(l ? { lods: levelUrls(l, u) } : {}) }];
+    return [a.name, { url: cdn[a.asset] ?? u, mime: a.mime, kind: a.kind, id: a.asset, type: typeOf(a.mime), title: a.title ?? null, words: wordList(a), ...(l ? { lods: levelUrls(l, u, { cdn: o.pub }) } : {}) }];
   }));
 }
 
@@ -507,14 +518,14 @@ export function templateAssetRows(t: Template): AssetRow[] {
  *  their levels of detail. */
 export function templateAssets(id: string | null | undefined) {
   const t = TEMPLATES.find((x) => x.id === id);
-  return t ? assetMap(templateAssetRows(t), (a) => `/v1/community/${a.asset}/file`) : {};
+  return t ? assetMap(templateAssetRows(t), (a) => `/v1/community/${a.asset}/file`, { pub: true }) : {};
 }
 
 /** The draft as the runtime takes it: every file, every asset with a link. Members only. */
 export function draftBundle(user: User, gameId: string) {
   const { game } = memberGame(user, gameId, 'player');
   const files = Object.fromEntries((db.prepare('SELECT path, content FROM game_files WHERE game_id = ?').all(game.id) as { path: string; content: string }[]).map((f) => [f.path, f.content]));
-  return { id: game.id, title: game.title, version: null, files, assets: assetMap(listAssets(game.id), (a) => draftAssetUrl(game.id, a)), net: { token: editToken(sign, game.id, user) }, me: { id: user.id, name: user.name } };
+  return { id: game.id, title: game.title, version: null, files, assets: assetMap(listAssets(game.id), (a) => draftAssetUrl(game.id, a), { pub: false }), net: { token: editToken(sign, game.id, user) }, me: { id: user.id, name: user.name } };
 }
 
 // ------------------------------------------------------------------ the world (scene.json), changed by ops
@@ -656,22 +667,33 @@ export function reportedGames() {
   };
 }
 
+const PLAY_WINDOW_MS = 3600_000;
+/** Counts a play of a game, once per player per hour (reloading is the same play). `player` is the account id, or for a guest
+ *  a hash of their address. Returns whether it counted. */
+export function countPlay(gameId: string, player: string, now = Date.now()) {
+  const took = db.prepare('INSERT INTO play_seen (game_id, who, at) VALUES (?, ?, ?) ON CONFLICT (game_id, who) DO UPDATE SET at = excluded.at WHERE play_seen.at <= ?')
+    .run(gameId, player, now, now - PLAY_WINDOW_MS).changes > 0;
+  if (took) db.prepare('UPDATE games SET plays = plays + 1 WHERE id = ?').run(gameId);
+  if (Math.random() < 0.01) db.prepare('DELETE FROM play_seen WHERE at < ?').run(now - PLAY_WINDOW_MS);
+  return took;
+}
+
 /** What a player loads: the game as it is right now (every game is live), or a save when asked. Anyone with the link. */
-export function playBundle(slug: string, version?: number | null, count = true) {
+export function playBundle(slug: string, version?: number | null, player: string | null = null) {
   const g = gameBySlug(slug);
   if (!g) throw new PortalError('No such game', { status: 404 });
   if (g.hidden) throw new PortalError(CLOSED, { status: 410 });
   const owner = getUser(g.owner_id);
-  if (count) db.prepare('UPDATE games SET plays = plays + 1 WHERE id = ?').run(g.id);
+  if (player) countPlay(g.id, player);
   if (!version) {
     const files = Object.fromEntries((db.prepare('SELECT path, content FROM game_files WHERE game_id = ?').all(g.id) as { path: string; content: string }[]).map((f) => [f.path, f.content]));
-    return { id: g.id, slug: g.slug, title: g.title, description: g.description, by: owner?.name ?? null, version: null, live: true, visitors: g.visitors ?? 'play', updated: g.updated, files, assets: assetMap(listAssets(g.id), (a) => liveAssetUrl(g, a.name)) };
+    return { id: g.id, slug: g.slug, title: g.title, description: g.description, by: owner?.name ?? null, version: null, live: true, visitors: g.visitors ?? 'play', updated: g.updated, files, assets: assetMap(listAssets(g.id), (a) => liveAssetUrl(g, a.name), { pub: true }) };
   }
   const v = version;
   const r = db.prepare('SELECT * FROM game_releases WHERE game_id = ? AND version = ?').get(g.id, v) as { version: number; files: string; assets: string; created: number } | undefined;
   if (!r) throw new PortalError('No such save', { status: 404 });
   const assets = JSON.parse(r.assets) as AssetRow[];
-  return { id: g.id, slug: g.slug, title: g.title, description: g.description, by: owner?.name ?? null, version: r.version, published: r.created, files: JSON.parse(r.files), assets: assetMap(assets, (a) => releaseAssetUrl(g, r.version, a.name)) };
+  return { id: g.id, slug: g.slug, title: g.title, description: g.description, by: owner?.name ?? null, version: r.version, published: r.created, files: JSON.parse(r.files), assets: assetMap(assets, (a) => releaseAssetUrl(g, r.version, a.name), { pub: true }) };
 }
 
 /** Which Gen file an asset link means: a release's (public with the game) or a signed draft link. */
@@ -699,8 +721,8 @@ export function gallery(sort: 'live' | 'popular' | 'new' = 'live', limit = 60) {
   const overseer = featured().map((t: any) => ({ ...t, ...liveCounts(`t:${t.id}`) }));
   const rows = db.prepare(`SELECT g.*, u.name AS owner_name FROM games g JOIN users u ON u.id = g.owner_id WHERE g.visibility = 'public' AND g.hidden = 0 ORDER BY ${sort === 'new' ? 'g.updated' : 'g.plays'} DESC LIMIT 500`).all() as (Game & { owner_name: string })[];
   const list = rows.map((g) => {
-    const hasCover = g.cover && db.prepare('SELECT 1 FROM game_assets WHERE game_id = ? AND name = ?').get(g.id, g.cover);
-    return { slug: g.slug, title: g.title, description: g.description, by: g.owner_name, plays: g.plays, updated: g.updated, url: `/play/${g.slug}`, visitors: g.visitors ?? 'play', cover: hasCover ? liveAssetUrl(g, g.cover!) : null, ...liveCounts(g.id) };
+    const hasCover = g.cover && (db.prepare('SELECT asset FROM game_assets WHERE game_id = ? AND name = ?').get(g.id, g.cover) as { asset: string } | undefined);
+    return { slug: g.slug, title: g.title, description: g.description, by: g.owner_name, plays: g.plays, updated: g.updated, url: `/play/${g.slug}`, visitors: g.visitors ?? 'play', cover: hasCover ? cdnOf([hasCover.asset])[hasCover.asset] ?? liveAssetUrl(g, g.cover!) : null, ...liveCounts(g.id) };
   });
   if (sort === 'live') list.sort((a, b) => b.playing + b.building - (a.playing + a.building) || b.plays - a.plays);
   return { featured: overseer, games: list.slice(0, Math.max(1, Math.min(200, limit))) };

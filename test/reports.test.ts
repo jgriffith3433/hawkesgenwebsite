@@ -36,7 +36,7 @@ async function setup() {
   const owner = await account('Maker');
   const g = (await call('/v1/games', { cookie: owner, body: { title: 'Odd world', template: 'blank' } })).body;
   const { ensureAdmin, passwordLink } = await import('../src/users.ts');
-  const a = ensureAdmin('boss@hawkesgen.com', 'Boss');
+  const a = await ensureAdmin('boss@hawkesgen.com', 'Boss');
   const token = new URL(passwordLink(a.id, 'https://hawkesgen.test')).searchParams.get('token');
   const boss = (await call('/v1/users/password', { body: { token, password: 'a-real-password' } })).cookie!;
   return { owner, g, boss };

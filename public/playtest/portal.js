@@ -23,6 +23,7 @@ import { installPlaytest } from './hawkes-playtest.js';
 import { SITE_LAYOUT, runSiteLayout } from './site-layout.js';
 import { AVATAR_ANIMATIONS, runAvatarAnimations } from './avatar-animations.js';
 import { WORLD_REPORT, runWorldReport } from './world-report.js';
+import { SERVER_LIMITS, runServerLimits } from './server-limits.js';
 
 const KEY = 'hg_playtest_run';
 const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'progress', 'models', 'wish', 'toeditor', 'editor'];
@@ -32,6 +33,7 @@ const SCENARIOS = [
   SITE_LAYOUT, // the landing page at three sizes (site-layout.js)
   AVATAR_ANIMATIONS, // clips as data on /avatars (avatar-animations.js)
   WORLD_REPORT, // report a world from its pause menu; a closed world loads nothing (world-report.js)
+  SERVER_LIMITS, // sign-ins off the event loop, one play per reloads, the connection cap (server-limits.js)
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
   {
     id: 'sandbox-first-minutes', title: 'Play /play/sandbox as a new player: veil, intro, mirror, sign-up, drive to the dock, fish', seconds: 210, tags: ['full'],
@@ -315,6 +317,27 @@ async function stageVeil(t, ctx) {
   await t.until(() => !$('.hp-enter'), 8000, 'the veil to fade after Enter (the sound did not unlock?)');
 }
 
+/** What the page fetched so far: Babylon, the loaders and Havok's wasm come from our own /vendor, nothing from a CDN. */
+function checkSelfHosted(t) {
+  const urls = performance.getEntriesByType('resource');
+  const cdn = urls.filter((e) => /^https?:\/\/(cdn\.jsdelivr\.net|cdnjs\.cloudflare\.com|unpkg\.com)\//.test(e.name));
+  if (cdn.length) t.problem('error', `loaded from a CDN: ${cdn.map((e) => e.name).join(', ')}`);
+  else t.event('no-cdn-loads', `${urls.length} requests, none to jsdelivr, cdnjs or unpkg`);
+  const own = urls.filter((e) => e.name.includes('/vendor/'));
+  const bytes = own.reduce((n, e) => n + (e.transferSize || 0), 0);
+  const need = ['babylon.js', 'babylonjs.loaders.min.js', 'HavokPhysics_umd.js', 'HavokPhysics.wasm'];
+  const missing = need.filter((n) => !own.some((e) => e.name.includes(`/${n}`)));
+  if (missing.length) t.problem('error', `not fetched from /vendor: ${missing.join(', ')}`);
+  else t.event('engine-self-hosted', `${own.length} files from /vendor, ${Math.round(bytes / 1024)} KB over the wire (${own.filter((e) => e.transferSize === 0).length} from cache)`);
+  t.metric('vendorKB', Math.round(bytes / 1024));
+  // Models, textures and sounds: from Gen's CDN when it has them backed up, else through this site (/play-asset, /v1/community).
+  const fromCdn = urls.filter((e) => /^https:\/\/cdn\.hawkesgen\.com\/sha256\//.test(e.name));
+  const viaSite = urls.filter((e) => /\/(play-asset\/|v1\/community\/a_)/.test(e.name));
+  t.event('asset-sources', `${fromCdn.length} files from cdn.hawkesgen.com, ${viaSite.length} through the site (not backed up yet, or Gen's CDN is off)`);
+  t.metric('assetsFromCdn', fromCdn.length);
+  t.metric('assetsViaSite', viaSite.length);
+}
+
 async function stageIntro(t, ctx) {
   const g = () => G() && G().overseer;
   const started = await t.until(() => g() && g().introPlaying, 25000, 'the Overseer\'s intro to start').then(() => true, () => false);
@@ -324,6 +347,7 @@ async function stageIntro(t, ctx) {
   }
   t.scene('Intro');
   t.event('intro-start');
+  checkSelfHosted(t);
   t.progress(0.2);
   const watch = Number(ctx.options.watch ?? 8);
   await t.until(() => !g().introPlaying, watch * 1000, 'the intro to run').then(() => t.event('intro-ended', 'watched to the end'), async () => {
@@ -2465,6 +2489,7 @@ export function install() {
       if (id === SITE_LAYOUT.id) return runSiteLayout(t, options);
       if (id === AVATAR_ANIMATIONS.id) return runAvatarAnimations(t, options);
       if (id === WORLD_REPORT.id) return runWorldReport(t, options);
+      if (id === SERVER_LIMITS.id) return runServerLimits(t, options);
       if (id === 'observatory-wardrobe' && options.touch) options = { at: 'sandbox', ...options }; // (touch: straight to the island with the phone controls)
       if ((id === 'vehicle-feel' || id === 'rocket-blast-feel') && options.touch) options = { at: 'sandbox', ...options };
       if (id === 'touch-controls') options = { at: 'sandbox', touch: true, ...options }; // (the phone controls, straight to the island)

@@ -1,10 +1,11 @@
 // Customer accounts: scrypt passwords, session cookies, personal API keys (hg_...), and who a request is.
 // Each customer works in their own Gen project (usr_<id>); the portal's Gen key is narrowed to it on every call.
 import crypto from 'node:crypto';
+import { promisify } from 'node:util';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { db, tx } from './db.ts';
 import { env, PROJECT_PREFIX, publicUrl } from './config.ts';
-import { id, sha256, PortalError } from './util.ts';
+import { id, sha256, PortalError, Limiter } from './util.ts';
 import { sendWelcome } from './mail.ts';
 
 export type User = {
@@ -32,17 +33,21 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const toPublicUser = (u: User) => ({ id: u.id, email: u.email, name: u.name, project: u.project, credits: u.credits, role: u.role, created: u.created, last_login: u.last_login, plan: ['active', 'trialing', 'past_due'].includes(String(u.sub_status)) ? u.plan : 'free' });
 
-export function hashPassword(password: string) {
+// scrypt runs on libuv's thread pool, so a burst of sign-ins never holds the event loop (the stored format is unchanged).
+const scrypt = promisify(crypto.scrypt) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
+
+export async function hashPassword(password: string) {
   const salt = crypto.randomBytes(16);
-  return `scrypt:${salt.toString('hex')}:${crypto.scryptSync(password, salt, 64).toString('hex')}`;
+  return `scrypt:${salt.toString('hex')}:${(await scrypt(password, salt, 64)).toString('hex')}`;
 }
 
-export function verifyPassword(password: string, stored: string) {
+export async function verifyPassword(password: string, stored: string) {
   const [kind, salt, hash] = String(stored ?? '').split(':');
   if (kind !== 'scrypt' || !salt || !hash) return false;
   const expected = Buffer.from(hash, 'hex');
-  const actual = crypto.scryptSync(password, Buffer.from(salt, 'hex'), expected.length);
-  return expected.length === 64 && crypto.timingSafeEqual(actual, expected);
+  if (expected.length !== 64) return false;
+  const actual = await scrypt(password, Buffer.from(salt, 'hex'), expected.length);
+  return crypto.timingSafeEqual(actual, expected);
 }
 
 export function starterCredits() {
@@ -54,24 +59,23 @@ export const getUser = (userId: string) => (db.prepare('SELECT * FROM users WHER
 export const getUserByEmail = (email: string) => (db.prepare('SELECT * FROM users WHERE email = ?').get(String(email ?? '').trim().toLowerCase()) as User | undefined) ?? null;
 
 // Sign-ups per address: a few an hour, so free starter credits can't be farmed from one machine.
-const signupsByIp = new Map<string, number[]>();
+const signupsByIp = new Limiter(5, 3600_000);
 /** Studio's playtest sign-ups (`playtest-…@example.com`, a reserved domain nobody receives mail at) are not counted on a beta
  *  portal (any project prefix but live's `usr_`), where one runner address makes many throwaway accounts. Live keeps the limit. */
 export const signupExempt = (email: string, prefix = PROJECT_PREFIX) => prefix !== 'usr_' && /^playtest-[a-z0-9._+-]*@example\.com$/.test(email);
 
 function limitSignups(ip: string) {
-  const now = Date.now();
-  const recent = (signupsByIp.get(ip) ?? []).filter((t) => now - t < 3600_000);
   const max = Number(env('SIGNUPS_PER_HOUR') ?? 5);
-  if (recent.length >= max) throw new PortalError('Too many sign-ups from this address; try again in an hour', { status: 429, code: 'signup_limit' });
-  recent.push(now);
-  signupsByIp.set(ip, recent);
+  // (SIGNUPS_PER_HOUR is read at each sign-up, as before: a count of what this address did in the hour.)
+  const recent = signupsByIp.count(ip);
+  if (recent >= max) throw new PortalError('Too many sign-ups from this address; try again in an hour', { status: 429, code: 'signup_limit' });
+  signupsByIp.hit(ip);
 }
 
-export function signup(input: { email?: unknown; password?: unknown; name?: unknown }, ip = '', origin: Origin = {}) {
+export async function signup(input: { email?: unknown; password?: unknown; name?: unknown }, ip = '', origin: Origin = {}) {
   const password = typeof input.password === 'string' ? input.password : '';
   if (password.length < 8) throw new PortalError('Password must be at least 8 characters', { code: 'short_password' });
-  const user = createAccount({ email: input.email, name: input.name, password }, ip, origin);
+  const user = await createAccount({ email: input.email, name: input.name, password }, ip, origin);
   const key = mintApiKey(user.id);
   return { user: toPublicUser(user), apiKey: key.apiKey, sessionToken: createSession(user.id) };
 }
@@ -114,12 +118,15 @@ export function referral(user: User) {
 
 /** A new customer account with the starter credits (and a friend's bonus with a referral code). Without a password
  *  (Google sign-in) it gets a random one. */
-export function createAccount(input: { email?: unknown; name?: unknown; password?: string }, ip = '', origin: Origin = {}) {
+export async function createAccount(input: { email?: unknown; name?: unknown; password?: string }, ip = '', origin: Origin = {}) {
   const email = String(input.email ?? '').trim().toLowerCase();
   if (!EMAIL_RE.test(email) || email.length > 200) throw new PortalError('Enter a valid email address', { code: 'bad_email' });
   const name = typeof input.name === 'string' && input.name.trim() ? input.name.trim().slice(0, 120) : email.split('@')[0];
   if (getUserByEmail(email)) throw new PortalError('An account with that email already exists', { status: 409, code: 'email_exists' });
   if (ip && !signupExempt(email)) limitSignups(ip);
+  const passwordHash = await hashPassword(input.password ?? crypto.randomBytes(24).toString('base64url'));
+  // (The email was free before the hash; another sign-up may have taken it while the hash ran.)
+  if (getUserByEmail(email)) throw new PortalError('An account with that email already exists', { status: 409, code: 'email_exists' });
 
   const userId = id(PROJECT_PREFIX, 8);
   const starter = starterCredits();
@@ -128,7 +135,7 @@ export function createAccount(input: { email?: unknown; name?: unknown; password
   const now = Date.now();
   tx(() => {
     db.prepare('INSERT INTO users (id, email, name, password_hash, project, credits, created, last_login, referred_by, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(userId, email, name, hashPassword(input.password ?? crypto.randomBytes(24).toString('base64url')), userId, starter + bonus, now, now, referrer?.id ?? null, origin.source ?? (referrer ? 'referral' : null));
+      .run(userId, email, name, passwordHash, userId, starter + bonus, now, now, referrer?.id ?? null, origin.source ?? (referrer ? 'referral' : null));
     if (starter > 0) {
       db.prepare("INSERT INTO credit_ledger (id, user_id, delta, balance_after, kind, detail, created) VALUES (?, ?, ?, ?, 'signup_bonus', ?, ?)")
         .run(id('tx_', 6), userId, starter, starter, `Welcome bonus (${starter} credits)`, now);
@@ -142,12 +149,12 @@ export function createAccount(input: { email?: unknown; name?: unknown; password
   return getUser(userId)!;
 }
 
-export function login(input: { email?: unknown; password?: unknown }) {
+export async function login(input: { email?: unknown; password?: unknown }) {
   const email = String(input.email ?? '').trim().toLowerCase();
   const password = typeof input.password === 'string' ? input.password : '';
   if (!email || !password) throw new PortalError('Email and password are required');
   const user = getUserByEmail(email);
-  if (!user || !verifyPassword(password, user.password_hash)) throw new PortalError('Invalid email or password', { status: 401 });
+  if (!user || !(await verifyPassword(password, user.password_hash))) throw new PortalError('Invalid email or password', { status: 401 });
   if (user.disabled) throw new PortalError('This account is disabled. Contact support@hawkesgen.com.', { status: 403 });
   db.prepare('UPDATE users SET last_login = ? WHERE id = ?').run(Date.now(), user.id);
   return { user: toPublicUser(getUser(user.id)!), sessionToken: createSession(user.id) };
@@ -249,33 +256,30 @@ export function passwordLink(userId: string, site: string) {
 }
 
 // "Forgot your password?": a few an hour per address and per email, so it can't be used to flood an inbox.
-const forgotByKey = new Map<string, number[]>();
-function limitForgot(key: string, max: number) {
-  const now = Date.now();
-  const recent = (forgotByKey.get(key) ?? []).filter((t) => now - t < 3600_000);
-  if (recent.length >= max) throw new PortalError('Too many reset emails; try again in an hour', { status: 429 });
-  recent.push(now);
-  forgotByKey.set(key, recent);
-}
+const forgotByIp = new Limiter(5, 3600_000);
+const forgotByEmail = new Limiter(3, 3600_000);
 /** A reset link for whoever has this email (a day, one use), or null when nobody does (or the account is disabled).
  *  The caller answers the same either way. */
 export function forgotPassword(emailIn: unknown, ip: string, site: string) {
   const email = String(emailIn ?? '').trim().toLowerCase();
   if (!EMAIL_RE.test(email) || email.length > 200) throw new PortalError('Enter a valid email address', { code: 'bad_email' });
-  limitForgot(`ip:${ip}`, 5);
-  limitForgot(`email:${email}`, 3);
+  forgotByIp.take(ip, 'Too many reset emails; try again in an hour');
+  forgotByEmail.take(email, 'Too many reset emails; try again in an hour');
   const u = active(getUserByEmail(email));
   return u ? { user: u, url: passwordLink(u.id, site) } : null;
 }
 
 /** Sets the password a link was made for; the link is spent, and every other session ends. */
-export function setPasswordWithToken(token: string, password: string) {
+export async function setPasswordWithToken(token: string, password: string) {
   if (typeof password !== 'string' || password.length < 8) throw new PortalError('Password must be at least 8 characters', { code: 'short_password' });
   const row = db.prepare('SELECT user_id, expires, used FROM password_tokens WHERE token_hash = ?').get(sha256(String(token ?? ''))) as { user_id: string; expires: number; used: number | null } | undefined;
   if (!row || row.used || row.expires < Date.now()) throw new PortalError('This link has expired or was already used. Ask for a new one.', { status: 410 });
+  const passwordHash = await hashPassword(password);
+  // (The link was good before the hash; if another request spent it meanwhile, this one is refused.)
   tx(() => {
+    if ((db.prepare('SELECT used FROM password_tokens WHERE token_hash = ?').get(sha256(token)) as { used: number | null }).used) throw new PortalError('This link has expired or was already used. Ask for a new one.', { status: 410 });
     db.prepare('UPDATE password_tokens SET used = ? WHERE token_hash = ?').run(Date.now(), sha256(token));
-    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(password), row.user_id);
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, row.user_id);
     db.prepare('DELETE FROM sessions WHERE user_id = ?').run(row.user_id);
   });
   const user = getUser(row.user_id)!;
@@ -283,7 +287,7 @@ export function setPasswordWithToken(token: string, password: string) {
 }
 
 /** An account made by an admin (no starter credits; a password link to finish it), or an existing one promoted. */
-export function ensureAdmin(email: string, name?: string) {
+export async function ensureAdmin(email: string, name?: string) {
   const norm = String(email ?? '').trim().toLowerCase();
   if (!EMAIL_RE.test(norm)) throw new PortalError('Enter a valid email address', { code: 'bad_email' });
   const found = getUserByEmail(norm);
@@ -292,7 +296,8 @@ export function ensureAdmin(email: string, name?: string) {
     return getUser(found.id)!;
   }
   const userId = id(PROJECT_PREFIX, 8);
+  const passwordHash = await hashPassword(crypto.randomBytes(24).toString('base64url'));
   db.prepare("INSERT INTO users (id, email, name, password_hash, project, credits, created, role) VALUES (?, ?, ?, ?, ?, 0, ?, 'admin')")
-    .run(userId, norm, name?.trim() || norm.split('@')[0], hashPassword(crypto.randomBytes(24).toString('base64url')), userId, Date.now());
+    .run(userId, norm, name?.trim() || norm.split('@')[0], passwordHash, userId, Date.now());
   return getUser(userId)!;
 }
