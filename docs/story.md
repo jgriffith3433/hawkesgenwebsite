@@ -476,6 +476,24 @@ do with credits: credits stay the paid currency and **nothing here is for sale**
 - **Names for the points, for J to choose:** *Glints* (specks of the Overseer's light), *Wishes* (it grants you free will; you
   collect small ones), *Motes* (dust in a beam). Until chosen: *sparks*, one line in `progress-core.js` (`POINTS`).
 
+### The daily wish (built: `modules/wish`)
+
+Each day (UTC) the Overseer makes one small wish of the player, and says it once when they arrive: *"Three different fish, if
+you can. The sea likes variety."* It is a note under the level pill (*The Overseer's wish for today*, the wish, how far along,
+how many days in a row). It is not a quest and it is not owed: no timer, nothing waits on it, ignoring it costs nothing.
+
+- **The same for everyone.** There are forty wishes in a table (`wish-core.js`), in its voice, short, calm, no exclamation
+  marks: fish (three different ones), a course in under so many seconds, barrels blown up without leaving the 4x4, a friend
+  brought to Pip's hut, a minute standing still in a quiet place, the planet photographed whole, or at dawn, and the small
+  everyday ones (meet a neighbour, make something, swim a little). The date alone picks the day's: a wish does not come twice
+  in forty days. Where a world lacks what a wish needs, it gets the nearest plain one.
+- **What it gives.** The level's points and one short line, never a fanfare (*"That is the wish. Thank you."*). Some wishes
+  give a gift for the wardrobe (a bell, a flower, an antenna, a medal, headphones, three colors); nothing is sold.
+- **The streak** counts days in a row, with a small added point or two. A missed day just ends it: it is gone from the corner
+  and **nothing is said**: no warning the night before, no message after, no penalty. The next wish done begins it again at one.
+  The best is only kept in the record.
+- **Kept** in the Overseer's memory (`wish`): the account when signed in, the device and the kept island otherwise.
+
 ### Moments to keep (built: `modules/share/moments.js`, `src/shares.ts`)
 
 Some things are worth showing someone. After a **big explosion**, a **first catch**, a **long jump** and a **dock**, a small

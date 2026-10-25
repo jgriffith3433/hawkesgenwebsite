@@ -23,9 +23,9 @@ import { installPlaytest } from './hawkes-playtest.js';
 import { SITE_LAYOUT, runSiteLayout } from './site-layout.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'progress', 'models'];
+const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'progress', 'models', 'wish'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
+const ORDERS = { 'sandbox-daily-wish': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wish'], 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
 const SCENARIOS = [
   SITE_LAYOUT, // the landing page at three sizes (site-layout.js)
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
@@ -63,6 +63,11 @@ const SCENARIOS = [
     id: 'sandbox-progress', title: 'Progress: points in the HUD for driving, a level with the Overseer\'s moment, the unlocks in the wardrobe and on the tool belt, kept after a return', seconds: 300, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first-minutes path to the account sheet, then real input: walk to the 4x4, E, W held (points for the first drive and the meters in the HUD); the points of a few quests are earned by a named setup shortcut (the same table), a level-up gives goggles and a color (the wardrobe) and at level 4 the grenades (the tool belt), each with the Overseer\'s moment; the Overseer\'s memory re-read from the device (a named shortcut) shows them kept. options as sandbox-first-minutes',
+  },
+  {
+    id: 'sandbox-daily-wish', title: 'The daily wish: one wish a day in the HUD and spoken once, points and a line when done, a streak across days that resets quietly after a missed one', seconds: 240, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the account sheet, then the Overseer\'s wish for today (the same for everyone: chosen by the UTC date): it is in the HUD and was spoken once (wish-hud, wish-spoken); finishing it is a named setup shortcut (the events that wish names are fed to the game), then the points and the Overseer\'s short line (wish-done, overseer-said) and the streak at 1. Days passing is a named setup shortcut (the wish\'s clock moved one day, then three): the next day shows the streak at 2 once the wish is done; after the skipped days the streak is gone from the HUD with nothing said about it (streak-reset-quiet) and the next wish begins it again at 1. options as sandbox-first-minutes',
   },
   {
     id: 'island-journal', title: 'The journal: opened from its button (desktop, or the phone at 390x844), the eight quests, the neighbours met, four lore items found on the island and read in it, and kept after a return', seconds: 300, tags: ['full'],
@@ -1127,6 +1132,71 @@ async function stageProgress(t, ctx) {
   t.progress(1);
 }
 
+/** The daily wish (docs/story.md, "The daily wish"): today's wish in the HUD, spoken once; done (a named shortcut: its own events are fed); points and a line; the streak over days that pass (a named shortcut: the wish's clock) and its quiet reset. */
+async function stageWish(t, ctx) {
+  const WS = () => HP().wish;
+  const WC = () => HP().wishCore;
+  const hud = () => { const h = $('.wh-hud'); return h && !h.hidden ? h.textContent.replace(/\s+/g, ' ').trim() : ''; };
+  const said = [];
+  G().on('wish', (d) => {
+    if (d.state === 'offer') t.event('wish-spoken', d.text);
+    else if (d.state === 'line') { said.push(d.text); t.event('overseer-said', d.text); }
+    else if (d.state === 'progress') t.event('wish-progress', `${d.n} / ${d.of}`);
+    else if (d.state === 'done') t.event('wish-done', `${d.id}: +${d.pts} points, streak ${d.streak}${d.gift ? `, gift ${d.gift}` : ''}`);
+    else if (d.state === 'day') t.event('wish-new-day', d.id);
+  });
+  G().on('progress', (d) => { if (d.state === 'earn' && d.id === 'wish') t.event('points-earned', `+${d.pts} ${d.label}; ${d.total} total`); });
+  releaseAll();
+  await t.until(() => W() && W().player && W().player.alive && WS() && WS().state.loaded && WS().state.wish, 60000, 'the daily wish to load');
+  await t.until(() => hud(), 30000, 'the wish in the HUD');
+  const day0 = WC().dayKey(Date.now());
+  const own = WC().wishFor(day0);
+  t.event('wish-hud', `${WC().dayKey(WS().clock.now())}: ${hud()}`);
+  if (WS().state.wish !== own.id && WS().state.wish !== WC().INSTEAD[own.needs]) t.problem('error', `the HUD shows ${WS().state.wish}, not the wish of ${day0} (${own.id})`);
+  t.event('same-for-everyone', `${day0} -> ${own.id} (a pure function of the UTC date)`);
+  await t.until(() => WS().record().said === 1, 30000, 'the Overseer to speak the wish');
+  t.scene('Daily wish: in the HUD');
+  const finish = async (label) => {
+    const w = WC().byId(WS().state.wish);
+    t.event('setup-shortcut', `${label}: the events of "${w.hud}" fed to the game`);
+    for (const e of WC().eventsFor(w)) WS().feed(e);
+    await t.until(() => WS().state.done, 8000, 'the wish to be done');
+  };
+  const pts0 = HP().progress.state.pts;
+  await finish('wish done');
+  await t.until(() => WS().waiting === 0, 40000, 'the Overseer\'s line');
+  t.event('wish-points', `${HP().progress.state.pts - pts0} points; HUD: ${hud()}`);
+  if (!(HP().progress.state.pts > pts0)) t.problem('error', 'finishing the wish earned nothing');
+  t.scene('Daily wish: done');
+  if (WS().state.streak !== 1) t.problem('error', `the streak is ${WS().state.streak} after the first wish`);
+  const day = (n) => Date.now() + n * 86400000;
+  const pass = async (n, label) => {
+    t.event('setup-shortcut', `${label}: the wish's clock moved to ${WC().dayKey(day(n))}`);
+    WS().clock.now = () => day(n);
+    await t.until(() => WS().state.day === WC().dayKey(day(n)), 15000, 'the new day');
+    await t.until(() => hud(), 8000, 'the new wish in the HUD');
+  };
+  await pass(1, 'one day passes');
+  t.event('wish-hud', `${WS().state.day}: ${hud()}`);
+  if (WS().state.streak !== 1) t.problem('error', `yesterday's streak should still show, it shows ${WS().state.streak}`);
+  await finish('the second day\'s wish done');
+  await t.until(() => WS().state.streak === 2, 8000, 'the streak at 2');
+  t.event('streak-counted', `${WS().state.streak} days in a row; HUD: ${hud()}`);
+  t.scene('Daily wish: a streak of two');
+  await t.until(() => WS().waiting === 0, 40000, 'the Overseer\'s line');
+  said.length = 0;
+  await pass(4, 'three days pass with no wish done');
+  await t.wait(2500);
+  const bad = said.filter((x) => /streak|miss|lost|reset|broke|days/i.test(x));
+  t.event('streak-reset-quiet', `streak ${WS().state.streak}; HUD: ${hud()}; said since: ${said.length ? said.join(' | ') : 'nothing'}`);
+  if (WS().state.streak !== 0 || /in a row/.test(hud()) || bad.length) t.problem('error', `a missed day should reset the streak quietly (streak ${WS().state.streak}, said: ${bad.join(' | ')})`);
+  t.scene('Daily wish: after a missed day');
+  await finish('the new wish done');
+  await t.until(() => WS().state.streak === 1, 8000, 'the streak to begin again at 1');
+  t.event('streak-begins-again', `${WS().state.streak} day in a row (best ${WS().state.best})`);
+  t.progress(1);
+}
+
 const GAMES = [['fps-arena', 'Bot Arena'], ['sky-racer', 'Sky Racer'], ['platform-run', 'Leap']];
 /** The travel board (docs/story.md, "The travel board"). On the sandbox: dock (a named shortcut), the lift, the board's three
  *  planets and their live counts, then E under the next game. On the game's page (stageGame) and back again, three times. */
@@ -1814,7 +1884,7 @@ async function stageBlast(t, ctx) {
 const RUN = {
   models: stageModels,
   hats: stageHats,
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, wish: stageWish, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
 };
 // Island invitations (island-invite): after the sheet, the inviter's stage, then the friend's page on a closed island.
 STAGES.push('invite', 'gone', 'own');
@@ -1829,7 +1899,7 @@ RUN.moment = stageMoment;
 /** The stages a page that follows a leg change carries on with (the first-minutes ones are already done). */
 const legSeq = (id, prior) => (id === 'island-invite' && prior && (prior.leg === 'gone' || prior.leg === 'own') ? [prior.leg] : null);
 
-const ENDS = { 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-hats': 'hats' };
+const ENDS = { 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-hats': 'hats' };
 
 
 // ---------------------------------------------------------------------------------------------- share-moment

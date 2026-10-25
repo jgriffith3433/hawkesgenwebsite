@@ -224,6 +224,7 @@
       const pic = S.compose(raw, { frame: st.frame, caption: S.settings().caption });
       const blob = await S.toBlob(pic, 'image/png');
       if (!blob) { S.toast('Could not make the picture'); return; }
+      try { if (H.game) H.game.emit('photo', { space: H.sky ? H.sky.space : 0, hour: H.sky ? H.sky.hour : null }); } catch { /* a listener's trouble is its own */ }
       S.review({ kind: 'photo', blob, mime: 'image/png', width: pic.width, height: pic.height });
     } finally { st.shooting = false; }
   }
