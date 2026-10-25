@@ -640,23 +640,21 @@ void main(void) {
       get position() { return O ? O.cfg.position.slice() : null; },
       get radius() { return O ? O.r : 0; },
       /** Words from the Overseer, over the picture (seconds: how long). */
-      say: (text, seconds) => say(text, seconds),
+      say: (text, seconds, o) => say(text, seconds, o),
       /** Words and its voice: speak('Welcome aboard.', 'overseer-welcome-aboard.mp3'). Every line it has: VOICES. */
-      speak: (text, name, seconds) => speak(text, name, seconds),
+      speak: (text, name, seconds, o) => speak(text, name, seconds, o),
     };
   });
   /** The Overseer speaks: its words are a line in the game's chat (H.chat; the editor's chat in the editor), never a
-   *  caption over the picture (J, 2026-10-24: "All captions should be in the chat window, period"). `seconds` is kept for
-   *  the callers: it's how long the line stays before it fades. */
-  let lastSaid = '', lastAt = 0;
-  function say(text, seconds = 4) {
+   *  caption over the picture (J, 2026-10-24: "All captions should be in the chat window, period"). Every line goes
+   *  through the speech desk (speech.js): one at a time, the later waiting or, if important, cutting in gently.
+   *  `seconds` is the least time it holds the desk; o: { priority: 'low' | 'normal' | 'important', owner, voice }. */
+  function say(text, seconds = 4, o = {}) {
     const t = String(text || '').trim();
-    if (!t) return;
-    // (The same words twice in a moment are said once: a line and its voice both asking.)
-    const now = Date.now();
-    if (t === lastSaid && now - lastAt < 4000) return;
-    lastSaid = t; lastAt = now;
-    if (H.chat) H.chat.line({ kind: 'overseer', text: t, keep: Math.max(14, Number(seconds) || 0) });
+    if (!t) return null;
+    if (H.speech) return H.speech.say({ text: t, seconds, priority: o.priority, owner: o.owner, voice: o.voice, external: o.external, action: o.action, onEnd: o.onEnd });
+    if (H.chat) H.chat.line({ kind: 'overseer', text: t, keep: Math.max(14, Number(seconds) || 0), now: true });
+    return null;
   }
   H.sky.onEnter(() => {
     // Placed for this view every frame, before the sky's far layer draws.
@@ -710,7 +708,7 @@ void main(void) {
     try {
       const a = new Audio(url);
       a.crossOrigin = 'anonymous';
-      if (H.audio && H.audio.media) H.audio.media(a);
+      if (H.audio && H.audio.media) H.audio.media(a, { voice: true });
       return duckWhile(a);
     } catch { return null; }
   }
@@ -726,12 +724,10 @@ void main(void) {
     for (const ev of ['ended', 'pause', 'error', 'emptied']) a.addEventListener(ev, stop);
     return a;
   }
-  /** Says it: the words on screen and, when there's a voice for it, spoken. */
-  function speak(text, name, seconds) {
-    say(text, seconds);
-    const a = name ? voice(name) : null;
-    if (a) { const pr = a.play(); if (pr && pr.catch) pr.catch(() => {}); }
-    return a;
+  /** Says it: the words in the chat and, when there's a voice for it, spoken (both through the speech desk, which
+   *  lets nothing overlap and types the words out over the voice's length). */
+  function speak(text, name, seconds, o = {}) {
+    return say(text, seconds, { ...o, voice: name || undefined });
   }
 
   H.overseer = {

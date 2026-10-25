@@ -7,6 +7,10 @@
 //   H.chat.open()                   focus its input (Enter does it too while attached)
 //   H.chat.status(text | null)      a quiet line under the log ("The Overseer is thinking…")
 //
+// An Overseer line goes through the speech desk (speech.js: one at a time, in priority order, its voice with it) and comes
+// back here as { now: true, reveal: seconds }: its words type out over the time its voice (or the reading) takes. The ⟲
+// button replays the last line; ⚙ opens captions on/off and the voice and music volumes (kept per device).
+//
 // In the editor's frame there's no window here: each line goes to the editor page's own chat (post 'chat-line'), which is
 // the Overseer's chat there. Elsewhere it's drawn at the bottom middle (top left on phones, where the stick and buttons
 // aren't), the last lines fading after a while; the presence module's game chat writes its lines here too.
@@ -40,6 +44,15 @@
 .hc-log .act{border:0;cursor:pointer;display:inline-block;margin-left:8px;font:700 11px var(--display,system-ui);letter-spacing:.08em;padding:5px 9px;background:linear-gradient(90deg,#f2b33d,#ff7a45);color:#16130a;text-decoration:none;text-shadow:none}
 .hc-status{font:700 11px var(--display,system-ui);letter-spacing:.2em;text-transform:uppercase;color:#7cc8ff;text-shadow:0 0 10px rgba(74,158,255,.8);text-align:center}
 .hc-status[hidden],.hc-form[hidden]{display:none}
+.hc-tools{position:absolute;right:0;bottom:calc(100% + 2px);display:flex;gap:6px;pointer-events:auto;opacity:.45;transition:opacity .2s}
+.hc-chat:hover .hc-tools,.hc-tools:focus-within,.hc-tools.open{opacity:1}
+.hc-tools button{width:28px;height:28px;border-radius:50%;border:1px solid rgba(140,200,255,.45);background:rgba(6,10,20,.65);color:#cfe8ff;font:700 14px/1 var(--display,system-ui);cursor:pointer;padding:0}
+.hc-tools button:hover,.hc-tools button:focus-visible{background:rgba(40,80,140,.8);outline:none}
+.hc-panel{position:absolute;right:0;bottom:calc(100% + 36px);width:230px;padding:12px 14px;border-radius:12px;background:rgba(6,10,20,.92);border:1px solid rgba(140,200,255,.4);color:#e6f2ff;font:600 12px/1.3 var(--hud,system-ui,sans-serif);pointer-events:auto;display:flex;flex-direction:column;gap:9px;text-align:left}
+.hc-panel[hidden]{display:none}
+.hc-panel b{font:700 11px var(--display,system-ui);letter-spacing:.16em;text-transform:uppercase;color:#7cc8ff}
+.hc-panel label{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.hc-panel input[type=range]{width:110px}
 .hc-form{position:relative;display:flex;align-items:center;gap:10px;pointer-events:auto;padding:4px 4px 6px;opacity:.6;transition:opacity .3s}
 .hc-chat.typing .hc-form,.hc-form:hover{opacity:1}
 .hc-form::after{content:'';position:absolute;left:0;right:0;bottom:0;height:1.5px;background:linear-gradient(90deg,transparent,rgba(140,200,255,.55) 20%,rgba(140,200,255,.55) 80%,transparent)}
@@ -61,12 +74,26 @@ body.pr-touch .hc-form:not(.on){display:none}`;
     style();
     box = document.createElement('div');
     box.className = 'hc-chat sh-keep';
-    box.innerHTML = '<div class="hc-log" aria-live="polite"></div><div class="hc-status" hidden></div><form class="hc-form" hidden><input type="text" maxlength="4000" enterkeyhint="send" autocomplete="off" placeholder="Press Enter to talk to the Overseer" aria-label="Message the Overseer"></form>';
+    box.innerHTML = '<div class="hc-log" aria-live="polite"></div><div class="hc-status" hidden></div><div class="hc-panel" hidden role="dialog" aria-label="Overseer sound and captions"><b>The Overseer</b><label>Captions <input type="checkbox" data-s="captions"></label><label>Voice <input type="range" min="0" max="100" data-s="voice" aria-label="Voice volume"></label><label>Music <input type="range" min="0" max="100" data-s="music" aria-label="Music volume"></label></div><div class="hc-tools"><button type="button" class="hc-replay" title="Replay the last line" aria-label="Replay the last line">&#8635;</button><button type="button" class="hc-gear" title="Captions and volume" aria-label="Captions and volume">&#9881;</button></div><form class="hc-form" hidden><input type="text" maxlength="4000" enterkeyhint="send" autocomplete="off" placeholder="Press Enter to talk to the Overseer" aria-label="Message the Overseer"></form>';
     document.body.appendChild(box);
     log = box.querySelector('.hc-log');
     statusEl = box.querySelector('.hc-status');
     form = box.querySelector('.hc-form');
     input = form.querySelector('input');
+    const panel = box.querySelector('.hc-panel'), tools = box.querySelector('.hc-tools');
+    const sync = () => {
+      const S = H.speech && H.speech.settings; if (!S) return;
+      panel.querySelector('[data-s=captions]').checked = S.captions;
+      panel.querySelector('[data-s=voice]').value = Math.round(S.voice * 100);
+      panel.querySelector('[data-s=music]').value = Math.round(S.music * 100);
+    };
+    box.querySelector('.hc-replay').onclick = () => { if (H.speech) H.speech.replay(); focusGame(); };
+    box.querySelector('.hc-gear').onclick = () => { panel.hidden = !panel.hidden; tools.classList.toggle('open', !panel.hidden); if (!panel.hidden) sync(); };
+    panel.addEventListener('input', (e) => {
+      const el = e.target, k = el && el.dataset && el.dataset.s;
+      if (!k || !H.speech) return;
+      H.speech.set({ [k]: k === 'captions' ? el.checked : Number(el.value) / 100 });
+    });
     // Typing here never drives the player, and a tap here isn't a tap on the game.
     for (const t of ['keydown', 'keyup', 'keypress', 'pointerdown']) box.addEventListener(t, (e) => e.stopPropagation());
     input.addEventListener('focus', () => { box.classList.add('typing'); form.classList.add('on'); });
@@ -92,6 +119,7 @@ body.pr-touch .hc-form:not(.on){display:none}`;
     if (!m || m.text === undefined || m.text === null || String(m.text).trim() === '') return;
     const kind = m.kind || (m.overseer ? 'overseer' : m.sys ? 'sys' : m.npc ? 'npc' : m.me ? 'me' : 'player');
     const text = String(m.text).slice(0, 600);
+    if (kind === 'overseer' && !m.now && H.speech) return H.speech.say({ text, priority: m.priority, owner: m.owner, voice: m.voice, seconds: m.seconds, action: m.action, keep: m.keep, m });
     const who = kind === 'overseer' ? 'Overseer' : kind === 'me' ? 'You' : m.who || m.name || '';
     if (embedded) { try { H.post({ type: 'chat-line', kind, who, text, color: m.color || null, action: m.action || null }); } catch { /* fine */ } return; }
     if (!ensure()) return;
@@ -106,6 +134,16 @@ body.pr-touch .hc-form:not(.on){display:none}`;
     const t = document.createElement('span');
     t.textContent = text;
     p.appendChild(t);
+    // Its words type out over the time it takes to say them (done a tenth early, so the last word is read before it ends).
+    if (kind === 'overseer' && m.reveal > 0.4) {
+      let dur = Number(m.reveal), t0 = Date.now(), timer = null;
+      const upto = () => { const k = Math.min(1, (Date.now() - t0) / 1000 / Math.max(0.4, dur * 0.9)); t.textContent = text.slice(0, Math.ceil(text.length * k)); return k; };
+      const tick = () => { timer = upto() < 1 ? setTimeout(tick, 30) : null; };
+      t.textContent = text.slice(0, 1);
+      p._retime = (d) => { dur = Number(d) || dur; };
+      p._finish = () => { clearTimeout(timer); timer = null; t.textContent = text; };
+      tick();
+    }
     if (m.action && typeof m.action.onclick === 'function') {
       const a = document.createElement('button');
       a.type = 'button'; a.className = 'act';
