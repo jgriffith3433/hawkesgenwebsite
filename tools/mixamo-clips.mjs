@@ -14,6 +14,7 @@
 //   --rename a=b,...  rename clips (library names map to the table of docs/animations.md by default: Idle_Loop -> idle ...)
 //   --only a,b        take only these clips (their names before renaming)
 //   --loop / --once   force the loop flag of every clip taken (default: names ending _Loop, and the looping roles of the table)
+//   --no-fix          do not write the limbs as T-pose deltas (see restFixes: default on, so the clips read the same on A-pose and T-pose models)
 //   --keep-travel     keep the Hips' travel along the ground (default: removed from loops, the body is moved by the game)
 //   --height <m>      the character's height in the file's own units (default: measured from the mesh, or from the Head bone)
 //   --fps <n>         sampling rate (default 30);  --tolerance <deg> key simplification error (default 1.5)
@@ -233,6 +234,40 @@ export function readFbx(buf, fileName = 'clip') {
   return { nodes, takes: [take], height: 0 };
 }
 
+// ------------------------------------------------------------------------------------------------------------ rest fixes
+/** The shortest turn from direction a to direction b (unit vectors). */
+const qfromto = (a, b) => {
+  const d = a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  if (d > 0.999999) return [0, 0, 0, 1];
+  if (d < -0.999999) return [0, 0, 1, 0];
+  return qnorm([a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0], 1 + d]);
+};
+const CANON = [];
+for (const [s, x] of [['Left', 1], ['Right', -1]]) CANON.push([`${s}Arm`, `${s}ForeArm`, [x, 0, 0]], [`${s}ForeArm`, `${s}Hand`, [x, 0, 0]], [`${s}UpLeg`, `${s}Leg`, [0, -1, 0]], [`${s}Leg`, `${s}Foot`, [0, -1, 0]]);
+
+/**
+ * The engine's rest fix of the source model (presence-anim.js bind): a limb's direction at rest turned to Mixamo's T-pose direction. The engine
+ * plays `delta * fix`, so a clip written for the T-pose reads right on an A-pose model; a clip retargeted onto this model's own rest already
+ * has the model's pose in it, so it is written as `delta * fix^-1`, and the engine's `* fix` gives the same pose back on this model (and the
+ * T-pose reading on every other Mixamo model).
+ */
+export function restFixes(skel) {
+  const byName = new Map(skel.nodes.map((n, i) => [norm(n.name), i])), fixOf = new Map(), out = new Map();
+  for (const [bone, child, dir] of CANON) {
+    const a = byName.get(bone), c = byName.get(child);
+    if (a === undefined || c === undefined) continue;
+    const pa = skel.nodes[a].wp, pc = skel.nodes[c].wp, v = [pc[0] - pa[0], pc[1] - pa[1], pc[2] - pa[2]], l = Math.hypot(...v);
+    if (l < 1e-6) continue;
+    const total = qfromto([v[0] / l, v[1] / l, v[2] / l], dir);
+    if (qangle(total, [0, 0, 0, 1]) < 2) continue;
+    const par = skel.nodes[a].parent >= 0 ? norm(skel.nodes[skel.nodes[a].parent].name) : null;
+    const pf = par && fixOf.get(par) ? fixOf.get(par) : [0, 0, 0, 1];
+    const fix = qmul(qinv(pf), total);
+    fixOf.set(bone, fix); out.set(bone, fix);
+  }
+  return out;
+}
+
 // ------------------------------------------------------------------------------------------------------------ the conversion
 const r4 = (x) => Math.round(x * 10000) / 10000;
 
@@ -263,14 +298,14 @@ export function convertTake(skel, take, o = {}) {
   const seconds = Math.max(take.seconds, 1 / fps), frames = Math.max(2, Math.round(seconds * fps)), n = loop ? frames : frames + 1;
   const times = Array.from({ length: n }, (_, i) => i / frames);
   const height = o.height || skel.height || 0;
-  const tracks = {};
+  const tracks = {}, fixes = o.fix === false ? new Map() : restFixes(skel);
   for (let i = 0; i < nodes.length; i++) {
     const bone = norm(nodes[i].name);
     if (!MIXAMO_BONES.has(bone)) continue;
     const rp = nodes[i].parent >= 0 ? nodes[nodes[i].parent].wq : [0, 0, 0, 1], rest = nodes[i].q, tr = {};
     const rot = take.rot.get(i);
     if (rot) {
-      const qs = times.map((u) => { const abs = slerpAt(rot.times, rot.q, u * frames / fps); return qnorm(qmul(rp, qmul(qmul(abs, qinv(rest)), qinv(rp)))); });
+      const qs = times.map((u) => { const abs = slerpAt(rot.times, rot.q, u * frames / fps); const d = qnorm(qmul(rp, qmul(qmul(abs, qinv(rest)), qinv(rp)))); return fixes.has(bone) ? qnorm(qmul(d, qinv(fixes.get(bone)))) : d; });
       for (let k = 1; k < qs.length; k++) if (qdot(qs[k], qs[k - 1]) < 0) qs[k] = qs[k].map((v) => -v); // one hemisphere
       if (qs.some((q) => qangle(q, [0, 0, 0, 1]) > 0.3)) {
         const keep = simplify(qs, tol, (q, a, b, k) => qangle(q, qslerp(a, b, k)), loop);
@@ -345,6 +380,7 @@ function main(argv) {
     else if (a === '--loop') o.loop = true;
     else if (a === '--once') o.loop = false;
     else if (a === '--keep-travel') o.keepTravel = true;
+    else if (a === '--no-fix') o.fix = false;
     else if (a === '--height') o.height = Number(args[++i]);
     else if (a === '--fps') o.fps = Number(args[++i]);
     else if (a === '--tolerance') o.tolerance = Number(args[++i]);

@@ -21,13 +21,13 @@ const D = Math.PI / 180;
 const qx = (deg: number) => [Math.sin(deg * D / 2), 0, 0, Math.cos(deg * D / 2)];
 
 // ---- a GLB: Armature (turned like Blender's export) > Hips > Spine > Head, and a leg chain; two animations at 30 fps
-function makeGlb(file: string) {
+function makeGlb(file: string, legTilt = false) {
   const names = ['Armature', 'mixamorig:Hips', 'mixamorig:Spine', 'mixamorig:Head', 'mixamorig:LeftUpLeg', 'mixamorig:LeftLeg', 'mixamorig:RightUpLeg', 'mixamorig:RightLeg', 'Cube'];
   const nodes: any[] = names.map((name) => ({ name }));
   nodes[0].children = [1]; nodes[0].scale = [1, 1, 1];
   nodes[1].translation = [0, 1, 0]; nodes[1].children = [2, 4, 6];
   nodes[2].translation = [0, 0.3, 0]; nodes[2].children = [3]; nodes[3].translation = [0, 0.5, 0];
-  nodes[4].translation = [0.1, -0.05, 0]; nodes[4].children = [5]; nodes[5].translation = [0, -0.45, 0];
+  nodes[4].translation = [0.1, -0.05, 0]; nodes[4].children = [5]; nodes[5].translation = legTilt ? [0.15, -0.42, 0] : [0, -0.45, 0]; // (a rest with the leg 20 degrees out, as an A-pose rig has it)
   nodes[6].translation = [-0.1, -0.05, 0]; nodes[6].children = [7]; nodes[7].translation = [0, -0.45, 0];
   const bufs: Buffer[] = [], views: any[] = [], accs: any[] = [];
   const add = (arr: number[], type: string, width: number, min?: number[], max?: number[]) => {
@@ -136,6 +136,17 @@ test('a GLB: deltas from the rest pose, Hips in model heights, loops closed, tra
   assert.equal(once.loop, false); assert.equal(once.ease, 'smooth');
   assert.equal(once.tracks.LeftUpLeg.q[once.tracks.LeftUpLeg.q.length - 1][0], 1, 'a one-shot ends at 1');
   assert.ok(!once.events, 'no footsteps on a wave');
+});
+
+test('a GLB whose rest is not the T-pose: limbs are written as T-pose deltas, so the engine\'s fix gives the model\'s own pose back', () => {
+  const f = path.join(tmp, 'apose.glb'); makeGlb(f, true);
+  const plain = importFile(f, { only: ['Walk_Loop'], fix: false }).walk.tracks.LeftUpLeg.q, fixed = importFile(f, { only: ['Walk_Loop'] }).walk.tracks.LeftUpLeg.q;
+  const ang = (k: number[]) => 2 * Math.acos(Math.min(1, Math.abs(k[4]))) / D;
+  assert.ok(ang(plain[0]) < 0.1, 'at the start the thigh is at the model\'s rest');
+  const tilt = Math.atan2(0.15, 0.42) / D;
+  assert.ok(Math.abs(ang(fixed[0]) - tilt) < 0.3, `the T-pose delta at rest is the tilt, ${ang(fixed[0]).toFixed(1)} of ${tilt.toFixed(1)} degrees`);
+  const straight = importFile(path.join(tmp, 'person-clips.glb'), { only: ['Walk_Loop'] }).walk.tracks.LeftUpLeg.q;
+  assert.ok(ang(straight[0]) < 0.1, 'a model already in the T-pose is not changed');
 });
 
 test('a GLB: travel is kept on request', () => {
