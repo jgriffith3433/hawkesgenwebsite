@@ -107,6 +107,7 @@ body.pr-touch .hc-form:not(.on){display:none}`;
       input.value = '';
       input.blur();
       focusGame();
+      try { if (H.overseer && H.overseer.attend) H.overseer.attend(); } catch { /* fine */ } // (it turns toward whoever asks)
       try { Promise.resolve(to.send(text)).catch((err) => line({ kind: 'sys', text: err && err.message ? err.message : String(err) })); }
       catch (err) { line({ kind: 'sys', text: err && err.message ? err.message : String(err) }); }
     });

@@ -22,9 +22,9 @@
 import { installPlaytest } from './hawkes-playtest.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'race', 'board', 'journal', 'faces', 'touch', 'leave', 'back'];
+const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'leave', 'back'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'] };
+const ORDERS = { 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'] };
 const SCENARIOS = [
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
   {
@@ -66,6 +66,11 @@ const SCENARIOS = [
     id: 'sandbox-return', title: 'A second visit: no intro and no mirror, beamed in and welcomed back by name, the tour where it stopped', seconds: 330, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first visit as a new player (veil, intro, mirror, account sheet with a throwaway sign-up, then driving to the dock: the tour is on its second step), in that order; then the page is opened again as a returning player would (the same browser storage). It checks that the intro and the mirror do not play, that the player is beamed in and the Overseer says "Welcome back, <name>", and that Pip\'s tour is on the step it was left on (not the first). Never on live (no sign-up there). options as sandbox-first-minutes',
+  },
+  {
+    id: 'overseer-alive', title: 'The Overseer is alive: halo and rings answer its voice, the emitter flares before a beam, the bay turns to a question, the hum rises as the player climbs, and the frame cost is unchanged', seconds: 240, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the account sheet, then the sky is watched (a screenshot each): quiet, a spoken line (halo brighter, rings quicker, for the length of the line), a message to the Overseer typed in the chat (the bay turns), a beam (the emitter flares, the shaft opens a moment later), and the hum on the ground (silent) and at four heights (rising). Named setup shortcuts: the Overseer is asked for a line, the beam is sent, the player is held at each height. Logs overseer-presence samples and perf-compare (draw calls and frame ms quiet vs. active). options as sandbox-first-minutes',
   },
   {
     id: 'faces-and-emotes', title: 'Faces and emotes: the character blinks, looks at the Overseer when it speaks, changes expression on a hard landing and an explosion; the six emotes from the radial wheel (desktop or touch), seen by another player', seconds: 240, tags: ['full'],
@@ -354,6 +359,93 @@ async function stagePresence(t) {
   P().removeStandIns();
   t.progress(1);
   await t.wait(1500);
+}
+
+/** The Overseer is alive (overseer.js presence): its halo and rings answer a spoken line, a typed message turns its bay, a beam
+ *  is preceded by a flare, and a hum rises as the player climbs (silent on the ground). Draw calls and frame time are compared
+ *  quiet and active. Named setup shortcuts: a line is asked of the Overseer, a beam is sent, the player is held at each height. */
+async function stageAlive(t) {
+  const O = () => G().overseer.presence();
+  const mon = () => (HP().monitor && HP().monitor.sample ? HP().monitor.sample() : null);
+  const log = (what) => { const p = O(); t.event('overseer-presence', `${what}: speaking ${p.speaking}, halo ${p.halo && p.halo.alpha}, rings x${p.rings && p.rings.speed}, flare ${p.flare}, turn ${p.turn}, idle ${p.idle}, hum ${p.hum.level} at ${p.hum.altitude} m`); return p; };
+  releaseAll();
+  await t.until(() => W() && W().player && W().player.alive && G() && G().overseer && G().overseer.presence, 60000, 'the Overseer with its presence');
+  if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
+  HP().speech.clear && HP().speech.clear();
+  await t.wait(4000);
+  // 1. quiet, on the ground: the hum is silent.
+  const calm = log('quiet, on the ground');
+  if (calm.hum.level !== 0) t.problem('error', `the hum is not silent on the ground (${calm.hum.level})`);
+  else t.event('hum-silent-on-ground', 'level 0');
+  t.scene('Overseer: quiet');
+  const m0 = mon();
+  // 2. it speaks: halo and rings, for the length of the line.
+  t.event('setup-shortcut', 'the Overseer asked to say a line');
+  HP().speech.say({ text: 'I see you. Look up, if you like. I am not going anywhere, and neither are you.', priority: 'important' });
+  await t.until(() => O().speaking > 0.8, 6000, 'the halo and rings to answer the Overseer\'s voice');
+  const talk = log('speaking');
+  t.scene('Overseer: speaking');
+  const m1 = mon();
+  if (talk.halo.alpha <= calm.halo.alpha + 0.05) t.problem('error', `the halo did not brighten while it spoke (${calm.halo.alpha} > ${talk.halo.alpha})`);
+  else t.event('halo-brighter', `${calm.halo.alpha} > ${talk.halo.alpha}`);
+  if (talk.rings.speed < 2) t.problem('error', `the rings did not quicken while it spoke (x${talk.rings.speed})`);
+  else t.event('rings-quicker', `x${talk.rings.speed}`);
+  await t.until(() => !HP().speech.current, 25000, 'the line to end');
+  await t.until(() => O().speaking < 0.2, 8000, 'the halo and rings to settle after the line');
+  t.event('settled-after-line', `halo ${O().halo.alpha}`);
+  // 3. a message typed in the chat: the bay turns toward the player.
+  const input = document.querySelector('.hc-form input');
+  if (input) {
+    keyEv('keydown', 'Enter'); await t.wait(200);
+    input.value = 'Are you there?';
+    input.form && input.form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    t.event('asked', 'typed in the chat: Are you there?');
+  } else { t.event('setup-shortcut', 'the chat is not on screen: asked by the game event'); G().emit('asked', { chars: 14 }); }
+  await t.until(() => O().attending, 3000, 'the Overseer to attend');
+  await t.wait(3500);
+  const turned = log('after the question');
+  t.event('bay-turning', `turn ${turned.turn} rad (seen only while the ship is drawn in the sky)`);
+  t.scene('Overseer: turned to the question');
+  // 4. a beam: the emitter flares first, then the shaft opens.
+  await t.wait(15000);
+  t.event('setup-shortcut', 'a beam sent to a spot ahead of the player');
+  const p = W().player;
+  const b = G().overseer.beam([p.x + 6, p.bottom !== undefined ? p.bottom : p.y, p.z], { radius: 2.5, seconds: 2.4 });
+  const f0 = log('beam asked');
+  if (!b) t.problem('error', 'the beam could not be sent');
+  else if (f0.flare < 0.4) t.problem('error', `the emitter did not flare before the beam (${f0.flare})`);
+  else t.event('emitter-flare', `flare ${f0.flare}, shaft still closed: ${b.t < 0}`);
+  t.scene('Overseer: the emitter flares');
+  await t.wait(1400);
+  t.scene('Overseer: the beam');
+  await t.wait(2000);
+  const m2 = mon();
+  // 5. the hum: silent on the ground, rising as the player climbs (held at each height).
+  t.event('setup-shortcut', 'the player held at 300, 1200 and 3000 m above where they stand (a climb, without flying there)');
+  const base = W().player.y;
+  const levels = [calm.hum.level];
+  for (const up of [300, 1200, 3000]) {
+    const until = performance.now() + 5000;
+    while (performance.now() < until) { W().player.y = base + up; if (W().player.body && W().player.body.setLinearVelocity) try { W().player.body.setLinearVelocity(new (window.BABYLON.Vector3)(0, 0, 0)); } catch { /* fine */ } await t.wait(100); }
+    const h = log(`held ${up} m up`);
+    levels.push(h.hum.level);
+    t.scene(`Overseer: hum at ${up} m`);
+  }
+  if (!(levels[1] > levels[0] && levels[2] > levels[1] && levels[3] > levels[2])) t.problem('error', `the hum did not rise with the climb (${levels.join(' < ')})`);
+  else t.event('hum-rises', levels.join(' < '));
+  const heard = O().hum.playing;
+  t.event('hum-audio', heard ? 'the hum is playing' : 'the hum level rose, but no sound was running to hear it');
+  W().player.y = base; await t.wait(6000);
+  if (O().hum.level > 0.02) t.problem('warning', `the hum was still ${O().hum.level} after coming back down`);
+  else t.event('hum-silent-again', 'back on the ground');
+  // 6. the cost: draw calls and frame time, quiet against speaking and beaming.
+  if (m0 && m1 && m2) {
+    const d = (a, b) => (a ? Math.round((b - a) / a * 1000) / 10 : 0);
+    t.metric('drawCallsQuiet', m0.drawCalls); t.metric('drawCallsSpeaking', m1.drawCalls);
+    t.metric('frameMsQuiet', m0.frameMs); t.metric('frameMsSpeaking', m1.frameMs);
+    t.event('perf-compare', `draw calls ${m0.drawCalls} quiet, ${m1.drawCalls} speaking, ${m2.drawCalls} beaming (${d(m0.drawCalls, m1.drawCalls)}%); frame ${m0.frameMs && m0.frameMs.toFixed(2)} ms quiet, ${m1.frameMs && m1.frameMs.toFixed(2)} ms speaking (${d(m0.frameMs, m1.frameMs)}%)`);
+  } else t.event('perf-compare', 'the monitor gave no numbers here');
+  t.progress(1);
 }
 
 /** Faces and emotes (docs/characters.md, presence-core.js feel / mood / gazeTarget): blink, gaze at the Overseer while it speaks, a
@@ -1121,9 +1213,9 @@ async function stageTouch(t, ctx) {
 }
 
 const RUN = {
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, observatory: stageObservatory, race: stageRace, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, touch: stageTouch, leave: stageLeave, back: stageBack,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, observatory: stageObservatory, race: stageRace, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
 };
-const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'island-race': 'race', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'faces-and-emotes': 'faces', 'touch-controls': 'touch', 'sandbox-return': 'back' };
+const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'island-race': 'race', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back' };
 
 // ---------------------------------------------------------------------------------------------- the contract
 let api = null;
