@@ -40,12 +40,8 @@
 
   // ------------------------------------------------------------------ the frame (the bay's own, from dock.js)
   const bay = () => OV.bay;
-  /** A point in the bay's frame ([across, up from the ship's middle, out]) in world meters. */
-  function at(x, y, z) {
-    const b = bay();
-    const s = Math.sin(b.yaw), c = Math.cos(b.yaw);
-    return [b.c[0] + x * c + z * s, b.c[1] + y, b.c[2] - x * s + z * c];
-  }
+  /** A point in the bay's frame ([across, up from the ship's middle, out]) in world meters (a round world's frame turned in). */
+  const at = (x, y, z) => bay().at(x, y, z);
   /** The atrium's floor level is under the ship's middle; a point in the atrium's own frame ([across, up, toward the lift]). */
   const room = (x, y, z) => at(x, -M().ROOM.drop + y, z);
   /** The lift in the hangar: just in front of the back wall. */
@@ -428,7 +424,7 @@
   /** Where the player is put in the bay when they come down: beside the rocket they came in, else by the lift. */
   function bayArrival() {
     const v = me && me.veh && me.veh.alive ? me.veh : null;
-    if (v) return [v.position[0] + 6 * Math.cos(bay().yaw), v.position[1] + 1.2, v.position[2] - 6 * Math.sin(bay().yaw)];
+    if (v) { const d = bay().dir([6, 0, 0]); return [v.position[0] + d[0], v.position[1] + 1.2 + d[1], v.position[2] + d[2]]; }
     const f = bay().f;
     return at(0, f.floor + 1.2, f.back + 11);
   }
@@ -600,8 +596,7 @@
       const local = tgt ? room(0, 0, 0) : null;
       const rel = tgt ? [tgt[0] - local[0], tgt[1] - local[1], tgt[2] - local[2]] : null;
       // (the pearl lives in the atrium's frame: rotate the player's offset into it)
-      const b = bay(), sn = Math.sin(b.yaw), cs = Math.cos(b.yaw);
-      const tl = rel ? [rel[0] * cs - rel[2] * sn, rel[1], rel[0] * sn + rel[2] * cs] : null;
+      const tl = rel ? bay().vec(rel) : null;
       const near = me.scene || S.t - me.at < 40 ? 'follow' : 'idle';
       const st = M().pearlStep(S.pos, tl, S.t, dt, near);
       S.pos = st.pos;
