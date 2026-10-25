@@ -544,7 +544,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     return send(res, 404, { error: 'Not found' });
   } catch (e: any) {
     if (res.headersSent) return void res.end();
-    if (e instanceof PortalError) return send(res, e.status, { error: e.message });
+    if (e instanceof PortalError) return send(res, e.status, e.code ? { error: e.message, code: e.code } : { error: e.message });
     console.error(`[portal] ${method} ${route}:`, e);
     return send(res, 500, { error: 'Something went wrong on our side' });
   }

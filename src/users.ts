@@ -59,14 +59,14 @@ function limitSignups(ip: string) {
   const now = Date.now();
   const recent = (signupsByIp.get(ip) ?? []).filter((t) => now - t < 3600_000);
   const max = Number(env('SIGNUPS_PER_HOUR') ?? 5);
-  if (recent.length >= max) throw new PortalError('Too many sign-ups from this address; try again in an hour', { status: 429 });
+  if (recent.length >= max) throw new PortalError('Too many sign-ups from this address; try again in an hour', { status: 429, code: 'signup_limit' });
   recent.push(now);
   signupsByIp.set(ip, recent);
 }
 
 export function signup(input: { email?: unknown; password?: unknown; name?: unknown }, ip = '', origin: Origin = {}) {
   const password = typeof input.password === 'string' ? input.password : '';
-  if (password.length < 8) throw new PortalError('Password must be at least 8 characters');
+  if (password.length < 8) throw new PortalError('Password must be at least 8 characters', { code: 'short_password' });
   const user = createAccount({ email: input.email, name: input.name, password }, ip, origin);
   const key = mintApiKey(user.id);
   return { user: toPublicUser(user), apiKey: key.apiKey, sessionToken: createSession(user.id) };
@@ -112,9 +112,9 @@ export function referral(user: User) {
  *  (Google sign-in) it gets a random one. */
 export function createAccount(input: { email?: unknown; name?: unknown; password?: string }, ip = '', origin: Origin = {}) {
   const email = String(input.email ?? '').trim().toLowerCase();
-  if (!EMAIL_RE.test(email) || email.length > 200) throw new PortalError('Enter a valid email address');
+  if (!EMAIL_RE.test(email) || email.length > 200) throw new PortalError('Enter a valid email address', { code: 'bad_email' });
   const name = typeof input.name === 'string' && input.name.trim() ? input.name.trim().slice(0, 120) : email.split('@')[0];
-  if (getUserByEmail(email)) throw new PortalError('An account with that email already exists', { status: 409 });
+  if (getUserByEmail(email)) throw new PortalError('An account with that email already exists', { status: 409, code: 'email_exists' });
   if (ip) limitSignups(ip);
 
   const userId = id(PROJECT_PREFIX, 8);
@@ -257,7 +257,7 @@ function limitForgot(key: string, max: number) {
  *  The caller answers the same either way. */
 export function forgotPassword(emailIn: unknown, ip: string, site: string) {
   const email = String(emailIn ?? '').trim().toLowerCase();
-  if (!EMAIL_RE.test(email) || email.length > 200) throw new PortalError('Enter a valid email address');
+  if (!EMAIL_RE.test(email) || email.length > 200) throw new PortalError('Enter a valid email address', { code: 'bad_email' });
   limitForgot(`ip:${ip}`, 5);
   limitForgot(`email:${email}`, 3);
   const u = active(getUserByEmail(email));
@@ -266,7 +266,7 @@ export function forgotPassword(emailIn: unknown, ip: string, site: string) {
 
 /** Sets the password a link was made for; the link is spent, and every other session ends. */
 export function setPasswordWithToken(token: string, password: string) {
-  if (typeof password !== 'string' || password.length < 8) throw new PortalError('Password must be at least 8 characters');
+  if (typeof password !== 'string' || password.length < 8) throw new PortalError('Password must be at least 8 characters', { code: 'short_password' });
   const row = db.prepare('SELECT user_id, expires, used FROM password_tokens WHERE token_hash = ?').get(sha256(String(token ?? ''))) as { user_id: string; expires: number; used: number | null } | undefined;
   if (!row || row.used || row.expires < Date.now()) throw new PortalError('This link has expired or was already used. Ask for a new one.', { status: 410 });
   tx(() => {
@@ -281,7 +281,7 @@ export function setPasswordWithToken(token: string, password: string) {
 /** An account made by an admin (no starter credits; a password link to finish it), or an existing one promoted. */
 export function ensureAdmin(email: string, name?: string) {
   const norm = String(email ?? '').trim().toLowerCase();
-  if (!EMAIL_RE.test(norm)) throw new PortalError('Enter a valid email address');
+  if (!EMAIL_RE.test(norm)) throw new PortalError('Enter a valid email address', { code: 'bad_email' });
   const found = getUserByEmail(norm);
   if (found) {
     db.prepare("UPDATE users SET role = 'admin', disabled = 0 WHERE id = ?").run(found.id);

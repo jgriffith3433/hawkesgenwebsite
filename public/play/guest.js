@@ -186,6 +186,15 @@
 .gs-sheet .err a{color:#93c5fd}
 .gs-sheet .note{color:#bfe3ff;font:13px/1.45 var(--sans);margin:0 0 10px;padding:8px 10px;border-radius:8px;background:rgba(74,158,255,.12);border:1px solid rgba(74,158,255,.35)}
 .gs-sheet a.back{display:block;text-align:center;text-decoration:none}
+.gs-sheet input.bad{border-color:#f87171}
+.gs-sheet .fld{color:#fca5a5;font:12.5px var(--sans);margin:-6px 0 10px}
+.gs-sheet .pw{position:relative}
+.gs-sheet .pw input{padding-right:62px}
+.gs-sheet .pw button{position:absolute;right:4px;top:3px;height:34px;min-width:52px;background:none;border:0;color:#93c5fd;font:600 13px var(--sans);cursor:pointer;border-radius:8px}
+.gs-sheet .go{display:flex;align-items:center;justify-content:center;gap:9px}
+.gs-sheet .spin{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;animation:gsspin .7s linear infinite}
+@keyframes gsspin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.gs-sheet .spin{animation-duration:2s}}
 .gs-sheet [hidden]{display:none !important}
 .gs-sheet .fine{font:12px var(--sans);color:#8088a3;margin:10px 0 0}
 .gs-sheet .fine a,.gs-sheet .swap a{color:#93c5fd}
@@ -412,12 +421,15 @@
       <a class="google" id="gsGoogle" hidden href="/auth/google?next=${encodeURIComponent('/play/sandbox?claim=' + intent)}"><svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg><span>Continue with Google</span></a>
       <div class="or" id="gsOr" hidden>or with email</div>
       <form id="gsForm" novalidate>
-        <div id="gsNameRow"><label for="gsName">Name or studio</label><input id="gsName" autocomplete="organization"></div>
-        <label for="gsEmail">Email</label><input id="gsEmail" type="email" autocomplete="email" required>
-        <label for="gsPw">Password <span id="gsPwHint">(8 characters or more)</span></label><input id="gsPw" type="password" minlength="8" autocomplete="new-password" required>
-        <p class="err" id="gsErr" hidden></p>
+        <label for="gsEmail">Email</label><input id="gsEmail" type="email" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" required aria-describedby="gsEmailErr">
+        <p class="fld" id="gsEmailErr" hidden></p>
+        <label for="gsPw">Password <span id="gsPwHint">(8 characters or more)</span></label>
+        <div class="pw"><input id="gsPw" type="password" minlength="8" autocomplete="new-password" required aria-describedby="gsPwErr"><button type="button" id="gsShow" aria-pressed="false" aria-label="Show password">Show</button></div>
+        <p class="fld" id="gsPwErr" hidden></p>
+        <p class="err" id="gsErr" role="alert" hidden></p>
         <p class="note" id="gsNote" hidden></p>
-        <button class="go" type="submit" id="gsGo">Create account and save</button>
+        <button class="go" type="submit" id="gsGo"><span class="spin" aria-hidden="true" hidden></span><span id="gsGoText">Create account and save</span></button>
+        <button type="button" class="back" id="gsRetry" hidden>Try again</button>
         <p class="swap" id="gsForgotRow" hidden><a href="#" id="gsForgot">Forgot your password?</a></p>
         <p class="fine" id="gsTerms">By creating an account you agree to the <a href="/legal#terms" target="_blank">terms</a> and <a href="/legal#privacy" target="_blank">privacy policy</a>.</p>
       </form>
@@ -427,25 +439,45 @@
     const $ = (id) => veil.querySelector('#' + id);
     const setMode = (m) => {
       mode = m;
-      $('gsNameRow').hidden = m !== 'signup';
       $('gsPwHint').hidden = m !== 'signup';
       $('gsTerms').hidden = m !== 'signup';
       $('gsPw').autocomplete = m === 'signup' ? 'new-password' : 'current-password';
-      $('gsGo').textContent = intent === 'tour' ? (m === 'signup' ? 'Create my account' : 'Sign in') : m === 'signup' ? 'Create account and save' : 'Sign in and save';
+      $('gsGoText').textContent = intent === 'tour' ? (m === 'signup' ? 'Create my account' : 'Sign in') : m === 'signup' ? 'Create account and save' : 'Sign in and save';
       $('gsForgotRow').hidden = m !== 'login';
       $('gsSwap').innerHTML = m === 'signup' ? 'Have an account? <a href="#" data-swap>Sign in</a>' : 'New here? <a href="#" data-swap>Create an account</a>';
       $('gsSwap').querySelector('[data-swap]').onclick = (e) => { e.preventDefault(); setMode(m === 'signup' ? 'login' : 'signup'); };
       $('gsErr').hidden = true;
       $('gsNote').hidden = true;
+      $('gsRetry').hidden = true;
+      $('gsPwErr').hidden = true;
+      if (m === 'login') $('gsPw').classList.remove('bad');
     };
     setMode('login');
+    // Inline checks before submit (the server checks again): a bad email on leaving the field, a short password as it's
+    // typed when making an account. Each says what to do.
+    const EMAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    const emailMsg = (v, final) => !v ? (final ? 'Type your email.' : '') : EMAIL_OK.test(v) ? '' : 'That email looks incomplete. Check it, like name@example.com.';
+    const pwMsg = (v, final) => !v ? (final ? 'Type a password.' : '') : mode === 'signup' && v.length < 8 ? `${8 - v.length} more character${8 - v.length === 1 ? '' : 's'} to go: 8 or more.` : '';
+    const showField = (inp, out, text) => { out.textContent = text; out.hidden = !text; inp.classList.toggle('bad', Boolean(text)); inp.setAttribute('aria-invalid', text ? 'true' : 'false'); };
+    const checkEmail = (final) => { const m = emailMsg($('gsEmail').value.trim(), final); showField($('gsEmail'), $('gsEmailErr'), m); return !m; };
+    const checkPw = (final) => { const m = pwMsg($('gsPw').value, final); showField($('gsPw'), $('gsPwErr'), m); return !m; };
+    $('gsEmail').addEventListener('blur', () => { if ($('gsEmail').value) checkEmail(false); });
+    $('gsEmail').addEventListener('input', () => { if (!$('gsEmailErr').hidden) checkEmail(false); });
+    $('gsPw').addEventListener('input', () => { if (mode === 'signup' || !$('gsPwErr').hidden) checkPw(false); });
+    $('gsShow').onclick = () => {
+      const on = $('gsPw').type === 'password';
+      $('gsPw').type = on ? 'text' : 'password';
+      $('gsShow').textContent = on ? 'Hide' : 'Show';
+      $('gsShow').setAttribute('aria-pressed', String(on));
+      $('gsShow').setAttribute('aria-label', on ? 'Hide password' : 'Show password');
+      $('gsPw').focus();
+    };
     // Which field they reach for (once each; never what they type).
     const focused = new Set();
     veil.addEventListener('focusin', (e) => {
       const f = { gsName: 'name', gsEmail: 'email', gsPw: 'password' }[e.target && e.target.id];
       if (f && !focused.has(f)) { focused.add(f); track('sandbox_sheet_focus', { field: f, intent }); }
     });
-    if (o.name) $('gsName').value = o.name;
     const note = (text) => { $('gsNote').textContent = text; $('gsNote').hidden = false; $('gsErr').hidden = true; };
     const fail = (text) => { $('gsErr').textContent = text; $('gsErr').hidden = false; $('gsNote').hidden = true; };
     // "Forgot your password?": a link by email (the island stays in this browser; the reset page brings them back).
@@ -497,11 +529,22 @@
       err.hidden = true;
       $('gsNote').hidden = true;
       const body = { email: $('gsEmail').value.trim(), password: $('gsPw').value };
+      $('gsRetry').hidden = true;
       track('sandbox_signup_submit', { mode, intent });
-      if (!body.email || !body.password) { track('sandbox_signup_failed', { mode, reason: 'missing_fields', intent }); err.textContent = 'Your email and a password, please.'; err.hidden = false; return; }
-      if (mode === 'signup' && body.password.length < 8) { track('sandbox_signup_failed', { mode, reason: 'short_password', intent }); err.textContent = 'The password needs 8 characters or more.'; err.hidden = false; $('gsPw').focus(); return; }
-      if (mode === 'signup') body.name = $('gsName').value.trim();
+      const okE = checkEmail(true);
+      const okP = checkPw(true);
+      if (!okE || !okP) {
+        track('sandbox_signup_failed', { mode, reason: !body.email || !body.password ? 'missing_fields' : !okP ? 'short_password' : 'invalid', intent });
+        $(okE ? 'gsPw' : 'gsEmail').focus();
+        return;
+      }
+      // The character's name is already known: it is the account's name (no field to fill in).
+      if (mode === 'signup' && o.name) body.name = String(o.name).slice(0, 120);
       go.disabled = true;
+      go.classList.add('busy');
+      go.querySelector('.spin').hidden = false;
+      veil.setAttribute('aria-busy', 'true');
+      const idle = () => { go.disabled = false; go.classList.remove('busy'); go.querySelector('.spin').hidden = true; veil.removeAttribute('aria-busy'); };
       try {
         const d = await api('POST', mode === 'signup' ? '/v1/users/signup' : '/v1/users/login', body);
         if (d.apiKey) try { localStorage.setItem('hg_last_minted_key', d.apiKey); } catch { /* fine */ }
@@ -510,7 +553,7 @@
         close();
         await signedIn(intent, d.user);
       } catch (x) {
-        go.disabled = false;
+        idle();
         // Why, as a code: never the email, the password or the server's wording (which can repeat them).
         const st = Number(x && x.status) || 0;
         track('sandbox_signup_failed', { mode, intent, status: st || null, reason: x && x.wall ? 'studio_wall' : st === 409 ? 'exists' : st === 401 ? 'bad_credentials' : st === 429 ? 'rate_limited' : st === 400 || st === 422 ? 'invalid' : st >= 500 ? 'server' : st >= 400 ? 'rejected' : 'network' });
@@ -520,14 +563,19 @@
           track('sandbox_signup_exists', { intent });
           setMode('login');
           $('gsPw').value = '';
-          note(`There's already an account for ${body.email}. Sign in with its password${$('gsGoogle').hidden ? '' : ', or with Google if you made it that way'}.`);
+          note(`There's already an account for ${body.email}. Type its password to sign in${$('gsGoogle').hidden ? '' : ', or use Google if you made it that way'}.`);
           $('gsPw').focus();
           return;
         }
         if (mode === 'login' && x.status === 401) { fail("That email and password don't match an account. Try again, set a new password, or create an account if you're new."); $('gsForgotRow').hidden = false; return; }
+        // No connection: the form is kept as it is and one press tries again.
+        if (!st) { fail("Couldn't reach Hawkes Gen. Check your connection, then try again. Nothing was lost."); $('gsRetry').hidden = false; $('gsRetry').focus(); return; }
+        if (st === 429) { fail(mode === 'signup' ? 'Too many sign-ups from this connection just now. Try again in a while, or sign in if you already have an account.' : 'Too many tries. Wait a few minutes, then sign in again.'); return; }
+        if (st >= 500) { fail('Something went wrong on our side. Try again in a moment.'); $('gsRetry').hidden = false; return; }
         fail(x.message);
       }
     });
+    $('gsRetry').onclick = () => $('gsForm').requestSubmit();
     // The beta site (Studio's login in front of it, which a window not signed in to Studio meets): sign in to Studio in a
     // popup, then the same form goes again by itself. The island keeps running behind it.
     function studioWall(signin) {
