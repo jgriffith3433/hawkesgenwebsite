@@ -22,9 +22,9 @@
 import { installPlaytest } from './hawkes-playtest.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks'];
+const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'feel', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
+const ORDERS = { 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
 const SCENARIOS = [
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
   {
@@ -36,6 +36,11 @@ const SCENARIOS = [
     id: 'island-race', title: 'The Ridge Run: through the start gate, the countdown, every gate in order, the finish and best time, then the ghost of the best run', seconds: 330, tags: ['full'],
     starts: ['sandbox'],
     description: 'options: laps (default 1; the world has 3), touch (true: the phone controls, ?touch=1, and the frame rate is measured), ghost (false: one run only), signup (false: stop at the account sheet; always on live), watch (seconds of intro to watch), name, what',
+  },
+  {
+    id: 'vehicle-feel', title: 'Game feel in the 4x4: the view widens, the body leans, dust, the engine climbs, the handbrake drift squeals, and a landing dips the view with dust and a thud', seconds: 240, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the account sheet, then the 4x4 driven with real keys (straight, bends, handbrake) and one named jump shortcut; logs fov-widened, engine-pitch, dust, body-roll, drift-squeal, landing and the frame rate (driveFps). Options: touch (true: the phone controls, ?touch=1, and under 30 fps is a problem), signup (false: stop at the account sheet; always on live), watch',
   },
   {
     id: 'touch-controls', title: 'Every tour action with touch alone (stick, look drag, jump, B, steer, brake, fish, tools, spawn wheel, helicopter and rocket flight, Stuck?, hide the HUD): no overlaps, buttons 48 px or more, inside the safe area', seconds: 420, tags: ['full'],
@@ -1473,10 +1478,92 @@ async function stageTouch(t, ctx) {
   void final;
 }
 
+// `vehicle-feel`: the same way in to the account, then the 4x4 driven for the game-feel pass (vehicles-feel.js): the view
+// widens, the body leans, dust is kicked, the engine climbs with speed, the handbrake squeals, and a landing dips the view
+// with dust and a thud. Real keys; the jump is one named shortcut (a push upward at speed). touch: true is the phone: the
+// frame rate while driving is measured and under 30 is a problem.
+async function stageFeel(t, ctx) {
+  await t.until(() => G() && G().vehicles && W().byId.get('jeep'), 90000, 'the island and its 4x4');
+  await t.wait(1500);
+  const jeep = () => W().byId.get('jeep');
+  const driving = () => G().player && G().player.controller === 'drive';
+  if (!driving()) {
+    await walkTo(t, 'jeep', 3.2, 60000, 'the 4x4');
+    for (let i = 0; i < 4 && !driving(); i++) { await tap(t, 'e'); await t.wait(700); }
+    if (!driving()) throw new Error('timed out getting into the 4x4 with E');
+  }
+  const F = () => HP().vehicles.feel;
+  if (!F()) throw new Error('the vehicles feel layer is not loaded');
+  const cam = () => W().scene.activeCamera;
+  t.event('in-the-4x4');
+  await t.wait(800);
+  const idle = F().sample(), fov0 = cam().fov;
+  t.event('feel-idle', `view ${fov0.toFixed(3)} rad, engine note ${idle.rpm === null || idle.rpm === undefined ? '-' : idle.rpm.toFixed(2)}`);
+  t.scene('4x4: standing');
+  t.progress(0.65);
+  // fps while driving (the phone tier must hold 30)
+  let frames = 0, running = true;
+  const t0 = performance.now();
+  const raf = () => { frames++; if (running) requestAnimationFrame(raf); };
+  requestAnimationFrame(raf);
+  // 1) straight ahead: speed, view, engine
+  const seen = { fov: 0, rpm: 0, roll: 0, skid: 0, speed: 0 };
+  const peek = () => { const s = F().sample(), j = jeep(); seen.fov = Math.max(seen.fov, s.fov); seen.rpm = Math.max(seen.rpm, s.rpm || 0); seen.roll = Math.max(seen.roll, Math.abs(s.roll)); seen.skid = Math.max(seen.skid, s.skid); seen.speed = Math.max(seen.speed, j ? j.speed : 0); return s; };
+  const puffs0 = F().sample().puffs;
+  setKeys({ w: true });
+  const marks = [];
+  for (let i = 0; i < 9; i++) {
+    await t.wait(500);
+    const s = peek();
+    if (i === 1 || i === 8) marks.push({ speed: jeep().speed, fov: cam().fov - fov0, rpm: s.rpm || 0, back: s.camBack });
+    if (i === 8) t.scene('4x4: at speed');
+  }
+  if (marks.length === 2) t.event('speed-feel', `at ${marks[0].speed.toFixed(0)} m/s the view is ${marks[0].fov.toFixed(3)} rad wider and the engine ${marks[0].rpm.toFixed(2)}; at ${marks[1].speed.toFixed(0)} m/s ${marks[1].fov.toFixed(3)} rad and ${marks[1].rpm.toFixed(2)}, the camera ${marks[1].back.toFixed(2)} m farther back`);
+  t.event('fov-widened', `${seen.fov.toFixed(3)} rad at ${seen.speed.toFixed(0)} m/s`);
+  t.event('engine-pitch', `note ${idle.rpm === null || idle.rpm === undefined ? '0' : idle.rpm.toFixed(2)} standing, ${seen.rpm.toFixed(2)} at speed`);
+  t.event('dust', `${F().sample().puffs - puffs0} puffs kicked up on the way`);
+  // 2) weave: the body leans
+  for (let i = 0; i < 4; i++) {
+    setKeys({ w: true, d: i % 2 === 0, a: i % 2 === 1 });
+    await t.wait(700);
+    peek();
+    if (i === 1) t.scene('4x4: leaning in a bend');
+  }
+  t.event('body-roll', `leaned up to ${(seen.roll * 57.3).toFixed(1)} degrees in the bends`);
+  // 3) the handbrake: a drift
+  setKeys({ w: true, a: true });
+  keyEv('keydown', ' ');
+  for (let i = 0; i < 6; i++) { await t.wait(250); peek(); }
+  keyEv('keyup', ' ');
+  setKeys({ w: true });
+  t.event('drift-squeal', `tire squeal up to ${seen.skid.toFixed(2)}`);
+  t.scene('4x4: drifting');
+  // 4) a jump: a push upward at speed (named shortcut), then the landing
+  await t.wait(900);
+  const before = F().sample(), sounds0 = HP().juice && HP().juice.sound ? HP().juice.sound.played : 0;
+  const v = jeep().vehicle;
+  v.vel.y += 9;
+  t.event('setup-shortcut', 'the 4x4 given an upward push at speed to jump (no ramp on the island is reliable)');
+  let dip = 0;
+  for (let i = 0; i < 24; i++) { await t.wait(100); dip = Math.min(dip, F().sample().dip); if (i === 3) t.scene('4x4: in the air'); }
+  const after = F().sample();
+  releaseAll();
+  const sounds = (HP().juice && HP().juice.sound ? HP().juice.sound.played : 0) - sounds0;
+  if (after.landed > before.landed) t.event('landing', `camera dip ${dip.toFixed(3)} m, ${after.puffs - before.puffs} puffs of dust, ${sounds} sounds`);
+  else t.problem('warning', 'the 4x4 did not land from the jump in time');
+  t.scene('4x4: landed');
+  running = false;
+  const fps = Math.round(frames / ((performance.now() - t0) / 1000));
+  t.metric('driveFps', fps);
+  t.event('drive-fps', `${fps} fps while driving${ctx.options.touch ? ' (phone controls)' : ''}`);
+  if (ctx.options.touch && fps < 30) t.problem('error', `the phone tier held ${fps} fps while driving (30 needed)`);
+  t.progress(1);
+}
+
 const RUN = {
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
 };
-const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2' };
+const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2' };
 
 // ---------------------------------------------------------------------------------------------- the contract
 let api = null;
@@ -1491,6 +1578,7 @@ export function install() {
     isReady: () => (onSandbox() || onGame() ? Boolean(W() && W().player) || document.readyState === 'complete' : document.readyState === 'complete'),
     async start(id, options, t) {
       if (id === 'observatory-wardrobe' && options.touch) options = { at: 'sandbox', ...options }; // (touch: straight to the island with the phone controls)
+      if (id === 'vehicle-feel' && options.touch) options = { at: 'sandbox', ...options };
       if (id === 'touch-controls') options = { at: 'sandbox', touch: true, ...options }; // (the phone controls, straight to the island)
       const events = [];
       // Everything the run says is kept, so the page that follows can carry the whole report.
