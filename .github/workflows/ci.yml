@@ -16,7 +16,8 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # A killed run bills its full time and gives no result (agents then push again): leave room over the suite.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       # Docs-only changes (docs/, *.md) skip the install, typecheck and tests, but the job still reports success: the
