@@ -608,7 +608,7 @@ function drawTour() {
   const step = active ? q.step('tour') : null;
   if (typeof document !== 'undefined' && document.body) document.body.classList.toggle('tour-on', active && !!step);
   // (The last quest is led by the Overseer's beam and the rocket lesson: the journey's own tracker, not this one.)
-  if (!active || !step || !STEPS.includes(step) || (step === 'launch' && journey.state === 'invited')) {
+  if (!active || !step || !STEPS.includes(step) || (step === 'launch' && journey.state === 'invited') || inBay()) {
     const el = game.ui.el('tour-track');
     if (el) el.hidden = true;
     const sb = game.ui.el('tour-stuck');
@@ -680,9 +680,16 @@ const JOURNEY = {
   burn: ['Hold to burn', 'Hold SPACE: the engine burns while you hold it, and keeps burning when you let go. C cuts it.', 'Hold the up button: the engine burns while you hold it. The down button cuts it.'],
   steer: ['Steer toward the Overseer', 'W / S tip the nose, A / D lean it. It points where it flies: tip it toward the big ship in the sky.', 'The stick tips the nose and leans it. It flies where it points: tip it toward the big ship in the sky.'],
   stage: ['Stage: cut the engine and coast', 'Up in the thin air, press C to cut the engine. Coast. Burn again (SPACE) only to correct your way.', 'Up in the thin air, cut the engine with the down button. Coast. Burn again only to correct your way.'],
+  lift: ["The Overseer's lift", 'Walk to the lit door at the back of the hangar and press E to ride up to the Observatory.', 'Walk to the lit door at the back of the hangar and tap the button to ride up to the Observatory.'],
   bay: ['Line up with the bay', 'Follow the readout: slow down as you near it, keep the align low. The Overseer will catch you if you are careful.', 'Follow the readout: slow down as you near it, keep the align low. The Overseer will catch you if you are careful.'],
 };
+// In the Overseer's hangar, on foot, the quest line is the lift (the island's steps are somewhere else).
+const inBay = () => {
+  const O = H && H.overseer, ob = O && O.observatory;
+  return Boolean(ob && ob.on && ob.state === 'bay' && O.hangar && O.hangar.inside && !rideOf());
+};
 function journeyKey() {
+  if (inBay()) return 'lift';
   if (journey.state !== 'invited') return null;
   const ride = rideOf();
   if (!ride) return 'invited';
@@ -714,6 +721,7 @@ function drawJourney() {
   const key = journeyKey();
   const el = game.ui.el('journey-track');
   if (!key) {
+    journey.liftCard = false;
     if (el) el.hidden = true;
     const sb = game.ui.el('tour-stuck');
     if (sb && journey.state === 'off') sb.hidden = true;
@@ -735,6 +743,8 @@ function drawJourney() {
   if (t) t.textContent = title;
   if (h) h.textContent = hints[touch - 1] || hints[0];
   box.classList.add('hint'); // (the lesson is short: its words stay up)
+  if (key === 'lift') { endBeam(); clearJourneyMark(); journey.liftCard = true; return; }
+  journey.liftCard = false;
   const r = ensureBeam();
   const p = game.player;
   if (r && key === 'invited') {
@@ -748,7 +758,7 @@ function drawJourney() {
   } else clearJourneyMark();
 }
 game.every(0.25, () => {
-  if (journey.state !== 'invited') return;
+  if (journey.state !== 'invited' && !journey.liftCard && !inBay()) return;
   const ride = rideOf();
   if (ride) advanceLesson(ride);
   drawJourney();
