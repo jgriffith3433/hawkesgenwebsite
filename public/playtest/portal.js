@@ -17,7 +17,9 @@
 import { installPlaytest } from './hawkes-playtest.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter'];
+const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'observatory'];
+// (A scenario that is not the whole line from the landing page on lists its stages.)
+const PATHS = { 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'] };
 const SCENARIOS = [
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
   {
@@ -29,6 +31,11 @@ const SCENARIOS = [
     id: 'sandbox-chapter-one', title: 'Chapter One "What Are You?": the eight quests to the launch pad, the lit bay and the two closing lines', seconds: 420, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first-minutes path, then quests 6 (walk up to Dolores) and 8 (Rolo\'s rocket) with real input; quests 4, 5 and 7 are named setup shortcuts (the quest line advanced); options as sandbox-first-minutes, plus rocket ("shortcut": skip the climb)',
+  },
+  {
+    id: 'sandbox-observatory', title: 'Docking, the lift to the Observatory: the first arrival (windows, music, the pearl, a gift by name), the quick return, and the way back to the bay', seconds: 330, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the sign-up sheet, then the Observatory with real input (E at the lift, walking in the room, E again); docking itself is a named setup shortcut (the rocket put on the pad, the player beside the lift); options as sandbox-first-minutes, plus again (false: skip the quick return)',
   },
 ];
 
@@ -350,10 +357,80 @@ async function stageChapter(t, ctx) {
   t.progress(1);
 }
 
+/** The Observatory. Docking itself is a named setup shortcut (the rocket put on the pad, the player on foot beside the lift);
+ *  the rest is played: E at the lift, the first arrival, walking in the room, E at the lift down, and later the quick return. */
+async function stageObservatory(t, ctx) {
+  const OB = () => HP().overseer && HP().overseer.observatory;
+  const seen = [];
+  G().on('observatory', (d) => { seen.push(d.state); t.event(`observatory-${d.state}`, d.first ? 'the first time' : 'a return'); });
+  G().on('observatory-gift', (d) => t.event('observatory-gift', `${d.label} (${d.gift})`));
+  releaseAll();
+  await t.until(() => W() && W().player && W().player.alive && OB() && OB().on, 60000, 'the Overseer\'s hangar and lift to exist');
+  if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
+  const toBay = () => {
+    const hg = HP().overseer.hangar, rocket = G().entity('rocket'), l = OB().lift;
+    if (rocket) { rocket.position = [hg.pad[0], hg.pad[1] + 3, hg.pad[2]]; rocket.velocity = [0, 0, 0]; }
+    W().player.position = [l[0], l[1] + 1.2, l[2] - 1];
+  };
+  t.event('setup-shortcut', 'docked: the rocket on the pad, the player by the lift in the hangar');
+  toBay();
+  await t.wait(2500);
+  t.scene('The hangar: the lift');
+  const t0 = performance.now();
+  for (let i = 0; i < 4 && OB().state === 'bay'; i++) { await tap(t, 'e'); await t.wait(700); }
+  await t.until(() => OB().state === 'inside', 15000, 'the lift to reach the Observatory');
+  t.event('observatory-reached', `${Math.round(performance.now() - t0)} ms after E`);
+  t.scene('The Observatory: arrival');
+  t.event('observatory-music', OB().music ? 'the music bed is playing' : 'no music bed');
+  await t.wait(9000);
+  t.scene('The Observatory: the pearl and the windows');
+  t.event('observatory-pearl', 'the Overseer\'s light-form at ' + OB().pearl.map((x) => Math.round(x)).join(', '));
+  // Look round for a while, as a player does: a short walk forward and back.
+  setKeys({ w: true }); await t.wait(1600); setKeys({ s: true }); await t.wait(1600); setKeys({});
+  await t.until(() => OB().gift || !OB().first, 45000, 'the gift');
+  t.event('observatory-gift-given', `the gift: ${OB().gift}`);
+  try { const log = HP().speech && HP().speech.log; if (log) for (const l of log.slice(-8)) t.event('overseer-said', String(l.text || l).slice(0, 200)); } catch { /* no log */ }
+  t.scene('The Observatory: the gift');
+  await t.until(() => !OB().scene, 45000, 'the first-arrival scene to end');
+  await t.wait(2000);
+  t.scene('The Observatory: the question left open');
+  // The way down: E at the lift.
+  const l = OB().liftRoom;
+  W().player.position = [l[0], l[1] + 0.4, l[2] - 1];
+  await t.wait(500);
+  const t1 = performance.now();
+  for (let i = 0; i < 4 && OB().state === 'inside'; i++) { await tap(t, 'e'); await t.wait(700); }
+  await t.until(() => OB().state === 'bay', 15000, 'the lift down to the bay');
+  const rocket = G().entity('rocket');
+  t.event('back-in-bay', `${Math.round(performance.now() - t1)} ms; the rocket ${rocket && rocket.alive ? 'is there' : 'is missing'}; controls ${W().player.controls === false ? 'LOCKED' : 'free'}`);
+  if (W().player.controls === false) throw new Error('the player was left without controls after the lift down');
+  t.scene('Back in the bay, beside the rocket');
+  await t.wait(2500);
+  if (ctx.options.again !== false) {
+    toBay();
+    await t.wait(1500);
+    const t2 = performance.now();
+    const say0 = (HP().speech && HP().speech.log ? HP().speech.log.length : 0);
+    for (let i = 0; i < 4 && OB().state === 'bay'; i++) { await tap(t, 'e'); await t.wait(700); }
+    await t.until(() => OB().state === 'inside' && !OB().scene, 12000, 'the quick return');
+    await t.until(() => (HP().speech && HP().speech.log ? HP().speech.log.length : 1) > say0 || performance.now() - t2 > 9000, 10000, 'its short line').catch(() => {});
+    const ms = Math.round(performance.now() - t2);
+    t.event('observatory-return', `${ms} ms from E to the room and its line (${ms < 10000 ? 'under' : 'OVER'} 10 s)`);
+    t.scene('The Observatory: a quick return');
+    if (ms >= 10000) t.problem('error', `the quick return took ${ms} ms`);
+    await t.wait(2500);
+    OB().leave();
+    await t.until(() => OB().state === 'bay', 15000, 'the lift down again');
+    t.event('back-in-bay', 'the second time');
+  }
+  t.event('observatory-done', seen.join(', '));
+  t.progress(1);
+}
+
 const RUN = {
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish, chapter: stageChapter,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish, chapter: stageChapter, observatory: stageObservatory,
 };
-const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter' };
+const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'sandbox-observatory': 'observatory' };
 
 // ---------------------------------------------------------------------------------------------- the contract
 let api = null;
@@ -382,13 +459,13 @@ export function install() {
         for (const [k, a, b] of prior.events) { if (k === 's') sc(a); else ev(a, b); events.push([k, a, b]); }
         ev('page-changed', 'landing page > /play/sandbox');
       }
-      const to = STAGES.indexOf(options.to && STAGES.includes(options.to) ? options.to : ENDS[id]);
+      const path = PATHS[id] || STAGES.slice(0, STAGES.indexOf(options.to && STAGES.includes(options.to) ? options.to : ENDS[id]) + 1);
       const from = prior || onSandbox() ? 1 : 0;
-      t.event('plan', `${id}: ${STAGES[from]} to ${STAGES[to]}${isLive() ? ' (live: no sign-up)' : ''}`);
+      t.event('plan', `${id}: ${path[from]} to ${path[path.length - 1]}${isLive() ? ' (live: no sign-up)' : ''}`);
       let named = '';
       try {
-        for (let i = from; i <= to; i++) {
-          named = STAGES[i];
+        for (let i = from; i < path.length; i++) {
+          named = path[i];
           if ((await RUN[named](t, ctx)) === 'stop') return;
           t.event('stage-done', named);
         }
