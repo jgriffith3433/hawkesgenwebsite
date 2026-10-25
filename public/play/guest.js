@@ -158,7 +158,7 @@
 .gs-ui{position:fixed;z-index:30;font-family:var(--hud);color:#e8ecf6}
 .gs-glass{background:rgba(10,14,24,.78);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
 .gs-acts{right:12px;top:12px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100vw - 24px);pointer-events:auto}
-.gs-acts button{font:700 14px var(--hud);letter-spacing:.03em;color:#e8ecf6;background:rgba(10,14,24,.78);border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:10px;padding:9px 13px;cursor:pointer;min-height:40px}
+.gs-acts button{font:700 14px var(--hud);letter-spacing:.03em;color:#e8ecf6;background:rgba(10,14,24,.78);border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:10px;padding:9px 13px;cursor:pointer;min-height:44px}
 .gs-acts button:hover{border-color:#4a9eff}
 .gs-acts button.glow{border-color:#ffd84a;color:#fff;animation:gsGlow 1.6s ease-in-out infinite;position:relative}
 .gs-acts button.glow::after{content:attr(data-tip);position:absolute;right:0;top:calc(100% + 8px);width:max-content;max-width:260px;font:600 13px/1.35 var(--hud);letter-spacing:0;text-align:left;color:#16130a;background:#ffd84a;border-radius:10px;padding:8px 11px;box-shadow:0 6px 20px rgba(0,0,0,.4);pointer-events:none}
@@ -166,7 +166,7 @@
 .gs-acts button.primary{background:linear-gradient(90deg,#4a9eff,#a855f7);border-color:transparent;color:#fff}
 .gs-acts .more{display:none}
 .gs-toast{right:12px;top:62px;padding:12px 14px;display:flex;gap:12px;align-items:center;font:600 15px var(--hud);pointer-events:auto;max-width:calc(100vw - 24px)}
-.gs-toast button{font:700 14px var(--hud);border-radius:9px;padding:8px 12px;cursor:pointer;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);color:#e8ecf6;min-height:38px}
+.gs-toast button{font:700 14px var(--hud);border-radius:9px;padding:8px 12px;cursor:pointer;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);color:#e8ecf6;min-height:44px}
 .gs-toast button.primary{background:linear-gradient(90deg,#4a9eff,#a855f7);border-color:transparent;color:#fff}
 .gs-veil{inset:0;z-index:60;background:rgba(4,6,12,.66);display:grid;place-items:center;padding:16px;pointer-events:auto}
 .gs-sheet{width:min(420px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:22px 22px 18px;font-family:var(--sans)}
@@ -177,11 +177,11 @@
 .gs-sheet h3{margin:0 0 6px;font:700 20px var(--display);letter-spacing:.04em;color:#fff}
 .gs-sheet p{margin:0 0 14px;color:#a5acc2;font:14px/1.45 var(--sans)}
 .gs-sheet .google{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;box-sizing:border-box;background:#fff;color:#1f2937;border-radius:10px;padding:11px;font:600 15px var(--sans);text-decoration:none;min-height:44px}
-.gs-sheet .or{display:flex;align-items:center;gap:10px;color:#6b7280;font:12px var(--sans);margin:14px 0}
+.gs-sheet .or{display:flex;align-items:center;gap:10px;color:#a5acc2;font:12px var(--sans);margin:14px 0}
 .gs-sheet .or::before,.gs-sheet .or::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.14)}
 .gs-sheet label{display:block;font:600 12.5px var(--sans);color:#c7cbe0;margin:0 0 4px}
 .gs-sheet input{width:100%;box-sizing:border-box;font:15px var(--sans);color:#fff;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.2);border-radius:9px;padding:10px 11px;margin-bottom:10px;-webkit-user-select:text;user-select:text}
-.gs-sheet input:focus{outline:none;border-color:#4a9eff}
+.gs-sheet input:focus{border-color:#7cc4ff}.gs-sheet :is(input,button,a):focus-visible,.gs-acts button:focus-visible,.gs-toast button:focus-visible{outline:3px solid #fff;outline-offset:2px;box-shadow:0 0 0 5px #0b66d6}
 .gs-sheet .go{width:100%;font:700 15px var(--sans);color:#fff;background:linear-gradient(90deg,#4a9eff,#a855f7);border:0;border-radius:10px;padding:12px;cursor:pointer;min-height:46px}
 .gs-sheet .go:disabled{opacity:.6}
 .gs-sheet .err{color:#fca5a5;font:13px var(--sans);margin:0 0 10px}
@@ -191,8 +191,8 @@
 .gs-sheet input.bad{border-color:#f87171}
 .gs-sheet .fld{color:#fca5a5;font:12.5px var(--sans);margin:-6px 0 10px}
 .gs-sheet .pw{position:relative}
-.gs-sheet .pw input{padding-right:62px}
-.gs-sheet .pw button{position:absolute;right:4px;top:3px;height:34px;min-width:52px;background:none;border:0;color:#93c5fd;font:600 13px var(--sans);cursor:pointer;border-radius:8px}
+.gs-sheet .pw input{padding-right:70px;min-height:44px}.gs-sheet input{min-height:44px}
+.gs-sheet .pw button{position:absolute;right:0;top:0;height:44px;min-width:62px;background:none;border:0;color:#93c5fd;font:600 13px var(--sans);cursor:pointer;border-radius:8px}
 .gs-sheet .go{display:flex;align-items:center;justify-content:center;gap:9px}
 .gs-sheet .spin{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;animation:gsspin .7s linear infinite}
 @keyframes gsspin{to{transform:rotate(360deg)}}
@@ -201,7 +201,7 @@
 .gs-sheet .fine{font:12px var(--sans);color:#8088a3;margin:10px 0 0}
 .gs-sheet .fine a,.gs-sheet .swap a{color:#93c5fd}
 .gs-sheet .swap{font:13px var(--sans);color:#a5acc2;margin:12px 0 0;text-align:center}
-.gs-sheet .back{display:block;margin:12px auto 0;background:none;border:0;color:#a5acc2;font:600 14px var(--sans);cursor:pointer;padding:8px}
+.gs-sheet .back{display:block;margin:12px auto 0;background:none;border:0;color:#a5acc2;font:600 14px var(--sans);cursor:pointer;padding:8px;min-height:44px}.gs-sheet .swap a,.gs-sheet .fine a{display:inline-block;padding:11px 4px}
 .gs-busy{font:700 14px var(--display);letter-spacing:.18em;color:#7cc4ff;text-align:center}
 .gs-busy small{display:block;margin-top:10px;font:500 14px var(--sans);letter-spacing:0;color:#a5acc2}
 @media (max-width:640px){
@@ -524,7 +524,20 @@
       addEventListener('message', onMsg);
     });
     const unlock = lockGame(veil);
-    const close = () => { unlock(); veil.remove(); };
+    const opener = document.activeElement;
+    const close = () => { unlock(); veil.remove(); try { opener && opener.focus && opener.isConnected && opener.focus(); } catch { /* fine */ } };
+    // Keyboard: focus goes into the sheet and Tab turns round inside it (the page behind is frozen), so even the forced
+    // sheet always has a next control, including "leave"; Escape closes it only when it is not forced.
+    veil.addEventListener('keydown', (e) => {
+      if (e.key !== 'Tab') return;
+      const f = [...veil.querySelectorAll('a[href],button,input,select,textarea,[tabindex]:not([tabindex="-1"])')].filter((x) => !x.disabled && !x.closest('[hidden]') && x.getClientRects().length);
+      if (!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if (!veil.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+      else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
+    setTimeout(() => { const t = $('gsEmail'); if (t && !veil.contains(document.activeElement)) t.focus({ preventScroll: true }); }, 0);
     // (Forced: it can't be put away: the way out is leaving the island.)
     if (!forced) veil.querySelector('[data-back]').onclick = close;
     else veil.querySelector('[data-leave]').onclick = () => track('sandbox_gate_leave', {});
