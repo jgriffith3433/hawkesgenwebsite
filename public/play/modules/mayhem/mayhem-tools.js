@@ -194,6 +194,13 @@
     tip(`Got the <b>${title}</b>${belt.length > 1 ? ` · ${H.touchUi ? '⇄' : 'Q'} switches tools` : ''}`, 3);
   }
   X.giveTool = giveTool;
+  /** Puts a tool on the belt without taking it in hand (progress.js: what a level gave, back on the belt each visit). True when it was new. */
+  X.addToBelt = (name, opts = {}) => {
+    const n = String(name);
+    if (!H.tools.get(n) || belt.some((b) => b.name === n)) return false;
+    belt.push({ name: n, opts: opts || {} });
+    return true;
+  };
   Object.defineProperty(X, 'belt', { get: () => belt.map((b) => b.name), configurable: true });
   X.leaves.push(() => { belt.length = 0; hud.held = null; for (const r of [...ropes]) dropRope(r); projectiles.length = 0; myStickies.clear(); remoteFlames.clear(); });
   // config.player.tools: the belt a world starts with.

@@ -111,7 +111,7 @@
 
   // ------------------------------------------------------------------ the zones' pieces: which module's element goes where
   const ZONE_OF = [
-    ['tl', '.pr-hud, .qs-btn, .tour-stuck, .tour-track, .qs-track, .wp-hp'],
+    ['tl', '.pr-hud, .pg-hud, .qs-btn, .tour-stuck, .tour-track, .qs-track, .wp-hp'],
     ['tr', '.gs-acts, .gs-toast, .corner, #veh-hud, .mh-score, .wp-ammo'],
     ['mid', '.hc-chat, .hp-use, #veh-prompt, .mh-tip, .water-hud'],
     ['ctx', '#touch, .mh-touch, #veh-touch, .sw-fab, .lv-touchbtn'],
