@@ -1167,7 +1167,24 @@ async function stageProgress(t, ctx) {
   // A level: quests done are earned by a named shortcut (the quest line itself is another scenario's).
   const lvl0 = PG().state.level;
   t.event('setup-shortcut', 'quests done: the points of a few quests, earned through the same table');
+  // The HUD must move in the frame of the award, with a count-up (not all at once), and the level's line must not wait.
+  const hudPts = () => (PG().hud || {}).shown;
+  const shownBefore = hudPts(), t0 = performance.now();
+  let gotQ = 0;
+  while (!gotQ) { gotQ = PG().earn('quest'); if (!gotQ) await t.wait(300); }
+  const shownNow = hudPts(), ms = Math.round(performance.now() - t0);
+  t.event('hud-updated', `+${gotQ}: HUD ${shownBefore} -> ${shownNow} of ${PG().state.pts} in the same call (${ms} ms incl. waiting to count)`);
+  if (!(shownNow > shownBefore)) t.problem('error', 'the HUD did not move in the frame of the award');
+  await t.wait(120);
+  const mid = hudPts();
+  await t.wait(700);
+  t.event('hud-count-up', `${shownNow} -> ${mid} -> ${hudPts()} (target ${PG().state.pts}); flashes ${(PG().hud || {}).flashes}`);
+  if (hudPts() !== PG().state.pts) t.problem('error', 'the HUD count-up did not reach the points earned');
+  const lvlAt = performance.now();
   while (PG().state.level < 2) { if (!PG().earn('quest')) await t.wait(300); }
+  const speaking = HP().speech && HP().speech.busy;
+  t.event('level-moment-timing', `level ${PG().state.level} reached; moments waiting ${PG().waiting}${PG().waiting ? ' (another line was speaking)' : ' (said at once)'}; ${Math.round(performance.now() - lvlAt)} ms`);
+  layoutCheck('level pill and wish note after a level-up');
   await t.until(() => PG().waiting === 0, 40000, 'the Overseer\'s moment');
   t.event('level-reached', `level ${lvl0} -> ${PG().state.level}; HUD: ${hudText()}`);
   t.scene('Progress: level up');

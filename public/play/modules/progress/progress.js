@@ -27,6 +27,8 @@
   const lastAt = {}; // id -> ms (the `gap` of the repeating ones)
   const moments = []; // level-ups waiting for the Overseer to be free
   let el = null, bar = null, popTimer = 0, quiet = false;
+  let shown = 0, countAt = 0, flashes = 0; // the points the HUD shows (it counts up to pr.p), and when it last stepped
+  const COUNT_S = 0.45; // seconds a count-up takes
   let G = null;
   const emit = (d) => { try { if (G) G.emit('progress', d); } catch (err) { H.report(err, 'progress'); } };
 
@@ -77,7 +79,8 @@
     pop(`+${pts} ${pts === 1 ? C.POINTS.one : C.POINTS.many} · ${label}`);
     if (after > before) levelUp(before, after);
     keep();
-    draw();
+    flash();
+    count(0); // the HUD moves in this frame; the frame hook carries the count on
     return pts;
   }
   /** Earns by the table. Returns the points given (0 when it did not count: not yet, done before, too soon). */
@@ -120,11 +123,12 @@
     for (const u of ups) emit({ state: 'unlock', key: u.key, kind: u.kind, id: u.id, label: u.label, level: u.level });
     moments.push({ level: to, text: C.levelLine(to, ups), ups });
     pop(`Level ${to}${ups.length ? ` · ${ups.map((u) => u.label).join(', ')}` : ''}`, 5);
+    sayMoments(); // now, unless another line is speaking (then the frame hook says it the moment that line ends)
   }
   /** Says the waiting moments when the Overseer is free (never over the intro, the mirror or another of its lines). */
   function sayMoments() {
     if (!moments.length || !G) return;
-    if (quiet || (H.speech && H.speech.busy) || (H.mirror && H.mirror.isOpen)) return;
+    if (quiet || !armed || (H.speech && H.speech.busy) || (H.mirror && H.mirror.isOpen)) return;
     const m = moments.shift();
     pr.s = Math.max(pr.s, m.level);
     keep();
@@ -139,8 +143,10 @@
 .pg-hud{position:fixed;left:324px;top:62px;z-index:6;display:flex;flex-direction:column;gap:3px;min-width:132px;max-width:220px;padding:5px 10px 6px;border-radius:12px;background:rgba(8,12,22,.62);border:1.5px solid rgba(255,255,255,.18);color:#eaf7ff;font:600 12.5px/1.2 system-ui,sans-serif;pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.8)}
 .pg-hud[hidden]{display:none}
 .pg-hud .pg-row{display:flex;justify-content:space-between;gap:8px}.pg-hud b{color:#ffe28a}
-.pg-hud .pg-bar{height:6px;border-radius:3px;background:rgba(255,255,255,.16);overflow:hidden}.pg-hud .pg-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#8fd8ff,#ffe28a);transition:width .5s}
+.pg-hud .pg-bar{height:6px;border-radius:3px;background:rgba(255,255,255,.16);overflow:hidden}.pg-hud .pg-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#8fd8ff,#ffe28a);transition:width .15s}
 .pg-hud .pg-pop{min-height:14px;color:#cfe8f7;font-weight:500;opacity:0;transition:opacity .3s}.pg-hud .pg-pop.on{opacity:1}
+.pg-hud.pg-flash .pg-bar{animation:pgflash .5s ease-out}
+@keyframes pgflash{0%{box-shadow:0 0 0 0 #ffe28a;background:#ffe28a}100%{box-shadow:0 0 0 0 #ffe28a00}}
 .pg-hud.pg-lv{border-color:#ffe28a;box-shadow:0 0 14px #ffe28a66}
 @media (max-width:700px){.pg-hud{min-width:112px;font-size:12px;left:12px;top:52px}}
 `;
@@ -158,12 +164,27 @@
   function draw() {
     make();
     if (!el) return;
-    const b = C.bar(pr.p);
+    if (!loaded || shown > pr.p) shown = pr.p;
+    const b = C.bar(Math.round(shown));
     el.querySelector('[data-l]').textContent = String(b.level);
     el.querySelector('[data-n]').textContent = b.max ? `${b.pts} ${C.POINTS.many}` : `${b.into} / ${b.span}`;
     bar.style.width = `${Math.round(b.frac * 100)}%`;
     el.setAttribute('aria-label', `Level ${b.level}, ${b.pts} ${C.POINTS.many}`);
     el.hidden = !(loaded && armed && !quiet && H.mode !== 'build');
+  }
+  /** Carries the shown points toward the real ones (a short count-up). dt 0 still takes a first step, so the HUD moves in the frame of the award. */
+  function count(dt) {
+    if (shown >= pr.p) { if (shown !== pr.p) { shown = pr.p; draw(); } return; }
+    const gap = pr.p - shown;
+    shown = Math.min(pr.p, shown + Math.max(1, gap * Math.min(1, Math.max(dt, 0.05) / COUNT_S)));
+    draw();
+  }
+  /** The bar's flash: restarted by taking the class off, reading the layout and putting it back (no timer). */
+  function flash() {
+    flashes++;
+    make();
+    if (!el) return;
+    el.classList.remove('pg-flash'); void el.offsetWidth; el.classList.add('pg-flash');
   }
   function pop(text, seconds = 2.2) {
     make();
@@ -202,10 +223,12 @@
   H.hooks.frame.push(() => {
     const t = clock.now();
     if (!loaded) { load(); return; }
+    const dt = Math.min(0.5, Math.max(0, (t - countAt) / 1000)); countAt = t;
+    if (shown < pr.p) count(dt);
+    sayMoments();
     if (t - lastSample < SAMPLE * 1000) return;
     lastSample = t;
     sample(t);
-    sayMoments();
     if (loaded && armed && counts()) beltAll();
     if (el) { const hide = !(armed && !quiet && H.mode !== 'build'); if (el.hidden !== hide) el.hidden = hide; }
   });
@@ -237,10 +260,12 @@
     earn, did, award, has, clock, grantAll,
     get state() { return { pts: pr.p, level: level(), bar: C.bar(pr.p), name: C.POINTS, firsts: [...pr.f], meters: pr.d, loaded }; },
     get unlocked() { return mine().map((u) => u.key); },
+    /** What the HUD shows now: the points it has counted up to, the real ones, and how often the bar has flashed (tests). */
+    get hud() { return { shown: Math.round(shown), target: pr.p, flashes }; },
     get waiting() { return moments.length; },
     /** Tests: the record as it is. */
     record: () => JSON.parse(JSON.stringify(pr)),
     /** Tests: forget this visit's state (the saved record stays in H.memory). */
-    reset() { pr = C.blank(); loaded = false; moments.length = 0; for (const k of Object.keys(lastAt)) delete lastAt[k]; },
+    reset() { pr = C.blank(); loaded = false; shown = 0; moments.length = 0; for (const k of Object.keys(lastAt)) delete lastAt[k]; },
   };
 })();
