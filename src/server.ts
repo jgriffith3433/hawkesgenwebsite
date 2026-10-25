@@ -150,7 +150,7 @@ async function serveStatic(route: string, res: ServerResponse, search = '') {
   const versioned = route.startsWith('/play/') && path.extname(file) === '.js' && new URLSearchParams(search).get('v') === engineVersion();
   // Self-hosted fonts (public/fonts): the play page is sandboxed (origin null), so they need open CORS; they never change under a name.
   const font = path.extname(file) === '.woff2';
-  res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] ?? 'application/octet-stream', 'Cache-Control': path.extname(file) === '.html' ? 'no-cache' : versioned || font ? 'public, max-age=31536000, immutable' : 'public, max-age=300', ...(font || route === '/fonts/fonts.css' ? { 'Access-Control-Allow-Origin': '*' } : {}) });
+  res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] ?? 'application/octet-stream', 'Cache-Control': path.extname(file) === '.html' ? 'no-cache' : versioned || font ? 'public, max-age=31536000, immutable' : 'public, max-age=300', ...(font || route === '/fonts/fonts.css' || (route.startsWith('/play/models/') && path.extname(file) === '.glb') ? { 'Access-Control-Allow-Origin': '*' } : {}) });
   fs.createReadStream(file).pipe(res);
   return true;
 }

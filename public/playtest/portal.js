@@ -22,9 +22,9 @@
 import { installPlaytest } from './hawkes-playtest.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'progress'];
+const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'progress', 'models'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
+const ORDERS = { 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
 const SCENARIOS = [
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
   {
@@ -106,6 +106,11 @@ const SCENARIOS = [
     id: 'faces-and-emotes', title: 'Faces and emotes: the character blinks, looks at the Overseer when it speaks, changes expression on a hard landing and an explosion; the six emotes from the radial wheel (desktop or touch), seen by another player', seconds: 240, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first-minutes path to the island (a throwaway sign-up, never on live), then: blinks counted over a few seconds; the Overseer asked to say a line (named setup shortcut) and the gaze checked; a drop from height (named setup shortcut: the player lifted, the fall and landing are the game\'s) and a blast beside the player (named setup shortcut) with the face read each time; then the emote wheel opened from its button and the six emotes (wave, laugh, cheer, shrug, dance, point) clicked, each checked on the player and on a stand-in second player (presence.standIn; the remote emote handed to the same handler a real peer\'s message uses). options as sandbox-first-minutes, plus touch (true: ?touch=1, taps as touch pointers)',
+  },
+  {
+    id: 'gen-models-pilot', title: 'The pilot Gen models: person, dog and shoe as the character, at real height, walking, running, jumping and emoting, each in a top hat and a cap', seconds: 330, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the island (a throwaway sign-up, never on live), then for each of person, dog, shoe (the look changed through presence.setLook, as the mirror does) and each of tophat and cap: the Gen model is on the rig (not the procedural body), its height matches the registry row, the hat anchor sits at the top of the model, the near level is within 8,000 triangles and there is a low level; then real keys walk, run (shift), jump and an emote with the hat on, a screenshot each. A failed load is the procedural body (reported). options as sandbox-first-minutes',
   },
   {
     id: 'presence-who', title: 'A shared world: who is there (list, marker or edge arrow), tap a name to beam next to them, mute, an abusive name replaced', seconds: 230, tags: ['full'],
@@ -1546,6 +1551,41 @@ async function stageTouch(t, ctx) {
   void final;
 }
 
+async function stageModels(t, ctx) {
+  const P = () => HP().presence;
+  releaseAll();
+  await t.until(() => W() && W().player && W().player.alive && P() && P().models, 60000, 'the player\'s body');
+  if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
+  const rigOf = () => P()._internal.rigs.get(W().player);
+  for (const id of ['person', 'dog', 'shoe']) {
+    for (const hat of ['tophat', 'cap']) {
+      t.event('setup-shortcut', `the look changed to ${id} with a ${hat} (presence.setLook, as the mirror's answer does)`);
+      P().setLook({ what: id, hat });
+      await t.until(() => { const r = rigOf(); return r && r.pm && r.pm.state !== 'loading'; }, 30000, `the ${id} model to load`);
+      await P().models.ready(rigOf());
+      const rig = rigOf(), st = P().models.stats(rig), row = P().models.entry(id);
+      if (!rig.pm || !rig.pm.on) { t.problem('error', `${id}: the Gen model is not on the rig (state ${rig.pm && rig.pm.state}); the procedural body shows`); continue; }
+      const box = rig.pm.holder.getHierarchyBoundingVectors(true), height = box.max.y - box.min.y;
+      const headTop = rig.pm.anchors.head.node.getAbsolutePosition().y - box.min.y;
+      t.event('model-on', `${id} (${hat}): ${st.nearTris} triangles near (budget ${st.budget}), low level ${rig.pm.urls.low ? 'yes' : 'NO'}, height ${height.toFixed(2)} m of ${row.h}, head anchor ${headTop.toFixed(2)} m up, clips ${st.clips.join('/') || 'none'}, missing ${st.missing.join(',') || 'none'}`);
+      if (st.over) t.problem('error', `${id}: ${st.nearTris} triangles is over the ${st.budget} budget`);
+      if (!rig.pm.urls.low) t.problem('error', `${id}: no low level`);
+      if (Math.abs(height - row.h) > row.h * 0.1) t.problem('error', `${id}: ${height.toFixed(2)} m tall, the row says ${row.h}`);
+      if (headTop < height * 0.8 || headTop > height * 1.1) t.problem('error', `${id}: the hat anchor is at ${headTop.toFixed(2)} of ${height.toFixed(2)} m`);
+      t.scene(`Model: ${id} in a ${hat}`);
+      if (hat !== 'tophat') continue;
+      // real keys: walk, run, jump, then an emote, the hat staying on
+      setKeys({ w: true }); await t.wait(1800); t.scene(`Model: ${id} walking`);
+      keyEv('keydown', 'Shift'); await t.wait(1500); t.scene(`Model: ${id} running`);
+      keyEv('keyup', 'Shift'); setKeys({});
+      await tap(t, ' ', 120); await t.wait(350); t.scene(`Model: ${id} jumping`); await t.wait(1200);
+      P().emote('wave'); await t.wait(900); t.scene(`Model: ${id} waving`); P().stopEmote();
+      t.event('model-moves', `${id}: walked, ran, jumped and waved with the ${hat} on`);
+    }
+  }
+  t.progress(1);
+}
+
 // `vehicle-feel`: the same way in to the account, then the 4x4 driven for the game-feel pass (vehicles-feel.js): the view
 // widens, the body leans, dust is kicked, the engine climbs with speed, the handbrake squeals, and a landing dips the view
 // with dust and a thud. Real keys; the jump is one named shortcut (a push upward at speed). touch: true is the phone: the
@@ -1708,9 +1748,10 @@ async function stageBlast(t, ctx) {
 }
 
 const RUN = {
+  models: stageModels,
   landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
 };
-const ENDS = { 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2' };
+const ENDS = { 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models' };
 
 // ---------------------------------------------------------------------------------------------- the contract
 let api = null;
