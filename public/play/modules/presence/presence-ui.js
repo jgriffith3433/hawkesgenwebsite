@@ -72,14 +72,10 @@ body.pr-touch .pr-sw button{width:38px;height:38px}body.pr-touch .pr-ch button{m
 .pr-wheel{position:fixed;inset:0;z-index:32;display:flex;align-items:center;justify-content:center;pointer-events:none}
 .pr-wheel[hidden]{display:none}
 .pr-wheel .ring{position:relative;width:340px;height:340px;border-radius:50%;background:radial-gradient(circle,rgba(10,14,26,.35) 28%,rgba(10,14,26,.78) 30%);pointer-events:auto;border:1px solid rgba(255,255,255,.12)}
-.pr-wheel .ring button{position:absolute;width:74px;height:74px;margin:-37px 0 0 -37px;border-radius:50%;border:2px solid rgba(255,255,255,.15);background:rgba(20,26,46,.9);color:#fff;font:600 11px system-ui;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transition:transform .1s}
-.pr-wheel .ring button span{font-size:28px;line-height:1}
-.pr-wheel .ring button.hot{transform:scale(1.14);border-color:#7dd3fc;background:rgba(40,70,120,.95)}
-.pr-wheel .ring .mid{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font:700 13px system-ui;color:#cfe3ff;text-align:center;pointer-events:none}
-.pr-wheel.grid{align-items:flex-end}
-.pr-wheel.grid .ring{width:min(520px,100vw);height:auto;border-radius:18px 18px 0 0;background:rgba(10,14,26,.94);display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:12px 12px max(14px,env(safe-area-inset-bottom))}
-.pr-wheel.grid .ring button{position:static;margin:0;width:auto;height:76px;border-radius:14px}
-.pr-wheel.grid .ring .mid{display:none}
+.pr-wheel .ring button.em{position:absolute;width:var(--w-btn,74px);height:var(--w-btn,74px);margin:calc(var(--w-btn,74px) / -2) 0 0 calc(var(--w-btn,74px) / -2);border-radius:50%;border:2px solid rgba(255,255,255,.15);background:rgba(20,26,46,.9);color:#fff;font:600 11px system-ui;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transition:transform .1s}
+.pr-wheel .ring button.em span{font-size:calc(var(--w-btn,74px) * .38);line-height:1}
+.pr-wheel .ring button.em.hot{transform:scale(1.14);border-color:#7dd3fc;background:rgba(40,70,120,.95)}
+.pr-wheel .ring .mid{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);min-width:64px;min-height:48px;border-radius:24px;border:1px solid rgba(255,255,255,.2);background:rgba(20,26,46,.9);font:700 13px system-ui;color:#cfe3ff;text-align:center;cursor:pointer}
 .pr-spect{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:30;display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:14px;background:rgba(10,14,26,.85);color:#fff;font:600 14px system-ui;border:1px solid rgba(255,255,255,.16)}
 .pr-spect[hidden]{display:none}.pr-spect .pr-hint{font:500 12px system-ui;opacity:.7}.pr-spect b{min-width:90px;text-align:center}
 .pr-me-pop{position:fixed;left:50%;bottom:22%;transform:translateX(-50%);z-index:8;font-size:64px;pointer-events:none;opacity:0;transition:opacity .2s,transform .3s}
@@ -195,39 +191,55 @@ body.pr-touch .pr-sw button{width:38px;height:38px}body.pr-touch .pr-ch button{m
   P.on('say', (m) => { if (P.enabled('chat')) line(m); });
 
   // ------------------------------------------------------------------ the emote wheel
-  let wheel = null, hot = -1, heldAt = 0, chose = false;
-  function ensureWheel() {
-    style();
-    if (wheel && wheel.isConnected) return;
-    wheel = make('div', 'pr-wheel', '<div class="ring"><div class="mid">Emotes<br><small>1–0</small></div></div>');
-    wheel.hidden = true;
+  let wheel = null, hot = -1, heldAt = 0, chose = false, page = 0;
+  // The wheel is radial on desktop and on touch: the six everyone has (wave, laugh, cheer, shrug, dance, point) big around the
+  // middle, and a More button in the middle for the rest (sit, sleep, clap, thumbs up, heart).
+  const shownEmotes = () => (page === 0 ? C.CORE_EMOTES.map((n) => C.emote(n)) : C.EMOTES.filter((e) => !C.CORE_EMOTES.includes(e.name)));
+  function fillWheel() {
     const ring = wheel.firstChild;
-    C.EMOTES.forEach((em, i) => {
+    for (const b of [...ring.querySelectorAll('button.em')]) b.remove();
+    shownEmotes().forEach((em, i) => {
       const b = document.createElement('button');
       b.type = 'button';
+      b.className = 'em';
       b.dataset.i = String(i);
+      b.dataset.emote = em.name;
       b.innerHTML = `<span>${em.icon}</span>${esc(em.label)}`;
       b.addEventListener('pointerenter', () => setHot(i));
       b.addEventListener('click', (e) => { e.stopPropagation(); pick(i); });
       ring.appendChild(b);
     });
+    const more = ring.querySelector('.mid');
+    if (more) more.textContent = page === 0 ? 'More' : 'Back';
+    layoutWheel();
+  }
+  function ensureWheel() {
+    style();
+    if (wheel && wheel.isConnected) return;
+    wheel = make('div', 'pr-wheel', '<div class="ring"><button type="button" class="mid" aria-label="More emotes">More</button></div>');
+    wheel.hidden = true;
+    wheel.setAttribute('role', 'dialog');
+    wheel.setAttribute('aria-label', 'Emotes');
+    wheel.querySelector('.mid').addEventListener('click', (e) => { e.stopPropagation(); page = page ? 0 : 1; setHot(-1); fillWheel(); });
     wheel.addEventListener('pointerdown', (e) => { e.stopPropagation(); if (e.target === wheel) closeWheel(); });
+    fillWheel();
   }
   function layoutWheel() {
-    const grid = phone() || window.innerWidth < 520;
-    wheel.classList.toggle('grid', grid);
-    const btns = [...wheel.firstChild.querySelectorAll('button')];
+    const size = Math.max(230, Math.min(340, Math.min(window.innerWidth, window.innerHeight) - 24));
+    const ring = wheel.firstChild, btn = Math.round(size * 0.235), r = size * 0.38;
+    ring.style.width = ring.style.height = `${size}px`;
+    wheel.style.setProperty('--w-btn', `${btn}px`);
+    const btns = [...ring.querySelectorAll('button.em')];
     btns.forEach((b, i) => {
-      if (grid) { b.style.left = ''; b.style.top = ''; return; }
       const a = (i / btns.length) * Math.PI * 2 - Math.PI / 2;
-      b.style.left = `${170 + Math.cos(a) * 128}px`; b.style.top = `${170 + Math.sin(a) * 128}px`;
+      b.style.left = `${size / 2 + Math.cos(a) * r}px`; b.style.top = `${size / 2 + Math.sin(a) * r}px`;
     });
   }
-  function setHot(i) { hot = i; if (wheel) [...wheel.firstChild.querySelectorAll('button')].forEach((b, j) => b.classList.toggle('hot', j === i)); }
-  function openWheel() { if (!P.enabled('emotes')) return; ensureWheel(); closeChat(); layoutWheel(); wheel.hidden = false; chose = false; setHot(-1); freeMouse(); }
+  function setHot(i) { hot = i; if (wheel) [...wheel.firstChild.querySelectorAll('button.em')].forEach((b, j) => b.classList.toggle('hot', j === i)); }
+  function openWheel() { if (!P.enabled('emotes')) return; ensureWheel(); closeChat(); page = 0; fillWheel(); wheel.hidden = false; chose = false; setHot(-1); freeMouse(); }
   function closeWheel() { if (wheel) wheel.hidden = true; setHot(-1); }
   function toggleWheel() { ensureWheel(); if (wheel.hidden) openWheel(); else closeWheel(); }
-  function pick(i) { const em = C.EMOTES[i]; closeWheel(); chose = true; if (em) try { P.emote(em.name); } catch (err) { H.report(err, 'presence'); } }
+  function pick(i) { const em = shownEmotes()[i]; closeWheel(); chose = true; if (em) try { P.emote(em.name); } catch (err) { H.report(err, 'presence'); } }
   // Seeing your own emote in first person: a big emoji for a moment.
   let pop = null;
   P.on('emote', (d) => {
@@ -450,7 +462,7 @@ body.pr-touch .pr-sw button{width:38px;height:38px}body.pr-touch .pr-ch button{m
     if (P.spectating()) { if (pressed(5)) P.spectate('next'); if (pressed(4)) P.spectate('prev'); if (pressed(1)) P.spectate(null); }
     if (wheel && !wheel.hidden) {
       const x = gp.axes[0] || 0, y = gp.axes[1] || 0;
-      if (Math.hypot(x, y) > 0.5) { const a = Math.atan2(y, x) + Math.PI / 2; const n = C.EMOTES.length; setHot(((Math.round((a / (Math.PI * 2)) * n) % n) + n) % n); }
+      if (Math.hypot(x, y) > 0.5) { const a = Math.atan2(y, x) + Math.PI / 2; const n = shownEmotes().length; setHot(((Math.round((a / (Math.PI * 2)) * n) % n) + n) % n); }
       if (pressed(0) && hot >= 0) pick(hot);
       if (pressed(1)) closeWheel();
     }

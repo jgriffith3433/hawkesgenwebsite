@@ -12,7 +12,8 @@ changes it through `config.presence`.
 - **Speech bubbles:** what players say in game chat (Enter, or 💬 on phones) shows over their head, stacked (three at
   most), wrapped and timed (longer lines stay longer). Everything that talks gets one too: AI friends' replies, NPCs'
   `lines`, creatures and any `e.say(...)`. Lines also show in a small chat log. Scripts hear chat as the event `chat`.
-- **Emotes:** wave, dance, cheer, laugh, point, sit, sleep, clap, thumbs up, heart. Hold B (or 😀, or Y on a gamepad)
+- **Faces:** every body blinks, looks at the camera (or at a player close by, or at the Overseer while it speaks) and wears a face that changes with what happens: surprised on a hard landing, scared in a blast, grumpy when hit, happy on a catch, sleepy after standing still a long while, the mouth moving while it speaks. Nothing to set up.
+- **Emotes:** wave, laugh, cheer, shrug, dance, point, sit, sleep, clap, thumbs up, heart. Hold B (or 😀, or Y on a gamepad)
   for the wheel; keys 1–0 pick one. Everyone in the room sees it on the avatar, with the emoji on the name tag. Sit and
   sleep last until you move. AI friends and pets join in when everyone emotes.
 - **Looks:** every player is what they chose at a mirror ("The mirror": a person, an animal, a robot, a shoe...) with a

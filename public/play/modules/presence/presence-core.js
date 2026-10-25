@@ -181,9 +181,10 @@
   // loop: keeps going until you move (sit, sleep); seconds otherwise. clip: the animation a model avatar plays.
   const EMOTES = [
     { name: 'wave', icon: '👋', label: 'Wave', seconds: 2.6 },
-    { name: 'dance', icon: '💃', label: 'Dance', seconds: 6 },
-    { name: 'cheer', icon: '🙌', label: 'Cheer', seconds: 2.6 },
     { name: 'laugh', icon: '😂', label: 'Laugh', seconds: 2.6 },
+    { name: 'cheer', icon: '🙌', label: 'Cheer', seconds: 2.6 },
+    { name: 'shrug', icon: '🤷', label: 'Shrug', seconds: 2.4 },
+    { name: 'dance', icon: '💃', label: 'Dance', seconds: 6 },
     { name: 'point', icon: '👉', label: 'Point', seconds: 2.4 },
     { name: 'sit', icon: '🪑', label: 'Sit', loop: true },
     { name: 'sleep', icon: '😴', label: 'Sleep', loop: true },
@@ -191,7 +192,7 @@
     { name: 'thumbsup', icon: '👍', label: 'Thumbs up', seconds: 2.2 },
     { name: 'heart', icon: '❤️', label: 'Heart', seconds: 2.6 },
   ];
-  const ALIASES = { hi: 'wave', hello: 'wave', bye: 'wave', yay: 'cheer', lol: 'laugh', haha: 'laugh', love: 'heart', like: 'thumbsup', thumbs: 'thumbsup', 'thumbs up': 'thumbsup', applaud: 'clap', nap: 'sleep', zzz: 'sleep', party: 'dance', boogie: 'dance' };
+  const ALIASES = { idk: 'shrug', whatever: 'shrug', hi: 'wave', hello: 'wave', bye: 'wave', yay: 'cheer', lol: 'laugh', haha: 'laugh', love: 'heart', like: 'thumbsup', thumbs: 'thumbsup', 'thumbs up': 'thumbsup', applaud: 'clap', nap: 'sleep', zzz: 'sleep', party: 'dance', boogie: 'dance' };
   const emote = (name) => { const n = String(name || '').toLowerCase().trim(); const k = ALIASES[n] || n.replace(/[\s_-]+/g, ''); return EMOTES.find((e) => e.name === k) || null; };
 
   // ------------------------------------------------------------------ name tags: which show, how big, how clear
@@ -334,11 +335,107 @@
     sad: { open: 0, smile: -0.8, width: 0.85, raise: 0.25, tilt: -1, lid: 0.2 },
     angry: { open: 0.1, smile: -0.5, width: 1, raise: -0.6, tilt: 1, lid: 0.25 },
     sleepy: { open: 0, smile: 0.1, width: 0.8, raise: -0.25, tilt: 0, lid: 0.55 },
+    scared: { open: 0.55, smile: -0.6, width: 0.7, raise: 1, tilt: -0.7, lid: 0 },
+    grumpy: { open: 0, smile: -0.55, width: 0.9, raise: -0.5, tilt: 0.8, lid: 0.35 },
     mischief: { open: 0.1, smile: 0.75, width: 1.1, raise: 0.25, tilt: 0.55, lid: 0.18 },
   };
   /** The expression an emote or a pose shows ('' when it leaves the face alone). */
-  const EMOTE_FACE = { wave: 'happy', dance: 'happy', cheer: 'happy', laugh: 'happy', point: 'mischief', sit: 'neutral', sleep: 'sleepy', clap: 'happy', thumbsup: 'mischief', heart: 'happy' };
+  const EMOTE_FACE = { wave: 'happy', dance: 'happy', cheer: 'happy', laugh: 'happy', point: 'mischief', shrug: 'neutral', sit: 'neutral', sleep: 'sleepy', clap: 'happy', thumbsup: 'mischief', heart: 'happy' };
   const POSE_FACE = { jump: 'surprised', fall: 'surprised', swim: 'happy', drive: 'neutral', run: 'neutral' };
 
-  P.core = { ACCESSORIES, ACCESSORY, palette, tones, hsl, hexOf, mixHex, EXPRESSIONS, EMOTE_FACE, POSE_FACE, LOOK, WHATS, WHAT, cleanName, NAME_MAX, nameProblem, filterName, marker, besideSpot, cleanLook, randomLook, seedOf, EMOTES, emote, TAGS, layoutTags, BUBBLES, bubbleSeconds, wrap, bubbles, CHAT, cleanLine, limiter };
+  // ------------------------------------------------------------------ the shared face system: mood, gaze, blink, per-body spec
+  // The logic every body's face uses (person, robots, things, animals); the bodies only draw what this decides. No Babylon here.
+  /** What a game event does to a face: { face, seconds, prio } (a stronger feeling replaces a weaker one, never the other way
+   *  round while it lasts), or { talk: seconds } for speaking. null: the event leaves the face alone. */
+  function feel(event, d) {
+    d = d || {};
+    switch (event) {
+      case 'land': { const v = Number(d.speed) || 0; return v < 9 ? null : v < 14 ? { face: 'surprised', seconds: 0.9, prio: 2 } : { face: 'scared', seconds: 1.5, prio: 3 }; }
+      case 'explosion': {
+        const r = Math.max(Number(d.radius) || 0, 6), dist = Number(d.dist);
+        if (!(dist >= 0) || dist > r * 4) return null;
+        return dist < r * 1.5 ? { face: 'scared', seconds: 2, prio: 4 } : { face: 'surprised', seconds: 1.2, prio: 2 };
+      }
+      case 'hurt': return (Number(d.amount) || 0) > 0 ? { face: 'grumpy', seconds: 1.4, prio: 3 } : null;
+      case 'catch': return { face: 'happy', seconds: 3, prio: 2 };
+      case 'talk': return { talk: Math.max(0.4, Math.min(8, Number(d.seconds) || 1.5)) };
+      default: return null;
+    }
+  }
+  /** One body's feelings over time: push(event, data), tick(dt), then face() (the name showing, or null) and talking(). */
+  function mood() {
+    const m = { cur: null, left: 0, talkLeft: 0 };
+    return {
+      push(event, d) {
+        const f = feel(event, d);
+        if (!f) return false;
+        if (f.talk) { m.talkLeft = Math.max(m.talkLeft, f.talk); return true; }
+        if (m.cur && m.left > 0 && f.prio < m.cur.prio) return false;
+        m.cur = f; m.left = f.seconds; return true;
+      },
+      tick(dt) { if (m.left > 0) { m.left -= dt; if (m.left <= 0) { m.cur = null; m.left = 0; } } if (m.talkLeft > 0) m.talkLeft = Math.max(0, m.talkLeft - dt); },
+      face() { return m.cur ? m.cur.face : null; },
+      talking() { return m.talkLeft > 0; },
+      clear() { m.cur = null; m.left = 0; m.talkLeft = 0; },
+    };
+  }
+  /** How far the mouth is open while speaking at time t (0..0.45): a quick, uneven flap. */
+  const talkOpen = (t) => 0.22 + 0.2 * Math.sin(t * 17) * Math.sin(t * 5.3 + 1);
+  /** The face a body wears when nothing else decides: sleepy after a long stand, else its own rest. */
+  const restFace = (rest, idleSeconds) => (idleSeconds > 25 ? 'sleepy' : rest);
+  /** Who a face looks at: the Overseer while it speaks, a point it was told to watch, the nearest other player within 10 m, else
+   *  the camera. Each is { pos } or null; others: [{ pos, dist }]. Returns { kind, pos } or null. */
+  function gazeTarget(o) {
+    o = o || {};
+    if (o.speaking && o.overseer) return { kind: 'overseer', pos: o.overseer };
+    if (o.explicit) return { kind: 'point', pos: o.explicit };
+    let best = null;
+    for (const x of o.others || []) if (x && x.pos && x.dist <= 10 && (!best || x.dist < best.dist)) best = x;
+    if (best) return { kind: 'player', pos: best.pos };
+    return o.camera ? { kind: 'camera', pos: o.camera } : null;
+  }
+  /** The blink: shut in 80 ms, open in 120 ms, every 2.5 to 6 s, some in pairs. B = { next, start, dbl }; returns the lid 0..1. */
+  function blinkStep(Bk, t, rand) {
+    const rnd = rand || Math.random;
+    if (Bk.start < 0 && t >= Bk.next) { Bk.start = t; Bk.dbl = rnd() < 0.15; }
+    if (Bk.start < 0) return 0;
+    const d = t - Bk.start;
+    const lid = d < 0.08 ? d / 0.08 : d < 0.11 ? 1 : d < 0.23 ? 1 - (d - 0.11) / 0.12 : 0;
+    if (d >= 0.23) { Bk.start = -1; Bk.next = Bk.dbl ? t + 0.12 : t + 2.5 + rnd() * 3.5; Bk.dbl = false; }
+    return lid;
+  }
+  /** A hard landing, from what a body does each frame: step(grounded, vy, dt) gives the impact speed once, when it touches down
+   *  after more than 0.12 s in the air faster than 4 m/s, else 0. */
+  function landTracker() {
+    const L = { air: 0, minVy: 0, was: true };
+    return {
+      step(grounded, vy, dt) {
+        let hit = 0;
+        if (!grounded) { L.air += dt; L.minVy = Math.min(L.minVy, vy); }
+        else { if (!L.was && L.air > 0.12 && -L.minVy > 4) hit = -L.minVy; L.air = 0; L.minVy = 0; }
+        L.was = grounded;
+        return hit;
+      },
+    };
+  }
+  /** The small per-body face spec: how strongly its face shows an expression (gain), how far its eyes follow (gaze), whether it
+   *  blinks and whether its mouth moves when it speaks. Bodies with no entry have the default. */
+  const FACE_SPEC = {
+    default: { gain: 1, gaze: 1, blink: 1, talk: 1 },
+    robot: { gain: 0.85 }, tvbot: { gain: 1.1 }, rollbot: { gain: 0.9 },
+    fish: { gain: 0.6, blink: 0, talk: 0 }, cactus: { gain: 0.7 }, cone: { gain: 0.75 }, shoe: { gain: 0.9 }, potato: { gain: 0.8 },
+    dinosaur: { gain: 0.8 }, horse: { gain: 0.8 }, cow: { gain: 0.8 },
+  };
+  const faceSpec = (what) => ({ ...FACE_SPEC.default, ...(FACE_SPEC[what] || {}) });
+  /** An expression scaled by a body's gain: how far each number sits from neutral. */
+  function shape(expr, gain) {
+    if (gain === 1 || gain == null) return expr;
+    const n = EXPRESSIONS.neutral, o = {};
+    for (const k of Object.keys(expr)) o[k] = n[k] + (expr[k] - n[k]) * gain;
+    return o;
+  }
+  /** Whether a name is one of the six emotes everyone has on the wheel's face (the wheel's first six). */
+  const CORE_EMOTES = ['wave', 'laugh', 'cheer', 'shrug', 'dance', 'point'];
+
+  P.core = { ACCESSORIES, ACCESSORY, palette, tones, hsl, hexOf, mixHex, EXPRESSIONS, EMOTE_FACE, feel, mood, talkOpen, restFace, gazeTarget, blinkStep, landTracker, FACE_SPEC, faceSpec, shape, CORE_EMOTES, POSE_FACE, LOOK, WHATS, WHAT, cleanName, NAME_MAX, nameProblem, filterName, marker, besideSpot, cleanLook, randomLook, seedOf, EMOTES, emote, TAGS, layoutTags, BUBBLES, bubbleSeconds, wrap, bubbles, CHAT, cleanLine, limiter };
 })();

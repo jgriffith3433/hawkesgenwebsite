@@ -392,7 +392,7 @@
     rig.person = {
       pal, face, faceMesh, rest: look.face === 'smile' ? 'happy' : 'neutral',
       expr: { ...C().EXPRESSIONS[look.face === 'smile' ? 'happy' : 'neutral'] },
-      blink: { next: 1.2 + Math.random() * 3, start: -1, dbl: false },
+      blink: { next: 1.2 + Math.random() * 3, start: -1, dbl: false }, land: C().landTracker(),
       gaze: { x: 0, y: 0, wx: 0, wy: 0, next: 0 }, head: { yaw: 0, pitch: 0 },
       air: { t: 0, was: false, vy: 0, landT: 9, takeT: 9, depth: 0.82, peak: 0 },
       sp: { hp: { x: 0, v: 0 }, hr: { x: 0, v: 0 }, hs: { x: 0, v: 0 }, cx: { x: 0, v: 0 }, cz: { x: 0, v: 0 } },
@@ -595,6 +595,14 @@
     neck.position.y = NECK_Y + 0.012 * Math.sin(((t - 0.1) * 2 * Math.PI) / 3.2) * (1 - clamp(sp / 2.5, 0, 1));
 
     // ---- the face: where it looks, the blink, the expression
+    // ---- what it feels (a hard landing, a blast, a hit, a catch) over the emote and the pose; sleepy after a long stand
+    const md = rig.mood;
+    if (md) {
+      if (pp.land) { const hit = pp.land.step(grounded || swim || seated, vy, dt); if (hit && !seated) md.push('land', { speed: hit }); }
+      md.tick(dt);
+      const mf = md.face();
+      if (mf) expr = mf; else if (!em && expr === pp.rest) expr = C().restFace(expr, pp.idleT);
+    }
     face(rig, dt, expr, em);
   }
   /** The cheap level (docs/characters.md "A crowd"): the legs and arms swing with the stride (presence.js animate did that), the
@@ -621,14 +629,19 @@
     const pp = rig.person, t = rig.time || 0, neck = rig.neck, scene = rig.scene;
     // the look target in the head's own space: the camera by default, a point it was told to watch, or somewhere nearby
     let ax = null, ay = 0;
-    const target = rig.lookTarget || (scene && scene.activeCamera ? (scene.activeCamera.globalPosition || scene.activeCamera.position) : null);
+    const spec = C().faceSpec(rig.what), md = rig.mood;
+    const gz = C().gazeTarget({ speaking: Boolean(rig.overseerSpeaking), overseer: rig.overseerAt, explicit: rig.lookTarget, others: rig.others, camera: scene && scene.activeCamera ? (scene.activeCamera.globalPosition || scene.activeCamera.position) : null });
+    const target = gz ? gz.pos : null;
+    pp.gazeKind = gz ? gz.kind : '';
     if (target && neck.getWorldMatrix) {
       try {
         const wm = neck.getWorldMatrix(); wm.invertToRef(pp.tmpM);
         const tv = Array.isArray(target) ? new B.Vector3(target[0], target[1], target[2]) : target;
         B.Vector3.TransformCoordinatesToRef(tv, pp.tmpM, pp.tmpV);
         const v = pp.tmpV, d = Math.hypot(v.x, v.y, v.z);
-        if (d > 0.05 && d < 40 && v.z > 0.05 * d) { ax = Math.atan2(v.x, v.z); ay = Math.atan2(v.y, Math.hypot(v.x, v.z)); }
+        // the Overseer is far above: look at it however high (and from any side, the head turns the shortest way)
+        if (gz.kind === 'overseer') { if (d > 0.05) { ax = Math.atan2(v.x, Math.abs(v.z) < 1e-3 ? 1e-3 : v.z); ay = Math.atan2(v.y, Math.hypot(v.x, v.z)); } }
+        else if (d > 0.05 && d < 40 && v.z > 0.05 * d) { ax = Math.atan2(v.x, v.z); ay = Math.atan2(v.y, Math.hypot(v.x, v.z)); }
       } catch { ax = null; }
     }
     const G = pp.gaze;
@@ -643,25 +656,21 @@
     Hd.yaw += (clamp(G.x / 3, -0.5, 0.5) - Hd.yaw) * Math.min(1, dt * 4);
     Hd.pitch += (clamp(-G.y / 3, -0.3, 0.3) - Hd.pitch) * Math.min(1, dt * 4);
     neck.rotation.y += Hd.yaw; neck.rotation.x += Hd.pitch;
-    // blink: shut in 80 ms, open in 120 ms, every 2.5 to 6 s, some in pairs
-    const Bk = pp.blink;
-    if (Bk.start < 0 && t >= Bk.next) { Bk.start = t; Bk.dbl = Math.random() < 0.15; }
-    let blink = 0;
-    if (Bk.start >= 0) {
-      const d = t - Bk.start;
-      blink = d < 0.08 ? d / 0.08 : d < 0.11 ? 1 : d < 0.23 ? 1 - (d - 0.11) / 0.12 : 0;
-      if (d >= 0.23) { Bk.start = -1; Bk.next = Bk.dbl ? t + 0.12 : t + 2.5 + Math.random() * 3.5; Bk.dbl = false; }
-    }
+    const blink = spec.blink ? C().blinkStep(pp.blink, t) : 0;
+    if (blink > 0 && !pp.inBlink) pp.blinks = (pp.blinks || 0) + 1;
+    pp.inBlink = blink > 0;
     // the expression, blended over 0.15 s
     const tgt = C().EXPRESSIONS[exprName] || C().EXPRESSIONS.neutral, cur = pp.expr, k = Math.min(1, dt / 0.15);
     for (const key of Object.keys(tgt)) cur[key] += (tgt[key] - cur[key]) * k;
+    const shown = C().shape(cur, spec.gain);
+    const talk = md && md.talking() && spec.talk ? C().talkOpen(t) : 0;
     if (!pp.faceMesh) return;
     const rest = pp.rest === 'happy' ? 0.0 : 0;
     void rest;
     const st = {
       gx: clamp((G.x - Hd.yaw) / 0.7, -1, 1), gy: clamp((G.y + Hd.pitch) / 0.5, -1, 1),
-      lid: Math.max(cur.lid, blink), open: cur.open, smile: cur.smile, width: cur.width, raise: cur.raise, tilt: cur.tilt,
-      pupil: exprName === 'surprised' ? 0.82 : 1,
+      lid: Math.max(shown.lid, blink), open: shown.open + talk, smile: shown.smile, width: shown.width, raise: shown.raise, tilt: shown.tilt,
+      pupil: exprName === 'surprised' || exprName === 'scared' ? 0.82 : 1,
     };
     const key = [st.gx, st.gy, st.lid, st.open, st.smile, st.width, st.raise, st.tilt, st.pupil].map((x) => Math.round(x * 200)).join(',');
     if (key === pp.lastKey) return;

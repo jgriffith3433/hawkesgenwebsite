@@ -60,7 +60,7 @@ test('core: bubbles stack (three at most), wrap, time out; looks are cleaned; em
   assert.deepEqual(C.randomLook(42), C.randomLook(42), 'a seed gives the same look');
   assert.deepEqual(C.cleanLook(C.randomLook(7)), C.randomLook(7), 'random looks are valid looks');
   assert.equal(C.emote('thumbs up').name, 'thumbsup'); assert.equal(C.emote('LOL').name, 'laugh'); assert.equal(C.emote('moonwalk'), null);
-  assert.equal(C.EMOTES.length, 10);
+  assert.equal(C.EMOTES.length, 11);
   const lim = C.limiter();
   assert.ok(lim.ok(0)); assert.ok(!lim.ok(100), 'not twice in a blink');
   let n = 1; for (let t = 1000; t < 9000; t += 1000) if (lim.ok(t)) n++;

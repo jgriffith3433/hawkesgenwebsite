@@ -119,7 +119,8 @@
   /** Where the animal looks, for its eyes and head: the rig's look target (or the camera), as angles from its front. */
   function lookOf(rig) {
     const sc = rig.scene, cam = sc && sc.activeCamera;
-    const tg = rig.lookTarget ? { x: rig.lookTarget[0], y: rig.lookTarget[1], z: rig.lookTarget[2] } : cam ? (cam.globalPosition || cam.position) : null;
+    const gz = P.core.gazeTarget({ speaking: Boolean(rig.overseerSpeaking), overseer: rig.overseerAt, explicit: rig.lookTarget, others: rig.others, camera: cam ? (cam.globalPosition || cam.position) : null });
+    const tg = gz ? (Array.isArray(gz.pos) ? { x: gz.pos[0], y: gz.pos[1], z: gz.pos[2] } : gz.pos) : null;
     if (!tg || !rig.body || !rig.pose) return null;
     rig.pose.computeWorldMatrix(true);
     const inv = B.Matrix.Invert(rig.pose.getWorldMatrix()), q = B.Vector3.TransformCoordinates(new B.Vector3(tg.x, tg.y, tg.z), inv);
