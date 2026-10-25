@@ -32,6 +32,11 @@
   let S = null; // this world's Observatory: { root, solid, glass, ..., state }
   let shipIn = null; // the ship they docked in (docked-pad), so the lift down puts them beside it
   let me = null; // the player's trip: { state, t, first, veh, from, to }
+  let trip = null; // a journey from the travel board, while it lasts: { planet, t, phase ('say' | 'out'), href }
+  const TRIP_KEY = 'hg_observatory_trip'; // (localStorage, this site's own page: where they went, so the way back can say so)
+  // Coming back from a featured game (?return=observatory, the pause menu's "Return to the Observatory"): beamed in at the board.
+  let returning = typeof location !== 'undefined' && /[?&]return=observatory\b/.test(location.search || '');
+  let navigate = (href) => { location.assign(href); };
 
   // ------------------------------------------------------------------ the frame (the bay's own, from dock.js)
   const bay = () => OV.bay;
@@ -67,6 +72,23 @@
     c.fillStyle = '#8fd8ff'; c.font = '600 20px sans-serif'; c.fillText(sub, 128, 98);
     t.update();
     return t;
+  }
+  /** A planet's plate over the board: its name, one line (wrapped) and how many are there now. Redrawn when the count moves. */
+  function planetPlate(tex, pl, count) {
+    const c = tex.getContext();
+    c.clearRect(0, 0, 512, 256);
+    c.fillStyle = 'rgba(8,14,26,0.62)'; c.fillRect(0, 0, 512, 256);
+    c.strokeStyle = 'rgb(' + pl.color.map((x) => Math.round(x * 255)).join(',') + ')'; c.lineWidth = 4; c.strokeRect(6, 6, 500, 244);
+    c.fillStyle = '#eaf7ff'; c.textAlign = 'center'; c.font = '700 50px sans-serif'; c.fillText(pl.name, 256, 66);
+    c.fillStyle = '#b9e3fa'; c.font = '500 27px sans-serif';
+    const words = pl.line.split(' ');
+    const lines = []; let cur = '';
+    for (const w of words) { if ((cur + ' ' + w).trim().length > 34) { lines.push(cur); cur = w; } else cur = (cur + ' ' + w).trim(); }
+    if (cur) lines.push(cur);
+    lines.slice(0, 3).forEach((t, i) => c.fillText(t, 256, 112 + i * 34));
+    c.fillStyle = count > 0 ? '#9dffb0' : '#8fb3c7'; c.font = '700 30px sans-serif';
+    c.fillText(count === null || count === undefined ? '· · ·' : `● ${count} playing`, 256, 232);
+    tex.update();
   }
   /** The planet, painted: ocean, a few islands, a pale cloud band (a model, not the real one). */
   function planetTexture(scene) {
@@ -172,7 +194,7 @@
     // The places: a pedestal and a plaque on the wall behind each, and a ring that waits.
     const places = {};
     const pedestals = [];
-    const names = { mirror: ['Mirror', 'hung soon'], board: ['Travel board', 'lit soon'], wardrobe: ['Wardrobe', 'filled soon'] };
+    const names = { mirror: ['Mirror', 'hung soon'], board: ['Travel board', 'three worlds'], wardrobe: ['Wardrobe', 'filled soon'] };
     for (const id of ['mirror', 'board', 'wardrobe']) {
       const [x, z] = M().spot(id);
       const a = (M().STATIONS[id].angle * Math.PI) / 180;
@@ -190,6 +212,29 @@
       pl.material = pmat; pl.isPickable = false;
       places[id] = { at: room(x, 0, z), label: names[id][0] };
     }
+    // The travel board: the Overseer's featured games as small planets in an arc over the board's place, each with a plate.
+    const board = M().PLANETS.map((pl, i) => {
+      const [px, py, pz] = M().planetSpot(i);
+      const col = new B.Color3(pl.color[0], pl.color[1], pl.color[2]);
+      const node = new B.TransformNode('ov-obs-world', scene);
+      node.parent = decor; node.position.set(px, py, pz);
+      const ball = B.MeshBuilder.CreateSphere('ov-obs-world-ball', { diameter: 1.5, segments: PHONE ? 16 : 24 }, scene);
+      ball.parent = node;
+      ball.material = mat(scene, 'ov-obs-world-' + pl.id, { diffuse: col, emissive: col.scale(0.55), spec: new B.Color3(0.3, 0.3, 0.3), power: 30 });
+      const band = B.MeshBuilder.CreateTorus('ov-obs-world-band', { diameter: 2.3, thickness: 0.04, tessellation: 48 }, scene);
+      band.parent = node; band.rotation.x = 0.5; band.rotation.z = 0.3; band.material = lightM; lights.push(band);
+      const tex = new B.DynamicTexture('ov-obs-world-plate', { width: 512, height: 256 }, scene, true);
+      planetPlate(tex, pl, null);
+      const plate = B.MeshBuilder.CreatePlane('ov-obs-world-plate', { width: 3, height: 1.5 }, scene);
+      plate.parent = node; plate.position.y = 1.9; plate.billboardMode = B.Mesh.BILLBOARDMODE_Y;
+      const pmat2 = mat(scene, 'ov-obs-world-plate', { emissive: new B.Color3(1, 1, 1), unlit: true });
+      pmat2.emissiveTexture = tex; pmat2.opacityTexture = tex;
+      plate.material = pmat2;
+      const beam = B.MeshBuilder.CreateCylinder('ov-obs-world-beam', { diameterTop: 0.1, diameterBottom: 0.9, height: py, tessellation: 12 }, scene);
+      beam.parent = decor; beam.position.set(px, py / 2, pz); beam.material = lightM; beam.visibility = 0.18; beam.isPickable = false;
+      for (const m of [ball, band, plate, beam]) { m.isPickable = false; m.metadata = { decor: true, overseer: true }; }
+      return { planet: pl, node, ball, tex, plate, shown: undefined, at: room(px, 0, pz), pos: [px, py, pz] };
+    });
     // The lift in the room: a lit disc on the floor at the door.
     const [lx, lz] = M().spot('lift');
     const pad = B.MeshBuilder.CreateTorus('ov-obs-lift', { diameter: 4, thickness: 0.18, tessellation: 40 }, scene);
@@ -218,7 +263,7 @@
     lamp.diffuse = new B.Color3(0.86, 0.94, 1); lamp.specular = new B.Color3(0.4, 0.45, 0.5); lamp.range = 46; lamp.intensity = 0.4;
     lamp.parent = pearl;
 
-    const s = { root, decor, solidE, glassE, globe, pearl, halo, lamp, lights, lightM, warmM, hangarBits, places, pm: pearl.material, pos: [0, 5.5, 0], level: 0, music: null, t: 0, shown: null };
+    const s = { board, counts: {}, root, decor, solidE, glassE, globe, pearl, halo, lamp, lights, lightM, warmM, hangarBits, places, pm: pearl.material, pos: [0, 5.5, 0], level: 0, music: null, t: 0, shown: null };
     s.show = (inside) => {
       if (s.shown === inside) return;
       s.shown = inside;
@@ -429,6 +474,76 @@
     return true;
   }
 
+  // ------------------------------------------------------------------ the travel board
+  let countsAt = -1e9;
+  /** How many are in each featured game now (the gallery's own numbers; every 20 s while in the room). */
+  function refreshCounts() {
+    if (typeof fetch !== 'function' || typeof location === 'undefined' || !/^https?:$/.test(location.protocol)) return;
+    fetch('/v1/gallery?limit=1').then((r) => r.json()).then((j) => {
+      if (!S) return;
+      for (const f of (j && j.featured) || []) S.counts[f.id] = Math.max(0, Number(f.playing) || 0);
+    }).catch(() => { /* the plates keep their last number */ });
+  }
+  function boardTick(dt) {
+    if (S.t - countsAt > 20) { countsAt = S.t; refreshCounts(); }
+    S.board.forEach((b, i) => {
+      b.ball.rotation.y += dt * 0.35;
+      b.node.position.y = b.pos[1] + Math.sin(S.t * 0.8 + i * 2.1) * 0.12;
+      const n = S.counts[b.planet.id];
+      if (n !== b.shown) { b.shown = n; planetPlate(b.tex, b.planet, n === undefined ? null : n); }
+    });
+  }
+  /** Chooses a world: the Overseer says where, the room fades, and the player is beamed down into the game's page (the game
+   *  page gets their look and name in its address). The way back is that page's pause menu. Returns false if it cannot. */
+  function travel(id) {
+    if (!S || !me || me.state !== 'inside' || trip) return false;
+    const pl = M().PLANETS.find((x) => x.id === id);
+    if (!pl) return false;
+    if (me.scene) skip();
+    const look = H.presence && H.presence.look;
+    trip = { planet: pl, t: 0, phase: 'say', href: M().travelHref(pl.id, look, nameOf()) };
+    say(pl.say);
+    chimeRide();
+    emit('travel', { game: pl.id, name: pl.name, href: trip.href, count: S.counts[pl.id] === undefined ? null : S.counts[pl.id] });
+    return true;
+  }
+  function tripStep(dt) {
+    const p = W().player;
+    trip.t += dt;
+    if (p) p.controls = false;
+    if (trip.phase === 'say') {
+      // (the Overseer finishes its line, but never more than a few seconds)
+      if (trip.t >= 2.8 && !(H.speech && H.speech.busy) || trip.t >= 6) { trip.phase = 'out'; trip.t = 0; }
+      return;
+    }
+    fadeTo(trip.t / 1.2);
+    if (trip.t >= 1.2 && !trip.sent) {
+      trip.sent = true;
+      try { window.localStorage.setItem(TRIP_KEY, JSON.stringify({ game: trip.planet.id, name: trip.planet.name, at: Date.now() })); } catch { /* fine */ }
+      emit('beam-down', { game: trip.planet.id, name: trip.planet.name, href: trip.href });
+      try { navigate(trip.href); } catch (err) { H.report(err, 'observatory travel'); }
+    }
+    // Still here a few seconds later (the page did not open): the room comes back, nothing is stuck.
+    if (trip.t >= 6) { const t0 = trip; trip = null; fadeTo(0); if (p) p.controls = true; emit('travel-failed', { game: t0.planet.id }); }
+  }
+  /** Back from a game: put at the board (a fade up), with a line. Used by the pause menu's return and by the tests. */
+  function beamIn() {
+    if (!S || me || !walking()) return false;
+    let from = null;
+    try { const m = JSON.parse(window.localStorage.getItem(TRIP_KEY) || 'null'); if (m && Date.now() - m.at < 6 * 3600 * 1000) from = m; window.localStorage.removeItem(TRIP_KEY); } catch { /* fine */ }
+    const p = W().player;
+    const [bx, bz] = M().spot('board');
+    me = { state: 'riding', dir: 'up', phase: 'hold', t: 0, first: false, took: 0, veh: null, board: true, back: from };
+    putPlayer(room(bx * 0.62, 0.3, bz * 0.62));
+    arrive();
+    me.state = 'riding'; me.phase = 'hold'; me.t = 0;
+    if (p) p.controls = false;
+    fadeTo(1);
+    chimeRide();
+    emit('return', { game: from ? from.game : null });
+    return true;
+  }
+
   // ------------------------------------------------------------------ each step
   H.hooks.step.push((dt) => {
     if (!S || !W()) return;
@@ -459,7 +574,10 @@
       S.halo.scaling.setAll(1 + S.level * 0.6 + (S.flare || 0));
       if (S.flare) S.flare = Math.max(0, S.flare - dt * 0.7);
       musicTick(dt);
+      boardTick(dt);
     } else if (S.music) musicStop();
+    if (returning && !me && p && p.alive && S.t > 2.5) { returning = false; try { history.replaceState(null, '', location.pathname); } catch { /* fine */ } beamIn(); }
+    if (trip) tripStep(dt);
 
     if (!me) { S.hangarSync(); return; }
     me.t += dt;
@@ -490,7 +608,7 @@
     // Inside: the scene, the quick line, and never stuck.
     if (me.state === 'inside') {
       if (me.scene && S.t - me.scene.startedAt >= 0) playScene(dt);
-      if (!me.first && !me.quickDone && S.t - me.at >= 1.5) { me.quickDone = true; say(M().quick(nameOf(), (H.memory && H.memory.get ? H.memory.get().visits : 0)), null); emit('ready'); }
+      if (!me.first && !me.quickDone && S.t - me.at >= 1.5) { me.quickDone = true; say(me.back ? M().returned(nameOf(), me.back.name) : M().quick(nameOf(), (H.memory && H.memory.get ? H.memory.get().visits : 0)), null); emit('ready'); }
       if (p && p.alive) {
         const c = room(0, 0, 0);
         const dx = p.position[0] - c[0], dz = p.position[2] - c[2], dy = p.position[1] - c[1];
@@ -530,18 +648,33 @@
   H.use.register('observatory:places', {
     near(p) {
       if (!S || !me || me.state !== 'inside') return null;
-      for (const id of ['mirror', 'wardrobe', 'board']) {
+      for (const id of ['mirror', 'wardrobe']) {
         const pl = S.places[id];
         const d = Math.hypot(p.position[0] - pl.at[0], p.position[2] - pl.at[2]);
-        if (d < 3) return { label: `${pl.label}`, act: () => say(id === 'mirror' ? 'A place for a mirror. It is not hung yet.' : id === 'wardrobe' ? 'A place for your wardrobe. Empty, for now.' : 'A board for the places we could go. It is dark, for now.'), distance: d, priority: 1 };
+        if (d < 3) return { label: `${pl.label}`, act: () => say(id === 'mirror' ? 'A place for a mirror. It is not hung yet.' : 'A place for your wardrobe. Empty, for now.'), distance: d, priority: 1 };
       }
       return null;
     },
   });
 
+  // The travel board: stand under a planet, E to go there.
+  H.use.register('observatory:board', {
+    near(p) {
+      if (!S || !me || me.state !== 'inside' || trip) return null;
+      let best = null;
+      for (const b of S.board) {
+        const d = Math.hypot(p.position[0] - b.at[0], p.position[2] - b.at[2]);
+        if (d < 2.2 && (!best || d < best.d)) best = { b, d };
+      }
+      if (!best) return null;
+      const n = S.counts[best.b.planet.id];
+      return { label: `Go to ${best.b.planet.name}${n === undefined ? '' : ` (${n} playing)`}`, act: () => travel(best.b.planet.id), distance: best.d, priority: 4 };
+    },
+  });
+
   // ------------------------------------------------------------------ the world
   OV.onEnter((O, w) => {
-    S = null; me = null;
+    S = null; me = null; trip = null; countsAt = -1e9;
     if (!OV.bay) return;
     try { S = build(w); } catch (err) { H.report(err, 'overseer observatory'); S = null; }
   });
@@ -553,7 +686,7 @@
     if (p && me && me.state === 'riding') p.controls = true;
     for (const e of [S.solidE, S.glassE]) if (e && e.alive) e.destroy();
     S.root.dispose(false, true);
-    S = null; me = null;
+    S = null; me = null; trip = null;
   });
   OV.onLod(() => { if (S) S.hangarSync(); });
   if (H.planet && H.planet.frame && H.planet.frame.onRebase) H.planet.frame.onRebase(() => {
@@ -564,8 +697,8 @@
   });
   H.hooks.game.push((game) => { game.on('docked-pad', (d) => { if (d && d.vehicle) shipIn = d.vehicle; }); });
   H.hooks.world.push({
-    enter() { me = null; shipIn = null; },
-    leave() { const p = W() && W().player; if (p && me && me.state === 'riding') p.controls = true; fadeTo(0); me = null; },
+    enter() { me = null; trip = null; shipIn = null; if (returning) fadeTo(1); },
+    leave() { const p = W() && W().player; if (p && me && me.state === 'riding') p.controls = true; fadeTo(0); me = null; trip = null; },
     // Down and sent back to the start: you are not in the room any more.
     respawn() { if (S && me) { leaveRoom(); const p = W() && W().player; if (p) p.controls = true; fadeTo(0); me = null; } },
   });
@@ -586,7 +719,12 @@
         get level() { return S ? S.level : 0; },
         get music() { return Boolean(S && S.music); },
         get places() { return S ? Object.keys(S.places) : []; },
-        go, leave: () => leave('call'), skip,
+        get board() { return S ? S.board.map((b) => ({ id: b.planet.id, name: b.planet.name, line: b.planet.line, count: S.counts[b.planet.id] === undefined ? null : S.counts[b.planet.id], at: b.at.slice() })) : []; },
+        get traveling() { return trip ? { game: trip.planet.id, phase: trip.phase, href: trip.href } : null; },
+        get returning() { return returning; },
+        set navigate(fn) { if (typeof fn === 'function') navigate = fn; },
+        setCounts(c) { if (S) Object.assign(S.counts, c); },
+        go, leave: () => leave('call'), skip, travel, beamIn,
       };
     },
   });

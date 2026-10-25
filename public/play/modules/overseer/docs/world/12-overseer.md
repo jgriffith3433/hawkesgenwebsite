@@ -179,3 +179,5 @@ dropped fall to the ground under them.
 The Overseer also marks a few firsts with a short line, once per device: the first thing built or sent, the first fish, the first fall, the first dock, the first time above the air, the first vehicle blown up, the first friend to join. Nothing to set up; they never interrupt the intro, the mirror or the tour.
 
 The Overseer also remembers: `H.memory` (`memory.js`) keeps the character's name and body, the visit count, the last thing done and a few counts, in the account when signed in and on the device otherwise, and each return visit starts with a different greeting made only from what is on record (never the same twice in a row, never a guess; a player with no history gets a plain welcome). Nothing to set up. Scripts may read `H.memory.get()`.
+
+The Observatory's travel board lists the Overseer's featured games as planets with live player counts; choosing one beams the player down into that game as their own character, and the pause menu there always has "Return to the Observatory".
