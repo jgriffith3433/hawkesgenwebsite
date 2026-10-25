@@ -115,12 +115,42 @@
   }
 
   // ------------------------------------------------------------------ moving: legs, arms and tails; waddles and rolls
+  const lerp = (a, b, k) => a + (b - a) * k;
+  /** Where the animal looks, for its eyes and head: the rig's look target (or the camera), as angles from its front. */
+  function lookOf(rig) {
+    const sc = rig.scene, cam = sc && sc.activeCamera;
+    const tg = rig.lookTarget ? { x: rig.lookTarget[0], y: rig.lookTarget[1], z: rig.lookTarget[2] } : cam ? (cam.globalPosition || cam.position) : null;
+    if (!tg || !rig.body || !rig.pose) return null;
+    rig.pose.computeWorldMatrix(true);
+    const inv = B.Matrix.Invert(rig.pose.getWorldMatrix()), q = B.Vector3.TransformCoordinates(new B.Vector3(tg.x, tg.y, tg.z), inv);
+    const dist = Math.hypot(q.x, q.z);
+    if (dist < 0.05) return null;
+    return { yaw: Math.atan2(q.x, q.z), pitch: Math.atan2(q.y - 0.3, dist), near: dist > 40 ? 0 : 1 };
+  }
   /** After the walk's rest pose (presence.js animate): what this body does on its own. s: 0..1 how fast it walks. */
   function animate(rig, dt, s) {
     const t = rig.time || 0;
     if (rig.thing && P.things) { P.things.animate(rig, dt, s); return; }
     if (rig.lv) {
-      const lv = rig.lv, sw = Math.sin(rig.phase) * 0.55 * s;
+      const lv = rig.lv, L = H.living;
+      if (L && L.drive && lv.plan !== 'human') {
+        // The same gait, idle, eyes, ears and tail the world's creatures have (living/animal.js), on this body.
+        const a = lv.a || (lv.a = { t: 0, phase: Math.random() * 6, lie: 0, eat: 0, flap: 0 });
+        a.t = t;
+        const em = rig.emote && rig.emote.def ? rig.emote.def.name : '';
+        const sp = lv.sp, speed = rig.speed || 0;
+        const stName = em === 'sleep' ? 'sleep' : em === 'sit' ? 'sit' : em === 'dance' ? 'dance' : em === 'cheer' || em === 'wave' ? 'cheer' : speed > 0.2 ? 'walk' : 'idle';
+        a.lie = lerp(a.lie, stName === 'sleep' ? 1 : stName === 'sit' ? 0.55 : 0, Math.min(1, dt * 3));
+        const fx = L.drive(lv, a, { dt, speed, state: stName, sp, happy: em === 'heart' || em === 'laugh' || stName === 'dance', seed: rig.seed || 0, look: lookOf(rig) });
+        const k = rig.bodyScale || 1;
+        if (rig.body) {
+          rig.body.rotation.x = lerp(rig.body.rotation.x, fx.pitch, Math.min(1, dt * 8));
+          rig.body.rotation.z = lerp(rig.body.rotation.z, fx.roll, Math.min(1, dt * 8));
+          rig.body.position.y = (rig.bodyY0 == null ? (rig.bodyY0 = rig.body.position.y) : rig.bodyY0) + fx.dy * k;
+        }
+        return;
+      }
+      const sw = Math.sin(rig.phase) * 0.55 * s;
       for (const h of lv.hips || []) h.n.rotation.x = Math.sin(rig.phase + (h.ph || 0)) * 0.55 * s;
       for (const a of lv.arms || []) a.n.rotation.x = Math.sin(rig.phase + (a.ph || 0)) * 0.45 * s;
       if (lv.tail) lv.tail.rotation.y = Math.sin(t * (4 + s * 6)) * 0.35;
