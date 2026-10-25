@@ -22,9 +22,9 @@
 import { installPlaytest } from './hawkes-playtest.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'feel', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks'];
+const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
+const ORDERS = { 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
 const SCENARIOS = [
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
   {
@@ -41,6 +41,11 @@ const SCENARIOS = [
     id: 'vehicle-feel', title: 'Game feel in the 4x4: the view widens, the body leans, dust, the engine climbs, the handbrake drift squeals, and a landing dips the view with dust and a thud', seconds: 240, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first-minutes path to the account sheet, then the 4x4 driven with real keys (straight, bends, handbrake) and one named jump shortcut; logs fov-widened, engine-pitch, dust, body-roll, drift-squeal, landing and the frame rate (driveFps). Options: touch (true: the phone controls, ?touch=1, and under 30 fps is a problem), signup (false: stop at the account sheet; always on live), watch',
+  },
+  {
+    id: 'rocket-blast-feel', title: 'Game feel of the rocket launcher: recoil and muzzle flash, a smoke trail, hit-stop, shake, a shockwave, debris and embers, and ten barrels that explode in a rolling chain (30 fps on the phone tier)', seconds: 300, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the account sheet, then the rocket launcher fired with a real click at the fuel barrels on the beach (five more spawned beside them by one named shortcut, so ten), walking closer and firing again until they go; logs launcher-recoil, rocket-trail, blast-effects (hit-stop, shake, shockwave, debris, embers), chain-rolling (the gaps between the ten explosions: not all at once) and chain-fps (metric chainFps, chainWorstFrameMs). Options: touch (true: the phone controls, ?touch=1, and under 30 fps is a problem), signup (false: stop at the account sheet; always on live), watch',
   },
   {
     id: 'touch-controls', title: 'Every tour action with touch alone (stick, look drag, jump, B, steer, brake, fish, tools, spawn wheel, helicopter and rocket flight, Stuck?, hide the HUD): no overlaps, buttons 48 px or more, inside the safe area', seconds: 420, tags: ['full'],
@@ -1560,10 +1565,89 @@ async function stageFeel(t, ctx) {
   t.progress(1);
 }
 
+// `rocket-blast-feel`: the same way in to the account, then the rocket launcher at the fuel barrels (mayhem-feel.js): the
+// launcher kicks and flashes, the rocket leaves a trail, the blast shakes, stops time for a beat, throws a ring, debris and
+// embers, and ten barrels go off one after another. Real input (walking, a click); the launcher in hand and five more
+// barrels beside the five on the beach are one named shortcut. touch: true is the phone: the frame rate through the chain
+// is measured and under 30 is a problem.
+async function stageBlast(t, ctx) {
+  await t.until(() => G() && G().mayhem && G().mayhem.feel && W().byId.get('barrel_1'), 90000, 'the island, its barrels and the game feel layer');
+  await t.wait(1500);
+  const P = () => W().player;
+  const barrels = () => [...W().entities].filter((e) => e.data && (e.data.barrel || e.data.explosive) && !e._exploded);
+  const b1 = W().byId.get('barrel_1');
+  // Setup (named shortcut): the launcher in hand; five more barrels beside the five on the beach.
+  G().mayhem.spawnMany('barrel', 5, { at: [b1.x + 2.6, b1.y, b1.z], pattern: 'line', spacing: 1.3 });
+  P().tool = 'rocket-launcher';
+  t.event('setup-shortcut', 'the rocket launcher put in hand and five more fuel barrels spawned beside the five on the beach, so ten in all');
+  await t.wait(1200);
+  const total = barrels().length;
+  t.event('barrels-ready', `${total} barrels, ${HP().device ? HP().device.tier : '?'} tier${ctx.options.touch ? ', touch controls' : ''}`);
+  t.progress(0.65);
+  await walkTo(t, 'barrel_1', 9, 60000, 'the fuel barrels');
+  const F = () => G().mayhem.feel;
+  const J = () => (HP().juice && HP().juice.feel) || {};
+  const booms = [];
+  G().on('explosion', (d) => booms.push({ t: performance.now(), r: d.radius }));
+  let tries = 0;
+  const fire = async () => {
+    const p = W().byId.get('barrel_1');
+    await lookAt(t, Math.atan2(p.x - P().x, p.z - P().z));
+    F().reset();
+    const s0 = { hit: J().hitstops || 0, slow: J().slowmos || 0 };
+    // fps through the shot and the chain
+    let frames = 0, worst = 0, running = true, last = performance.now();
+    const t0 = last;
+    const raf = (n) => { frames++; worst = Math.max(worst, n - last); last = n; if (running) requestAnimationFrame(raf); };
+    requestAnimationFrame(raf);
+    await holdMouse(t, 160);
+    t.event('rocket-fired', `shot ${tries + 1}`);
+    await t.wait(90);
+    t.scene('Launcher: muzzle flash and smoke');
+    const kick = F().sample();
+    t.event('launcher-recoil', `${kick.muzzle} muzzle flash with puff and backblast, the model and the view kicked back`);
+    await t.wait(260);
+    t.scene('Rocket: the trail');
+    const first = booms.length;
+    await t.until(() => booms.length > first || performance.now() - t0 > 6000, 8000, 'the rocket to land');
+    if (booms.length === first) { running = false; return false; }
+    t.event('rocket-trail', 'flame fading into smoke behind the rocket (until it lands)');
+    await t.wait(350);
+    t.scene('Blast: shockwave, debris and the chain starting');
+    await t.wait(500);
+    t.scene('Blast: the chain rolling');
+    await t.wait(1100);
+    t.scene('Blast: embers and smoke');
+    await t.wait(2600);
+    running = false;
+    const s = F().sample(), fps = Math.round(frames / ((performance.now() - t0) / 1000));
+    const mine = booms.slice(first);
+    const at0 = mine.length ? mine[0].t : 0;
+    const gaps = mine.slice(1).map((b, i) => Math.round(b.t - mine[i].t));
+    t.event('blast-effects', `${J().hitstops - s0.hit} hit-stop, ${J().slowmos - s0.slow} slow motion, shockwave rings and debris with every blast, ${s.embers} embers bursts, ${s.layers} boom sounds in three layers, at most ${s.maxLive} effects alive (cap ${s.cap})`);
+    t.event('chain-rolling', `${mine.length} explosions over ${Math.round((mine.length ? mine[mine.length - 1].t - at0 : 0))} ms; gaps ms: ${gaps.join(', ')}`);
+    if (mine.length < Math.min(8, total)) t.problem('warning', `only ${mine.length} of ${total} barrels went off in the chain`);
+    if (mine.length > 3 && mine[mine.length - 1].t - at0 < 700) t.problem('error', 'the barrels went off almost all at once (no visible chain)');
+    t.metric('chainFps', fps);
+    t.metric('chainWorstFrameMs', Math.round(worst));
+    t.event('chain-fps', `${fps} fps through the shot and the ${mine.length}-barrel chain (worst frame ${Math.round(worst)} ms)${ctx.options.touch ? ', phone controls' : ''}`);
+    if (ctx.options.touch && fps < 30) t.problem('error', `the phone tier held ${fps} fps through the chain (30 needed)`);
+    return mine.length >= 2;
+  };
+  while (tries < 4) {
+    if (await fire()) break;
+    tries++;
+    await walkTo(t, 'barrel_1', Math.max(3.5, 9 - tries * 1.8), 20000, 'the fuel barrels');
+  }
+  releaseAll();
+  if (tries >= 4 && !booms.length) throw new Error('the rockets never landed');
+  t.progress(1);
+}
+
 const RUN = {
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
 };
-const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2' };
+const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2' };
 
 // ---------------------------------------------------------------------------------------------- the contract
 let api = null;
@@ -1578,7 +1662,7 @@ export function install() {
     isReady: () => (onSandbox() || onGame() ? Boolean(W() && W().player) || document.readyState === 'complete' : document.readyState === 'complete'),
     async start(id, options, t) {
       if (id === 'observatory-wardrobe' && options.touch) options = { at: 'sandbox', ...options }; // (touch: straight to the island with the phone controls)
-      if (id === 'vehicle-feel' && options.touch) options = { at: 'sandbox', ...options };
+      if ((id === 'vehicle-feel' || id === 'rocket-blast-feel') && options.touch) options = { at: 'sandbox', ...options };
       if (id === 'touch-controls') options = { at: 'sandbox', touch: true, ...options }; // (the phone controls, straight to the island)
       const events = [];
       // Everything the run says is kept, so the page that follows can carry the whole report.
