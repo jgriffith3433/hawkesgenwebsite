@@ -161,3 +161,5 @@ dropped fall to the ground under them.
 - "A desert planet" on a round world → `{ "planet": { "sphere": true, "radius": 50000, "biome": "desert" } }`.
 - "Put a tower on the other side of the planet" → its position is the very opposite point, `[0, -2 * radius, 0]` (with
   its lift: `[0, -2 * radius - lift, 0]`, since up there is -y), rotation `[0, 0, 0]`: it stands up there by itself.
+
+The Overseer also marks a few firsts with a short line, once per device: the first thing built or sent, the first fish, the first fall, the first dock, the first time above the air, the first vehicle blown up, the first friend to join, and coming back after a week. Nothing to set up; they never interrupt the intro, the mirror or the tour.

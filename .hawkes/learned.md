@@ -1,0 +1,3 @@
+- convention: Overseer first-time lines — `overseer/lines.js` asks, never speaks directly: `H.lines.say(id)` queues, and a line is marked said (localStorage `hg_overseer_lines`) only when delivered, so a line dropped while the intro/mirror/tour hold it comes again.
+- lesson: Object.assign copies getters as values — a `get waiting()` in an object passed to `Object.assign` became a frozen array; use `Object.defineProperty`.
+- lesson: don't `git checkout` a file you edited to test "without my change" — it wipes the edit; `sed` it back and forth instead.
