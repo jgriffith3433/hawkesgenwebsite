@@ -277,9 +277,19 @@
     const shine = 0.75 + NIGHT_SEAMS * night + 0.25 * sky.space + flareK * 1.6 + 0.25 * P.speak + 0.12 * P.idle * pulse;
     O.mats.seam.emissiveColor = B.Color3.Lerp(glow.scale(shine), hor, hz * 0.4);
     O.mats.ring.emissiveColor = B.Color3.Lerp(B.Color3.Lerp(glow, new B.Color3(1, 1, 1), 0.45).scale(0.65 + 0.7 * night + 0.45 * P.speak), hor, hz * 0.5);
-    // A gentle pulse of the halo (about every seven seconds; quicker while it speaks, slower and deeper when it is idle).
+    // The halo: what the sky and the haze say is kept here; the voice and the pulse are laid over it by haloStep() every step.
+    haloBase = 0.18 + 0.5 * night + 0.15 * sky.space - hz * 0.1;
+    haloStep();
+  }
+  /** The halo's pulse (about every seven seconds; quicker while it speaks, slower and deeper when idle) and its brightening
+   *  while it speaks. Run from the fixed step as well as from the sky's placing, so a page that is not drawing (a background tab,
+   *  a test browser) still shows it: the voice lifts it by 0.24 and it falls back as the line ends. */
+  let haloBase = 0.18;
+  function haloStep() {
+    if (!O) return;
+    const pulse = Math.sin(P.ph);
     O.halo.scaling.setAll(1 + (0.04 + 0.05 * P.idle) * pulse + 0.07 * P.speak);
-    O.mats.halo.alpha = clamp(0.18 + 0.5 * night + 0.15 * sky.space - hz * 0.1 + flareK * 0.35 + 0.05 * pulse + 0.24 * P.speak, 0.08, 0.95);
+    O.mats.halo.alpha = clamp(haloBase + 0.35 * flareK + 0.05 * pulse + 0.24 * P.speak, 0.08, 0.95);
   }
   /** The emitter flares as the ship sends something down (arrive.js): seams and halo brighten, then settle. */
   let flareK = 0;
@@ -290,6 +300,7 @@
     if (!O) return;
     O.t += dt;
     presenceStep(dt);
+    haloStep();
     const quick = 1 + RINGS_SPEAKING * P.speak;
     O.ringA.rotation.y += dt * 0.035 * quick;
     O.ringB.rotation.y -= dt * 0.022 * quick;
@@ -377,6 +388,17 @@
     } catch { /* no sound */ }
   }
   H.hooks.frame.push((dt) => { if (O) try { humStep(dt); } catch (err) { H.report(err, 'overseer hum'); } });
+  /** Draw calls and frame time from the resource monitor's counters (null until they run: HawkesPlay.monitor.probe()). */
+  function costNow() {
+    const m = H.monitor;
+    if (!m || !m.sample) return null;
+    try {
+      const s = m.sample();
+      if (!s || s.frameMs === null || s.frameMs === undefined) return null;
+      const r2 = (v) => Math.round(v * 100) / 100;
+      return { drawCalls: s.drawCalls, frameMs: r2(s.frameMs), fps: r2(s.fps) };
+    } catch { return null; }
+  }
   /** A debug sample of how alive it is: game.overseer.presence(). */
   function presence() {
     const r3 = (v) => Math.round(v * 1000) / 1000;
@@ -392,6 +414,7 @@
       night: r3(1 - clamp((H.sky.day - 0.12) / 0.88, 0, 1)),
       hum: { level: r3(P.hum), playing: Boolean(hum), altitude: Math.round(H.sky.altitude), distance },
       beams: beams.length,
+      cost: costNow(),
     };
   }
 
