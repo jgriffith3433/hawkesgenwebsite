@@ -1,1 +1,0 @@
-- convention: /community is plain static html+js — all its CSS is inline in community.html on the body.landing tokens; the panel ids (pUse, pFile, pView...) are used by community.js.
