@@ -319,3 +319,39 @@ test('on a round world the lift works after the frame has turned (the playtest\'
   H.tick(8);
   assert.equal(ob.state, 'inside', 'up in the Observatory');
 });
+
+test('dockShip is the dock path: Docked, the rocket on the pad, and the lift offered with its words (a round world too)', () => {
+  H.lines.reset();
+  const start = { type: 'spawn', name: 'Start', transform: { position: [0, 0.05, 0] }, data: { role: 'player' } };
+  world(H, sceneOf({ start, rocket: { type: 'rocket', transform: { position: [10, 0.5, 10] } } }, { planet: { sphere: true, radius: 50000 }, overseer: { intro: false, position: [9700, 4200, -3000] } }));
+  H.tick(1);
+  const ob = H.overseer.observatory;
+  const hg = H.overseer.hangar;
+  const rocket = H.game.entity('rocket');
+  const docked: any[] = [];
+  H.game.on('docked-pad', (d: any) => docked.push(d));
+  assert.equal(ob.state, 'bay', 'not riding yet');
+  assert.equal(H.use.act(), null, 'far from the hangar nothing is offered');
+  assert.equal(H.overseer.dockShip(rocket, true), true);
+  assert.equal(docked.length, 1, 'the Docked moment, once');
+  assert.equal(docked[0].vehicle, rocket);
+  assert.ok(Math.hypot(rocket.position[0] - hg.pad[0], rocket.position[2] - hg.pad[2]) < 2, 'the rocket stands on the pad');
+  H.tick(2.5);
+  assert.equal(H.overseer.hangar.inside, true, 'on foot in the hangar');
+  assert.equal(H.use.offers().some((o: any) => o.name === 'observatory:lift'), false, 'beside the rocket the lift is not in reach yet');
+  // Walk to the lift: the offer says what it is.
+  const l = ob.lift;
+  H.world.player.position = [l[0], l[1] + 1.2, l[2] - 1];
+  H.tick(0.3);
+  const offer = H.use.offers().find((o: any) => o.name === 'observatory:lift');
+  assert.ok(offer && /Take the lift up to the Observatory/.test(offer.label), 'the prompt names the lift');
+  // Not while seated in a vehicle.
+  assert.equal(ob.go(), true);
+  assert.equal(ob.state, 'riding');
+  assert.equal(ob.go(), false, 'a ride under way cannot be started twice');
+  H.tick(8);
+  assert.equal(ob.state, 'inside');
+  assert.ok(ob.music, 'the music bed');
+  assert.ok(ob.pearl, 'the Overseer\'s light-form');
+  assert.equal(ob.go(), false, 'no lift up from inside');
+});

@@ -472,18 +472,20 @@ async function stagePresence(t) {
  *  quiet and active. Named setup shortcuts: a line is asked of the Overseer, a beam is sent, the player is held at each height. */
 async function stageAlive(t) {
   const O = () => G().overseer.presence();
-  const mon = () => (HP().monitor && HP().monitor.sample ? HP().monitor.sample() : null);
+  const mon = () => { try { return HP().monitor && HP().monitor.sample ? HP().monitor.sample() : null; } catch { return null; } };
   const log = (what) => { const p = O(); t.event('overseer-presence', `${what}: speaking ${p.speaking}, halo ${p.halo && p.halo.alpha}, rings x${p.rings && p.rings.speed}, flare ${p.flare}, turn ${p.turn}, idle ${p.idle}, hum ${p.hum.level} at ${p.hum.altitude} m`); return p; };
   releaseAll();
   await t.until(() => W() && W().player && W().player.alive && G() && G().overseer && G().overseer.presence, 60000, 'the Overseer with its presence');
   if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
   HP().speech.clear && HP().speech.clear();
+  if (HP().monitor && HP().monitor.probe) HP().monitor.probe(true); // (the monitor's counters, without its panel: draw calls and frame ms)
   await t.wait(4000);
   // 1. quiet, on the ground: the hum is silent.
   const calm = log('quiet, on the ground');
   if (calm.hum.level !== 0) t.problem('error', `the hum is not silent on the ground (${calm.hum.level})`);
   else t.event('hum-silent-on-ground', 'level 0');
   t.scene('Overseer: quiet');
+  await t.wait(1500);
   const m0 = mon();
   // 2. it speaks: halo and rings, for the length of the line.
   t.event('setup-shortcut', 'the Overseer asked to say a line');
@@ -491,14 +493,19 @@ async function stageAlive(t) {
   await t.until(() => O().speaking > 0.8, 6000, 'the halo and rings to answer the Overseer\'s voice');
   const talk = log('speaking');
   t.scene('Overseer: speaking');
+  await t.wait(1500);
   const m1 = mon();
-  if (talk.halo.alpha <= calm.halo.alpha + 0.05) t.problem('error', `the halo did not brighten while it spoke (${calm.halo.alpha} > ${talk.halo.alpha})`);
-  else t.event('halo-brighter', `${calm.halo.alpha} > ${talk.halo.alpha}`);
+  t.metric('haloAlphaQuiet', calm.halo.alpha); t.metric('haloAlphaSpeaking', talk.halo.alpha);
+  if (talk.halo.alpha <= calm.halo.alpha + 0.1) t.problem('error', `the halo did not brighten while it spoke (${calm.halo.alpha} then ${talk.halo.alpha})`);
+  else t.event('halo-brighter', `alpha ${calm.halo.alpha} quiet, ${talk.halo.alpha} speaking (+${Math.round((talk.halo.alpha - calm.halo.alpha) * 1000) / 1000})`);
   if (talk.rings.speed < 2) t.problem('error', `the rings did not quicken while it spoke (x${talk.rings.speed})`);
   else t.event('rings-quicker', `x${talk.rings.speed}`);
   await t.until(() => !HP().speech.current, 25000, 'the line to end');
   await t.until(() => O().speaking < 0.2, 8000, 'the halo and rings to settle after the line');
-  t.event('settled-after-line', `halo ${O().halo.alpha}`);
+  const after = O();
+  if (after.halo.alpha > talk.halo.alpha - 0.1) t.problem('error', `the halo did not fall back after the line (${talk.halo.alpha} then ${after.halo.alpha})`);
+  else t.event('halo-settled', `alpha ${talk.halo.alpha} speaking, ${after.halo.alpha} after`);
+  t.event('settled-after-line', `halo ${after.halo.alpha}`);
   // 3. a message typed in the chat: the bay turns toward the player.
   const input = document.querySelector('.hc-form input');
   if (input) {
@@ -544,13 +551,22 @@ async function stageAlive(t) {
   W().player.y = base; await t.wait(6000);
   if (O().hum.level > 0.02) t.problem('warning', `the hum was still ${O().hum.level} after coming back down`);
   else t.event('hum-silent-again', 'back on the ground');
-  // 6. the cost: draw calls and frame time, quiet against speaking and beaming.
-  if (m0 && m1 && m2) {
-    const d = (a, b) => (a ? Math.round((b - a) / a * 1000) / 10 : 0);
-    t.metric('drawCallsQuiet', m0.drawCalls); t.metric('drawCallsSpeaking', m1.drawCalls);
+  // 6. the cost: draw calls and frame time, quiet against speaking (and beaming), against a 3 percent budget.
+  const pc = O().cost;
+  if (pc) t.event('presence-cost', `game.overseer.presence().cost: ${pc.drawCalls} draw calls, ${pc.frameMs} ms a frame, ${pc.fps} fps`);
+  if (m0 && m1 && m2 && m0.drawCalls && m0.frameMs && m1.frameMs) {
+    const d = (a, b) => Math.round((b - a) / a * 1000) / 10;
+    const dc = d(m0.drawCalls, m1.drawCalls), fm = d(m0.frameMs, m1.frameMs);
+    t.metric('drawCallsQuiet', m0.drawCalls); t.metric('drawCallsSpeaking', m1.drawCalls); t.metric('drawCallsBeaming', m2.drawCalls);
     t.metric('frameMsQuiet', m0.frameMs); t.metric('frameMsSpeaking', m1.frameMs);
-    t.event('perf-compare', `draw calls ${m0.drawCalls} quiet, ${m1.drawCalls} speaking, ${m2.drawCalls} beaming (${d(m0.drawCalls, m1.drawCalls)}%); frame ${m0.frameMs && m0.frameMs.toFixed(2)} ms quiet, ${m1.frameMs && m1.frameMs.toFixed(2)} ms speaking (${d(m0.frameMs, m1.frameMs)}%)`);
-  } else t.event('perf-compare', 'the monitor gave no numbers here');
+    t.event('perf-compare', `draw calls ${m0.drawCalls} quiet, ${m1.drawCalls} speaking, ${m2.drawCalls} beaming (${dc}% speaking); frame ${m0.frameMs.toFixed(2)} ms quiet, ${m1.frameMs.toFixed(2)} ms speaking (${fm}%)`);
+    // Draw calls are exact; frame time is noisy on a real device, so it gets 3 percent or 1 ms, whichever is more.
+    if (dc > 3) t.problem('error', `speaking costs ${dc}% more draw calls than quiet (budget 3%)`);
+    else t.event('perf-budget-draws', `${dc}% against 3%`);
+    if (fm > 3 && m1.frameMs - m0.frameMs > 1) t.problem('warning', `speaking costs ${fm}% more frame time (${m0.frameMs.toFixed(2)} > ${m1.frameMs.toFixed(2)} ms; budget 3%)`);
+    else t.event('perf-budget-frame', `${fm}% (${(m1.frameMs - m0.frameMs).toFixed(2)} ms) against 3%`);
+  } else t.problem('error', 'the monitor gave no draw-call and frame-time numbers (perf-compare could not be made)');
+  if (HP().monitor && HP().monitor.probe) HP().monitor.probe(false);
   t.progress(1);
 }
 
@@ -832,6 +848,31 @@ async function stageChapter(t, ctx) {
   t.progress(1);
 }
 
+/** Docking, as a named setup shortcut: the game's own dock path (H.overseer.dockShip: the rocket settles on the pad, the Docked
+ *  moment and `docked-pad` as a flown ship's), then the player on foot beside it. Walking from there is real input. */
+function dockRocket(t) {
+  const O = HP().overseer, rocket = G().entity('rocket');
+  if (!rocket || !O.dockShip || !O.dockShip(rocket, true)) throw new Error('the rocket could not be docked (no rocket or no hangar)');
+  t.event('setup-shortcut', 'docked: the rocket settled on the pad by the game\'s own dock path, the player on foot beside it');
+}
+/** The text of the lift's prompt on screen ("E Take the lift up to the Observatory"), or ''. */
+const liftPrompt = () => (([...document.querySelectorAll('.hp-use button')].map((b) => b.textContent).find((x) => /lift/i.test(x))) || '').trim();
+/** From beside the rocket to the lift with the keys: face the lift and hold W until the prompt shows (a named shortcut only
+ *  if that does not work in 12 s: the player is put at the lift). */
+async function walkToLift(t, OB) {
+  const t0 = performance.now();
+  while (!liftPrompt() && performance.now() - t0 < 12000 && OB().state === 'bay') {
+    const p = W().player, l = OB().lift;
+    await lookAt(t, Math.atan2(l[0] - p.position[0], l[2] - p.position[2]));
+    setKeys({ w: true }); await t.wait(400);
+  }
+  setKeys({});
+  if (!liftPrompt() && OB().state === 'bay') {
+    t.event('setup-shortcut', 'the walk to the lift (the keys did not reach it in 12 s): the player put beside it');
+    const l = OB().lift; W().player.position = [l[0], l[1] + 1.2, l[2] - 1]; await t.wait(800);
+  }
+}
+
 /** The Observatory's mirror and wardrobe (touch: true taps with touch pointers, on the context button and the panel). Docking is
  *  a named setup shortcut, as in stageObservatory; the rest is played: E (or a tap) at the lift, a named walk to the mirror, E
  *  ("Change who you are") and the three questions answered again, a named walk to the wardrobe, E, the panel (every accessory
@@ -850,11 +891,9 @@ async function stageWardrobe(t, ctx) {
   releaseAll();
   await t.until(() => W() && W().player && W().player.alive && OB() && OB().on, 60000, 'the Overseer\'s hangar and lift');
   if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
-  const hg = HP().overseer.hangar, rocket = G().entity('rocket'), l = OB().lift;
-  if (rocket) { rocket.position = [hg.pad[0], hg.pad[1] + 3, hg.pad[2]]; rocket.velocity = [0, 0, 0]; }
-  W().player.position = [l[0], l[1] + 1.2, l[2] - 1];
-  t.event('setup-shortcut', 'docked: the rocket on the pad, the player by the lift in the hangar');
+  dockRocket(t);
   await t.wait(2500);
+  await walkToLift(t, OB);
   await useAt('lift up', () => OB().state !== 'bay');
   await t.until(() => OB().state === 'inside', 15000, 'the lift to reach the Observatory');
   t.scene('The Observatory');
@@ -955,17 +994,17 @@ async function stageObservatory(t, ctx) {
   releaseAll();
   await t.until(() => W() && W().player && W().player.alive && OB() && OB().on, 60000, 'the Overseer\'s hangar and lift to exist');
   if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
-  const toBay = () => {
-    const hg = HP().overseer.hangar, rocket = G().entity('rocket'), l = OB().lift;
-    if (rocket) { rocket.position = [hg.pad[0], hg.pad[1] + 3, hg.pad[2]]; rocket.velocity = [0, 0, 0]; }
-    W().player.position = [l[0], l[1] + 1.2, l[2] - 1];
-  };
-  t.event('setup-shortcut', 'docked: the rocket on the pad, the player by the lift in the hangar');
+  const toBay = () => dockRocket(t);
   toBay();
   await t.wait(2500);
+  await walkToLift(t, OB);
   t.scene('The hangar: the lift');
+  const prompt = liftPrompt();
+  t.event('lift-prompt', prompt || 'NO prompt');
+  if (!prompt) t.problem('error', 'standing at the lift, no "Take the lift up" prompt is on screen');
   const t0 = performance.now();
   for (let i = 0; i < 4 && OB().state === 'bay'; i++) { await tap(t, 'e'); await t.wait(700); }
+  if (OB().state !== 'bay') t.event('lift-riding', `${OB().state} after E`);
   await t.until(() => OB().state === 'inside', 15000, 'the lift to reach the Observatory');
   t.event('observatory-reached', `${Math.round(performance.now() - t0)} ms after E`);
   t.scene('The Observatory: arrival');
@@ -1239,11 +1278,9 @@ async function stageBoard(t, ctx) {
     if (visit >= games.length) { t.event('board-done', `${games.length} games visited and returned from`); t.progress(1); return; }
   } else {
     if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
-    const hg = HP().overseer.hangar, rocket = G().entity('rocket'), l = OB().lift;
-    if (rocket) { rocket.position = [hg.pad[0], hg.pad[1] + 3, hg.pad[2]]; rocket.velocity = [0, 0, 0]; }
-    W().player.position = [l[0], l[1] + 1.2, l[2] - 1];
-    t.event('setup-shortcut', 'docked: the rocket on the pad, the player by the lift in the hangar');
+    dockRocket(t);
     await t.wait(2500);
+    await walkToLift(t, OB);
     for (let i = 0; i < 4 && OB().state === 'bay'; i++) { await tap(t, 'e'); await t.wait(700); }
     await t.until(() => OB().state === 'inside', 15000, 'the lift to reach the Observatory');
     if (OB().scene) { t.event('setup-shortcut', 'the first-arrival scene skipped (its own scenario plays it)'); OB().skip(); }
