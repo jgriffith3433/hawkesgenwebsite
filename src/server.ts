@@ -701,6 +701,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
 export function createPortalServer() {
   const server = http.createServer((req, res) => {
     countRequest();
+    if (isLeaving()) res.setHeader('Connection', 'close');
     // A handler's stray rejection must never leave a socket hanging or take the process down.
     handle(req, res).catch((e) => {
       console.error('[portal] handler:', e);
@@ -723,7 +724,7 @@ export function createPortalServer() {
 // `node src/server.ts` is one process that does everything (how Studio runs beta, and the tests). PORTAL_ROLE=web is the
 // cluster (src/primary.ts): the primary keeps PORTAL_WEB_PROCS web processes on the port and one worker. Only the worker
 // (or the one process) starts a background loop; what the processes share goes over the bus (src/bus.ts) or the database.
-const leaveWith = (server: http.Server, afterClose: () => void = () => {}) => {
+const leaveWith = (server: http.Server, graceMs = 0) => {
   // A restart (every beta push, every deploy) must not reset requests under way: stop taking new connections, let the
   // running ones finish (their answers say Connection: close), drop idle keep-alive ones as they go idle, leave after 8 s at most.
   let leaving = false;
@@ -731,13 +732,13 @@ const leaveWith = (server: http.Server, afterClose: () => void = () => {}) => {
     if (leaving) return;
     leaving = true;
     setLeaving();
-    afterClose();
     closeLive();
     closeAllRooms();
     server.close(() => void drainBus().then(() => process.exit(0)));
-    const sweep = setInterval(() => server.closeIdleConnections(), 50);
-    sweep.unref();
-    setTimeout(() => process.exit(0), 8000).unref();
+    // (A rolling restart gives idle keep-alive connections a few seconds first: the next request on one is answered with
+    // Connection: close, so a client never sends into a connection that is being shut. See createPortalServer.)
+    setTimeout(() => { const sweep = setInterval(() => server.closeIdleConnections(), 50); sweep.unref(); }, graceMs).unref();
+    setTimeout(() => process.exit(0), 8000 + graceMs).unref();
   };
 };
 const background = () => {
@@ -774,11 +775,12 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(ROOT, 'src
     // Listen first, so /v1/health answers within a second of starting; the background work follows.
     const server = createPortalServer();
     const leave = leaveWith(server);
+    const leaveRolling = leaveWith(server, 3000);
     if (mode === 'web') {
       connectHub(busPath(DATA_DIR));
       // The primary asks a web process to leave (a rolling restart); sockets for game rooms that another keeps arrive here (rooms.ts handoff).
       process.on('message', (m: any, handle: any) => {
-        if (m?.t === 'leave') return leave();
+        if (m?.t === 'leave') return leaveRolling();
         if (m?.t !== 'ws-handoff' || !handle) return;
         if (isLeaving()) return void process.send?.(m, handle); // (sent to a process just leaving: the primary has the new one)
         server.emit('connection', handle);

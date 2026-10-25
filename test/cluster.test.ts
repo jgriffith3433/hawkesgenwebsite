@@ -147,7 +147,7 @@ test('a rolling restart drops no request and no editor stream', async () => {
         const p = await fetch(`${c.base}/v1/portfolio`, { signal: AbortSignal.timeout(5000) });
         if (p.status >= 500) failures.push(`portfolio ${p.status}`);
         await p.arrayBuffer();
-      } catch (e: any) { failures.push(e.message); }
+      } catch (e: any) { failures.push(`${e.message} ${e.cause?.code ?? e.cause?.message ?? ''}`); if (process.env.CLUSTER_LOG) console.log('[test] request failed', e.cause?.code, new Date().toISOString()); }
       requests++;
       await sleep(10);
     }
