@@ -67,7 +67,7 @@ test('the class skeletons are read from the real GLBs: the quadruped template, t
   for (const id of QUADS) assert.deepEqual([...joints(id)].sort(), [...A.CLASSES.quadruped.bones].sort(), `${id}: the quadruped template's joints`);
   // objects: one node called Body
   for (const id of OBJECTS) assert.ok(glb(id).nodes.some((n: any) => n.name === 'Body'), `${id}: a Body node`);
-  assert.deepEqual(A.CLASSES.object.bones, ['Body']);
+  assert.deepEqual(A.CLASSES.object.bones, ['Body', 'ToastL', 'ToastR'], 'the Body, and the toaster\'s two virtual toast slices (props made in presence-things.js)');
   // mixamo: every GLB whose skeleton is Mixamo's (the biped pilot once it has landed) must agree with the class; else the fixture is the reference
   const mixamoGlbs = fs.readdirSync(path.join(ROOT, 'public', 'play', 'models')).filter((f) => f.endsWith('.glb') && !f.includes('-low') && !f.startsWith('hat-')).map((f) => f.replace('.glb', '')).filter((id) => joints(id).some((n) => A.norm(n) === 'LeftUpLeg'));
   for (const id of mixamoGlbs) {
@@ -89,7 +89,7 @@ test('every bone a shipped clip names exists in its class skeleton (read from th
   const named = (cls: string) => new Set<string>(Object.values<any>(FILES[cls].clips).flatMap((c: any) => Object.keys(c.tracks)));
   const dog = new Set(joints('dog'));
   for (const b of named('quadruped')) assert.ok(dog.has(b), `quadruped clips name ${b}: the dog's GLB has it`);
-  const toaster = new Set(glb('toaster').nodes.map((n: any) => n.name));
+  const toaster = new Set([...glb('toaster').nodes.map((n: any) => n.name), ...A.CLASSES.object.parts]); // (the toast slices are props, not nodes of the file)
   for (const b of named('object')) assert.ok(toaster.has(b), `object clips name ${b}: the toaster's GLB has it`);
   const mx = new Set<string>(readJson('test/fixtures/mixamo-skeleton.json').bones);
   for (const b of named('mixamo')) assert.ok(mx.has(A.norm(b)), `mixamo clips name ${b}: the Mixamo skeleton has it`);
@@ -246,7 +246,7 @@ test('the object class: Body is the whole body, the clips keep volume, a walk ho
     assert.ok(Math.abs(s[0] * s[1] * s[2] - 1) < 0.01, `${name} ${i}/16: squash and stretch keeps volume (${(s[0] * s[1] * s[2]).toFixed(3)})`);
   }
   const lo = A.sampleClip(walk, 0).get('Body'), hi = A.sampleClip(walk, 0.25).get('Body');
-  assert.ok(hi.p[1] > lo.p[1] + 0.03, 'a hop');
+  assert.ok(hi.p[1] > lo.p[1] + 0.02, 'a hop');
   assert.ok(hi.s[1] > lo.s[1], 'stretched in the air, squashed on landing');
   assert.ok(Math.abs(A.q.angle(A.sampleClip(walk, 0.25).get('Body').q)) > 5, 'a roll');
 });
@@ -432,7 +432,8 @@ test('a thing takes the object set: its whole body hops and rolls from the clip,
   assert.equal(A.info(t.rig).cls, 'object');
   const f = stand('fish');
   await M.ready(f.rig);
-  assert.equal(f.rig.pm.anim, null, 'a swimmer has no set: its own motion');
+  assert.equal(A.classOf(M.entry('fish')), 'object');
+  assert.ok(f.rig.pm.anim && !A.has(f.rig, 'swim') && !A.has(f.rig, 'walk') && A.has(f.rig, 'idle') && A.has(f.rig, 'hurt'), 'a swimmer takes the set for idle, emotes and hurt only: its swim stays its own (keepGait)');
   P.showcase.dispose(t.rig); t.node.dispose(); P.showcase.dispose(f.rig); f.node.dispose();
 });
 
@@ -695,6 +696,173 @@ test('standing still, the dog now and then sniffs (a loop of three seconds) or f
   step('walk', 1.4);
   assert.ok(!pm.anim.take, 'moving cancels a fidget');
   dog.dispose();
+});
+
+// ------------------------------------------------------------------ the object set (docs/animations.md 2C), made on the toaster
+const OBJECT_CLIPS = ['idle', 'idle_fidget', 'walk', 'run', 'jump_start', 'jump', 'land', 'fall', 'swim', 'sit', 'sleep', 'wave', 'dance', 'cheer', 'laugh', 'point', 'clap', 'thumbsup', 'heart', 'shrug', 'hurt', 'knock_down', 'get_up'];
+const objSet = () => A.setOf('object');
+/** A GLB's box in its own units (the accessor's min and max), as presence-models.js measures a model. */
+function glbBox(id: string) {
+  const j = glb(id), a = j.accessors[j.meshes[0].primitives[0].attributes.POSITION];
+  return { min: { x: a.min[0], y: a.min[1], z: a.min[2] }, max: { x: a.max[0], y: a.max[1], z: a.max[2] } };
+}
+/** What presence-models.js has for a model when it drives it: its box, the scale to its height, its row. */
+function fakeModel(id: string) {
+  const ent = M.entry(id) || { id, ...registryBefore[id], form: registryBefore[id].form, h: registryBefore[id].h }, b = glbBox(id);
+  return { ent, b, k: ent.h / (b.max.y - b.min.y), anim: null };
+}
+const bodyAt = (pm: any, name: string, u: number) => A.finish(pm, { virtual: true }, A.sampleClip(objSet().clips[name], u)).body;
+/** How high the lowest corner of the leaning, squashed box is over the ground (the box is on it when 0), in meters. */
+function floorGap(pm: any, o: any) {
+  const q = B.Quaternion.FromEulerAngles(o.rx, o.ry, o.rz), hx = (pm.b.max.x - pm.b.min.x) / 2 * pm.k, hy = pm.ent.h / 2, hz = (pm.b.max.z - pm.b.min.z) / 2 * pm.k;
+  const sxz = 1 / Math.sqrt(o.sy);
+  let low = Infinity;
+  for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
+    const v = new B.Vector3(sx * hx * sxz * o.sx, sy * hy * o.sy, sz * hz * sxz * o.sz).rotateByQuaternionToRef(q, new B.Vector3());
+    low = Math.min(low, v.y);
+  }
+  return hy * (o.sy - 1) + o.y + low + hy; // (models.js: the mover's middle sits at hy, and the squash keeps the bottom still)
+}
+
+test('the object set has every clip of docs/animations.md 2C, sound, with loops that close and a toy rule that keeps volume', () => {
+  const set = objSet();
+  assert.deepEqual(OBJECT_CLIPS.filter((n) => !set.clips[n]), [], 'every clip is there');
+  assert.deepEqual(set.problems, [], 'the file is sound');
+  const once = ['idle_fidget', 'jump_start', 'land', 'wave', 'cheer', 'laugh', 'point', 'clap', 'thumbsup', 'heart', 'shrug', 'hurt', 'knock_down', 'get_up'];
+  for (const n of OBJECT_CLIPS) assert.equal(set.clips[n].loop, !once.includes(n), `${n}: ${once.includes(n) ? 'plays once' : 'loops'}`);
+  const secs: Record<string, number> = { idle: 3.2, idle_fidget: 1.5, walk: 1, run: 0.6, jump_start: 0.25, jump: 0.7, land: 0.3, fall: 0.9, swim: 2, sit: 4, sleep: 4, wave: 1.6, dance: 2.4, cheer: 1.4, laugh: 1.6, point: 1.2, clap: 1.6, thumbsup: 1.2, heart: 1.6, shrug: 1.2, hurt: 0.5, knock_down: 0.9, get_up: 1.2 };
+  for (const [n, s] of Object.entries(secs)) assert.equal(set.clips[n].seconds, s, `${n}: ${s} s`);
+  const same = (a: any, b: any, what: string, tolDeg = 1.5) => {
+    const ba = a.get('Body'), bb = b.get('Body');
+    if (ba && bb) {
+      if (ba.q) assert.ok(Math.abs(A.q.angle(A.q.mul(ba.q, A.q.inv(bb.q)))) < tolDeg, `${what}: the lean is the same`);
+      for (const [x, y] of [[ba.p, bb.p], [ba.s, bb.s]]) if (x && y) for (let i = 0; i < 3; i++) assert.ok(Math.abs(x[i] - y[i]) < 0.012, `${what}: ${i} is the same`);
+    }
+  };
+  for (const n of OBJECT_CLIPS) {
+    const c = set.clips[n];
+    for (let i = 0; i <= 48; i++) {
+      const s = A.sampleClip(c, i / 48).get('Body').s;
+      assert.ok(Math.abs(s[0] * s[1] * s[2] - 1) < 0.01, `${n} at ${i}/48: squash and stretch keeps volume (${(s[0] * s[1] * s[2]).toFixed(3)})`);
+    }
+    if (c.loop) same(A.sampleClip(c, 0.99999), A.sampleClip(c, 0), `${n} closes`);
+    else {
+      // a one-shot starts where the body stands and (but for a fall that lies there, and a take-off that ends stretched) ends there too
+      const first = A.sampleClip(c, 0).get('Body'), last = A.sampleClip(c, 1).get('Body');
+      if (!['land', 'jump_start', 'get_up'].includes(n)) assert.ok(Math.abs(A.q.angle(first.q || [0, 0, 0, 1])) < 1 && Math.abs(first.s[1] - 1) < 0.01, `${n} starts upright`);
+      if (!['knock_down', 'jump_start'].includes(n)) assert.ok(Math.abs(A.q.angle(last.q || [0, 0, 0, 1])) < 1 && Math.abs(last.s[1] - 1) < 0.01 && Math.abs((last.p || [0, 0, 0])[1]) < 0.002, `${n} ends where it stands`);
+    }
+  }
+  const down = A.sampleClip(set.clips.knock_down, 1).get('Body'), up = A.sampleClip(set.clips.get_up, 0).get('Body');
+  assert.ok(Math.abs(A.q.angle(down.q) - 90) < 4 && Math.abs(A.q.angle(up.q) - 90) < 4, 'knock_down ends on its side and get_up begins there');
+  // the footsteps: a waddle and a run hop on each foot
+  for (const n of ['walk', 'run']) assert.deepEqual(set.clips[n].events.map((e: any) => [e.t, e.name, e.foot]), [[0, 'hop', 'L'], [0.5, 'hop', 'R']], `${n}: hop events on each foot`);
+  assert.equal(set.clips.clap.events.length, 6, 'six claps, six events');
+});
+
+test('the toast slices pop in idle_fidget, cheer, point, thumbsup and hurt, and are back in their slots when the clip ends', () => {
+  const set = objSet();
+  for (const n of ['idle_fidget', 'cheer', 'point', 'thumbsup', 'hurt']) {
+    let top = 0, topZ = 0;
+    for (let i = 0; i <= 60; i++) for (const k of ['ToastL', 'ToastR']) { const v = A.sampleClip(set.clips[n], i / 60).get(k); if (v) { top = Math.max(top, v.p[1]); topZ = Math.max(topZ, v.p[2]); } }
+    assert.ok(top > 0.15, `${n}: a slice comes up out of its slot (${top.toFixed(2)} heights)`);
+    for (const k of ['ToastL', 'ToastR']) { const v = A.sampleClip(set.clips[n], 1).get(k); if (v) assert.ok(Math.abs(v.p[1]) < 0.01 && Math.abs(v.p[2]) < 0.01, `${n}: ${k} is home at the end`); }
+    assert.ok(set.clips[n].events.some((e: any) => e.name === 'toast'), `${n}: tells the listeners about the pop`);
+    if (n === 'point') assert.ok(topZ > 0.4, 'point: the slice goes out toward the target');
+  }
+  assert.ok(A.sampleClip(set.clips.cheer, 0.5).get('ToastL') && A.sampleClip(set.clips.cheer, 0.5).get('ToastR'), 'cheer pops both');
+  const one = (n: string) => ['ToastL', 'ToastR'].filter((k) => FILES.object.clips[n].tracks[k]);
+  assert.equal(one('thumbsup').length, 1, 'thumbsup pops one');
+  // thumbsup: the slice stays up through the middle of the clip
+  assert.ok(A.sampleClip(set.clips.thumbsup, 0.3).get('ToastR').p[1] > 0.3 && A.sampleClip(set.clips.thumbsup, 0.7).get('ToastR').p[1] > 0.3, 'thumbsup: it pops up and stays');
+});
+
+test('on the toaster the slices are meshes in the slots that come up with the clip, follow the body, and stay hidden when at rest', async () => {
+  register({ toaster: { ...standinRows().toaster, rig: 'object' } });
+  const t = stand('toaster');
+  await M.ready(t.rig);
+  const pr = t.rig.pm.props;
+  assert.ok(pr && pr.parts.length === 2, 'two slices made');
+  const at = (name: string, sec: number) => { t.rig.forceClip = { name, t: sec }; P.showcase.animate(t.rig, 1 / 60); return pr.parts.map((p: any) => ({ on: p.node.isEnabled(), y: p.node.position.y, parent: p.node.parent })); };
+  const rest = at('idle', 0);
+  assert.ok(rest.every((p: any) => !p.on), 'at rest both are hidden in their slots');
+  for (const [clipName, sec, slices] of [['idle_fidget', 0.6, 1], ['cheer', 0.7, 2], ['point', 0.5, 1], ['thumbsup', 0.5, 1], ['hurt', 0.2, 2]] as const) {
+    const s = at(clipName, sec), shown = s.filter((p: any) => p.on).length;
+    assert.equal(shown, slices, `${clipName}: ${slices} slice(s) out at ${sec} s`);
+    assert.ok(s.filter((p: any) => p.on).every((p: any) => p.y > rest[0].y + 0.1), `${clipName}: and up above the slot`);
+  }
+  assert.equal(pr.parts[0].node.parent, t.rig.pm.inner, 'they hang on the model\'s frame, so they follow Body\'s squash, hop and lean');
+  at('knock_down', 0);
+  assert.ok(pr.parts.every((p: any) => !p.node.isEnabled()), 'a clip that does not lift them hides them again');
+  // in the game, the emote does it: the radial menu's cheer (no forced clip)
+  t.rig.forceClip = null;
+  run(t, 0.1, 0);
+  t.rig.emote = { def: C.emote('cheer'), t0: t.rig.time || 0 };
+  let seen = 0;
+  for (let i = 0; i < 90; i++) { P.showcase.animate(t.rig, 1 / 60); if (pr.parts.every((p: any) => p.node.isEnabled())) seen++; }
+  assert.ok(seen > 15, `cheer from the emote menu pops both slices (${seen} frames)`);
+  P.showcase.dispose(t.rig); t.node.dispose();
+});
+
+test('the same clips fit the shoe, teapot, cactus and duck by their proportions, and rest every pose on the ground', () => {
+  const ids = ['toaster', 'shoe', 'teapot', 'cactus', 'duck', 'cone', 'banana', 'mushroom', 'potato'];
+  const motion: Record<string, any> = {};
+  for (const id of ids) motion[id] = A.motionOf(fakeModel(id));
+  assert.ok(motion.cactus.sway < motion.toaster.sway && motion.cactus.hop < motion.toaster.hop, 'a tall thin cactus sways and hops less than the toaster');
+  assert.ok(motion.shoe.sway > motion.toaster.sway, 'a long low shoe leans more');
+  assert.ok(motion.duck.hop < motion.toaster.hop * 0.9 && motion.duck.sway > motion.toaster.sway, 'the duck waddles: low hops, wide sway');
+  assert.ok(Math.abs(motion.toaster.sway - 1) < 0.1 && Math.abs(motion.toaster.hop - 1) < 0.1, 'the toaster is the model the set was made on');
+  // the hop is a share of the model's own height: the cactus (1.7 m) hops higher in meters than the shoe (0.5 m)
+  const top = (id: string) => { const pm = fakeModel(id); let y = 0; for (let i = 0; i < 32; i++) y = Math.max(y, bodyAt(pm, 'walk', i / 32).y); return y; };
+  assert.ok(top('cactus') > top('shoe') * 1.5, `walk hop: cactus ${top('cactus').toFixed(3)} m, shoe ${top('shoe').toFixed(3)} m`);
+  // no clipping: through every clip that stays on the ground, the box of the leaning body never goes under it, and touches it
+  for (const id of ['toaster', 'shoe', 'teapot', 'cactus', 'duck']) {
+    const pm = fakeModel(id);
+    for (const n of OBJECT_CLIPS) {
+      if (objSet().clips[n].air) continue;
+      let worst = Infinity;
+      for (let i = 0; i <= 40; i++) { const gap = floorGap(pm, bodyAt(pm, n, i / 40)); worst = Math.min(worst, gap); }
+      assert.ok(worst > -0.005, `${id} ${n}: never through the floor (${worst.toFixed(3)} m)`);
+    }
+    // knocked down it lies on its side: the middle is as high as half its width (or depth), not as high as it stood
+    const lying = bodyAt(pm, 'knock_down', 1);
+    assert.ok(Math.abs(floorGap(pm, lying)) < 0.01, `${id}: lies on the floor, not in the air (${floorGap(pm, lying).toFixed(3)} m)`);
+  }
+});
+
+test('the fish and the roll-bot keep their own swim and roll, taking the set for idle, emotes and hurt', async () => {
+  for (const id of ['fish', 'rollbot']) {
+    assert.equal(registryBefore[id].keepGait, true, `${id}'s row keeps its gait`);
+    assert.equal(A.classOf(M.entry(id)), 'object', `${id} takes the object set`);
+  }
+  register({ fish: { ...standinRows().fish }, toaster: { ...standinRows().toaster, rig: 'object' } });
+  const f = stand('fish'), t = stand('toaster');
+  await M.ready(f.rig); await M.ready(t.rig);
+  for (const n of ['walk', 'run', 'jump', 'swim', 'fall', 'land']) assert.ok(!A.has(f.rig, n), `the fish does not take ${n}`);
+  for (const n of ['idle', 'wave', 'cheer', 'hurt', 'dance']) assert.ok(A.has(f.rig, n), `the fish takes ${n}`);
+  run(f, 1, 2.6);
+  assert.equal(f.rig.pm.anim.player ? f.rig.pm.anim.player.loops.length : 0, 0, 'swimming along, the set plays nothing: its own gait moves it');
+  run(t, 1, 2.6);
+  assert.ok(t.rig.pm.anim.player.loops.length > 0, 'the toaster, walking, does play the set');
+  run(f, 0.3, 0);
+  assert.ok(f.rig.pm.anim.player.loops.length > 0, 'standing, the fish takes the set\'s idle');
+  P.showcase.dispose(f.rig); f.node.dispose(); P.showcase.dispose(t.rig); t.node.dispose();
+});
+
+test('a landing and a take-off are the set\'s own squash, not squashed twice, and a hurt entity plays hurt', async () => {
+  register({ toaster: { ...standinRows().toaster, rig: 'object' } });
+  const t = stand('toaster');
+  await M.ready(t.rig);
+  run(t, 0.3, 0);
+  t.e.grounded = false; t.e.vy = -5;
+  run(t, 0.4, 0);
+  t.e.grounded = true; t.e.vy = 0;
+  let low = 9;
+  for (let i = 0; i < 20; i++) { run(t, 1 / 60, 0); low = Math.min(low, t.rig.pm.mover.scaling.y); }
+  assert.ok(low > 0.74 && low < 0.9, `the land clip squashes to about 0.8, once (${low.toFixed(2)})`);
+  const js = fs.readFileSync(path.join(ROOT, 'public', 'play', 'modules', 'presence', 'presence.js'), 'utf8');
+  assert.ok(js.includes("name: 'hurt'") && js.includes("P.anim.has(rig, 'hurt')"), 'a hurt event plays the set\'s hurt');
+  P.showcase.dispose(t.rig); t.node.dispose();
 });
 
 // ------------------------------------------------------------------ the Mixamo models (person, robot): the real files

@@ -458,7 +458,8 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       if (!sub && method === 'DELETE') return send(res, 200, games.deleteGame(user, gid));
       if (sub === 'live' && method === 'GET') {
         games.memberGame(user, gid, 'player');
-        return void joinLive(gid, user, res);
+        const last = String(req.headers['last-event-id'] ?? url.searchParams.get('last') ?? '') || null;
+        return void joinLive(gid, user, res, undefined, last);
       }
       if (sub === 'presence' && method === 'POST') return games.memberGame(user, gid, 'player'), send(res, 200, setPresence(gid, conn ?? '', user.id, await readJson(req)));
       if (sub === 'files' && (method === 'PUT' || method === 'POST')) {

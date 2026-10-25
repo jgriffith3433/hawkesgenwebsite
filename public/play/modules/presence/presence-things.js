@@ -919,8 +919,49 @@
     stepFace(rig, th.F, dt, bu >= 0 && th.bootFace ? th.bootFace : expr, { open: th.F.open || 0, heart: th.F.heart, gaze: th.gaze || null, lid: fx && fx.lid });
   }
 
+
+  // ------------------------------------------------------------------ props: parts a model's clips drive (docs/animations.md 2C)
+  // The toaster's GLB is one mesh with one slice of toast baked in. Its clips (anim/object.json) also key two virtual bones, ToastL and
+  // ToastR: two more slices, made here as small meshes that sit in the slots (hidden inside the chrome) and pop up and out when a clip
+  // lifts them (idle_fidget, cheer, point, thumbsup, hurt). They hang on the model's own frame, so they follow every squash, hop and
+  // lean of Body. `at` is the slice's middle in the model's units; the clip's pos is in model heights (y up, z the front).
+  const PROPS = {
+    toaster: { size: [0.4, 0.42, 0.07], slices: { ToastL: [0, 0.43, 0.1], ToastR: [0, 0.43, -0.15] } },
+  };
+  const props = {
+    PROPS,
+    /** Makes a model's props if its type has them: pm.props = { parts: [{ name, node, at }] }. */
+    attach(rig, pm) {
+      const spec = PROPS[rig.what];
+      if (!spec || !pm.inner || !B.MeshBuilder) return;
+      const scene = rig.scene, crust = new B.Color4(0.52, 0.31, 0.13, 1), crumb = new B.Color4(0.94, 0.75, 0.43, 1);
+      const mat = new B.StandardMaterial('pm-toast', scene);
+      mat.diffuseColor = new B.Color3(1, 1, 1); mat.specularColor = new B.Color3(0, 0, 0); mat.emissiveColor = new B.Color3(0.22, 0.17, 0.1);
+      const parts = [];
+      for (const [name, at] of Object.entries(spec.slices)) {
+        const node = B.MeshBuilder.CreateBox(`pm-toast-${name}`, { width: spec.size[0], height: spec.size[1], depth: spec.size[2], faceColors: [crumb, crumb, crust, crust, crust, crust] }, scene);
+        node.material = mat; node.parent = pm.inner; node.isPickable = false; node.setEnabled(false);
+        parts.push({ name, node, at, shown: false });
+      }
+      pm.props = { parts, mat };
+    },
+    /** One frame: `parts` is { ToastL: { x, y, z, rx, ry, rz } } from the clips (model heights, radians) or null. A slice at rest stays hidden in its slot. */
+    apply(pm, parts) {
+      const pr = pm.props;
+      if (!pr) return;
+      const u = pm.ent.h / (pm.k || 1); // model units in a model height
+      for (const part of pr.parts) {
+        const v = parts && parts[part.name], up = v && (Math.abs(v.y) > 0.004 || Math.abs(v.z) > 0.004 || Math.abs(v.x) > 0.004);
+        if (up !== part.shown) { part.node.setEnabled(Boolean(up)); part.shown = Boolean(up); }
+        if (!up) continue;
+        part.node.position.set(part.at[0] + v.x * u, part.at[1] + v.y * u, part.at[2] + v.z * u);
+        part.node.rotation.set(v.rx, v.ry, v.rz);
+      }
+    },
+  };
+
   /** presence-robots.js registers a body here (same shape as BUILD.<id>) and hands it the helpers above. */
   function register(id, fn) { BUILD[id] = fn; if (!ORDER.includes(id)) ORDER.push(id); if (P.bodies) P.bodies.THINGS[id] = builder(id); }
-  P.things = { BUILD, ORDER, animate, makeFace, ids: ORDER, register, kit: { Geo, rev, ball, sbox, sweep, spike, capsule, radial, paint, flat, toon, tonesRgb, rgb, mix3, clamp, smooth, ease, lerp, bump, TAU, spring, sp, tilt, addFace, glowMat } };
+  P.things = { BUILD, ORDER, animate, makeFace, ids: ORDER, register, props, kit: { Geo, rev, ball, sbox, sweep, spike, capsule, radial, paint, flat, toon, tonesRgb, rgb, mix3, clamp, smooth, ease, lerp, bump, TAU, spring, sp, tilt, addFace, glowMat } };
   if (P.bodies) for (const id of ORDER) P.bodies.THINGS[id] = builder(id);
 })();

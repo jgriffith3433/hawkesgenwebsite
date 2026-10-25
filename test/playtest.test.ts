@@ -40,10 +40,11 @@ test('a playtest never signs up on live', () => {
   assert.match(src, /health\.mail/);
 });
 
-test('site-layout: three sizes, the checklist in AGENTS.md, horizontal scroll fails the run', () => {
+test('site-layout: three sizes, the checklist in AGENTS.md, horizontal scroll, a clipped button, a card off the first screen or text over the Overseer fails the run', () => {
   const src = read('public/playtest/site-layout.js');
   for (const size of ['390x844', '768x1024', '1440x900']) assert.ok(src.includes(size), size);
-  assert.match(src, /throw new Error\(`horizontal scroll/);
+  assert.match(src, /throw new Error\(`layout: /);
+  for (const k of ['overseer-clear', 'layout-ok', 'lineRects', 'is clipped at', 'inside the first screen']) assert.ok(src.includes(k), k);
   assert.match(read('public/playtest/portal.js'), /runSiteLayout\(t, options\)/);
   assert.match(read('AGENTS.md'), /The landing page checklist/);
   assert.match(read('public/overseer-sky.js'), /hero\.dataset\.overseer/);
@@ -51,7 +52,7 @@ test('site-layout: three sizes, the checklist in AGENTS.md, horizontal scroll fa
 
 test('avatar-animations: a frame per class, the bone checks, the fallbacks and ten characters; documented in AGENTS.md', () => {
   const src = read('public/playtest/avatar-animations.js');
-  for (const k of ['clip-file', 'clip-moments', 'bone-checks', 'prefixes-match', 'fallback-procedural', 'template-biped-animates', 'ten-characters', 'standin=mixamo', 'pose=walk&t=0.25']) assert.ok(src.includes(k), k);
+  for (const k of ['clip-file', 'clip-moments', 'bone-checks', 'prefixes-match', 'fallback-procedural', 'template-biped-animates', 'ten-characters', 'object-clips', 'toast-pops', 'volume-kept', 'no-clipping', 'object-loops-close', 'proportionate-motion', 'fish-keeps-gait', 'rollbot-keeps-roll', 'standin=mixamo', 'pose=walk&t=0.25']) assert.ok(src.includes(k), k);
   assert.match(read('public/playtest/portal.js'), /runAvatarAnimations\(t, options\)/);
   assert.match(read('AGENTS.md'), /avatar-animations/);
 });

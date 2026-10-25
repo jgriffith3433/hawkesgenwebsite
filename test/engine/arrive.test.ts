@@ -144,15 +144,18 @@ test('nothing is left behind: beams, rings and arrivals end; a world change clea
   assert.ok(c.node.isEnabled());
 });
 
-test('the first-visit cascade: after the intro the listed things are hidden and beamed in one by one; no intro, no cascade', () => {
+test('the first-visit cascade: after the intro the listed things are hidden and beamed in one by one; no intro, no cascade', async () => {
   const crate = (x: number) => ({ type: 'box', physics: 'static', shape: { size: [1, 1, 1] }, transform: { position: [x, 0.5, 4] } });
   const scene = sceneOf({ floor, start, a: crate(0), b: crate(3), c: crate(6) }, { overseer: { cascade: ['a', 'b', 'c'] } });
   world(H, scene);
   H.tick(0.3);
   const seen: string[] = [];
+  const done: any[] = [];
   H.game.on('cascade', (d: any) => seen.push(d.id));
+  H.game.on('cascadeDone', (d: any) => done.push(d));
   assert.equal(H.arrive.waiting, 0, 'nothing before the intro ends');
   H.game.emit('intro', { state: 'end', skipped: false });
+  await new Promise((r) => setTimeout(r, 600));
   assert.equal(H.arrive.waiting, 3);
   assert.ok(['a', 'b', 'c'].every((id) => H.world.byId.get(id).node.isEnabled() === false), 'hidden until their turn');
   H.tick(0.4);
@@ -161,10 +164,38 @@ test('the first-visit cascade: after the intro the listed things are hidden and 
   assert.deepEqual(seen, ['a', 'b', 'c']);
   assert.ok(['a', 'b', 'c'].every((id) => H.world.byId.get(id).node.isEnabled()), 'all there at the end');
   assert.equal(H.arrive.waiting, 0);
+  assert.equal(done.length, 1, 'one completion event');
+  assert.deepEqual(done[0].ids, ['a', 'b', 'c']);
+  assert.deepEqual(done[0].missing, []);
   // A return has no intro: nothing happens.
   world(H, scene);
   H.tick(0.3);
   assert.ok(['a', 'b', 'c'].every((id) => H.world.byId.get(id).node.isEnabled()), 'just there');
+});
+
+test('the cascade waits for the mirror: nothing beams in while it is open, the island comes in after it closes', async () => {
+  const crate = (x: number) => ({ type: 'box', physics: 'static', shape: { size: [1, 1, 1] }, transform: { position: [x, 0.5, 4] } });
+  world(H, sceneOf({ floor, start, a: crate(0), b: crate(3) }, { overseer: { cascade: ['a', 'b', 'missing'] } }));
+  H.tick(0.3);
+  H.game.mirror = { pending: true };
+  const seen: string[] = [];
+  const done: any[] = [];
+  H.game.on('cascade', (d: any) => seen.push(d.id));
+  H.game.on('cascadeDone', (d: any) => done.push(d));
+  H.game.emit('intro', { state: 'end', skipped: true });
+  await new Promise((r) => setTimeout(r, 600));
+  H.game.emit('mirror', { state: 'open', auto: true });
+  settle(3);
+  assert.equal(H.arrive.waiting, 0);
+  assert.deepEqual(seen, [], 'nothing beamed in behind the open mirror');
+  assert.ok(['a', 'b'].every((id) => H.world.byId.get(id).node.isEnabled()), 'still there, not yet hidden');
+  H.game.emit('mirror', { state: 'done', what: 'person', name: 'Mira' });
+  await new Promise((r) => setTimeout(r, 700));
+  assert.equal(H.arrive.waiting, 2, 'queued once the mirror is closed');
+  settle(3);
+  assert.deepEqual(seen, ['a', 'b']);
+  assert.equal(done.length, 1);
+  assert.deepEqual(done[0].missing, ['missing'], 'a thing the world lacks is named, not waited for');
 });
 
 test('undo of a removal beams the thing back (a short beam); redo of an add too', () => {

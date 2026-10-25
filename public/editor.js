@@ -298,9 +298,18 @@ async function sendAssets() {
 }
 
 // ===================================================================== realtime (SSE): files, assets, chat, people
+// The stream comes back on its own, quietly: the server says `bye` before it restarts, the browser keeps the last event
+// id (`?last=` carries it across our own reconnects, so what was missed comes once and nothing twice), and a failed try
+// waits longer each time (1 s up to 30 s) without a word in the console.
+let sseLast = '', sseTries = 0, sseTimer = null;
+const sseLater = () => { clearTimeout(sseTimer); sseTimer = setTimeout(connect, Math.min(30_000, 1000 * 2 ** sseTries++)); };
+addEventListener('pagehide', () => { clearTimeout(sseTimer); if (sse) sse.close(); });
 function connect() {
   if (sse) sse.close();
-  sse = new EventSource(`${API}/games/${gameId}/live`, { withCredentials: true });
+  sse = new EventSource(`${API}/games/${gameId}/live${sseLast ? `?last=${encodeURIComponent(sseLast)}` : ''}`, { withCredentials: true });
+  sse.addEventListener('open', () => { sseTries = 0; });
+  sse.addEventListener('bye', () => { sse.close(); sseTries = 0; sseLater(); });
+  for (const ev of ['file', 'file-deleted', 'file-renamed', 'asset', 'asset-removed', 'asset-renamed', 'chat', 'gen', 'game', 'release', 'role', 'removed', 'deleted']) sse.addEventListener(ev, (e) => { if (e.lastEventId) sseLast = e.lastEventId; });
   sse.addEventListener('hello', (e) => { const d = JSON.parse(e.data); connId = d.conn; updatePresence(d.presence || []); $('thinkingIndicator').hidden = true; });
   sse.addEventListener('file', (e) => {
     markUnsaved();
@@ -352,7 +361,7 @@ function connect() {
   sse.addEventListener('removed', (e) => { const d = JSON.parse(e.data); if (d.user === me?.id) { alert('You were removed from this game.'); location.replace('/app'); } });
   sse.addEventListener('deleted', () => { alert('This game was deleted.'); location.replace('/app'); });
   sse.addEventListener('reload', () => location.reload());
-  sse.onerror = () => { sse.close(); setTimeout(connect, 3000); };
+  sse.onerror = () => { sse.close(); sseLater(); };
 }
 function updatePresence(list) {
   const el = $('presence');

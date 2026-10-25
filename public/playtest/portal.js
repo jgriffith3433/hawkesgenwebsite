@@ -107,6 +107,10 @@ const SCENARIOS = [
     description: 'the first-minutes path to the account sheet (a throwaway sign-up, never on live), then the Invite button (a real click: the link, its ?invite= and ?ref=), the pause menu (Esc twice) offering it too, the invitation read back (open); the friend is a named setup-shortcut socket in the room (the friend\'s own page, its mirror and sheet, is covered by the engine and relay tests), and the inviter must show the beam (joined), the name over the newcomer and the Overseer\'s "Someone is coming."; then the friend\'s page is opened on an island nobody is on (closed): the message and "Start my own island" (a real click). Full and expired links are the tests\' (test/invite.test.ts).',
   },
   {
+    id: 'island-invite-friend', title: 'The friend\'s browser: opens an invitation signed out (no cookie, a second browser context), is beamed in beside the inviter, or is told kindly that the island is closed, full or out of date', seconds: 150, tags: ['full'],
+    description: 'Run in its OWN browser context, at the same time as island-invite with {"friend":"browser"} (which publishes the link in its invite-link event). options: link (the invitation address; the path and query are opened on this origin), expect ("open" by default; "closed", "full" or "expired" check the friendly card instead), name (the mirror name), what. Signed out: it opens the link, checks the invitation was read (no 401), plays the short intro and the mirror with real input, and must be beamed in next to the inviter (friend-beamed, within 6 m, the Overseer\'s "<name> is here. Go to them."). With expect set it checks the card\'s reason and clicks Start my own island.',
+  },
+  {
     id: 'share-moment', title: 'Share this moment: a big explosion offers a chip (not in the first minute of the tour), one tap keeps the last 8 s, a guest is taken to the sign-up sheet and comes back to the same moment, and the link opens a page with the character, the Overseer\'s line and a card image', seconds: 420, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first-minutes path to the account sheet (a throwaway sign-up, never on live), then Share this moment (modules/share/moments.js): the rocket launcher in hand (named setup-shortcut) and a blast at fuel barrels with real input within the first minute of the tour: no chip (chip-held-back); after the minute another blast: the chip appears (chip-shown); the player is signed out first (a named setup-shortcut: a guest) and taps the chip (a real click): the account sheet opens for it (sheet-for-share), signs back in with the throwaway account, closes, and the chip is the same moment still (same-moment) and becomes the link (share-link). The link\'s page (share-page) has the character\'s name and the Overseer\'s line and its Open Graph card has an image that loads (og-image); the page is shown in a frame for the screenshot.',
@@ -213,6 +217,54 @@ async function walkTo(t, id, near, timeoutMs, what) {
   setKeys({});
 }
 
+// ---------------------------------------------------------------------------------------------- playtest hooks
+/** The playtest-only hooks (docs: AGENTS.md "Playtest hooks"; `window.hawkesPlaytest.hooks`). Each one calls the engine's own
+ *  path and leaves its own events to fire (`explosion`, the vehicle's `enter`, `docked-pad`, `catch`), so what a scenario
+ *  checks afterwards is the game's. They exist only here, in the script a browser under automation loads (never a visitor),
+ *  and they refuse on live (`isLive`): a named `setup-shortcut` event says what was done. Every one fails with a message
+ *  that says what was missing, so the stage that breaks is named. */
+const HOOKS = {
+  /** A blast at the player's feet or `ahead` metres in front of the camera (default 6): the engine's own mayhem.explode, so the
+   *  physics 'explosion' event and game.on('explosion') fire as for a rocket. Big by the share module's rule (radius 8). */
+  explode(t, o = {}) {
+    HOOKS.allowed('explode');
+    const P = W() && W().player;
+    if (!P || !G() || !G().mayhem || !G().mayhem.explode) throw new Error('hook explode: the island or the mayhem module is not ready');
+    const yaw = camYaw(), d = o.ahead ?? 6;
+    const at = [P.x + Math.sin(yaw) * d, P.y, P.z + Math.cos(yaw) * d];
+    G().mayhem.explode(at, { radius: o.radius ?? 8, force: o.force ?? 24, damage: o.damage ?? 30, fire: false });
+    t.event('setup-shortcut', `a blast set off ${d} m ahead of the player (the engine's own explosion)`);
+  },
+  /** Gets the player into a vehicle by id (the engine's own enter, as E does): waits for it to be there, then for the drive. */
+  async enterVehicle(t, id, o = {}) {
+    HOOKS.allowed('enterVehicle');
+    const V = HP() && HP().vehicles;
+    await t.until(() => W() && W().player && W().byId.get(id) && V && V.enter, 30000, `hook enterVehicle: the vehicle "${id}" to exist`);
+    if (G().player.controller === 'drive' && V.current && V.current.sceneId === id) return;
+    V.enter(W().byId.get(id), o);
+    await t.until(() => G().player.controller === 'drive', 8000, `hook enterVehicle: the player to be driving the "${id}"`);
+    t.event('setup-shortcut', `the player put in the ${id} by the engine's own enter (E did not reach it)`);
+  },
+  /** Docks the rocket by the game's own dock path (waits for the hangar). */
+  async dock(t, id = 'rocket') {
+    HOOKS.allowed('dock');
+    await t.until(() => HP().overseer && HP().overseer.dockShip && G() && G().entity(id) && W().player, 30000, 'hook dock: the hangar and the rocket to exist');
+    dockRocket(t);
+    await t.until(() => HP().overseer.observatory && HP().overseer.observatory.state === 'bay', 10000, 'hook dock: the bay (the player on foot beside the pad)');
+  },
+  /** A fish caught: water.fish.give (the log, the card and the 'catch' event, as a landed fish does). */
+  catchFish(t, species = 'trout') {
+    HOOKS.allowed('catchFish');
+    const f = G() && G().water && G().water.fish && G().water.fish.give(species, {});
+    if (!f) throw new Error(`hook catchFish: no fish "${species}" in this world`);
+    t.event('setup-shortcut', `a ${species} counted as caught (water.fish.give: the engine's catch event)`);
+    return f;
+  },
+  allowed(name) { if (isLive()) throw new Error(`hook ${name}: playtest hooks are never available on the live site`); },
+  names: ['explode', 'enterVehicle', 'dock', 'catchFish'],
+};
+if (!isLive()) { window.hawkesPlaytestHooks = HOOKS; if (window.hawkesPlaytest) window.hawkesPlaytest.hooks = HOOKS; }
+
 // ---------------------------------------------------------------------------------------------- the stages
 /** One stage's timeout or failure carries its name, so the review reads which part of the path broke. */
 const stageError = (name, e) => new Error(`stage "${name}": ${e && e.message ? e.message : e}`);
@@ -222,6 +274,14 @@ async function stageLanding(t, ctx) {
   await t.until(() => document.readyState === 'complete' && $('[data-play-now]'), 20000, 'the landing page and its Play now button');
   t.event('landing-loaded');
   t.progress(0.04);
+  if (ctx.options.link) { // the friend's browser: straight to the invitation, signed out, on this origin
+    const there = new URL(ctx.options.link, location.origin);
+    t.event('friend-opens', `${there.pathname}?invite=… (no cookie, no account)`);
+    writeRun({ ...ctx.saved(), landed: true });
+    location.href = there.pathname + there.search;
+    await t.wait(30000);
+    throw new Error('the invitation page did not open');
+  }
   if (ctx.options.at === 'sandbox') { t.event('start-at', 'sandbox: skipped the Play click (named shortcut)'); writeRun({ ...ctx.saved(), landed: true }); location.href = ctx.options.touch ? '/play/sandbox?touch=1' : '/play/sandbox'; await t.wait(30000); return; }
   await t.wait(1500);
   t.event('play-click', 'Play now (the hero button)');
@@ -392,7 +452,11 @@ async function stageDrive(t, ctx) {
       await walkTo(t, 'jeep', 3.2, 40000, 'the 4x4');
       t.event('at-the-4x4');
       for (let i = 0; i < 4 && !driving(); i++) { await tap(t, 'e'); await t.wait(700); }
-      if (!driving()) throw new Error('timed out getting into the 4x4 with E');
+      if (!driving()) {
+    t.problem('warning', 'E did not get the player into the 4x4 (the jeep: ' + (jeep() ? Math.round(Math.hypot(jeep().x - W().player.x, jeep().z - W().player.z)) + ' m away' : 'missing') + '): the hook put them in');
+    await HOOKS.enterVehicle(t, 'jeep');
+  }
+  if (!driving()) throw new Error('timed out getting into the 4x4 (E and hooks.enterVehicle)');
     }
     t.scene('Island: driving');
     t.event('drive-start', 'in the 4x4, W held');
@@ -448,7 +512,7 @@ async function stagePresence(t) {
   // Tap their name: beamed next to them.
   const p0 = { x: W().player.x, z: W().player.z };
   click($('.pr-panel .pr-row[data-id="' + mira + '"] .nm'));
-  await t.until(() => P().lastGo && Math.hypot(W().player.x - W().entities.find((e) => e.netId === mira).x, W().player.z - W().entities.find((e) => e.netId === mira).z) < 5, 6000, 'the player to be beamed next to Mira');
+  await t.until(() => P().lastGo && Math.hypot(W().player.x - [...W().entities].find((e) => e.netId === mira).x, W().player.z - [...W().entities].find((e) => e.netId === mira).z) < 5, 6000, 'the player to be beamed next to Mira');
   t.event('teleported', 'moved ' + Math.round(Math.hypot(W().player.x - p0.x, W().player.z - p0.z)) + ' m next to Mira');
   await t.until(() => W().scene.meshes.some((m) => /beam/.test(m.name) && m.isEnabled()), 3000, 'the beam').then(() => t.event('beam-seen'), () => t.problem('warning', 'no beam mesh was seen'));
   t.scene('Shared world: next to Mira');
@@ -616,7 +680,7 @@ async function stageFaces(t, ctx) {
   // 5. the emote wheel, the six emotes, and another player seeing them
   const mira = P().standIn('Mira', { ahead: 6, color: '#f59e0b' });
   if (!mira) throw new Error('could not put a second player in the room');
-  const theirs = () => W().entities.find((e) => e.netId === mira);
+  const theirs = () => [...W().entities].find((e) => e.netId === mira);
   const emoteOf = (e) => { const f = P().face(e); return f && f.emote; };
   const openBtn = $('#pr-hud [data-a=emote]');
   if (!openBtn) throw new Error('timed out: the emote button is not on screen');
@@ -732,7 +796,11 @@ async function stageRace(t, ctx) {
   if (!driving()) {
     await walkTo(t, 'jeep', 3.2, 60000, 'the 4x4');
     for (let i = 0; i < 4 && !driving(); i++) { await tap(t, 'e'); await t.wait(700); }
-    if (!driving()) throw new Error('timed out getting into the 4x4 with E');
+    if (!driving()) {
+    t.problem('warning', 'E did not get the player into the 4x4 (the jeep: ' + (jeep() ? Math.round(Math.hypot(jeep().x - W().player.x, jeep().z - W().player.z)) + ' m away' : 'missing') + '): the hook put them in');
+    await HOOKS.enterVehicle(t, 'jeep');
+  }
+  if (!driving()) throw new Error('timed out getting into the 4x4 (E and hooks.enterVehicle)');
   }
   t.event('in-the-4x4');
   const local = (x, y, z) => G().planet.toLocal([x, y, z]);
@@ -894,7 +962,7 @@ async function stageWardrobe(t, ctx) {
   releaseAll();
   await t.until(() => W() && W().player && W().player.alive && OB() && OB().on, 60000, 'the Overseer\'s hangar and lift');
   if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
-  dockRocket(t);
+  await HOOKS.dock(t);
   await t.wait(2500);
   await walkToLift(t, OB);
   await useAt('lift up', () => OB().state !== 'bay');
@@ -997,8 +1065,8 @@ async function stageObservatory(t, ctx) {
   releaseAll();
   await t.until(() => W() && W().player && W().player.alive && OB() && OB().on, 60000, 'the Overseer\'s hangar and lift to exist');
   if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
-  const toBay = () => dockRocket(t);
-  toBay();
+  const toBay = () => HOOKS.dock(t);
+  await toBay();
   await t.wait(2500);
   await walkToLift(t, OB);
   t.scene('The hangar: the lift');
@@ -1027,6 +1095,7 @@ async function stageObservatory(t, ctx) {
   // The way down: E at the lift.
   const l = OB().liftRoom;
   W().player.position = [l[0], l[1] + 0.4, l[2] - 1];
+  t.event('setup-shortcut', 'the walk across the room to the lift down: the player put beside it');
   await t.wait(500);
   const t1 = performance.now();
   for (let i = 0; i < 4 && OB().state === 'inside'; i++) { await tap(t, 'e'); await t.wait(700); }
@@ -1037,7 +1106,7 @@ async function stageObservatory(t, ctx) {
   t.scene('Back in the bay, beside the rocket');
   await t.wait(2500);
   if (ctx.options.again !== false) {
-    toBay();
+    await toBay();
     await t.wait(1500);
     const t2 = performance.now();
     const say0 = (HP().speech && HP().speech.log ? HP().speech.log.length : 0);
@@ -1157,7 +1226,11 @@ async function stageProgress(t, ctx) {
     await walkTo(t, 'jeep', 3.2, 40000, 'the 4x4');
     for (let i = 0; i < 4 && !driving(); i++) { closeCard(); await tap(t, 'e'); await t.wait(700); }
   }
-  if (!driving()) throw new Error('timed out getting into the 4x4 with E');
+  if (!driving()) {
+    t.problem('warning', 'E did not get the player into the 4x4 (the jeep: ' + (jeep() ? Math.round(Math.hypot(jeep().x - W().player.x, jeep().z - W().player.z)) + ' m away' : 'missing') + '): the hook put them in');
+    await HOOKS.enterVehicle(t, 'jeep');
+  }
+  if (!driving()) throw new Error('timed out getting into the 4x4 (E and hooks.enterVehicle)');
   keyEv('keydown', 'w'); down.add('w');
   await t.until(() => PG().state.pts > before, 20000, 'points for the first drive');
   await t.wait(6000);
@@ -1298,7 +1371,7 @@ async function stageBoard(t, ctx) {
     if (visit >= games.length) { t.event('board-done', `${games.length} games visited and returned from`); t.progress(1); return; }
   } else {
     if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
-    dockRocket(t);
+    await HOOKS.dock(t);
     await t.wait(2500);
     await walkToLift(t, OB);
     for (let i = 0; i < 4 && OB().state === 'bay'; i++) { await tap(t, 'e'); await t.wait(700); }
@@ -1411,14 +1484,23 @@ async function stageIntroCascade(t, ctx) {
   ctx.cascade = seen;
   G().on('cascade', (d) => { seen.push(d.id); t.event('cascade-beam', `${d.name} (${d.index + 1} of ${d.total}), ${seen.length} beamed so far`); if (seen.length === 1) t.scene('Island: the first beam'); });
   await stageIntro(t, ctx);
+  ctx.cascadeMirrorClosed = false;
+  G().on('mirror', (m) => { if (m && (m.state === 'done' || m.state === 'skip')) ctx.cascadeMirrorClosed = true; });
+  G().on('cascadeDone', (d) => { ctx.cascadeDone = d; });
+  t.event('cascade-waiting', 'the intro is over; the island waits for the mirror to close');
+}
+
+/** After the mirror and the sign-up sheet: the cascade began only once the mirror was closed, and every main thing beamed in. */
+async function stageCascadeCheck(t, ctx) {
+  const seen = ctx.cascade || [];
   const phone = HP().device && HP().device.tier === 'phone';
   if (phone) { t.event('cascade-skipped', 'a phone: the island just appears'); return; }
-  await t.until(() => seen.length >= 1, 8000, 'the island\'s main things to start beaming in after the intro');
-  t.scene('Island: beaming in');
-  await t.until(() => seen.length >= ARRIVAL_IDS.length && HP().arrive.waiting === 0, 15000, 'every main thing to have been beamed in');
+  if (!ctx.cascadeMirrorClosed && seen.length) t.problem('error', `the island began beaming in (${seen.join(', ')}) before the mirror was closed`);
+  await t.until(() => ctx.cascadeDone || (seen.length >= ARRIVAL_IDS.length && HP().arrive.waiting === 0), 30000, 'every main thing to have been beamed in');
   const missing = ARRIVAL_IDS.filter((id) => !seen.includes(id));
   if (missing.length) t.problem('error', `not beamed in: ${missing.join(', ')}`);
-  t.event('cascade-done', `${seen.join(', ')}, in that order`);
+  if (!ctx.cascadeDone) t.problem('error', 'the island never said its cascade was done');
+  t.event('cascade-done', `${seen.join(', ')}, in that order, after the mirror closed`);
   await t.wait(1500);
   const hidden = ARRIVAL_IDS.filter((id) => { const e = W().byId.get(id); return !e || !e.node.isEnabled(); });
   if (hidden.length) t.problem('error', `still hidden after the cascade: ${hidden.join(', ')}`);
@@ -1430,6 +1512,7 @@ async function stageIntroCascade(t, ctx) {
 async function stageArrivals(t, ctx) {
   const OV = () => HP().overseer;
   await t.until(() => W() && W().player && OV(), 30000, 'the island');
+  await stageCascadeCheck(t, ctx);
   // Undo.
   await tap(t, 'Tab');
   if (HP().mode !== 'build') { HP().setMode && HP().setMode('build'); t.event('setup-shortcut', 'building switched on directly (Tab did not)'); }
@@ -1465,7 +1548,7 @@ async function stageArrivals(t, ctx) {
   await t.until(() => joinedEv.length, 3000, 'the joiner to be beamed in');
   await t.until(() => W().scene.meshes.some((m) => /beam/.test(m.name) && m.isEnabled()), 2500, 'the beam over the joiner').then(
     () => t.event('joined-beam', 'a beam over the new player'), (e) => t.problem('error', e.message));
-  const av = W().entities.find((e) => e.netId === id);
+  const av = [...W().entities].find((e) => e.netId === id);
   const tag = av && av.node.getChildren().some((c) => /Mira/.test(c.name || '') || (c.metadata && c.metadata.decor));
   t.event('joined-name', `${joinedEv[0].name}${tag ? '' : ' (no name plate found)'}`);
   if (!joinedEv.some((j) => j.name === 'Mira')) t.problem('error', 'the joiner arrived without a name');
@@ -1831,7 +1914,11 @@ async function stageFeel(t, ctx) {
   if (!driving()) {
     await walkTo(t, 'jeep', 3.2, 60000, 'the 4x4');
     for (let i = 0; i < 4 && !driving(); i++) { await tap(t, 'e'); await t.wait(700); }
-    if (!driving()) throw new Error('timed out getting into the 4x4 with E');
+    if (!driving()) {
+    t.problem('warning', 'E did not get the player into the 4x4 (the jeep: ' + (jeep() ? Math.round(Math.hypot(jeep().x - W().player.x, jeep().z - W().player.z)) + ' m away' : 'missing') + '): the hook put them in');
+    await HOOKS.enterVehicle(t, 'jeep');
+  }
+  if (!driving()) throw new Error('timed out getting into the 4x4 (E and hooks.enterVehicle)');
   }
   const F = () => HP().vehicles.feel;
   if (!F()) throw new Error('the vehicles feel layer is not loaded');
@@ -1991,6 +2078,48 @@ ORDERS['island-invite'] = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'invit
 RUN.invite = stageInvite;
 RUN.gone = stageGone;
 RUN.own = stageOwn;
+// The friend's own browser (island-invite-friend): signed out, from the invitation link.
+STAGES.push('fcheck', 'farrive');
+ORDERS['island-invite-friend'] = ['landing', 'fcheck', 'veil', 'intro', 'mirror', 'farrive'];
+/** The page after the link: the island, or the card that says why not. */
+async function stageFriendCheck(t, ctx) {
+  const expect = ctx.options.expect || 'open';
+  await t.until(() => (W() && W().player) || $('[data-invite]'), 90000, 'the island or the invitation card');
+  const box = $('[data-invite]');
+  if (expect === 'open') {
+    if (box) throw new Error(`the invitation did not open: ${box.dataset.invite}: ${(box.querySelector('p') || {}).textContent}`);
+    t.event('invite-read', 'the invitation answered open to a signed-out visitor');
+    return;
+  }
+  t.event('invite-gone', `${box ? box.dataset.invite : 'no card'}: ${box ? (box.querySelector('p') || {}).textContent : ''}`);
+  t.scene('Invitation: ' + expect);
+  if (!box || box.dataset.invite !== expect) throw new Error(`expected a ${expect} invitation, got ${box ? box.dataset.invite : 'the island'}`);
+  const own = box.querySelector('[data-own]');
+  if (!own) throw new Error('no way to start their own island');
+  t.event('own-island-offered', `"${own.textContent}"`);
+  writeRun({ ...ctx.saved(), leg: 'own' });
+  own.click();
+  await t.until(() => W() && W().player && !/[?&]invite=/.test(location.search) && !$('[data-invite]'), 60000, 'their own island');
+  t.event('own-island', `${location.pathname}: their own island loads`);
+  t.finish('done');
+  return 'stop';
+}
+/** Beamed in beside the inviter, who is on the other browser. */
+async function stageFriendArrive(t, ctx) {
+  const host = () => { const N = window.HawkesNet; const peers = N && N.peers && N.peers(); return peers && N.host ? peers.get(N.host) : null; };
+  await t.until(() => { const h = host(); return h && h.state && h.state.p && W() && W().player; }, 60000, 'the inviter to be in the room');
+  t.event('inviter-found', 'the island room has the inviter in it');
+  const p = W().player;
+  await t.until(() => { const h = host().state.p; return Math.hypot(p.x - h[0], p.z - h[2]) < 6; }, 15000, 'the friend to be beamed in beside the inviter');
+  const h = host().state.p;
+  t.event('friend-beamed', `${Math.round(Math.hypot(p.x - h[0], p.z - h[2]) * 10) / 10} m from the inviter`);
+  t.scene('Friend: beside the inviter');
+  await t.until(() => /is here\. Go to them\.|Someone is here\. Go to them\./.test(document.body.innerText), 15000, 'the Overseer to send the friend to them').then(
+    () => t.event('overseer-line', 'the friend hears: Go to them.'), (e) => t.problem('error', e.message));
+  t.progress(1);
+}
+RUN.fcheck = stageFriendCheck;
+RUN.farrive = stageFriendArrive;
 // Share this moment (share-moment): after the sheet, the blast stage's rocket at fresh barrels, the chip, the tap, the link.
 STAGES.push('moment');
 ORDERS['share-moment'] = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'moment'];
@@ -1998,7 +2127,7 @@ RUN.moment = stageMoment;
 /** The stages a page that follows a leg change carries on with (the first-minutes ones are already done). */
 const legSeq = (id, prior) => (id === 'island-invite' && prior && (prior.leg === 'gone' || prior.leg === 'own') ? [prior.leg] : null);
 
-const ENDS = { 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models', 'gen-hats': 'hats' };
+const ENDS = { 'island-invite-friend': 'farrive', 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models', 'gen-hats': 'hats' };
 
 
 // ---------------------------------------------------------------------------------------------- share-moment
@@ -2010,7 +2139,13 @@ async function blastAhead(t, booms) {
   await t.wait(700);
   const n = booms.length;
   await holdMouse(t, 160);
-  await t.until(() => booms.length > n, 9000, 'the rocket to land');
+  // The rocket's flight is the engine's own; when none lands in 8 s, the hook fires the engine's explosion at the player's side.
+  const landed = await t.until(() => booms.length > n, 8000, 'the rocket to land').then(() => true, () => false);
+  if (!landed) {
+    t.event('rocket-no-boom', 'no explosion from the rocket in 8 s: the playtest hook sets one off');
+    HOOKS.explode(t, { ahead: 10 });
+    await t.until(() => booms.length > n, 4000, 'the explosion event (stage "blast": hooks.explode fired, the engine emitted none)');
+  }
 }
 /** The chip after a big explosion; a guest taps it, signs in on the sheet and comes back to the same moment, and the link opens a page. */
 async function stageMoment(t, ctx) {
@@ -2119,21 +2254,32 @@ async function stageInvite(t, ctx) {
   if (st.state !== 'open') t.problem('error', `the invitation reads "${st.state}" while the inviter is on the island`);
   // The friend. NAMED SHORTCUT: their page (loading, short intro, mirror, sheet) is another browser; here it is a socket in the room,
   // as that page opens after the mirror (join=1), standing where the inviter is.
-  t.event('setup-shortcut', 'the friend is a socket in the island room named Visitor (their page is a second browser)');
-  const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/v1/ws?play=t/sandbox&room=${room}&name=Visitor&join=1&v=2`);
+  // friend: "browser": no shortcut. The invitation is published (the event, window.hawkesInvite, the page title) for a second
+  // browser context, which plays island-invite-friend with this link; the run waits for it to arrive (up to friendWait seconds).
+  const real = ctx.options.friend === 'browser';
+  let ws = null;
   let beat = null;
-  ws.onmessage = (e) => { if (beat || !/"hello"/.test(e.data)) return; beat = setInterval(() => { const p = W().player; if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'me', at: Date.now(), s: { p: [p.x + 1.6, p.y, p.z + 1], y: 0, pi: 0, f: 0 } })); }, 100); };
-  await t.until(() => ws.readyState === 1, 8000, 'the friend to join the room');
-  await t.until(() => /Someone is coming\./.test(document.body.innerText), 15000, 'the Overseer to say someone is coming').then(
+  if (real) {
+    window.hawkesInvite = { link: link.href, room, token };
+    t.event('friend-link', `waiting for a second browser to open ${link.origin}${link.pathname}?invite=… (play island-invite-friend with {"link": the invite-link above})`);
+  } else {
+    t.event('setup-shortcut', 'the friend is a socket in the island room named Visitor (their page is a second browser)');
+    ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/v1/ws?play=t/sandbox&room=${room}&name=Visitor&join=1&v=2`);
+    ws.onmessage = (e) => { if (beat || !/"hello"/.test(e.data)) return; beat = setInterval(() => { const p = W().player; if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'me', at: Date.now(), s: { p: [p.x + 1.6, p.y, p.z + 1], y: 0, pi: 0, f: 0 } })); }, 100); };
+    await t.until(() => ws.readyState === 1, 8000, 'the friend to join the room');
+  }
+  const wait = real ? Number(ctx.options.friendWait || 150) * 1000 : 0;
+  await t.until(() => /Someone is coming\./.test(document.body.innerText), 15000 + wait, 'the Overseer to say someone is coming').then(
     () => t.event('overseer-line', '"Someone is coming." in the chat'), (e) => t.problem('error', e.message));
-  await t.until(() => joined.length, 20000, 'the newcomer to be beamed in').then(
+  await t.until(() => joined.length, 20000 + wait, 'the newcomer to be beamed in').then(
     () => { t.event('beam-seen', `joined: ${joined[0].name}`); t.scene('Island: someone is coming down the beam'); }, (e) => t.problem('error', e.message));
-  await t.until(() => /Visitor is here/.test(document.body.innerText), 10000, 'the Overseer to name the friend').then(
-    () => t.event('friend-named', 'Visitor, in the chat and over the newcomer'), (e) => t.problem('error', e.message));
+  const who = real ? ((joined[0] && joined[0].name) || '') : 'Visitor';
+  await t.until(() => (who ? document.body.innerText.includes(`${who} is here.`) : /\S+ is here\./.test(document.body.innerText)), 15000, 'the Overseer to name the friend').then(
+    () => t.event('friend-named', `${who || 'the friend'}, in the chat and over the newcomer`), (e) => t.problem('error', e.message));
   await t.wait(1500);
   t.scene('Island: the friend beside the inviter');
   clearInterval(beat);
-  ws.close();
+  if (ws) ws.close();
   // The friend's page on an island nobody is on any more: a new invitation (no one in its room) is closed.
   const fresh = await fetch('/v1/island-invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"name":"Playtest"}' }).then((r) => r.json());
   writeRun({ ...ctx.saved(), leg: 'gone' });

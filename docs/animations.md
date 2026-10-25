@@ -15,11 +15,10 @@ file of clips (section 3):
 
 **Built so far:** the format, the sampler (`presence-anim.js`), the class files with a starter `idle` and `walk` each, the
 `/avatars?body=<id>&pose=<clip>&t=<seconds>` view, the tests, and **the whole quadruped set** (section 2B: 29 clips, made on the
-dog and checked on the fox, sheep and horse; section 2B1 below has what it does and where the rig limits it). **Left:** every
-other clip of the humanoid and object tables (they are the list to author, in the same files), the Mixamo re-rig of the biped models (until a model has it, the 11 template-rigged bipeds
+dog and checked on the fox, sheep and horse; section 2B1 below has what it does and where the rig limits it) and **the whole object set** (section 2C: 23 clips, made on the toaster, with its two toast slices; section 2C1 has how it is built). **Left:** every
+other clip of the humanoid table (the list to author, in the same file), the Mixamo re-rig of the biped models (until a model has it, the 11 template-rigged bipeds
 keep their own GLB clips and the procedural motion; `/avatars?body=person&standin=mixamo` shows the Mixamo class on a
-stand-in puppet), importing Mixamo/Quaternius clips (`toDelta` is the conversion), and the object class's named parts (the
-toast slices, the teapot's lid).
+stand-in puppet), importing Mixamo/Quaternius clips (`toDelta` is the conversion), and the object class's other named parts (the teapot's lid, the shoe's tongue: a prop like the toast slices, `presence-things.js props`).
 
 ## 1. What the models are (measured from `public/play/models/*.glb`)
 
@@ -170,6 +169,36 @@ stretch keeps volume (scale y by k and x/z by 1/sqrt(k)).
 Other forms get the nearest set and the form's own motion for the rest: `bird` (penguin, chicken) takes the humanoid set
 with wings for arms; `swimmer` (fish) has its own `swim`, `flop` (on land) and `idle`; `roller` (rollbot) rolls with the
 distance travelled; `legless` (duck) takes the object set with a waddle.
+
+### C1. The object set as built (`public/play/anim/object.json`, written by `tools/object-clips.mjs`)
+
+All 23 clips of the table above, each a function of time sampled into keys (edit the function in `tools/object-clips.mjs` and run
+`node tools/object-clips.mjs`; the file is what the engine plays). `Body` has `rot`, `pos` (model heights) and `scl` (always
+`sy` with x and z by `1 / sqrt(sy)`: every clip keeps volume, the test checks 48 moments of each). Looping clips are sampled
+without their last key, so the wrap is a plain spline and the last frame runs into the first; one-shots start and end upright
+(`land` starts squashed, `jump_start` ends stretched into `jump`, `knock_down` ends on its side and `get_up` starts there).
+- **The toast slices.** The toaster's GLB is one mesh with one slice baked in, so the two more are props: `P.things.props`
+  (`presence-things.js`) makes two small boxes (crust all round, crumb on the faces) hung on the model's frame, in the slots,
+  hidden inside the chrome. The clip drives them as two virtual bones, `ToastL` and `ToastR` (`pos` in model heights from the slot,
+  `rot`): the slices are up and out in `idle_fidget` (one pops half way and drops), `cheer` (both, tumbling), `point` (one rises
+  and shoots out forward, then comes back), `thumbsup` (one pops and stays) and `hurt` (both jolt up), and `dance` flaps them. A
+  slice at rest is hidden (no draw); a model without props ignores those tracks. Because they are keys and not only events, a
+  frame drawn at any moment (`/avatars?...&t=`) shows them where the clip has them; the clips' `toast` events say when a pop
+  starts and ends, for a sound.
+- **Other models, by proportions** (`P.anim.motionOf`): the hop and the lean are multiplied by the model's box (the toaster is
+  1.0): a tall thin cactus hops and sways less, a long low shoe leans more, the duck (`legless`) waddles low and wide (hop x0.7,
+  sway x1.4). A row can set `motion: { hop, sway }`. `pos` is a share of the model's own height, so the cactus's hop is higher in
+  meters than the shoe's.
+- **Held to the ground** (`P.anim.groundSnap`): the box of the body, leaning and squashed as it is, is held on the floor: a waddle
+  rocks over a corner, a sleeper tilted onto its side does not sink into it, a knock down lies on its side with its middle
+  at half its width, whatever the model's shape. A clip with `air: true` (the jumps, fall, swim) is not held.
+- **The fish and the roll-bot** are `rig: 'object'` with `keepGait: true`: they take idle, the emotes and hurt, and keep their own
+  swim and roll (walk, run, the jumps, fall, swim are never the set's for them).
+- **`hurt`** plays when the game's `hurt` event hits a body whose set has it (`presence.js wireFeelings`). A clip may set `fade`
+  (seconds): the one-shot blends in and out that quickly (land, jump_start and hurt are moments of 0.3 s or less).
+- Seen by: `/avatars?body=toaster&pose=<clip>&t=<s>`, the playtest `avatar-animations` (a contact sheet of every clip at four
+  moments, `toast-pops`, `volume-kept`, `no-clipping`, the shoe, teapot, cactus and duck, the fish and roll-bot), `test/engine/anim.test.ts`.
+- Not done: the heart's glow (the `glow` events are there; no light yet), the slices' own sound, and the teapot's lid as a part.
 
 ## 3. How the clips are made and played
 

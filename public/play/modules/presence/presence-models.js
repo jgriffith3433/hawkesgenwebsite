@@ -234,6 +234,7 @@
     rig.hasModel = true;
     pm.on = true; pm.state = 'ready';
     if (P.anim) P.anim.attach(rig, pm); // (the class's clips as data, when its file has them: presence-anim.js)
+    if (P.things && P.things.props) P.things.props.attach(rig, pm); // (a toaster's toast slices, which its clips pop: presence-things.js)
     if (P._redress) P._redress(rig);
     pm.air = { t: 0, peak: 0, was: false, landT: 9, takeT: 9, depth: 0.85 };
     const idle = roleGroup(near, 'idle');
@@ -428,6 +429,7 @@
     if (em && lvl.groups.length) emoteClip = emoteGroup(lvl, ent, em.def.name);
     // The class's clips as data come first (presence-anim.js); a role the set lacks keeps the model's own clip, then the procedural motion.
     const ad = pm.anim ? P.anim.drive(rig, pm, lvl, { dt, role: seated ? 'drive' : role, em, speed, took, landed, stride: ent.stride, glb: Boolean(loco), glbEmote: Boolean(emoteClip) }) : null;
+    if (pm.props) P.things.props.apply(pm, ad && !rig.lod ? ad.parts : null);
     if (ad) { for (const g of lvl.playing) { try { g.pause(); } catch {} } lvl.playing.clear(); lvl.w.clear(); lvl.emoting = null; }
     else {
       lvl.emoting = emoteClip ? new Set([emoteClip]) : null;
@@ -444,9 +446,10 @@
     if (!rig.lod && !(ad && ad.body)) sy *= 1 + Math.sin((t * 2 * Math.PI) / 3.2) * 0.0125; // (breathing)
     sy *= g.stretch;
     if (swim && ent.form === 'biped') { rx += 1.2; y += -0.05 + Math.sin(t * 2) * 0.05; } else if (swim) { y += Math.sin(t * 2) * 0.05; }
-    if (airborne && vy > 1) sy *= 1 + Math.min(0.1, vy * 0.012);
-    if (airborne && A.takeT < 0.25 && vy > 2) sy *= 1 + 0.15 * (1 - A.takeT / 0.25);
-    if (A.landT < 0.31) { // the landing: down in 90 ms, back over 220 ms with one overshoot
+    const own = Boolean(ad && ad.own); // (a set with jump_start and land squashes and stretches for the take-off and the landing itself)
+    if (airborne && vy > 1 && !own) sy *= 1 + Math.min(0.1, vy * 0.012);
+    if (airborne && A.takeT < 0.25 && vy > 2 && !own) sy *= 1 + 0.15 * (1 - A.takeT / 0.25);
+    if (A.landT < 0.31 && !own) { // the landing: down in 90 ms, back over 220 ms with one overshoot
       const L = A.landT;
       sy *= L < 0.09 ? lerp(1, A.depth, L / 0.09) : 1 + (A.depth - 1) * (1 - (L - 0.09) / 0.22) + 0.05 * Math.sin(((L - 0.09) / 0.22) * Math.PI);
     }

@@ -32,10 +32,11 @@ export async function runSiteLayout(t, options = {}) {
   }
   document.getElementById('pt-site-stage')?.remove();
   if (failed.length) {
-    t.event('horizontal-scroll', failed.join(' | '));
-    throw new Error(`horizontal scroll: ${failed.join(' | ')}`);
+    t.event('layout-failed', failed.join(' | '));
+    throw new Error(`layout: ${failed.join(' | ')}`);
   }
   t.event('no-horizontal-scroll', `none at ${sizes.join(', ')}`);
+  t.event('layout-ok', `header whole, card on the first screen, the Overseer clear of the text at ${sizes.join(', ')}`);
   t.finish('done');
 }
 
@@ -71,7 +72,9 @@ async function oneSize(t, { w, h, label, wish, framed }) {
   let frames = 0; const tick = () => { frames++; if (frames < 40) win.requestAnimationFrame(tick); }; win.requestAnimationFrame(tick);
   await t.until(() => frames >= 30, 15000, 'the sky to draw frames').catch(() => t.problem('warning', `the sky drew few frames at ${label} (reduced motion or a hidden window?)`));
   await t.wait(1500); // the Overseer's first line
-  const problem = (sev, msg) => t.problem(sev, `${label}: ${msg}`);
+  // a `fatal` finding (a clipped button, text running out of its box, a card off the first screen, text over the Overseer) also ends the run
+  const hard = [];
+  const problem = (sev, msg, fatal) => { t.problem(sev, `${label}: ${msg}`); if (fatal) hard.push(msg); };
   if (framed && (win.innerWidth !== w || win.innerHeight !== h)) problem('warning', `the frame is ${win.innerWidth}x${win.innerHeight}, not ${label}`);
   t.scene(tag('hero'));
   t.event('hero-shown', `${label}, ${size().w}x${size().h}`);
@@ -98,9 +101,10 @@ async function oneSize(t, { w, h, label, wish, framed }) {
   await t.wait(700);
   const card = $('.sky-thing.still');
   const cr = card.getBoundingClientRect(), s = size();
-  const visible = cr.width > 20 && cr.height > 20 && cr.left >= -1 && cr.right <= s.w + 1 && cr.bottom > 0 && cr.top < s.h;
+  const head = doc.querySelector('.hg-navbar'), headBottom = head ? head.getBoundingClientRect().bottom : 0;
+  const visible = cr.width > 20 && cr.height > 20 && cr.left >= -1 && cr.right <= s.w + 1 && cr.top >= headBottom - 1 && cr.bottom <= s.h + 1;
   if (visible) t.event('wish-card', `"${(card.textContent || '').trim().slice(0, 40)}" at ${Math.round(cr.left)},${Math.round(cr.top)} ${Math.round(cr.width)}x${Math.round(cr.height)}`);
-  else problem('bug', `the wish card is not fully on screen (${Math.round(cr.left)},${Math.round(cr.top)} ${Math.round(cr.width)}x${Math.round(cr.height)} in ${s.w}x${s.h})`);
+  else problem('bug', `the wish card is not fully inside the first screen (${Math.round(cr.left)},${Math.round(cr.top)} ${Math.round(cr.width)}x${Math.round(cr.height)} in ${s.w}x${s.h}, the header ends at ${Math.round(headBottom)})`, true);
   const reply = $('[data-sky-reply]');
   if (!reply || reply.hidden) problem('bug', 'no reply line after the wish');
   t.scene(tag('wish card'));
@@ -121,7 +125,7 @@ async function oneSize(t, { w, h, label, wish, framed }) {
   await scrollTo(t, win, doc, null);
   const end = overflowX(win, doc); if (end) sideways.push(`top again ${end}`);
   if (stage) stage.remove();
-  return sideways;
+  return sideways.concat(hard);
 }
 
 /** Scrolls in steps (so the page's scroll-triggered reveals fire as they do for a person) until `el` is under the header. */
@@ -165,15 +169,27 @@ function checkHero(win, doc, problem, t, afterWish = false) {
     const mid = doc.elementFromPoint(Math.min(Math.max(r.left + r.width / 2, 0), vw - 1), Math.min(Math.max(r.top + 10, 0), vh - 1));
     if (!afterWish && mid && !h1.contains(mid) && !mid.contains(h1)) problem('bug', `something covers the headline (${mid.tagName.toLowerCase()}.${String(mid.className).split(' ')[0]})`);
   } else problem('bug', 'no headline in the hero');
-  // The Overseer: nothing of the text, the wish box or the card on top of the pearl.
+  // The Overseer, by geometry: the pearl and its two rings (1.7 radii to each side, the pearl's radius up and down) against
+  // the rectangles of the text itself (a line's own box, not the block that is as wide as its max-width), the wish box,
+  // the card and the buttons. The numbers go on the report either way.
   const sky = $('[data-sky]');
   const o = (sky && sky.dataset.overseer || '').split(',').map(Number);
   if (o.length === 3 && o[2] > 0) {
-    const skyTop = sky.getBoundingClientRect().top, ov = { left: o[0] - o[2], right: o[0] + o[2], top: skyTop + o[1] - o[2], bottom: skyTop + o[1] + o[2] };
-    for (const [what, sel] of [['headline', '.sky h1'], ['intro text', '.sky .lede'], ['wish box', '[data-sky-wish]'], ['reply', '[data-sky-reply]:not([hidden])'], ['wish card', '.sky-thing'], ['buttons', '.sky .actions']]) {
-      const e = $(sel); if (!e) continue;
-      if (hits(e.getBoundingClientRect(), ov)) problem('bug', `the ${what} covers the Overseer`);
+    const skyTop = sky.getBoundingClientRect().top, cy = skyTop + o[1];
+    const ov = { left: o[0] - o[2] * 1.7, right: o[0] + o[2] * 1.7, top: cy - o[2], bottom: cy + o[2] };
+    let nearest = Infinity, nearestWhat = '';
+    for (const [what, sel, textOnly] of [['headline', '.sky h1', true], ['intro text', '.sky .lede', true], ['wish box', '[data-sky-wish]'], ['reply', '[data-sky-reply]:not([hidden])', true], ['wish card', '.sky-thing'], ['buttons', '.sky .actions .btn'], ['small print', '.sky .fine', true]]) {
+      for (const e of doc.querySelectorAll(sel)) {
+        const rects = textOnly ? lineRects(doc, e) : [e.getBoundingClientRect()];
+        for (const r of rects) {
+          if (r.width < 1 || r.height < 1) continue;
+          if (hits(r, ov)) problem('bug', `the ${what} covers the Overseer (text ${Math.round(r.left)},${Math.round(r.top)}..${Math.round(r.right)},${Math.round(r.bottom)}; pearl and rings ${Math.round(ov.left)},${Math.round(ov.top)}..${Math.round(ov.right)},${Math.round(ov.bottom)})`, true);
+          const gap = Math.max(ov.left - r.right, r.left - ov.right, ov.top - r.bottom, r.top - ov.bottom);
+          if (gap < nearest) { nearest = gap; nearestWhat = what; }
+        }
+      }
     }
+    if (!afterWish) t.event('overseer-clear', `${doc.documentElement.clientWidth}px wide: the nearest text (${nearestWhat}) is ${Math.round(nearest)}px from the Overseer's pearl and rings`);
     const head = $('.hg-navbar'); if (head && hits(head.getBoundingClientRect(), { ...ov, top: ov.top + o[2] * 0.4 }) && win.scrollY < 4) problem('warning', 'the header overlaps the Overseer');
   } else problem('warning', 'the sky did not say where the Overseer is (data-overseer)');
   // The wish box: on screen, tall enough to tap, not under anything, a button as well.
@@ -188,7 +204,18 @@ function checkHero(win, doc, problem, t, afterWish = false) {
     }
     if (input.getBoundingClientRect().width < Math.min(200, vw * 0.5)) problem('bug', 'the wish box is narrow');
   }
+  for (const sel of ['.sky h1', '.sky .lede', '.sky .actions .btn', '[data-sky-wish] button', '.sky-thing span']) {
+    for (const e of doc.querySelectorAll(sel)) {
+      if (e.clientWidth > 0 && (e.scrollWidth > e.clientWidth + 1 || e.scrollHeight > e.clientHeight + 2)) problem('bug', `text runs out of its box in ${sel} ("${(e.textContent || '').trim().slice(0, 24)}": ${e.scrollWidth}x${e.scrollHeight} in ${e.clientWidth}x${e.clientHeight})`, true);
+    }
+  }
   checkHeader(win, doc, problem, afterWish ? 'after the wish' : 'hero');
+}
+
+/** The rectangles of an element's text, one per line (the block's own box can be much wider than the words). */
+function lineRects(doc, e) {
+  const rg = doc.createRange(); rg.selectNodeContents(e);
+  return [...rg.getClientRects()];
 }
 
 /** The header: there, tall enough, its links and buttons not cut off, and a text colour that differs from what is behind it. */
@@ -197,9 +224,22 @@ function checkHeader(win, doc, problem, where) {
   if (!head) { problem('bug', 'no header'); return; }
   const r = head.getBoundingClientRect(), vw = doc.documentElement.clientWidth;
   if (r.height < 40 || r.top > 1 || r.top < -r.height + 8) problem('bug', `the header is not at the top of the window while at ${where} (top ${Math.round(r.top)}, ${Math.round(r.height)} tall)`);
-  for (const e of head.querySelectorAll('a,button')) {
-    const q = e.getBoundingClientRect();
-    if (q.width > 0 && (q.right > vw + 1 || q.left < -1)) { problem('bug', `the header's "${(e.textContent || '').trim().slice(0, 20)}" is cut off at ${where}`); break; }
+  // What is shown (the links fold into the Menu on a phone): each whole inside the window and its own box, tall enough to
+  // tap, none over another.
+  const shown = [...head.querySelectorAll('a,button')].filter((e) => e.getBoundingClientRect().width > 0);
+  for (const e of shown) {
+    const q = e.getBoundingClientRect(), name = (e.textContent || '').trim().slice(0, 20);
+    if (q.right > vw + 1 || q.left < -1) problem('bug', `the header's "${name}" is cut off at ${where} (${Math.round(q.left)}..${Math.round(q.right)} of ${vw})`, true);
+    if (e.scrollWidth > e.clientWidth + 1) problem('bug', `the header's "${name}" is clipped at ${where} (text ${e.scrollWidth}px in a ${e.clientWidth}px button)`, true);
+    if (q.height < 40 || q.width < 40) problem('bug', `the header's "${name}" is ${Math.round(q.width)}x${Math.round(q.height)} at ${where}: too small to tap`, true);
+    const mid = doc.elementFromPoint(Math.min(Math.max(q.left + q.width / 2, 0), vw - 1), Math.min(Math.max(q.top + q.height / 2, 0), win.innerHeight - 1));
+    if (mid && mid !== e && !e.contains(mid) && !mid.contains(e)) problem('bug', `something covers the header's "${name}" at ${where} (${mid.tagName.toLowerCase()})`, true);
+  }
+  for (let i = 0; i < shown.length; i++) for (let j = i + 1; j < shown.length; j++) {
+    if (hits(shown[i].getBoundingClientRect(), shown[j].getBoundingClientRect())) problem('bug', `the header's "${(shown[i].textContent || '').trim().slice(0, 16)}" and "${(shown[j].textContent || '').trim().slice(0, 16)}" overlap at ${where}`, true);
+  }
+  for (const label of ['Sign in', 'Create account']) {
+    if (!shown.some((e) => (e.textContent || '').trim() === label) && !head.querySelector('.hg-nav-actions [hidden]')) problem('bug', `the header has no "${label}" at ${where}`, true);
   }
   const mark = head.querySelector('.hg-brand');
   if (mark) {
