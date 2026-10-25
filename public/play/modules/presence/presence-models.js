@@ -494,7 +494,7 @@
   }
 
   P.models = {
-    entry, register, levels, attach, preload, animate, dispose, stats, TRIS, HEAD_SHARE, ROLE_RE,
+    entry, register, levels, attach, preload, animate, dispose, stats, TRIS, HEAD_SHARE, ROLE_RE, findNode,
     enabled: (id) => Boolean(entry(id)),
     /** A promise that settles once a rig's model has loaded (or failed): for tests and the showcase. */
     ready: (rig) => (rig.pm ? rig.pm.wait : Promise.resolve()),

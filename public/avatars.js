@@ -201,7 +201,13 @@ function probe(names = []) {
   const bones = {};
   for (const n of names) { const x = find(n); if (x && x.rotationQuaternion) bones[n] = [x.rotationQuaternion.x, x.rotationQuaternion.y, x.rotationQuaternion.z, x.rotationQuaternion.w].map((v) => Math.round(v * 1e5) / 1e5); }
   const mv = pm.mover;
-  return { bones, mover: { y: mv.position.y, rx: mv.rotation.x, rz: mv.rotation.z, sy: mv.scaling.y }, t: cur.t, pose: state.pose };
+  // where they are in the world (metres) and where the head and face anchors are: a hat sits on the head anchor, glasses on the face one
+  const at = (x) => { x.computeWorldMatrix(true); const v = x.getAbsolutePosition(); return [v.x, v.y, v.z].map((n) => Math.round(n * 1e3) / 1e3); };
+  const pos = {};
+  for (const n of names) { const x = find(n); if (x) pos[n] = at(x); }
+  const anchors = {};
+  for (const [k, a] of Object.entries(pm.anchors || {})) anchors[k] = at(a.node);
+  return { bones, pos, anchors, mover: { y: mv.position.y, rx: mv.rotation.x, rz: mv.rotation.z, sy: mv.scaling.y }, t: cur.t, pose: state.pose };
 }
 
 // ------------------------------------------------------------------ what a body costs, against docs/characters.md

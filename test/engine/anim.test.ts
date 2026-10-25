@@ -696,3 +696,23 @@ test('standing still, the dog now and then sniffs (a loop of three seconds) or f
   assert.ok(!pm.anim.take, 'moving cancels a fidget');
   dog.dispose();
 });
+
+// ------------------------------------------------------------------ the Mixamo models (person, robot): the real files
+test('the person and the robot (Gen mesh.rig, mixamorig: bones) bind to the Mixamo set, stand up, face +z, and walk with the legs against each other', () => {
+  const set = A.setOf('mixamo');
+  for (const id of ['person', 'robot']) {
+    const model = glbTree(id), b = A.bind([model], 'mixamo', { unit: 1.8 });
+    assert.ok(b.fit, `${id}: every bone the set needs is there (missing ${b.missing})`);
+    assert.equal(joints(id).length, 52, `${id}: the full skeleton, fingers included`);
+    A.apply(b, new Map()); // rest
+    const rest = { hips: at(b, 'Hips'), head: at(b, 'Head'), toe: at(b, 'LeftToeBase'), foot: at(b, 'LeftFoot'), lh: at(b, 'LeftHand'), rh: at(b, 'RightHand') };
+    assert.ok(rest.head.y > rest.hips.y + 0.2 && rest.hips.y > rest.foot.y + 0.2, `${id}: standing up: head over hips over feet`);
+    assert.ok(rest.toe.z > rest.foot.z + 0.05, `${id}: the toes point to +z (the front)`);
+    assert.ok(Math.abs(rest.lh.x) > 0.3 && Math.abs(rest.rh.x) > 0.3 && rest.lh.x * rest.rh.x < 0, `${id}: the arms are out to either side`);
+    const walk = set.clips.walk, feet = (u: number) => { A.apply(b, A.sampleClip(walk, u)); return { lf: at(b, 'LeftFoot'), rf: at(b, 'RightFoot'), hips: at(b, 'Hips') }; };
+    const a = feet(0), c = feet(0.5);
+    const reach = Math.abs(a.lf.z - a.rf.z);
+    assert.ok(reach > 0.2, `${id}: the feet are a stride apart at the start (${reach.toFixed(2)})`);
+    assert.ok((a.lf.z - a.rf.z) * (c.lf.z - c.rf.z) < 0, `${id}: half a stride on the other foot is ahead`);
+  }
+});

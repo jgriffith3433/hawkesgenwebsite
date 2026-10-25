@@ -63,7 +63,10 @@ test('the Gen models: each filled row names a file that is there, a near level w
     const names = (j.animations || []).map((a: any) => a.name);
     for (const [role, clip] of Object.entries(r.clips || {})) assert.ok(names.includes(clip), `${id}: the file has a clip "${clip}" for ${role}`);
     const pos = j.meshes.flatMap((m: any) => m.primitives.map((q: any) => j.accessors[q.attributes.POSITION])), top = Math.max(...pos.map((a: any) => a.max[1]));
-    assert.ok(r.anchors.head.at[1] <= top * 1.02 && r.anchors.head.at[1] >= top * 0.7, `${id}: the head anchor sits at the top of the model (${r.anchors.head.at[1]} of ${top.toFixed(2)})`);
+    if (r.anchors.head.node) { // (a bone anchor's offset is in the bone's own units: the bone has to be in the file)
+      const nodeNames = new Set(j.nodes.map((n: any) => n.name));
+      for (const [k, a] of Object.entries(r.anchors) as any) if (a.node) assert.ok(nodeNames.has(a.node), `${id}: the file has the node "${a.node}" for the ${k} anchor`);
+    } else assert.ok(r.anchors.head.at[1] <= top * 1.02 && r.anchors.head.at[1] >= top * 0.7, `${id}: the head anchor sits at the top of the model (${r.anchors.head.at[1]} of ${top.toFixed(2)})`);
     assert.ok(r.lods.levels.length && r.lods.levels[0].tris < r.lods.tris && fs.existsSync(path.join(ROOT, 'public', r.lods.levels[0].url)), `${id}: a low level`);
   }
 });
@@ -442,4 +445,31 @@ test('presence code stays erasable and documented: docs/characters.md has the Ge
   for (const f of ['presence-model-registry.js', 'anchors', 'clips', 'form', 'yaw', 'lods', 'fallback', 'How to add one', 'avatars?standin=1', '8,000']) assert.ok(doc.includes(f), `documents ${f}`);
   const reg = fs.readFileSync(path.join(ROOT, 'public', 'play', 'modules', 'presence', 'presence-model-registry.js'), 'utf8');
   for (const w of C.WHATS) assert.ok(new RegExp(`\\b${w.id}: (\\{ \\.\\.\\.)?row\\(`).test(reg), `${w.id} has a row in the registry file`);
+});
+
+test('the Mixamo models (person, robot): the full skeleton with mixamorig: names, fingers included, one skin, and the levels in budget', () => {
+  for (const id of ['person', 'robot']) {
+    const r = registryBefore[id];
+    assert.equal(r.rig, 'mixamo', `${id}: rig mixamo`);
+    for (const url of [r.url, r.lods.levels[0].url]) {
+      const b = fs.readFileSync(path.join(ROOT, 'public', url)), j = JSON.parse(b.subarray(20, 20 + b.readUInt32LE(12)).toString());
+      const names = new Set(j.nodes.map((n: any) => n.name));
+      for (const bone of ['Hips', 'Spine', 'Spine1', 'Spine2', 'Neck', 'Head', 'LeftShoulder', 'LeftArm', 'LeftForeArm', 'LeftHand', 'LeftHandIndex1', 'LeftHandPinky3', 'RightHandThumb2', 'LeftUpLeg', 'LeftLeg', 'LeftFoot', 'LeftToeBase', 'RightUpLeg', 'RightLeg', 'RightFoot', 'RightToeBase']) assert.ok(names.has('mixamorig:' + bone), `${id}: ${url} has mixamorig:${bone}`);
+      assert.equal(j.nodes.filter((n: any) => /^mixamorig:/.test(n.name)).length, 52, `${id}: 52 bones`);
+      assert.equal(j.skins.length, 1, `${id}: one skin`);
+      const tris = j.meshes.flatMap((m: any) => m.primitives).reduce((n: number, q: any) => n + j.accessors[q.indices].count / 3, 0);
+      assert.ok(tris <= (url === r.url ? 7600 : 2280), `${id}: ${url} has ${tris} triangles`);
+    }
+  }
+});
+
+test('findNode finds a Mixamo bone with or without its prefix', () => {
+  const find = M.findNode;
+  const n = (name: string, children: any[] = []) => ({ name, getChildren: () => children });
+  const roots = [n('Armature', [n('mixamorig:Hips', [n('mixamorig:Head'), n('mixamorig7:LeftHand'), n('Spine')])])];
+  assert.equal(find(roots, 'Head').name, 'mixamorig:Head');
+  assert.equal(find(roots, 'mixamorig:Head').name, 'mixamorig:Head');
+  assert.equal(find(roots, 'mixamorig:LeftHand').name, 'mixamorig7:LeftHand');
+  assert.equal(find(roots, 'mixamorig:Spine').name, 'Spine');
+  assert.equal(find(roots, 'Tail'), null);
 });
