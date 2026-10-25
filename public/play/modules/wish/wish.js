@@ -106,13 +106,13 @@
 
   // ------------------------------------------------------------------ the HUD (a small pill under the level pill)
   const CSS = `
-.wh-hud{position:fixed;left:12px;top:116px;z-index:6;display:flex;flex-direction:column;gap:2px;min-width:132px;max-width:220px;padding:5px 10px 6px;border-radius:12px;background:rgba(8,12,22,.55);border:1.5px solid rgba(255,255,255,.14);color:#eaf7ff;font:600 12px/1.25 system-ui,sans-serif;pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.8)}
+.wh-hud{position:fixed;left:324px;top:124px;z-index:6;display:flex;flex-direction:column;gap:2px;min-width:132px;max-width:220px;padding:5px 10px 6px;border-radius:12px;background:rgba(8,12,22,.55);border:1.5px solid rgba(255,255,255,.14);color:#eaf7ff;font:600 12px/1.25 system-ui,sans-serif;pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.8)}
 .wh-hud[hidden]{display:none}
 .wh-hud .wh-k{font-weight:500;color:#cfe8f7;font-size:11px;letter-spacing:.02em}
 .wh-hud .wh-n{color:#ffe28a}
 .wh-hud .wh-s{font-weight:500;color:#bcd2e0;font-size:11px}
 .wh-hud.wh-done .wh-t{opacity:.6;text-decoration:line-through}
-@media (max-width:700px){.wh-hud{min-width:112px;font-size:11.5px;top:108px}}
+@media (max-width:700px){.wh-hud{min-width:112px;font-size:11.5px;left:12px;top:108px}}
 `;
   function make() {
     if (el || typeof document === 'undefined') return;
