@@ -48,7 +48,7 @@ test('a look is saved per player, validated and size-limited; the game reaches i
   const look = { body: '#22C55E', head: '#e0ac69', accent: '#ffffff', shape: 'tall', hat: 'crown', face: 'smile', extras: ['cape', 'cape', 'glasses'], model: null, extra: 'dropped' };
   const saved = await call('/v1/users/me/avatar', { cookie: sam.cookie, body: { avatar: look } });
   assert.equal(saved.status, 200);
-  assert.deepEqual(saved.body.avatar, { body: '#22c55e', head: '#e0ac69', accent: '#ffffff', shape: 'tall', hat: 'crown', face: 'smile', extras: ['cape', 'glasses'], model: null, what: 'person', name: null });
+  assert.deepEqual(saved.body.avatar, { body: '#22c55e', head: '#e0ac69', accent: '#ffffff', shape: 'tall', hat: 'crown', face: 'smile', extras: ['cape', 'glasses'], model: null, what: 'person', name: null, hair: 'short', hairColor: '#4a3322', bottom: '#3b4a6b', shoes: '#f2f2ee' });
   // What you are (the mirror) and your character's name: kept; a name is cleaned, never refused.
   const shoe = await call('/v1/users/me/avatar', { cookie: sam.cookie, body: { avatar: { ...saved.body.avatar, what: 'shoe', name: '  Sir <b>Laces</b>\n' + 'x'.repeat(40) } } });
   assert.equal(shoe.body.avatar.what, 'shoe');

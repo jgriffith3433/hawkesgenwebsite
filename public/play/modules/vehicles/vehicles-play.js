@@ -381,6 +381,7 @@
       const showMe = s.show && local.cam !== 'cockpit';
       // With the looks on, the figure is the body and the capsule stays hidden (presence.js); only the plain capsule is shown here.
       p._seatHidden = !showMe;
+      p._seatedAt = w.time; // the person's body sits (presence.js)
       if (!p._rigged) p.node.visibility = showMe ? 1 : 0;
       if (p._visor) p._visor.setEnabled(showMe);
       placeRiders();
@@ -396,6 +397,7 @@
         a.node.position.copyFrom(seatWorld(e.vehicle, s));
         a.node.rotation.y = e.node.rotation.y;
         a.visible = Boolean(s.show);
+        a._seatedAt = w.time;
       }
     }
     hud(dt);
