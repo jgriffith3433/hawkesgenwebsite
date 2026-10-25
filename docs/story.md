@@ -187,6 +187,11 @@ Two options each; the content picks one, or alternates.
 - *"You came all this way. The door was open."*
 - *"Welcome in. Stay as long as you like."*
 
+**The invitation** (the island's tour is done: the last step, high enough to see the planet)
+- *"Come and see where I live."* (nine seconds after the planet, when the moment has been said; a beam from the ship comes down on the rocket on its launch pad)
+- Docking: it catches a careful ship (*"I have you. Let the engine rest."*), and *"Welcome aboard."* on the pad.
+- A climb that fails is never an ending, only a fall: *"The fire has gone out. Fall gently. The ground will fill it again."* / *"Down you came. It is a long way up. Go again."* / for a wreck, *"That one is gone. I will send another."* and then *"A new one, from me."*, free, on the pad.
+
 **First space** (leaving the atmosphere)
 - *"There. That is the whole planet. Take a moment."*
 - *"It gets quiet up here. I like it. You may too."*
