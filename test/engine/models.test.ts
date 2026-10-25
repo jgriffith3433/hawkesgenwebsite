@@ -50,6 +50,8 @@ function run(t: any, seconds: number, speed = 0, em: any = null) {
 }
 
 const PILOT = ['person', 'dog', 'shoe']; // the pilot's three
+// Every model on the standard Mixamo skeleton (docs/characters.md "Mixamo models"); dinosaur and cow are listed there when they are done or not standard yet.
+const MIXAMO = ['person', 'robot', 'tvbot', 'cat', 'pig', 'bear', 'rabbit', 'penguin', 'chicken'];
 const MADE = ['robot', 'tvbot', 'rollbot', 'cat', 'fox', 'pig', 'bear', 'rabbit', 'penguin', 'chicken', 'cow', 'sheep', 'horse', 'dinosaur', 'fish', 'toaster', 'cactus', 'cone', 'teapot', 'banana', 'mushroom', 'potato', 'duck']; // made through Hawkes Gen after it
 const MODELS = [...PILOT, ...MADE]; // every type whose Gen model is in public/play/models (a type left out here keeps its procedural body and is named in docs/characters.md)
 test('the Gen models: each filled row names a file that is there, a near level within the phone budget and a low level', () => {
@@ -447,8 +449,8 @@ test('presence code stays erasable and documented: docs/characters.md has the Ge
   for (const w of C.WHATS) assert.ok(new RegExp(`\\b${w.id}: (\\{ \\.\\.\\.)?row\\(`).test(reg), `${w.id} has a row in the registry file`);
 });
 
-test('the Mixamo models (person, robot): the full skeleton with mixamorig: names, fingers included, one skin, and the levels in budget', () => {
-  for (const id of ['person', 'robot']) {
+test('the Mixamo models (person, robot and the animals and machines that were re-rigged): the full skeleton with mixamorig: names, fingers included, one skin, and the levels in budget', () => {
+  for (const id of MIXAMO) {
     const r = registryBefore[id];
     assert.equal(r.rig, 'mixamo', `${id}: rig mixamo`);
     for (const url of [r.url, r.lods.levels[0].url]) {
