@@ -156,18 +156,18 @@ export const SANDBOX = {
     [[-27, 6], [-14, 22]].forEach(([x, z], i) => add(model(`flowers_${i}`, 'Flowers', A.flowers, x, z, 0.7, { physics: 'none', shape: near, shadow: false })));
     [[-28, 10, 70], [-27.3, 13.6, 82]].forEach(([x, z, r], i) => add(model(`fence_${i}`, 'Fence', A.fence, x, z, 1.1, { transform: yaw(r), shape: near, shadow: false })));
     // The dock: a zone at the foot of the pier (the quest's "Dock"), the pier of planks on posts, lamps, the boat and the rod.
-    // The pier runs x 57 to 83: its landward end is buried in the beach (the sand passes its top at x ~59.7), so you walk up onto it.
+    // The pier runs x 57 to 89: its landward end is buried in the beach (the sand passes its top at x ~59.7), so you walk up onto it.
     const pierY = 0.95;
     add(thing('dock', 'zone', 'Dock', [60, groundAt(60, 0) + 1, 0], { shape: { radius: 8, height: 4 } }));
-    add(thing('pier', 'box', 'Pier', [70, pierY, 0], { shape: { size: [26, 0.3, 3.2] }, material: { color: '#efe2d0', texture: A.planks, tile: [8.7, 1] }, data: { surface: 'wood' } }));
-    [64, 68, 72, 76, 80].forEach((x) => [-1.5, 1.5].forEach((z, j) => add(thing(`post_${x}_${j}`, 'cylinder', 'Pier post', [x, pierY - 1.9, z], { shape: { radius: 0.16, height: 3.6 }, material: { color: '#8a6a4a', texture: A.oldWood, tile: [1, 2] }, instanced: true }))));
+    add(thing('pier', 'box', 'Pier', [73, pierY, 0], { shape: { size: [32, 0.3, 3.2] }, material: { color: '#efe2d0', texture: A.planks, tile: [10.7, 1] }, data: { surface: 'wood' } }));
+    [64, 68, 72, 76, 80, 84, 88].forEach((x) => [-1.5, 1.5].forEach((z, j) => add(thing(`post_${x}_${j}`, 'cylinder', 'Pier post', [x, pierY - 1.9, z], { shape: { radius: 0.16, height: 3.6 }, material: { color: '#8a6a4a', texture: A.oldWood, tile: [1, 2] }, instanced: true }))));
     add(model('lamp_a', 'Street lamp', A.lamp, 61, -2.4, 3.4, { transform: yaw(90) }));
     add(model('lamp_b', 'Street lamp', A.lamp, 61, 2.4, 3.4, { transform: yaw(90) }));
-    add(thing('lantern', 'model', 'Lantern', [81.6, pierY + 0.45, 1.3], { shape: { asset: A.lantern, size: 0.6 }, body: { shape: 'box' }, shadow: false }));
+    add(thing('lantern', 'model', 'Lantern', [87.6, pierY + 0.45, 1.3], { shape: { asset: A.lantern, size: 0.6 }, body: { shape: 'box' }, shadow: false }));
     add(thing('sign_board', 'box', 'Sign', [58.5, groundAt(58.5, -3.6) + 1.5, -3.6], { shape: { size: [1.9, 0.75, 0.08] }, material: { color: '#d8b48a', texture: A.planks, tile: [1, 1] }, transform: yaw(-90) }));
     add(thing('sign_post', 'cylinder', 'Sign post', [58.5, groundAt(58.5, -3.6) + 0.6, -3.66], { shape: { radius: 0.07, height: 1.25 }, material: { color: '#6b4a2f', texture: A.oldWood } }));
     add(thing('sign_text', 'text', 'Sign words', [58.44, groundAt(58.5, -3.6) + 1.5, -3.6], { shape: { text: "PIP'S PIER\nfishing · boats", size: 0.2, billboard: false, color: '#3a2614' }, transform: yaw(90) }));
-    add({ id: 'rod', type: 'tool-pickup', name: 'Fishing rod', shape: { tool: 'rod', respawn: 5 }, transform: { position: [80.5, pierY + 0.2, -0.4] } });
+    add({ id: 'rod', type: 'tool-pickup', name: 'Fishing rod', shape: { tool: 'rod', respawn: 5 }, transform: { position: [86.5, pierY + 0.2, -0.4] } });
     add({ id: 'boat', type: 'boat', name: 'Speedboat', shape: { model: A.speedboat }, material: { color: '#e5e7eb' }, transform: { position: [73, -1.2, 4.4], rotation: [0, 90, 0] } });
     add(thing('duck', 'model', 'Rubber duck', [77, -1.35, -4], { shape: { asset: A.duck, size: 0.45 }, physics: 'dynamic', data: { density: 0.3 } }));
     // The fuel dump on the beach north of the dock: oil barrels close enough to chain, and crates to smash.
