@@ -8,7 +8,7 @@
   const H = window.HawkesPlay;
   if (!H) return;
   const B = window.BABYLON;
-  const INSPECTOR = 'https://cdn.jsdelivr.net/npm/babylonjs-inspector@7.54.3/babylon.inspector.bundle.js';
+  const INSPECTOR = '/vendor/babylonjs-inspector@7.54.3/babylon.inspector.bundle.js';
   const W = () => H.world;
   let el = null, sceneI = null, engineI = null, timer = 0, stepStart = 0, stepMs = 0, stepAvg = 0;
   const fpsHistory = [];

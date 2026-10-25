@@ -297,7 +297,7 @@ too much). `docs/performance.md` has the measured numbers and how to measure.
   wheel offering a car before Vehicles came). Lazy today: vehicles, homes, events, share. Don't mark a module lazy if
   other modules use it while loading, or if it changes how the player or the world behaves from the first frame.
 - **Caching**: engine scripts carry the manifest's content hash (`?v=`) and are served `immutable` for a year when it
-  matches; Babylon and Havok come pinned from jsDelivr (immutable too), and their big files start downloading the
+  matches; Babylon and Havok come pinned from our own `/vendor/` (docs/performance.md; immutable too), and their big files start downloading the
   moment `/play/modules.js` runs (preload links), in parallel with the game's own fetch.
 
 ## 7. Playing together (`H.sync`)

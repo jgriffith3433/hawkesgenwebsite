@@ -84,8 +84,10 @@ test("a game script's fetch to an outside site is refused; what the engine needs
   // Its own site (assets, the room), Babylon and Havok from the CDN, Gen's analytics.
   assert.ok(allows(d, 'connect-src', 'https://hawkesgen.com/v1/play-template/x'));
   assert.ok(allows(d, 'connect-src', 'wss://hawkesgen.com/v1/ws'));
-  assert.ok(allows(d, 'connect-src', 'https://cdn.jsdelivr.net/npm/@babylonjs/havok@1.3.10/lib/umd/HavokPhysics.wasm'));
-  assert.ok(allows(d, 'script-src', 'https://cdn.jsdelivr.net/npm/babylonjs@7.54.3/babylon.js'));
+  // Babylon, the loaders, Havok and its wasm are our own (/vendor): no CDN is on the list.
+  assert.ok(allows(d, 'connect-src', 'https://hawkesgen.com/vendor/havok@1.3.10/HavokPhysics.wasm'));
+  assert.ok(allows(d, 'script-src', 'https://hawkesgen.com/vendor/babylonjs@7.54.3/babylon.js'));
+  for (const cdn of ['https://cdn.jsdelivr.net/npm/babylonjs@7.54.3/babylon.js', 'https://cdnjs.cloudflare.com/x.js', 'https://unpkg.com/x.js']) assert.equal(allows(d, 'script-src', cdn), false, cdn);
   assert.ok(allows(d, 'script-src', 'https://gen.hawkesgen.com/sdk/analytics@1.js'));
   assert.ok(allows(d, 'img-src', 'blob:https://hawkesgen.com/abc'));
   assert.ok(d['script-src'].includes("'unsafe-eval'") && d['script-src'].includes("'wasm-unsafe-eval'"));
@@ -94,7 +96,7 @@ test("a game script's fetch to an outside site is refused; what the engine needs
 
 test('every external host the game page and engine name is on the policy list', () => {
   // A host added to the engine must be added to PLAY_HOSTS (server.ts); this finds the ones that were not.
-  const listed = new Set(['https://cdn.jsdelivr.net', 'https://gen.hawkesgen.com', 'https://models.babylonjs.com', 'https://hawkesgen.com']);
+  const listed = new Set(['https://gen.hawkesgen.com', 'https://models.babylonjs.com', 'https://hawkesgen.com']);
   const files = ['public/play/play.html', 'public/play/engine.json', 'public/play/kinds.js', 'public/play/loader.js', 'public/play/runtime.js', 'public/play/net.js', 'public/play/modules/monitor/monitor.js'];
   for (const f of files) {
     for (const m of fs.readFileSync(path.join(ROOT, f), 'utf8').matchAll(/https:\/\/([a-z0-9.-]+)/g)) {
