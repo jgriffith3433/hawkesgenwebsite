@@ -271,3 +271,16 @@ when they share one**, inside the table in section 3 (110 and 22,000). Instances
 case (every look different) is what the limit is set to; the mirror's pickers make real crowds share a lot (hair, skin and shoes come from short lists).
 Triangles are not batched away: past the cap, thirty bodies draw about 46,000 triangles because the ones inside 30 m keep their full meshes.
 The tests keep this honest: `test/engine/crowd.test.ts` spawns 10 and 30 bodies and fails over the phone budget; the target column (15,000 and 40) is not met yet.
+
+## The shared face system (presence-core.js)
+
+One piece of logic drives every body's face; the bodies only draw what it decides. `EXPRESSIONS` are six main faces (neutral,
+happy, surprised, scared, grumpy, sleepy; sad, angry and mischief remain). `feel(event, data)` turns a game event into a face and
+a time (a hard landing over 9 m/s: surprised, over 14: scared; a blast near: scared, farther: surprised; a hit: grumpy; a catch:
+happy; speaking moves the mouth); `mood()` holds it (a stronger feeling replaces a weaker one, never the reverse while it lasts);
+`gazeTarget()` picks what the eyes follow (the Overseer while it speaks, a point a script told it to watch, the nearest player
+within 10 m, the camera); `blinkStep()` is the blink; `landTracker()` finds hard landings from a body's grounded and vertical speed.
+The per-body **face spec** (`FACE_SPEC`, `faceSpec(what)`) is the small table of how strongly a body shows an expression (`gain`),
+whether it blinks and whether its mouth moves when it speaks. Tests: `test/engine/expressions.test.ts`; playtest
+`faces-and-emotes`. The emote wheel is radial on desktop and touch: the six emotes (wave, laugh, cheer, shrug, dance, point) around
+the middle, **More** for sit, sleep, clap, thumbs up and heart; emotes go through `H.sync.action('presence:emote')` to everyone.
