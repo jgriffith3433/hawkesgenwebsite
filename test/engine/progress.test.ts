@@ -137,7 +137,7 @@ test('a level gives what the table says, the Overseer says so, the wardrobe and 
   const lv = events.find((e) => e.state === 'level');
   assert.ok(lv && lv.level === 2 && lv.unlocks.includes('acc:goggles'));
   assert.ok(events.some((e) => e.state === 'unlock' && e.key === 'col:84cc16'));
-  assert.equal(P.waiting, 1, 'the moment waits for the Overseer to be free');
+  assert.equal(P.waiting, 0, 'the Overseer was free: the moment was said at once');
   for (let i = 0; i < 4; i++) tick();
   const moment = events.find((e) => e.state === 'moment');
   assert.ok(moment && /goggles/.test(moment.text), moment && moment.text);
@@ -161,4 +161,41 @@ test('a level gives what the table says, the Overseer says so, the wardrobe and 
   assert.ok(M.wardrobe.get().acc.includes('goggles'));
   assert.ok(H.mayhem.belt.includes('grenade'), `belt after reload: ${H.mayhem.belt}`);
   assert.equal(P.waiting, 0, 'no second moment for a level already celebrated');
+});
+
+test('the HUD moves in the frame of an award (a count-up, a flash) and the level-up line is not held back', async () => {
+  clear(); await visit();
+  const moments: any[] = [];
+  H.game.on('progress', (d: any) => { if (d.state === 'moment') moments.push(d); });
+  const flashes0 = P.hud.flashes;
+  assert.equal(P.earn('quest'), 30);
+  // No tick, no timer: the same call that earned the points has already moved the HUD.
+  const first = P.hud;
+  assert.ok(first.shown > 0 && first.shown < 30, `the HUD counts from the first frame: ${first.shown}`);
+  assert.equal(first.flashes, flashes0 + 1, 'the bar flashes');
+  tick(0.05);
+  assert.ok(P.hud.shown > first.shown, 'the count goes on over the next frames');
+  for (let i = 0; i < 12; i++) tick(0.1);
+  assert.equal(P.hud.shown, 30, 'it lands on the real number');
+  // A level-up while the Overseer is free: the line is said in the same call.
+  P.earn('quest');
+  assert.equal(P.state.level, 2);
+  assert.equal(P.waiting, 0, 'said at once, not queued');
+  assert.equal(moments.length, 1, 'the Overseer\'s line came with the level');
+  assert.ok(H.speech.busy, 'and it is being spoken');
+});
+
+test('a level-up waits only behind a line being spoken, then follows it at the next frame', async () => {
+  clear(); await visit();
+  H.speech.reset(); H.speech.clock = () => t / 1000;
+  H.speech.say({ text: 'The Overseer is in the middle of a long thought.', priority: 'normal', seconds: 2 });
+  assert.ok(H.speech.busy, 'a line is being spoken');
+  P.earn('quest'); P.earn('quest');
+  assert.equal(P.state.level, 2);
+  assert.equal(P.waiting, 1, 'another line is speaking: the moment waits');
+  let frames = 0;
+  while (P.waiting && frames++ < 200) tick(0.05);
+  assert.ok(frames < 200, 'the line ended and the moment followed');
+  assert.ok(frames > 1, 'but not before it ended');
+  assert.equal(P.waiting, 0, 'it followed the line within the frame it ended');
 });
