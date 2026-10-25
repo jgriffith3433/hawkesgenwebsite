@@ -12,7 +12,7 @@ const node = new B.TransformNode('s', H.world.scene); const e: any = { node, x: 
 const WHAT = process.env.WHAT || 'person', W0 = C.WHAT.get(WHAT);
 const look = WHAT !== 'person' ? C.cleanLook({ what: WHAT, face: faceArg, body: W0.colors[0], accent: W0.colors[1], head: W0.colors[2] }) : C.cleanLook({ what: 'person', face: faceArg, hair, body: '#4a9eff', head: '#f2c9a0', accent: '#f4a3b5' });
 const rig = P.showcase.make(e, look, look.body);
-rig.forcePose = ['jump', 'fall', 'swim', 'drive', 'gag', 'react'].includes(pose) ? pose : null;
+rig.forcePose = ['jump', 'fall', 'swim', 'drive', 'gag', 'react', 'boot'].includes(pose) ? pose : null;
 const speed = pose === 'walk' ? 2.6 : pose === 'run' ? 6.5 : 0;
 if (rig.person && expr) rig.person.rest = expr;
 if (rig.thing && expr) rig.thing.F.rest = expr;

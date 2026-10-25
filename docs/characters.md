@@ -193,6 +193,18 @@ and `pose=react` play them on a loop. Before/after pictures: `docs/characters-th
 
 All are over the 3-draw target (each moving piece is a mesh) but inside the hard limit for triangles; the person is the one in the doc's hero budget.
 
+## 5d. The machines, after
+
+`presence-robots.js` rebuilds the three machines (`robot`, `tvbot`, `rollbot`) as hard-surface toys on the same shared rim-lit material: **beveled forms** (`bevel`: a chamfered box of 44 triangles with a lit edge), **panel lines, vents and rivets**, **lit screens** for faces (eyes, brows and a mouth from the five expression numbers, drawn in light, so a mood is visible at once) and **pistons**. `robot` was a Living-species stand-in and is now built here like the other things. Pictures: `docs/characters-robots/<id>-before-after.png` and `<id>-motion.png` (idle, walk, boot at three moments, reaction; software renders by `tools/avatar-preview.ts`, laid out by `tools/avatar-sheet.ts`). Test `test/engine/things.test.ts` (the machines).
+
+| Body | Triangles | Draws | Moves | Idle (hums, scans) | Boot-up |
+|---|---|---|---|---|---|
+| `robot` | about 2,700 | 12 | each foot lifts on a piston rod as that leg swings; piston neck bobs; whip antenna on a spring | chest lights breathe, a hair of tremble, head drifts side to side; the gag is a full scan with the screen following | a ring of light with a beam above it climbs from the floor, the screen is dark, flickers on, the lights chase, the antenna jolts |
+| `tvbot` | about 2,900 | 12 | two lugged wheels turn with the distance (radius known) on piston struts that ride the bumps; rabbit ears sway and splay | head scans a little, static rolls over the screen | same |
+| `rollbot` | about 2,600 | 8 | the ball with a lugged tread band and seams rolls with the distance; the head sinks on its piston neck as it leans | scans, antenna ticks | same |
+
+The boot plays when a body is first drawn (rig time 0) and never changes the body's size, so hats, the mirror and the height checks see it from the first frame. `/avatars?body=<id>&pose=boot` loops it. The beam is made on the first boot and hangs on the pose beside the body.
+
 ## 6. Not decided here
 
 Texture-based faces versus mesh faces on phones (the doc picks meshes: no texture memory); whether the animals' ears and tails

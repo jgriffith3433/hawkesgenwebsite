@@ -30,7 +30,7 @@ const BGS = {
   grass: { sky: '#bfe3ff', floor: '#5fa34a', ambient: 0.7, sun: 0.9 },
 };
 const EMOTES = C ? C.EMOTES.map((e) => e.name) : [];
-const THING_POSES = ['gag', 'react']; // the things' own: the idle gag and the signature reaction, each looped (presence-things.js)
+const THING_POSES = ['gag', 'react', 'boot']; // the things' own: the idle gag and the signature reaction, each looped (presence-things.js)
 const BUDGET = { tris: 2500, draws: 6, mats: 3 }; // docs/characters.md "Budget": the hard limit per character
 
 const state = {
