@@ -22,6 +22,7 @@
 import { installPlaytest } from './hawkes-playtest.js';
 import { SITE_LAYOUT, runSiteLayout } from './site-layout.js';
 import { AVATAR_ANIMATIONS, runAvatarAnimations } from './avatar-animations.js';
+import { WORLD_REPORT, runWorldReport } from './world-report.js';
 import { SERVER_LIMITS, runServerLimits } from './server-limits.js';
 
 const KEY = 'hg_playtest_run';
@@ -31,6 +32,7 @@ const ORDERS = { 'gen-models-all': ['landing', 'veil', 'intro', 'mirror', 'sheet
 const SCENARIOS = [
   SITE_LAYOUT, // the landing page at three sizes (site-layout.js)
   AVATAR_ANIMATIONS, // clips as data on /avatars (avatar-animations.js)
+  WORLD_REPORT, // report a world from its pause menu; a closed world loads nothing (world-report.js)
   SERVER_LIMITS, // sign-ins off the event loop, one play per reloads, the connection cap (server-limits.js)
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
   {
@@ -328,6 +330,12 @@ function checkSelfHosted(t) {
   if (missing.length) t.problem('error', `not fetched from /vendor: ${missing.join(', ')}`);
   else t.event('engine-self-hosted', `${own.length} files from /vendor, ${Math.round(bytes / 1024)} KB over the wire (${own.filter((e) => e.transferSize === 0).length} from cache)`);
   t.metric('vendorKB', Math.round(bytes / 1024));
+  // Models, textures and sounds: from Gen's CDN when it has them backed up, else through this site (/play-asset, /v1/community).
+  const fromCdn = urls.filter((e) => /^https:\/\/cdn\.hawkesgen\.com\/sha256\//.test(e.name));
+  const viaSite = urls.filter((e) => /\/(play-asset\/|v1\/community\/a_)/.test(e.name));
+  t.event('asset-sources', `${fromCdn.length} files from cdn.hawkesgen.com, ${viaSite.length} through the site (not backed up yet, or Gen's CDN is off)`);
+  t.metric('assetsFromCdn', fromCdn.length);
+  t.metric('assetsViaSite', viaSite.length);
 }
 
 async function stageIntro(t, ctx) {
@@ -2480,6 +2488,7 @@ export function install() {
     async start(id, options, t) {
       if (id === SITE_LAYOUT.id) return runSiteLayout(t, options);
       if (id === AVATAR_ANIMATIONS.id) return runAvatarAnimations(t, options);
+      if (id === WORLD_REPORT.id) return runWorldReport(t, options);
       if (id === SERVER_LIMITS.id) return runServerLimits(t, options);
       if (id === 'observatory-wardrobe' && options.touch) options = { at: 'sandbox', ...options }; // (touch: straight to the island with the phone controls)
       if ((id === 'vehicle-feel' || id === 'rocket-blast-feel') && options.touch) options = { at: 'sandbox', ...options };

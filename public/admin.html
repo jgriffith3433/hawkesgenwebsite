@@ -40,6 +40,7 @@
       <button type="button" data-tab="accounts">Accounts</button>
       <button type="button" data-tab="jobs">Jobs</button>
       <button type="button" data-tab="purchases">Purchases</button>
+      <button type="button" data-tab="reports">Reports</button>
     </nav>
 
     <section data-pane="overview">
@@ -71,6 +72,11 @@
 
     <section data-pane="purchases" hidden>
       <div class="pricing-table-wrap"><table class="data-table" id="purchases"><thead><tr><th>When</th><th>Account</th><th>Pack</th><th style="text-align:right">Credits</th><th style="text-align:right">Paid</th><th>Stripe session</th></tr></thead><tbody></tbody></table></div>
+    </section>
+
+    <section data-pane="reports" hidden>
+      <p class="muted" style="margin:0 0 12px">Worlds visitors have reported, and worlds that are closed. Hide closes a world to players (its page, its scripts, the gallery); the owner sees why on their Games page. Unhide opens it again.</p>
+      <div class="pricing-table-wrap"><table class="data-table" id="reports"><thead><tr><th>World</th><th>Owner</th><th>Reports</th><th>Latest</th><th>State</th><th></th></tr></thead><tbody></tbody></table></div>
     </section>
   </main>
 
