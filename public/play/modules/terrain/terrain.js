@@ -583,6 +583,9 @@
   /** Things (and the player) that would be inside the ground go on top of it. */
   function liftOne(t, e, pad = 0.05) {
     if (!e.alive || e.isTerrain || e.isScatter || e.remote || e.held || e._underTerrain) return false;
+    // A ragdoll is the physics' own (its boxes rest on the ground's collider; popping one up jerked the whole body into
+    // the air on every landing), and the limp thing it carries goes where its torso is.
+    if (e._ragPart || e._ragdoll) return false;
     if (!(e.physics === 'dynamic' || e.isPlayer) || (e.isPlayer && e.flying)) return false;
     const d = depthIn(t, e);
     if (d === null || d <= 0) return false;

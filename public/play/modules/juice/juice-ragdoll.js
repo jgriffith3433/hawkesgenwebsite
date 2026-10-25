@@ -352,7 +352,7 @@
     for (const e of w.entities) {
       if (!e.living || !e.alive || e._ragdoll || !mine(e)) continue;
       const s = lastPos.get(e);
-      if (s && !s.g && e.grounded && M.fallRagdolls(s.vy) && canRagdoll(e)) ragdoll(e, { velocity: [e.vx, -s.vy * 0.25, e.vz], spin: 0.7 });
+      if (s && !s.g && e.grounded && M.fallRagdolls(s.vy) && canRagdoll(e)) ragdoll(e, { velocity: [e.vx * 0.6, 0, e.vz * 0.6], spin: 0.7 }); // (no bounce off the ground)
       lastPos.set(e, { g: e.grounded, vy: e.vy });
     }
     // Other people's creatures thrown about (we don't simulate them): a ragdoll that follows them.
@@ -371,7 +371,7 @@
   J.feel.on('land', ({ speed, entity }) => {
     const w = W();
     if (w && w.time < 2) return; // (dropped in at the start: not a fall)
-    if (entity && M.fallRagdolls(-speed) && canRagdoll(entity)) ragdoll(entity, { velocity: [entity.vx || 0, -speed * 0.2, entity.vz || 0], spin: 0.6 });
+    if (entity && M.fallRagdolls(-speed) && canRagdoll(entity)) ragdoll(entity, { velocity: [(entity.vx || 0) * 0.6, 0, (entity.vz || 0) * 0.6], spin: 0.6 }); // (no bounce off the ground)
   });
 
   // Other players: they tell everyone when they go limp; their avatar shows it.

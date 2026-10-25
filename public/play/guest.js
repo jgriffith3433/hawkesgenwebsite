@@ -110,7 +110,7 @@
   };
   const api = async (method, url, body, o = {}) => {
     let r;
-    try { r = await fetch(url, { method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin', keepalive: Boolean(o.keepalive) }); }
+    try { r = await fetch(url, { method, headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(o.headers || {}) }, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin', keepalive: Boolean(o.keepalive) }); }
     catch { const e = new Error("Couldn't reach Hawkes Gen. Check your connection and try again."); e.status = 0; throw e; }
     const d = await r.json().catch(() => ({}));
     if (!r.ok) {
@@ -518,6 +518,9 @@
     window.HawkesGuest.accountFirst = false; // (Pip's tour, here)
     try {
       const b = await api('GET', `/v1/games/${id}/bundle`);
+      // Our room connection: saves carry it so the server doesn't send our own changes back to us (applied again, they
+      // rebuilt what they touched: you were thrown out of the car and the camera reset on every save).
+      if (!session.hooked && H.hooks && H.hooks.world) { session.hooked = true; H.hooks.world.push({ net: (st, info) => { if (info && info.me) session.conn = info.me; } }); }
       if (b.net && b.net.token && window.HawkesNet) window.HawkesNet.connect({ token: b.net.token });
     } catch (x) { console.warn('sandbox: no live room', x); }
     feed(id, user);
@@ -578,6 +581,7 @@
     es.addEventListener('file', (e) => {
       let d; try { d = JSON.parse(e.data); } catch { return; }
       if (!d || !d.path) return;
+      if (d.path === 'scene.json' && d.ops && ((session.conn && d.conn === session.conn) || saving || (d.rev && savedRevs.has(d.rev)))) return; // our own save
       if (!(d.path === 'scene.json' && d.ops) && typeof d.content === 'string') { try { H.reload({ [d.path]: d.content }); } catch (err) { console.warn('sandbox: reload', err); } }
       rebase();
     });
@@ -640,15 +644,26 @@
       };
     } catch { return null; }
   }
-  // Saving: what changed since the last save, every 20 s, when the tab goes away, and around changes from elsewhere.
+  // Saving: what changed since the last save, every minute, when the tab goes away, and around changes from elsewhere.
+  // (Not the vehicle you're in: it's saved where you leave it.)
   let saving = false, saveTimer = null, rebaseT = null;
+  const savedRevs = new Set(); // scene.json revisions our saves made (their feed events are ours, nothing to do)
   async function saveNow(keepalive) {
     if (!island || saving || !session.H || !session.H.world) return;
     saving = true;
     try {
       const now = Core.snapshot(session.H, { edits: session.edits });
+      let riding = null;
+      try { riding = window.game && window.game.vehicles && window.game.vehicles.current; } catch { riding = null; }
+      if (riding && riding.sceneId && now.entities) {
+        const was = island.base && island.base.entities && island.base.entities[riding.sceneId];
+        if (was) now.entities[riding.sceneId] = was; else delete now.entities[riding.sceneId];
+      }
       const ops = Core.toOps(island.base, now);
-      for (const part of Core.chunks(ops, 200)) await api('POST', `/v1/games/${island.id}/scene`, { ops: part }, { keepalive });
+      for (const part of Core.chunks(ops, 200)) {
+        const r = await api('POST', `/v1/games/${island.id}/scene`, { ops: part }, { keepalive, headers: session.conn ? { 'X-Room-Conn': session.conn } : undefined });
+        if (r && r.rev) { savedRevs.add(r.rev); if (savedRevs.size > 50) savedRevs.delete(savedRevs.values().next().value); }
+      }
       island.base = now;
       if (ops.length) flashSaved();
     } catch (x) { console.warn('sandbox: not saved yet', x); } finally { saving = false; }
@@ -660,7 +675,7 @@
   }
   function autosave() {
     if (saveTimer) return;
-    saveTimer = setInterval(() => saveNow(false), 20000);
+    saveTimer = setInterval(() => saveNow(false), 60000);
     addEventListener('pagehide', () => saveNow(true));
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveNow(true); });
   }

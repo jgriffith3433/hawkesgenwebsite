@@ -441,7 +441,8 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       if (sub === 'bundle' && method === 'GET') return send(res, 200, games.draftBundle(user, gid));
       if (sub === 'scene' && method === 'POST') {
         const b = await readJson(req);
-        const r = games.sceneOps(user, gid, b.ops, { by: user.name ?? undefined });
+        const conn = String(req.headers['x-room-conn'] ?? '') || undefined;
+        const r = games.sceneOps(user, gid, b.ops, { by: user.name ?? undefined, conn });
         // X-Room-Conn: the sender's own engine already shows the change.
         if (r.applied.length) broadcastOps(gid, r.applied, user.name ?? 'Someone', typeof b.fx === 'string' ? b.fx.slice(0, 20) : null, String(req.headers['x-room-conn'] ?? '') || undefined);
         return send(res, 200, { errors: r.errors, created: r.created, rev: r.rev });
