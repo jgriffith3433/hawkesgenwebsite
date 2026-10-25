@@ -68,6 +68,11 @@ test('the Gen models: each filled row names a file that is there, a near level w
   }
 });
 
+test('every Gen-made model is not turned half way round: its yaw is 0 (J, 2026-10-25: they faced backwards)', () => {
+  for (const [id, r] of Object.entries(registryBefore) as any) if (r.url || r.asset) assert.equal(r.yaw, id === "fish" ? -0.546 : 0, `${id}: yaw`);
+  assert.equal(M.entry('nothing-made-yet'), null);
+});
+
 test('the registry names every type, with a form and no file yet: the procedural bodies are untouched', () => {
   const rows = registryBefore;
   assert.deepEqual(Object.keys(rows).sort(), C.WHATS.map((w: any) => w.id).sort(), 'one row for each of the 26 types of the mirror');
@@ -110,11 +115,11 @@ test('the stand-in GLBs are real GLB files that the description makes (and carry
   assert.deepEqual(Object.keys(STANDINS).sort(), Object.values(STANDIN_FOR).sort());
 });
 
-test('while a model loads the procedural body shows; when it has loaded it takes its place, at its real height, feet on the ground', async () => {
+test('while a model loads the old procedural body stays hidden (it must not show and then change); when it has loaded the model takes its place, at its real height, feet on the ground, facing the way the body walks', async () => {
   standins();
   const t = stand('dog');
   assert.equal(t.rig.pm.state, 'loading');
-  assert.ok(t.rig.body.isEnabled(), 'the procedural dog is there while the model loads');
+  assert.ok(!t.rig.body.isEnabled(), 'the procedural dog is not shown while the model loads');
   await settle(t.rig);
   assert.equal(t.rig.pm.state, 'ready', t.rig.pm.error);
   assert.ok(!t.rig.body.isEnabled(), 'the procedural body is hidden');
@@ -127,6 +132,42 @@ test('while a model loads the procedural body shows; when it has loaded it takes
   assert.ok(Math.abs(min.y - (t.e.node.position.y - 0.9)) < 0.02, 'feet on the ground (the capsule\'s bottom)');
   void b;
   assert.equal(P.models.stats(t.rig).level, 'near');
+  P.showcase.dispose(t.rig); t.node.dispose();
+});
+
+test('a model that fails to load gives the procedural body back, and so does a slow network after the grace', async () => {
+  standins();
+  M.setLoader(() => Promise.reject(new Error('404')));
+  M.reset();
+  const t = stand('dog');
+  assert.ok(!t.rig.body.isEnabled(), 'hidden while it loads');
+  await settle(t.rig);
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(t.rig.pm.state, 'failed');
+  assert.ok(t.rig.body.isEnabled(), 'the procedural dog is back when the file failed');
+  P.showcase.dispose(t.rig); t.node.dispose();
+  // a slow one: the grace runs out, the body shows, and the model still replaces it when it comes
+  let done: any;
+  M.setLoader((scene: any, url: string) => new Promise((res) => { done = () => res(toContainer(B, scene, specOf(url))); }));
+  M.reset();
+  const slow = stand('dog');
+  assert.ok(!slow.rig.body.isEnabled());
+  slow.rig.pm.release();
+  assert.ok(slow.rig.body.isEnabled(), 'shown after the grace');
+  done();
+  await settle(slow.rig);
+  assert.equal(slow.rig.pm.state, 'ready', slow.rig.pm.error);
+  assert.ok(!slow.rig.body.isEnabled(), 'and the model took it again');
+  P.showcase.dispose(slow.rig); slow.node.dispose();
+});
+
+test('preload fetches a type\'s model once, before anyone wears it', async () => {
+  standins();
+  M.preload(H.world.scene, ['dog', 'dog', 'nothing']);
+  assert.equal(loads.filter((u) => u === 'standin:quadruped').length, 1, 'one download');
+  const t = stand('dog');
+  await settle(t.rig);
+  assert.equal(loads.filter((u) => u === 'standin:quadruped').length, 1, 'the player\'s dog used the preloaded file');
   P.showcase.dispose(t.rig); t.node.dispose();
 });
 
@@ -174,6 +215,27 @@ test('hats, glasses, a scarf, a pack and an accessory are parented to the model\
     assert.ok(t.rig.meshes.length - t.rig.bodyMeshes >= 3, `${id}: it wears things`);
     P.showcase.dispose(t.rig); t.node.dispose();
   }
+});
+
+test('anchors written as the file was authored (front +z, x mirrored by the loader) land on the face, the back and the rump of the body', async () => {
+  standins();
+  M.register('toaster', { ...standinRows().toaster, anchors: { face: { at: [0.1, 0.5, 0.3] }, back: { at: [0, 0.5, -0.3] }, rump: { at: [0, 0.3, -0.3] } } });
+  M.reset();
+  const t = stand('toaster', { extras: ['glasses', 'backpack'] });
+  await settle(t.rig);
+  assert.equal(t.rig.pm.state, 'ready', t.rig.pm.error);
+  t.rig.pose.computeWorldMatrix(true);
+  const at = (n: string) => world3(t.rig.pm.anchors[n].node);
+  const base = world3(t.rig.pm.holder);
+  assert.ok(at('face').z - base.z > 0.1, 'the face anchor is in front (+z) of the body');
+  assert.ok(at('face').x - base.x < -0.05, 'and its authored x is mirrored, as the loader mirrors the file');
+  assert.ok(at('back').z - base.z < -0.1 && at('rump').z - base.z < -0.1, 'the back and the rump are behind');
+  P.showcase.dispose(t.rig); t.node.dispose();
+});
+
+test('a Gen hat file keeps its +z front on the head: no turn by default', () => {
+  assert.match(fs.readFileSync(path.join(ROOT, 'public', 'play', 'modules', 'presence', 'presence-hats.js'), 'utf8'), /r\.yaw : 0;/);
+  assert.equal(M.entry('anything-registered') === null, true);
 });
 
 test('a model\'s hat follows the head bone when the clip moves it, and a bone-less model gets anchors from its box', async () => {

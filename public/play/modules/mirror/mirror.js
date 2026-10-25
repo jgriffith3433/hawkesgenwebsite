@@ -445,6 +445,9 @@
         <button type="button" class="mr-btn go" data-a="next">${last ? 'That\'s me ✓' : 'Next →'}</button>
       </div>`;
     root.onclick = onClick;
+    // A model is fetched as soon as its card is pointed at, so it is there by the time it is picked (no empty moment).
+    root.onpointerover = (ev) => { const c = ev.target.closest && ev.target.closest('[data-what]'); if (c && PR() && PR().models && PR().models.preload) PR().models.preload(H.world && H.world.scene, c.dataset.what); };
+    root.ontouchstart = root.onpointerover;
     const name = root.querySelector('.mr-name:not(.mr-model)');
     if (name) {
       name.oninput = () => { clearTimeout(name._t); name._t = setTimeout(() => { if (PR() && PR().setLook) PR().setLook({ name: name.value }); }, 250); };

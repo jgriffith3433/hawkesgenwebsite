@@ -8,7 +8,9 @@
 //             without it the one file is both the near and the far model, `low` (an address) may name a far file
 //   h         real height in meters (feet on the ground), default WHATS h; the model is scaled to it, never to 1.8 m
 //   form      biped | quadruped | bird | swimmer | roller | thing | legless: how it moves when the GLB has no clip for it
-//   yaw       turn in radians so the model's front looks along +z of the body; Babylon loads a glTF facing -z, so the default is pi
+//   yaw       turn in radians so the model's front looks along +z of the body. Babylon's glTF loader keeps a file's +z front at +z (it
+//             mirrors x), so a Gen-made model needs none: every row below has yaw 0 (J, 2026-10-25: with a turn of pi they were all
+//             backwards). A row that names none gets 0 too; give pi to a file made facing -z
 //   head      the head's width in meters (hats and glasses are scaled to it); default a share of h by form (HEAD_SHARE)
 //   anchors   where things are worn: head (the top of the head, where a hat sits), face (between the eyes, front of the face),
 //             neck (a scarf's ring, a bow tie), back (a backpack, wings), rump (the tail). Each { node, at, rot, scale }: a node of
@@ -57,7 +59,8 @@
     penguin: { ...row('bird'), ...mdl('penguin'), h: 1.1, head: 0.55, clips: BIPED, anchors: A([0, 0.97, 0], [0, 0.8, 0.27], [0, 0.68, 0], [0, 0.45, -0.27], [0, 0.22, -0.25]) },
     chicken: { ...row('bird'), ...mdl('chicken'), h: 0.9, head: 0.45, clips: BIPED, anchors: A([0, 0.88, 0], [0, 0.72, 0.26], [0, 0.62, 0.1], [0, 0.45, -0.25], [0, 0.3, -0.28]) },
     dinosaur: { ...row('biped'), ...mdl('dinosaur'), h: 1.9, head: 0.6, clips: BIPED, anchors: A([0, 0.97, 0.1], [0, 0.84, 0.4], [0, 0.72, 0.12], [0, 0.55, -0.2], [0, 0.4, -0.4]) },
-    fish: { ...row('swimmer'), ...mdl('fish'), h: 0.9, head: 0.4, anchors: A([0, 0.8, 0.28], [0, 0.5, 0.45], [0, 0.45, 0.2], [0, 0.7, -0.1], [0, 0.45, -0.45]) },
+    // (the fish's concept was a three-quarter view: its body lies 31.3 degrees from +z, measured on the loaded file, so it is turned back by that, and its anchors are the same offsets turned the same way)
+    fish: { ...row('swimmer'), ...mdl('fish'), h: 0.9, head: 0.4, yaw: -0.546, anchors: A([-0.145, 0.8, 0.239], [-0.234, 0.5, 0.385], [-0.104, 0.45, 0.171], [0.052, 0.7, -0.085], [0.234, 0.45, -0.385]) },
     // things
     shoe: { ...row('thing'), url: '/play/models/shoe.glb', lods: lods(7595, 2275, '/play/models/shoe-low.glb'), h: 0.5, head: 0.34, anchors: { head: { at: [0, 0.44, 0.05] }, face: { at: [0, 0.36, 0.36] }, neck: { at: [0, 0.3, 0.2] }, back: { at: [0, 0.4, -0.3] }, rump: { at: [0, 0.2, -0.5] } } },
     toaster: { ...row('thing'), ...mdl('toaster'), h: 1.15, head: 0.7, anchors: A([0, 0.9, 0], [0, 0.5, 0.26], [0, 0.7, 0.1], [0, 0.55, -0.26], [0, 0.3, -0.26]) },
@@ -69,6 +72,8 @@
     potato: { ...row('thing'), ...mdl('potato'), h: 1, head: 0.6, anchors: A([0, 0.98, 0], [0, 0.65, 0.3], [0, 0.45, 0.1], [0, 0.5, -0.28], [0, 0.2, -0.28]) },
     duck: { ...row('legless'), ...mdl('duck'), h: 0.95, head: 0.5, anchors: A([0, 0.86, 0.05], [0, 0.66, 0.45], [0, 0.5, 0.3], [0, 0.4, -0.35], [0, 0.3, -0.48]) },
   };
+  // J, 2026-10-25: all the Gen-made models faced backwards with a turn of pi: they are not turned (yaw 0), said out loud in each row.
+  for (const r of Object.values(P.modelRegistry)) if (!Number.isFinite(r.yaw)) r.yaw = 0; // (the fish names its own)
   // Gen-made hats (docs/characters.md "Gen hats"): files in public/play/models, made through Hawkes Gen (prop3d steps), about 1.3k triangles each,
   // base at y = 0, front +z. `width` is the body of the hat in head units (the unit head is 0.43 wide), `sink` how far it sits into the head,
   // `tint` whether the look's accent colours it (the model is white where it should take the pick), `flat` a colour for a hat whose bake failed.
