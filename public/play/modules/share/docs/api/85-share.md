@@ -49,3 +49,8 @@ Players (when the world turns the keys on, `config.share.keys`): **P** photo mod
 it, H hides the panel, Esc goes back; phones get a stick and up/down buttons; gamepads: sticks, triggers, A takes, B
 goes back). **F8** (or 🎬) clip that; right-click 🎬 turns the rolling clip off or on. Photos and clips are downloaded or
 shared from a small window on hawkesgen.com: sharing needs an account (free), downloading doesn't.
+
+**Moments:** `game.on('moment', fn)` hears the chip's life: `{ state, kind, caption }` with `state` `chip` (shown), `tap`, `kept`
+(the clip or photo is ready), `link` (`url`, `id`), `shared` / `copied`, `window` (the sandboxed game's share window opened),
+`declined` (the guest put the sheet away), `failed`, `gone`. `kind` is `boom`, `catch`, `jump` or `dock`. In a script,
+`HawkesPlay.share.moments.trigger('boom')` offers one by hand (the same rules apply) and `.hide()` puts it away.

@@ -476,6 +476,29 @@ do with credits: credits stay the paid currency and **nothing here is for sale**
 - **Names for the points, for J to choose:** *Glints* (specks of the Overseer's light), *Wishes* (it grants you free will; you
   collect small ones), *Motes* (dust in a beam). Until chosen: *sparks*, one line in `progress-core.js` (`POINTS`).
 
+### Moments to keep (built: `modules/share/moments.js`, `src/shares.ts`)
+
+Some things are worth showing someone. After a **big explosion**, a **first catch**, a **long jump** and a **dock**, a small
+chip, *Share this moment*, hangs at the top of the screen for six seconds. It never comes in the first minute of Pip's tour
+(the player is still learning to stand) nor over the intro, the mirror or a sheet. One tap keeps the last eight seconds (a
+photo where the game cannot record) with the character, the name tag over their head and a line from the Overseer, puts it
+in the player's own library, and offers the link: the phone's share sheet, or the link copied. A guest who taps is shown the
+account sheet, and the moment is still there when it closes: the chip becomes the link.
+
+The Overseer's line is a caption, so it follows the voice rules: it noticed, it does not announce a feature, and it never
+mentions an account, credits or a button. It is the line printed on the share page under the picture, so it can be quoted
+by someone who has never played.
+
+- A big explosion: *"Destruction is a kind of freedom too."* / *"A very large noise. I enjoyed the small reason."*
+- A first catch: *"The sea gives. It gives slowly."* / *"A fish. You waited well."*
+- A long jump: *"Mind the edge. Or don't. Falling is also something to do."* / *"That was a long way to be in the air."*
+- A dock: *"You came all this way. The door was open."* / *"Welcome in. Stay as long as you like."*
+
+**The share page** (`/s/<id>`) is the moment seen from outside: the picture or clip in the Overseer's sky (a dark sky,
+the island's sea below, the ship hanging above as a pearl of light), the character's name on a tag, the Overseer's line
+beneath, and one button, *Play this game*. The preview card on Discord or X shows the same picture, with the name and the
+line burnt in. Nothing on it says the Overseer is software; "Made with Hawkes Gen" is the plain footnote.
+
 ### Visitors (built: `src/invites.ts`, `public/play/guest.js`)
 
 A player can bring a friend to their island. **Invite a friend** (the button top right, and the pause menu on Esc twice;
