@@ -1,0 +1,6 @@
+{
+  "title": "The daily wish: one small wish from the Overseer each day (UTC), a streak that forgives",
+  "order": 89,
+  "scripts": ["wish-core.js", "wish.js"],
+  "kinds": []
+}
