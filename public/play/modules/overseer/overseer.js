@@ -603,27 +603,18 @@ void main(void) {
       speak: (text, name, seconds) => speak(text, name, seconds),
     };
   });
-  /** The Overseer speaks: words over the picture for a while (the cinematic's caption when it's there). */
-  let sayEl = null, sayT = null;
+  /** The Overseer speaks: its words are a line in the game's chat (H.chat; the editor's chat in the editor), never a
+   *  caption over the picture (J, 2026-10-24: "All captions should be in the chat window, period"). `seconds` is kept for
+   *  the callers: it's how long the line stays before it fades. */
+  let lastSaid = '', lastAt = 0;
   function say(text, seconds = 4) {
-    if (typeof document === 'undefined' || !document.body) return;
-    if (!sayEl) {
-      sayEl = document.createElement('div');
-      sayEl.className = 'ov-say sh-keep';
-      const st = document.createElement('style');
-      st.textContent = '.ov-say{position:fixed;left:50%;bottom:16%;transform:translateX(-50%);max-width:min(760px,calc(100vw - 32px));text-align:center;color:#eef6ff;font:500 clamp(17px,2.6vw,26px)/1.35 var(--display,Inter,system-ui,sans-serif);letter-spacing:.02em;text-shadow:0 0 18px rgba(120,200,255,.55),0 2px 10px rgba(0,0,0,.7);pointer-events:none;z-index:40;opacity:0;transition:opacity .6s}.ov-say.on{opacity:1}.ov-say small{display:block;margin-top:6px;font-size:.55em;letter-spacing:.32em;text-transform:uppercase;color:#9fd8ff;opacity:.85}';
-      document.head.appendChild(st);
-      document.body.appendChild(sayEl);
-    }
-    sayEl.innerHTML = '';
-    // (In the editor, the same words are the Overseer's message in the chat: it is the assistant.)
-    try { if (H.post) H.post({ type: 'overseer-say', text: String(text) }); } catch { /* fine */ }
-    const line = document.createElement('div'); line.textContent = String(text);
-    const who = document.createElement('small'); who.textContent = 'The Overseer';
-    sayEl.appendChild(line); sayEl.appendChild(who);
-    sayEl.classList.add('on');
-    clearTimeout(sayT);
-    if (seconds) sayT = setTimeout(() => sayEl && sayEl.classList.remove('on'), Number(seconds) * 1000);
+    const t = String(text || '').trim();
+    if (!t) return;
+    // (The same words twice in a moment are said once: a line and its voice both asking.)
+    const now = Date.now();
+    if (t === lastSaid && now - lastAt < 4000) return;
+    lastSaid = t; lastAt = now;
+    if (H.chat) H.chat.line({ kind: 'overseer', text: t, keep: Math.max(14, Number(seconds) || 0) });
   }
   H.sky.onEnter(() => {
     // Placed for this view every frame, before the sky's far layer draws.

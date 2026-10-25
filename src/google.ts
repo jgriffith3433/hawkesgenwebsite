@@ -61,7 +61,8 @@ export function accountFor(g: { sub: string; email: string; name: string | null 
 export async function callback(req: IncomingMessage, res: ServerResponse, q: URLSearchParams, ip: string) {
   const saved = verify<{ s: string; v: string; n: string }>(parseCookies(req)[COOKIE] ?? '');
   const back = (path: string) => res.writeHead(302, { Location: path, 'Set-Cookie': `${COOKIE}=; HttpOnly; SameSite=Lax; Path=/auth/google; Max-Age=0` }).end();
-  if (q.get('error')) return back(`/?signin=cancelled`);
+  // (Cancelled in the sandbox's popup: the popup page says so and closes.)
+  if (q.get('error')) return back(saved && saved.n === '/auth/popup' ? '/auth/popup?cancelled=1' : `/?signin=cancelled`);
   if (!saved || saved.s !== q.get('state')) throw new PortalError('That sign-in link expired. Try Continue with Google again.');
   const r = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',

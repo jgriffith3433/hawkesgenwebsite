@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Signed in · Hawkes Gen</title>
+  <style>
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #0c0e14; color: #e8ecf6; font: 15px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; text-align: center; padding: 24px; box-sizing: border-box; }
+    a { color: #93c5fd; }
+  </style>
+</head>
+<body>
+  <!-- Google sign-in in a popup (the sandbox's account sheet, public/play/guest.js): this tells the island it's done and
+       closes. Opened without a window behind it (a phone that opened a tab), it offers the way back instead. -->
+  <div><p id="t">Signed in. You can close this window.</p><p id="back" hidden><a href="/play/sandbox?claim=tour">Back to your island</a></p></div>
+  <script>
+    (function () {
+      var q = new URLSearchParams(location.search);
+      var ok = !q.get('cancelled');
+      if (!ok) document.getElementById('t').textContent = 'Sign-in cancelled. You can close this window.';
+      var told = false;
+      try { if (window.opener && !window.opener.closed) { window.opener.postMessage({ type: 'hg-auth', ok: ok }, location.origin); told = true; } } catch (e) { /* no window behind */ }
+      if (told) setTimeout(function () { try { window.close(); } catch (e) { /* fine */ } }, 250);
+      else if (ok) document.getElementById('back').hidden = false;
+    })();
+  </script>
+</body>
+</html>
