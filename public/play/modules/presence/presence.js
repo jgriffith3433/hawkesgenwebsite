@@ -717,7 +717,7 @@
   function wireFeelings() {
     const g = H.game;
     if (g) {
-      g.on('hurt', (d) => { try { const rig = d && d.entity && rigs.get(d.entity); if (rig) rig.mood.push('hurt', d); } catch {} });
+      g.on('hurt', (d) => { try { const rig = d && d.entity && rigs.get(d.entity); if (rig) { rig.mood.push('hurt', d); if ((Number(d.amount) || 0) > 0 && P.anim && P.anim.has(rig, 'hurt')) rig.emote = { def: { name: 'hurt', seconds: 0.5 }, t0: rig.time || 0, seconds: 0.5 }; } } catch {} });
       g.on('catch', (d) => { try { const rig = d && d.entity && rigs.get(d.entity); if (rig) rig.mood.push('catch', d); } catch {} });
     }
   }
