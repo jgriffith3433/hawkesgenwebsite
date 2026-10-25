@@ -150,7 +150,7 @@
     for (const tr of c.tracks) {
       const o = { q: null, p: null, s: null };
       if (tr.rot) { const e = evalKeys(tr.rot, 3, u, c.loop, c.ease); o.q = qeuler(e[0], e[1], e[2]); }
-      else if (tr.q) { const e = evalKeys(tr.q, 4, u, c.loop, c.ease === 'spline' ? 'smooth' : c.ease); o.q = qnorm(e); }
+      else if (tr.q) { const e = evalKeys(tr.q, 4, u, c.loop, c.ease); o.q = qnorm(e); } // (a spline through the keys' components, then normalised: no stop at each key; tools/mixamo-clips.mjs keeps neighbours in one hemisphere)
       if (tr.pos) o.p = evalKeys(tr.pos, 3, u, c.loop, c.ease);
       if (tr.scl) o.s = evalKeys(tr.scl, 3, u, c.loop, c.ease);
       out.set(tr.bone, o);
