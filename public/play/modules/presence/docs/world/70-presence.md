@@ -55,3 +55,5 @@ false` keeps one untagged. Scripts tag anything with `game.presence.tag(thing, '
   song starts): every player, AI friend and pet in the room dances.
 - "When you're out, watch the others" → in the game's elimination code: `game.presence.spectate('next')`; back in play:
   `game.presence.spectate(null)`.
+
+**Finding each other.** In a shared world every other player is either under a name tag, marked (a small label with their name and distance over them when they are on screen but too far for a tag), or shown as an arrow on the screen's edge pointing toward them (off screen or behind you). Tapping a marker, an arrow, a name in Who's here (Tab, 👥) or its ✦ Go button beams you next to that player. Names are filtered for everyone: an empty, link-like or abusive name (a small blocklist) shows as "Player 1234"; any player can Mute or Report another from Who's here. `config.presence.markers: false` turns the markers off.

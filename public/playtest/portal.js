@@ -17,13 +17,20 @@
 import { installPlaytest } from './hawkes-playtest.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish'];
+const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'presence'];
+// A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
+const ORDERS = { 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'] };
 const SCENARIOS = [
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
   {
     id: 'sandbox-first-minutes', title: 'Play /play/sandbox as a new player: veil, intro, mirror, sign-up, drive to the dock, fish', seconds: 210, tags: ['full'],
     starts: ['sandbox'],
     description: 'options: to (veil, intro, mirror, sheet, drive, fish), signup (false: never sign up; always off on live), fish ("strict": a fishing failure fails the run), watch (seconds of intro to watch), at ("sandbox")',
+  },
+  {
+    id: 'presence-who', title: 'A shared world: who is there (list, marker or edge arrow), tap a name to beam next to them, mute, an abusive name replaced', seconds: 230, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'Plays the first minutes to the island (a throwaway sign-up, never on live), then puts two stand-in players in the room (a second browser is not needed: presence.standIn, one far ahead, one behind with an abusive name) and plays the shared-world part with real clicks. options: signup (false: never sign up; always off on live), name, what',
   },
 ];
 
@@ -255,6 +262,54 @@ async function stageDrive(t, ctx) {
   await t.wait(2500); // Pip's line and the Overseer's
 }
 
+/** Shared world: two players in the room. The second is a stand-in (presence.standIn: a named setup shortcut, since one
+ *  browser cannot be two players); everything else is what a player does: the 👥 button, a tap on a name, Mute, Report. */
+async function stagePresence(t) {
+  const P = () => HP().presence;
+  const click = (el) => { el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' })); el.click(); };
+  await t.until(() => W() && W().player && P() && P().standIn, 30000, 'the island with its presence module');
+    const mira = P().standIn('Mira', { ahead: 45, color: '#f59e0b' });
+  const rude = P().standIn('fuck you', { ahead: -50, color: '#ef4444' });
+  if (!mira || !rude) throw new Error('could not put a second player in the room');
+  t.event('second-player', 'Mira 45 m ahead; a player with an abusive name 50 m behind');
+  await t.until(() => P().markers.length >= 2, 8000, 'a marker or an edge arrow for each other player');
+  const mk = P().markers;
+  t.event('markers', mk.map((m) => `${m.name}: ${m.mode}`).join(', '));
+  t.scene('Shared world: markers');
+  // The list: 👥 opens Who's here.
+  const btn = $('#pr-hud [data-a=people]');
+  if (!btn) throw new Error('timed out: the 👥 button is not on screen');
+  click(btn);
+  await t.until(() => $('.pr-panel:not([hidden]) .pr-row[data-id="' + mira + '"]'), 5000, "Who's here to list the other player");
+  const rows = [...document.querySelectorAll('.pr-panel .pr-row .nm')].map((n) => n.textContent);
+  t.event('people-listed', rows.join(' | '));
+  if (rows.some((n) => /fuck/i.test(n))) throw new Error('the abusive name is shown in Who\'s here: ' + rows.join(' | '));
+  t.event('name-replaced', 'the abusive name shows as a Player number');
+  t.scene("Shared world: who's here");
+  // Tap their name: beamed next to them.
+  const p0 = { x: W().player.x, z: W().player.z };
+  click($('.pr-panel .pr-row[data-id="' + mira + '"] .nm'));
+  await t.until(() => P().lastGo && Math.hypot(W().player.x - W().entities.find((e) => e.netId === mira).x, W().player.z - W().entities.find((e) => e.netId === mira).z) < 5, 6000, 'the player to be beamed next to Mira');
+  t.event('teleported', 'moved ' + Math.round(Math.hypot(W().player.x - p0.x, W().player.z - p0.z)) + ' m next to Mira');
+  await t.until(() => W().scene.meshes.some((m) => /beam/.test(m.name) && m.isEnabled()), 3000, 'the beam').then(() => t.event('beam-seen'), () => t.problem('warning', 'no beam mesh was seen'));
+  t.scene('Shared world: next to Mira');
+  await t.wait(1600);
+  // Mute her, report the other.
+  click(btn);
+  await t.until(() => $('.pr-panel:not([hidden]) .pr-row[data-id="' + mira + '"] [data-a=mute]'), 5000, "Who's here again");
+  click($('.pr-panel .pr-row[data-id="' + mira + '"] [data-a=mute]'));
+  await t.until(() => P().muted(mira), 3000, 'Mira to be muted');
+  t.event('muted', 'Mira');
+  click($('.pr-panel .pr-row[data-id="' + rude + '"] [data-a=report]'));
+  await t.until(() => P().reported(rude), 3000, 'the other player to be reported');
+  t.event('reported', 'the player with the replaced name');
+  t.scene('Shared world: muted and reported');
+  P().mute(mira, false);
+  P().removeStandIns();
+  t.progress(1);
+  await t.wait(1500);
+}
+
 async function stageFish(t, ctx) {
   const q = () => G().events.quests;
   const step = () => (q().state('tour') === 'active' ? q().step('tour') : null);
@@ -302,9 +357,9 @@ async function stageFish(t, ctx) {
 }
 
 const RUN = {
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish, presence: stagePresence,
 };
-const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish' };
+const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'presence-who': 'presence' };
 
 // ---------------------------------------------------------------------------------------------- the contract
 let api = null;
@@ -338,8 +393,9 @@ export function install() {
       t.event('plan', `${id}: ${STAGES[from]} to ${STAGES[to]}${isLive() ? ' (live: no sign-up)' : ''}`);
       let named = '';
       try {
-        for (let i = from; i <= to; i++) {
-          named = STAGES[i];
+        const seq = ORDERS[id] ? ORDERS[id].slice(ORDERS[id].indexOf(STAGES[from])) : STAGES.slice(from, to + 1);
+        for (const stage of seq) {
+          named = stage;
           if ((await RUN[named](t, ctx)) === 'stop') return;
           t.event('stage-done', named);
         }
