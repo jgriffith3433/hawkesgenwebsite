@@ -483,6 +483,8 @@
       return `<h4>Main color</h4>${sw('body', pal([own[0] || lk.body]))}
         <h4>Second color</h4>${sw('accent', pal([own[1] || lk.accent]))}
         <h4>${person ? 'Skin' : 'Details'}</h4>${sw('head', person ? C.LOOK.skins : pal([own[2] || lk.head]))}
+        ${person ? `<h4>Hair</h4><div class="mr-row">${C.LOOK.hairs.map((v) => `<button type="button" class="mr-chip ${lk.hair === v ? 'on' : ''}" data-hair="${v}">${v}</button>`).join('')}</div>${sw('hairColor', C.LOOK.hairColors)}
+        <h4>Trousers</h4>${sw('bottom', pal(['#3b4a6b']))}<h4>Shoes</h4>${sw('shoes', pal(['#f2f2ee']))}` : ''}
         <h4>Size</h4><div class="mr-row">${SIZES.map(([v, t]) => `<button type="button" class="mr-chip ${lk.shape === v ? 'on' : ''}" data-shape="${v}">${t}</button>`).join('')}</div>
         <h4>Hat</h4><div class="mr-row">${HATS.map(([v, ic, t]) => `<button type="button" class="mr-chip ${lk.hat === v ? 'on' : ''}" data-hat="${v}" title="${t}">${ic} ${t}</button>`).join('')}</div>
         ${person ? `<h4>Face</h4><div class="mr-row">${FACES.map(([v, ic, t]) => `<button type="button" class="mr-chip ${lk.face === v ? 'on' : ''}" data-face="${v}">${ic} ${t}</button>`).join('')}</div>` : ''}
@@ -518,6 +520,7 @@
     if (t.dataset.shape) return setLook({ shape: t.dataset.shape });
     if (t.dataset.hat) return setLook({ hat: t.dataset.hat });
     if (t.dataset.face) return setLook({ face: t.dataset.face });
+    if (t.dataset.hair) return setLook({ hair: t.dataset.hair });
     if (t.dataset.extra) {
       const cur = look().extras.slice();
       const i = cur.indexOf(t.dataset.extra);
@@ -527,7 +530,7 @@
     if (a === 'randomLook') {
       const r = C.randomLook();
       const lk = look();
-      return setLook({ body: r.body, accent: r.accent, head: (C.WHAT.get(lk.what) || {}).body === 'person' ? r.head : r.accent, shape: r.shape, hat: r.hat, extras: r.extras, face: r.face });
+      return setLook({ body: r.body, accent: r.accent, head: (C.WHAT.get(lk.what) || {}).body === 'person' ? r.head : r.accent, shape: r.shape, hat: r.hat, extras: r.extras, face: r.face, hair: r.hair, hairColor: r.hairColor, bottom: r.bottom, shoes: r.shoes });
     }
     if (a === 'suggest') {
       const n = MC.suggestName(look().what);

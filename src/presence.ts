@@ -31,6 +31,7 @@ export const AVATAR = {
   hats: ['none', 'cap', 'beanie', 'tophat', 'crown', 'cowboy', 'party', 'halo', 'horns', 'bunny', 'helmet', 'chef'],
   extras: ['glasses', 'shades', 'scarf', 'backpack', 'cape', 'bowtie', 'wings', 'tail'],
   faces: ['visor', 'eyes', 'smile', 'none'],
+  hairs: ['short', 'long', 'ponytail', 'curly', 'spiky', 'bun'],
   maxExtras: 3,
   // What you are (public/play/modules/presence/presence-core.js WHATS: keep the ids in step) and your character's name.
   whats: ['person', 'robot', 'tvbot', 'rollbot', 'dog', 'cat', 'fox', 'pig', 'bear', 'rabbit', 'penguin', 'chicken', 'cow', 'sheep', 'horse', 'dinosaur', 'fish', 'shoe', 'toaster', 'cactus', 'cone', 'teapot', 'banana', 'mushroom', 'potato', 'duck'],
@@ -52,9 +53,11 @@ export function cleanAvatar(v: unknown) {
   if (model !== null && (typeof model !== 'string' || !/^a_[0-9a-f]{6,40}$/.test(model))) throw new PortalError('avatar.model must be an asset id (a_...) or null');
   return {
     body: color('body', '#4a9eff'), head: color('head', '#f2c9a0'), accent: color('accent', '#ffffff'),
-    shape: one('shape', AVATAR.shapes, 'normal'), hat: one('hat', AVATAR.hats, 'none'), face: one('face', AVATAR.faces, 'visor'),
+    shape: one('shape', AVATAR.shapes, 'normal'), hat: one('hat', AVATAR.hats, 'none'), face: one('face', AVATAR.faces, 'eyes'),
     extras: [...new Set(extras as string[])], model,
     what: one('what', AVATAR.whats, 'person'),
+    // The person's hair and clothes (body is the top).
+    hair: one('hair', AVATAR.hairs, 'short'), hairColor: color('hairColor', '#4a3322'), bottom: color('bottom', '#3b4a6b'), shoes: color('shoes', '#f2f2ee'),
     // A name is only words over your head: one line, no markup, short (anything else is dropped, not refused).
     name: typeof a.name === 'string' ? a.name.replace(/[\u0000-\u001f\u007f<>]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, AVATAR.nameMax) || null : null,
   };

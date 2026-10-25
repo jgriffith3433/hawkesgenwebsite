@@ -1,9 +1,8 @@
 # Characters: the look, the movement, the budget
 
 One art direction for every body a player can be (`presence-core.js WHATS`, drawn by `presence-bodies.js`, `presence.js`
-for the person, `living/species.js` for the animals). This is the **target**. Nothing here is built yet: the bodies
-are still the stand-ins in the table at the end, and `/avatars` is the tool that shows them, side by side, so the art
-pass can be judged against this page. Tone of the world: warm, a little absurd, never scary (the Overseer is dry, the
+for the person, `living/species.js` for the animals). This is the **target**. The person is built to it (section 5b); every other body is still a stand-in in the table at the end,
+and `/avatars` is the tool that shows them, side by side, so the art pass can be judged against this page. Tone of the world: warm, a little absurd, never scary (the Overseer is dry, the
 bodies are not).
 
 ## 1. The look: a soft toy
@@ -151,6 +150,22 @@ Group notes: **people** are the style's reference (the person first, then the th
 restyle must keep their sizes and joints) and take the face, palette and rim; **things** are the funniest and the most
 at risk: the silhouette stays the object (a shoe is a shoe) and the character is a face plus short legs, never a mascot
 with an object printed on it.
+
+## 5b. The person, after
+
+`presence-person.js` (the look: `hair`, `hairColor`, `bottom`, `shoes` besides `body` = top, `head` = skin; tones from `core.palette(look)`).
+Measured by `tools/avatar-stats.ts`:
+
+| | before | after | target / hard limit |
+|---|---|---|---|
+| Triangles | 6,592 | about 2,350 (2,050 to 2,500 by hair) | 3,000 / 4,000 (hero) |
+| Draw calls | 13 | 8 | 7 (hero): one over, from the five moving pieces (legs, arms, hair) plus torso, head and face |
+| Materials | 5 | 1 (shared, vertex colors, rim light) | 1 |
+| Height | 1.66 m | 1.85 m with hair (the body 1.8 m) | 1.8 m |
+
+Face: eyes 0.115 wide with big pupils and a highlight, lids, brows, a mouth with five numbers; seven expressions; blinks every
+2.5 to 6 s. Poses: idle (breathes, looks around, shifts weight), walk, run, jump (crouch, stretch, tuck, landing squash with an
+overshoot), fall, swim, drive, with hair and shirt on springs. The other bodies are unchanged.
 
 ## 6. Not decided here
 
