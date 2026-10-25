@@ -119,3 +119,29 @@ test('sandbox: the tour tracker shows the step, the count, a hint after 20 s and
   // (The quest module's screen-edge arrow needs a real DOM's lastChild: the fake one has none.)
   assert.deepEqual([...errors, ...errorBox()].filter((e) => !/^quests: .*textContent/.test(e)), []);
 });
+
+test('sandbox: the account sheet shows who they are and the Overseer asks, in its voice', () => {
+  assert.match(Guest ? sandboxCtx.window.HawkesGuestCore.sheetLine('Toast') : '', /^Toast\. .*Tell me where to find you, and I will keep this world for you\.$/);
+  const line = sandboxCtx.window.HawkesGuestCore.sheetLine('');
+  assert.match(line, /Tell me where to find you/);
+  assert.doesNotMatch(line, /!|\bmust\b|\bshould\b|credit|\bbecause\b/i);
+  assert.equal(sandboxCtx.window.HawkesGuestCore.sheetLine('<b>x</b>').includes('<'), false);
+  start();
+  H.presence.setLook && H.presence.setLook({ what: 'penguin', body: '#112233', name: 'Waddle' });
+  const who = sandboxCtx.window.HawkesGuestCore.character(H);
+  assert.equal(who.label, 'A penguin');
+  assert.equal(who.name, 'Waddle');
+  assert.equal(who.color, '#112233');
+});
+
+test('sandbox: the sheet holds the game still (controls, keys and sounds) and gives it back', () => {
+  const src = guestSrc;
+  assert.match(src, /function lockGame/);
+  assert.match(src, /p\.controls = false/);
+  assert.match(src, /H\.audio\.hold\('guest-sheet', true\)/);
+  assert.match(src, /stopImmediatePropagation/);
+  assert.match(src, /const close = \(\) => \{ unlock\(\)/);
+  // The engine's hold is a no-op without WebAudio (Node), and reports itself.
+  assert.equal(H.audio.hold('t', true), true);
+  assert.equal(H.audio.hold('t', false), false);
+});
