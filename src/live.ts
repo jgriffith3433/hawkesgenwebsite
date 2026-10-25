@@ -11,6 +11,7 @@ const rooms = new Map<string, Map<string, Conn>>();
 // Streams are long-lived, so they are capped: PORTAL_LIVE_PER_USER (6) for one account, PORTAL_LIVE_MAX (2000) in all.
 export const liveCaps = () => ({ perUser: envInt(env, 'PORTAL_LIVE_PER_USER', 6), total: envInt(env, 'PORTAL_LIVE_MAX', 2000) });
 let streams = 0;
+export const liveStats = () => ({ streams, users: streamsByUser.size });
 const streamsByUser = new Map<string, number>();
 
 // Every durable event gets an id `<boot>-<n>` and the last few of a game are kept, so a stream that drops and comes back
