@@ -8,23 +8,41 @@
   <link rel="stylesheet" href="/public.css">
   <link rel="stylesheet" href="/site.css">
   <link rel="stylesheet" href="/builder.css">
+  <link rel="stylesheet" href="/overseer-sky.css">
   <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
   <script src="/site-analytics.js"></script>
   <script src="/sitenav.js" defer></script>
 </head>
-<body class="landing">
-  <header class="bar">
-    <a class="hg-brand" href="/"><img src="/favicon.svg" alt=""><span>Hawkes Gen</span></a>
-    <nav class="hg-nav-links" data-site-nav><a href="/games">Games</a><a href="/community">Community library</a><a href="/entities">Engine codex</a><a href="/app/studio">Asset Studio</a><a href="/#pricing">Pricing</a><a href="/connect">For developers</a></nav>
-    <a class="btn btn-ghost btn-sm" href="/app">Your games</a>
-    <a class="btn btn-primary btn-sm" href="/app" id="startBuilding" data-open-auth="signup">Start building</a>
+<body class="landing at-sky">
+  <header class="hg-navbar">
+    <div class="wrap hg-navbar-inner">
+      <a href="/" class="hg-brand"><span class="wordmark">Hawkes Gen</span></a>
+      <nav class="hg-nav-links" data-site-nav><a href="/games">Games</a><a href="/community">Community library</a><a href="/entities">Engine codex</a><a href="/app/studio">Asset Studio</a><a href="/#pricing">Pricing</a><a href="/connect">For developers</a></nav>
+      <div class="hg-nav-actions">
+        <a class="btn btn-ghost" href="/app">Your games</a>
+        <a class="btn btn-primary" href="/app" id="startBuilding" data-open-auth="signup">Start building</a>
+      </div>
+    </div>
   </header>
 
-  <main class="page">
+  <main>
+    <section class="sky sky-games" data-sky aria-label="The Overseer over the games' planets">
+      <canvas aria-hidden="true"></canvas>
+      <div class="sky-say" data-sky-say aria-live="polite"></div>
+      <div class="sky-inner">
+        <div class="sky-eyebrow">Hawkes Gen</div>
+        <h1>Play games</h1>
+        <p class="lede">Made by people like you, with friends and AI. Each featured game is a world from the Overseer: pick one and play, or remix it into your own.</p>
+        <div class="planets" id="featuredGrid" aria-label="Featured games"></div>
+        <div class="sky-count" id="liveCount" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <div class="page">
     <div class="gallery-head">
       <div>
-        <h1>Play games</h1>
-        <p class="lede">Made by people like you, with friends and AI.</p>
+        <h2 class="gallery-title">Made by players</h2>
+        <p class="muted" style="margin:4px 0 0">Playable right now in your browser. Remix any of them to make your own copy.</p>
       </div>
       <div class="segmented">
         <button type="button" class="on" data-sort="live">Live now</button>
@@ -33,14 +51,11 @@
       </div>
     </div>
 
-    <div class="section-row" id="featuredHead"><div><h2>Featured</h2><p class="muted" style="margin:4px 0 0">Games from the Overseer. Play them now, or remix one into your own.</p></div></div>
-    <div class="game-grid" id="featuredGrid"></div>
-
-    <div class="section-row"><h2>Made by players</h2></div>
     <div class="game-grid" id="gameGrid"></div>
 
     <div id="empty" class="empty" hidden>
       No games yet. <a href="/app">Be the first to build one!</a>
+    </div>
     </div>
   </main>
 
@@ -76,6 +91,7 @@
   </div>
 
   <script type="module" src="/gallery.js"></script>
+  <script src="/overseer-sky.js"></script>
   <script src="/enter.js"></script>
 </body>
 </html>
