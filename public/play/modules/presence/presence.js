@@ -285,27 +285,8 @@
       return rig;
     }
     rig.what = 'person';
-    rig.hipL = joint('hipL', [0.11, -0.36, 0]); rig.hipR = joint('hipR', [-0.11, -0.36, 0]);
-    // A soft figure, not blocks: capsule limbs, a tapered rounded torso, a round head, round hands and little shoes.
-    const capsule = (r, h) => (sc) => B.MeshBuilder.CreateCapsule('c', { radius: r, height: h, tessellation: 12, subdivisions: 2 }, sc);
-    part(rig, 'legL', capsule(0.085, 0.56), rig.hipL, [0, -0.27, 0], shade(body, -0.35));
-    part(rig, 'legR', capsule(0.085, 0.56), rig.hipR, [0, -0.27, 0], shade(body, -0.35));
-    part(rig, 'footL', box(0.15, 0.08, 0.24), rig.hipL, [0, -0.53, 0.04], shade(body, -0.6));
-    part(rig, 'footR', box(0.15, 0.08, 0.24), rig.hipR, [0, -0.53, 0.04], shade(body, -0.6));
-    rig.torso = part(rig, 'torso', (sc) => { const m = B.MeshBuilder.CreateCylinder('t', { diameterTop: 0.5, diameterBottom: 0.38, height: 0.62, tessellation: 16 }, sc); m.scaling.z = 0.62; m.bakeCurrentTransformIntoVertices(); return m; }, pose, [0, -0.03, 0], body);
-    part(rig, 'shoulders', (sc) => { const m = B.MeshBuilder.CreateSphere('s', { diameter: 0.5, segments: 12 }, sc); m.scaling.set(1, 0.36, 0.62); m.bakeCurrentTransformIntoVertices(); return m; }, pose, [0, 0.27, 0], body);
-    rig.neck = joint('neck', [0, 0.29, 0]);
-    rig.head = part(rig, 'head', (sc) => { const m = B.MeshBuilder.CreateSphere('h', { diameter: 0.42, segments: 16 }, sc); m.scaling.set(1, 1.06, 0.98); m.bakeCurrentTransformIntoVertices(); return m; }, rig.neck, [0, 0.22, 0], head);
-    rig.shL = joint('shL', [0.31, 0.24, 0]); rig.shR = joint('shR', [-0.31, 0.24, 0]);
-    part(rig, 'armL', capsule(0.07, 0.54), rig.shL, [0, -0.26, 0], body);
-    part(rig, 'armR', capsule(0.07, 0.54), rig.shR, [0, -0.26, 0], body);
-    part(rig, 'handL', ball(0.15, 10), rig.shL, [0, -0.56, 0], head);
-    part(rig, 'handR', ball(0.15, 10), rig.shR, [0, -0.56, 0], head);
-    // The face: which way they look.
-    const hd = rig.neck, fy = 0.24, fz = 0.205;
-    if (look.face === 'visor') part(rig, 'visor', box(0.36, 0.11, 0.03), hd, [0, fy, fz], acc === '#ffffff' ? '#d8f3ff' : acc, true);
-    if (look.face === 'eyes' || look.face === 'smile') { part(rig, 'eyeL', ball(0.07, 8), hd, [0.08, fy + 0.03, fz - 0.03], '#111827'); part(rig, 'eyeR', ball(0.07, 8), hd, [-0.08, fy + 0.03, fz - 0.03], '#111827'); }
-    if (look.face === 'smile') part(rig, 'mouth', box(0.16, 0.03, 0.02), hd, [0, fy - 0.09, fz], '#7f1d1d');
+    // The soft toy person (presence-person.js): a rounded body, a big head with a face, hair, clothes in the look's colors.
+    P.softPerson.build(rig, look, { joint, part, box });
     hat(rig, look.hat, acc, body);
     for (const x of look.extras) extra(rig, x, acc, body);
     if (look.model) loadModel(rig, look.model);
@@ -457,6 +438,7 @@
     r.hipL.rotation.set(swing, 0, 0); r.hipR.rotation.set(-swing, 0, 0);
     r.shL.rotation.set(-swing * 0.8, 0, 0.06); r.shR.rotation.set(swing * 0.8, 0, -0.06);
     r.neck.rotation.set(0, 0, 0);
+    if (rig.person) P.softPerson.animate(rig, dt, em); // its own pose, springs and face (the emotes below go on top)
     if (rig.cape) rig.cape.rotation.x = 0.12 + s * 0.5;
     if (rig.tail) rig.tail.rotation.y = Math.sin(t * 3) * 0.3;
     if (rig.wings) { rig.wings[0].rotation.y = 0.5 + Math.sin(t * 2) * 0.1; rig.wings[1].rotation.y = -0.5 - Math.sin(t * 2) * 0.1; }

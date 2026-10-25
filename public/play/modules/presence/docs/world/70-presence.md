@@ -18,7 +18,7 @@ changes it through `config.presence`.
 - **Looks:** every player is what they chose at a mirror ("The mirror": a person, an animal, a robot, a shoe...) with a
   name over their head, dressed up (the editor's profile menu has "Change who you are": the mirror's questions anywhere): body, skin and accent
   colors, a shape (normal, tall, short, wide, tiny, big), a hat (cap, beanie, tophat, crown, cowboy, party, halo, horns,
-  bunny, helmet, chef), a face (visor, eyes, smile) and up to three extras (glasses, shades, scarf, backpack, cape,
+  bunny, helmet, chef), a face (eyes, smile, visor, none: the person has a real one, eyes that follow and blink, brows, a mouth), hair (short, long, ponytail, curly, spiky, bun) and clothes colors (top, bottom, shoes) and up to three extras (glasses, shades, scarf, backpack, cape,
   bowtie, wings, tail). Or a model, by a community model's asset id (its animations named wave, dance... play the
   emotes). Signed-in players keep their look in every game; guests get a random fun one.
 - **Who's here** (Tab, or 👥): everyone in the room, friends first, the host marked; + Friend (a request; friends once

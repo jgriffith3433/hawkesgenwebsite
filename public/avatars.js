@@ -5,6 +5,7 @@
 // Screenshot mode, for a playtest or a review:  /avatars?body=shoe&pose=idle&bg=night
 //   body  an id from WHATS, or "all" (a contact sheet)       pose  idle walk run jump fall swim drive, or an emote (wave dance ...)
 //   bg    day night studio grass                              face  visor eyes smile none (the person's)
+//   expr  neutral happy surprised sad angry sleepy mischief    hair  short long ponytail curly spiky bun (the person's)
 //   hat, shape, c1 c2 c3 (hex without #: body, accent, detail)   t  seconds into the motion to freeze at (default 1.2)
 //   turn=1 turntable   live=1 keep moving instead of freezing   ui=1 keep the controls
 // The page sets document.body.dataset.ready ('true', or 'error') and window.avatarsReady when the picture is final.
@@ -37,6 +38,8 @@ const state = {
   bg: BGS[q.get('bg')] ? q.get('bg') : shot ? 'night' : 'studio',
   turn: shot ? q.get('turn') === '1' : q.get('turn') !== '0',
   face: C && C.LOOK.faces.includes(q.get('face')) ? q.get('face') : 'eyes',
+  expr: C && C.EXPRESSIONS[q.get('expr')] ? q.get('expr') : null,
+  hair: C && C.LOOK.hairs.includes(q.get('hair')) ? q.get('hair') : 'short',
   hat: C && C.LOOK.hats.includes(q.get('hat')) ? q.get('hat') : 'none',
   shape: C && C.LOOK.shapes.includes(q.get('shape')) ? q.get('shape') : 'normal',
   colors: null, // [body, accent, detail] picked; null = the body's own
@@ -86,7 +89,7 @@ const stand = (x = 0) => { const node = new BABYLON.TransformNode('av-stand', sc
 function lookFor(id, colors) {
   const w = C.WHAT.get(id);
   const c = colors || w.colors;
-  return C.cleanLook({ what: id, body: c[0], accent: c[1], head: c[2], face: state.face, hat: state.hat, shape: state.shape });
+  return C.cleanLook({ what: id, body: c[0], accent: c[1], head: c[2], face: state.face, hat: state.hat, shape: state.shape, hair: state.hair });
 }
 let cur = null; // { e, rig, t, stats }
 function build() {
@@ -124,9 +127,13 @@ function step(dt) {
   const em = EMOTES.includes(state.pose) ? C.emote(state.pose) : null;
   if (em && !rig.emote) rig.emote = { def: em, t0: rig.time || 0, seconds: em.loop ? undefined : em.seconds };
   if (!em && rig.emote) rig.emote = null;
+  // The person has every pose of its own (presence-person.js, played here on a loop); the other bodies get the approximations.
+  rig.forcePose = rig.person && POSES.includes(state.pose) ? state.pose : null;
+  rig.exprName = state.expr;
+  if (rig.person && state.expr) rig.person.rest = state.expr;
   P.showcase.animate(rig, dt);
-  rig.pose.scaling.set(1, 1, 1);
-  if (POSES.includes(state.pose)) overlay(rig, state.pose, cur.t);
+  if (!rig.person) rig.pose.scaling.set(1, 1, 1);
+  if (!rig.person && POSES.includes(state.pose)) overlay(rig, state.pose, cur.t);
 }
 
 // ------------------------------------------------------------------ what a body costs, against docs/characters.md
@@ -151,7 +158,10 @@ function refreshUi() {
   $('emotes').replaceChildren(...EMOTES.map((p) => button(p, state.pose === p, () => { state.pose = p; state.freeze = false; if (cur) cur.rig.emote = null; refreshUi(); })));
   const person = w.body === 'person';
   $('faces').replaceChildren(...C.LOOK.faces.map((f) => { const b = button(f, state.face === f, () => { state.face = f; build(); }); b.disabled = !person; return b; }));
-  $('faceNote').textContent = person ? 'The person\'s face. Every other body has one fixed face today: docs/characters.md gives all of them one mouth and brow system.' : 'This body\'s face is fixed today (only the person\'s can change). That is the gap the art direction closes.';
+  const EXPRS = Object.keys(C.EXPRESSIONS);
+  $('exprs').replaceChildren(...EXPRS.map((x) => { const b = button(x, (state.expr || 'neutral') === x, () => { state.expr = x; refreshUi(); }); b.disabled = !person; return b; }));
+  $('hairs').replaceChildren(...C.LOOK.hairs.map((x) => { const b = button(x, state.hair === x, () => { state.hair = x; build(); }); b.disabled = !person; return b; }));
+  $('faceNote').textContent = person ? 'The person\'s face: eyes that follow and blink, brows and a mouth. Every other body has one fixed face today: docs/characters.md gives all of them the same system.' : 'This body\'s face is fixed today (only the person\'s can change). That is the gap the art direction closes.';
   $('camera').replaceChildren(
     button(state.turn ? 'Turntable on' : 'Turntable off', state.turn, () => { state.turn = !state.turn; refreshUi(); }),
     button('Front', false, () => { state.turn = false; cam.alpha = -Math.PI / 2; refreshUi(); }),
@@ -164,7 +174,7 @@ function refreshUi() {
 }
 function pick(id, replace = true) {
   if (!C.WHAT.has(id)) return;
-  state.id = id; state.colors = null; state.face = 'eyes';
+  state.id = id; state.colors = null; state.face = 'eyes'; state.expr = null;
   if (replace) history.replaceState(null, '', `#${id}`);
   build();
 }
