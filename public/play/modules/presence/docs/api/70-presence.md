@@ -7,9 +7,11 @@ Name tags, chat, emotes, looks and spectating for scripts. `game.presence` is th
 |---|---|
 | `presence.say(text)` | says something in game chat as this player: a bubble over your head for everyone, in the chat log. False if too soon (a few lines per 10 s) |
 | `presence.say(thing, text)` | a bubble over any thing (the same as `thing.say(text)`) |
-| `presence.emote(name)` | plays an emote on your avatar for everyone: `wave dance cheer laugh point sit sleep clap thumbsup heart` (also "hi", "lol", "thumbs up"...) |
+| `presence.emote(name)` | plays an emote on your avatar for everyone: `wave laugh cheer shrug dance point sit sleep clap thumbsup heart` (also "hi", "lol", "thumbs up"...) |
 | `presence.emote(name, 'all')` | everyone in the room does it (players, AI friends and pets) |
 | `presence.emote(name, thing)` | a thing does it (AI friends and creatures act it out; scene things are synced) |
+| `presence.feel(event, data, thing?)` | gives a body a feeling for a moment: `'land'` `{ speed }`, `'explosion'` `{ dist, radius }`, `'hurt'` `{ amount }`, `'catch'`, `'talk'` `{ seconds }` (the engine does these itself) |
+| `presence.face(thing?)` | what a face shows now: `{ mood, emote, shows, talking, gaze }` |
 | `presence.emotes()` | the list: `[{ name, icon, label, loop }]` |
 | `presence.tag(thing, text, { color, kind })` | a name tag on anything (`kind`: npc, pet, ai, thing); `presence.tag(thing, null)` removes it |
 | `presence.players()` | everyone here, you first then friends: `[{ id, name, me, friend, host, typing, muted, user, entity }]` |

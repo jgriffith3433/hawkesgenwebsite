@@ -329,14 +329,17 @@
   function stepFace(rig, F, dt, exprName, extra) {
     const t = rig.time || 0, scene = rig.scene;
     let ax = null, ay = 0;
-    const target = rig.lookTarget || (scene && scene.activeCamera ? (scene.activeCamera.globalPosition || scene.activeCamera.position) : null);
+    const spec = C().faceSpec(rig.what), md = rig.mood;
+    const gz = C().gazeTarget({ speaking: Boolean(rig.overseerSpeaking), overseer: rig.overseerAt, explicit: rig.lookTarget, others: rig.others, camera: scene && scene.activeCamera ? (scene.activeCamera.globalPosition || scene.activeCamera.position) : null });
+    const target = gz ? gz.pos : null;
     if (target && F.j.getWorldMatrix) {
       try {
         F.j.getWorldMatrix().invertToRef(F.tmpM);
         const tv = Array.isArray(target) ? new B.Vector3(target[0], target[1], target[2]) : target;
         B.Vector3.TransformCoordinatesToRef(tv, F.tmpM, F.tmpV);
         const v = F.tmpV, d = Math.hypot(v.x, v.y, v.z);
-        if (d > 0.05 && d < 40 && v.z > 0.05 * d) { ax = Math.atan2(v.x, v.z); ay = Math.atan2(v.y, Math.hypot(v.x, v.z)); }
+        if (gz.kind === 'overseer') { if (d > 0.05) { ax = Math.atan2(v.x, Math.abs(v.z) < 1e-3 ? 1e-3 : v.z); ay = Math.atan2(v.y, Math.hypot(v.x, v.z)); } }
+        else if (d > 0.05 && d < 40 && v.z > 0.05 * d) { ax = Math.atan2(v.x, v.z); ay = Math.atan2(v.y, Math.hypot(v.x, v.z)); }
       } catch { ax = null; }
     }
     const G = F.gaze;
@@ -346,20 +349,14 @@
       ax = G.wx; ay = G.wy;
     }
     G.x += (clamp(ax, -1.2, 1.2) - G.x) * Math.min(1, dt * 9); G.y += (clamp(ay, -0.8, 0.8) - G.y) * Math.min(1, dt * 9);
-    const Bk = F.blink;
-    if (Bk.start < 0 && t >= Bk.next) { Bk.start = t; Bk.dbl = Math.random() < 0.15; }
-    let blink = 0;
-    if (Bk.start >= 0) {
-      const d = t - Bk.start;
-      blink = d < 0.08 ? d / 0.08 : d < 0.11 ? 1 : d < 0.23 ? 1 - (d - 0.11) / 0.12 : 0;
-      if (d >= 0.23) { Bk.start = -1; Bk.next = Bk.dbl ? t + 0.12 : t + 2.5 + Math.random() * 3.5; Bk.dbl = false; }
-    }
+    const blink = spec.blink ? C().blinkStep(F.blink, t) : 0;
     const tgt = C().EXPRESSIONS[exprName] || C().EXPRESSIONS.neutral, cur = F.expr, k = Math.min(1, dt / 0.15);
     for (const key of Object.keys(tgt)) cur[key] += (tgt[key] - cur[key]) * k;
+    const shown = C().shape(cur, spec.gain), talk = md && md.talking() && spec.talk ? C().talkOpen(t) : 0;
     const st = {
-      gx: clamp(G.x / 0.7, -1, 1), gy: clamp(G.y / 0.5, -1, 1), lid: Math.max(cur.lid, blink, (extra && extra.lid) || 0),
-      open: cur.open + ((extra && extra.open) || 0), smile: cur.smile, width: cur.width, raise: cur.raise, tilt: cur.tilt,
-      pupil: exprName === 'surprised' ? 0.82 : 1, heart: Boolean(extra && extra.heart),
+      gx: clamp(G.x / 0.7, -1, 1), gy: clamp(G.y / 0.5, -1, 1), lid: Math.max(shown.lid, blink, (extra && extra.lid) || 0),
+      open: shown.open + talk + ((extra && extra.open) || 0), smile: shown.smile, width: shown.width, raise: shown.raise, tilt: shown.tilt,
+      pupil: exprName === 'surprised' || exprName === 'scared' ? 0.82 : 1, heart: Boolean(extra && extra.heart),
     };
     const key = [st.gx, st.gy, st.lid, st.open, st.smile, st.width, st.raise, st.tilt, st.pupil, st.heart ? 1 : 0].map((v) => (typeof v === 'number' ? Math.round(v * 200) : v)).join(',');
     if (key === F.key) return;
@@ -917,6 +914,7 @@
     if (gu >= 0 && th.gagFace) expr = th.gagFace;
     if (su >= 0 && th.sigFace) expr = th.sigFace;
     if (!ef && gu < 0 && su < 0 && rig.forcePose && C().POSE_FACE[rig.forcePose]) expr = C().POSE_FACE[rig.forcePose];
+    if (rig.mood) { rig.mood.tick(dt); const mf = rig.mood.face(); if (mf) expr = mf; else if (!ef && gu < 0 && su < 0 && expr === th.F.rest) expr = C().restFace(expr, th.idleT); }
     const fx = th.faceExtra ? th.faceExtra(c) : null;
     stepFace(rig, th.F, dt, bu >= 0 && th.bootFace ? th.bootFace : expr, { open: th.F.open || 0, heart: th.F.heart, gaze: th.gaze || null, lid: fx && fx.lid });
   }

@@ -266,7 +266,7 @@
   function makeRig(e, look, color) {
     const w = W();
     const scene = w.scene;
-    const rig = { e, scene, look, meshes: [], lookKey: JSON.stringify(look) + color, emote: null, phase: 0, last: null, speed: 0, model: null };
+    const rig = { e, scene, look, meshes: [], lookKey: JSON.stringify(look) + color, emote: null, phase: 0, last: null, speed: 0, model: null, mood: C.mood() };
     const root = new B.TransformNode('pr-rig', scene);
     root.parent = e.node;
     rig.root = root;
@@ -616,6 +616,7 @@
     r.hipL.rotation.set(swing, 0, 0); r.hipR.rotation.set(-swing, 0, 0);
     r.shL.rotation.set(-swing * 0.8, 0, 0.06); r.shR.rotation.set(swing * 0.8, 0, -0.06);
     r.neck.rotation.set(0, 0, 0);
+    feedFace(rig, t);
     if (rig.person) P.softPerson.animate(rig, dt, em); // its own pose, springs and face (the emotes below go on top)
     if (rig.cape) rig.cape.rotation.x = 0.12 + s * 0.5;
     if (rig.tail) rig.tail.rotation.y = Math.sin(t * 3) * 0.3;
@@ -643,6 +644,7 @@
       }
       case 'cheer': r.shR.rotation.set(0, 0, -2.85 + o * 0.1); r.shL.rotation.set(0, 0, 2.85 - o * 0.1); r.pose.position.y = Math.abs(Math.sin(k * 7)) * 0.16; break;
       case 'laugh': r.pose.rotation.x = -0.22 + Math.sin(k * 26) * 0.05; r.shL.rotation.set(-0.7, 0, 0.3); r.shR.rotation.set(-0.7, 0, -0.3); r.neck.rotation.x = -0.25; break;
+      case 'shrug': r.shL.rotation.set(0, 0, 0.9 + o * 0.03); r.shR.rotation.set(0, 0, -0.9 - o * 0.03); r.pose.position.y = Math.max(0, Math.sin(Math.min(k, 0.5) * 6.3)) * 0.05; r.neck.rotation.z = Math.sin(k * 2.2) * 0.16; r.neck.rotation.x = -0.05; break;
       case 'point': r.shR.rotation.set(-1.55, 0, 0); r.neck.rotation.x = 0.05; break;
       case 'sit': r.pose.position.y = -0.4; r.hipL.rotation.x = -1.5; r.hipR.rotation.x = -1.5; r.shL.rotation.set(-0.5, 0, 0.1); r.shR.rotation.set(-0.5, 0, -0.1); break;
       case 'sleep': r.pose.rotation.z = 1.45; r.pose.position.y = -0.62; r.shL.rotation.set(0, 0, 0.15); r.shR.rotation.set(0, 0, -0.15); r.neck.rotation.z = 0.1 * Math.sin(k); break;
@@ -661,6 +663,52 @@
     if (want) want.start(true);
     return Boolean(want);
   }
+
+  // ------------------------------------------------------------------ faces: what they feel and look at (presence-core.js feel, mood, gazeTarget)
+  let facePeers = [], facePeersAt = -1;
+  /** Gives a rig what its face needs this frame: whether the Overseer is speaking and where it is, and the other players near. */
+  function feedFace(rig, t) {
+    const speaking = Boolean(H.speech && H.speech.busy);
+    rig.overseerSpeaking = speaking;
+    rig.overseerAt = speaking && H.overseer && H.overseer.position ? H.overseer.position : null;
+    if (t - facePeersAt > 0.25 || t < facePeersAt) { // one list for every rig, four times a second
+      facePeersAt = t; facePeers = [];
+      for (const e of rigs.keys()) if (e && e.alive && (e.isPlayer || e.remotePlayer)) facePeers.push(e);
+    }
+    const out = [], me = rig.e;
+    for (const o of facePeers) if (o !== me) out.push({ pos: [o.x, o.y + 1.5, o.z], dist: Math.hypot(o.x - me.x, o.y - me.y, o.z - me.z) });
+    rig.others = out;
+  }
+  /** Something happened to a body: P.feel('hurt', { amount: 5 }) for me, P.feel('land', { speed: 12 }, entity) for another thing. */
+  P.feel = (event, d, who) => {
+    const p = who || (W() && W().player), rig = p && rigs.get(p);
+    return rig && rig.mood ? rig.mood.push(event, d) : false;
+  };
+  /** The face a body wears now ('neutral', 'happy', ...) or null: what the mood says, else the emote's. For the playtest and tools. */
+  P.face = (who) => {
+    const p = who || (W() && W().player), rig = p && rigs.get(p);
+    if (!rig) return null;
+    const f = rig.mood && rig.mood.face();
+    const em = rig.emote && rig.emote.def && C.EMOTE_FACE[rig.emote.def.name];
+    const pp = rig.person || (rig.thing && rig.thing.F);
+    const cur = pp && pp.expr;
+    return { mood: f || null, emote: rig.emote && rig.emote.def ? rig.emote.def.name : null, shows: f || em || (pp && pp.rest) || 'neutral', talking: Boolean(rig.mood && rig.mood.talking()), gaze: (rig.person && rig.person.gazeKind) || null, blinks: (rig.person && rig.person.blinks) || 0, open: cur ? cur.open : null };
+  };
+  const nearestRigs = (pos, radius) => { const out = []; for (const [e, rig] of rigs) { const d = Math.hypot(e.x - pos[0], e.y - pos[1], e.z - pos[2]); if (d <= radius) out.push({ rig, dist: d }); } return out; };
+  function wireFeelings() {
+    const g = H.game;
+    if (g) {
+      g.on('hurt', (d) => { try { const rig = d && d.entity && rigs.get(d.entity); if (rig) rig.mood.push('hurt', d); } catch {} });
+      g.on('catch', (d) => { try { const rig = d && d.entity && rigs.get(d.entity); if (rig) rig.mood.push('catch', d); } catch {} });
+    }
+  }
+  if (H.physics && H.physics.on) H.physics.on('explosion', (ev) => {
+    try {
+      const p = ev && ev.position; if (!p) return;
+      const pos = Array.isArray(p) ? p : [p.x, p.y, p.z];
+      for (const { rig, dist } of nearestRigs(pos, Math.max(ev.radius || 4.5, 6) * 4)) rig.mood.push('explosion', { dist, radius: ev.radius });
+    } catch (err) { H.report(err, 'presence'); }
+  });
 
   // ------------------------------------------------------------------ emotes: played on everyone's screen
   const reactions = new Map(); // person key -> { icon, until, loop }
@@ -732,6 +780,7 @@
     if (pr && isMuted(pr)) return;
     const name = pr ? pr.name : 'Someone';
     if (on('bubbles') && key !== 'me') bub.say(key, text, now());
+    if (pr && pr.entity && rigs.get(pr.entity)) rigs.get(pr.entity).mood.push('talk', { seconds: C.bubbleSeconds ? C.bubbleSeconds(text) : 2 });
     emit('say', { key, name, text, me: key === 'me', friend: pr ? pr.kind === 'friend' : false, color: pr && pr.color });
     try { if (H.game) H.game.emit('chat', { name, text, me: key === 'me', player: pr ? pr.conn || 'me' : null }); } catch {}
   }
@@ -1079,6 +1128,7 @@
   H.hooks.world.push({
     enter(w) {
       loadMe();
+      wireFeelings();
       if (H.game && !('presence' in H.game)) try { Object.defineProperty(H.game, 'presence', { value: P, configurable: true, enumerable: false }); } catch {}
       peopleAt = -Infinity;
       // The gallery's Spectate: /play/<slug>?spectate=1 enters as a floating camera, once the player is there.

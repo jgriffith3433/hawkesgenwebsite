@@ -22,9 +22,9 @@
 import { installPlaytest } from './hawkes-playtest.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'race', 'board', 'journal', 'touch', 'leave', 'back'];
+const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'race', 'board', 'journal', 'faces', 'touch', 'leave', 'back'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'] };
+const ORDERS = { 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'] };
 const SCENARIOS = [
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
   {
@@ -66,6 +66,11 @@ const SCENARIOS = [
     id: 'sandbox-return', title: 'A second visit: no intro and no mirror, beamed in and welcomed back by name, the tour where it stopped', seconds: 330, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first visit as a new player (veil, intro, mirror, account sheet with a throwaway sign-up, then driving to the dock: the tour is on its second step), in that order; then the page is opened again as a returning player would (the same browser storage). It checks that the intro and the mirror do not play, that the player is beamed in and the Overseer says "Welcome back, <name>", and that Pip\'s tour is on the step it was left on (not the first). Never on live (no sign-up there). options as sandbox-first-minutes',
+  },
+  {
+    id: 'faces-and-emotes', title: 'Faces and emotes: the character blinks, looks at the Overseer when it speaks, changes expression on a hard landing and an explosion; the six emotes from the radial wheel (desktop or touch), seen by another player', seconds: 240, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the island (a throwaway sign-up, never on live), then: blinks counted over a few seconds; the Overseer asked to say a line (named setup shortcut) and the gaze checked; a drop from height (named setup shortcut: the player lifted, the fall and landing are the game\'s) and a blast beside the player (named setup shortcut) with the face read each time; then the emote wheel opened from its button and the six emotes (wave, laugh, cheer, shrug, dance, point) clicked, each checked on the player and on a stand-in second player (presence.standIn; the remote emote handed to the same handler a real peer\'s message uses). options as sandbox-first-minutes, plus touch (true: ?touch=1, taps as touch pointers)',
   },
   {
     id: 'presence-who', title: 'A shared world: who is there (list, marker or edge arrow), tap a name to beam next to them, mute, an abusive name replaced', seconds: 230, tags: ['full'],
@@ -349,6 +354,75 @@ async function stagePresence(t) {
   P().removeStandIns();
   t.progress(1);
   await t.wait(1500);
+}
+
+/** Faces and emotes (docs/characters.md, presence-core.js feel / mood / gazeTarget): blink, gaze at the Overseer while it speaks, a
+ *  hard landing and an explosion change the face, six emotes from the radial wheel, seen by a second player. Named setup
+ *  shortcuts: the Overseer is asked for a line, the player is lifted so the fall is real, the blast is set off, the second player
+ *  is a stand-in and its emote goes to the handler a peer's message would. */
+async function stageFaces(t, ctx) {
+  const P = () => HP().presence;
+  const touch = Boolean(ctx.options.touch);
+  const hit = (el) => { el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: touch ? 'touch' : 'mouse' })); el.click(); };
+  releaseAll();
+  await t.until(() => W() && W().player && W().player.alive && P() && P().face && P().face(), 60000, 'the player\'s body with its face');
+  if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
+  // 1. it blinks
+  const b0 = P().face().blinks;
+  await t.until(() => P().face().blinks > b0, 12000, 'the character to blink');
+  t.event('blinked', `${P().face().blinks - b0} blink${P().face().blinks - b0 > 1 ? 's' : ''}`);
+  t.scene('Face: blinking');
+  // 2. it looks at the Overseer when it speaks
+  t.event('setup-shortcut', 'the Overseer asked to say a line');
+  HP().speech.say({ text: 'Hello again. Look up, if you like.', priority: 'important' });
+  await t.until(() => P().face().gaze === 'overseer', 6000, 'the character to look at the Overseer while it speaks');
+  t.event('looked-at-overseer', 'gaze: overseer');
+  t.scene('Face: looking at the Overseer');
+  await t.until(() => !HP().speech.busy, 20000, 'the Overseer to finish').catch(() => {});
+  // 3. a hard landing
+  const p = W().player;
+  t.event('setup-shortcut', 'the player lifted 30 m (the fall and the landing are the game\'s)');
+  p.position = [p.x, p.y + 30, p.z]; p.velocity = [0, 0, 0];
+  let seen = '';
+  await t.until(() => { const m = P().face().mood; if (m) seen = m; return Boolean(m); }, 9000, 'a face for the hard landing');
+  t.event('landing-face', seen);
+  t.scene('Face: hard landing (' + seen + ')');
+  await t.until(() => !P().face().mood, 5000, 'the face to settle').catch(() => {});
+  await t.wait(600);
+  // 4. an explosion
+  t.event('setup-shortcut', 'a blast set off beside the player');
+  HP().physics.explode([W().player.x + 3, W().player.y, W().player.z], { radius: 5, force: 6, damage: 0 });
+  seen = '';
+  await t.until(() => { const m = P().face().mood; if (m) seen = m; return Boolean(m); }, 4000, 'a face for the explosion');
+  t.event('explosion-face', seen);
+  t.scene('Face: explosion (' + seen + ')');
+  await t.wait(2200);
+  // 5. the emote wheel, the six emotes, and another player seeing them
+  const mira = P().standIn('Mira', { ahead: 6, color: '#f59e0b' });
+  if (!mira) throw new Error('could not put a second player in the room');
+  const theirs = () => W().entities.find((e) => e.netId === mira);
+  const emoteOf = (e) => { const f = P().face(e); return f && f.emote; };
+  const openBtn = $('#pr-hud [data-a=emote]');
+  if (!openBtn) throw new Error('timed out: the emote button is not on screen');
+  const SIX = ['wave', 'laugh', 'cheer', 'shrug', 'dance', 'point'];
+  for (const name of SIX) {
+    if (!$('.pr-wheel:not([hidden])')) { hit(openBtn); await t.until(() => $('.pr-wheel:not([hidden])'), 4000, 'the emote wheel to open'); }
+    if (name === 'wave') { t.event('wheel-open', [...document.querySelectorAll('.pr-wheel button.em')].map((b) => b.dataset.emote).join(', ')); t.scene('Emote wheel' + (touch ? ' (touch)' : '')); }
+    const btn = $('.pr-wheel button.em[data-emote="' + name + '"]');
+    if (!btn) throw new Error('timed out: the emote wheel has no ' + name);
+    hit(btn);
+    await t.until(() => emoteOf() === name, 4000, 'your ' + name);
+    // what a peer's message does on this screen
+    P()._internal.onEmote({ w: mira, e: name }, null);
+    await t.until(() => theirs() && emoteOf(theirs()) === name, 4000, 'the other player to be seen doing ' + name);
+    t.event('emote', `${name}: mine and the other player's`);
+    if (name === 'wave' || name === 'shrug') t.scene('Emote: ' + name);
+    await t.wait(900);
+    P().stopEmote(); const th = theirs(); if (th && P()._internal.rigs.get(th)) P()._internal.rigs.get(th).emote = null;
+  }
+  P().removeStandIns();
+  t.progress(1);
+  await t.wait(800);
 }
 
 async function stageFish(t, ctx) {
@@ -1047,9 +1121,9 @@ async function stageTouch(t, ctx) {
 }
 
 const RUN = {
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, observatory: stageObservatory, race: stageRace, board: stageBoard, game: stageGame, journal: stageJournal, touch: stageTouch, leave: stageLeave, back: stageBack,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, observatory: stageObservatory, race: stageRace, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, touch: stageTouch, leave: stageLeave, back: stageBack,
 };
-const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'island-race': 'race', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'touch-controls': 'touch', 'sandbox-return': 'back' };
+const ENDS = { smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'island-race': 'race', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'faces-and-emotes': 'faces', 'touch-controls': 'touch', 'sandbox-return': 'back' };
 
 // ---------------------------------------------------------------------------------------------- the contract
 let api = null;
