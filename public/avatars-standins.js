@@ -73,6 +73,41 @@ export const STANDINS = {
     row: { form: 'thing', h: 1.15, parts: [{ node: 'LegL', role: 'leg' }, { node: 'LegR', role: 'leg', ph: Math.PI }] },
   },
 };
+/**
+ * A stand-in on the standard Mixamo skeleton (docs/animations.md): rigid boxes on bones named as Mixamo names them, in a T-pose
+ * (x is the character's left), 1.8 m tall. The Mixamo re-rig of the real models comes from Gen's mesh.rig; until a model has it, this
+ * puppet is what /avatars?standin=mixamo and the tests move with the class's clips. `prefix` is `mixamorig:` (as Mixamo exports),
+ * `mixamorig7:` or '' (a rig whose names were cleaned): all the same bones.
+ */
+export function mixamoPuppet(prefix = 'mixamorig:') {
+  const b = (name, t, box, color, kids) => ({ name: prefix + name, t, ...(box ? { box, color } : {}), ...(kids ? { kids } : {}) });
+  const arm = (s, x) => b(`${s}Shoulder`, [0.05 * x, 0.12, 0], [0.1, 0.1, 0.12], '#2563eb', [
+    b(`${s}Arm`, [0.1 * x, 0, 0], [0.26, 0.1, 0.1], '#2563eb', [
+      b(`${s}ForeArm`, [0.26 * x, 0, 0], [0.26, 0.08, 0.08], '#f2c9a0', [
+        b(`${s}Hand`, [0.26 * x, 0, 0], [0.1, 0.05, 0.1], '#f2c9a0')])])]);
+  const leg = (s, x) => b(`${s}UpLeg`, [0.1 * x, -0.05, 0], [0.14, 0.42, 0.14], '#1f2937', [
+    b(`${s}Leg`, [0, -0.42, 0], [0.12, 0.42, 0.12], '#1f2937', [
+      b(`${s}Foot`, [0, -0.42, 0], [0.12, 0.06, 0.12], '#7a3b1d', [
+        b(`${s}ToeBase`, [0, -0.04, 0.1], [0.12, 0.05, 0.1], '#7a3b1d')])])]);
+  return {
+    form: 'biped', title: 'Stand-in biped on the Mixamo skeleton (rigid boxes, no clips)',
+    nodes: [b('Hips', [0, 0.95, 0], [0.32, 0.18, 0.2], '#1f2937', [
+      b('Spine', [0, 0.1, 0], [0.3, 0.12, 0.18], '#f59e0b', [
+        b('Spine1', [0, 0.12, 0], [0.34, 0.12, 0.2], '#f59e0b', [
+          b('Spine2', [0, 0.12, 0], [0.38, 0.14, 0.22], '#f59e0b', [
+            b('Neck', [0, 0.18, 0], [0.08, 0.1, 0.08], '#f2c9a0', [
+              b('Head', [0, 0.1, 0], [0.24, 0.26, 0.24], '#f2c9a0', [b('HeadTop_End', [0, 0.2, 0], [0.04, 0.04, 0.04], '#f2c9a0')])]),
+            arm('Left', 1), arm('Right', -1)])])]),
+      leg('Left', 1), leg('Right', -1)])],
+    clips: [],
+    row: {
+      form: 'biped', h: 1.8,
+      anchors: { head: { node: prefix + 'Head', at: [0, 0.13, 0] }, face: { node: prefix + 'Head', at: [0, 0.02, 0.12] }, neck: { node: prefix + 'Head', at: [0, -0.13, 0] }, back: { node: prefix + 'Spine2', at: [0, 0.05, -0.12] }, rump: { node: prefix + 'Hips', at: [0, -0.05, -0.12] } },
+    },
+  };
+}
+export const MIXAMO_STANDIN = mixamoPuppet('mixamorig:'); // (not in STANDINS: those four have GLB fixtures)
+
 /** Which registry row each stand-in fills in the showcase and the tests (a real type each): the body to compare it with. */
 export const STANDIN_FOR = { person: 'biped', dog: 'quadruped', fish: 'swimmer', toaster: 'thing' };
 

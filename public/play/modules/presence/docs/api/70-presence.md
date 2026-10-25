@@ -44,3 +44,5 @@ game.on('chat', (m) => { if (!m.me && /\b(hi|hello)\b/i.test(m.text)) greeter.sa
 game.on('death', () => { if (game.state.lives <= 0) game.presence.spectate('next'); });
 game.on('round', () => game.presence.spectate(null));
 ```
+
+`presence.anim`: a model's clips as data (`public/play/anim/<class>.json`, class mixamo, quadruped or object): `anim.load(cls)`, `anim.validate(cls, file)`, `anim.has(rig, clip)`, `anim.on((name, rig, event) => ...)` for a clip's events (footstep, hop). The pose of a rig can be forced to a clip at a moment with `rig.forceClip = { name, t }`.

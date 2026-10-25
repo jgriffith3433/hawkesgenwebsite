@@ -227,6 +227,7 @@
     rig.neck = neck; rig.faceY = pm.faceY; rig.faceZ = pm.faceZ; rig.mounts = pm.mounts;
     rig.hasModel = true;
     pm.on = true; pm.state = 'ready';
+    if (P.anim) P.anim.attach(rig, pm); // (the class's clips as data, when its file has them: presence-anim.js)
     if (P._redress) P._redress(rig);
     pm.air = { t: 0, peak: 0, was: false, landT: 9, takeT: 9, depth: 0.85 };
     const idle = roleGroup(near, 'idle');
@@ -410,6 +411,7 @@
     if (airborne && !A.was) A.takeT = 0;
     if (!airborne && A.was && !swim) { A.landT = 0; A.depth = lerp(0.9, 0.8, clamp(A.peak / 10, 0, 1)); }
     if (!airborne && A.was) A.peak = 0;
+    const took = airborne && !A.was, landed = !airborne && A.was && !swim;
     A.was = airborne; A.takeT += dt; A.landT += dt;
     const walk = clamp(speed / 2.5, 0, 1), run = clamp((speed - 2.5) / 3.5, 0, 1);
     // ---- clips: the role this moment has, the emote over it
@@ -418,17 +420,22 @@
     const want = new Map();
     let emoteClip = null;
     if (em && lvl.groups.length) emoteClip = emoteGroup(lvl, ent, em.def.name);
-    lvl.emoting = emoteClip ? new Set([emoteClip]) : null;
-    if (emoteClip) want.set(emoteClip, 1);
-    else if (loco) want.set(loco, 1);
-    else if (lvl.roles.idle) want.set(lvl.roles.idle, 1);
-    if (loco && (loco === lvl.roles.walk || loco === lvl.roles.run)) { const st = loco === lvl.roles.run ? ent.stride.run : ent.stride.walk; loco.speedRatio = clamp(speed / st, 0.4, 2.5); }
-    setWeights(lvl, want, dt, 9);
-    const driven = emoteClip || loco; // a clip moves the body: the procedural gait keeps only what a clip never has
+    // The class's clips as data come first (presence-anim.js); a role the set lacks keeps the model's own clip, then the procedural motion.
+    const ad = pm.anim ? P.anim.drive(rig, pm, lvl, { dt, role: seated ? 'drive' : role, em, speed, took, landed, stride: ent.stride, glb: Boolean(loco), glbEmote: Boolean(emoteClip) }) : null;
+    if (ad) { for (const g of lvl.playing) { try { g.pause(); } catch {} } lvl.playing.clear(); lvl.w.clear(); lvl.emoting = null; }
+    else {
+      lvl.emoting = emoteClip ? new Set([emoteClip]) : null;
+      if (emoteClip) want.set(emoteClip, 1);
+      else if (loco) want.set(loco, 1);
+      else if (lvl.roles.idle) want.set(lvl.roles.idle, 1);
+      if (loco && (loco === lvl.roles.walk || loco === lvl.roles.run)) { const st = loco === lvl.roles.run ? ent.stride.run : ent.stride.walk; loco.speedRatio = clamp(speed / st, 0.4, 2.5); }
+      setWeights(lvl, want, dt, 9);
+    }
+    const driven = ad || emoteClip || loco; // a clip moves the body: the procedural gait keeps only what a clip never has
     // ---- the rest: the whole body by form, squash and stretch
-    const g = lvl.groups.length && driven ? { y: 0, rx: 0, ry: 0, rz: 0, stretch: 1 } : gait(ent.form, { ph: rig.phase, t, walk: rig.lod ? walk * 0.8 : walk, run, speed, grounded, swim });
+    const g = ad || (lvl.groups.length && driven) ? { y: 0, rx: 0, ry: 0, rz: 0, stretch: 1 } : gait(ent.form, { ph: rig.phase, t, walk: rig.lod ? walk * 0.8 : walk, run, speed, grounded, swim });
     let sy = 1, y = g.y + lift, rx = g.rx, ry = g.ry, rz = g.rz;
-    if (!rig.lod) sy *= 1 + Math.sin((t * 2 * Math.PI) / 3.2) * 0.0125; // (breathing)
+    if (!rig.lod && !(ad && ad.body)) sy *= 1 + Math.sin((t * 2 * Math.PI) / 3.2) * 0.0125; // (breathing)
     sy *= g.stretch;
     if (swim && ent.form === 'biped') { rx += 1.2; y += -0.05 + Math.sin(t * 2) * 0.05; } else if (swim) { y += Math.sin(t * 2) * 0.05; }
     if (airborne && vy > 1) sy *= 1 + Math.min(0.1, vy * 0.012);
@@ -438,18 +445,19 @@
       sy *= L < 0.09 ? lerp(1, A.depth, L / 0.09) : 1 + (A.depth - 1) * (1 - (L - 0.09) / 0.22) + 0.05 * Math.sin(((L - 0.09) / 0.22) * Math.PI);
     }
     if (seated) y += -0.4 * (ent.h / 1.8);
-    if (em && !emoteClip) {
+    if (ad && ad.body) { const o = ad.body; y += o.y; rx += o.rx; ry += o.ry; rz += o.rz; sy *= o.sy; }
+    if (em && !emoteClip && !(ad && ad.emote)) {
       const o = bodyEmote(em.def.name, t - em.t0, ent.h);
       y += o.y; rx += o.rx; ry += o.ry; rz += o.rz; sy *= o.sy;
     }
     const sxz = 1 / Math.sqrt(sy), hh = ent.h / 2;
     const mv = pm.mover;
-    mv.position.y = pm.baseY + hh * (sy - 1) + y;
+    mv.position.set(ad && ad.body ? ad.body.x : 0, pm.baseY + hh * (sy - 1) + y, ad && ad.body ? ad.body.z : 0);
     mv.rotation.set(rx, ry, rz);
-    mv.scaling.set(sxz, sy, sxz);
+    mv.scaling.set(sxz * (ad && ad.body ? ad.body.sx : 1), sy, sxz * (ad && ad.body ? ad.body.sz : 1));
     // ---- named parts and a roller's roll, when no clip has the body
     if (!rig.lod) {
-      const strong = Boolean(driven && lvl.groups.length);
+      const strong = Boolean(ad || (driven && lvl.groups.length));
       for (const p of pm.parts) {
         let a = 0;
         if (p.role === 'wheel') { p.spin += speed * dt / Math.max(0.05, Number(p.radius) || ent.radius || ent.h / 2); a = p.spin; }
