@@ -33,7 +33,8 @@ import { templateBundle, featured } from './templates.ts';
 import { loaderScript, engineDoc, manifest } from './engine.ts';
 const engineVersion = () => manifest().version;
 import * as community from './community.ts';
-import { upgrade as joinRoom, broadcastOps, markHere, liveCounts } from './rooms.ts';
+import { upgrade as joinRoom, broadcastOps, markHere, liveCounts, roomState } from './rooms.ts';
+import * as invites from './invites.ts';
 import * as shares from './shares.ts';
 import { relayAnalytics, playIds, playIdsScript } from './analytics.ts';
 import type { Duplex } from 'node:stream';
@@ -62,6 +63,16 @@ function limitLogins(ip: string) {
   if (recent.length >= 20) throw new PortalError('Too many sign-in attempts; wait a few minutes', { status: 429 });
   recent.push(now);
   attempts.set(ip, recent);
+}
+
+const inviteMade = new Map<string, number[]>();
+/** Links an address may make an hour (a link is only a signed token, but a room code per call is not worth abusing). */
+function limitInvites(ip: string) {
+  const now = Date.now();
+  const recent = (inviteMade.get(ip) ?? []).filter((t) => now - t < 3600_000);
+  if (recent.length >= 30) throw new PortalError('That is a lot of invitations; try again in a while', { status: 429 });
+  recent.push(now);
+  inviteMade.set(ip, recent);
 }
 
 /** Gen's answer straight to the customer: status, the headers that matter, the body as it streams. */
@@ -322,6 +333,18 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       res.setHeader('Access-Control-Allow-Origin', '*');
       return send(res, 200, games.playBundle(pb[1], url.searchParams.get('v') ? Number(url.searchParams.get('v')) : null));
     }
+    // Island invitations (invites.ts): the inviter (a guest or an account) makes a link to their island's room; the friend's
+    // page asks what it is worth before loading anything. Open routes: neither starts Gen work or touches credits.
+    if (route === '/v1/island-invite' && method === 'POST') {
+      limitInvites(clientIp(req));
+      const b = await readJson(req).catch(() => ({}));
+      const me = users.authenticate(req);
+      const ref = me ? users.refCode(me.id) : null;
+      const inv = invites.createInvite(publicUrl(), { name: b.name || me?.name, ref });
+      return send(res, 200, { link: inv.link, room: inv.room, expires: inv.expires, ref });
+    }
+    pb = /^\/v1\/island-invite\/([\w.-]+)$/.exec(route);
+    if (pb && method === 'GET') return send(res, 200, invites.inviteStatus(pb[1], roomState));
     pb = /^\/v1\/invites\/([\w-]+)$/.exec(route);
     if (pb && method === 'GET') return send(res, 200, games.inviteInfo(pb[1]));
     if (route === '/v1/billing/webhook' && method === 'POST') return send(res, 200, stripeWebhook(await readBody(req), String(req.headers['stripe-signature'] ?? '')));
