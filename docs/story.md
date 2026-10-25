@@ -127,6 +127,15 @@ no credits, no prices, no promises about product features.
 7. **Way up.** *(exists as "fly")* Take the helicopter up until the island is a speck. *Beat:* the Overseer: "That is your world. All of it." *Reward:* the spawn gun and gravity gun.
 8. **The launch pad.** *(new work)* Rolo has built a rocket and cannot say why. Finish its fuel, fire it, and go up to see the planet whole. *Beat:* a lit bay on the sphere's hull, far off and open. *Reward:* the first sight of the hangar (not a docking). The chapter ends with Pip saying "Huh. That's new" and the Overseer only: "It is yours, if you come."
 
+#### 5b. The islanders on the island (built: `src/overseer-games/islanders.js`)
+
+Five of the six neighbours stand on the sandbox island in Chapter One (Pip is the guide and already lived there; **Channel** fits, so he is in). Each is a `friend` that stays at their post, wearing the mirror's own body for what they are (a rubber duck, a toaster, a roll-bot, a cactus, a TV robot), and is talked to with E (or a tap on the phone's button): one short line in the chat window, text only, no voice. Where they stand: Bobbin on the pier, Mrs Ember by the mailbox below Pip's hut, Channel on the beach by the fuel barrels, Rolo by the rocket's pad, Dolores up by the helipad.
+
+- **They remember what you did, by what is true.** What the player has done this visit (a fish caught, a barrel blown up, the helicopter flown, the Overseer asked, the 4x4 driven) is answered first, once each, in the neighbour's own voice; counts kept by the Overseer's memory (`H.memory`: fish, booms, flights, visits) are answered on a later visit ("number five", "back again"). Otherwise they say their ordinary lines: the running jokes, never the same one twice in a row.
+- **They use the name the player chose, and nothing else about the mirror.** What the player is (a shoe, a toaster) is never mentioned, joked about or guessed at; the name is simply used, warmly, if there is one.
+- **Mrs Ember's first letter** is addressed "to the new one" and says only: "Mind the third plank. It sticks." It names no sender and no reason.
+- Nobody here says why anything is as it is. The hints stay at the edge (Dolores watches the climb; Rolo's rocket "I can't say why").
+
 #### 6. Three later chapters
 
 **Chapter Two: "The Door in the Hill."** The island opens out: more of the planet's coast, a rope bridge to a second island,
