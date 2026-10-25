@@ -17,7 +17,7 @@ import { getUser } from './users.ts';
 import { gameBySlug, getGame } from './games.ts';
 import { templateBundle } from './templates.ts';
 import * as relay from './relay.ts';
-import { publishOps, publishEvent } from './hnet.ts';
+import { publishOps, publishEvent, kick } from './hnet.ts';
 import { presenceCount } from './live.ts';
 
 type Conn = relay.Conn & { s: Socket };
@@ -149,11 +149,13 @@ export function roomEvent(gameId: string, name: string, data: unknown) {
 export function kickFromRooms(gameId: string, userId: string) {
   const room = rooms.get(`edit:${gameId}`);
   if (room) for (const c of room.conns.values()) if (c.user === userId) (c as Conn).s.close(4003, 'removed');
+  kick(`g/${gameId}/edit`, userId);
 }
 
 /** An admin closed a game: everyone playing it together is let go. */
-export function closePlayRooms(slug: string) {
+export function closePlayRooms(slug: string, gameId?: string) {
   for (const [key, room] of rooms) if (key.startsWith(`play:${slug}:`)) for (const c of room.conns.values()) (c as Conn).s.close(4003, 'closed');
+  if (gameId) kick(`g/${gameId}/p/*`);
 }
 
 export const roomStats = () => ({ rooms: rooms.size, people: [...rooms.values()].reduce((n, r) => n + r.conns.size, 0) });

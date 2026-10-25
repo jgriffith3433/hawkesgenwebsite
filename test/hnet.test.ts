@@ -116,6 +116,9 @@ test("a customer's server gets a ticket in its own Hawkes Net project with its A
   const { apiKey } = users.mintApiKey(user.id);
   const post = (body: any, key?: string) => fetch(`${base}/v1/net/rooms/ticket`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: `Bearer ${key}` } : {}) }, body: JSON.stringify(body) });
   assert.equal((await post({ room: 'lobby' })).status, 401);
+  assert.equal((await post({ room: 'lobby' }, apiKey)).status, 402, 'a free account: the relay costs us, so no tickets yet');
+  const billing = await import('../src/billing.ts');
+  billing.add(user.id, 500, 'stripe_purchase', 'test pack');
   calls.length = 0;
   const r = await post({ room: 'lobby', name: 'Ada', transport: 'relay', role: 'spectator', config: { maxPlayers: 64, evil: 1 } }, apiKey);
   assert.equal(r.status, 200);
@@ -129,4 +132,22 @@ test("a customer's server gets a ticket in its own Hawkes Net project with its A
   assert.equal(j.echo.config.evil, undefined, 'only the known room settings pass');
   assert.equal(calls.find((c) => c.path === '/v1/net/ticket')!.project, user.project, 'the portal key narrowed to their project');
   assert.equal((await post({ room: '../x y' }, apiKey)).status, 400);
+});
+
+test("a closed world: no tickets for its rooms, and the people in them are put out on Hawkes Net", async () => {
+  const users = await import('../src/users.ts');
+  const games = await import('../src/games.ts');
+  const u: any = await users.createAccount({ email: 'net-owner@example.com', password: 'a long password 1' });
+  const owner = u.user ?? u;
+  const g: any = games.createGame(owner, { title: 'Net closed', template: 'blank' });
+  const game = g.game ?? g;
+  assert.equal((await ticket({ play: game.slug, room: 'abcd1234' })).status, 200);
+  calls.length = 0;
+  games.setHidden('admin', game.id, true, 'test');
+  await new Promise((r) => setTimeout(r, 100));
+  const kick = calls.find((c) => c.path === '/v1/net/publish' && c.body?.kick);
+  assert.ok(kick, 'a kick was published');
+  assert.equal(kick!.body.room, `g/${game.id}/p/*`);
+  assert.equal(kick!.body.kick.sub, null, 'everyone');
+  assert.equal((await ticket({ play: game.slug, room: 'abcd1234' })).status, 404);
 });

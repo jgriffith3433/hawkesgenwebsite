@@ -483,7 +483,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if ((route === '/v1/users/me' || route === '/v1/me') && method === 'GET') return send(res, 200, users.profile(user));
     if (route === '/v1/referral' && method === 'GET') return send(res, 200, users.referral(user));
     // Hawkes Net for a customer's own game: a ticket for a room in their own project, from their game's server (hnet.ts).
-    if (route === '/v1/net/rooms/ticket' && method === 'POST') return send(res, 200, await hnet.customerTicket(user.project, await readJson(req)));
+    if (route === '/v1/net/rooms/ticket' && method === 'POST') return send(res, 200, await hnet.customerTicket(user, await readJson(req)));
 
     // The approve screen (/oauth/authorize): what's asking, then yes or no. Session only: a token can't approve itself.
     if (route === '/v1/oauth/request' && method === 'GET') return send(res, 200, oauth.authorizeRequest(url.searchParams));
