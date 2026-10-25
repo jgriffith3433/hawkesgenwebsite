@@ -8,6 +8,7 @@
 //
 //   H.progress.state       { pts, level, bar, name }      H.progress.has('tool:grenade')   whether it is theirs
 //   H.progress.earn(id, n) earns by the table (id: 'fish', 'quest', 'first-dock'...; n a measured amount for `per` ones)
+//   H.progress.award(label, pts, id)   points that are not in the table (the daily wish's)
 //   H.progress.did(kind)   an activity done: its repeating points and, the first time, its first-time points
 //   game.on('progress', ({ state: 'earn' | 'level' | 'unlock', ... }))
 /* global HawkesPlay */
@@ -97,6 +98,11 @@
       return steps > 0 ? add(id, spec.label, steps * spec.pts) : (keep(), 0);
     }
     return add(id, spec.label, spec.pts * (spec.once ? 1 : Math.max(1, Math.floor(n))));
+  }
+  /** Points that are not in the table (the daily wish's own number). Counts like earn: not before the world settled. Returns the points given. */
+  function award(label, pts, id = 'award') {
+    if (!counts()) return 0;
+    return add(id, label, Math.max(0, Math.min(200, Math.floor(Number(pts) || 0))));
   }
   /** An activity done: its repeating points, and the first time its first-time points on top. */
   function did(kind) {
@@ -228,7 +234,7 @@
   });
 
   H.progress = {
-    earn, did, has, clock, grantAll,
+    earn, did, award, has, clock, grantAll,
     get state() { return { pts: pr.p, level: level(), bar: C.bar(pr.p), name: C.POINTS, firsts: [...pr.f], meters: pr.d, loaded }; },
     get unlocked() { return mine().map((u) => u.key); },
     get waiting() { return moments.length; },
