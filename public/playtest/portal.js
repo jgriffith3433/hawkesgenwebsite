@@ -512,7 +512,7 @@ async function stagePresence(t) {
   // Tap their name: beamed next to them.
   const p0 = { x: W().player.x, z: W().player.z };
   click($('.pr-panel .pr-row[data-id="' + mira + '"] .nm'));
-  await t.until(() => P().lastGo && Math.hypot(W().player.x - W().entities.find((e) => e.netId === mira).x, W().player.z - W().entities.find((e) => e.netId === mira).z) < 5, 6000, 'the player to be beamed next to Mira');
+  await t.until(() => P().lastGo && Math.hypot(W().player.x - [...W().entities].find((e) => e.netId === mira).x, W().player.z - [...W().entities].find((e) => e.netId === mira).z) < 5, 6000, 'the player to be beamed next to Mira');
   t.event('teleported', 'moved ' + Math.round(Math.hypot(W().player.x - p0.x, W().player.z - p0.z)) + ' m next to Mira');
   await t.until(() => W().scene.meshes.some((m) => /beam/.test(m.name) && m.isEnabled()), 3000, 'the beam').then(() => t.event('beam-seen'), () => t.problem('warning', 'no beam mesh was seen'));
   t.scene('Shared world: next to Mira');
@@ -680,7 +680,7 @@ async function stageFaces(t, ctx) {
   // 5. the emote wheel, the six emotes, and another player seeing them
   const mira = P().standIn('Mira', { ahead: 6, color: '#f59e0b' });
   if (!mira) throw new Error('could not put a second player in the room');
-  const theirs = () => W().entities.find((e) => e.netId === mira);
+  const theirs = () => [...W().entities].find((e) => e.netId === mira);
   const emoteOf = (e) => { const f = P().face(e); return f && f.emote; };
   const openBtn = $('#pr-hud [data-a=emote]');
   if (!openBtn) throw new Error('timed out: the emote button is not on screen');
@@ -1484,14 +1484,23 @@ async function stageIntroCascade(t, ctx) {
   ctx.cascade = seen;
   G().on('cascade', (d) => { seen.push(d.id); t.event('cascade-beam', `${d.name} (${d.index + 1} of ${d.total}), ${seen.length} beamed so far`); if (seen.length === 1) t.scene('Island: the first beam'); });
   await stageIntro(t, ctx);
+  ctx.cascadeMirrorClosed = false;
+  G().on('mirror', (m) => { if (m && (m.state === 'done' || m.state === 'skip')) ctx.cascadeMirrorClosed = true; });
+  G().on('cascadeDone', (d) => { ctx.cascadeDone = d; });
+  t.event('cascade-waiting', 'the intro is over; the island waits for the mirror to close');
+}
+
+/** After the mirror and the sign-up sheet: the cascade began only once the mirror was closed, and every main thing beamed in. */
+async function stageCascadeCheck(t, ctx) {
+  const seen = ctx.cascade || [];
   const phone = HP().device && HP().device.tier === 'phone';
   if (phone) { t.event('cascade-skipped', 'a phone: the island just appears'); return; }
-  await t.until(() => seen.length >= 1, 8000, 'the island\'s main things to start beaming in after the intro');
-  t.scene('Island: beaming in');
-  await t.until(() => seen.length >= ARRIVAL_IDS.length && HP().arrive.waiting === 0, 15000, 'every main thing to have been beamed in');
+  if (!ctx.cascadeMirrorClosed && seen.length) t.problem('error', `the island began beaming in (${seen.join(', ')}) before the mirror was closed`);
+  await t.until(() => ctx.cascadeDone || (seen.length >= ARRIVAL_IDS.length && HP().arrive.waiting === 0), 30000, 'every main thing to have been beamed in');
   const missing = ARRIVAL_IDS.filter((id) => !seen.includes(id));
   if (missing.length) t.problem('error', `not beamed in: ${missing.join(', ')}`);
-  t.event('cascade-done', `${seen.join(', ')}, in that order`);
+  if (!ctx.cascadeDone) t.problem('error', 'the island never said its cascade was done');
+  t.event('cascade-done', `${seen.join(', ')}, in that order, after the mirror closed`);
   await t.wait(1500);
   const hidden = ARRIVAL_IDS.filter((id) => { const e = W().byId.get(id); return !e || !e.node.isEnabled(); });
   if (hidden.length) t.problem('error', `still hidden after the cascade: ${hidden.join(', ')}`);
@@ -1503,6 +1512,7 @@ async function stageIntroCascade(t, ctx) {
 async function stageArrivals(t, ctx) {
   const OV = () => HP().overseer;
   await t.until(() => W() && W().player && OV(), 30000, 'the island');
+  await stageCascadeCheck(t, ctx);
   // Undo.
   await tap(t, 'Tab');
   if (HP().mode !== 'build') { HP().setMode && HP().setMode('build'); t.event('setup-shortcut', 'building switched on directly (Tab did not)'); }
@@ -1538,7 +1548,7 @@ async function stageArrivals(t, ctx) {
   await t.until(() => joinedEv.length, 3000, 'the joiner to be beamed in');
   await t.until(() => W().scene.meshes.some((m) => /beam/.test(m.name) && m.isEnabled()), 2500, 'the beam over the joiner').then(
     () => t.event('joined-beam', 'a beam over the new player'), (e) => t.problem('error', e.message));
-  const av = W().entities.find((e) => e.netId === id);
+  const av = [...W().entities].find((e) => e.netId === id);
   const tag = av && av.node.getChildren().some((c) => /Mira/.test(c.name || '') || (c.metadata && c.metadata.decor));
   t.event('joined-name', `${joinedEv[0].name}${tag ? '' : ' (no name plate found)'}`);
   if (!joinedEv.some((j) => j.name === 'Mira')) t.problem('error', 'the joiner arrived without a name');

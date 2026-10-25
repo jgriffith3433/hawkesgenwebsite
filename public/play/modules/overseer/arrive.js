@@ -11,8 +11,9 @@
 //          attached to others, Gen art arriving on a thing that's already there): the beam and the thing growing out
 //          of the light, a little grander.
 //   none   it just appears.
-//   The island's first minutes (config.overseer.cascade: ["pip", "jeep", ...]): when the first-visit intro ends, those
-//   scene things are hidden and beamed in one after another, a short beam each (H.arrive.cascade). Never on a return (no
+//   The island's first minutes (config.overseer.cascade: ["pip", "jeep", ...]): when the first-visit intro ends and the
+//   mirror (if it opens) is closed, those scene things are hidden and beamed in one after another, a short beam each
+//   (H.arrive.cascade; game.on('cascadeDone') tells once when the last has gone out). Never on a return (no
 //   intro, no cascade), never on a phone. Undo and redo of a removal re-beam the thing, short (build.js); a player who
 //   joins a room is beamed in with their name over it (net.js, H.arrive.label).
 //   Terrain from words (config.terrain.add: a mountain, a hill, a canyon) grows over ~5 s: terrain.js moves the ground
@@ -598,6 +599,7 @@
   const GAP = 0.55; // seconds between one beam and the next
   let queue = []; // { e, at } waiting their turn
   let cascaded = 0;
+  let finishing = null; // the cascade under way: told once, when its last beam has gone out
   /** Hides these scene things (ids) and beams them in one after another, a short beam each. Returns how many. */
   function cascade(ids, o = {}) {
     const w = W();
@@ -606,6 +608,8 @@
     const ents = [...new Set(ids || [])].map((id) => w.byId.get(id)).filter((e) => e && e.alive && !e._arrival);
     ents.forEach((e, i) => { e.node.setEnabled(false); queue.push({ e, at: 0.2 + i * gap, i, of: ents.length, w }); });
     cascaded = ents.length;
+    if (!ents.length) finishing = null;
+    else finishing = { ids: ents.map((e) => e.sceneId), missing: [...new Set(ids || [])].filter((id) => !ents.some((e) => e.sceneId === id)), w };
     return ents.length;
   }
   function runQueue(dt) {
@@ -622,7 +626,14 @@
       try { if (G()) G().emit('cascade', { thing: e, id: e.sceneId, name: e.name || e.sceneId, index: q.i, total: q.of }); } catch (err) { H.report(err, 'arrive'); }
     }
   }
-  H.hooks.step.push((dt) => { try { runQueue(dt); } catch (err) { H.report(err, 'arrive'); } });
+  function finishCascade() {
+    if (!finishing || queue.length) return;
+    const f = finishing;
+    finishing = null;
+    if (W() !== f.w) return;
+    try { if (G()) G().emit('cascadeDone', { ids: f.ids, missing: f.missing, total: f.ids.length }); } catch (err) { H.report(err, 'arrive'); }
+  }
+  H.hooks.step.push((dt) => { try { runQueue(dt); finishCascade(); } catch (err) { H.report(err, 'arrive'); } });
   /** A name that rises over a thing and fades (a player arriving, "Dolores"). */
   function label(e, text) {
     const w = W();
@@ -648,13 +659,29 @@
     try { if (G()) G().emit('joined', { thing: e, id: e.netId || null, name: name || null }); } catch (err) { H.report(err, 'arrive'); }
     return true;
   }
-  // The first visit only: the intro ends (played or skipped) and the island's main things come in, one by one.
+  // The first visit only: the intro ends (played or skipped), the mirror asks who the player is, and when that is closed
+  // (answered or skipped) and the island is first seen, the main things come in, one by one. No mirror: right after the intro.
   H.hooks.game.push((game) => {
-    game.on('intro', (d) => {
-      if (!d || d.state !== 'end') return;
+    const start = () => {
       let ids = null;
       try { ids = H.lib.effectiveConfig().overseer.cascade; } catch { ids = null; }
       if (Array.isArray(ids) && ids.length) cascade(ids);
+    };
+    game.on('intro', (d) => {
+      if (!d || d.state !== 'end') return;
+      const w = W();
+      // (The mirror opens 150 ms after the intro ends: look just after that.)
+      setTimeout(() => {
+        if (W() !== w) return;
+        if (game.mirror && game.mirror.pending) {
+          let once = false;
+          game.on('mirror', (m) => {
+            if (once || !m || (m.state !== 'done' && m.state !== 'skip')) return;
+            once = true;
+            if (W() === w) setTimeout(() => { if (W() === w) start(); }, 400);
+          });
+        } else start();
+      }, 400);
     });
   });
 
