@@ -33,6 +33,7 @@
     O.x = narrow ? W * 0.5 : W * 0.7;
     O.y = narrow ? 76 + O.r * 1.25 : H * 0.34;
     // phone: the text starts below the Overseer and the line it speaks (the hero is as tall as the text needs)
+    hero.dataset.overseer = [O.x, O.y, O.r].map(Math.round).join(','); // where the Overseer is (x, y, radius in px): the layout playtest checks nothing covers it
     hero.style.setProperty('--sky-top', narrow ? Math.round(O.y + O.r * 1.9 + 56) + 'px' : '120px');
     P.R = W * 1.9; P.cx = W * (narrow ? 0.5 : 0.56); P.cy = H * (narrow ? 0.93 : 0.86) + P.R;
     let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
