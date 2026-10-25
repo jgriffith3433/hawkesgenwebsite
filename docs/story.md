@@ -455,3 +455,23 @@ that the mirror is there (**L**, or the "Change my look" button, opens its quest
 plays on and Pip's tour **resumes on the step they left** (Pip: *"Right, where were we?"*; no moment is told twice, the tools
 that finished steps gave are in the belt). A guest who never made an account still meets the sheet next: the order of a first
 time (intro, mirror, account, tour) is not moved. Storage cleared: no flag, no record, the whole beginning.
+
+
+### Progress (built: `modules/progress`)
+
+A light sense that you have been doing things, and that the Overseer noticed. It is not a coin economy and it has nothing to
+do with credits: credits stay the paid currency and **nothing here is for sale**; the Overseer gives, it does not charge.
+
+- **What earns.** Points (a placeholder name, *sparks*, until J picks one of the three below) for the *first* of each thing,
+  which is worth more (a first drive, fish, boom, thing made, dock, time above the air, race, ask, help), and then for the
+  things themselves: each fish, something broken (a chain of barrels is one blast), each 250 m at the wheel, a race finished, a
+  quest done, a neighbour met, something found, a friend helped. Small numbers, so a level comes in minutes, not evenings.
+- **What shows.** A small pill at the top left: *Level 3*, a bar, and for a moment what was just earned. It waits for the intro
+  and the mirror to finish. Nothing pops over the picture.
+- **What a level gives.** An accessory or a color (they appear in the Observatory's wardrobe), or a tool (it is put on the tool
+  belt, Q switches). The Overseer says so in one short line, in its voice, when it is free to speak (*"A new one, from me:
+  goggles."*, *"Take grenades. Be kind to the scenery, or not."*). Later parts: emote styles, vehicle paint and name-tag
+  styles are in the design but not built; no line promises them yet.
+- **Kept** in the Overseer's memory: in the account when signed in, on the device and in the kept island otherwise.
+- **Names for the points, for J to choose:** *Glints* (specks of the Overseer's light), *Wishes* (it grants you free will; you
+  collect small ones), *Motes* (dust in a beam). Until chosen: *sparks*, one line in `progress-core.js` (`POINTS`).

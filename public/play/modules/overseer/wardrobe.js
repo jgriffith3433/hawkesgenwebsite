@@ -62,7 +62,7 @@
       <h2>Wardrobe</h2><p class="sub">${esc(M().WARDROBE_LINES.open)}</p>
       <h4>Wear</h4>
       <div class="grid">${mine.map((a) => `<button type="button" class="tile ${wear === a.id ? 'on' : ''}" data-acc="${a.id}" aria-pressed="${wear === a.id}"><span class="ic">${a.icon}</span><span class="lb">${esc(a.label)}</span></button>`).join('')}</div>
-      ${locked ? `<p class="more">${locked} more to find. The Overseer gives one now and then, and will make you something if you ask.</p>` : ''}
+      ${locked ? `<p class="more">${locked} more to find. The Overseer gives one now and then, one comes with some levels, and it will make you something if you ask.</p>` : ''}
       <h4>Color</h4>
       <div class="sw">${cols.map((h) => `<button type="button" class="${c === h ? 'on' : ''}" data-col="${h}" style="background:${h}" aria-label="Color ${h}" aria-pressed="${c === h}"></button>`).join('')}</div>
       <div class="row"><button type="button" data-a="restore">Put it back</button><button type="button" class="go" data-a="done">Done</button></div>
