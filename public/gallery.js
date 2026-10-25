@@ -22,7 +22,7 @@ async function loadGames() {
   }
 }
 
-function card({ title, sub, by, plays, cover, emoji, play, spectate, remix, playing = 0, building = 0, visitors }) {
+function card({ title, sub, by, plays, cover, emoji, play, spectate, remix, report, playing = 0, building = 0, visitors }) {
   const el = document.createElement('div');
   el.className = 'game-card';
   el.innerHTML = `
@@ -31,8 +31,9 @@ function card({ title, sub, by, plays, cover, emoji, play, spectate, remix, play
       <div class="title">${escapeHtml(title)}</div>
       ${sub ? `<div class="muted" style="font-size:13px;line-height:1.4">${escapeHtml(sub.slice(0, 110))}${sub.length > 110 ? '…' : ''}</div>` : ''}
       ${by || plays !== undefined ? `<div class="meta">${by ? `<span>by ${escapeHtml(by)}</span>` : ''}${plays !== undefined ? `<span>▸ ${plays} plays</span>` : ''}</div>` : ''}
-      <div class="actions"><button type="button" class="btn btn-primary btn-sm" data-a="play">${playing ? `Join (${playing} playing)` : 'Play'}</button>${spectate ? '<button type="button" class="btn btn-secondary btn-sm" data-a="spectate" title="Float over the world as a camera, no character">Spectate</button>' : ''}<button type="button" class="btn btn-secondary btn-sm" data-a="remix" title="Make your own copy to change">Remix</button></div>
+      <div class="actions"><button type="button" class="btn btn-primary btn-sm" data-a="play">${playing ? `Join (${playing} playing)` : 'Play'}</button>${spectate ? '<button type="button" class="btn btn-secondary btn-sm" data-a="spectate" title="Float over the world as a camera, no character">Spectate</button>' : ''}<button type="button" class="btn btn-secondary btn-sm" data-a="remix" title="Make your own copy to change">Remix</button>${report ? '<button type="button" class="btn btn-ghost btn-sm" data-a="report" title="Tell us this world is broken, scary, rude or a scam">Report</button>' : ''}</div>
     </div>`;
+  if (report) el.querySelector('[data-a="report"]').onclick = report;
   el.querySelector('[data-a="play"]').onclick = play;
   el.querySelector('.cover').onclick = play;
   if (spectate) el.querySelector('[data-a="spectate"]').onclick = spectate;
@@ -72,7 +73,34 @@ function render() {
   const empty = document.getElementById('empty');
   grid.innerHTML = '';
   empty.hidden = Boolean(games.length);
-  for (const g of games) grid.appendChild(card({ title: g.title, sub: g.description, by: g.by, plays: g.plays || 0, cover: g.cover, playing: g.playing, building: g.building, visitors: g.visitors, play: () => enterGame(g.url), spectate: g.visitors === 'play' || g.visitors === 'build' ? () => enterGame(`${g.url}?spectate=1`, { label: 'WATCHING' }) : null, remix: () => remixIt({ slug: g.slug }) }));
+  for (const g of games) grid.appendChild(card({ title: g.title, sub: g.description, by: g.by, plays: g.plays || 0, cover: g.cover, playing: g.playing, building: g.building, visitors: g.visitors, play: () => enterGame(g.url), spectate: g.visitors === 'play' || g.visitors === 'build' ? () => enterGame(`${g.url}?spectate=1`, { label: 'WATCHING' }) : null, remix: () => remixIt({ slug: g.slug }), report: () => reportWorld(g) }));
+}
+
+const REASONS = [['broken', 'Broken'], ['scary', 'Scary or rude'], ['scam', 'Scam'], ['other', 'Other']];
+
+/** Report a world: pick why (and say more if you like). Signed in or not; an admin looks and can close it. */
+function reportWorld(g) {
+  const d = document.createElement('dialog');
+  d.className = 'report-dialog';
+  d.style.cssText = 'border:1px solid #d6dbe6;border-radius:12px;padding:20px;max-width:380px;width:calc(100% - 32px);font:14px/1.45 Inter,system-ui,sans-serif;color:#121826';
+  d.innerHTML = `<form method="dialog"><h3 style="margin:0 0 4px;font-size:18px">Report ${escapeHtml(g.title)}</h3><p class="muted" style="margin:0 0 12px">What is wrong with this world?</p>${REASONS.map(([v, l], i) => `<label style="display:block;padding:4px 0"><input type="radio" name="reason" value="${v}"${i === 0 ? ' checked' : ''}> ${l}</label>`).join('')}<textarea name="note" maxlength="500" rows="3" placeholder="Anything else we should know? (optional)" style="width:100%;box-sizing:border-box;margin:10px 0;font:inherit"></textarea><p class="muted" data-say style="margin:0 0 10px" role="status"></p><div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn btn-ghost btn-sm" data-a="cancel">Cancel</button><button type="submit" class="btn btn-primary btn-sm" data-a="send">Send report</button></div></form>`;
+  document.body.appendChild(d);
+  const say = d.querySelector('[data-say]');
+  d.querySelector('[data-a="cancel"]').onclick = () => d.close();
+  d.addEventListener('close', () => d.remove());
+  d.querySelector('form').onsubmit = async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    try {
+      const r = await fetch(`/v1/play/${encodeURIComponent(g.slug)}/report`, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ reason: f.get('reason'), note: f.get('note') }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || 'Could not send that');
+      say.textContent = 'Thank you. We will look at it.';
+      d.querySelector('[data-a="send"]').hidden = true;
+      d.querySelector('[data-a="cancel"]').textContent = 'Close';
+    } catch (err) { say.textContent = err.message; }
+  };
+  d.showModal();
 }
 
 /** A copy of a game, yours to change: then straight into it. */

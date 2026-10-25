@@ -54,11 +54,11 @@ $('signOut').addEventListener('click', async () => { await api('/v1/users/logout
 
 // ---------------------------------------------------------------- tabs
 function show(tab) {
-  if (!['overview', 'accounts', 'jobs', 'purchases'].includes(tab)) tab = 'overview';
+  if (!['overview', 'accounts', 'jobs', 'purchases', 'reports'].includes(tab)) tab = 'overview';
   document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
   document.querySelectorAll('[data-pane]').forEach((p) => { p.hidden = p.dataset.pane !== tab; });
   history.replaceState(null, '', `#${tab}`);
-  ({ overview, accounts, jobs, purchases })[tab]();
+  ({ overview, accounts, jobs, purchases, reports })[tab]();
 }
 document.querySelectorAll('#tabs button').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
 
@@ -182,3 +182,34 @@ async function purchases() {
 }
 
 start();
+
+// ---------------------------------------------------------------- reports
+const REASON = { broken: 'Broken', scary: 'Scary or rude', scam: 'Scam', other: 'Other' };
+async function reports() {
+  const { games } = await api('/v1/admin/reports');
+  const body = document.querySelector('#reports tbody');
+  body.innerHTML = games.length ? games.map((g) => `
+    <tr data-id="${esc(g.id)}">
+      <td><a href="${esc(g.url)}" target="_blank" rel="noopener">${esc(g.title)}</a><div class="muted" style="font-size:12px">${esc(g.slug)} · ${n(g.plays)} plays</div></td>
+      <td>${esc(g.owner.name || '')}<div class="muted" style="font-size:12px">${esc(g.owner.email)}</div></td>
+      <td>${n(g.reports)}<div class="muted" style="font-size:12px">${Object.entries(g.byReason).map(([k, v]) => `${esc(REASON[k] || k)} ${v}`).join(' · ')}</div></td>
+      <td>${g.recent.slice(0, 3).map((r) => `<div style="font-size:12px"><b>${esc(REASON[r.reason] || r.reason)}</b> · ${esc(r.by)} · ${when(r.created)}${r.note ? `<br>${esc(r.note)}` : ''}</div>`).join('') || '—'}</td>
+      <td>${g.hidden ? `<b>Closed</b><div class="muted" style="font-size:12px">${esc(g.hiddenReason || '')} (${esc(g.hiddenBy || '')}, ${when(g.hiddenAt)})</div>` : 'Open'}</td>
+      <td>${g.hidden ? '<button class="btn btn-secondary btn-sm" data-a="unhide">Unhide</button>' : '<button class="btn btn-secondary btn-sm" data-a="hide">Hide</button>'}</td>
+    </tr>`).join('') : '<tr><td colspan="6" class="muted">No reports yet.</td></tr>';
+  for (const b of body.querySelectorAll('button')) {
+    b.onclick = async () => {
+      const row = b.closest('tr');
+      let reason = null;
+      if (b.dataset.a === 'hide') {
+        reason = prompt('Why is it closed? The owner will see this on their Games page.', 'It was reported and an admin closed it.');
+        if (reason === null) return;
+      }
+      try {
+        await api(`/v1/admin/games/${row.dataset.id}/${b.dataset.a}`, { reason });
+        toast(b.dataset.a === 'hide' ? 'Closed' : 'Opened again');
+        reports();
+      } catch (x) { toast(x.message); }
+    };
+  }
+}
