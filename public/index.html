@@ -17,6 +17,7 @@
   try { if (navigator.webdriver || /[?&]playtest=/.test(location.search) || sessionStorage.getItem('hg_playtest_run')) import('/playtest/portal.js').catch(function () {}); } catch (e) {}</script>
 </head>
 <body class="landing at-sky">
+  <a class="skip-link" href="#main">Skip to content</a>
   <header class="hg-navbar">
     <div class="wrap hg-navbar-inner">
       <a href="/" class="hg-brand"><span class="wordmark">Hawkes Gen</span></a>
@@ -28,7 +29,7 @@
     </div>
   </header>
 
-  <main>
+  <main id="main" tabindex="-1">
     <section class="sky" data-sky aria-label="The Overseer over a planet">
       <canvas aria-hidden="true"></canvas>
       <div class="sky-say" data-sky-say aria-live="polite"></div>
@@ -80,7 +81,7 @@
         <div class="hand beam-in" data-hand>
           <div class="hand-input">
             <div class="hand-drop" data-hand-drop tabindex="0" role="button" aria-label="Choose a picture, or drop one here">
-              <input type="file" accept="image/png,image/jpeg,image/webp" hidden data-hand-file>
+              <input type="file" accept="image/png,image/jpeg,image/webp" hidden data-hand-file aria-label="Choose a picture">
               <img data-hand-src alt="Your picture" hidden>
               <div class="hand-drop-text" data-hand-drop-text><b>Drop a picture here</b><span>or click to choose one. PNG, JPG or WebP, up to 6 MB.</span></div>
             </div>
@@ -122,38 +123,25 @@
         </div>
         <div class="features">
           <div class="feature">
-            <div style="background:var(--surface-2);border-radius:8px;padding:30px;text-align:center">
-              <div style="display:flex;gap:8px;justify-content:center;margin-bottom:8px">
-                <span style="width:32px;height:32px;background:#4a9eff;border-radius:50%;display:inline-block"></span>
-                <span style="width:32px;height:32px;background:#f59e42;border-radius:50%;display:inline-block"></span>
-                <span style="width:32px;height:32px;background:#a855f7;border-radius:50%;display:inline-block"></span>
-              </div>
-              <div style="font:12px var(--sans);color:var(--fg-2)">3 people editing</div>
+            <div class="feat-live" data-live>
+              <b data-live-n>Live</b>
+              <span data-live-t>Edits reach everyone in the game as they happen. Counts show here when someone is in one.</span>
             </div>
-            <h3>Real-time collaboration</h3>
-            <p>See each other's cursors, edits appear instantly, and chat together while you build. Perfect for game jams.</p>
+            <h3>Build together, live</h3>
+            <p>Friends join your world, see each other and what changes, and chat while you build. People play while others build.</p>
           </div>
           <div class="feature">
-            <div style="background:var(--surface-2);border-radius:8px;padding:30px">
-              <div style="font:13px var(--mono);color:var(--fg-2)">
-                <div style="color:#a855f7">💬 AI Assistant</div>
-                <div style="margin-top:8px;color:var(--fg)">"Add a jump mechanic"</div>
-                <div style="margin-top:12px;padding:12px;background:rgba(74,158,255,0.1);border-radius:4px;font-size:11px">
-                  ✓ Added jump to game.js<br>
-                  ✓ Updated controls
-                </div>
-              </div>
+            <div class="feat-pair">
+              <figure><img src="/examples/knight.webp" alt="A knight, before" loading="lazy"><figcaption>before</figcaption></figure>
+              <figure><img src="/examples/edit.webp" alt="The same knight with a golden sword and a red plume" loading="lazy"><figcaption>"golden sword, red plume"</figcaption></figure>
             </div>
-            <h3>AI assistant</h3>
-            <p>Ask the AI to add features, fix bugs, or generate game assets. It understands your code and helps you build faster.</p>
+            <h3>An assistant that makes things</h3>
+            <p>Ask for a feature, a fix or an asset. It changes your game's code and world, offers a library match before making anything new, and quotes the price first. (An <code>image.edit</code> result.)</p>
           </div>
           <div class="feature">
-            <div style="background:var(--surface-2);border-radius:8px;padding:30px;text-align:center">
-              <div style="font:28px var(--sans);margin-bottom:6px">✋</div>
-              <div style="font:12px var(--sans);color:var(--fg-2)">Hold to grab · double-click to change</div>
-            </div>
+            <div class="feat-live"><b>Walk it</b><span>Hold to grab and throw, double-click to change anything, ask the assistant on the spot.</span><a class="btn btn-secondary btn-sm" href="/play/sandbox">Try the island</a></div>
             <h3>Build inside your game</h3>
-            <p>You walk around in your world while you make it: grab things and throw them, double-click anything to change it, and tell the assistant what you want right there.</p>
+            <p>You walk around your world while you make it. No editor to switch to. The island is free, with no account.</p>
           </div>
         </div>
       </div>
@@ -191,7 +179,7 @@
         <div>
           <div class="label">03 — Asset Studio</div>
           <h2 style="font:600 48px/1.02 var(--sans);letter-spacing:-.02em;margin:14px 0 16px">Need custom game assets?</h2>
-          <p class="muted" style="font-size:17px;max-width:34em;margin:0 0 20px">Generate sprites, 3D models, sounds, and music with AI. Available in the game builder, or use our Unity plugin, CLI, or connect to your code editor.</p>
+          <p class="muted" style="font-size:17px;max-width:34em;margin:0 0 20px">Sprites, 3D models, sounds and music, in the game builder, in Unity, or from your code editor.</p>
           <ul class="unity-list">
             <li><b>Sprite sheets</b> sliced into Sprites, with a looping AnimationClip</li>
             <li><b>Materials</b> for URP, HDRP or Built-in, with normal maps</li>
@@ -205,16 +193,15 @@
           </div>
           <div class="fine">Submitted to the Unity Asset Store and in review. Until it's listed, the download here is the same package.</div>
         </div>
-        <div class="unity-window" aria-hidden="true">
-          <div class="unity-bar"><span></span><span></span><span></span><b>Hawkes Gen</b></div>
+        <figure class="unity-window">
+          <div class="unity-bar"><span></span><span></span><span></span><b>One knight, made here</b></div>
           <div class="unity-body">
-            <div class="unity-row"><span>Make</span><div class="unity-field">Animated sprite sheet ▾</div></div>
-            <div class="unity-row"><span>Image</span><div class="unity-field unity-asset"><img src="/examples/knight.webp" alt="">Knight</div></div>
-            <div class="unity-row"><span>Motion</span><div class="unity-field">walking in place, a looping walk cycle</div></div>
-            <div class="unity-progress"><div style="width:72%"></div><span>Step 3/4 · Animating · about 1 min left</span></div>
-            <div class="unity-result"><img src="/examples/walk.gif" alt=""><div><b>walk.png</b> · 8 sprites<br><b>walk.anim</b> · loops</div></div>
+            <div class="unity-result"><img src="/examples/knight.webp" alt="The knight"><div><b>generate_image</b> · 5 credits<br>one picture</div></div>
+            <div class="unity-result"><img src="/examples/walk.gif" alt="The knight walking, animated"><div><b>preview.gif</b><br>the walk cycle</div></div>
+            <div class="unity-result"><img src="/examples/walk-sheet.webp" alt="The sprite sheet, 4 by 2 frames"><div><b>sheet.png</b><br>4×2 frames, 256 px, transparent</div></div>
           </div>
-        </div>
+          <figcaption class="fine" style="padding:0 16px 14px">Real output. More on <a href="/examples">the examples page</a>.</figcaption>
+        </figure>
       </div>
     </section>
 
@@ -224,22 +211,23 @@
           <div class="label">04 — Tools</div>
           <div>
             <h2>One account, every kind of asset.</h2>
-            <p>Each tool is a tested pipeline: the right model on the right GPU, with the settings worked out. Prices are quoted before you run, in credits (1 credit = $0.01).</p>
+            <p>Each tool is a tested pipeline with the settings worked out. Every job is priced before it runs, in credits (1 credit = $0.01).</p>
           </div>
         </div>
         <table class="tool-table">
           <thead><tr><th class="label">What</th><th class="label">Tools</th><th class="label" style="text-align:right">From</th></tr></thead>
-          <tbody>
-            <tr><td>Images &amp; textures</td><td class="ids">image.generate · image.edit · image.cutout · image.angles · image.panorama · texture.maps</td><td class="from">5 cr</td></tr>
-            <tr><td>Video</td><td class="ids">video.t2v · video.i2v · video.animate · video.upscale · video.interpolate</td><td class="from">40 cr</td></tr>
-            <tr><td>3D models</td><td class="ids">image.viewsheet · mesh.views3d · mesh.textured</td><td class="from">50 cr</td></tr>
-            <tr><td>Rigging &amp; motion</td><td class="ids">mesh.rig · motion.from-text · blender.character · a CC0 motion library</td><td class="from">20 cr</td></tr>
-            <tr><td>Voice &amp; sound</td><td class="ids">audio.voice · audio.voice-design · audio.sfx</td><td class="from">8 cr</td></tr>
-            <tr><td>Music</td><td class="ids">audio.music</td><td class="from">20 cr</td></tr>
+          <tbody id="toolRows">
+            <tr data-tools="image.generate image.edit image.cutout image.angles image.panorama texture.maps"><td>Images &amp; textures</td><td class="ids">image.generate · image.edit · image.cutout · image.angles · image.panorama · texture.maps</td><td class="from"><span data-from>2</span> cr</td></tr>
+            <tr data-tools="video.t2v video.i2v video.animate video.upscale video.interpolate"><td>Video</td><td class="ids">video.t2v · video.i2v · video.animate · video.upscale · video.interpolate</td><td class="from"><span data-from>40</span> cr</td></tr>
+            <tr data-tools="image.viewsheet mesh.views3d mesh.textured"><td>3D models</td><td class="ids">image.viewsheet · mesh.views3d · mesh.textured</td><td class="from"><span data-from>15</span> cr</td></tr>
+            <tr data-tools="mesh.rig motion.from-text blender.character"><td>Rigging &amp; motion</td><td class="ids">mesh.rig · motion.from-text · blender.character · a CC0 motion library</td><td class="from"><span data-from>20</span> cr</td></tr>
+            <tr data-tools="audio.voice audio.voice-design audio.sfx"><td>Voice &amp; sound</td><td class="ids">audio.voice · audio.voice-design · audio.sfx</td><td class="from"><span data-from>8</span> cr</td></tr>
+            <tr data-tools="audio.music"><td>Music</td><td class="ids">audio.music</td><td class="from"><span data-from>20</span> cr</td></tr>
             <tr><td>In Unity</td><td class="ids">Window &gt; Hawkes Gen: sprite sheets arrive sliced with an AnimationClip, textures as Materials, sounds as AudioClips</td><td class="from"><a href="/connect#unity">get it</a></td></tr>
             <tr><td>Chains</td><td class="ids">asset.make: several steps as one job, e.g. concept → four views → mesh → rig</td><td class="from">quoted</td></tr>
           </tbody>
         </table>
+        <div class="fine" id="toolsNote">The lowest price in each row, as Gen quotes it. A bigger job costs more; you see the price before it runs.</div>
       </div>
     </section>
 
@@ -254,6 +242,7 @@
           <div><div class="label">Run</div><h3>Credits are held.</h3><p>The quoted amount is held while the job runs. Progress streams live.</p></div>
           <div><div class="label">Keep</div><h3>Failures cost nothing.</h3><p>A job that fails or that you cancel gives its credits back, automatically.</p></div>
         </div>
+        <div class="credit-packs" id="creditPacks" hidden></div>
       </div>
     </section>
 
@@ -376,8 +365,8 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
         <button type="button" class="btn btn-ghost btn-sm" id="authClose" aria-label="Close">Close</button>
       </div>
       <div class="segmented" style="margin-bottom:18px">
-        <button type="button" data-mode="signup" class="on">New account</button>
-        <button type="button" data-mode="login">Sign in</button>
+        <button type="button" data-mode="signup" class="on" aria-pressed="true">New account</button>
+        <button type="button" data-mode="login" aria-pressed="false">Sign in</button>
       </div>
       <a class="btn btn-secondary btn-lg google-btn" id="googleBtn" href="/auth/google?next=/app" style="width:100%"><svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg><span>Continue with Google</span></a>
         <div class="or"><span>or with email</span></div>
@@ -385,7 +374,7 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
         <div class="form-field" id="authNameField"><label for="authName">Name or studio</label><input id="authName" class="form-input" autocomplete="organization"></div>
         <div class="form-field"><label for="authEmail">Email</label><input id="authEmail" type="email" class="form-input" autocomplete="email" required></div>
         <div class="form-field"><label for="authPassword">Password <span class="muted" id="pwHint">(8 characters or more)</span></label><input id="authPassword" type="password" class="form-input" minlength="8" autocomplete="new-password" required></div>
-        <div class="form-error" id="authError" hidden></div>
+        <div class="form-error" id="authError" role="alert" hidden></div>
         <button type="submit" class="btn btn-primary btn-lg" id="authSubmit" style="width:100%">Create account</button>
         <p class="muted" id="authTerms" style="margin:0;font-size:12.5px">By creating an account you agree to the <a href="/legal#terms" target="_blank">terms</a> and <a href="/legal#privacy" target="_blank">privacy policy</a>.</p>
       </form>
@@ -399,7 +388,7 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
     let mode = 'signup';
     function setMode(m) {
       mode = m;
-      document.querySelectorAll('.segmented button').forEach((b) => b.classList.toggle('on', b.dataset.mode === m));
+      document.querySelectorAll('#authModal .segmented button').forEach((b) => { b.classList.toggle('on', b.dataset.mode === m); b.setAttribute('aria-pressed', String(b.dataset.mode === m)); });
       document.getElementById('authTitle').textContent = m === 'signup' ? 'Create an account' : 'Sign in';
       document.getElementById('authSubmit').textContent = m === 'signup' ? 'Create account' : 'Sign in';
       document.getElementById('authNameField').hidden = m !== 'signup';
@@ -408,11 +397,22 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
       document.getElementById('authPassword').autocomplete = m === 'signup' ? 'new-password' : 'current-password';
       err.hidden = true;
     }
-    document.querySelectorAll('[data-open-auth]').forEach((b) => b.addEventListener('click', () => { setMode(b.dataset.openAuth); modal.hidden = false; if (b.dataset.openAuth === 'signup') window.hawkesAnalytics?.track?.('signup_open', { from: b.closest('section')?.id || 'header' }); document.getElementById('authEmail').focus(); }));
-    document.querySelectorAll('.segmented button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
-    document.getElementById('authClose').addEventListener('click', () => { modal.hidden = true; });
-    modal.addEventListener('click', (e) => { if (e.target === modal) modal.hidden = true; });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') modal.hidden = true; });
+    document.querySelectorAll('[data-open-auth]').forEach((b) => b.addEventListener('click', () => { opener = b; setMode(b.dataset.openAuth); modal.hidden = false; setTimeout(() => document.getElementById('googleBtn').focus(), 0); if (b.dataset.openAuth === 'signup') window.hawkesAnalytics?.track?.('signup_open', { from: b.closest('section')?.id || 'header' }); document.getElementById('authEmail').focus(); }));
+    document.querySelectorAll('#authModal .segmented button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+    let opener = null;
+    const closeModal = () => { modal.hidden = true; if (opener && opener.isConnected) opener.focus(); opener = null; };
+    document.getElementById('authClose').addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', (e) => {
+      if (modal.hidden) return;
+      if (e.key === 'Escape') { closeModal(); return; }
+      if (e.key !== 'Tab') return;
+      const f = [...modal.querySelectorAll('a[href],button,input')].filter((x) => !x.disabled && !x.closest('[hidden]') && x.getClientRects().length);
+      if (!f.length) return;
+      if (!modal.contains(document.activeElement)) { e.preventDefault(); f[0].focus(); }
+      else if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
+      else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
+    });
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       err.hidden = true;
@@ -529,6 +529,35 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
         peek.innerHTML = pics.map((x) => '<a href="/community?open=' + encodeURIComponent(x.id) + '"><img src="' + esc(x.thumb) + '" alt="" loading="lazy"><span>' + esc(x.title) + '</span></a>').join('');
         peek.hidden = false;
       } catch {}
+    })();
+  </script>
+  <script>
+    // Live bits (nothing printed here that the portal can't show): Gen's quotes for the tool table, the credit packs from
+    // billing.ts, and who is in games right now.
+    (async () => {
+      const esc = (t) => String(t).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+      const get = (u) => fetch(u).then((r) => (r.ok ? r.json() : Promise.reject(new Error(u))));
+      get('/v1/prices').then((d) => {
+        const t = d.tools || {};
+        for (const tr of document.querySelectorAll('#toolRows tr[data-tools]')) {
+          const prices = tr.dataset.tools.split(' ').map((id) => t[id]).filter((n) => n > 0);
+          if (prices.length) tr.querySelector('[data-from]').textContent = Math.min(...prices);
+        }
+      }).catch(() => {});
+      get('/v1/billing/packs').then((d) => {
+        const el = document.getElementById('creditPacks');
+        el.innerHTML = '<div class="label">Credit packs</div>' + d.packs.map((p) => '<div><b>$' + p.priceUsd + '</b> <span>' + p.credits.toLocaleString('en-US') + ' credits' + (p.bonusPercent ? ' · ' + p.bonusPercent + '% bonus' : '') + '</span></div>').join('')
+          + (d.firstPurchaseBonus ? '<p class="fine">Your first purchase adds ' + d.firstPurchaseBonus + '% more.</p>' : '');
+        el.hidden = false;
+      }).catch(() => {});
+      get('/v1/gallery?limit=60').then((d) => {
+        const all = [...(d.featured || []), ...(d.games || [])];
+        const playing = all.reduce((n, g) => n + (g.playing || 0), 0), building = all.reduce((n, g) => n + (g.building || 0), 0);
+        const n = document.querySelector('[data-live-n]'), t = document.querySelector('[data-live-t]');
+        if (!n || !(playing || building)) return;
+        n.textContent = [playing && playing + ' playing', building && building + ' building'].filter(Boolean).join(' · ');
+        t.innerHTML = 'right now, across ' + esc(all.filter((g) => g.playing || g.building).length) + ' game' + (all.filter((g) => g.playing || g.building).length === 1 ? '' : 's') + '. <a href="/games">See them</a>';
+      }).catch(() => {});
     })();
   </script>
 </body>

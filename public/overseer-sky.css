@@ -8,14 +8,14 @@
 .sky-eyebrow { font: 500 11.5px/1 var(--mono); letter-spacing: .28em; text-transform: uppercase; color: #8fd8ff; margin-bottom: 18px; }
 .sky h1 { font: 700 clamp(40px, 6.4vw, 84px)/0.98 var(--sans); letter-spacing: -0.035em; color: #fff; margin: 0; max-width: 11em; text-shadow: 0 2px 40px rgba(3,5,12,.6); }
 .sky h1 em { font-style: normal; color: #bfe9ff; }
-.sky .lede { font-size: clamp(15px, 1.5vw, 18px); line-height: 1.55; color: #bdd0e6; max-width: 34em; margin: 20px 0 26px; }
+.sky .lede { font-size: clamp(15px, 1.5vw, 18px); line-height: 1.55; color: #cfe0f3; max-width: 34em; margin: 20px 0 26px; }
 .sky-wish { display: flex; gap: 8px; max-width: 540px; padding: 6px; border-radius: 16px; background: rgba(8,16,34,.62); border: 1px solid rgba(143,216,255,.38); backdrop-filter: blur(10px); box-shadow: 0 0 0 4px rgba(143,216,255,.06), 0 20px 60px rgba(0,0,0,.35); }
 .sky-wish:focus-within { border-color: #8fd8ff; box-shadow: 0 0 0 4px rgba(143,216,255,.16), 0 20px 60px rgba(0,0,0,.35); }
-.sky-wish input { flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; color: #fff; font: 500 16px var(--sans); padding: 12px 14px; }
-.sky-wish input::placeholder { color: #7f98b6; }
-.sky-wish button { flex: none; border: 0; border-radius: 11px; padding: 0 20px; font: 600 14.5px var(--sans); color: #05101f; background: linear-gradient(180deg, #ffffff, #bfe9ff); cursor: pointer; transition: transform .12s, box-shadow .12s; }
+.sky-wish input { flex: 1; min-width: 0; min-height: 44px; background: transparent; border: 0; outline: 0; color: #fff; font: 500 16px var(--sans); padding: 12px 14px; }
+.sky-wish input::placeholder { color: #a9bdd6; }
+.sky-wish button { flex: none; border: 0; border-radius: 11px; padding: 0 20px; min-height: 44px; font: 600 14.5px var(--sans); color: #05101f; background: linear-gradient(180deg, #ffffff, #bfe9ff); cursor: pointer; transition: transform .12s, box-shadow .12s; }
 .sky-wish button:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(143,216,255,.45); }
-.sky-label { display: block; font: 500 12.5px var(--sans); color: #8aa4c4; margin: 0 0 8px 4px; }
+.sky-label { display: block; font: 500 12.5px var(--sans); color: #b4c8e2; margin: 0 0 8px 4px; }
 .sky-reply { margin: 12px 0 0 4px; font: 500 14px var(--sans); color: #bfe9ff; opacity: 0; transform: translateY(4px); transition: opacity .5s, transform .5s; }
 .sky-reply.on { opacity: 1; transform: none; }
 .sky-reply a { color: #fff; border-bottom: 1px solid rgba(255,255,255,.5); }
@@ -24,7 +24,7 @@
 .sky .btn-play:hover { background: #bfe9ff; border-color: #bfe9ff; color: #05101f; }
 .sky .btn-ghostlight { background: transparent; color: #eaf3ff; border-color: rgba(234,243,255,.4); }
 .sky .btn-ghostlight:hover { background: rgba(255,255,255,.1); border-color: #fff; color: #fff; }
-.sky .fine { color: #7f98b6; max-width: 46em; }
+.sky .fine { color: #aebfd6; max-width: 46em; }
 .sky .fine a { color: #bfe9ff; }
 
 .sky-say { position: absolute; z-index: 2; transform: translateX(-50%); width: min(80vw, 360px); text-align: center; font: italic 500 clamp(14px, 1.3vw, 17px)/1.4 Georgia, 'Times New Roman', serif; color: #dff3ff; text-shadow: 0 0 18px rgba(143,216,255,.7); opacity: 0; transition: opacity .6s; pointer-events: none; }
@@ -117,4 +117,15 @@ body.landing.at-sky .site-menu-btn { color: #fff; border-color: rgba(255,255,255
 @media (prefers-reduced-motion: reduce) {
   .orbit { animation: none; }
   .planet { transition: none; }
+}
+
+/* keyboard focus: a ring on everything the sky offers (the wish box shows it on its frame) */
+.sky a:focus-visible, .sky button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; box-shadow: 0 0 0 6px #0b66d6; }
+.sky-wish:focus-within { outline: 3px solid #fff; outline-offset: 2px; }
+body.landing.at-sky .hg-navbar a:focus-visible, body.landing.at-sky .hg-navbar button:focus-visible { outline-color: #fff; }
+@media (prefers-reduced-motion: reduce) {
+  .sky-say, .sky-reply, .sky-thing, .sky-wish button, body.landing .hg-navbar { transition: none; }
+  .sky-thing { animation: none; clip-path: none; }
+  .sky-thing i { display: none; }
+  .sky-say.on { opacity: .95; }
 }

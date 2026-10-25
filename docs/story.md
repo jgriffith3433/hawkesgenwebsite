@@ -324,8 +324,8 @@ first place that is the Overseer's own rather than a landing place, and it is ke
 
 - **The room.** Curved walls that are mostly glass: tall windows onto the planet below and the stars. A model of the planet
   turns slowly on a stand in the middle. The lights are soft and rise a little while the Overseer speaks. A quiet music bed
-  (a slow chord and a low hum). Three places stand against the wall, empty for now: **a mirror**, **a wardrobe** and **a travel
-  board**. Their plaques say "hung soon", "filled soon", "lit soon". Nothing is promised beyond that.
+  (a slow chord and a low hum). Three places stand against the wall: **a mirror** and **a wardrobe** (empty for now: "hung soon", "filled soon") and **a travel
+  board** (lit: see below). Nothing is promised beyond that.
 - **The Overseer is here, and it is not a body.** It is a pearl of light that drifts over to the player and stops a few steps
   off, a little above head height. It does not follow like a pet and does not leave. It is the same voice as everywhere.
 - **The first time** (once per device; about forty seconds, skippable): it says the character's name from the mirror and asks
@@ -337,7 +337,15 @@ first place that is the Overseer's own rather than a landing place, and it is ke
 - **Every later time** is quick: a lift of a few seconds and one short line (*"Welcome back, Ada."*, *"The stars kept your place."*).
 - **The way out** is the same lift; it puts the player down beside the ship they came in.
 
-*Open for later tasks:* the mirror, the wardrobe and the travel board are placeholders until their own tasks land. The cracked
+- **The travel board** (built). Against the wall, three small planets hang in an arc over the board's pedestal: **Bot Arena**,
+  **Sky Racer** and **Leap**, the Overseer's featured games. Each has a plate with its name, one line and how many are there
+  now (*"● 2 playing"*). Standing under one and pressing E makes the Overseer say where (*"Leap. A village, a hill and a rocket
+  at the top. Hold still."*), the room fades, and the player is beamed down into that game as the character they made, with
+  their name. Nothing in the games changes; the way back is always there: Esc twice opens a pause menu with **Return to the
+  Observatory** (and a button in the corner), and a beam puts them down at the board with *"Name. You are back from Leap.
+  The stars kept your place."* The sandbox stays home: the return skips the intro and the mirror.
+
+*Open for later tasks:* the mirror and the wardrobe are placeholders until their own tasks land. The cracked
 mirror of Chapter Three is not here: it is in the hangar, facing the wall, and this room does not mention it.
 
 ### The "seems good" ledger

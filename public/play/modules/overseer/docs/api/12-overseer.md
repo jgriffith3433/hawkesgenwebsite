@@ -119,3 +119,14 @@ j.find('tally');    // true when it was new; saved
 ```
 
 The sandbox's `journal.js` is the panel (a book button top right, **N**, or the editor's pause menu "Journal"). Events: `game.on('met', {id})`, `game.on('lore-found', {id, n, title})`, `game.on('journal', {open, from})`. Funnel: `sandbox_journal_open {from, quests, met, lore}` and `sandbox_lore_found {id, n, found}` (add, never rename).
+### The travel board (inside the Observatory)
+
+```js
+const ob = H.overseer.observatory;
+ob.board;                  // [{ id, name, line, count, at }]: the featured games as planets (count: players there now, null until known)
+ob.travel('platform-run'); // what E under a planet does: the Overseer speaks, fade, then navigate to /play/t/<id>?from=observatory&look=...
+ob.beamIn();               // back from a game (?return=observatory does it on load): at the board, with a line
+ob.traveling;              // { game, phase, href } while a trip lasts
+game.on('observatory', ({ state }) => {}); // + 'travel', 'beam-down', 'return', 'travel-failed'
+```
+A featured game page opened with `?from=observatory` has a corner button and a pause menu (Esc twice) with "Return to the Observatory".

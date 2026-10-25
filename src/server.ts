@@ -29,7 +29,7 @@ import * as friends from './friends.ts';
 import { presenceRoute } from './presence.ts';
 import { askAssistant, generateAsset, pendingGens, markSuggestion, resumeGens, KINDS, AI_CREDITS } from './gameai.ts';
 import { join as joinLive, setPresence } from './live.ts';
-import { templateBundle } from './templates.ts';
+import { templateBundle, featured } from './templates.ts';
 import { loaderScript, engineDoc, manifest } from './engine.ts';
 const engineVersion = () => manifest().version;
 import * as community from './community.ts';
@@ -226,6 +226,10 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       if (route === '/play/modules.js') return void res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-cache' }).end(loaderScript());
       if (route === '/play/WORLD.md' || route === '/play/API.md') return void res.writeHead(200, { 'Content-Type': 'text/markdown; charset=utf-8', 'Cache-Control': 'no-cache' }).end(engineDoc(route === '/play/WORLD.md' ? 'world' : 'api'));
       if (route === '/play/sandbox') return servePlayPage(res, req, { guest: true });
+      // The Overseer's featured games are our own scripts, like the sandbox: served without the play sandbox, so a player beamed
+      // down from the Observatory keeps their look and name (this site's storage) and the way back is a plain page load.
+      const featuredId = /^\/play\/t\/([a-z0-9-]+)$/.exec(route)?.[1];
+      if (featuredId && featured().some((f: any) => f.id === featuredId)) return servePlayPage(res, req, { guest: true });
       if (/^\/play\/(_draft|t\/[a-z0-9-]+|[a-z0-9-]+(\/v\/\d+)?)$/.test(route) && route !== '/play/runtime.js') return servePlayPage(res, req);
       let pa = /^\/play-asset\/d\/([\w-]+\.[\w-]+)\/[^/]+$/.exec(route);
       // ?lod=<level>&v=<hash>: a level of detail of an image or model (Gen's LOD system: lods.ts).
@@ -269,6 +273,8 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       const s = stripeStatus();
       return send(res, 200, { packs: PACKS, firstPurchaseBonus: FIRST_PURCHASE_BONUS, stripe: { configured: s.configured, publishableKey: s.publishableKey, mode: s.mode } });
     }
+    // Gen's quotes for the tools in the landing page's table (prices.ts): credits at the floor, 1 credit = $0.01.
+    if (route === '/v1/prices' && method === 'GET') { res.setHeader('Cache-Control', 'public, max-age=300'); return send(res, 200, { tools: await (await import('./prices.ts')).toolPrices() }); }
     if (route === '/v1/plans' && method === 'GET') return send(res, 200, { plans: PLANS, aiCredits: AI_CREDITS() });
     const tb = /^\/v1\/play-template\/([a-z0-9-]+)$/.exec(route);
     if (tb && method === 'GET') {
