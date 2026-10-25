@@ -1592,6 +1592,24 @@ async function stageModels(t, ctx) {
       t.event('model-moves', `${id}: walked, ran, jumped and waved with the ${hat} on`);
     }
   }
+  if (ALL) {
+    // ten different Gen models in view at once (stand-in players with other looks: the same path a real second player's look takes), the crowd tools read
+    releaseAll();
+    const ten = ['cat', 'fox', 'pig', 'bear', 'rabbit', 'cow', 'sheep', 'horse', 'robot', 'duck'];
+    t.event('setup-shortcut', 'ten stand-in players put ahead of the player, each with another look (presence.standIn and the look their presence state carries)');
+    ten.forEach((id, n) => {
+      const cid = P().standIn(`Model ${n + 1}`, { ahead: 6 + n * 1.6, side: (n % 2 ? 1 : -1) * (2 + (n % 5)), color: '#f59e0b' });
+      if (cid) P()._internal.peerInfo.set(cid, { look: { what: id, name: id } });
+    });
+    await t.wait(6000);
+    const crowd = P().crowd(), m = HP().monitor && HP().monitor.sample ? HP().monitor.sample() : null;
+    const loaded = [...P()._internal.rigs.values()].filter((r) => r.pm && r.pm.on).length;
+    t.event('crowd-ten', `${crowd.bodies} bodies in the crowd (${crowd.full} in full of ${crowd.cap}), ${loaded} Gen models on rigs${m ? `, ${m.drawCalls} draw calls, ${m.triangles} triangles, ${m.fps} fps, textures ${m.textureMB} of ${m.textureBudgetMB} MB` : ''}`);
+    if (m && m.textureBudgetMB && m.textureMB > m.textureBudgetMB) t.problem('error', `ten models: ${m.textureMB} MB of textures is over the ${m.textureBudgetMB} MB budget`);
+    if (crowd.cap && crowd.full > crowd.cap) t.problem('error', `ten models: ${crowd.full} bodies in full is over the cap of ${crowd.cap}`);
+    t.scene('Ten different Gen models in view');
+    P().removeStandIns();
+  }
   t.progress(1);
 }
 
