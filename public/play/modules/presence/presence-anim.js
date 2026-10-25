@@ -150,7 +150,7 @@
     for (const tr of c.tracks) {
       const o = { q: null, p: null, s: null };
       if (tr.rot) { const e = evalKeys(tr.rot, 3, u, c.loop, c.ease); o.q = qeuler(e[0], e[1], e[2]); }
-      else if (tr.q) { const e = evalKeys(tr.q, 4, u, c.loop, c.ease === 'spline' ? 'smooth' : c.ease); o.q = qnorm(e); }
+      else if (tr.q) { const e = evalKeys(tr.q, 4, u, c.loop, c.ease); o.q = qnorm(e); } // (a spline through the keys' components, then normalised: no stop at each key; tools/mixamo-clips.mjs keeps neighbours in one hemisphere)
       if (tr.pos) o.p = evalKeys(tr.pos, 3, u, c.loop, c.ease);
       if (tr.scl) o.s = evalKeys(tr.scl, 3, u, c.loop, c.ease);
       out.set(tr.bone, o);
@@ -357,6 +357,7 @@
     return b;
   }
   /** A body that keeps its own gait (the fish's swim, the roll-bot's roll: a row's `keepGait`) takes the set only for standing, emotes and a hurt. */
+  const SWIM_STILL = 0.35; // m/s: slower than this in the water is treading water
   const OWN_GAIT = new Set(['walk', 'run', 'jump_start', 'jump', 'land', 'fall', 'swim', 'drive', 'knock_down', 'get_up']);
   const keepsGait = (ent, clipName) => Boolean(ent && ent.keepGait && OWN_GAIT.has(clipName));
   const hasClip = (A, name) => Boolean(A.player && A.player.clip(name));
@@ -416,6 +417,7 @@
     let name = roleClip(set, role, ctx.glb);
     if (name === 'walk' && set.clips.trot && ctx.speed > TROT_AT) name = 'trot'; // (a quicker diagonal gait between the walk and the run)
     if (name === 'idle' && A.sniff) name = 'idle_sniff';
+    if (name === 'swim' && set.clips.swim_idle && ctx.speed < SWIM_STILL) name = 'swim_idle'; // (treading water when it is not going anywhere)
     if (name) {
       const walkish = name === 'walk' || name === 'trot' || name === 'run';
       loop = { name, rate: walkish ? clamp(ctx.speed / (ctx.stride[name] || (name === 'trot' ? STRIDE_TROT : ctx.stride.walk)), 0.4, 2.5) : 1 };
