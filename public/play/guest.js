@@ -23,7 +23,7 @@
 // sandbox_intro_skip | sandbox_intro_end > sandbox_mirror_open > sandbox_mirror_answer {step} | sandbox_mirror_skip {step} >
 // sandbox_sheet_shown > sandbox_sheet_focus {field} > sandbox_google_popup {opened} > sandbox_signup_submit {mode} >
 // sandbox_signup_ok {mode, method} | sandbox_signup_failed {mode, reason} > sandbox_tour_start > sandbox_tour_step {step, n}
-// (drive, fish, boom, spawn, ask, fly) > sandbox_tour_done; sandbox_first_{drive,fish,boom,ask,fly}. Listed in AGENTS.md.
+// (drive, fish, boom, spawn, ask, fly, and Chapter One's hill and launch) > sandbox_tour_done; sandbox_quest_hill / sandbox_quest_launch / sandbox_bay_lit; sandbox_first_{drive,fish,boom,ask,fly}. Listed in AGENTS.md.
 (function () {
   'use strict';
   const KEY = 'hg_guest_world';
@@ -301,9 +301,15 @@
     on('sandbox-high', () => tick('fly'));
     // The tour's steps (Pip's quest line), each once, and its end: the moment to offer keeping the island.
     // (sandbox_tour_step: the step they have reached, in the tour's order; a finished step reaches the next.)
-    const STEPS = ['drive', 'fish', 'boom', 'spawn', 'ask', 'fly'];
+    // (Chapter One: `hill` (quest 6) and `launch` (quest 8) are new; `n` stays what it was for the older steps, so the funnel keeps its meaning.)
+    const STEPS = ['drive', 'fish', 'boom', 'spawn', 'ask', 'hill', 'fly', 'launch'];
+    const STEP_N = { drive: 1, fish: 2, boom: 3, spawn: 4, ask: 5, fly: 6, hill: 7, launch: 8 };
     const reached = new Set();
-    const reach = (step) => { if (reached.has(step)) return; reached.add(step); track('sandbox_tour_step', { step, n: STEPS.indexOf(step) + 1 }); };
+    const reach = (step) => { if (reached.has(step)) return; reached.add(step); track('sandbox_tour_step', { step, n: STEP_N[step] }); };
+    // A stable event per new quest, once each: when the quest is done.
+    const questDone = new Set();
+    on('tour', (d) => { if (d && (d.step === 'hill' || d.step === 'launch') && !questDone.has(d.step)) { questDone.add(d.step); track('sandbox_quest_' + d.step, { s: Math.round((performance.now() - t0) / 1000), touch }); } });
+    on('bay-lit', () => track('sandbox_bay_lit', {}));
     on('tour', (d) => {
       if (!d || !d.step) return;
       track('sandbox_objective', { step: d.step, s: Math.round((performance.now() - t0) / 1000), touch });
