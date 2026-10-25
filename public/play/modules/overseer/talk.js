@@ -128,7 +128,7 @@
     else H.chat.line({ kind: 'me', text: t });
     if (others && !/\boverseer\b/i.test(t)) return null;
     const r = reply(t);
-    H.chat.line({ kind: 'overseer', text: r.text, action: r.action, keep: 20 });
+    H.chat.line({ kind: 'overseer', text: r.text, action: r.action, keep: 20, priority: 'important' });
     try { if (H.game) H.game.emit('overseer-talk', { intent: r.intent, said: t, text: r.text }); } catch (err) { H.report(err, 'talk'); }
     return r;
   }

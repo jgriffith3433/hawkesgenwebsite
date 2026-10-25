@@ -158,6 +158,15 @@ A list of what the Overseer has been seen to do, for the content to draw on. Onl
 4. **Never breaks the cheerful sandbox tone.** The world stays a bright, funny, generous place to play. Mystery is felt at the edges and never turns into dread or a sermon.
 5. Nor does it command, mock, beg or sell. It never mentions credits, prices or accounts: Pip or the chat's plain text does that.
 
+### Where it speaks outside the game (proposed)
+
+- **The welcome email** (`src/mail.ts welcomeEmail`) is in its voice: the character's name from the mirror, the way back to
+  the island, what it can send down, the support address. Credits are never in its sentences: one plain line apart says
+  what the account has and that nothing is taken unasked.
+- **Out of credits** (the game chat and the editor chat): *"The light has gone quiet for now. Take more when you wish, and
+  ask me again: the island will be as you left it."* It never says "credits" or a price; the **Get credits** button beside it
+  is the plain text that does.
+
 ### First-time moments (proposed lines)
 
 Two options each; the content picks one, or alternates.

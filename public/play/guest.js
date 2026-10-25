@@ -763,7 +763,7 @@
     track('credits_out', { where: 'sandbox' });
     if (Date.now() - creditsAt < 20000) return;
     creditsAt = Date.now();
-    if (H.chat) H.chat.line({ kind: 'overseer', keep: 60, text: `${message ? `${String(message).replace(/\.?$/, '.')} ` : ''}I make things from credits, and yours have run out. Get more and ask me again: I will remember the island.`, action: { label: 'Get credits', href: '/app#credits' } });
+    if (H.chat) H.chat.line({ kind: 'overseer', priority: 'important', keep: 60, text: `The light has gone quiet for now. Take more when you wish, and ask me again: the island will be as you left it.`, action: { label: 'Get credits', href: '/app#credits' } });
     const back = async () => {
       if (document.visibilityState !== 'visible') return;
       document.removeEventListener('visibilitychange', back);

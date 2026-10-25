@@ -86,7 +86,7 @@
     const g = G();
     if (g && g.mirror && g.mirror.pending) return 'mirror';
     if (t < holdUntil) return 'moment';
-    if (t < busyUntil) return 'speaking';
+    if (t < busyUntil || (H.speech && H.speech.busy)) return 'speaking';
     return null;
   }
 
@@ -119,7 +119,7 @@
     save();
     ours = true;
     try {
-      if (o.speak) o.speak(text, def.voice || null, 8);
+      if (o.speak) o.speak(text, def.voice || null, 8, { priority: 'normal' });
       else if (H.chat) H.chat.line({ kind: 'overseer', text });
     } finally { ours = false; }
     busyUntil = lines.clock() + readFor(text);
