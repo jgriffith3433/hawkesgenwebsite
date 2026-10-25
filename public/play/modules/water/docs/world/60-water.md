@@ -91,6 +91,12 @@ roof over your head, and makes fish bite sooner and rare fish likelier. `null` t
 
 ### Fishing
 
+There are 23 kinds of fish in four rarities (and junk). Each bites at certain hours of the world's clock and lives at a
+depth (cast far for deep water): night fish like the catfish, moray and anglerfish, day fish like the snapper and tuna.
+The catch log (J, or 📖) lists what you have caught with your best, and the rest as silhouettes. A new species gets a
+banner and the Overseer notes it. Put `"data": { "catchBoard": true }` on a sign or box to make a board that shows your
+best catches (E opens the log). The log is kept in the account when signed in.
+
 Give the player a rod: `{ "op": "config", "patch": { "player": { "tool": "rod" } } }` (or `"fishing-rod"`; options:
 `{ "type": "rod", "luck": 2, "bite": 1.5, "strength": 1.2 }`: luck makes rare fish likelier, bite makes them bite sooner,
 strength makes the line harder to snap). Hold the mouse (phones: 🎣) to charge, let go to cast; the bobber floats

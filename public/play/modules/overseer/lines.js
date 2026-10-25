@@ -36,6 +36,8 @@
     fish: { priority: 3, text: ['The sea gives. It gives slowly. That is the best way.', 'A fish. You waited well.'] },
   };
   const IDS = Object.keys(LINES);
+  const dyn = {}; // lines asked with their own words (H.lines.sayText): a new species caught
+  const defOf = (id) => LINES[id] || dyn[id];
 
   // ------------------------------------------------------------------ what has been said
   let said = {}; // id -> when (ms)
@@ -104,7 +106,7 @@
 
   // ------------------------------------------------------------------ saying
   function deliver(id) {
-    const def = LINES[id];
+    const def = defOf(id);
     const o = OV();
     if (!def || !o) return false;
     const list = def.text;
@@ -128,8 +130,9 @@
   }
 
   /** Asks for a line. Said now if the way is clear, else it waits its turn; false when it was said before. */
-  function ask(id) {
-    if (!LINES[id] || said[id] && id !== 'return') return false;
+  function ask(id, extra) {
+    if (extra && extra.text && !LINES[id]) dyn[id] = { priority: Number(extra.priority) || 3, text: [String(extra.text)] };
+    if (!defOf(id) || said[id] && id !== 'return') return false;
     if (queue.some((q) => q.id === id)) return false;
     queue.push({ id, at: lines.clock() });
     pump();
@@ -138,9 +141,9 @@
 
   function pump() {
     const t = lines.clock();
-    for (let i = queue.length - 1; i >= 0; i--) if (t - queue[i].at > (LINES[queue[i].id].stale || STALE) || (said[queue[i].id] && queue[i].id !== 'return')) queue.splice(i, 1);
+    for (let i = queue.length - 1; i >= 0; i--) if (t - queue[i].at > ((defOf(queue[i].id) || {}).stale || STALE) || (said[queue[i].id] && queue[i].id !== 'return')) queue.splice(i, 1);
     if (!queue.length || blocked()) return;
-    queue.sort((a, b) => LINES[b.id].priority - LINES[a.id].priority || a.at - b.at);
+    queue.sort((a, b) => defOf(b.id).priority - defOf(a.id).priority || a.at - b.at);
     deliver(queue.shift().id);
   }
 
@@ -202,6 +205,8 @@
   H.lines = Object.assign(lines, {
     IDS, LINES, STALE, SETTLE, AWAY,
     say: ask,
+    /** Says these words once, under this id (a new species: `species-trout`), in the order of `priority`. */
+    sayText: (id, text, priority) => ask(id, { text, priority }),
     seen: (id) => Boolean(said[id]),
     blocked,
     pump,
