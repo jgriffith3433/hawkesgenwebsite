@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Avatar showcase · Hawkes Gen</title>
+  <meta name="description" content="Every body a player can be in a Hawkes game, live in the real engine: turntable, idle, walk, jump, expressions and colors. No account.">
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/public.css">
+  <link rel="stylesheet" href="/site.css">
+  <link rel="stylesheet" href="/builder.css">
+  <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
+  <script src="/site-analytics.js"></script>
+  <style>
+    .av-head { margin-bottom: 18px; }
+    .av-head .label { font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .14em; color: var(--accent); }
+    .av-win { display: grid; grid-template-columns: minmax(0, 1fr) 320px; border: 1px solid var(--border-strong); border-radius: var(--r-lg); overflow: hidden; background: var(--surface); }
+    .av-stage { position: relative; min-height: 460px; background: #0d0f18; }
+    .av-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; outline: none; touch-action: none; }
+    .av-ui { position: absolute; inset: 0; pointer-events: none; }
+    .av-ui .ui-message, .av-ui .ui-text { display: none; }
+    .av-err { position: absolute; left: 10px; right: 10px; bottom: 10px; font: 12px var(--mono); color: #fecaca; background: rgba(60,10,10,.85); padding: 8px; border-radius: 8px; }
+    .av-err[hidden] { display: none; }
+    .av-hud { position: absolute; left: 12px; top: 12px; right: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; pointer-events: none; }
+    .av-chip { font: 500 11px/1 var(--mono); padding: 6px 8px; border-radius: 4px; background: var(--glass); backdrop-filter: var(--glass-blur); border: 1px solid var(--border); color: var(--fg-2); }
+    .av-chip b { color: var(--heading); font-weight: 500; }
+    .av-chip.over { border-color: #ef4444; color: #fecaca; }
+    .av-chip.ok b { color: var(--ok); }
+    .av-side { padding: 14px; display: grid; gap: 14px; align-content: start; border-left: 1px solid var(--border); overflow: auto; max-height: 640px; }
+    .av-side h3 { font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--fg-3); margin: 0 0 8px; }
+    .av-name { font: 600 22px/1.1 var(--mono); color: var(--heading); margin: 0; }
+    .av-say { color: var(--fg-2); font-size: 13.5px; line-height: 1.5; margin: 4px 0 0; }
+    .av-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+    .av-btns button { border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--fg-2); border-radius: 6px; padding: 8px 10px; font: 12.5px/1 var(--mono); cursor: pointer; min-height: 36px; }
+    .av-btns button:hover { color: var(--heading); }
+    .av-btns button.on { color: var(--heading); background: var(--accent-glow); border-color: var(--accent); }
+    .av-btns button:disabled { opacity: .4; cursor: default; }
+    .av-colors { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+    .av-colors label { display: grid; gap: 4px; font: 11px/1 var(--mono); color: var(--fg-3); }
+    .av-colors input[type=color] { width: 48px; height: 36px; padding: 0; border: 1px solid var(--border-strong); border-radius: 6px; background: none; }
+    .av-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .av-row select { flex: 1; min-width: 110px; min-height: 36px; background: var(--surface-2); color: var(--fg-2); border: 1px solid var(--border-strong); border-radius: 6px; padding: 0 8px; font: 12.5px var(--mono); }
+    .av-note { font: 12px/1.5 var(--mono); color: var(--fg-3); margin: 0; }
+    .av-note a { color: var(--accent-2); }
+    .av-grid-wrap h2 { margin: 28px 0 10px; font-size: 18px; }
+    .av-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+    .av-card { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); padding: 8px; display: grid; gap: 6px; justify-items: center; cursor: pointer; color: var(--fg-2); font: 12.5px/1.2 var(--mono); text-align: center; }
+    .av-card:hover { border-color: var(--border-strong); color: var(--heading); }
+    .av-card.on { border-color: var(--accent); background: var(--accent-glow); color: var(--heading); }
+    .av-card .pic { width: 100%; aspect-ratio: 1; border-radius: 8px; background: #11141f; display: grid; place-items: center; font-size: 34px; overflow: hidden; }
+    .av-card .pic img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .av-card small { color: var(--fg-3); font-size: 10.5px; }
+    .av-swatches { display: flex; gap: 4px; flex-wrap: wrap; }
+    .av-swatches i { width: 18px; height: 18px; border-radius: 4px; display: block; border: 1px solid var(--border); }
+    .cta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+    .page p code { font: 12px var(--mono); color: #cfe3ff; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+    @media (max-width: 900px) {
+      .av-win { grid-template-columns: 1fr; }
+      .av-stage { min-height: 380px; }
+      .av-side { border-left: 0; border-top: 1px solid var(--border); max-height: none; }
+    }
+    @media (max-width: 640px) {
+      .bar { padding: 0 16px; }
+      .bar .btn-ghost { display: none; }
+      .page { padding: 24px 16px 64px; }
+      .page h1 { font-size: 32px; }
+      .av-stage { min-height: 340px; }
+      .av-grid { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); }
+    }
+    /* The showcase shows bodies, not the game: the modules' on-screen controls stay hidden here. */
+    .sh-dock, .sh-bars, .sh-caption, .sh-toast, .sh-skip, .ph-panel, .ph-show, .ph-frame, .ph-sticks, .ph-look, .sw-fab, .qs-btn, .qs-track, .qs-edge, .qs-dist, .pr-hud { display: none !important; }
+    /* Screenshot mode (?body=...): only the canvas, full screen, nothing over it. */
+    body.shot { margin: 0; overflow: hidden; background: #000; }
+    body.shot .bar, body.shot .av-head, body.shot .av-side, body.shot .av-hud, body.shot .av-more, body.shot #shotOff { display: none !important; }
+    body.shot .page { padding: 0; max-width: none; margin: 0; }
+    body.shot .av-win { position: fixed; inset: 0; border: 0; border-radius: 0; display: block; }
+    body.shot .av-stage { position: absolute; inset: 0; min-height: 0; }
+    body.shot.sheet .av-stage { display: none; }
+    body.shot.sheet .av-more { display: block !important; position: fixed; inset: 0; overflow: auto; background: #0d0f18; padding: 12px; }
+    body.shot.sheet .av-grid-wrap h2 { display: none; }
+  </style>
+  <script src="/sitenav.js" defer></script>
+</head>
+<body class="landing">
+  <header class="bar">
+    <a class="hg-brand" href="/"><img src="/favicon.svg" alt=""><span>Hawkes Gen</span></a>
+    <nav class="hg-nav-links" data-site-nav><a href="/games">Games</a><a href="/community">Community library</a><a href="/entities">Engine codex</a><a href="/avatars">Avatars</a><a href="/app/studio">Asset Studio</a><a href="/#pricing">Pricing</a><a href="/connect">For developers</a></nav>
+    <a class="btn btn-ghost btn-sm" href="/app">Your games</a>
+    <a class="btn btn-secondary btn-sm" href="/app">Start building</a>
+  </header>
+
+  <main class="page">
+    <div class="av-head">
+      <span class="label">Hawkes engine · presence</span>
+      <h1>Avatar showcase</h1>
+      <p class="lede" style="margin:0">Every body a player can be, built live by the same code the game runs (the mirror's "What are you?"). Pick one, spin it, make it walk and jump, change its colors.
+        Today's bodies are stand-ins; the numbers show what they cost against the target in <code>docs/characters.md</code>. No account needed.</p>
+    </div>
+
+    <section class="av-win" aria-label="Avatar stage, live">
+      <div class="av-stage" id="viewport">
+        <canvas id="stage" aria-label="Live avatar view"></canvas>
+        <div id="ui" class="av-ui"></div>
+        <div id="error" class="av-err" hidden></div>
+        <div class="av-hud">
+          <span class="av-chip">body <b id="hudBody"></b></span>
+          <span class="av-chip" id="hudTris">triangles <b></b></span>
+          <span class="av-chip" id="hudDraws">draw calls <b></b></span>
+          <span class="av-chip" id="hudMats">materials <b></b></span>
+        </div>
+      </div>
+      <div class="av-side" id="side">
+        <div>
+          <h2 class="av-name" id="name"></h2>
+          <p class="av-say" id="say"></p>
+        </div>
+        <div><h3>Pose</h3><div class="av-btns" id="poses"></div></div>
+        <div><h3>Camera</h3><div class="av-btns" id="camera"></div></div>
+        <div><h3>Expression</h3><div class="av-btns" id="faces"></div><p class="av-note" id="faceNote"></p></div>
+        <div><h3>Emote</h3><div class="av-btns" id="emotes"></div></div>
+        <div><h3>Colors</h3>
+          <div class="av-colors">
+            <label>body<input type="color" id="c1"></label>
+            <label>accent<input type="color" id="c2"></label>
+            <label>detail<input type="color" id="c3"></label>
+            <div class="av-btns"><button type="button" id="colorReset">Its own</button><button type="button" id="colorRandom">Random</button></div>
+          </div>
+        </div>
+        <div><h3>Dress</h3>
+          <div class="av-row"><select id="hat" aria-label="Hat"></select><select id="shape" aria-label="Shape"></select></div>
+          <div class="av-row" style="margin-top:6px"><select id="bg" aria-label="Background"></select></div>
+        </div>
+        <p class="av-note">Screenshot: <code id="shotUrl"></code></p>
+      </div>
+    </section>
+
+    <div class="av-more av-grid-wrap" id="more">
+      <h2>Every body <span id="count" style="color:var(--fg-3);font:14px var(--mono)"></span></h2>
+      <div class="av-grid" id="grid"></div>
+    </div>
+
+    <div class="cta" id="shotOff">
+      <a class="btn btn-primary btn-lg" href="/play/sandbox">Be one: play now</a>
+      <a class="btn btn-secondary btn-lg" href="/entities">Engine codex</a>
+    </div>
+  </main>
+
+  <script src="/play/modules.js"></script>
+  <script type="module" src="/avatars.js"></script>
+  <script src="/enter.js"></script>
+</body>
+</html>

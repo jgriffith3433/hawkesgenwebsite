@@ -6,6 +6,7 @@
     ['/games', 'Games', 'Play what people built'],
     ['/community', 'Community library', 'Every shared model, texture, sky, sprite and sound, free to use in your game'],
     ['/entities', 'Engine codex', 'Every kind of thing the game engine builds, live'],
+    ['/avatars', 'Avatars', 'Every body a player can be, live'],
     ['/app/studio', 'Asset Studio', 'Make art, 3D, sound and music'],
     ['/#pricing', 'Pricing', 'Credits and packs'],
     ['/connect', 'For developers', 'MCP, Unity and the API'],
