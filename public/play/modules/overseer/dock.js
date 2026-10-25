@@ -170,6 +170,31 @@
     } catch { /* no sound */ }
   }
 
+  /** A ship settles on the pad: the Docked moment (once per landing). Flying in and `dockShip` both end here. */
+  function settle(veh) {
+    if (!D || D.landed) return;
+    D.landed = true;
+    if (G()) { G().ui.message('Docked', 2.4); G().emit('docked-pad', { vehicle: veh }); }
+    chime();
+    OV.speak('Welcome aboard.', 'overseer-welcome-aboard.mp3', 3);
+  }
+  /** Put a ship on the pad, and let it dock as a flown one does (the Docked moment, the
+   *  `docked-pad` event the Observatory's lift and the island's journey listen for). For a playtest's setup shortcut and
+   *  tests: a player flies in. The player is put on foot beside it when `out` is true. */
+  function dockShip(veh, out) {
+    if (!D || !veh || !veh.alive) return false;
+    const f = D.f;
+    const p = W() && W().player;
+    if (H.vehicles && H.vehicles.current === veh && H.vehicles.exit) { try { H.vehicles.exit(true); } catch { /* still seated */ } }
+    const at = pointAt(0, f.floor + 3, f.padZ);
+    veh.position = at;
+    veh.velocity = [0, 0, 0];
+    D.landed = false;
+    settle(veh);
+    if (out && p) { const beside = pointAt(7, f.floor + 1.2, f.padZ + 6); p.position = beside; p.velocity = [0, 0, 0]; }
+    return true;
+  }
+
   // ------------------------------------------------------------------ each step: inside, landed, docked
   let hudEl = null;
   function hud(on) {
@@ -295,12 +320,7 @@
       const v = veh.vehicle;
       const still = v.vel && v.vel.length() < 2.5;
       if (onPad(at) && still && (v.grounded || v.vel.length() < 0.8)) {
-        if (!D.landed) {
-          D.landed = true;
-          if (G()) { G().ui.message('Docked', 2.4); G().emit('docked-pad', { vehicle: veh }); }
-          chime();
-          OV.speak('Welcome aboard.', 'overseer-welcome-aboard.mp3', 3);
-        }
+        settle(veh);
       } else if (!onPad(at)) D.landed = false;
     } else if (!inside) D.landed = false;
     if ((w.time * 4 | 0) !== (D.hudT | 0)) { D.hudT = w.time * 4; hud(inside); }
@@ -339,6 +359,7 @@
     interior(on) { if (D) { D.hidden = Boolean(on); D.show(OV.lod === 'near'); } },
     /** The approach readout now (distance, speed, closing, align, lateral, height, allowed, tooFast, state, advice), or null. */
     get approach() { return D && D.gauge ? { ...D.gauge, catching: Boolean(D.catching) } : null; },
+    dockShip,
     inHangar, onPad,
   }));
 })();
