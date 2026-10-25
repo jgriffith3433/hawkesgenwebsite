@@ -169,8 +169,12 @@ test('a rolling restart drops no request and no editor stream', async () => {
     assert.ok(eds.some((e) => e.reconnects > 0), 'the streams on the restarted processes came back');
     for (const e of eds) {
       const got = e.contents();
-      assert.deepEqual(got.filter((f, i) => got.indexOf(f) !== i), [], 'nothing twice');
-      assert.deepEqual(saves.filter((s) => !got.includes(s)), [], 'nothing missed');
+      const dups = got.filter((f, i) => got.indexOf(f) !== i);
+      if (dups.length) console.log('DUP', dups[0], e.seen.filter((x) => x.event === 'file' && x.data.content === dups[0]).map((x) => x.id), 'reconnects', e.reconnects);
+      assert.deepEqual(dups, [], 'nothing twice');
+      const lost = saves.filter((s) => !got.includes(s));
+      if (lost.length) console.log('LOST', lost.join(' '), 'reconnects', e.reconnects, 'procs', [...e.procs].join(','), 'first/last got', got[0], got.at(-1), 'saves', saves.length);
+      assert.deepEqual(lost, [], 'nothing missed');
     }
   } finally { stop = true; for (const e of eds) e.stop(); c.child.kill('SIGTERM'); }
 });

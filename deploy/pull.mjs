@@ -45,14 +45,44 @@ if (!ci) { say(`${tip.slice(0, 7)}: CI failed, not deploying`); state.bad = tip;
 if (DRY) { say(`would deploy ${head.slice(0, 7)} -> ${tip.slice(0, 7)}`); process.exit(0); }
 
 git('merge', '--ff-only', '--quiet', tip);
-execFileSync('systemctl', ['restart', 'hawkesgen-portal']);
-if (await healthy()) {
+
+// The portal runs as a cluster (src/primary.ts): the primary stays, and `systemctl reload` restarts its web processes one
+// at a time (a new one answering before the old one leaves, so no request and no editor stream is cut) and the worker
+// last. A change to the primary itself (or a first run of the cluster unit) needs the whole service restarted.
+const primaryChanged = () => git('diff', '--name-only', head, tip).split('\n').some((f) => /^(src\/primary\.ts|src\/proc\.ts|deploy\/hawkesgen-portal\.service)$/.test(f));
+const ROLL = path.join(DIR, '.data', 'roll.json');
+const rolled = () => { try { return JSON.parse(fs.readFileSync(ROLL, 'utf8')); } catch { return null; } };
+const UNIT = '/etc/systemd/system/hawkesgen-portal.service';
+async function restart() {
+  // The unit file lives outside the repo: when the repo's differs (the first cluster deploy), install it and restart whole.
+  const wanted = fs.readFileSync(path.join(DIR, 'deploy', 'hawkesgen-portal.service'), 'utf8');
+  const installed = (() => { try { return fs.readFileSync(UNIT, 'utf8'); } catch { return ''; } })();
+  if (installed !== wanted) {
+    fs.writeFileSync(UNIT, wanted, { mode: 0o644 });
+    execFileSync('systemctl', ['daemon-reload']);
+    say('installed the portal unit (cluster)');
+    execFileSync('systemctl', ['restart', 'hawkesgen-portal']);
+    return true;
+  }
+  if (primaryChanged() || !rolled()) { execFileSync('systemctl', ['restart', 'hawkesgen-portal']); return true; }
+  fs.rmSync(ROLL, { force: true });
+  execFileSync('systemctl', ['reload', 'hawkesgen-portal']);
+  for (let i = 0; i < 240; i++) { // (up to four minutes)
+    await new Promise((r) => setTimeout(r, 1000));
+    const r = rolled();
+    if (r?.state === 'done') return true;
+    if (r?.state === 'failed') { say(`rolling restart failed: ${r.error}`); return false; }
+  }
+  return false;
+}
+
+if (await restart() && await healthy()) {
   say(`deployed ${head.slice(0, 7)} -> ${tip.slice(0, 7)}: ${git('log', '-1', '--format=%s')}`);
   delete state.bad;
 } else {
   say(`${tip.slice(0, 7)} did not come up healthy: back to ${head.slice(0, 7)}`);
   git('reset', '--hard', '--quiet', head);
-  execFileSync('systemctl', ['restart', 'hawkesgen-portal']);
+  execFileSync('systemctl', ['restart', 'hawkesgen-portal']); // (whole service: back on the old code in every process)
   state.bad = tip;
 }
 save();

@@ -31,7 +31,7 @@ import { askAssistant, askQuote, generateAsset, pendingGens, markSuggestion, res
 import { SharedLimiter, sweepShared } from './shared.ts';
 import cluster from 'node:cluster';
 import { runPrimary } from './primary.ts';
-import { hostHub, connectHub } from './bus.ts';
+import { hostHub, connectHub, drainBus } from './bus.ts';
 import { role, busPath, setLeaving, isLeaving } from './proc.ts';
 import { join as joinLive, setPresence, closeAll as closeLive } from './live.ts';
 import { templateBundle, featured } from './templates.ts';
@@ -734,7 +734,7 @@ const leaveWith = (server: http.Server, afterClose: () => void = () => {}) => {
     afterClose();
     closeLive();
     closeAllRooms();
-    server.close(() => process.exit(0));
+    server.close(() => void drainBus().then(() => process.exit(0)));
     const sweep = setInterval(() => server.closeIdleConnections(), 50);
     sweep.unref();
     setTimeout(() => process.exit(0), 8000).unref();

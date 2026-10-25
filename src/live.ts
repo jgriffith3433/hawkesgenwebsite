@@ -4,7 +4,7 @@
 import type { ServerResponse } from 'node:http';
 import { id, PortalError, envInt } from './util.ts';
 import { env } from './config.ts';
-import { publish, missed, on, onConnect } from './bus.ts';
+import { publish, missed, on, onConnect, catchUp, markHeard } from './bus.ts';
 import { procName, procs } from './proc.ts';
 
 type Conn = { id: string; res: ServerResponse; userId: string; name: string; file: string | null; color: string; pending: { event: string; data: unknown; id?: string }[] | null };
@@ -46,7 +46,20 @@ export function broadcast(gameId: string, event: string, data: unknown) {
 
 const seqOf = (evId?: string) => Number(/-(\d+)$/.exec(evId ?? '')?.[1] ?? 0);
 
+// The last events of each game as this process heard them, with their ids. Every web process hears every event, so a stream
+// that comes back here (or to another process that was up) can be given what it missed from this, even when the worker
+// restarted meanwhile and the hub's own ids are from another boot. The hub's history serves a process that is newer than the event.
+const recent = new Map<string, { id: string; event: string; data: unknown }[]>();
+const KEEP = 200;
+const remember = (game: string, id: string, event: string, data: unknown) => {
+  let r = recent.get(game);
+  if (!r) recent.set(game, (r = []));
+  r.push({ id, event, data });
+  if (r.length > KEEP) r.shift();
+};
+
 on('live', (m) => {
+  if (m.id) remember(m.game, m.id, m.event, m.data);
   const room = rooms.get(m.game);
   if (room) for (const c of room.values()) {
     if (c.pending) c.pending.push({ event: m.event, data: m.data, id: m.id });
@@ -70,6 +83,7 @@ on('set-presence', (m) => {
 /** Tells the hub who of this process has the game open; it tells everyone the whole list. */
 const mine = (gameId: string) => [...(rooms.get(gameId)?.values() ?? [])].map((c) => ({ conn: c.id, user: c.userId, name: c.name, file: c.file, color: c.color }));
 const announce = (gameId: string) => publish({ t: 'presence-set', game: gameId, proc: PROC, conns: mine(gameId) });
+catchUp(() => [...rooms.keys()]);
 // A worker that restarted has forgotten: say again who is here.
 onConnect(() => { for (const g of rooms.keys()) announce(g); });
 
@@ -95,12 +109,14 @@ export function join(gameId: string, user: { id: string; name: string | null }, 
   write(c, 'hello', { conn: c.id, proc: PROC, color: c.color, presence: presence(gameId), resumed: !!last });
   // What it missed: at once when the hub is in this process; else it asks the worker, and what arrives meanwhile waits
   // behind it, so nothing is written twice or out of order.
-  const gone = missed(gameId, last);
-  if (Array.isArray(gone)) for (const e of gone) write(c, e.event, e.data, e.id);
+  const ring = recent.get(gameId);
+  const at = last && ring ? ring.findIndex((e) => e.id === last) : -1;
+  const gone = at >= 0 ? ring!.slice(at + 1).map((e) => ({ ...e, n: seqOf(e.id) })) : missed(gameId, last);
+  if (Array.isArray(gone)) for (const e of gone) { write(c, e.event, e.data, e.id); markHeard((e as any).mid); }
   else {
     c.pending = [];
     void gone.then((list) => {
-      for (const e of list) write(c, e.event, e.data, e.id);
+      for (const e of list) { write(c, e.event, e.data, e.id); markHeard(e.mid); }
       const upto = Math.max(0, ...list.map((e) => e.n));
       for (const e of c.pending ?? []) if (!e.id || seqOf(e.id) > upto) write(c, e.event, e.data, e.id);
       c.pending = null;

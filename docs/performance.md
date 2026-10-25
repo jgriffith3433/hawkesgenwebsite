@@ -194,6 +194,36 @@ event-loop window) shows what the server felt: event-loop delay p50/p99/max, hea
 sockets and rooms, editor streams, requests a second, Gen call latency and errors, the oldest unsettled job and the last backup.
 `/v1/health` stays the plain, fast 200 Studio asks.
 
+## Cluster: web processes and a worker (2026-10-25)
+
+One process was the limit (above): everything shared one event loop. `PORTAL_ROLE=web` (the systemd unit) runs a **primary**
+(`src/primary.ts`) that keeps `PORTAL_WEB_PROCS` **web processes** (default: the CPU count) on the one port with
+`node:cluster`, and exactly one **worker** (`PORTAL_ROLE=worker`) that alone starts every background loop (`watch()` and its
+sweep, `resumeTasks`, `resumeGens`, the starter pack). `node src/server.ts` with no role is still one process that does it all
+(Studio's beta, the tests, a laptop). What was in one process's memory and had to stay one thing:
+
+| Was in memory | Now |
+|---|---|
+| Editor live streams, their history for Last-Event-ID, who has the editor open (`live.ts`) | A **bus** (`src/bus.ts`): the worker hosts a hub on `.data/bus.sock`; a process that applies a change publishes it, the hub numbers it (`<boot>-<n>`, the last 200 per game), keeps the replay, merges presence, and hands it to **every** web process, the sender's too, so each editor's stream gets it once wherever it is. A stream that reconnects asks the hub for what it missed. Hawkes Net (`PORTAL_NET=hawkesnet`) still carries the game rooms there as before; the editors' feed always uses the bus. |
+| World ops, edit-room events, kicks, closing a game (`rooms.ts`), who is playing (`here`), how full a room is (for invitations) | The same bus (`ops`, `room-event`, `room-kick`, `room-close`, `here`, `room`); Hawkes Net publishing (`publishOps`) still happens once, from the process that made the change |
+| A game room's relay | Kept by **one** web process: the hash of the room (`edit:<game>` or `play:<slug>:<code>`) picks it, and a socket that arrives at another process is handed over through the primary with the request as it came (`rooms.ts handoff`). A process leaving does the same for anyone who arrives late, and tells its players `1012 restarting` so their page reconnects |
+| The assistant's one-at-a-time lock (`gameai.ts thinking`) | A row in SQLite (`shared.ts lock`, `locks`: it lets go by itself if its holder dies) |
+| The generate limits (10 a minute, 40 an hour) | SQLite (`SharedLimiter`, `rate_hits`) |
+| The other limits (sign-ins, sign-ups, reports, beacons, sockets) | Stay per process and **divide by the process count** (`Limiter.limit`, `PORTAL_PROCS`; `PORTAL_WS_MAX` and `PORTAL_LIVE_MAX` too) |
+| Running a started task / following a generation (`tasks.ts`, `gameai.ts`) | A web process writes the row and sends `task-start` / `gen-follow`; the worker runs it (and finds any a restart left, every 5 s). Task events (`task-event`) go to every process, so a request waiting on a task hears it |
+
+**Rolling restart.** `systemctl reload hawkesgen-portal` (SIGUSR2 to the primary; `deploy/pull.mjs` does it after each deploy):
+for each web slot a new process starts and must answer five times running before the old one is asked to leave; the old one
+finishes its requests, ends its editor streams with a clean `bye` (the browser comes back with Last-Event-ID and misses
+nothing) and exits; the worker goes last (old one stopped before the new one starts). `.data/roll.json` says `rolling`, `done` or
+`failed`. A change to `src/primary.ts` or the unit needs `systemctl restart` (pull.mjs does that by itself, and installs the
+unit file when the repo's differs).
+
+`node tools/crowd.mjs --web 4 --roll --levels ... --hold 15` runs the same test against a cluster, restarts it during the last
+level while saving files, and reports whether any request failed and whether every editor stream saw every save once.
+`test/cluster.test.ts` is the same in small: editors on both processes get a save once; the lock holds across processes; a roll
+drops nothing; players who arrive at different processes are in one room.
+
 ## What's left
 
 - **KTX2/Basis** (GPU-compressed textures: 4-8x less GPU memory than WebP's RGBA) isn't made yet. It needs an encoder on

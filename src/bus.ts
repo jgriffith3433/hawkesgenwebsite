@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import { id } from './util.ts';
 
 export type Msg = { t: string; [k: string]: any };
-export type LiveEvent = { id: string; n: number; event: string; data: unknown };
+export type LiveEvent = { id: string; n: number; event: string; data: unknown; mid?: string };
 type Sub = { send(m: Msg): void; procs: Set<string> };
 
 const KEEP = 200;
@@ -22,8 +22,9 @@ export const onHub = (t: string, fn: (m: Msg) => void) => void hubHandlers.set(t
 export class Hub {
   readonly boot = id('b', 3);
   readonly subs = new Set<Sub>();
-  private history = new Map<string, { seq: number; events: { n: number; event: string; data: unknown }[] }>();
+  private history = new Map<string, { seq: number; events: { n: number; event: string; data: unknown; mid?: string }[] }>();
   private presence = new Map<string, Map<string, unknown[]>>();
+  private heard = new Set<string>(); // message ids already handled (a web process says its last few seconds again when the worker has been away)
 
   subscribe(sub: Sub) { this.subs.add(sub); return () => this.drop(sub); }
   /** A web process went away: the editors it held are gone with it. */
@@ -39,16 +40,21 @@ export class Hub {
   }
   receive(from: Sub | null, m: Msg) {
     if (!m || typeof m.t !== 'string') return;
+    if (m.mid) {
+      if (this.heard.has(m.mid)) return;
+      this.heard.add(m.mid);
+      if (this.heard.size > 20_000) this.heard.delete(this.heard.values().next().value!);
+    }
     if (m.t === 'live') {
       let evId: string | undefined;
       if (!NOT_REPLAYED.has(m.event)) {
         let h = this.history.get(m.game);
         if (!h) this.history.set(m.game, (h = { seq: 0, events: [] }));
-        h.events.push({ n: ++h.seq, event: m.event, data: m.data });
+        h.events.push({ n: ++h.seq, event: m.event, data: m.data, mid: m.mid });
         if (h.events.length > KEEP) h.events.shift();
         evId = `${this.boot}-${h.seq}`;
       }
-      return this.fan({ t: 'live', game: m.game, event: m.event, data: m.data, id: evId });
+      return this.fan({ t: 'live', game: m.game, event: m.event, data: m.data, id: evId, mid: m.mid });
     }
     if (m.t === 'presence-set') {
       const by = this.presence.get(m.game) ?? new Map<string, unknown[]>();
@@ -56,6 +62,10 @@ export class Hub {
       this.presence.set(m.game, by);
       from?.procs.add(m.proc);
       return this.sendPresence(m.game);
+    }
+    if (m.t === 'history') { // a process that was away: everything the hub kept for these games (it drops what it has heard, by `mid`)
+      for (const game of m.games ?? []) for (const e of this.history.get(game)?.events ?? []) from?.send({ t: 'live', game, event: e.event, data: e.data, id: `${this.boot}-${e.n}`, mid: e.mid, replay: true });
+      return void from?.send({ t: 'history-done' });
     }
     if (m.t === 'missed') return void from?.send({ t: 'missed-reply', rid: m.rid, events: this.missed(m.game, m.last) });
     const h = hubHandlers.get(m.t);
@@ -67,7 +77,7 @@ export class Hub {
     const m = /^(\w+)-(\d+)$/.exec(last ?? '');
     const h = this.history.get(game);
     if (!m || m[1] !== this.boot || !h) return [];
-    return h.events.filter((e) => e.n > Number(m[2])).map((e) => ({ id: `${this.boot}-${e.n}`, n: e.n, event: e.event, data: e.data }));
+    return h.events.filter((e) => e.n > Number(m[2])).map((e) => ({ id: `${this.boot}-${e.n}`, n: e.n, event: e.event, data: e.data, mid: e.mid }));
   }
 }
 
@@ -78,7 +88,19 @@ const connectedHooks: (() => void)[] = [];
 export const on = (t: string, fn: (m: Msg) => void) => void listeners.set(t, [...(listeners.get(t) ?? []), fn]);
 /** Calls `fn` each time the connection to the hub is (re)made: say again what only this process knows. */
 export const onConnect = (fn: () => void) => void connectedHooks.push(fn);
-const deliver = (m: Msg) => { for (const fn of listeners.get(m.t) ?? []) try { fn(m); } catch (e) { console.error('[portal] bus:', e); } };
+const delivered = new Map<string, number>(); // message ids this process has handled: a message the worker was told twice is heard once
+/** Notes that this process has handled the message `mid` (an event given to a stream from the hub's history), so a copy that comes later is dropped. */
+export const markHeard = (mid?: string) => { if (mid) delivered.set(mid, Date.now()); };
+let catchupGames: () => string[] = () => [];
+/** Which games this process has streams for: after a worker restart it asks the hub for what it missed in those. */
+export const catchUp = (fn: () => string[]) => { catchupGames = fn; };
+const deliver = (m: Msg) => {
+  if (m.mid) {
+    if (delivered.has(m.mid)) return;
+    delivered.set(m.mid, Date.now());
+    if (delivered.size > 20_000) delivered.delete(delivered.keys().next().value!);
+  }
+  for (const fn of listeners.get(m.t) ?? []) try { fn(m); } catch (e) { console.error('[portal] bus:', e); } };
 
 let hub: Hub | null = null;       // the hub, when this process hosts it (the only process, or the worker)
 let local: Sub | null = null;     // this process's own subscription to it (not in the worker)
@@ -128,20 +150,33 @@ export function hostHub(sock: string): Promise<Hub> {
 }
 
 class Client {
-  private conn: net.Socket | null = null;
-  private queue: string[] = [];
-  private asks = new Map<string, (events: LiveEvent[]) => void>();
-  private stopped = false;
   private sock: string;
+  private conn: net.Socket | null = null;
+  // What was sent in the last few seconds. When the worker goes away and comes back (a restart), a message written to it just
+  // before it went may never have been handled: all of them are said again, and the hub and the processes keep the ones
+  // they have heard (`mid`), so each is handled once.
+  private ring: { at: number; mid: string; line: string }[] = [];
+  private n = 0;
+  private holding: Msg[] | null = null;
+  private me = id('', 4);
+  private asks = new Map<string, (events: LiveEvent[]) => void>();
   constructor(sock: string) { this.sock = sock; this.connect(); }
   private connect() {
-    if (this.stopped) return;
     const c = net.connect(this.sock);
     let buf = '';
     c.setEncoding('utf8');
     c.on('connect', () => {
       this.conn = c;
-      for (const line of this.queue.splice(0)) c.write(line);
+      this.trim();
+      for (const r of this.ring) c.write(r.line);
+      // Whatever the hub fanned out while this process was not connected (a worker restart) is in its history: ask for it, and
+      // hold what arrives meanwhile behind it so every stream still sees its events in order.
+      const games = catchupGames();
+      if (games.length) {
+        this.holding = [];
+        c.write(`${JSON.stringify({ t: 'history', games })}\n`);
+        setTimeout(() => this.release(), 3000).unref();
+      }
       for (const fn of connectedHooks) try { fn(); } catch {}
     });
     c.on('data', (chunk: string) => {
@@ -151,16 +186,31 @@ class Client {
         const line = buf.slice(0, i); buf = buf.slice(i + 1);
         let m: Msg;
         try { m = JSON.parse(line); } catch { continue; }
-        if (m.t === 'missed-reply') { this.asks.get(m.rid)?.(m.events); this.asks.delete(m.rid); } else deliver(m);
+        if (m.t === 'missed-reply') { this.asks.get(m.rid)?.(m.events); this.asks.delete(m.rid); }
+        else if (m.t === 'history-done') this.release();
+        else if (this.holding && !m.replay) this.holding.push(m);
+        else deliver(m);
       }
     });
     c.on('error', () => {});
-    c.on('close', () => { if (this.conn === c) this.conn = null; setTimeout(() => this.connect(), 300).unref(); });
+    c.on('close', () => { if (this.conn === c) this.conn = null; setTimeout(() => this.connect(), 200).unref(); });
+  }
+  private release() {
+    const held = this.holding;
+    this.holding = null;
+    for (const m of held ?? []) deliver(m);
+  }
+  pending() { return (this.conn?.writableLength ?? 0) > 0 || !this.conn; }
+  private trim() {
+    const from = Date.now() - 5000;
+    while (this.ring.length && (this.ring[0].at < from || this.ring.length > 5000)) this.ring.shift();
   }
   send(m: Msg) {
-    const line = `${JSON.stringify(m)}\n`;
+    const mid = `${this.me}.${++this.n}`;
+    const line = `${JSON.stringify({ ...m, mid })}\n`;
+    this.ring.push({ at: Date.now(), mid, line });
+    this.trim();
     if (this.conn && !this.conn.destroyed) this.conn.write(line);
-    else { this.queue.push(line); if (this.queue.length > 5000) this.queue.shift(); } // (the worker is restarting: it is a moment)
   }
   ask(m: Msg): Promise<LiveEvent[]> {
     const rid = id('q', 4);
@@ -175,6 +225,11 @@ class Client {
 /** A web process: connects to the worker's hub. Messages sent before it is up wait their turn. */
 export function connectHub(sock: string) {
   client = new Client(sock);
+}
+
+/** Waits (a moment at most) until what this process has sent to the hub has left it: before exiting, so a save just made is not lost with it. */
+export async function drainBus() {
+  for (let i = 0; i < 30 && client?.pending(); i++) await new Promise((r) => setTimeout(r, 10));
 }
 
 export const busMode = () => (client ? 'worker' : hub ? 'local' : 'none');
