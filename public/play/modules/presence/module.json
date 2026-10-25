@@ -1,6 +1,6 @@
 {
   "title": "Presence",
   "order": 80,
-  "scripts": ["presence-core.js", "presence-bodies.js", "presence-person.js", "presence-things.js", "presence-robots.js", "presence-model-registry.js", "presence-models.js", "presence-hats.js", "presence.js", "presence-ui.js", "presence-markers.js"],
+  "scripts": ["presence-core.js", "presence-bodies.js", "presence-person.js", "presence-things.js", "presence-robots.js", "presence-model-registry.js", "presence-anim.js", "presence-models.js", "presence-hats.js", "presence.js", "presence-ui.js", "presence-markers.js"],
   "kinds": []
 }
