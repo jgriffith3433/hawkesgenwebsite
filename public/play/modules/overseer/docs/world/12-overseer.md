@@ -65,6 +65,12 @@ the word "overseer" in the game's assets replaces the stand-in hull.
 **Its hangar.** A lit docking bay on the side facing the world's middle, a little below the equator, opens into a hangar
 with a landing pad. Land a space ship or a rocket on the pad: "Docked". Get out and walk the hangar; get back in and fly
 down. The hull is solid. Who is docked is shared online.
+**The Observatory.** On foot in the hangar, the lit doorway in the back wall is a lift: E takes you up (a fade, a few seconds)
+into a round room inside the ship, with tall windows onto the planet below and the stars, a slowly turning model of the
+planet, soft lights that follow the Overseer's voice, a calm music bed, a place each for a mirror, a wardrobe and a travel
+board (empty for now), and the Overseer as a pearl of light that drifts to you. The first time, it greets you by the name you
+chose, thanks you, gives you an accessory and raises a question it does not answer; every later time is a lift and one short
+line. E at the lift in the room takes you back to the bay, beside your ship. Nothing to set up; a game with the Overseer has it.
 The way in is helped: flying a rocket or space ship at the bay (within ~5 km) shows a readout (distance to the pad,
 speed against the speed to have there, align with the bay, and what to do: "Slow down", "Move left"), and a careful
 approach gets a gentle **catch**: within about a kilometre the Overseer eases the ship toward the pad, takes the pull of

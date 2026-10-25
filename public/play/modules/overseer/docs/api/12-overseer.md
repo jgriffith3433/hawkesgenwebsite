@@ -46,6 +46,9 @@ game.on('docked', () => game.ui.message('Welcome aboard'));
 | `game.on('intro', ({ state, skipped }) => ...)` | The intro starts (`state: 'start'`) and ends (`'end'`) |
 | `game.on('beam', ({ at, radius, entity }) => ...)` | Every beam |
 | `game.on('docked')`, `game.on('undocked')`, `game.on('docked-pad', ({ vehicle }))` | In the Overseer's hangar; landed on its pad |
+| `game.on('observatory', ({ state, first }))` | The Observatory (the round room inside the ship, up the hangar's lift): `state` is `'enter'`, `'scene'` (the first arrival's scene starts), `'gift'`, `'ready'` (the scene or the quick line is done) or `'leave'`; `first` is true on the first arrival |
+| `game.on('observatory-gift', ({ gift, kind, label }))` | The Overseer's gift (an accessory id, now in the player's look), once per device |
+| `H.overseer.observatory` | `{ on, inside, state ('bay' \| 'riding' \| 'inside'), first, scene, lift, liftRoom, gift, pearl, level, music, places, go(), leave(), skip() }`; `H.overseer.interior(on)` hides the hull and hangar's look (the Observatory does); `H.overseer.bay` gives the bay's numbers |
 | `game.on('bay-catch', ({ distance }))` | The catch took hold of a rocket or ship coming in (`H.overseer.assist = false` turns it off) |
 | `game.on('ascent-failed', (d))` | A rocket/ship climb failed: `d.why` is `'wrecked'`, `'fuel'` (out of fuel high up) or `'fell'` (back on the ground after a climb), `d.vehicle`, `d.maxAltitude`. Set `d.handled = true` to say your own line (and give a new rocket); else the Overseer speaks |
 | `H.overseer.approach` | While a rocket/ship flies: `{ distance, speed, closing, align, lateral, height, allowed, tooFast, state, advice, catching }` toward the pad, else null |

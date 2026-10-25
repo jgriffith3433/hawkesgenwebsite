@@ -6,6 +6,7 @@
 //
 //   H.lines.say(id)        asks for a line (events do it themselves); false when it was already said
 //   H.lines.seen(id)       whether it was said on this device
+//   H.lines.mark(id)       notes a moment as done (no line), kept the same way
 //   H.lines.reset()        forgets them all (tests, the codex)
 //   H.lines.IDS, H.lines.LINES
 //
@@ -208,6 +209,8 @@
     /** Says these words once, under this id (a new species: `species-trout`), in the order of `priority`. */
     sayText: (id, text, priority) => ask(id, { text, priority }),
     seen: (id) => Boolean(said[id]),
+    /** Notes a moment as done on this device (and in the account's copy) without a line: the Observatory's first arrival. */
+    mark: (id) => { if (/^[a-z][a-z0-9-]{0,30}$/.test(String(id))) { said[id] = lines.now(); save(); } },
     blocked,
     pump,
     reload: load,
