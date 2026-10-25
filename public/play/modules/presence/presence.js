@@ -174,7 +174,7 @@
     if (!w) return out;
     const host = hostConn();
     const p = w.player;
-    if (p && p.alive) out.push({ key: 'me', kind: 'me', entity: p, name: (me.look && me.look.name) || nameOf(H.hooks.myName, me.signedIn ? me.name : null) || 'You', color: H.hooks.myColor || '#4a9eff', conn: myConn(), host: Boolean(host && host === myConn()), typing: me.typing, hp: p.health, mx: p.maxHealth || 100, user: me.user, look: me.look });
+    if (p && p.alive) out.push({ key: 'me', kind: 'me', entity: p, name: shown((me.look && me.look.name) || nameOf(H.hooks.myName, me.signedIn ? me.name : null), 'me') || 'You', color: H.hooks.myColor || '#4a9eff', conn: myConn(), host: Boolean(host && host === myConn()), typing: me.typing, hp: p.health, mx: p.maxHealth || 100, user: me.user, look: me.look });
     if (hasNet()) {
       for (const [id, pr] of HawkesNet.peers()) {
         const i = peerInfo.get(id) || {};
@@ -182,7 +182,7 @@
         const friend = Boolean(v && (v.friend || me.friends.has(v.user)));
         if (pr.avatar && pr.avatar.alive) for (const c of pr.avatar.node.getChildMeshes(true)) if (c.name === 'text') c.setEnabled(!on('tags'));
         const theirs = i.look ? C.cleanLook(i.look) : null;
-        out.push({ key: `p:${id}`, kind: friend ? 'friend' : 'player', entity: pr.avatar && pr.avatar.alive ? pr.avatar : null, name: (theirs && theirs.name) || nameOf(pr.name, v ? v.name : null) || 'Player', color: pr.color, conn: id, host: Boolean(host && host === id), typing: Boolean(i.ty), hp: i.hp, mx: i.mx, user: v ? v.user : null, verified: Boolean(v), requested: Boolean(v && v.requested), look: i.look ? C.cleanLook(i.look) : null, spectating: Boolean(i.sp), state: pr.state });
+        out.push({ key: `p:${id}`, kind: friend ? 'friend' : 'player', entity: pr.avatar && pr.avatar.alive ? pr.avatar : null, name: shown((theirs && theirs.name) || nameOf(pr.name, v ? v.name : null), id) || 'Player', color: pr.color, conn: id, host: Boolean(host && host === id), typing: Boolean(i.ty), hp: i.hp, mx: i.mx, user: v ? v.user : null, verified: Boolean(v), requested: Boolean(v && v.requested), look: i.look ? C.cleanLook(i.look) : null, spectating: Boolean(i.sp), state: pr.state });
       }
     }
     if (on('npcs')) {
@@ -200,6 +200,8 @@
     }
     return out;
   }
+  /** A player's name as everyone sees it: the cleaned name, or "Player 1234" for an empty, odd or abusive one (core.filterName). */
+  const shown = (name, seed) => (name ? C.filterName(name, seed).name : name);
   const cap = (s) => (s ? String(s)[0].toUpperCase() + String(s).slice(1) : s);
   /** The name a player goes by: the room's ("Player 2" when they didn't give one), or their platform name once known. */
   const nameOf = (room, platform) => (platform && (!room || /^Player \d+$/.test(room)) ? String(platform).slice(0, 24) : room);
