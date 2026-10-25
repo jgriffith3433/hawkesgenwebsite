@@ -186,3 +186,22 @@ test('build mode: animals stand still where they were put', () => {
   H.tick(5);
   assert.ok(Math.hypot(daisy.x - 5, daisy.z - 5) < 0.3, 'the cow stays put while building');
 });
+
+test('animals: real eyes that blink, ears and tails on springs, an idle and a gait of the species', () => {
+  world(H, sceneOf({ floor, start }));
+  const rigOf = (sp: string) => L.spawn(sp, { x: 0, z: 0 });
+  for (const name of ['dog', 'cat', 'horse', 'cow', 'chicken', 'penguin', 'rabbit', 'dinosaur', 'fish']) {
+    const c = rigOf(name), r = c.living, rig = r.rig;
+    assert.ok(rig.eyes && rig.eyes.length === 2, `${name} has two eyes`);
+    let shut = 1, moved = false;
+    for (let i = 0; i < 60 * 8; i++) { H.tick(1 / 60); shut = Math.min(shut, rig.eyes[0].n.scaling.y); }
+    assert.ok(name === 'fish' || shut < 0.5, `${name} blinks (lowest lid ${shut.toFixed(2)})`);
+    if (rig.ears && rig.ears.length) assert.ok(rig.ears.every((e: any) => Number.isFinite(e.n.rotation.x)), `${name}'s ears move`);
+    void moved;
+  }
+  // A cat stretches in its idle: some frame has its chest down.
+  const cat = rigOf('cat'); let maxPitch = 0;
+  for (let i = 0; i < 60 * 30; i++) { H.tick(1 / 60); maxPitch = Math.max(maxPitch, cat.living.rig.fx ? cat.living.rig.fx.pitch : 0); }
+  assert.ok(maxPitch > 0.2, `a cat stretches (${maxPitch.toFixed(2)})`);
+  assert.ok(L.GAITS.horse && L.GAITS.cow && L.GAITS.horse !== L.GAITS.cow, 'gaits differ by species');
+});

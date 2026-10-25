@@ -1,6 +1,6 @@
 {
   "title": "Living things",
   "order": 60,
-  "scripts": ["nav.js", "species.js", "living.js", "friends.js"],
+  "scripts": ["nav.js", "species.js", "animal.js", "living.js", "friends.js"],
   "kinds": ["creature", "herd", "friend", "critter"]
 }
