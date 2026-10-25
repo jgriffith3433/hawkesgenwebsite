@@ -29,10 +29,12 @@
     cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
     cv.style.width = W + 'px'; cv.style.height = H + 'px';
     const narrow = W < 820;
-    O.r = narrow ? Math.min(W * 0.26, H * 0.17) : Math.min(W * 0.15, H * 0.24);
+    O.r = narrow ? Math.min(W * 0.22, 96) : Math.min(W * 0.15, H * 0.24);
     O.x = narrow ? W * 0.5 : W * 0.7;
-    O.y = narrow ? H * 0.24 : H * 0.34;
-    P.R = W * 1.9; P.cx = W * (narrow ? 0.5 : 0.56); P.cy = H * (narrow ? 0.9 : 0.86) + P.R;
+    O.y = narrow ? 76 + O.r * 1.25 : H * 0.34;
+    // phone: the text starts below the Overseer and the line it speaks (the hero is as tall as the text needs)
+    hero.style.setProperty('--sky-top', narrow ? Math.round(O.y + O.r * 1.9 + 56) + 'px' : '120px');
+    P.R = W * 1.9; P.cx = W * (narrow ? 0.5 : 0.56); P.cy = H * (narrow ? 0.93 : 0.86) + P.R;
     let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
     const n = Math.round(Math.min(260, (W * H) / 5200));
     stars = Array.from({ length: n }, () => ({ x: rnd() * W, y: rnd() * H * 0.82, z: 0.3 + rnd() * 0.7, ph: rnd() * TAU, s: 0.4 + rnd() * 1.1 }));
@@ -219,7 +221,7 @@
   function speak() { if (!say) return; say.classList.remove('on'); setTimeout(() => { say.textContent = lines[li++ % lines.length]; say.classList.add('on'); }, 350); }
   if (say) {
     const place = () => { say.style.left = O.x + 'px'; say.style.top = (O.y + O.r * 1.9) + 'px'; };
-    place(); window.addEventListener('resize', place);
+    place(); window.addEventListener('resize', () => setTimeout(place, 0)); if ('ResizeObserver' in window) new ResizeObserver(place).observe(hero);
     setTimeout(speak, 900); if (!reduce) setInterval(speak, 6500);
   }
   hero.addEventListener('click', (e) => {
@@ -233,6 +235,8 @@
   if ('IntersectionObserver' in window) new IntersectionObserver((es) => { vis = es[0].isIntersecting; wake(); }, { threshold: 0 }).observe(hero);
   document.addEventListener('visibilitychange', wake);
   window.addEventListener('resize', resize);
+  // the hero's height follows its text on a phone (fonts arriving, the reply line): redraw at the new size
+  if ('ResizeObserver' in window) new ResizeObserver(() => { const r = hero.getBoundingClientRect(); if (Math.round(r.width) !== W || Math.round(r.height) !== H) resize(); }).observe(hero);
   if (!reduce) setInterval(() => { if (vis && !document.hidden && !beams.length) beamTo(0.1 + Math.random() * 0.8, true); }, 9000);
   resize();
   const quiet = () => { const s = Math.min(1, Math.max(0, window.scrollY / Math.max(1, hero.offsetHeight))); hero.style.setProperty('--s', s.toFixed(3)); document.body.classList.toggle('at-sky', s < 0.9); };
