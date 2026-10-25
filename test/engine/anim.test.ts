@@ -57,6 +57,7 @@ function puppetRoots(prefix = 'mixamorig:') {
 const world3 = (node: any) => { const chain: any[] = []; for (let n = node; n; n = n.parent) chain.unshift(n); chain.forEach((n) => n.computeWorldMatrix(true)); return node.getAbsolutePosition().clone(); };
 const at = (b: any, bone: string) => world3(b.bones.get(bone).n);
 
+const MIXAMO = ['person', 'robot', 'tvbot', 'cat', 'pig', 'bear', 'rabbit', 'penguin', 'chicken', 'cow']; // the files on the standard Mixamo skeleton
 const TEMPLATE_BIPED = ['person', 'robot', 'tvbot', 'dinosaur', 'penguin', 'chicken', 'cat', 'pig', 'bear', 'cow', 'rabbit'];
 const QUADS = ['dog', 'fox', 'sheep', 'horse'];
 const OBJECTS = ['toaster', 'shoe', 'teapot', 'cactus', 'cone', 'banana', 'mushroom', 'potato', 'duck', 'rollbot', 'fish'];
@@ -866,9 +867,9 @@ test('a landing and a take-off are the set\'s own squash, not squashed twice, an
 });
 
 // ------------------------------------------------------------------ the Mixamo models (person, robot): the real files
-test('the person and the robot (Gen mesh.rig, mixamorig: bones) bind to the Mixamo set, stand up, face +z, and walk with the legs against each other', () => {
+test('the Mixamo models (Gen mesh.rig, mixamorig: bones) bind to the Mixamo set, stand up, face +z, and walk with the legs against each other', () => {
   const set = A.setOf('mixamo');
-  for (const id of ['person', 'robot']) {
+  for (const id of MIXAMO) {
     const model = glbTree(id), b = A.bind([model], 'mixamo', { unit: 1.8 });
     assert.ok(b.fit, `${id}: every bone the set needs is there (missing ${b.missing})`);
     assert.equal(joints(id).length, 52, `${id}: the full skeleton, fingers included`);
