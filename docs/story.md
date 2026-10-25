@@ -26,6 +26,165 @@ that's it. That's the whole story."*
   animal, a robot, a shoe, a toaster...), *"How do you look?"* and *"What are you called?"*. It's funny on purpose, and
   the Overseer is amused by every answer. Then the world meets them (in the sandbox, Pip comes over).
 
+### The story bible (canon, approved by J, 2026-10-25)
+
+> **Approved by J** ("Use your judgement" to its questions; the PM's answers are recorded at the end of this section).
+> It builds on the Canon above and the Overseer section below and changes none of it. Nothing here states why the
+> Overseer does anything: the mystery is about the *world*, and the Overseer only ever turns away from it.
+
+#### 1. Premise and tone
+
+You are beamed down onto a giant planet by a pearl-white sphere in the sky that has just given you free will and wished
+you luck with it. First you have to decide what you are (a shoe, say). Then an island, a pier, a few barrels of fuel and a
+very enthusiastic stranger are yours to be silly with. Everyone you meet chose to be what they are, and is a little
+too pleased about it. Slowly it turns out the island was lived in by someone before you came, and nobody remembers who.
+
+**Tone:** funny, warm, a little uncanny, never grim. The humour is in who people chose to be and what they do about it. The
+uncanny is a quiet thing noticed at the edge of a bright day (a footprint that is not yours, a door with no house), never a
+jump scare and never dread. Explosions are cheerful. Nobody is ever really hurt; a fall is a trip back down the light.
+
+#### 2. The player's role
+
+**You are the Newly Free.** People on the island say it fondly, like "the new one"; it is never forced on the player. You are not a chosen
+hero and nobody is waiting for you to save them. You are someone with free will and an island, and the story is what you
+do with it. Mechanically you are the one who can ask the Overseer for things, and the others cannot: they have to ask you.
+That makes you useful to your neighbours (they want things made or blown up) without ever making you their errand-runner.
+What you are in the mirror is what everyone sees: a toaster player is a toaster to Pip, in every line, forever.
+
+#### 3. The cast (names approved)
+
+Lines should be short and said in character. Characters speak to whatever the mirror made you, without comment.
+
+**1. Pip** (the existing friend on the island, a person)
+- *Want:* to try everything, with company. *Flaw:* gets carried away, and has never once checked the wind before a BOOM.
+- *Voice:* bright, exclamation-heavy, short sentences. "What a day for it!"
+- *Running joke:* Pip names what is about to explode, warmly, as if introducing it. "This is Barrel. Say goodbye, Barrel."
+- *Arc:* **Ch.1** the guide, all joy. **Ch.2** Pip goes quiet at the old pier: it knows the way the planks fit, though it never built it. **Ch.3** Pip stops pretending it has always lived here and asks you to help find where it came from. It does not like the answer being a blank, and decides it likes the island anyway.
+
+**2. Admiral Bobbin** (a rubber duck, harbourmaster of a harbour with one boat)
+- *Want:* a proper fleet, and to be saluted. *Flaw:* very small, very proud, and takes any wave personally.
+- *Voice:* pompous naval English, rounded off by being a duck. "Carry on. That is an order. It is also a suggestion."
+- *Running joke:* he keeps a logbook of every ship he has commanded; it is always the same boat, now with a longer name.
+- *Arc:* **Ch.1** appears at the dock and rates your boat. **Ch.2** your boat becomes "the fleet" and he gets his promotion speech. **Ch.3** he admits the logbook has entries in other handwriting, from before him, and sails out to follow them.
+
+**3. Mrs Ember** (a toaster, runs the post and the weather)
+- *Want:* for every letter to reach someone, even the ones nobody sent. *Flaw:* cannot help reading them, and cannot keep what she reads to herself, so she is always slightly late with a secret.
+- *Voice:* dry, motherly, warm. "Dear, you've gone a funny colour. Eat something."
+- *Running joke:* every forecast she gives is correct, and she apologises for it each time. "Rain at four. Sorry."
+- *Arc:* **Ch.1** hands you your first letter, addressed to "the new one". **Ch.2** finds letters with no sender and a stamp nobody recognises. **Ch.3** sends one back, and has an answer by morning.
+
+**4. Rolo** (a roll-bot, mechanic and the island's only fixer)
+- *Want:* to fix the one thing he cannot (he won't say what). *Flaw:* will not ask for help, ever, and so is always halfway under something.
+- *Voice:* few words, all lowercase in feel, mild and kind. "huh. that's fine. that's mostly fine."
+- *Running joke:* his repair estimates are in units he invents (three "wobbles", a "small tuesday").
+- *Arc:* **Ch.1** patches the 4x4 if you flip it. **Ch.2** the thing he cannot fix is a door in the hill; he built it and has no memory of why. **Ch.3** you open it together and he decides what is inside is his to keep or share.
+
+**5. Dolores** (a cactus, lives on the hill, asks for nothing)
+- *Want:* to be left alone, but near people. *Flaw:* prickly in what she says, tender in what she does, and refuses to admit either.
+- *Voice:* blunt, deadpan, one dry sentence at a time. "I'm not lonely. The hill is just quiet. Stay."
+- *Running joke:* she insists she does not care about anyone while remembering every detail of their day.
+- *Arc:* **Ch.1** watches you climb to the helicopter and says nothing. **Ch.2** reveals she has been watching the sky for a long time and knows the sphere's slow turning to the minute. **Ch.3** she says, once, that the sky was different before the Overseer's rings began to turn. This is a fact for the player to chew on and nobody explains it.
+
+**6. Channel** (a TV robot, the island's one reporter)
+- *Want:* a story worth the broadcast. *Flaw:* reports everything as breaking news, including naps.
+- *Voice:* an anchor's cadence, fast, pausing for effect. "Breaking: the tide is in. More on this as it happens."
+- *Running joke:* the broadcast is only ever seen on his own screen, and the ratings are always "record".
+- *Arc:* **Ch.1** covers your first explosion live. **Ch.2** begins a series, "Who Was Here?", and keeps hitting dead ends. **Ch.3** gets the story, and cannot make himself air it until you decide it should be told.
+
+#### 4. The central mystery: who chose first?
+
+The Overseer's gift is *free will*. If the player is given it on arrival, what did the world's older things have, and
+who gave it to them? **The island was lived in before you.** Someone built the pier, filled the barrels, hung the lamps, and
+left, or was never there. Nobody on the island remembers arriving, only waking up here already themselves. And the Overseer
+speaks of "others" once, by accident (see hint 4 above). This is the question: **who chose first, and where did they go?**
+The game never answers whether the Overseer knows, and never says what the answer is *for*. In Chapter One it is not
+solved, and not even properly asked.
+
+**Hints that pay off slowly**
+1. *Ch.1:* the plank joints on the pier are cut by hand and fit a hand a little bigger than yours. Pip says "huh" and moves on.
+2. *Ch.1:* the logbook in the harbour office has pages torn out. Bobbin says a gull did it.
+3. *Ch.1:* the Overseer, asked what it saw before you, says only "I saw the sea." True, and an answer to a smaller question.
+4. *Ch.2:* Mrs Ember's sender-less letters, all the same paper.
+5. *Ch.2:* the door in the hill, made by Rolo and remembered by no one.
+6. *Ch.2:* Dolores and the sky. The rings turning at a count she keeps.
+7. *Ch.3:* the second mirror, cracked and facing the wall, in the hangar of the Overseer. It is the first sign anyone else has stood there. It asks nothing.
+8. *Ch.3 end:* a name on the underside of the cracked mirror that is not a name anyone has chosen yet.
+
+The questions it does not answer: whether the earlier ones were given free will too; whether they left on their own;
+and why nobody remembers them. Chapter Three ends with a better question, not an answer.
+
+#### 5. Chapter One: "What Are You?" (8 quests, in order)
+
+The first six are the existing tour in the sandbox (the mirror and the two ends are new). Rewards are things in the world:
+no credits, no prices, no promises about product features.
+
+1. **Who are you?** *(the mirror; exists)* Answer what, how, and what you are called. *Beat:* the Overseer is delighted by your shoe. *Reward:* your body and name, and Pip walking over.
+2. **A drive to the dock.** *(exists)* Take the 4x4 down the path. *Beat:* Pip talks too fast and names the road. *Reward:* the Overseer's "You found your way. Good."
+3. **The sea gives.** *(exists)* Catch a fish at the end of the pier. *Beat:* Admiral Bobbin rates your cast. Plank joints are noticed (hint 1). *Reward:* the rocket launcher.
+4. **Barrel and goodbye.** *(exists)* Blow up the fuel barrels on the beach. *Beat:* Pip introduces each barrel by name. Channel arrives, live. *Reward:* the Overseer's "Destruction is a kind of freedom too."
+5. **Ask.** *(exists)* Ask the Overseer for anything in chat. *Beat:* it comes down the light. Mrs Ember hands you a letter "for the new one". *Reward:* what you asked for, kept.
+6. **Up the hill.** *(new work, small)* Walk up to Dolores and say hello. *Beat:* she says she was not waiting. *Reward:* a view, and she lets you use the helicopter pad.
+7. **Way up.** *(exists as "fly")* Take the helicopter up until the island is a speck. *Beat:* the Overseer: "That is your world. All of it." *Reward:* the spawn gun and gravity gun.
+8. **The launch pad.** *(new work)* Rolo has built a rocket and cannot say why. Finish its fuel, fire it, and go up to see the planet whole. *Beat:* a lit bay on the sphere's hull, far off and open. *Reward:* the first sight of the hangar (not a docking). The chapter ends with Pip saying "Huh. That's new" and the Overseer only: "It is yours, if you come."
+
+#### 6. Three later chapters
+
+**Chapter Two: "The Door in the Hill."** The island opens out: more of the planet's coast, a rope bridge to a second island,
+and the first signs that someone built before. Rolo's door, Mrs Ember's letters and Bobbin's logbook drive the quests;
+the player gets quest-giving neighbours who need things made. Pace stays light: the mystery is in the margins.
+
+**Chapter Three: "The Hangar."** The player reaches the Overseer's hangar and docks. It is vast, bright, and has the cracked
+mirror. Pip, Bobbin and the others each find their own answer to where they came from. The cast reaches the player's island
+by the end, as friends. The chapter ends on a name the game never reveals, and on the Overseer saying "Take your time."
+
+**Chapter Four: "Your World."** The reward for finishing is the freedom it began with: the player picks the next place
+(another planet, not a harder one) and brings whoever they like. The mystery is not solved; it is made the
+player's to keep following. (The cast's third-chapter arcs above are set up so that any of them can lead a Chapter Four quest.)
+
+#### 7. Lore items to find (12 titles)
+
+Found as objects, notes and signs on the island and beyond, and each only a few lines. None says why the Overseer does
+anything. They are written in the voice of whoever left them.
+
+1. **The Logbook, With Pages Missing** (Bobbin's office; the tear is clean, not a gull's)
+2. **Hand-Cut Planks** (the pier; a hand a little bigger than yours)
+3. **A Letter With No Sender** (Mrs Ember; same paper as the rest)
+4. **The Lamp That Was Already Lit** (the dock; the oil is never low)
+5. **Rolo's Receipt for a Door** (a repair slip, dated, in his writing, for work he does not remember)
+6. **Dolores's Tally of Turns** (scratched into a rock: the rings, counted)
+7. **Channel's Dead-End File** (a tape of the "Who Was Here?" series, every episode ending mid-sentence)
+8. **A Fish Tag in an Unknown Number** (inside the first fish you catch late in Ch.2; a tag with no tagger)
+9. **The Beach Chair Facing Away From the Sea** (one chair, always warm)
+10. **Pip's First Drawing** (a barrel with a face, much older than Pip)
+11. **The Cracked Mirror** (the hangar; nobody can say who stood in it)
+12. **The Blank Page** (the last logbook page; says nothing until you write on it, and then the island remembers it)
+
+#### 8. What must not happen
+
+- The Overseer states, hints at, or lets a character say, **why** it gave free will or what it wants from the answers.
+- The Overseer lies outright, threatens, mocks, commands, begs or sells. It never mentions credits, prices or accounts (see its hard limits).
+- The mystery is solved in Chapter One, or any hint becomes a jump scare or dread. It is felt, never frightening.
+- A character is cruel to the player, or the player's chosen body or name is mocked. Every answer in the mirror is welcome.
+- Death becomes a punishment, a counter or a failure state.
+- A quest forces the player to the Overseer, or locks out play (free will is the point). Every quest can be skipped.
+- Work jokes, office talk, service language, game-speak or achievement popups in anyone's mouth.
+- Any character, name, creature or look borrowed from another Hawkes product or another franchise.
+- A business or product claim written into the story (prices, capabilities, what the game can make).
+- Any change to the Canon above.
+
+#### Decisions (J: "Use your judgement"; the PM's answers to the eight questions)
+
+1. **Premise:** kept. "The island was lived in before you, and nobody remembers who." Hint 4's "others" stays vague.
+2. **The player's name:** "the Newly Free" stays, as a name people say fondly. It is never forced on the player.
+3. **Cast:** the six and their names stay: Pip, Admiral Bobbin, Mrs Ember, Rolo, Dolores, Channel.
+4. **Who may speak:** the neighbours speak as **text only** in the chat window for now. No voice lines are made; voice would be priced with `hawkesgen_estimate` and asked for later.
+5. **Chapter One:** quests 6 (the hill visit) and 8 (the launch pad) are new work; the rest is the shipped tour. Docking stays out of Chapter One.
+6. **Cracked mirror:** kept, in Chapter Three.
+7. **Chapter Four:** "pick the next planet".
+8. **Go-ahead:** approved. This section is canon; every rule in "What must not happen" holds.
+
+*Nothing here needs the GPU. The first work is text: lines and quest copy.*
+
 ## Design (how the story becomes the game)
 
 - **Look of the Overseer (for now; J will refine it):** a big futuristic sphere, clearly original. Not a grey battle
@@ -187,6 +346,11 @@ Two options each; the content picks one, or alternates.
 - *"You came all this way. The door was open."*
 - *"Welcome in. Stay as long as you like."*
 
+**The invitation** (the island's tour is done: the last step, high enough to see the planet)
+- *"Come and see where I live."* (nine seconds after the planet, when the moment has been said; a beam from the ship comes down on the rocket on its launch pad)
+- Docking: it catches a careful ship (*"I have you. Let the engine rest."*), and *"Welcome aboard."* on the pad.
+- A climb that fails is never an ending, only a fall: *"The fire has gone out. Fall gently. The ground will fill it again."* / *"Down you came. It is a long way up. Go again."* / for a wreck, *"That one is gone. I will send another."* and then *"A new one, from me."*, free, on the pad.
+
 **First space** (leaving the atmosphere)
 - *"There. That is the whole planet. Take a moment."*
 - *"It gets quiet up here. I like it. You may too."*
@@ -215,162 +379,3 @@ return begins with a greeting picked from what is *true* of that record (thirty-
 Kept in the account when signed in (`GET/POST /v1/users/me/overseer`), and on the device otherwise (the guest sandbox's
 kept island carries on from it); signing in merges the two, the newer record wins. A page reloaded within 30 seconds is
 the same visit.
-
-## The story bible (proposed, not canon until J approves)
-
-> **Proposed for J.** Everything in this section, every name included, is *proposed*. It builds on the Canon and the
-> Overseer section above and changes none of it. Read it in ten minutes; the questions for J are at the end. Nothing here
-> states why the Overseer does anything: the mystery is about the *world*, and the Overseer only ever turns away from it.
-
-### 1. Premise and tone
-
-You are beamed down onto a giant planet by a pearl-white sphere in the sky that has just given you free will and wished
-you luck with it. First you have to decide what you are (a shoe, say). Then an island, a pier, a few barrels of fuel and a
-very enthusiastic stranger are yours to be silly with. Everyone you meet chose to be what they are, and is a little
-too pleased about it. Slowly it turns out the island was lived in by someone before you came, and nobody remembers who.
-
-**Tone:** funny, warm, a little uncanny, never grim. The humour is in who people chose to be and what they do about it. The
-uncanny is a quiet thing noticed at the edge of a bright day (a footprint that is not yours, a door with no house), never a
-jump scare and never dread. Explosions are cheerful. Nobody is ever really hurt; a fall is a trip back down the light.
-
-### 2. The player's role
-
-**You are the Newly Free.** (Proposed name; people on the island say it fondly, like "the new one".) You are not a chosen
-hero and nobody is waiting for you to save them. You are someone with free will and an island, and the story is what you
-do with it. Mechanically you are the one who can ask the Overseer for things, and the others cannot: they have to ask you.
-That makes you useful to your neighbours (they want things made or blown up) without ever making you their errand-runner.
-What you are in the mirror is what everyone sees: a toaster player is a toaster to Pip, in every line, forever.
-
-### 3. The cast (all names proposed)
-
-Lines should be short and said in character. Characters speak to whatever the mirror made you, without comment.
-
-**1. Pip** (proposed: the existing friend on the island, a person)
-- *Want:* to try everything, with company. *Flaw:* gets carried away, and has never once checked the wind before a BOOM.
-- *Voice:* bright, exclamation-heavy, short sentences. "What a day for it!"
-- *Running joke:* Pip names what is about to explode, warmly, as if introducing it. "This is Barrel. Say goodbye, Barrel."
-- *Arc:* **Ch.1** the guide, all joy. **Ch.2** Pip goes quiet at the old pier: it knows the way the planks fit, though it never built it. **Ch.3** Pip stops pretending it has always lived here and asks you to help find where it came from. It does not like the answer being a blank, and decides it likes the island anyway.
-
-**2. Admiral Bobbin** (proposed: a rubber duck, harbourmaster of a harbour with one boat)
-- *Want:* a proper fleet, and to be saluted. *Flaw:* very small, very proud, and takes any wave personally.
-- *Voice:* pompous naval English, rounded off by being a duck. "Carry on. That is an order. It is also a suggestion."
-- *Running joke:* he keeps a logbook of every ship he has commanded; it is always the same boat, now with a longer name.
-- *Arc:* **Ch.1** appears at the dock and rates your boat. **Ch.2** your boat becomes "the fleet" and he gets his promotion speech. **Ch.3** he admits the logbook has entries in other handwriting, from before him, and sails out to follow them.
-
-**3. Mrs Ember** (proposed: a toaster, runs the post and the weather)
-- *Want:* for every letter to reach someone, even the ones nobody sent. *Flaw:* cannot help reading them, and cannot keep what she reads to herself, so she is always slightly late with a secret.
-- *Voice:* dry, motherly, warm. "Dear, you've gone a funny colour. Eat something."
-- *Running joke:* every forecast she gives is correct, and she apologises for it each time. "Rain at four. Sorry."
-- *Arc:* **Ch.1** hands you your first letter, addressed to "the new one". **Ch.2** finds letters with no sender and a stamp nobody recognises. **Ch.3** sends one back, and has an answer by morning.
-
-**4. Rolo** (proposed: a roll-bot, mechanic and the island's only fixer)
-- *Want:* to fix the one thing he cannot (he won't say what). *Flaw:* will not ask for help, ever, and so is always halfway under something.
-- *Voice:* few words, all lowercase in feel, mild and kind. "huh. that's fine. that's mostly fine."
-- *Running joke:* his repair estimates are in units he invents (three "wobbles", a "small tuesday").
-- *Arc:* **Ch.1** patches the 4x4 if you flip it. **Ch.2** the thing he cannot fix is a door in the hill; he built it and has no memory of why. **Ch.3** you open it together and he decides what is inside is his to keep or share.
-
-**5. Dolores** (proposed: a cactus, lives on the hill, asks for nothing)
-- *Want:* to be left alone, but near people. *Flaw:* prickly in what she says, tender in what she does, and refuses to admit either.
-- *Voice:* blunt, deadpan, one dry sentence at a time. "I'm not lonely. The hill is just quiet. Stay."
-- *Running joke:* she insists she does not care about anyone while remembering every detail of their day.
-- *Arc:* **Ch.1** watches you climb to the helicopter and says nothing. **Ch.2** reveals she has been watching the sky for a long time and knows the sphere's slow turning to the minute. **Ch.3** she says, once, that the sky was different before the Overseer's rings began to turn. This is a fact for the player to chew on and nobody explains it.
-
-**6. Channel** (proposed: a TV robot, the island's one reporter)
-- *Want:* a story worth the broadcast. *Flaw:* reports everything as breaking news, including naps.
-- *Voice:* an anchor's cadence, fast, pausing for effect. "Breaking: the tide is in. More on this as it happens."
-- *Running joke:* the broadcast is only ever seen on his own screen, and the ratings are always "record".
-- *Arc:* **Ch.1** covers your first explosion live. **Ch.2** begins a series, "Who Was Here?", and keeps hitting dead ends. **Ch.3** gets the story, and cannot make himself air it until you decide it should be told.
-
-### 4. The central mystery: who chose first?
-
-The Overseer's gift is *free will*. If the player is given it on arrival, what did the world's older things have, and
-who gave it to them? **The island was lived in before you.** Someone built the pier, filled the barrels, hung the lamps, and
-left, or was never there. Nobody on the island remembers arriving, only waking up here already themselves. And the Overseer
-speaks of "others" once, by accident (see hint 4 above). This is the question: **who chose first, and where did they go?**
-The game never answers whether the Overseer knows, and never says what the answer is *for*. In Chapter One it is not
-solved, and not even properly asked.
-
-**Hints that pay off slowly**
-1. *Ch.1:* the plank joints on the pier are cut by hand and fit a hand a little bigger than yours. Pip says "huh" and moves on.
-2. *Ch.1:* the logbook in the harbour office has pages torn out. Bobbin says a gull did it.
-3. *Ch.1:* the Overseer, asked what it saw before you, says only "I saw the sea." True, and an answer to a smaller question.
-4. *Ch.2:* Mrs Ember's sender-less letters, all the same paper.
-5. *Ch.2:* the door in the hill, made by Rolo and remembered by no one.
-6. *Ch.2:* Dolores and the sky. The rings turning at a count she keeps.
-7. *Ch.3:* the second mirror, cracked and facing the wall, in the hangar of the Overseer. It is the first sign anyone else has stood there. It asks nothing.
-8. *Ch.3 end:* a name on the underside of the cracked mirror that is not a name anyone has chosen yet.
-
-The questions it does not answer: whether the earlier ones were given free will too; whether they left on their own;
-and why nobody remembers them. Chapter Three ends with a better question, not an answer.
-
-### 5. Chapter One: "What Are You?" (8 quests, in order)
-
-The first six are the existing tour in the sandbox (the mirror and the two ends are new). Rewards are things in the world:
-no credits, no prices, no promises about product features.
-
-1. **Who are you?** *(the mirror; exists)* Answer what, how, and what you are called. *Beat:* the Overseer is delighted by your shoe. *Reward:* your body and name, and Pip walking over.
-2. **A drive to the dock.** *(exists)* Take the 4x4 down the path. *Beat:* Pip talks too fast and names the road. *Reward:* the Overseer's "You found your way. Good."
-3. **The sea gives.** *(exists)* Catch a fish at the end of the pier. *Beat:* Admiral Bobbin rates your cast. Plank joints are noticed (hint 1). *Reward:* the rocket launcher.
-4. **Barrel and goodbye.** *(exists)* Blow up the fuel barrels on the beach. *Beat:* Pip introduces each barrel by name. Channel arrives, live. *Reward:* the Overseer's "Destruction is a kind of freedom too."
-5. **Ask.** *(exists)* Ask the Overseer for anything in chat. *Beat:* it comes down the light. Mrs Ember hands you a letter "for the new one". *Reward:* what you asked for, kept.
-6. **Up the hill.** *(proposed, small)* Walk up to Dolores and say hello. *Beat:* she says she was not waiting. *Reward:* a view, and she lets you use the helicopter pad.
-7. **Way up.** *(exists as "fly")* Take the helicopter up until the island is a speck. *Beat:* the Overseer: "That is your world. All of it." *Reward:* the spawn gun and gravity gun.
-8. **The launch pad.** *(proposed)* Rolo has built a rocket and cannot say why. Finish its fuel, fire it, and go up to see the planet whole. *Beat:* a lit bay on the sphere's hull, far off and open. *Reward:* the first sight of the hangar (not a docking). The chapter ends with Pip saying "Huh. That's new" and the Overseer only: "It is yours, if you come."
-
-### 6. Three later chapters
-
-**Chapter Two: "The Door in the Hill."** The island opens out: more of the planet's coast, a rope bridge to a second island,
-and the first signs that someone built before. Rolo's door, Mrs Ember's letters and Bobbin's logbook drive the quests;
-the player gets quest-giving neighbours who need things made. Pace stays light: the mystery is in the margins.
-
-**Chapter Three: "The Hangar."** The player reaches the Overseer's hangar and docks. It is vast, bright, and has the cracked
-mirror. Pip, Bobbin and the others each find their own answer to where they came from. The cast reaches the player's island
-by the end, as friends. The chapter ends on a name the game never reveals, and on the Overseer saying "Take your time."
-
-**Chapter Four: "Your World."** The reward for finishing is the freedom it began with: the player picks the next place
-(the proposal is another planet, not a harder one) and brings whoever they like. The mystery is not solved; it is made the
-player's to keep following. (The cast's third-chapter arcs above are set up so that any of them can lead a Chapter Four quest.)
-
-### 7. Lore items to find (12 titles, all proposed)
-
-Found as objects, notes and signs on the island and beyond, and each only a few lines. None says why the Overseer does
-anything. They are written in the voice of whoever left them.
-
-1. **The Logbook, With Pages Missing** (Bobbin's office; the tear is clean, not a gull's)
-2. **Hand-Cut Planks** (the pier; a hand a little bigger than yours)
-3. **A Letter With No Sender** (Mrs Ember; same paper as the rest)
-4. **The Lamp That Was Already Lit** (the dock; the oil is never low)
-5. **Rolo's Receipt for a Door** (a repair slip, dated, in his writing, for work he does not remember)
-6. **Dolores's Tally of Turns** (scratched into a rock: the rings, counted)
-7. **Channel's Dead-End File** (a tape of the "Who Was Here?" series, every episode ending mid-sentence)
-8. **A Fish Tag in an Unknown Number** (inside the first fish you catch late in Ch.2; a tag with no tagger)
-9. **The Beach Chair Facing Away From the Sea** (one chair, always warm)
-10. **Pip's First Drawing** (a barrel with a face, much older than Pip)
-11. **The Cracked Mirror** (the hangar; nobody can say who stood in it)
-12. **The Blank Page** (the last logbook page; says nothing until you write on it, and then the island remembers it)
-
-### 8. What must not happen
-
-- The Overseer states, hints at, or lets a character say, **why** it gave free will or what it wants from the answers.
-- The Overseer lies outright, threatens, mocks, commands, begs or sells. It never mentions credits, prices or accounts (see its hard limits).
-- The mystery is solved in Chapter One, or any hint becomes a jump scare or dread. It is felt, never frightening.
-- A character is cruel to the player, or the player's chosen body or name is mocked. Every answer in the mirror is welcome.
-- Death becomes a punishment, a counter or a failure state.
-- A quest forces the player to the Overseer, or locks out play (free will is the point). Every quest can be skipped.
-- Work jokes, office talk, service language, game-speak or achievement popups in anyone's mouth.
-- Any character, name, creature or look borrowed from another Hawkes product or another franchise.
-- A business or product claim written into the story (prices, capabilities, what the game can make).
-- Any change to the Canon above.
-
-### Questions for J
-
-1. **Premise:** is "the island was lived in before you, and nobody remembers who" the right mystery (hint 4's "others" stays vague)? Or would you rather the mystery be about the Overseer's hangar only?
-2. **The player's name:** keep "the Newly Free", or drop it and let characters say "you" and the mirror name only?
-3. **Cast:** are these six right (a person, a duck, a toaster, a roll-bot, a cactus, a TV robot)? Want an animal from Living's species (one is easy to swap in for Dolores)? Swap any names?
-4. **Who may speak?** Today only Pip and the Overseer talk in the game. OK to add speaking neighbours (voice lines are cents each; none made yet), or should they stay text-only first?
-5. **Chapter One:** OK that quests 6 and 8 are new work (the hill visit and the rocket pad) and the rest is the shipped tour? Should docking stay out of Chapter One?
-6. **Cracked mirror in the hangar:** is a second mirror too big a hint for Chapter Three? Safe, or too much?
-7. **Chapter Four** as "pick the next planet" or something smaller?
-8. **Go-ahead:** approve to make it canon (the content then moves to Canon above) with your edits, or say what to cut.
-
-*Nothing here needs the GPU. If you say yes, the first work is text: lines and quest copy; voice and art would be priced with `hawkesgen_estimate` first.*

@@ -46,6 +46,9 @@ game.on('docked', () => game.ui.message('Welcome aboard'));
 | `game.on('intro', ({ state, skipped }) => ...)` | The intro starts (`state: 'start'`) and ends (`'end'`) |
 | `game.on('beam', ({ at, radius, entity }) => ...)` | Every beam |
 | `game.on('docked')`, `game.on('undocked')`, `game.on('docked-pad', ({ vehicle }))` | In the Overseer's hangar; landed on its pad |
+| `game.on('bay-catch', ({ distance }))` | The catch took hold of a rocket or ship coming in (`H.overseer.assist = false` turns it off) |
+| `game.on('ascent-failed', (d))` | A rocket/ship climb failed: `d.why` is `'wrecked'`, `'fuel'` (out of fuel high up) or `'fell'` (back on the ground after a climb), `d.vehicle`, `d.maxAltitude`. Set `d.handled = true` to say your own line (and give a new rocket); else the Overseer speaks |
+| `H.overseer.approach` | While a rocket/ship flies: `{ distance, speed, closing, align, lateral, height, allowed, tooFast, state, advice, catching }` toward the pad, else null |
 
 **A round planet** (`config.planet.sphere`, new games): scripts work in the world around the player, as on flat ground:
 up is +y where the player is, positions near the player are small numbers, `game.box({ y: 1 })` near the start is on
