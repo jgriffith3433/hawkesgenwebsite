@@ -124,6 +124,9 @@
     };
   }
 
+  /** The guest sandbox's funnel (play/guest.js sets it; nothing anywhere else): never breaks the intro. */
+  function funnel(name) { try { if (window.hgFunnel) window.hgFunnel(name, {}); } catch { /* fine */ } }
+
   /** Browsers keep sound off until the first click or key: before the intro, a quiet "click to enter", so it's heard. */
   function waitForSound() {
     const ctx = H.audio && H.audio.context;
@@ -143,11 +146,13 @@
         if (e) { e.preventDefault(); e.stopPropagation(); }
         window.removeEventListener('keydown', go, true);
         veil.remove();
+        funnel('sandbox_veil_passed');
         ctx.resume().catch(() => {}).finally(() => setTimeout(done, 60));
       };
       veil.addEventListener('pointerdown', go);
       window.addEventListener('keydown', go, true);
       document.body.appendChild(veil);
+      funnel('sandbox_veil_shown');
     });
   }
 
