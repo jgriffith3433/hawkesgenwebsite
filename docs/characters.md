@@ -319,7 +319,7 @@ the scarf, bow tie, cape, bell, collar, medal (neck), backpack, wings, jetpack (
 accessory again there. Because the anchors are under the model's bones (or parts), what is worn follows the head and the body as the clips or the parts move.
 Skinned and rigid-part models both work: a skinned model's joints are the nodes that `node:` names.
 
-**Animation sets (data).** Before the GLB's own clips, a model takes the clips of its class from `public/play/anim/<class>.json` (`presence-anim.js`; format, rest-pose handling and fallbacks in docs/animations.md). The decision (J, 2026-10-25): every biped is re-rigged to the **standard Mixamo skeleton** (`mixamorig:Hips`, `Spine`, `Spine1`, `Spine2`, `Neck`, `Head`, `LeftShoulder`, `LeftArm`, `LeftForeArm`, `LeftHand` and fingers, `LeftUpLeg`, `LeftLeg`, `LeftFoot`, `LeftToeBase`, the same on the right; a separate task does the rigging with Gen's `mesh.rig`) so Mixamo animations and the CC0 Quaternius clips fit them; the quadruped template rig and the rigid objects are driven by clips authored as data. A biped that still has the old 11-joint template rig does not fit the Mixamo set and keeps its GLB clips and the procedural motion (today every biped but the person and the robot: "Mixamo models" below is the recipe). A role the set has no clip for falls to the GLB's clip, then to the procedural motion below.
+**Animation sets (data).** Before the GLB's own clips, a model takes the clips of its class from `public/play/anim/<class>.json` (`presence-anim.js`; format, rest-pose handling and fallbacks in docs/animations.md). The decision (J, 2026-10-25): every biped is re-rigged to the **standard Mixamo skeleton** (`mixamorig:Hips`, `Spine`, `Spine1`, `Spine2`, `Neck`, `Head`, `LeftShoulder`, `LeftArm`, `LeftForeArm`, `LeftHand` and fingers, `LeftUpLeg`, `LeftLeg`, `LeftFoot`, `LeftToeBase`, the same on the right; a separate task does the rigging with Gen's `mesh.rig`) so Mixamo animations and the CC0 Quaternius clips fit them; the quadruped template rig and the rigid objects are driven by clips authored as data. A biped that still has the old 11-joint template rig does not fit the Mixamo set and keeps its GLB clips and the procedural motion (today the dinosaur only; the person, robot and the eight others are Mixamo: "Mixamo models" below is the recipe). A role the set has no clip for falls to the GLB's clip, then to the procedural motion below.
 
 **Animation.** With clips: idle, walk and run (blended by speed, the clip's speed following the body's through `stride`), jump and fall (in the air, going up or down), swim (in water), and an emote's own clip by name,
 all cross-faded over about a tenth of a second by weight; out of view the clips are paused and in the cheap crowd levels only the one clip plays. Without a clip for a role, the
@@ -380,23 +380,27 @@ J, 2026-10-25: "make it compatible with Mixamo, this is important so do it right
 - The first run on a server installs two venvs (30 GB free needed); both rigs here ran on a server that had it. The `blender.character` jobs are cents; `mesh.views3d` is the big line (about $0.2-0.3 a take, three takes).
 - Cost of this pair (both chains, the two first rigs and every check), as estimated from Gen's per-tool medians (the exact figure is in Studio's job list): about $2.5 of the $10, most of it the mesh takes. Not seen: the hands (the fingers are bones, but the toy's mitts were not looked at close up).
 
-**The table for the other nine** (the registry's bipeds; `tvbot` and the animals are still on the 11-joint template rig and its GLB clips, and keep working):
+**The table for the other nine** (J, 2026-10-25: "do this right"; run with the recipe above, GPU on the L40S, project `hawkesgenwebsite`, label pack `mixamo`). Eight are on the standard Mixamo skeleton; the dinosaur is **not standard yet** (below). "Spend" is Gen's cost for the model's chain, the front still, the preview and the levels, by Gen's per-tool medians (about $0.9 each; the whole run about $9 of the $20 with the two failed view sheets and the dinosaur's rig tries; Studio's job list has the exact figure).
 
-| Model | Rig today | Mixamo (`mesh.rig` humanoid) | Bones | Preview verdict | Notes for the run |
+| Model | Rig kind | Bones | Preview verdict (`Walk_Loop`, Quaternius, retargeted) | Extras | Spend |
 |---|---|---|---|---|---|
-| person | **Mixamo** | done | 52 | clean skin, `Walk_Loop` plays | the recipe above |
-| robot | **Mixamo** | done | 52 | clean skin, `Walk_Loop` plays | the recipe above |
-| tvbot | template (11) | to do | - | not run | a TV for a head: A-pose the body, keep the screen face on the texture; expect the head to skin to `Head` only |
-| cat | template (11) | to do | - | not run | upright toy; the tail has no Mixamo bone (it stays on the hips; give it a procedural `part`) |
-| pig | template (11) | to do | - | not run | upright toy; tail and snout as above |
-| bear | template (11) | to do | - | not run | upright toy; short arms: check the shoulders for tearing |
-| rabbit | template (11) | to do | - | not run | ears: a `part` on `Head`, not bones; hats sit between them |
-| cow | template (11) | to do | - | not run | upright toy; horns and tail as the cat's |
-| penguin | template (11), form `bird` | to do | - | not run | flippers are its arms: A-pose them out; the feet are short (check `LeftToeBase`) |
-| chicken | template (11), form `bird` | to do | - | not run | wings are arms; the tail as the cat's |
-| dinosaur | template (11) | to do | - | not run | the tail and the long neck do not fit Mixamo: `kind: auto` may rig it with SkinTokens (not Mixamo): then keep the template rig |
+| person | `mesh.rig` humanoid | 52 Mixamo | clean | none | pilot |
+| robot | `mesh.rig` humanoid | 52 Mixamo | clean | none | pilot |
+| tvbot | `mesh.rig` humanoid | 52 Mixamo | clean: the TV head follows, legs and arms free | none | ~$0.9 |
+| cat | `mesh.rig` humanoid | 52 Mixamo | clean, short arms swing; no tail geometry in the new mesh | none | ~$0.9 |
+| pig | `mesh.rig` humanoid | 52 Mixamo | legs and head clean; the tail came out as a flat pink plate at the back that swings with the hips (cosmetic, remake the tail later) | none | ~$0.9 |
+| bear | `mesh.rig` humanoid | 52 Mixamo | clean, no tearing at the shoulders | none | ~$0.9 |
+| rabbit | `mesh.rig` humanoid | 52 Mixamo | clean; ears follow the head | none (ears skin to `Head`) | ~$0.9 |
+| cow | `mesh.rig` humanoid | 52 Mixamo | clean; horns and ears follow the head | none | ~$1.2 (the first view sheet failed on the tail; remade fresh with a note that the tail is a short stub) |
+| penguin | `mesh.rig` humanoid | 52 Mixamo | clean legs and feet; the flippers sit tight against the body, so the arm swing is small | none | ~$0.9 |
+| chicken | `mesh.rig` humanoid | 52 Mixamo | clean; wings swing as arms, comb stays on the head | none | ~$0.9 |
+| dinosaur | not rigged to Mixamo: **not standard yet** | 21 (`bone_0`..`bone_20`, SkinTokens) | not played: the names are not Mixamo and the textures were dropped | - | ~$0.9 (two failed view sheets) + $0.29 (`kind: auto`) |
 
-For each: run steps 1-6 (one batch per kind of job: the A-pose edits, the cutouts, the viewsheets, the `mesh.views3d` takes, the rigs, the `lod`/`retarget`/`preview` jobs), expect about $1.2 and 20 minutes of GPU each, and change the row to `rig: 'mixamo'` with the anchors tool's output. Do `tvbot` with the animals' `restFix: false` if the measuring of its arms comes out wrong.
+**Not standard yet: the dinosaur.** It keeps the old 11-joint template rig and its GLB clips (nothing changed in the game). What was tried: (1) `shared/character3d` from its front still, twice (the second with the sheet's form `creature` and a note on the spikes): both stopped at `image.viewsheet`, before any 3D was made, because the generated back view never matched the sides (the back spikes came out as small round bumps, not the large plates of the side views: "the views still do not match after 4 tries"); (2) `mesh.rig` `kind: auto` (SkinTokens) on the old model (`j_27494edc8c8f`): it rigs, but with 21 generic `bone_N` names and `textures were not copied onto character: 6604 vertices, the source has 656`, so no Mixamo skeleton and no texture. What is left: a hand-made A-pose and view sheet for the dinosaur (the spikes drawn by hand on all four views), then the recipe; or `blender.character` `rename` of the SkinTokens bones to Mixamo names once the textures come across. The A-pose and rotation retries were not worth a run: the failure is before the rig.
+
+Extra bones: **none of the eight has any**. The recipe keeps to the 52 standard bones; tails and ears are skinned to `Hips` and `Head` (the cat has no tail at all in the new mesh; the pig's is the flat plate above).
+
+Built from: the old models' front stills (`blender.character` `angles`, jobs `j_1281e6f1c1ae` tvbot ... `j_354cc2e8130f` rabbit), the chains `j_a019344f0683` tvbot, `j_1dc608ca30b7` penguin, `j_b32d265af94f` chicken, `j_8c9edab0efaf` cat, `j_7c799aca8a1e` pig, `j_82d9804e60ba` bear, `j_aeece79a7bce` rabbit, `j_a2a4390cf6a8` cow; the retarget previews `j_f308795dba41`, `j_ccade4907590`, `j_cfe57d417232`, `j_02fdb5c8987e`, `j_c4121e91358c`, `j_41c62b8fd83d`, `j_82766a697e1e`, `j_2210f2958d12` (the video's frames are the verdicts above); the levels `j_8df5bdb1c9ea` ... `j_ce0693188440`. In the game (`rig: 'mixamo'`, anchors from `tools/mixamo-anchors.mjs`) their `head` width is the old row's for the cat, pig, rabbit and cow (the measured width included ears and horns and would have made the hats too big). Check: `/avatars?body=<id>&compare=1&hat=tophat`; playtest `avatar-animations` plays all nine Mixamo bodies (`mixamoBodies`).
 
 ### Gen hats
 
