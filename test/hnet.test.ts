@@ -31,6 +31,7 @@ process.env.HAWKESGEN_URL = `http://127.0.0.1:${(fakeGen.address() as any).port}
 process.env.HAWKESGEN_KEY = 'hg_test';
 process.env.PORTAL_DEV_OPEN_PLAY = '0';
 process.env.PORTAL_NET = 'hawkesnet';
+process.env.PORTAL_NET_URL = process.env.HAWKESGEN_URL; // the fake answers the Hawkes Net service's routes too
 
 const { handle, playCsp } = await import('../src/server.ts');
 const { sign } = await import('../src/sign.ts');
