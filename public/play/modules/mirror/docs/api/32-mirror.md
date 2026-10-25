@@ -10,7 +10,7 @@ Who players are: a `mirror` thing's questions (WORLD.md, "The mirror"). For scri
 | `game.mirror.isOpen`, `game.mirror.step` | whether it's open, and which question is on screen (`what`, `look`, `name`, `view`) |
 | `game.mirror.pending` | a mirror will open by itself in a moment (after the intro) or is open: wait before greeting |
 | `game.on('mirror', ({ state, what, name, step }) => ...)` | `open`, `step`, `pick` (they picked a `what`), `done` or `skip` (with `what` and `name`) |
-| `game.presence.look` | what they chose: `{ what, name, body, accent, head, shape, hat, face, extras }` |
+| `game.presence.look` | what they chose: `{ what, name, body, accent, head, shape, hat, face, extras, eyeColor, accessory, accessoryColor }` |
 
 ```js
 // The game starts once the player has been to the mirror.

@@ -213,7 +213,7 @@
 
   // ------------------------------------------------------------------ the face: one small mesh whose points are rewritten
   function makeFace(pal, look) {
-    const skin = tonesRgb(pal.skin), hair = rgb(pal.hair.base), ink = rgb(pal.ink), eye = rgb(pal.eye);
+    const skin = tonesRgb(pal.skin), hair = rgb(pal.hair.base), ink = rgb(pal.ink), eye = rgb(pal.eye), iris = rgb(pal.iris);
     const browC = mix3(hair, ink, 0.4);
     let pos = [], first = true;
     const col = [], nrm = [], idx = [], tris = [];
@@ -241,7 +241,8 @@
           const ex = s * EYE_X;
           const px = ex + st.gx * 0.022, py = EYE_Y + st.gy * 0.02;
           const zw = (x, y) => whiteFront(ex, x, y) + 0.003;
-          fan(px, py, 0.034 * st.pupil, 12, zw, ink);
+          fan(px, py, 0.034 * st.pupil, 12, zw, iris);  // the iris, in the look's eye color
+          fan(px, py, 0.017 * st.pupil, 10, (x, y) => zw(x, y) + 0.001, ink); // (the pupil)
           fan(px + 0.011, py + 0.012, 0.011, 8, (x, y) => whiteFront(ex, x, y) + 0.006, eye);
           // the lid: the top of a circle just over the eye, down to the closing line, in the skin
           const R = 0.066, yTop = EYE_Y + R, yLine = yTop - clamp(st.lid, 0, 1) * 2 * R, cyL = (yTop + yLine) / 2;

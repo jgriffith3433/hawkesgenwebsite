@@ -35,6 +35,7 @@ export const AVATAR = {
   faces: ['visor', 'eyes', 'smile', 'none'],
   hairs: ['short', 'long', 'ponytail', 'curly', 'spiky', 'bun'],
   maxExtras: 3,
+  accessories: ['none', 'headphones', 'goggles', 'monocle', 'mustache', 'eyepatch', 'flower', 'antenna', 'medal', 'bell', 'jetpack', 'bandana', 'earrings'],
   // What you are (public/play/modules/presence/presence-core.js WHATS: keep the ids in step) and your character's name.
   whats: ['person', 'robot', 'tvbot', 'rollbot', 'dog', 'cat', 'fox', 'pig', 'bear', 'rabbit', 'penguin', 'chicken', 'cow', 'sheep', 'horse', 'dinosaur', 'fish', 'shoe', 'toaster', 'cactus', 'cone', 'teapot', 'banana', 'mushroom', 'potato', 'duck'],
   nameMax: 24,
@@ -60,6 +61,8 @@ export function cleanAvatar(v: unknown) {
     what: one('what', AVATAR.whats, 'person'),
     // The person's hair and clothes (body is the top).
     hair: one('hair', AVATAR.hairs, 'short'), hairColor: color('hairColor', '#4a3322'), bottom: color('bottom', '#3b4a6b'), shoes: color('shoes', '#f2f2ee'),
+    // The eyes' color, one accessory and its color.
+    eyeColor: color('eyeColor', '#14161d'), accessory: one('accessory', AVATAR.accessories, 'none'), accessoryColor: color('accessoryColor', '#ffffff'),
     // A name is only words over your head: one line, no markup, short (anything else is dropped, not refused).
     name: typeof a.name === 'string' ? a.name.replace(/[\u0000-\u001f\u007f<>]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, AVATAR.nameMax) || null : null,
   };

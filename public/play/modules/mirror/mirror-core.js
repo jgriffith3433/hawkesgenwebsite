@@ -84,5 +84,33 @@
     return name ? `${name} the ${thing}. I will remember that. Go on, then.` : `A ${thing} with no name. Mysterious. Go on, then.`;
   }
 
-  M.core = { STEPS, STEP_IDS, DEFAULT_STEPS, OPEN, DONE, GROUPS, STARTS, cleanConfig, allowed, suggestName, doneLine, NOUNS };
+  // ------------------------------------------------------------------ "How do you look?": surprise me and the preview carousel
+  // Every part of a look the look step changes (not what you are, your name or a 3D model).
+  const LOOK_PARTS = ['body', 'accent', 'head', 'shape', 'hat', 'extras', 'face', 'hair', 'hairColor', 'bottom', 'shoes', 'eyeColor', 'accessory', 'accessoryColor'];
+  const PREVIEWS = 8;
+  /** A random look for `what` as the parts setLook takes (a person's skin stays a skin tone, a thing's detail color its accent). seed: same seed, same look. */
+  function surprise(what, seed) {
+    const C = H.presence.core;
+    const r = C.randomLook(seed);
+    const w = C.WHAT.get(what) || C.WHAT.get('person');
+    const part = {};
+    for (const k of LOOK_PARTS) part[k] = r[k];
+    if (w.body !== 'person') part.head = r.accent;
+    return part;
+  }
+  /** The carousel: `n` different surprises (each with a different accessory while there are accessories to show). */
+  function previews(what, seed, n = PREVIEWS) {
+    const base = (Number(seed) >>> 0) || ((Math.random() * 2 ** 32) >>> 0);
+    const out = [];
+    const seen = new Set();
+    for (let i = 0; out.length < n && i < n * 6; i++) {
+      const p = surprise(what, base + i * 7919);
+      if (seen.has(p.accessory) && seen.size < H.presence.core.LOOK.accessories.length - 1) continue;
+      seen.add(p.accessory);
+      out.push(p);
+    }
+    return out;
+  }
+
+  M.core = { LOOK_PARTS, PREVIEWS, surprise, previews, STEPS, STEP_IDS, DEFAULT_STEPS, OPEN, DONE, GROUPS, STARTS, cleanConfig, allowed, suggestName, doneLine, NOUNS };
 })();
