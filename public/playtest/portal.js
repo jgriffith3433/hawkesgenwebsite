@@ -2039,7 +2039,10 @@ async function stageInvite(t, ctx) {
   const fresh = await fetch('/v1/island-invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"name":"Playtest"}' }).then((r) => r.json());
   writeRun({ ...ctx.saved(), leg: 'gone' });
   t.event('friend-page', 'opening an invitation to an island nobody is on');
-  location.href = fresh.link;
+  // The link names the portal's PUBLIC_URL; the browser stays on the origin the run is on (a preview or local server), where the
+  // friend's cold page is as open as the inviter's: another host would be a different server (or Studio's login gate: 401).
+  const there = new URL(fresh.link);
+  location.href = there.pathname + there.search;
   await t.wait(30000);
   throw new Error('the invitation page did not open');
 }
