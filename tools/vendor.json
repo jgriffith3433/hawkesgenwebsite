@@ -1,0 +1,123 @@
+{
+  "about": "Pinned third-party browser libraries (tools/vendor.mjs). The sha256 is of the file as the CDN served it when it was reviewed.",
+  "packages": {
+    "babylonjs": {
+      "version": "7.54.3",
+      "license": "Apache-2.0",
+      "files": {
+        "babylon.js": {
+          "url": "https://cdn.jsdelivr.net/npm/babylonjs@7.54.3/babylon.js",
+          "sha256": "420088fc4c31c22591703ce207c7736f15419faa556b0678d28f71dbf7ea523a"
+        },
+        "LICENSE.md": {
+          "url": "https://cdn.jsdelivr.net/npm/babylonjs@7.54.3/license.md",
+          "sha256": "9362ea9ea17cb221a20cbbd63f404710834cc273d2a9a7b60314fd68ab702cd6"
+        }
+      }
+    },
+    "babylonjs-loaders": {
+      "version": "7.54.3",
+      "license": "Apache-2.0",
+      "files": {
+        "babylonjs.loaders.min.js": {
+          "url": "https://cdn.jsdelivr.net/npm/babylonjs-loaders@7.54.3/babylonjs.loaders.min.js",
+          "sha256": "02a6782cf71693218165ae87b114697a74b9cb081c8123e3fcc310e159598d6c"
+        },
+        "LICENSE.md": {
+          "url": "https://cdn.jsdelivr.net/npm/babylonjs-loaders@7.54.3/license.md",
+          "sha256": "9362ea9ea17cb221a20cbbd63f404710834cc273d2a9a7b60314fd68ab702cd6"
+        }
+      }
+    },
+    "babylonjs-inspector": {
+      "version": "7.54.3",
+      "license": "Apache-2.0",
+      "files": {
+        "babylon.inspector.bundle.js": {
+          "url": "https://cdn.jsdelivr.net/npm/babylonjs-inspector@7.54.3/babylon.inspector.bundle.js",
+          "sha256": "90a7aa56561e70857da4895f7d1565c2543f470deb5c7088f1c1d63aec2e4e99"
+        },
+        "LICENSE.md": {
+          "url": "https://cdn.jsdelivr.net/npm/babylonjs-inspector@7.54.3/license.md",
+          "sha256": "9362ea9ea17cb221a20cbbd63f404710834cc273d2a9a7b60314fd68ab702cd6"
+        }
+      }
+    },
+    "havok": {
+      "version": "1.3.10",
+      "license": "MIT",
+      "files": {
+        "HavokPhysics_umd.js": {
+          "url": "https://cdn.jsdelivr.net/npm/@babylonjs/havok@1.3.10/lib/umd/HavokPhysics_umd.js",
+          "sha256": "db1cc75911daac1d40c2580a038a0319c1f3cb5c87e59d6ca4bd1e6fbb3f32ad"
+        },
+        "HavokPhysics.wasm": {
+          "url": "https://cdn.jsdelivr.net/npm/@babylonjs/havok@1.3.10/lib/umd/HavokPhysics.wasm",
+          "sha256": "d59f51363e040e292f6750c9b809bd45854fbec58cae817a78635424639b9050"
+        },
+        "LICENSE": {
+          "url": "https://cdn.jsdelivr.net/npm/@babylonjs/havok@1.3.10/LICENSE",
+          "sha256": "d8b00cac49e55c3e93840e02868989c73520e50a865dfbd25b9d20d35397ccf0"
+        }
+      }
+    },
+    "codemirror": {
+      "version": "5.65.16",
+      "license": "MIT",
+      "files": {
+        "codemirror.min.css": {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css",
+          "sha256": "11077112ab6955d29fe41085c62365c7d4a2f00a570c7475e2aec2a8cbc85fc4"
+        },
+        "codemirror.min.js": {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js",
+          "sha256": "f102bb61fb2ac45c3a611847edd9948faad0ab22a83a2dfa9974be5031079b15"
+        },
+        "mode/javascript.min.js": {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js",
+          "sha256": "99b46f351b4b1ce8a14cdf04fe4235ecb429b5b7b986867034a7dc195a710a58"
+        },
+        "mode/markdown.min.js": {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js",
+          "sha256": "6d31310a4719d151d198b604864fa7cb7dcaa5013888863585e06d7c7085f3d8"
+        },
+        "mode/css.min.js": {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js",
+          "sha256": "ee0ce00f346a6d7e345a74ab32f2cc600e8b7df878b28715d7d52192fa274eee"
+        },
+        "LICENSE": {
+          "url": "https://cdn.jsdelivr.net/npm/codemirror@5.65.16/LICENSE",
+          "sha256": "168a4becc968f5001e2ee2e0291b6e4daabafc1894a11ade1e11d56e96096e07"
+        }
+      }
+    },
+    "marked": {
+      "version": "4.3.0",
+      "license": "MIT",
+      "files": {
+        "marked.min.js": {
+          "url": "https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js",
+          "sha256": "c68075672d976e4777390560baa112194855bd4404b13647da4855aae1f9360c"
+        },
+        "LICENSE.md": {
+          "url": "https://cdn.jsdelivr.net/npm/marked@4.3.0/LICENSE.md",
+          "sha256": "8e3a3f82f59a60958f56ca08f445647c32a4733dc7ca6c2c46f6eb898471ab9c"
+        }
+      }
+    },
+    "model-viewer": {
+      "version": "3.5.0",
+      "license": "Apache-2.0",
+      "files": {
+        "model-viewer.min.js": {
+          "url": "https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js",
+          "sha256": "8923739c8c1b4a02dd9c8cf66da5c2a448235cb5e49e439dd7bbba944ba4fbe1"
+        },
+        "LICENSE": {
+          "url": "https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/LICENSE",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        }
+      }
+    }
+  }
+}

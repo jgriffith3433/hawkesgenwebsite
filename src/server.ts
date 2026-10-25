@@ -30,6 +30,7 @@ import { presenceRoute } from './presence.ts';
 import { askAssistant, askQuote, generateAsset, pendingGens, markSuggestion, resumeGens, KINDS, AI_CREDITS } from './gameai.ts';
 import { join as joinLive, setPresence, closeAll as closeLive } from './live.ts';
 import { templateBundle, featured } from './templates.ts';
+import { serveVendor } from './vendor.ts';
 import { loaderScript, engineDoc, manifest } from './engine.ts';
 const engineVersion = () => manifest().version;
 import * as community from './community.ts';
@@ -118,11 +119,9 @@ async function readForm(req: IncomingMessage) {
 const PLAY_SANDBOX = 'sandbox allow-scripts allow-pointer-lock allow-popups';
 /** What a game page may load and call (the Content-Security-Policy beside the sandbox). A game's scripts run with
  *  new Function, so script-src needs 'unsafe-eval'; they must not be able to send anything to a site we have not named.
- *  ADD A HOST HERE when the engine starts to use one (Babylon and Havok moving to our own CDN, the realtime host,
+ *  ADD A HOST HERE when the engine starts to use one (the realtime host, the realtime host,
  *  Gen's analytics origin moving with Gen) and only then; a game's own fetch to anywhere else is meant to fail. */
 const PLAY_HOSTS = {
-  /** Babylon, its loaders and Havok's wasm (play/engine.json) until they are self-hosted; the monitor's Inspector. */
-  cdn: ['https://cdn.jsdelivr.net'],
   /** Hawkes Gen: the analytics SDK (play.html) and its relay. */
   gen: ['https://gen.hawkesgen.com'],
   /** The stand-in boombox model (kinds.js). */
@@ -140,9 +139,9 @@ export function playCsp(nonce: string): string {
     PLAY_SANDBOX,
     "default-src 'none'",
     // Inline scripts of play.html carry the nonce; scripts the page adds (modules, the SDK) come from 'self' or a host above.
-    `script-src 'self' 'nonce-${nonce}' 'unsafe-eval' 'wasm-unsafe-eval' ${list(PLAY_HOSTS.cdn, PLAY_HOSTS.gen)}`,
+    `script-src 'self' 'nonce-${nonce}' 'unsafe-eval' 'wasm-unsafe-eval' ${list(PLAY_HOSTS.gen)}`,
     // blob: and data: are fetched by Babylon for models and textures; they cannot leave the page.
-    `connect-src 'self' blob: data: ${ws} ${list(PLAY_HOSTS.realtime, PLAY_HOSTS.cdn, PLAY_HOSTS.gen, PLAY_HOSTS.models, PLAY_HOSTS.assets)}`,
+    `connect-src 'self' blob: data: ${ws} ${list(PLAY_HOSTS.realtime, PLAY_HOSTS.gen, PLAY_HOSTS.models, PLAY_HOSTS.assets)}`,
     `img-src 'self' data: blob: ${list(PLAY_HOSTS.assets, PLAY_HOSTS.models)}`,
     `media-src 'self' data: blob: ${list(PLAY_HOSTS.assets)}`,
     "font-src 'self'",
@@ -306,7 +305,8 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     }
 
     if (!route.startsWith('/v1/')) {
-      if ((method === 'GET' || method === 'HEAD') && (await serveStatic(route, res, url.search))) return;
+      if (route.startsWith('/vendor/')) { if ((method === 'GET' || method === 'HEAD') && serveVendor(req, res, route)) return; }
+      else if ((method === 'GET' || method === 'HEAD') && (await serveStatic(route, res, url.search))) return;
       return sendPage(req, res, 404, '404.html', { error: 'Not found' });
     }
 
