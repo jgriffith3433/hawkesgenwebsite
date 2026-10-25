@@ -234,7 +234,7 @@ test('Stripe: a signed, paid checkout adds the pack once; a bad signature adds n
 
 test('admins: made from the CLI path with a one-time link; customers never see the admin routes', async () => {
   const { ensureAdmin, passwordLink } = await import('../src/users.ts');
-  const a = ensureAdmin('boss@hawkesgen.com', 'Boss');
+  const a = await ensureAdmin('boss@hawkesgen.com', 'Boss');
   const link = passwordLink(a.id, 'https://hawkesgen.test');
   const token = new URL(link).searchParams.get('token');
   assert.equal((await call('/v1/users/password', { body: { token, password: 'short' } })).status, 400);
@@ -289,10 +289,10 @@ test('Google: claims are checked, a verified email links to the existing account
   assert.throws(() => checkClaims(tok({ ...good, exp: 1 }), 'cid'), /expired/);
 
   const existing = await call('/v1/users/signup', { body: { email: 'linked@example.com', password: 'password123' }, headers: { 'X-Forwarded-For': '10.7.0.1' } });
-  const linked = accountFor({ sub: 'g-123', email: 'linked@example.com', name: 'Linked' });
+  const linked = await accountFor({ sub: 'g-123', email: 'linked@example.com', name: 'Linked' });
   assert.equal(linked.id, existing.body.user.id);
-  assert.equal(accountFor({ sub: 'g-123', email: 'changed@example.com', name: null }).id, existing.body.user.id, 'by Google id after linking');
-  const fresh = accountFor({ sub: 'g-456', email: 'new-google@example.com', name: 'New' });
+  assert.equal((await accountFor({ sub: 'g-123', email: 'changed@example.com', name: null })).id, existing.body.user.id, 'by Google id after linking');
+  const fresh = await accountFor({ sub: 'g-456', email: 'new-google@example.com', name: 'New' });
   assert.equal(fresh.credits, 50);
   assert.notEqual(fresh.id, existing.body.user.id);
 });
