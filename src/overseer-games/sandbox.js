@@ -150,10 +150,12 @@ function soundAfterVoice() {
   if (sounding) return;
   Promise.race([voiceWarm, new Promise((r) => setTimeout(r, 1500))]).then(() => startSound());
 }
+// The gateway's one gesture (Enter, a click or a tap) unlocks the sound: the music, the sea and the birds start right then.
+game.on('gateway', () => { warmVoice(); startSound(); });
 game.on('intro', (d) => {
   if (!d) return;
   if (d.state === 'start') soundAfterVoice();
-  if (d.state === 'end') game.after(1, afterMirror);
+  if (d.state === 'end') { startSound(); game.after(1, afterMirror); } // (skipped or not, the island sounds)
 });
 game.onStart(() => {
   const intro = Boolean(H && H.overseer && H.overseer.introWanted && H.overseer.introWanted());
