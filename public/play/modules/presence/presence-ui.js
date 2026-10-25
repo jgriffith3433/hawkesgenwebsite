@@ -55,6 +55,7 @@ body.pr-touch .pr-chat{bottom:auto;top:66px}
 .pr-x{background:none;border:0;color:#fff;font-size:22px;cursor:pointer;padding:2px 8px;min-height:36px}
 .pr-row{display:flex;align-items:center;gap:8px;padding:7px 4px;border-bottom:1px solid rgba(255,255,255,.07)}
 .pr-row .dot{width:12px;height:12px;border-radius:50%;flex:none}
+.pr-row .nm[data-go]{cursor:pointer;text-decoration:underline dotted rgba(255,255,255,.35);text-underline-offset:3px;min-height:32px;line-height:32px}
 .pr-row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pr-row .nm small{opacity:.6;margin-left:6px}
 .pr-row button{font:600 12px system-ui;color:#fff;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:8px;padding:6px 9px;cursor:pointer;min-height:32px}
 .pr-row button.go{background:rgba(125,211,252,.18);border-color:rgba(125,211,252,.5)}
@@ -272,17 +273,19 @@ body.pr-touch .pr-sw button{width:38px;height:38px}body.pr-touch .pr-ch button{m
   function renderPeople(force = true) {
     if (!panel || panelKind !== 'people') return;
     const list = P.players();
-    const sig = JSON.stringify(list.map((x) => [x.id, x.name, x.friend, x.host, x.typing, x.verified, x.requested, x.muted, x.spectating])) + P.me.signedIn + P.spectating();
+    const sig = JSON.stringify(list.map((x) => [x.id, x.name, x.friend, x.host, x.typing, x.verified, x.requested, x.muted, x.spectating, Boolean(x.entity), P.reported(x.id)])) + P.me.signedIn + P.spectating();
     if (!force && sig === peopleSig) return;
     peopleSig = sig;
     const n = list.length;
     let html = `<header><b>Who's here <small style="opacity:.6;font-weight:500">${n}</small></b><button type="button" class="pr-x" data-a="close" aria-label="Close">×</button></header>`;
     for (const x of list) {
       const tags = `${x.host ? ' 👑' : ''}${x.friend ? ' ★' : ''}${x.typing ? ' …' : ''}`;
-      html += `<div class="pr-row" data-id="${esc(x.id)}"><span class="dot" style="background:${esc(x.color || '#4a9eff')}"></span><span class="nm">${esc(x.name)}${tags}${x.me ? '<small>you</small>' : x.friend ? '<small>friend</small>' : ''}${x.host ? '<small>host</small>' : ''}</span>`;
+      html += `<div class="pr-row" data-id="${esc(x.id)}"><span class="dot" style="background:${esc(x.color || '#4a9eff')}"></span><span class="nm"${!x.me && x.entity ? ' data-go="1" title="Tap to go next to them"' : ''}>${esc(x.name)}${tags}${x.me ? '<small>you</small>' : x.friend ? '<small>friend</small>' : ''}${x.host ? '<small>host</small>' : ''}</span>`;
       if (!x.me) {
         if (P.me.signedIn && x.verified && !x.friend) html += x.requested ? '<button type="button" disabled>Asked</button>' : '<button type="button" class="go" data-a="friend">+ Friend</button>';
+        if (x.entity) html += '<button type="button" class="go" data-a="go">✦ Go</button>';
         html += `<button type="button" data-a="mute">${x.muted ? 'Unmute' : 'Mute'}</button>`;
+        html += `<button type="button" data-a="report" ${P.reported(x.id) ? 'disabled' : ''}>${P.reported(x.id) ? 'Reported' : 'Report'}</button>`;
         if (P.enabled('spectate')) html += `<button type="button" data-a="watch">${P.spectating() === x.key ? 'Watching' : '👁 Watch'}</button>`;
       }
       html += '</div>';
@@ -291,6 +294,8 @@ body.pr-touch .pr-sw button{width:38px;height:38px}body.pr-touch .pr-ch button{m
     if (!P.me.signedIn) html += '<p class="pr-note">Sign in to Hawkes Gen to keep your look in every game and add friends.</p>';
     panel.innerHTML = html;
     panel.onclick = (e) => {
+      const nameEl = e.target.closest ? e.target.closest('.nm[data-go]') : null;
+      if (nameEl) { P.goTo(nameEl.closest('.pr-row').dataset.id); return; }
       const b = e.target.closest ? e.target.closest('button') : null;
       if (!b) return;
       const a = b.dataset.a;
@@ -299,6 +304,8 @@ body.pr-touch .pr-sw button{width:38px;height:38px}body.pr-touch .pr-ch button{m
       if (a === 'close') closePanel();
       if (a === 'look') openLook();
       if (a === 'mute') { P.mute(id, b.textContent === 'Mute'); renderPeople(); }
+      if (a === 'go') P.goTo(id);
+      if (a === 'report') { P.report(id, 'name'); renderPeople(); }
       if (a === 'watch') { if (P.spectating() === `p:${id}`) P.spectate(null); else { P.spectate(id); closePanel(); } }
       if (a === 'friend') { b.disabled = true; b.textContent = '…'; P.addFriend(id).then((s) => { b.textContent = s === 'friends' ? 'Friends!' : 'Asked'; }, (err) => { b.textContent = 'Not now'; line({ sys: true, text: err.message }); }); }
     };
