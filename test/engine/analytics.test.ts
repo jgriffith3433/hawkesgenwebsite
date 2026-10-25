@@ -38,3 +38,32 @@ test('the codex sends nothing', () => {
   try { H.track('feature', { name: 'x' }); } finally { H.hooks.codex = false; }
   assert.equal(sent.length, before);
 });
+
+test('perf: at ready, at 30 s, every 2 minutes, and low fps once a session', () => {
+  const real = performance.now.bind(performance);
+  let clock = real();
+  performance.now = () => clock;
+  (globalThis as any).document.visibilityState = 'visible';
+  try {
+    sent.length = 0;
+    world(H, sceneOf({ floor }), { mode: 'play' });
+    const frame = (ms: number, seconds: number) => {
+      for (let t = 0; t < seconds * 1000; t += ms) { clock += ms; for (const f of H.hooks.frame) f(ms / 1000, true); }
+    };
+    const perfs = () => sent.filter((e) => e.name === 'perf').map((e) => e.props);
+    frame(16, 31);
+    let p = perfs();
+    assert.deepEqual(p.map((x) => x.phase), ['30s']);
+    assert.ok(p[0].fps > 55 && p[0].fpsP5 > 55 && p[0].frameMs > 0 && p[0].tier);
+    assert.equal(p[0].email, undefined);
+    frame(16, 130);
+    assert.deepEqual(perfs().map((x) => x.phase), ['30s', '2m']);
+    // Fifty frames a second is fine; ten is not, and is told once, with what was on screen.
+    H.game.emit('explosion', { at: [0, 0, 0], radius: 4 });
+    frame(100, 5);
+    frame(200, 10);
+    const low = perfs().filter((x) => x.phase === 'low_fps');
+    assert.equal(low.length, 1);
+    assert.ok(low[0].lowFps < 20 && 'feature' in low[0] && low[0].mode);
+  } finally { performance.now = real; }
+});
