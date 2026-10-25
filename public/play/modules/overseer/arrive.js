@@ -11,6 +11,10 @@
 //          attached to others, Gen art arriving on a thing that's already there): the beam and the thing growing out
 //          of the light, a little grander.
 //   none   it just appears.
+//   The island's first minutes (config.overseer.cascade: ["pip", "jeep", ...]): when the first-visit intro ends, those
+//   scene things are hidden and beamed in one after another, a short beam each (H.arrive.cascade). Never on a return (no
+//   intro, no cascade), never on a phone. Undo and redo of a removal re-beam the thing, short (build.js); a player who
+//   joins a room is beamed in with their name over it (net.js, H.arrive.label).
 //   Terrain from words (config.terrain.add: a mountain, a hill, a canyon) grows over ~5 s: terrain.js moves the ground
 //   and calls H.arrive.quake for the rumble, the shake, the dust and the rocks.
 // Cheap on purpose: no lights, nearby arrivals share one beam, landing rings come from a small pool, particles are
@@ -320,7 +324,7 @@
     const groups = { drop: [], grow: [], beam: [], none: [] };
     for (const e of ents) groups[how(e, o.how)].push(e);
     if (groups.beam.length && H.overseer && H.overseer.materialize) {
-      const b = H.overseer.materialize(groups.beam.length === 1 ? groups.beam[0] : groups.beam, { radius: groups.beam.length === 1 ? undefined : undefined });
+      const b = H.overseer.materialize(groups.beam.length === 1 ? groups.beam[0] : groups.beam, o.short ? { seconds: 0.9 } : {});
       if (b && b.pulse) b.pulse(1);
       if (H.overseer.flare) H.overseer.flare(0.35);
     }
@@ -563,7 +567,7 @@
     const exact = H.mode === 'build';
     for (const [asked, ents] of byHow) {
       if (exact && o.remote) fixRoofs(ents, asked);
-      bring(ents, { how: asked, exact });
+      bring(ents, { how: asked, exact, short: Boolean(o.short) });
     }
   }
   /** Building, someone else's drop (the assistant's): its op kept the asked spot; if that's under a roof, it lands on
@@ -589,6 +593,70 @@
     bring(out, { how: a.how || 'auto', delay: a.delay, gap: a.gap, lift: rain ? 0 : undefined });
     return true;
   }
+
+  // ------------------------------------------------------------------ the first minutes: a staggered cascade
+  const GAP = 0.55; // seconds between one beam and the next
+  let queue = []; // { e, at } waiting their turn
+  let cascaded = 0;
+  /** Hides these scene things (ids) and beams them in one after another, a short beam each. Returns how many. */
+  function cascade(ids, o = {}) {
+    const w = W();
+    if (!w || H.device && H.device.tier === 'phone' || !H.overseer || !H.overseer.materialize) return 0;
+    const gap = num(o.gap, GAP);
+    const ents = [...new Set(ids || [])].map((id) => w.byId.get(id)).filter((e) => e && e.alive && !e._arrival);
+    ents.forEach((e, i) => { e.node.setEnabled(false); queue.push({ e, at: 0.2 + i * gap, i, of: ents.length, w }); });
+    cascaded = ents.length;
+    return ents.length;
+  }
+  function runQueue(dt) {
+    if (!queue.length) return;
+    for (const q of queue) q.at -= dt;
+    const due = queue.filter((q) => q.at <= 0);
+    if (!due.length) return;
+    queue = queue.filter((q) => q.at > 0);
+    for (const q of due) {
+      const e = q.e;
+      if (W() !== q.w || !e.alive) continue;
+      e.node.setEnabled(true);
+      bring(e, { how: 'beam', short: true });
+      try { if (G()) G().emit('cascade', { thing: e, id: e.sceneId, name: e.name || e.sceneId, index: q.i, total: q.of }); } catch (err) { H.report(err, 'arrive'); }
+    }
+  }
+  H.hooks.step.push((dt) => { try { runQueue(dt); } catch (err) { H.report(err, 'arrive'); } });
+  /** A name that rises over a thing and fades (a player arriving, "Dolores"). */
+  function label(e, text) {
+    const w = W();
+    if (!w || !e || !e.alive || !text || !H.textPlane) return null;
+    const t = H.textPlane(String(text), { size: 0.2 });
+    t.isPickable = false; t.metadata = { decor: true };
+    const scene = w.scene;
+    let k = 0;
+    const obs = scene.onBeforeRenderObservable.add(() => {
+      k += scene.getEngine().getDeltaTime() / 3000;
+      if (!e.alive || k >= 1) { scene.onBeforeRenderObservable.remove(obs); t.dispose(); return; }
+      t.position.set(e.x, e.y + e.half[1] + 0.9 + k * 0.5, e.z);
+      t.visibility = 1 - Math.max(0, k - 0.6) / 0.4;
+    });
+    t.position.set(e.x, e.y + e.half[1] + 0.9, e.z);
+    return t;
+  }
+  /** A player joining the room (net.js makeAvatar): beamed in, short, with their name over them, for everyone near. */
+  function joined(e, name) {
+    if (!e || !e.alive) return false;
+    bring(e, { how: 'beam', short: true });
+    label(e, `${name || 'Someone'} joined`);
+    try { if (G()) G().emit('joined', { thing: e, id: e.netId || null, name: name || null }); } catch (err) { H.report(err, 'arrive'); }
+    return true;
+  }
+  // The first visit only: the intro ends (played or skipped) and the island's main things come in, one by one.
+  H.hooks.game.push((game) => {
+    game.on('intro', (d) => {
+      if (!d || d.state !== 'end') return;
+      let ids = null;
+      try { ids = H.lib.effectiveConfig().overseer.cascade; } catch { ids = null; }
+      if (Array.isArray(ids) && ids.length) cascade(ids);
+    });
+  });
 
   // ------------------------------------------------------------------ terrain growing (terrain.js moves the ground)
   const quakes = [];
@@ -653,6 +721,7 @@
 
   // ------------------------------------------------------------------ worlds come and go: nothing is left behind
   function clear() {
+    queue = [];
     for (const rec of [...list]) { try { finish(rec); } catch { /* gone */ } }
     list.length = 0;
     for (const s of shared) if (s.b.alive) s.b.kill();
@@ -671,11 +740,14 @@
 
   H.arrive = {
     HOWS, FALL, LIMITS,
-    down, up, how, landing, plan, bring, ops, spawned, quake, clear,
+    down, up, how, landing, plan, bring, ops, spawned, quake, clear, cascade, label, joined,
     /** Arrivals going on now (things falling, growing, waiting their turn), and terrain moving. */
     get active() { return list.length; },
     get quakes() { return quakes.length; },
     get beams() { return shared.length; },
+    /** Cascade beams still waiting their turn, and how many things the last cascade held. */
+    get waiting() { return queue.length; },
+    get cascaded() { return cascaded; },
     /** The arrival of a thing now (or null): { kind, phase, exact, target }. */
     of(e) { const r = e && e._arrival; return r ? { kind: r.kind, phase: r.phase, exact: r.exact, target: r.target.slice() } : null; },
   };

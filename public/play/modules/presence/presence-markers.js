@@ -166,6 +166,7 @@ body.pr-touch .pr-mark{min-height:40px;font-size:14px}
     const a = H.game.capsule({ x: at[0], y: at[1], z: at[2], radius: 0.35, height: 1.8, color, physics: 'kinematic', tag: 'player', name });
     a.remotePlayer = true; a.isPlayer = true; a.netId = id;
     peers.set(id, { id, name, color, state: { p: at, y: 0, pi: 0 }, avatar: a, seen: performance.now(), standIn: true });
+    if (o.joined && H.arrive && H.arrive.joined) H.arrive.joined(a, name); // (as net.js shows someone who joins right now)
     return id;
   };
   P.removeStandIns = () => { const peers = window.HawkesNet && HawkesNet.peers(); if (!peers) return; for (const [id, pr] of peers) if (pr.standIn) { try { pr.avatar && pr.avatar.destroy(); } catch { /* gone */ } peers.delete(id); } };
