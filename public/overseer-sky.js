@@ -29,13 +29,13 @@
     cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
     cv.style.width = W + 'px'; cv.style.height = H + 'px';
     const narrow = W < 820;
-    O.r = narrow ? Math.min(W * 0.22, 96) : Math.min(W * 0.15, H * 0.24);
-    O.x = narrow ? W * 0.5 : W * 0.7;
-    O.y = narrow ? 76 + O.r * 1.25 : H * 0.34;
+    O.r = narrow ? Math.min(W * 0.15, 64) : Math.min(W * 0.13, H * 0.22);
+    O.x = narrow ? W * 0.5 : W * 0.76; // wide: right of the headline, whose longest line ends before the rings (1.7 r each side) begin
+    O.y = narrow ? 68 + O.r * 1.1 : H * 0.34;
     // phone: the text starts below the Overseer and the line it speaks (the hero is as tall as the text needs)
     hero.dataset.overseer = [O.x, O.y, O.r].map(Math.round).join(','); // where the Overseer is (x, y, radius in px): the layout playtest checks nothing covers it
-    hero.style.setProperty('--sky-top', narrow ? Math.round(O.y + O.r * 1.9 + 56) + 'px' : '120px');
-    P.R = W * 1.9; P.cx = W * (narrow ? 0.5 : 0.56); P.cy = H * (narrow ? 0.93 : 0.86) + P.R;
+    hero.style.setProperty('--sky-top', narrow ? Math.round(O.y + O.r * 1.9 + 52) + 'px' : '120px');
+    P.R = W * 1.9; P.cx = W * (narrow ? 0.5 : 0.56); P.cy = H * (narrow ? 0.9 : 0.86) + P.R;
     let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
     const n = Math.round(Math.min(260, (W * H) / 5200));
     stars = Array.from({ length: n }, () => ({ x: rnd() * W, y: rnd() * H * 0.82, z: 0.3 + rnd() * 0.7, ph: rnd() * TAU, s: 0.4 + rnd() * 1.1 }));
@@ -186,7 +186,8 @@
     el.querySelector('b').textContent = initial;
     el.querySelector('span').textContent = text;
     if (cards) cards.appendChild(el);
-    const rec = { el, pos: () => ({ x: Math.min(Math.max(W * fx, 90), W - 90), y: surfaceY(W * fx) - 4 }) };
+    // the card stays inside the first screen: on a short window the ground is below the fold, so it sits at the bottom edge
+    const rec = { el, pos: () => ({ x: Math.min(Math.max(W * fx, 90), W - 90), y: Math.min(surfaceY(W * fx) - 4, window.innerHeight - 16 - hero.getBoundingClientRect().top) }) };
     placed.push(rec); const p = rec.pos(); el.style.left = p.x + 'px'; el.style.top = p.y + 'px';
     while (placed.length > 3) { const old = placed.shift(); old.el.classList.add('gone'); setTimeout(() => old.el.remove(), 700); }
     if (reduce) el.classList.add('still'); else setTimeout(() => el.classList.add('still'), 1500);
