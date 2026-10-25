@@ -2,8 +2,10 @@
 // every device. Phone first: the budgets come from the device's tier, and desktop is never capped to a phone's.
 //   H.device = { tier: 'phone' | 'tablet' | 'desktop', ios, memoryGB, cores, pixelRatio }
 //   H.budget = { entities, bodies, shadows, detail, textureMB, maxTexture, pixelRatio, drawDistance, shadowDistance,
-//                loads, lights, catchUp }  per tier; games and modules may lower or raise them (game.json / scene "budget": { ... } too).
+//                loads, lights, catchUp, characters, farCharacter }  per tier; games and modules may lower or raise them (game.json / scene "budget": { ... } too).
 //   - entities:  past it, the oldest things scripts made (never the world's own, never players) are removed with a puff
+//   - characters: at most this many players' bodies animate in full (face, springs, gaze); the rest move simply (presence.js)
+//   - farCharacter: past this many meters a body draws its half-detail meshes and moves simply, without blinking
 //   - bodies:    at most this many dynamic things are simulated; the farthest from the camera rest where they are
 //                (frozen) until you come closer
 //   - shadows:   only the nearest this-many things cast shadows, and none farther than shadowDistance (m)
@@ -38,10 +40,10 @@
 
   /** The budgets for a device: phones strict (iOS strictest), tablets between, desktop scaled up with its memory. */
   function budgetsFor(d) {
-    if (d.tier === 'phone') return { entities: 900, bodies: 150, shadows: 30, detail: 0.5, textureMB: d.ios ? 64 : d.memoryGB && d.memoryGB <= 3 ? 64 : 96, maxTexture: 1024, pixelRatio: 2, drawDistance: 220, shadowDistance: 45, loads: 3, lights: 4, catchUp: 3 };
-    if (d.tier === 'tablet') return { entities: 1500, bodies: 250, shadows: 70, detail: 0.75, textureMB: d.ios ? 128 : 160, maxTexture: 2048, pixelRatio: 2, drawDistance: 320, shadowDistance: 70, loads: 4, lights: 6, catchUp: 4 };
+    if (d.tier === 'phone') return { entities: 900, bodies: 150, shadows: 30, detail: 0.5, textureMB: d.ios ? 64 : d.memoryGB && d.memoryGB <= 3 ? 64 : 96, maxTexture: 1024, pixelRatio: 2, drawDistance: 220, shadowDistance: 45, loads: 3, lights: 4, catchUp: 3, characters: 10, farCharacter: 30 };
+    if (d.tier === 'tablet') return { entities: 1500, bodies: 250, shadows: 70, detail: 0.75, textureMB: d.ios ? 128 : 160, maxTexture: 2048, pixelRatio: 2, drawDistance: 320, shadowDistance: 70, loads: 4, lights: 6, catchUp: 4, characters: 20, farCharacter: 30 };
     const m = d.memoryGB;
-    return { entities: 2500, bodies: 400, shadows: 160, detail: 1, textureMB: m && m <= 4 ? 256 : 512, maxTexture: 8192, pixelRatio: 0, drawDistance: 700, shadowDistance: 160, loads: 6, lights: 8, catchUp: 8 };
+    return { entities: 2500, bodies: 400, shadows: 160, detail: 1, textureMB: m && m <= 4 ? 256 : 512, maxTexture: 8192, pixelRatio: 0, drawDistance: 700, shadowDistance: 160, loads: 6, lights: 8, catchUp: 8, characters: 40, farCharacter: 30 };
   }
   const DEFAULTS = budgetsFor(H.device);
   H.budget = { ...DEFAULTS };

@@ -24,6 +24,26 @@
   const fmt = (n, d = 0) => (n === null || n === undefined || Number.isNaN(n) ? '–' : Number(n).toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d }));
   const mb = (bytes) => (bytes ? `${fmt(bytes / 1048576, 1)} MB` : '–');
 
+  /** Draws and triangles counted from what the camera draws, for an engine whose own counters are idle (the null engine of the
+   *  tests): one draw per mesh with a material and triangles in the active list, instances of one source (at the level of detail
+   *  the camera picks) going out as a single batch; every instance's triangles are drawn. */
+  function activeDraws(scene) {
+    const list = scene.getActiveMeshes();
+    const seen = new Set();
+    let draws = 0, tris = 0;
+    for (let i = 0; i < list.length; i++) {
+      const m = list.data[i];
+      const src = m._currentLOD || m.sourceMesh || m;
+      const t = src.getTotalIndices() / 3;
+      if (!src.material || !t) continue;
+      tris += t;
+      if (seen.has(src.uniqueId)) continue;
+      seen.add(src.uniqueId);
+      draws += src.subMeshes ? src.subMeshes.length : 1;
+    }
+    return { draws, tris: Math.round(tris) };
+  }
+
   /** Everything the panel shows, as numbers (also for the console and tests). */
   function sample() {
     const w = W();
@@ -34,6 +54,7 @@
     const net = H.sync && H.sync.stats ? H.sync.stats() : null;
     const ents = w.entities ? [...w.entities] : [];
     const mem = performance.memory || null;
+    const act = activeDraws(scene);
     return {
       fps: engine.getFps(),
       frameMs: sceneI ? sceneI.frameTimeCounter.lastSecAverage : null,
@@ -42,6 +63,9 @@
       stepMs: stepAvg || null,
       drawCalls: sceneI ? sceneI.drawCallsCounter.current : null,
       triangles: Math.round(scene.getActiveIndices() / 3),
+      activeDraws: act.draws,
+      activeTriangles: act.tris,
+      characters: H.presence && H.presence.crowd ? H.presence.crowd() : null,
       vertices: scene.getTotalVertices(),
       activeMeshes: scene.getActiveMeshes().length,
       meshes: scene.meshes.length,
@@ -110,9 +134,12 @@
         ['render (CPU)', `${fmt(s.renderMs, 1)} ms`], ['GPU', s.gpuMs ? `${fmt(s.gpuMs, 1)} ms` : 'n/a here'],
         ['step (scripts, physics)', `${fmt(s.stepMs, 2)} ms`], ['time scale', fmt(s.timeScale, 2)]])}
       <h6>Drawing</h6>${rows([
-        ['draw calls', fmt(s.drawCalls)], ['triangles drawn', fmt(s.triangles)], ['vertices', fmt(s.vertices)],
+        ['draw calls', s.drawCalls ? fmt(s.drawCalls) : `~${fmt(s.activeDraws)}`], ['triangles drawn', fmt(s.triangles)], ['vertices', fmt(s.vertices)],
         ['meshes drawn / all', `${fmt(s.activeMeshes)} / ${fmt(s.meshes)}`], ['materials', fmt(s.materials)],
         ['textures', fmt(s.textures)], ['lights', fmt(s.lights)]])}
+      ${s.characters && s.characters.bodies ? `<h6>Characters</h6>${rows([
+        ['bodies', fmt(s.characters.bodies)], ['animated in full / cap', `${fmt(s.characters.full)} / ${fmt(s.characters.cap)}`],
+        ['cheap level', fmt(s.characters.simple)], [`past ${fmt(s.characters.farAt)} m`, fmt(s.characters.far)]])}` : ''}
       <h6>Memory</h6>${rows([
         ['textures (GPU)', s.textureMB !== null ? `${fmt(s.textureMB, 1)} / ${fmt(s.textureBudgetMB, 0)} MB` : '–'],
         ['textures loading', fmt(s.textureLoading)],

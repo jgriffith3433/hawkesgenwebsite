@@ -84,7 +84,7 @@ the rest of the world included. A character spends from the world's frame, so th
 | Materials | 1 shared toy material per scene, colored by vertex color | 3 (a glowing screen or visor may be a second) |
 | Joints (animated nodes) | 6 to 12 | 16 |
 | Texture memory | none: no textures | 256 KB total for all faces |
-| Per frame, 10 in view | 15,000 triangles, 30 draw calls | 25,000 triangles, 60 draw calls |
+| Per frame, 10 bodies in view (the phone tier) | 15,000 triangles, 40 draw calls | 22,000 triangles, 110 draw calls (section 7 measures it) |
 
 How it is met: parts of one body that share a material and do not move relative to each other are **merged into one
 mesh per joint** (`H.mergeParts`, `scale.js`); one `StandardMaterial` with vertex color and the fresnel rim is shared by
@@ -226,3 +226,48 @@ accessory's icon. The things with a screen face (TV robot, roll-bot) keep their 
 
 `living/species.js` builds the bodies (the species table and its joints are unchanged: sizes, `hips`, `head`, `tail`, `wings`, `arms` keep their meaning for creatures and herds) and `living/animal.js` moves them (`H.living.drive`), for the world's creatures and for the mirror's animal alike.
 What changed: **light** (a fur-like fresnel rim in each color's own tint, a lighter muzzle and underside); **eyes** (white ball, pupil, glint on joints: blink every 2.5 to 6 s, shut asleep, pupils follow the camera when it is near and the head turns a little toward it; cats have bright eyes and slit pupils); **ears** on joints (point, floppy, round, long) on damped springs: they trail the head and the bounce, flick now and then, perk, flatten at a run, droop asleep; **tails** in two joints, the tip trailing the root (a cat's swish, a dog's wag); **gaits** by `gait` in the table: a four-beat walk, trot and gallop for quadrupeds (a horse high-stepping, a cow's plod with a roll, a bear's shoulder roll, a pig's scurry, a deer's bound), a rabbit's hop, a chicken's head thrust, a penguin's waddle, a dinosaur's stomp with the tail as counterweight; **idles** by `idle`: a cat stretches, a dog pants and wags, birds fluff and shake, a horse paws, a pig sniffs, cows and sheep chew and flick their tails, a deer freezes alert, a rabbit twitches and sits up, a bear sways, a dinosaur sweeps its head and roars. Triangles went down (dog 3,528 to about 2,000, cat 1,272 to about 1,050, horse 5,232 to about 2,900: the soft shapes use 6 segments and the new small parts are 20 and 80 triangle icospheres); draw calls rose by about 6 to 8 per body (eyes, muzzle, belly), but instances of one source and color batch, so a herd pays per shape, not per animal. Picture: `docs/characters-animals-before-after.png` (before left, after right; software render by `tools/avatar-preview.ts`, no rim light: the real one is `/avatars?body=dog`). Test: `test/engine/living.test.ts` (animals).
+
+## 7. A crowd
+
+What ten and thirty bodies cost, and how it is kept down (`presence-person.js`, `presence.js updateRigs`, `scale.js H.budget`). Bodies are
+drawn from the world's frame, so a crowd is a budget of its own: the **phone tier** (`H.budget.characters` 10, `farCharacter` 30 m) is the one the
+table below is held to.
+
+- **Shared geometry.** The person's legs, arms, torso, and head with hair are built once per scene and per look (`shared`: keyed by the tones
+  each part uses, so two players in the same shirt share a torso even if their trousers differ) as hidden source meshes. Every body draws
+  **instances** of them: one copy of the vertices, one batch per source for all the bodies that share it. Everything uses the one rim-lit
+  material. Only the face is a mesh of its own (its points are rewritten for the eyes, blinks and mouth).
+- **Merged parts.** What a body wears (hat, glasses, scarf, backpack, headphones...) is joined with `H.mergeParts` into one mesh per joint and
+  color; a top hat, scarf, pack and headphones went from 11 meshes to 5. The cape, wings and tail swing, so they stay apart.
+- **Far bodies.** Past 30 m (a 3 m band keeps a body at the edge from flickering) each source swaps to its **half-detail level**
+  (Babylon LOD: half the segments and rings, a third of the triangles: the body's 2,370 on desktop, about 1,500 on a phone whose near level is built at three quarters, to 750; worn parts at 0.3 of the tessellation of a desktop's).
+  The shape is the same to within 1.5 px at 30 m on a phone screen (`test/engine/crowd.test.ts` checks the bounding boxes), so nothing pops.
+  A far body also moves simply: the legs and arms swing with the stride and it leans into a run, with **no blinking, no gaze, no hair or
+  shirt springs**; its face is settled once (lids open) and left; it updates every 2nd frame (every 6th when out of view) with the time it missed.
+- **A cap on the animated.** Only the nearest `H.budget.characters` bodies in view and inside 30 m animate in full (face, gaze, blink, springs):
+  10 on a phone, 20 on a tablet, 40 on desktop. Yours counts when it is drawn. The others take the cheap level, still walking and
+  gesturing. A body changes level at most every half second. The monitor shows it under **Characters** (`H.presence.crowd()`).
+- **Name tags are pooled.** A tag taken off a head waits (up to 40) for the next one; a crowd coming and going makes no new elements.
+
+Measured by `tools/crowd-stats.ts` (`test/engine/crowd-measure.ts`: `n` players on a flat floor in third person, random looks with hats and
+accessories, two seconds of frames, read through the monitor's `sample()`: `activeDraws` and `activeTriangles` count what the camera draws, instances of one
+source as one batch; Babylon's null engine has no GPU counter, a phone's own counters in the monitor read the same way. Milliseconds are Node's CPU for the
+step and the scene's culling, good for comparing runs, not phones):
+
+| Crowd (phone tier) | Draw calls | Triangles | Frame (Node) | In full | Cheap | Past 30 m |
+|---|---|---|---|---|---|---|
+| 1 body (you) | 11 | 2,474 | 1.7 ms | 1 | 0 | 0 |
+| 10, different looks | 98 | 19,670 | 3.1 ms | 10 | 0 | 0 |
+| 10, one look | 34 | 16,406 | 1.9 ms | 10 | 0 | 0 |
+| 10, all past 30 m | 98 | 14,954 | 2.0 ms | 1 | 9 | 9 |
+| 30, different looks | 226 | 46,360 | 4.1 ms | 10 | 20 | 6 |
+| 30, one look | 79 | 44,086 | 2.8 ms | 10 | 20 | 6 |
+| 30, a third past 30 m | 229 | 43,612 | 4.1 ms | 10 | 20 | 11 |
+| 30, different looks (desktop tier: cap 40) | 226 | 72,156 | 4.8 ms | 24 | 6 | 6 |
+
+(The first row includes the floor's mesh; each body is about 8 draws and 1,900 to 2,500 triangles with what it wears. The floor is 1 draw.)
+The near level is built at `H.budget.detail` (a phone's 0.5 gives three quarters of the segments, desktop all of them). Ten bodies in view on the phone tier come to **about 100 draw calls and 19,700 triangles with ten different looks, 34 draw calls and 16,400 triangles
+when they share one**, inside the table in section 3 (110 and 22,000). Instances cut draws only for bodies that share a part, so the worst
+case (every look different) is what the limit is set to; the mirror's pickers make real crowds share a lot (hair, skin and shoes come from short lists).
+Triangles are not batched away: past the cap, thirty bodies draw about 46,000 triangles because the ones inside 30 m keep their full meshes.
+The tests keep this honest: `test/engine/crowd.test.ts` spawns 10 and 30 bodies and fails over the phone budget; the target column (15,000 and 40) is not met yet.
