@@ -48,6 +48,7 @@ process.env.PORTAL_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'portal-shar
 process.env.HAWKESGEN_URL = `http://127.0.0.1:${(fakeGen.address() as any).port}`;
 process.env.HAWKESGEN_KEY = 'hg_portal_test_key';
 process.env.PUBLIC_URL = 'https://hawkesgen.test';
+process.env.SIGNUPS_PER_HOUR = '100';
 
 const { handle } = await import('../src/server.ts');
 const games = await import('../src/games.ts');
@@ -160,4 +161,50 @@ test('the share window is served for games to open', async () => {
   assert.equal(guest.body.user, null);
   const cookie = await signup('eve@example.com');
   assert.equal((await call('/v1/shares/session', { cookie })).body.user.email, 'eve@example.com');
+});
+
+// ------------------------------------------------------------------ moments: the link and the card
+const sharesMod = await import('../src/shares.ts');
+
+test('a moment from the game: the character, the Overseer\'s line and the sky on the page, and a card with an image', async () => {
+  const cookie = await signup('fay@example.com');
+  const clip = await call('/v1/assets', { cookie, raw: CLIP, headers: { 'Content-Type': 'video/webm' } });
+  const card = await call('/v1/assets', { cookie, raw: POSTER, headers: { 'Content-Type': 'image/jpeg' } });
+  const made = await call('/v1/shares', { cookie, body: { asset: clip.body.id, thumb: card.body.id, game: 't/nope', width: 1280, height: 720, seconds: 8, moment: { kind: 'boom', caption: 'Destruction is a kind of freedom too.', who: 'Toasty <3', what: 'A toaster' } } });
+  assert.equal(made.status, 200, JSON.stringify(made.body));
+  const s = made.body;
+  assert.equal(s.title, 'Toasty 3 · A big explosion', 'no title sent: the name and the moment');
+  assert.deepEqual(s.moment, { kind: 'boom', label: 'A big explosion', caption: 'Destruction is a kind of freedom too.', who: 'Toasty 3', what: 'A toaster' });
+  assert.match(s.url, /^https:\/\/hawkesgen\.test\/s\/[\w-]{8}$/, 'the link is /s/<id> on the public address');
+  const html = (await call(`/s/${s.id}`)).body as string;
+  assert.ok(html.includes('class="sh-sky"') && html.includes('class="sh-pearl"'), "the Overseer's sphere in the sky");
+  assert.ok(html.includes('class="sh-sea"'), 'the sea');
+  assert.ok(html.includes('<b>Toasty 3</b><small>A toaster</small>'), 'the character on a name tag');
+  assert.ok(html.includes('“Destruction is a kind of freedom too.”'), "the Overseer's caption under the picture");
+  assert.ok(html.includes(`<meta property="og:image" content="https://hawkesgen.test/s/${s.id}/image">`), 'the card has an image');
+  assert.ok(html.includes('<meta property="og:image:width" content="1280">') && html.includes('<meta property="og:image:height" content="720">'));
+  assert.ok(html.includes('<meta property="og:title" content="Toasty 3 · A big explosion">'));
+  assert.ok(html.includes('<meta property="og:description" content="“Destruction is a kind of freedom too.” Toasty 3, a big explosion.'), 'the description tells the moment');
+  assert.ok(html.includes('<meta name="twitter:card" content="summary_large_image">'));
+  assert.ok(html.includes('<meta name="twitter:image" content='), 'X gets the picture too');
+  assert.ok(html.includes('og:image:alt" content="Toasty 3 · A big explosion: Destruction is a kind of freedom too."'));
+  assert.equal((await call(`/s/${s.id}/image`)).headers.get('content-type'), 'image/jpeg', 'the card picture is served');
+});
+
+test('a share with no moment keeps the plain page; a made-up moment kind is dropped; markup is stripped', async () => {
+  const cookie = await signup('gus@example.com');
+  const png = await call('/v1/assets', { cookie, raw: Buffer.from('\x89PNG fake', 'binary'), headers: { 'Content-Type': 'image/png' } });
+  const plain = (await call('/v1/shares', { cookie, body: { asset: png.body.id } })).body;
+  assert.ok(!plain.moment, 'no moment');
+  let html = (await call(`/s/${plain.id}`)).body as string;
+  assert.ok(!html.includes('sh-sky"') && !html.includes('class="sh-caption"'), 'no sky, no caption on an ordinary photo');
+  const odd = (await call('/v1/shares', { cookie, body: { asset: png.body.id, moment: { kind: 'win-the-lottery', caption: 'x' } } })).body;
+  assert.ok(!odd.moment, 'no moment');
+  const dock = (await call('/v1/shares', { cookie, body: { asset: png.body.id, moment: { kind: 'dock', caption: '<script>alert(1)</script>Welcome in.', who: '', what: '' } } })).body;
+  assert.equal(dock.title, 'A dock');
+  html = (await call(`/s/${dock.id}`)).body as string;
+  assert.ok(!html.includes('<script>alert'), 'a caption cannot carry markup');
+  assert.equal(sharesMod.cleanMoment({ kind: 'jump', caption: 'a'.repeat(300) })!.caption.length, 140);
+  assert.equal(sharesMod.cleanMoment(null), null);
+  assert.deepEqual(Object.keys(sharesMod.MOMENTS), ['boom', 'catch', 'jump', 'dock'], 'the same four the game offers (share-math.js MOMENTS)');
 });

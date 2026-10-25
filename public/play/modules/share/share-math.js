@@ -223,7 +223,73 @@
   /** Letterbox bars for a w × h picture at an aspect (2.39 is cinema): the bar height in pixels (0 when wider). */
   const letterbox = (w, h, aspect = 2.39) => Math.max(0, Math.round((h - w / aspect) / 2));
 
-  const api = { RAD, EASES, ease, normalizePath, samplePath, orbitPose, followPose, damp, damp3, lookAngles, ahead, flyStep, ringPlan, ringDue, ringPick, clipWindow, letterbox, v3, lerp3, dist, clamp };
+
+  // ------------------------------------------------------------------ moments worth keeping ("Share this moment")
+  // What counts as one, when the chip may show, and the Overseer's caption for each (docs/story.md, "Moments to keep").
+  // Captions follow the Overseer's voice rules: short, calm, no exclamation marks, nothing about accounts or buttons.
+  const MOMENTS = {
+    boom: { label: 'A big explosion', captions: ['Destruction is a kind of freedom too.', 'A very large noise. I enjoyed the small reason.', 'The sky heard that. So did I.'] },
+    catch: { label: 'A first catch', captions: ['The sea gives. It gives slowly.', 'A fish. You waited well.', 'The sea kept that one for you.'] },
+    jump: { label: 'A long jump', captions: ['Mind the edge. Or don\'t. Falling is also something to do.', 'That was a long way to be in the air.', 'You were up there a while. I noticed.'] },
+    dock: { label: 'A dock', captions: ['You came all this way. The door was open.', 'Welcome in. Stay as long as you like.', 'I have you. Let the engine rest.'] },
+  };
+  const MOMENT_SHOW = 6, MOMENT_COOLDOWN = 45, MOMENT_CLIP = 8, TOUR_QUIET = 60;
+  /** A caption for a kind of moment (rand 0..1 picks; never the same one twice in a row when `not` is given). */
+  function momentCaption(kind, rand = Math.random(), not = '') {
+    const m = MOMENTS[kind];
+    if (!m) return '';
+    const list = m.captions.filter((c) => c !== not);
+    return (list.length ? list : m.captions)[Math.min(list.length - 1, Math.floor(clamp(num(rand, 0), 0, 0.999999) * list.length))] || m.captions[0];
+  }
+  /** An explosion big enough to keep: this player's own blast (authoritative), a rocket's (radius 5.5) and up. */
+  const bigBlast = (ev) => Boolean(ev) && ev.authoritative !== false && (num(ev.radius, 0) >= 5 || num(ev.damage, 0) >= 50 || num(ev.force, 0) >= 20);
+  /**
+   * Watches a body for a long jump: step(grounded, y, dt) gives { air, rise } once, on touching down, when it was in the air
+   * for 1.2 s or more or climbed 4 m or more above where it left the ground (a step off a pier is not a jump).
+   */
+  function jumpWatch() {
+    const j = { air: 0, from: 0, top: 0, was: true };
+    return {
+      step(grounded, y, dt) {
+        let out = null;
+        if (!grounded) { if (j.was) { j.air = 0; j.from = y; j.top = y; } j.air += dt; j.top = Math.max(j.top, y); }
+        else if (!j.was) { const rise = j.top - j.from; if (j.air >= 1.2 || rise >= 4) out = { air: j.air, rise }; j.air = 0; }
+        j.was = Boolean(grounded);
+        return out;
+      },
+    };
+  }
+  /**
+   * May the chip show now? ctx: { now, lastShown, tourStart (when Pip's tour began, or null), tourActive, busy (intro, mirror,
+   * a sheet, photo mode, a shot), kind, firstCatchSeen }. Never in the first minute of the tour, never while something else
+   * has the screen, not twice within 45 s, and a catch only the first time.
+   */
+  function momentGate(c) {
+    if (!c || !MOMENTS[c.kind]) return { show: false, why: 'unknown' };
+    if (c.busy) return { show: false, why: 'busy' };
+    if (c.tourActive && c.tourStart != null && num(c.now, 0) - c.tourStart < TOUR_QUIET * 1000) return { show: false, why: 'tour-first-minute' };
+    if (c.lastShown != null && num(c.now, 0) - c.lastShown < MOMENT_COOLDOWN * 1000) return { show: false, why: 'cooldown' };
+    if (c.kind === 'catch' && c.firstCatchSeen) return { show: false, why: 'not-first-catch' };
+    return { show: true, why: 'ok' };
+  }
+  /** The title a moment is shared under: the character's name and the moment ("Kit · A big explosion"). */
+  function momentTitle(kind, name) {
+    const m = MOMENTS[kind];
+    const who = String(name || '').replace(/[<>\u0000-\u001f]/g, '').trim().slice(0, 40);
+    return `${who ? who + ' · ' : ''}${m ? m.label : 'A moment'}`;
+  }
+  /** Wraps text into lines of at most `max` characters (for the card's caption). */
+  function wrapText(text, max = 38) {
+    const out = [];
+    let line = '';
+    for (const w of String(text || '').split(/\s+/).filter(Boolean)) {
+      if (line && (line + ' ' + w).length > max) { out.push(line); line = w; } else line = line ? line + ' ' + w : w;
+    }
+    if (line) out.push(line);
+    return out;
+  }
+
+  const api = { MOMENTS, MOMENT_SHOW, MOMENT_COOLDOWN, MOMENT_CLIP, TOUR_QUIET, momentCaption, bigBlast, jumpWatch, momentGate, momentTitle, wrapText, RAD, EASES, ease, normalizePath, samplePath, orbitPose, followPose, damp, damp3, lookAngles, ahead, flyStep, ringPlan, ringDue, ringPick, clipWindow, letterbox, v3, lerp3, dist, clamp };
   if (typeof window !== 'undefined') window.HawkesShareMath = api;
   const H = typeof window !== 'undefined' ? window.HawkesPlay : null;
   if (H) H.shareMath = api;

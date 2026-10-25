@@ -245,3 +245,73 @@ test('looks change the picture and come off cleanly', () => {
   assert.equal(ip.contrast, contrast);
   assert.equal(S.look('nope'), 'none');
 });
+
+// ------------------------------------------------------------------ "Share this moment" (moments.js, share-math.js)
+test('what counts as a moment: a rocket-sized blast, a long jump, never the first minute of the tour, never twice in 45 s', () => {
+  assert.equal(M.bigBlast({ radius: 5.5, authoritative: true }), true, 'a rocket');
+  assert.equal(M.bigBlast({ radius: 3, force: 8, damage: 0 }), false, 'a firecracker');
+  assert.equal(M.bigBlast({ radius: 8, authoritative: false }), false, 'only the blast this player decided');
+  const w = M.jumpWatch();
+  const fall = (secs: number, climb = 0) => { let out = null; w.step(true, 10, 0.02); for (let t = 0; t < secs; t += 0.1) w.step(false, 10 + (t > 0 && t < secs / 2 ? climb : 0), 0.1); return w.step(true, 10, 0.02) || out; };
+  assert.equal(fall(0.5), null, 'a hop');
+  assert.ok(fall(1.5), 'a second and a half in the air is a jump');
+  assert.ok(fall(0.8, 5), 'or five metres up');
+  const base = { now: 100_000, lastShown: null, tourStart: null, tourActive: false, busy: false, kind: 'boom', firstCatchSeen: false };
+  assert.equal(M.momentGate(base).show, true);
+  assert.equal(M.momentGate({ ...base, tourActive: true, tourStart: 60_000 }).why, 'tour-first-minute', 'the tour began 40 s ago');
+  assert.equal(M.momentGate({ ...base, tourActive: true, tourStart: 30_000 }).show, true, 'a minute and ten seconds in');
+  assert.equal(M.momentGate({ ...base, busy: true }).why, 'busy', 'the intro, the mirror, a sheet');
+  assert.equal(M.momentGate({ ...base, lastShown: 70_000 }).why, 'cooldown');
+  assert.equal(M.momentGate({ ...base, lastShown: 50_000 }).show, true);
+  assert.equal(M.momentGate({ ...base, kind: 'catch', firstCatchSeen: true }).why, 'not-first-catch');
+  assert.equal(M.momentGate({ ...base, kind: 'nonsense' }).show, false);
+});
+
+test("captions are in the Overseer's voice and titles carry the character's name", () => {
+  for (const [kind, m] of Object.entries(M.MOMENTS) as [string, any][]) {
+    for (const c of m.captions) {
+      assert.ok(c.length <= 70, `${kind}: short enough for one breath: ${c}`);
+      assert.ok(!/!|credit|account|sign|button|tap|click|\bAI\b/i.test(c), `${kind}: nothing about software or a feature: ${c}`);
+    }
+    assert.notEqual(M.momentCaption(kind, 0, m.captions[0]), m.captions[0], 'never the same line twice in a row');
+  }
+  assert.equal(M.momentCaption('nope'), '');
+  assert.equal(M.momentTitle('boom', 'Kit <b>'), 'Kit b · A big explosion');
+  assert.equal(M.momentTitle('dock', ''), 'A dock');
+  assert.deepEqual(M.wrapText('Mind the edge. Or don\'t. Falling is also something to do.', 30), ["Mind the edge. Or don't.", 'Falling is also something to', 'do.']);
+});
+
+test('a big explosion shows the chip, it goes after six seconds, and the next one waits', () => {
+  world(H, sceneOf({ floor, start }, { share: { clip: 8 } }));
+  H.tick(0.2);
+  const Mo = S.moments;
+  assert.ok(Mo, 'moments are part of the share module');
+  const seen: any[] = [];
+  H.game.on('moment', (d: any) => seen.push(d.state + ':' + d.kind));
+  H.game.emit('explosion', { position: [0, 1, 0], radius: 2, force: 5, authoritative: true });
+  assert.equal(Mo.visible, false, 'a small bang is not a moment');
+  H.game.emit('explosion', { position: [0, 1, 0], radius: 5.5, force: 20, damage: 60, authoritative: true });
+  assert.equal(Mo.visible, true, 'a rocket is');
+  assert.equal(Mo.state().kind, 'boom');
+  assert.ok(Mo.state().caption.length > 5, 'with the Overseer\'s line');
+  assert.deepEqual(seen, ['chip:boom']);
+  H.game.emit('explosion', { position: [0, 1, 0], radius: 6, authoritative: true });
+  assert.deepEqual(seen, ['chip:boom'], 'a chain of barrels is one moment');
+  Mo.hide();
+  assert.equal(Mo.visible, false);
+  assert.deepEqual(errors, []);
+});
+
+test('the first catch and a dock offer the chip; the settings can turn it off', () => {
+  world(H, sceneOf({ floor, start }, { share: { clip: 8 } }));
+  H.tick(0.2);
+  const Mo = S.moments;
+  H.game.emit('catch', { fish: 'bass', mine: true });
+  assert.equal(Mo.state().kind, 'catch');
+  Mo.hide();
+  world(H, sceneOf({ floor, start }, { share: { moments: false } }));
+  H.tick(0.2);
+  H.game.emit('docked', { vehicle: 'rocket' });
+  assert.equal(S.moments.visible, false, 'config.share.moments false: no chip');
+  assert.deepEqual(errors, []);
+});

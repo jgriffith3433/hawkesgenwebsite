@@ -518,6 +518,7 @@
     build: ['Build your own', 'Sign in (or make a free account) and you are in the editor with this island: move things, add things, make it a game.'],
     assistant: ['Ask the Overseer', 'Describe anything ("a volcano", "a race around the island") and the Overseer builds it. It needs an account; your island comes with you.'],
     invite: ['Invite a friend', 'Playing and building together needs an account. Your island becomes your game, and you get a link to send.'],
+    share: ['Share this moment', 'Sign in (or make a free account) and the moment you just had becomes a link to send. It is kept in your own library, and this island comes with you.'],
     tour: ['Keep this island', 'An account is free. It keeps this island as your game, with your look and your name, so it is here when you come back. With an account you can ask the Overseer to make things for you: that uses credits, and new accounts start with some free ones.'],
   };
   /** The name they gave at the mirror (or none). */
@@ -673,10 +674,11 @@
     });
     setTimeout(() => { const t = $('gsEmail'); if (t && !veil.contains(document.activeElement)) t.focus({ preventScroll: true }); }, 0);
     // (Forced: it can't be put away: the way out is leaving the island.)
-    if (!forced) veil.querySelector('[data-back]').onclick = close;
+    const dismiss = () => { close(); if (o.onCancel) o.onCancel(); };
+    if (!forced) veil.querySelector('[data-back]').onclick = dismiss;
     else veil.querySelector('[data-leave]').onclick = () => track('sandbox_gate_leave', {});
-    veil.addEventListener('pointerdown', (e) => { e.stopPropagation(); if (!forced && e.target === veil) close(); });
-    veil.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !forced) close(); });
+    veil.addEventListener('pointerdown', (e) => { e.stopPropagation(); if (!forced && e.target === veil) dismiss(); });
+    veil.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !forced) dismiss(); });
     $('gsForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const go = $('gsGo');
@@ -770,6 +772,11 @@
     /** A return: they went through the beginning here before (the intro's flag is still there and the mirror was done). */
     is() { try { return Boolean(localStorage.getItem('hg_overseer_intro') && ret.get()); } catch { return false; } },
   };
+  // "Share this moment" (modules/share/moments.js) asks for the account here: signed in already, it gets the user at once;
+  // otherwise the sheet opens (the moment is held in the page, and nothing reloads) and it gets the user after sign-in, or
+  // null when the sheet is put away.
+  const shareWaiters = [];
+  const flushShare = (user) => { while (shareWaiters.length) shareWaiters.shift()(user || null); };
   const KEPT = 'hg_sandbox_island';
   const kept = {
     get() { try { return JSON.parse(localStorage.getItem(KEPT) || 'null'); } catch { return null; } },
@@ -779,6 +786,7 @@
   let island = null; // { id, base, user }
   /** After signing in: Build and Invite open the editor (a page of their own); the rest stays on the island. */
   function signedIn(intent, user) {
+    if (intent === 'share') return island ? afterKeep(intent) : keep(intent, user); // (the moment waits for this: afterKeep hands it on)
     if (intent === 'build' || intent === 'invite') return island ? toEditor() : claim(intent, user);
     return keep(intent, user);
   }
@@ -820,6 +828,7 @@
     }
   }
   function afterKeep(intent) {
+    if (intent === 'share') me().then(flushShare);
     if (intent === 'assistant' && session.H && session.H.chat) session.H.chat.open();
   }
   /** The island's game, live on this page: its room, its feed, the Overseer in the chat, saving, the buttons. */
@@ -1127,6 +1136,12 @@
 
   // ------------------------------------------------------------------ the page: claim (back from signing in), or play
   window.HawkesGuest = {
+    /** The signed-in user, asking for the account with the sheet if there is none (the moment chip's one tap): a user, or null. */
+    async account() {
+      const user = await me();
+      if (user) return user;
+      return new Promise((resolve) => { shareWaiters.push(resolve); openSheet('share', { name: lookName(session.H), onCancel: () => flushShare(null) }); });
+    },
     /** Pip waits for this: the account comes first (the mirror opens the sheet; signed in, the tour goes on here). */
     accountFirst: true,
     /** A return (public/play/guest.js): the tour step they left on (sandbox.js picks the tour up there), and the steps it fast-forwarded. */

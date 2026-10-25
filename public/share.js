@@ -26,7 +26,7 @@
     if (m.source !== 'hawkes-share' || m.type !== 'media' || item) return;
     if (!(m.blob instanceof Blob) || !m.blob.size) return;
     if (m.blob.size > 64 * 1024 * 1024) { $('waiting').textContent = 'That one is over 64 MB: trim it shorter in the game.'; return; }
-    item = { kind: m.kind === 'clip' ? 'clip' : 'photo', blob: m.blob, mime: String(m.mime || m.blob.type || ''), poster: m.poster instanceof Blob ? m.poster : null, title: String(m.title || '').slice(0, 90), game: m.game ? String(m.game) : null, gameTitle: String(m.gameTitle || ''), filename: String(m.filename || '').replace(/[^\w.-]+/g, '-').slice(0, 80), seconds: Number(m.seconds) || null, width: Number(m.width) || null, height: Number(m.height) || null };
+    item = { kind: m.kind === 'clip' ? 'clip' : 'photo', blob: m.blob, mime: String(m.mime || m.blob.type || ''), poster: m.poster instanceof Blob ? m.poster : null, title: String(m.title || '').slice(0, 90), game: m.game ? String(m.game) : null, moment: m.moment && typeof m.moment === 'object' ? { kind: String(m.moment.kind || ''), caption: String(m.moment.caption || '').slice(0, 140), who: String(m.moment.who || '').slice(0, 40), what: String(m.moment.what || '').slice(0, 40) } : null, gameTitle: String(m.gameTitle || ''), filename: String(m.filename || '').replace(/[^\w.-]+/g, '-').slice(0, 80), seconds: Number(m.seconds) || null, width: Number(m.width) || null, height: Number(m.height) || null };
     show();
   });
 
@@ -119,7 +119,7 @@
       const main = await upload(item.blob, item.mime.split(';')[0], `${base}.${ext}`, (p) => setBar(p * (item.poster ? 0.9 : 1)));
       let thumb = null;
       if (item.poster) { try { thumb = (await upload(item.poster, item.poster.type || 'image/jpeg', `${base}-poster.jpg`, (p) => setBar(0.9 + p * 0.1))).id; } catch { thumb = null; } }
-      const r = await fetch('/v1/shares', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asset: main.id, thumb, title: $('title').value, game: item.game, width: item.width, height: item.height, seconds: item.seconds }) });
+      const r = await fetch('/v1/shares', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asset: main.id, thumb, title: $('title').value, game: item.game, moment: item.moment, width: item.width, height: item.height, seconds: item.seconds }) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || 'Could not make the link');
       done(d);

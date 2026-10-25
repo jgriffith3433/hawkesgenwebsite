@@ -35,6 +35,8 @@
       // (S.photo.toggle(), S.clipThat()).
       buttons: c.buttons === true,
       caption: c.caption !== false,
+      // "Share this moment" (moments.js): a chip after a big explosion, a first catch, a long jump or a dock.
+      momentsOn: c.moments !== false,
       keys: { photo: String((c.keys && c.keys.photo) || '').toLowerCase(), clip: String((c.keys && c.keys.clip) || '').toLowerCase() },
     };
   }
@@ -663,6 +665,7 @@
   function openShareWindow() {
     try { return window.open('/share/new', `hg-share-${Date.now()}`, 'popup,width=640,height=820'); } catch { return null; }
   }
+  S.openShareWindow = openShareWindow;
   /** Sends a photo or clip to the share window (opened now unless given): download there, or upload for a link. */
   S.share = async (item, win) => {
     const w = win || openShareWindow();
@@ -670,7 +673,7 @@
     let poster = item.poster || null;
     if (!poster && item.kind === 'clip') poster = await posterOf(item.blob, item.from || 0).catch(() => null);
     const ref = gameRef();
-    const payload = { source: 'hawkes-share', type: 'media', kind: item.kind, blob: item.blob, mime: item.mime, poster, seconds: item.seconds || null, width: item.width || null, height: item.height || null, title: item.title || ref.title || '', game: ref.game, gameTitle: ref.title, filename: fileName(item) };
+    const payload = { source: 'hawkes-share', type: 'media', kind: item.kind, blob: item.blob, mime: item.mime, poster, seconds: item.seconds || null, width: item.width || null, height: item.height || null, title: item.title || ref.title || '', moment: item.moment || null, game: ref.game, gameTitle: ref.title, filename: fileName(item) };
     const started = Date.now();
     const onMsg = (e) => {
       if (e.source !== w) return;
