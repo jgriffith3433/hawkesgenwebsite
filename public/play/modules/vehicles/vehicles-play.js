@@ -367,7 +367,16 @@
     const k = 1 - Math.exp(-dt * (flying ? 7 : 9));
     local.camPos = B.Vector3.Lerp(local.camPos, want, k);
     cam.position.copyFrom(local.camPos);
-    cam.setTarget(target.add(fwd.scale(flying ? 6 : 2)));
+    // A game's framing (H.cameraAim: the Overseer's bay ahead while a rocket climbs): the look swings toward a point, the
+    // ship and the planet below staying in view because the camera itself stays behind and above.
+    let look = target.add(fwd.scale(flying ? 6 : 2));
+    const aim = H.cameraAim ? H.cameraAim(e) : null;
+    local.aimK = (local.aimK || 0) + ((aim ? aim.k : 0) - (local.aimK || 0)) * Math.min(1, dt * 1.5);
+    if (aim && local.aimK > 0.005) {
+      const dir = new B.Vector3(aim.point[0], aim.point[1], aim.point[2]).subtract(target);
+      if (dir.length() > 1) look = B.Vector3.Lerp(look, target.add(dir.normalize().scale(40)), local.aimK);
+    }
+    cam.setTarget(look);
   }
 
   // ------------------------------------------------------------------ each frame: camera, riders' look, avatars in seats

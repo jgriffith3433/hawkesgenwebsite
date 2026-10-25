@@ -28,7 +28,7 @@ const Guest = sandboxCtx.window.HawkesGuestCore;
 function start() {
   errors.length = 0;
   // (What the script keeps on window across a hot reload is a fresh page's here.)
-  for (const k of ['__islandEarly', '__islandNudged', '__islandRescue', '__islandPlayed', '__islandAsked']) delete g.window[k];
+  for (const k of ['__islandEarly', '__islandNudged', '__islandRescue', '__islandPlayed', '__islandAsked', '__islandJourney']) delete g.window[k];
   run(H, { ...scene, config: { ...scene.config, look: false, shadows: false } }, { mode: 'play', scripts: { 'scripts/main.js': bundle.files['scripts/main.js'] } });
   return H.game;
 }
@@ -244,6 +244,48 @@ test('sandbox: steps done out of order pass when the tour gets to them', () => {
   assert.equal(q.state('tour'), 'done', 'the tour finishes');
   assert.deepEqual(played.filter((s) => ['drive', 'fish', 'boom', 'spawn', 'ask', 'fly'].includes(s)), ['drive', 'fish', 'boom', 'spawn', 'ask', 'fly'].filter((s) => played.includes(s)));
   for (const s of ['drive', 'fish', 'boom', 'spawn', 'ask', 'fly']) assert.ok(played.includes(s), `${s} has its moment`);
+  assert.deepEqual(clean(), []);
+});
+
+test('sandbox: after the last step the Overseer invites them up, a beam and an arrow lead to the rocket, and a failed climb is never a dead end', () => {
+  const { game, q } = tourOn();
+  const said: string[] = [];
+  const o = game.overseer; const say0 = o.say; const speak0 = o.speak;
+  o.say = (t: string) => { said.push(t); };
+  o.speak = (t: string) => { said.push(t); };
+  const journey: string[] = [];
+  game.on('journey', (d: any) => journey.push(d.state + (d.why ? `:${d.why}` : '')));
+  for (const id of ['drive', 'rod', 'fish', 'boom', 'spawn', 'ask']) { if (q.step('tour') === id) q.advance('tour'); H.tick(0.3); }
+  assert.equal(q.step('tour'), 'fly');
+  assert.equal(g.window.__islandJourney.state, 'off', 'nothing before the tour is done');
+  game.emit('sandbox-high', { height: 300, mine: true });
+  for (let i = 0; i < 80 && q.state('tour') === 'active'; i++) H.tick(0.25);
+  assert.equal(q.state('tour'), 'done');
+  for (let i = 0; i < 60 && g.window.__islandJourney.state === 'off'; i++) H.tick(0.25);
+  assert.equal(g.window.__islandJourney.state, 'invited');
+  assert.ok(said.includes('Come and see where I live.'), `the invitation (${said.join(' | ')})`);
+  H.tick(0.6);
+  const box = game.ui.el('journey-track');
+  assert.ok(box && !box.hidden, 'the tracker is up');
+  assert.match(box.children[1].textContent, /Come and see where I live/);
+  assert.ok(g.window.__islandJourney.beam, 'a beam over the rocket');
+  assert.ok(g.window.__islandJourney.mark, 'and an arrow over it');
+  assert.ok(game.ui.el('tour-stuck') && !game.ui.el('tour-stuck').hidden, 'Stuck? stays for the journey');
+  // The rocket is wrecked on the way up: the Overseer says so, and a new one stands on the pad, free.
+  const rocket = game.all('Rocket')[0];
+  game.emit('ascent-failed', { why: 'wrecked', vehicle: rocket, handled: false });
+  rocket.destroy();
+  for (let i = 0; i < 40; i++) H.tick(0.25);
+  const fresh = game.all('Rocket').find((r: any) => r.alive);
+  assert.ok(fresh && Math.hypot(fresh.x - -38, fresh.z - -30) < 4, 'a new rocket on the pad');
+  assert.ok(said.includes('That one is gone. I will send another.') && said.includes('A new one, from me.'), `the Overseer answers (${said.join(' | ')})`);
+  assert.ok(journey.includes('retry:wrecked') && journey.includes('new-rocket:wrecked'));
+  // Docking ends it.
+  game.emit('docked-pad', { vehicle: fresh });
+  H.tick(0.6);
+  assert.equal(g.window.__islandJourney.state, 'docked');
+  assert.ok(game.ui.el('journey-track').hidden, 'the lesson is put away');
+  o.say = say0; o.speak = speak0;
   assert.deepEqual(clean(), []);
 });
 

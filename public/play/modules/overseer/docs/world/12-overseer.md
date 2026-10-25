@@ -65,6 +65,14 @@ the word "overseer" in the game's assets replaces the stand-in hull.
 **Its hangar.** A lit docking bay on the side facing the world's middle, a little below the equator, opens into a hangar
 with a landing pad. Land a space ship or a rocket on the pad: "Docked". Get out and walk the hangar; get back in and fly
 down. The hull is solid. Who is docked is shared online.
+The way in is helped: flying a rocket or space ship at the bay (within ~5 km) shows a readout (distance to the pad,
+speed against the speed to have there, align with the bay, and what to do: "Slow down", "Move left"), and a careful
+approach gets a gentle **catch**: within about a kilometre the Overseer eases the ship toward the pad, takes the pull of
+the planet off it and slows it to a walking pace, so a rocket with its engine cut still arrives. A ship coming in far
+too fast is left to its pilot. `H.overseer.assist = false` turns the catch off. While a rocket or ship climbs, the
+camera looks a little toward the bay, with the ship and the planet below in view. A climb that fails (the rocket
+wrecked, out of fuel high up, or back on the ground after a real climb) is answered in the Overseer's voice;
+a game can answer it itself and give a new rocket (`game.on('ascent-failed')`).
 
 ### Getting there: flight is honest about air
 

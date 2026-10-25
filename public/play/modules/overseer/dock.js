@@ -1,6 +1,9 @@
 // The Overseer is a real place: its hull is solid, and a lit docking bay on its side opens into a hangar with a landing
 // pad. Fly a rocket or a space ship up, in through the opening, settle on the pad: "Docked". Get out and walk the
 // hangar; get back in and fly down. Who is docked is shared online (H.overseer.docked).
+// The way in is helped: a ship that flies at the bay gets an approach readout (distance, speed, align, and what to do),
+// and a gentle catch (dock-math.js) eases a careful one onto the pad; a climb that fails says so (`ascent-failed`) and
+// the Overseer answers (below). `H.cameraAim` frames the planet below and the bay ahead while a rocket or ship climbs.
 // The hull and the hangar are static things in the world (their colliders exist wherever you are, so a ship parked
 // on the pad stays there for everyone); you only see them up close: from afar the ship is drawn in the sky's far layer.
 /* global HawkesPlay, BABYLON */
@@ -112,6 +115,16 @@
     const s = Math.sin(D.f.yaw), c = Math.cos(D.f.yaw);
     return [rx * c - rz * s, ry, rx * s + rz * c];
   }
+  /** A direction/velocity in the bay's frame (no shift to the ship's middle). */
+  function localVec(v) {
+    const s = Math.sin(D.f.yaw), c = Math.cos(D.f.yaw);
+    return [v[0] * c - v[2] * s, v[1], v[0] * s + v[2] * c];
+  }
+  /** ...and back out of it. */
+  function worldVec(l) {
+    const s = Math.sin(D.f.yaw), c = Math.cos(D.f.yaw);
+    return [l[0] * c + l[2] * s, l[1], -l[0] * s + l[2] * c];
+  }
   /** Inside the hangar (or over its apron)? */
   function inHangar(p) {
     const l = local(p);
@@ -168,7 +181,98 @@
     if (hudEl.textContent !== txt) hudEl.textContent = txt;
     hudEl.hidden = false;
   }
-  H.hooks.step.push(() => {
+
+  // ------------------------------------------------------------------ the approach: readout, catch, failed climbs
+  const FLIES = (veh) => Boolean(veh && veh.alive && veh.vehicle && veh.vehicle.def && (veh.vehicle.def.class === 'rocket' || veh.vehicle.def.class === 'ship'));
+  const altOf = (y) => (H.planet && H.planet.altitude ? H.planet.altitude(y) : y);
+  const DM = () => H.dockMath;
+  const trip = { veh: null, max: 0, failed: false, ejectedAt: -99, last: null };
+  let apEl = null;
+  function approachHud(g, on) {
+    if (typeof document === 'undefined' || !document.body) return;
+    if (!on || H.hooks.codex) { if (apEl) apEl.hidden = true; return; }
+    if (!apEl) {
+      apEl = document.createElement('div');
+      apEl.className = 'ov-approach';
+      const st = document.createElement('style');
+      st.textContent = '.ov-approach{position:fixed;left:50%;bottom:max(96px,calc(env(safe-area-inset-bottom) + 84px));transform:translateX(-50%);display:flex;gap:14px;align-items:center;padding:8px 18px;border-radius:14px;background:rgba(8,14,26,.66);border:1px solid rgba(143,216,255,.38);color:#dff3ff;font:600 13px/1.25 var(--hud,Rajdhani,Inter,system-ui,sans-serif);letter-spacing:.06em;pointer-events:none;z-index:7;text-shadow:0 0 10px rgba(120,200,255,.5)}.ov-approach[hidden]{display:none}.ov-approach .c{display:flex;flex-direction:column;align-items:center;min-width:64px}.ov-approach .c i{font:700 10px system-ui,sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#8fd8ff;font-style:normal}.ov-approach .c b{font-size:17px}.ov-approach .c.bad b{color:#ffb4a2}.ov-approach .c.ok b{color:#b9f5c8}.ov-approach .adv{font-size:13px;color:#fff;max-width:170px}';
+      document.head.appendChild(st);
+      document.body.appendChild(apEl);
+      apEl.cells = {};
+      for (const k of ['dist', 'speed', 'align']) { const c = document.createElement('div'); c.className = 'c'; const i = document.createElement('i'); const b = document.createElement('b'); c.appendChild(i); c.appendChild(b); apEl.appendChild(c); apEl.cells[k] = { c, i, b }; }
+      apEl.adv = document.createElement('div'); apEl.adv.className = 'adv'; apEl.appendChild(apEl.adv);
+    }
+    const km = (m) => (m >= 1500 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`);
+    const turn = Math.abs(g.lateral) > 6 ? (g.lateral > 0 ? ' ◀' : ' ▶') : '';
+    const put = (k, label, text, cls) => { const x = apEl.cells[k]; x.i.textContent = label; x.b.textContent = text; x.c.className = `c ${cls || ''}`; };
+    put('dist', 'Bay', km(g.distance));
+    put('speed', 'Speed', `${Math.round(g.speed)} / ${Math.round(g.allowed)} m/s`, g.tooFast ? 'bad' : g.speed > g.allowed ? '' : 'ok');
+    put('align', 'Align', `${Math.round(g.align)}°${turn}`, g.speed > 3 && g.align > 25 ? 'bad' : g.align < 12 ? 'ok' : '');
+    apEl.adv.textContent = D.catching ? 'The Overseer is guiding you in' : g.advice;
+    apEl.hidden = false;
+  }
+  function ascentFailed(why, veh) {
+    if (trip.failed) return;
+    trip.failed = true;
+    const d = { why, vehicle: veh || null, handled: false, maxAltitude: Math.round(trip.max) };
+    if (G()) G().emit('ascent-failed', d);
+    // A game that answers sets handled; else the Overseer does, in its voice (a new rocket is the game's to give).
+    if (!d.handled) OV.speak(why === 'fuel' ? 'The fire has gone out. Fall back; try again.' : 'Down you come. It is a long way up. Go again.', null, 5);
+  }
+  /** Each step for the flier: readout, catch, and a failed climb. */
+  function approach(w, veh, at, dt) {
+    if (!FLIES(veh)) {
+      if (trip.veh && (!trip.veh.alive || (trip.veh.vehicle && trip.veh.vehicle.wrecked)) && w.time - trip.ejectedAt > 0 && trip.max > 60) ascentFailed('wrecked', trip.veh);
+      if (trip.veh && w.time - trip.ejectedAt > 6) { trip.veh = null; }
+      D.gauge = null; D.catching = false; approachHud(null, false);
+      return;
+    }
+    const v = veh.vehicle;
+    if (trip.veh !== veh) { trip.veh = veh; trip.max = 0; trip.failed = false; }
+    trip.ejectedAt = w.time;
+    const l = local(at), vel = [veh.velocity ? veh.velocity[0] : v.vel.x, veh.velocity ? veh.velocity[1] : v.vel.y, veh.velocity ? veh.velocity[2] : v.vel.z];
+    const lv = localVec(vel);
+    const dm = DM();
+    if (!dm) return;
+    const alt = altOf(at[1]);
+    trip.max = Math.max(trip.max, alt);
+    const g = dm.gauge(l, lv, D.f);
+    D.gauge = g;
+    // The catch (off by H.overseer.assist = false, and not while it is parked on the pad or hurt).
+    let catching = false;
+    if (OV.assist !== false && !v.wrecked && !D.landed) {
+      const gr = Math.abs(Number(w.config && w.config.gravity) || -24);
+      const plan = dm.catchPlan(l, lv, D.f, { g: gr });
+      if (plan.active && plan.k > 0.02) {
+                const a = worldVec(plan.acc);
+        const h = Math.min(0.1, dt || 1 / 60);
+        // (A push added to the entity's own velocity, as a kick is: it joins the body's, gravity's step and all.)
+        veh.vx += a[0] * h; veh.vy += a[1] * h; veh.vz += a[2] * h;
+        catching = plan.k > 0.15;
+      }
+    }
+    if (catching && !D.catching && G()) G().emit('bay-catch', { distance: Math.round(g.distance) });
+    D.catching = catching;
+    // The readout: once the bay is within ~5 km (or always up past the thin air).
+    approachHud(g, g.distance < 5000 && !D.inside);
+    // A climb that failed.
+    if (!trip.failed && !D.inside) {
+      if (v.def.class === 'rocket' && v.fuel <= 0.5 && !v.grounded && alt > 80 && v.vel.y < 0) ascentFailed('fuel', veh);
+      else if (v.grounded && trip.max > 300 && alt < 30) ascentFailed('fell', veh);
+    }
+  }
+  /** The camera: the planet below, the bay ahead. A point to look toward and how much (0..1), while a rocket or ship climbs. */
+  H.cameraAim = (veh) => {
+    if (!D || !FLIES(veh) || D.inside) return null;
+    const hg = OV.hangar;
+    if (!hg) return null;
+    const alt = altOf(veh.position[1]);
+    const near = D.gauge ? D.gauge.distance : 1e9;
+    const k = Math.max(DM() ? DM().smooth(120, 1600, alt) * 0.55 : 0, DM() ? DM().smooth(2500, 300, near) * 0.45 : 0);
+    return k > 0.01 ? { point: hg.mouth, k } : null;
+  };
+
+  H.hooks.step.push((dt) => {
     const w = W();
     if (!D || !w) return;
     const p = w.player;
@@ -177,6 +281,7 @@
     const at = veh && veh.alive ? veh.position : p.position;
     const inside = inHangar(at);
     D.inside = inside;
+    try { approach(w, veh, at, dt); } catch (err) { H.report(err, 'overseer approach'); }
     if (inside !== D.docked) setDocked(inside);
     // The moment: a ship you fly settles on the pad.
     if (veh && veh.alive && veh.vehicle) {
@@ -220,8 +325,10 @@
       if (!D) return null;
       const f = D.f, s = Math.sin(f.yaw), c = Math.cos(f.yaw);
       const at = (x, y, z) => [D.c[0] + x * c + z * s, D.c[1] + y, D.c[2] - x * s + z * c];
-      return { pad: at(0, f.floor, f.padZ), mouth: at(0, f.floor, f.front + f.apron), floor: D.c[1] + f.floor, inside: D.inside, landed: D.landed, width: f.halfW * 2, height: f.top - f.floor };
+      return { pad: at(0, f.floor, f.padZ), mouth: at(0, f.floor, f.front + f.apron), floor: D.c[1] + f.floor, inside: D.inside, landed: D.landed, yaw: f.yaw, width: f.halfW * 2, height: f.top - f.floor };
     },
+    /** The approach readout now (distance, speed, closing, align, lateral, height, allowed, tooFast, state, advice), or null. */
+    get approach() { return D && D.gauge ? { ...D.gauge, catching: Boolean(D.catching) } : null; },
     inHangar, onPad,
   }));
 })();
