@@ -15,6 +15,7 @@
 //   H.memory.begin()          reads the record, counts the visit, and asks H.lines to say 'return' (once, on entering a world)
 //   H.memory.fishLog      the catch log (get(), set(fish, points)): kept with the rest, in the account when signed in
 //   H.memory.raceBests    the best race times (race module): get() { course: ms }, set(course, ms) keeps the lower
+//   H.memory.journal      the neighbours met and the lore found (ids): get() { met, lore }, meet(id), find(id) -> true when new
 //   H.memory.core             the pure parts: VARIANTS, facts(), pick(), merge(), clean()
 (function () {
   'use strict';
@@ -29,7 +30,7 @@
   const RECENT = 8;
 
   // ------------------------------------------------------------------ the record
-  const blank = () => ({ v: 1, visits: 0, firstAt: 0, lastAt: 0, name: null, what: null, last: null, n: Object.fromEntries(COUNTS.map((k) => [k, 0])), driveS: 0, playS: 0, fish: {}, fishPts: 0, race: {}, greet: { last: null, recent: [] } });
+  const blank = () => ({ v: 1, visits: 0, firstAt: 0, lastAt: 0, name: null, what: null, last: null, n: Object.fromEntries(COUNTS.map((k) => [k, 0])), driveS: 0, playS: 0, fish: {}, fishPts: 0, race: {}, met: [], lore: [], greet: { last: null, recent: [] } });
   const num = (x, max) => { const n = Math.floor(Number(x)); return Number.isFinite(n) && n > 0 ? Math.min(n, max) : 0; };
   // The catch log (water's fishing.js): species id -> [times caught, heaviest in grams/10 (kg x 100), longest in cm].
   const FISH_MAX = 48;
@@ -63,6 +64,15 @@
     for (const id of Object.keys(o)) out[id] = out[id] ? Math.min(out[id], o[id]) : o[id];
     return cleanRace(out);
   }
+  // The journal (modules/overseer docs): the ids of the neighbours met and the lore found, in the order they came.
+  const JOURNAL_MAX = 16;
+  function cleanIds(a) {
+    const out = [];
+    if (!Array.isArray(a)) return out;
+    for (const x of a) if (typeof x === 'string' && /^[a-z0-9-]{1,32}$/.test(x) && !out.includes(x) && out.length < JOURNAL_MAX) out.push(x);
+    return out;
+  }
+  const unionIds = (a, b) => cleanIds([...cleanIds(a), ...cleanIds(b)]);
   /** Two catch logs of one player: each species keeps the larger count, heaviest and longest. */
   function mergeFish(a, b) {
     const out = cleanFish(a);
@@ -82,6 +92,7 @@
     for (const k of COUNTS) out.n[k] = num(v.n && v.n[k], 100000);
     out.driveS = num(v.driveS, 1e8); out.playS = num(v.playS, 1e8);
     out.fish = cleanFish(v.fish); out.fishPts = num(v.fishPts, 1e9); out.race = cleanRace(v.race);
+    out.met = cleanIds(v.met); out.lore = cleanIds(v.lore);
     const g = v.greet || {};
     out.greet.last = typeof g.last === 'string' && /^[a-z0-9-]{1,32}$/.test(g.last) ? g.last : null;
     out.greet.recent = Array.isArray(g.recent) ? g.recent.filter((x) => typeof x === 'string' && /^[a-z0-9-]{1,32}$/.test(x)).slice(-RECENT) : [];
@@ -91,7 +102,8 @@
   function merge(a, b) {
     const fish = mergeFish(a && a.fish, b && b.fish), pts = Math.max(num(a && a.fishPts, 1e9), num(b && b.fishPts, 1e9));
     const race = mergeRace(a && a.race, b && b.race);
-    const whole = (r) => { const c = clean(r); c.fish = fish; c.fishPts = pts; c.race = race; return c; };
+    const met = unionIds(a && a.met, b && b.met), lore = unionIds(a && a.lore, b && b.lore);
+    const whole = (r) => { const c = clean(r); c.fish = fish; c.fishPts = pts; c.race = race; c.met = met; c.lore = lore; return c; };
     if (!a || !a.visits) return b && b.visits ? whole(b) : whole(a);
     if (!b || !b.visits) return whole(a);
     return whole(b.lastAt > a.lastAt ? b : a);
@@ -303,6 +315,13 @@
     look();
     save();
   }
+  function add(list, id) {
+    const c = cleanIds([id]);
+    if (!c.length || m[list].includes(c[0]) || m[list].length >= JOURNAL_MAX) return false;
+    m[list].push(c[0]);
+    save();
+    return true;
+  }
   let lastBoom = 0;
   let sampled = 0;
   let lastSpace = 0;
@@ -370,6 +389,12 @@
     raceBests: {
       get: () => ({ ...m.race }),
       set(id, ms) { const r = cleanRace({ ...m.race, [id]: ms }); if (r[id] && (!m.race[id] || r[id] < m.race[id])) { m.race = r; save(); } },
+    },
+    /** The journal (the sandbox's journal.js): get() { met, lore }; meet(id) / find(id) add one and say whether it was new. Kept with the record. */
+    journal: {
+      get: () => ({ met: [...m.met], lore: [...m.lore] }),
+      meet(id) { return add('met', id); },
+      find(id) { return add('lore', id); },
     },
     reload() { m = readLocal(); prior = null; ctx = null; begun = false; return m; },
     reset() { m = blank(); prior = null; ctx = null; begun = false; signedIn = false; store.set(KEY, ''); if (H.bundle) delete H.bundle.overseerMemory; },

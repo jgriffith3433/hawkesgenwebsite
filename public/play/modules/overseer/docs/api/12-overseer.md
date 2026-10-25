@@ -107,6 +107,18 @@ s.replay();                                                      // the last lin
 s.current; s.waiting; s.busy; s.log;                             // what is said, what waits, what was said
 ```
 
+### The journal (the sandbox island; `H.memory.journal`)
+
+The Overseer's memory also keeps which neighbours the player has met and which lore they have found, as ids (at most 16 each, `[a-z0-9-]`, kept in the account when signed in, on the device otherwise, merged by union).
+
+```js
+const j = HawkesPlay.memory.journal;
+j.get();            // { met: ['pip', 'dolores'], lore: ['lamp'] }
+j.meet('rolo');     // true when it was new; saved
+j.find('tally');    // true when it was new; saved
+```
+
+The sandbox's `journal.js` is the panel (a book button top right, **N**, or the editor's pause menu "Journal"). Events: `game.on('met', {id})`, `game.on('lore-found', {id, n, title})`, `game.on('journal', {open, from})`. Funnel: `sandbox_journal_open {from, quests, met, lore}` and `sandbox_lore_found {id, n, found}` (add, never rename).
 ### The travel board (inside the Observatory)
 
 ```js

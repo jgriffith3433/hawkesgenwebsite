@@ -99,6 +99,7 @@ function cleanRace(r: unknown) {
   }
   return out;
 }
+const cleanIds = (x: unknown): string[] => (Array.isArray(x) ? [...new Set(x.filter((i): i is string => typeof i === 'string' && /^[a-z0-9-]{1,32}$/.test(i)))].slice(0, 16) : []);
 export function cleanMemory(v: unknown) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) throw new PortalError('overseer must be an object');
   if (JSON.stringify(v).length > MEMORY.maxBytes) throw new PortalError(`overseer is too big (${MEMORY.maxBytes} bytes at most)`, { status: 413 });
@@ -118,6 +119,8 @@ export function cleanMemory(v: unknown) {
     fish: cleanFish(a.fish), fishPts: int(a.fishPts, 1e9),
     // The race bests (race module): course id -> best time in ms.
     race: cleanRace(a.race),
+    // The journal (the sandbox): ids of the neighbours met and the lore found.
+    met: cleanIds(a.met), lore: cleanIds(a.lore),
     greet: { last: id(g.last), recent: Array.isArray(g.recent) ? g.recent.map(id).filter((x): x is string => x !== null).slice(-MEMORY.recent) : [] },
   };
 }
