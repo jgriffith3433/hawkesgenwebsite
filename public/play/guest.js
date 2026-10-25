@@ -20,6 +20,14 @@
 // mirror (config as in the Observatory's return), is beamed in, is welcomed back by name, and the tour resumes on the step
 // they left (sandbox.js reads HawkesGuest.resume and fast-forwards Pip's quest silently). L or "Change my look" opens the
 // mirror's questions anywhere. Storage cleared: no record, no intro flag, the full beginning.
+// Invitations (J, 2026-10-25; src/invites.ts, docs/story.md "Visitors"): "Invite a friend" (the button, and the pause menu on
+// Esc twice) needs no account. It asks POST /v1/island-invite for a link, puts this player in the island's room
+// (play:t/sandbox:<code>, HawkesNet) and shares the link (the native share sheet on phones, else copied). A friend who opens
+// /play/sandbox?invite=<token> is checked first (GET /v1/island-invite/<token>: closed, full, expired and unreadable links get
+// a plain message and "Start my own island"), then gets the same loading screen, a short intro (config.overseer.intro
+// "short"), the mirror, and the sheet as always (J's rule); at the mirror's end they join the room and are beamed in beside
+// the inviter, who sees the beam and the name and hears from the Overseer: "Someone is coming." ?ref=<code> in the link is kept
+// as the landing page keeps it (hg_ref), so a sign-up credits the inviter.
 // Analytics (Hawkes analytics, gen.hawkesgen.com/sdk/analytics@1.js): sandbox_start, sandbox_first_action,
 // sandbox_try (each thing to try, once), sandbox_objective (each step of Pip's tour), sandbox_prompt (a button),
 // signup_open, sandbox_signup, sandbox_claimed.
@@ -233,7 +241,7 @@
   const TRIES = ['drive', 'boom', 'fish', 'talk', 'spawn', 'fly'];
 
   // What the signed-in part needs from the running island (startUi sets it).
-  const session = { H: null, base: null, edits: null, acts: null };
+  const session = { H: null, base: null, edits: null, acts: null, friend: null, invited: false };
   function startUi(H, base, t0) {
     style();
     const touch = isTouch();
@@ -355,7 +363,7 @@
     }
     setTimeout(() => highlightAssistant('5min'), 5 * 60 * 1000);
     on('terrain', (d) => { for (const x of (d && d.edits) || []) if (edits.length < MAX_EDITS) edits.push(x); });
-    let gated = false;
+    let gated = Boolean(session.friend && session.friend.user); // (a signed-in friend has no sheet)
     // Changing how you look is always one press away (L, or the button): the mirror's questions, anywhere.
     const look = () => { try { if (H.mirror && H.mirror.dress && !H.mirror.isOpen) { track('sandbox_look_open', { returning: Boolean(session.returning) }); H.mirror.dress(); } } catch { /* fine */ } };
     acts.querySelector('[data-look]').onclick = () => { acts.classList.remove('open'); look(); };
@@ -366,6 +374,95 @@
       if (t && (t.isContentEditable || /^(input|textarea|select)$/i.test(t.tagName))) return;
       look();
     });
+    // ------------------------------------------------------------------ invitations: the inviter's link, the friend's arrival
+    const say = (text) => { if (H.chat) H.chat.line({ kind: 'overseer', keep: 30, text }); };
+    const myName = () => lookName(H) || (ret.get() || {}).name || '';
+    let invited = null; // { link, room } once this player has an invitation out
+    async function invite(from) {
+      track('sandbox_invite', { from, touch });
+      try { if (document.pointerLockElement) document.exitPointerLock(); } catch { /* fine */ }
+      if (!invited) {
+        let r;
+        try { r = await api('POST', '/v1/island-invite', { name: myName() }); }
+        catch (err) { flash(err.message || 'Could not make a link. Try again.'); return; }
+        invited = { link: r.link, room: r.room };
+        session.invited = true;
+        // Our room: the friend comes to us here. (A signed-in player's editor room is left for it; their island is saved as ever.)
+        if (window.HawkesNet) window.HawkesNet.connect({ token: null, play: 't/sandbox', room: r.room, name: myName() || 'Host', join: false });
+        H.game.net.on('join', (d) => {
+          track('sandbox_invite_arrived', {});
+          say('Someone is coming.');
+          setTimeout(() => say(`${d && d.name ? d.name : 'A friend'} is here.`), 2600);
+        });
+      }
+      shareLink(invited.link);
+    }
+    function flash(text) {
+      const t = toast(text);
+      setTimeout(() => t.remove(), 4500);
+    }
+    /** Phones: the native share sheet. Elsewhere (or when it is not there): the link is copied, and shown to copy again. */
+    async function shareLink(url) {
+      const text = 'Come and play on my island.';
+      if (touch && navigator.share) {
+        try { await navigator.share({ title: 'Hawkes Gen island', text, url }); track('sandbox_invite_shared', { how: 'sheet' }); return; }
+        catch (err) { if (err && err.name === 'AbortError') return; /* otherwise fall through to the copy */ }
+      }
+      let copied = false;
+      try { await navigator.clipboard.writeText(url); copied = true; } catch { /* shown below */ }
+      track('sandbox_invite_shared', { how: copied ? 'copy' : 'shown' });
+      const t = el(`<span>${copied ? 'Link copied.' : 'Copy this link:'}</span><input type="text" readonly aria-label="Invitation link" value="${esc(url)}" style="min-width:0;flex:1;font:13px var(--sans);color:#fff;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.2);border-radius:8px;padding:8px"><button type="button" class="primary">Copy</button><button type="button" data-x aria-label="Close">✕</button>`, 'gs-glass gs-toast');
+      t.dataset.invite = 'link';
+      const input = t.querySelector('input');
+      input.onfocus = () => input.select();
+      t.querySelector('.primary').onclick = async () => { try { await navigator.clipboard.writeText(url); } catch { input.select(); document.execCommand && document.execCommand('copy'); } t.firstChild.textContent = 'Link copied.'; };
+      t.querySelector('[data-x]').onclick = () => t.remove();
+      setTimeout(() => t.remove(), 60000);
+    }
+    // The pause menu: Esc twice (like the Observatory's way back); the friend's invitation is in it.
+    let escAt = 0;
+    window.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || e.repeat || document.body.dataset.gsSheet) return;
+      const now = Date.now();
+      if (now - escAt > 700) { escAt = now; return; }
+      escAt = 0;
+      try { H.game.ui.menu('pause', { title: 'Paused', items: [{ label: 'Resume' }, { label: 'Invite a friend', onClick: () => invite('pause') }, { label: 'Change my look', onClick: look }] }); } catch { /* no menus in this build */ }
+    }, true);
+
+    // A friend who opened an invitation: at the mirror's end (or, for a return, once beamed in) they join the inviter's room.
+    const inv = session.friend;
+    if (inv) {
+      let joined = false;
+      const join = () => {
+        if (joined) return;
+        joined = true;
+        track('sandbox_invite_join', {});
+        let placed = false;
+        const place = () => {
+          if (placed) return true;
+          const peers = window.HawkesNet && window.HawkesNet.peers && window.HawkesNet.peers();
+          const host = peers && window.HawkesNet.host ? peers.get(window.HawkesNet.host) : null;
+          const pos = host && host.state && host.state.p;
+          const player = H.world && H.world.player;
+          if (!pos || !player) return false;
+          placed = true;
+          player.position = [pos[0] + 1.6, pos[1] + 0.4, pos[2] + 1.0];
+          player.velocity = [0, 0, 0];
+          try { H.overseer.beam(player, { radius: 1.3, seconds: 2.4 }); } catch { /* fine */ }
+          track('sandbox_invite_beamed', {});
+          setTimeout(() => say(inv.name ? `${inv.name} is here. Go to them.` : 'Someone is here. Go to them.'), 1800);
+          return true;
+        };
+        H.hooks.world.push({ net: (st) => {
+          if (st === 'refused') { track('sandbox_invite_refused', {}); gone({ state: 'closed', message: 'That island closed before you could arrive. Ask for a new link, or start an island of your own.' }); }
+          if (st === 'online') { let n = 0; const t = setInterval(() => { if (place() || ++n > 40) clearInterval(t); }, 250); }
+        } });
+        window.HawkesNet.connect({ token: null, play: 't/sandbox', room: inv.room, name: myName() || 'Friend', join: true });
+      };
+      on('mirror', (d) => { if (d && (d.state === 'done' || d.state === 'skip')) setTimeout(join, 800); });
+      if (session.returning) setTimeout(join, 3500);
+    }
+
     // A return (the beginning was seen and the mirror done here before): the Overseer welcomes them back by name. A guest
     // still without an account gets the sheet next (the order is J's: intro, mirror, account, tour); a signed-in player's
     // welcome is goLive's, and the tour picks up on its own.
@@ -373,7 +470,7 @@
       const rec = session.returning;
       track('sandbox_return', { signedIn: Boolean(rec.signedIn), tour: rec.tour || null });
       const name = lookName(H) || rec.name || '';
-      if (!rec.signedIn) {
+      if (!rec.signedIn && !gated) {
         setTimeout(() => { if (H.chat) H.chat.line({ kind: 'overseer', keep: 30, text: name ? `Welcome back, ${name}. The mirror is there if you want a new look: press L.` : 'Welcome back. The mirror is there if you want a new look: press L.' }); }, 2600);
         gated = true;
         setTimeout(() => want('tour', 'return'), 6500);
@@ -395,6 +492,7 @@
     // ------------------------------------------------------------------ wanting more: snapshot, then the account
     async function want(intent, from) {
       track('sandbox_prompt', { intent, from });
+      if (intent === 'invite') return invite(from); // (no account: the friend does not need one, and neither does the inviter)
       // Kept already (signed in): Save saves now, Build and Invite open the editor, Ask opens the chat.
       if (island) {
         if (intent === 'save') return saveNow(false).then(flashSaved);
@@ -734,7 +832,7 @@
       // Our room connection: saves carry it so the server doesn't send our own changes back to us (applied again, they
       // rebuilt what they touched: you were thrown out of the car and the camera reset on every save).
       if (!session.hooked && H.hooks && H.hooks.world) { session.hooked = true; H.hooks.world.push({ net: (st, info) => { if (info && info.me) session.conn = info.me; } }); }
-      if (b.net && b.net.token && window.HawkesNet) window.HawkesNet.connect({ token: b.net.token });
+      if (b.net && b.net.token && window.HawkesNet && !session.friend && !session.invited) window.HawkesNet.connect({ token: b.net.token });
     } catch (x) { console.warn('sandbox: no live room', x); }
     feed(id, user);
     if (H.chat) H.chat.attach({ send: (t) => ask(id, t), placeholder: isTouch() ? 'Talk to the Overseer…' : 'Press Enter to talk to the Overseer' });
@@ -1006,6 +1104,27 @@
     };
   }
 
+  /** An invitation that cannot be used (closed, full, expired, unreadable): the reason, in plain words, and their own island. */
+  function gone(st) {
+    track('sandbox_invite_gone', { state: st.state });
+    if (window.HawkesLoadScreen) window.HawkesLoadScreen.done(); else { const l = document.getElementById('loading'); if (l) l.hidden = true; }
+    style();
+    for (const x of document.querySelectorAll('.gs-veil')) x.remove();
+    const v = el(`<div class="gs-glass gs-sheet" role="dialog" aria-modal="true" aria-label="Invitation"><h3>${st.state === 'full' ? 'The island is full' : st.state === 'expired' ? 'This invitation has run out' : 'No one is on this island'}</h3><p>${esc(st.message)}</p><button type="button" class="go" data-own>Start my own island</button></div>`, 'gs-veil');
+    v.dataset.invite = st.state;
+    const b = v.querySelector('[data-own]');
+    b.onclick = () => { const u = new URL(location.href); u.searchParams.delete('invite'); location.href = u.pathname + u.search; };
+    b.focus();
+  }
+  /** ?ref=<code> kept as the landing page keeps it (index.html): 30 days, for the sign-up (users.ts originOf). */
+  function keepRef(q) {
+    const v = q.get('ref');
+    if (!v || !/^[a-z0-9_.-]{1,60}$/i.test(v)) return;
+    const keep = (name, val) => { document.cookie = `${name}=${encodeURIComponent(val)}; Max-Age=${30 * 86400}; Path=/; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`; };
+    keep('hg_ref', v);
+    keep('hg_src', 'referral');
+  }
+
   // ------------------------------------------------------------------ the page: claim (back from signing in), or play
   window.HawkesGuest = {
     /** Pip waits for this: the account comes first (the mirror opens the sheet; signed in, the tour goes on here). */
@@ -1025,9 +1144,20 @@
           return claim(WHY[intent] ? intent : 'save', user);
         }
       }
+      // An invitation: is the island there for them? (Before the engine loads anything; the same loading screen meanwhile.)
+      const token = q.get('invite');
+      let friend = null;
+      if (token) {
+        keepRef(q);
+        let st = null;
+        try { st = await api('GET', `/v1/island-invite/${encodeURIComponent(token)}`); } catch { st = { state: 'closed', message: 'We could not reach the island just now. Try the link again in a moment, or start an island of your own.' }; }
+        track('sandbox_invite_open', { state: st.state });
+        if (st.state !== 'open') return gone(st);
+        friend = { token, room: st.room, name: st.name || '', user: await me() }; // (signed in: no sheet; their own island stays theirs)
+      }
       // Signed in with an island kept here before: it plays on, as they left it (not the guest sandbox again).
       const was = kept.get();
-      if (was && was.id) {
+      if (was && was.id && !friend) {
         const user = await me();
         if (user && user.id === was.user) {
           try {
@@ -1070,6 +1200,12 @@
             b.files['scene.json'] = JSON.stringify(base);
           } catch { /* the usual start */ }
         }
+        // A friend's beginning is short: the beam and one line, then the mirror (a return skips both, as ever).
+        if (friend && !comingBack && base) {
+          base.config = { ...(base.config || {}), overseer: { ...((base.config || {}).overseer || {}), intro: 'short' } };
+          b.files['scene.json'] = JSON.stringify(base);
+        }
+        session.friend = friend;
         if (comingBack && q.get('return') !== 'observatory') session.returning = { ...ret.get(), signedIn: false };
         window.HawkesPlay.run(b, { mode: 'play' });
         track('sandbox_world_built', {});
