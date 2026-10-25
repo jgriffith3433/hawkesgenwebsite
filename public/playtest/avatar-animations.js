@@ -11,6 +11,11 @@
 //                      run, jump, fall, swim, sit and sleep at four moments each (scenes "Sheet: dog run 3/4"), `walk-diagonal` / `trot-diagonal`
 //                      (the feet land in diagonal pairs), `run-gallop` (the back stretches 1.1, the pairs bound), `clip-moves` (every clip
 //                      differs between its moments), `loops-close`, and the fox, sheep and horse playing the same 29 clips (`same-clips`)
+//   3b. mixamo-*       the person and the robot are the first Mixamo-standard models (docs/characters.md "Mixamo models": Gen's mesh.rig, 52 mixamorig:
+//                      bones): `mixamo-skeleton` (the set binds to the real file), `mixamo-upright` (head over hips over feet), `mixamo-hat-on-head`
+//                      (the head anchor sits on top of the head, the face anchor in front of it, both on the head bone), `mixamo-walk-moves`,
+//                      `mixamo-budget` (near and low levels within 7,600 and 2,280 triangles); scenes "Mixamo: person walk 0.25 s", run, jump,
+//                      wave, a top hat, and the model beside the procedural body
 //   4. object-*        the object set (docs/animations.md 2C), made on the toaster: `object-clips` (all 23), a contact sheet of every clip at four moments
 //                      (scenes "Sheet: toaster cheer 2/4"), `toast-pops` (the slices up in idle_fidget, cheer, point, thumbsup), `volume-kept`,
 //                      `no-clipping`, `object-loops-close`, the shoe, teapot, cactus and duck playing the set (`object-same-clips`,
@@ -18,9 +23,9 @@
 //   5. fallback-*      a role the set has no clip for still moves (the fish swimming: its own, procedural), a template-rigged biped still
 //                      animates (its own GLB clips), and ten animating characters: the cost of the animation and the draw numbers
 export const AVATAR_ANIMATIONS = {
-  id: 'avatar-animations', title: 'Animation clips as data: a walk drawn from the class file for a dog, a toaster and a Mixamo-skeleton puppet; the bone checks; the fallbacks; ten characters animating',
-  description: 'no sign-up, no game. Opens /avatars in a frame per model (scenes "Clip: dog walk 0.25 s" ...), logs clip-file, bone-checks, fallback-procedural, template-biped-animates and ten-characters. Options: bodies (["dog","toaster","puppet"]), crowd (seconds the ten run, default 2), quadruped: false (skips the quadruped sheet), sheet (clips for the contact sheet, default walk trot run jump fall swim sit sleep), all: true (the sheet for all 29)',
-  seconds: 540, tags: ['full'],
+  id: 'avatar-animations', title: 'Animation clips as data: a walk drawn from the class file for a dog, a toaster and a Mixamo-skeleton puppet; the bone checks; the person and the robot on the real Mixamo skeleton (upright, hat on the head, walk, run, jump, wave, triangle budgets); the fallbacks; ten characters animating',
+  description: 'no sign-up, no game. Opens /avatars in a frame per model (scenes "Clip: dog walk 0.25 s" ...), logs clip-file, bone-checks, mixamo-skeleton, mixamo-upright, mixamo-hat-on-head, mixamo-walk-moves, mixamo-budget (the person and the robot), fallback-procedural, template-biped-animates and ten-characters. Options: mixamo: false (skips the person and the robot), mixamoBodies, bodies (["dog","toaster","puppet"]), crowd (seconds the ten run, default 2), quadruped: false (skips the quadruped sheet), sheet (clips for the contact sheet, default walk trot run jump fall swim sit sleep), all: true (the sheet for all 29)',
+  seconds: 600, tags: ['full'],
 };
 
 const QUAD_CLIPS = ['idle', 'idle_sniff', 'idle_fidget', 'walk', 'trot', 'run', 'jump_start', 'jump', 'land', 'fall', 'swim', 'sit', 'lie_down', 'sleep', 'drive', 'wave', 'dance', 'cheer', 'laugh', 'point', 'clap', 'thumbsup', 'heart', 'bark', 'shake_off', 'shrug', 'hurt', 'knock_down', 'get_up'];
@@ -39,7 +44,7 @@ export async function runAvatarAnimations(t, options = {}) {
   t.event('plan', `avatar-animations: ${ids.join(', ')}`);
   t.progress(0.02);
   let n = 0;
-  const total = ids.length + 3;
+  const total = ids.length + 4;
   for (const id of ids) {
     const m = MODELS[id];
     const f = await openFrame(t, `${m.url}&pose=walk&t=0.25`, `${id} walk`);
@@ -97,21 +102,61 @@ export async function runAvatarAnimations(t, options = {}) {
     t.progress(0.05 + 0.6 * (++n / total));
   }
 
-  // ---- a template-rigged biped (the person, no stand-in) still animates by its own clips: the Mixamo set does not fit it
+  // ---- a template-rigged biped (the TV robot) still animates by its own clips: the Mixamo set does not fit it
   {
-    const f = await openFrame(t, '/avatars?body=robot&bg=studio&pose=walk&live=1', 'template biped');
+    const f = await openFrame(t, '/avatars?body=tvbot&bg=studio&pose=walk&live=1', 'template biped');
     await t.wait(600);
     const info = f.win.hawkesAvatars.anim();
     const q0 = f.win.hawkesAvatars.probe(['LegL', 'ArmR', 'LegR']);
     await t.wait(450);
     const q1 = f.win.hawkesAvatars.probe(['LegL', 'ArmR', 'LegR']);
-    t.scene('Clip: robot walk (template rig: its own clips)');
+    t.scene('Clip: tvbot walk (template rig: its own clips)');
     const moved = ['LegL', 'ArmR', 'LegR'].reduce((m, k) => Math.max(m, q0 && q1 && q0.bones[k] && q1.bones[k] ? angle(q0.bones[k], q1.bones[k]) : 0), 0);
-    if (!info || info.state !== 'unfit') t.problem('bug', `the template-rigged robot should not take the Mixamo set (${JSON.stringify(info)})`);
-    if (moved < 3) t.problem('bug', `the template-rigged robot walks without moving a limb (${moved.toFixed(1)} degrees)`);
-    else t.event('template-biped-animates', `robot (11-joint template rig): set "${info && info.state}", its own walk clip moves a limb ${moved.toFixed(0)} degrees`);
+    if (!info || info.state !== 'unfit') t.problem('bug', `the template-rigged tvbot should not take the Mixamo set (${JSON.stringify(info)})`);
+    if (moved < 3) t.problem('bug', `the template-rigged tvbot walks without moving a limb (${moved.toFixed(1)} degrees)`);
+    else t.event('template-biped-animates', `tvbot (11-joint template rig): set "${info && info.state}", its own walk clip moves a limb ${moved.toFixed(0)} degrees`);
     f.close();
     t.progress(0.05 + 0.6 * (++n / total));
+  }
+
+  // ---- the Mixamo models: the person and the robot, the real files (mesh.rig's 52-bone skeleton), not the stand-in puppet
+  if (options.mixamo !== false) {
+    const MX = ['mixamorig:Hips', 'mixamorig:Head', 'mixamorig:LeftFoot', 'mixamorig:LeftToeBase', 'mixamorig:LeftUpLeg', 'mixamorig:RightUpLeg', 'mixamorig:LeftArm', 'mixamorig:LeftHand', 'mixamorig:RightHand'];
+    for (const id of (Array.isArray(options.mixamoBodies) && options.mixamoBodies.length ? options.mixamoBodies : ['person', 'robot'])) {
+      const f = await openFrame(t, `/avatars?body=${id}&bg=studio&pose=walk&t=0.25`, `${id} on the Mixamo skeleton`);
+      await t.until(() => f.win.hawkesAvatars.anim() && f.win.hawkesAvatars.probe(MX), 20000, `${id}'s model`);
+      const info = f.win.hawkesAvatars.anim();
+      if (!info || info.cls !== 'mixamo' || info.state !== 'ready') { t.problem('bug', `${id}: the Mixamo set did not take the model (${JSON.stringify(info)})`); f.close(); continue; }
+      const a = await look(t, f, `Mixamo: ${id} walk 0.25 s`, MX);
+      const missing = MX.filter((k) => !a.pos[k]);
+      if (missing.length) t.problem('bug', `${id}: no node ${missing.join(', ')}`); else t.event('mixamo-skeleton', `${id}: class mixamo, ${info.clips.length} clips from mixamo.json play on the model's own mixamorig: bones`);
+      f.win.hawkesAvatars.setPose('idle', 0); await t.wait(250);
+      const r = f.win.hawkesAvatars.probe(MX), P = r.pos;
+      if (P['mixamorig:Head'][1] > P['mixamorig:Hips'][1] + 0.2 && P['mixamorig:Hips'][1] > P['mixamorig:LeftFoot'][1] + 0.2) t.event('mixamo-upright', `${id}: head ${P['mixamorig:Head'][1].toFixed(2)} m, hips ${P['mixamorig:Hips'][1].toFixed(2)} m, feet ${P['mixamorig:LeftFoot'][1].toFixed(2)} m (standing, not lying)`);
+      else t.problem('bug', `${id}: not standing: head ${P['mixamorig:Head'][1]} hips ${P['mixamorig:Hips'][1]} foot ${P['mixamorig:LeftFoot'][1]}`);
+      const ah = r.anchors.head, af = r.anchors.face, hy = P['mixamorig:Head'][1];
+      if (ah[1] > hy + 0.1 && ah[1] < hy + 1.3 && af[1] < ah[1] && af[1] > hy - 0.1 && Math.abs(ah[0] - P['mixamorig:Head'][0]) < 0.3) t.event('mixamo-hat-on-head', `${id}: the head anchor is ${(ah[1] - hy).toFixed(2)} m over the head bone and the face anchor ${(ah[1] - af[1]).toFixed(2)} m under it`);
+      else t.problem('bug', `${id}: the hat's anchor is not on the head (head bone y ${hy}, head anchor ${ah}, face anchor ${af})`);
+      f.win.hawkesAvatars.setPose('walk', 0.25); await t.wait(250);
+      const w1 = f.win.hawkesAvatars.probe(MX);
+      f.win.hawkesAvatars.setPose('walk', 0.75); await t.wait(250);
+      t.scene(`Mixamo: ${id} walk 0.75 s`);
+      const w2 = f.win.hawkesAvatars.probe(MX);
+      const swing = Math.max(...['mixamorig:LeftUpLeg', 'mixamorig:RightUpLeg', 'mixamorig:LeftArm'].map((k) => angle(w1.bones[k], w2.bones[k])));
+      if (swing < 8) t.problem('bug', `${id}: the walk does not swing a limb (${swing.toFixed(1)} degrees)`); else t.event('mixamo-walk-moves', `${id}: walk 0.25 s and 0.75 s differ by ${swing.toFixed(0)} degrees on a leg or an arm`);
+      for (const [pose, u] of [['run', 0.3], ['jump', 0.4], ['wave', 0.3]]) { f.win.hawkesAvatars.setPose(pose, u); await t.wait(300); t.scene(`Mixamo: ${id} ${pose}`); }
+      const s = f.win.hawkesAvatars.state;
+      const near = s.nearTris, low = (await (await fetch(`/play/models/${id}-low.glb`)).arrayBuffer());
+      const jl = new DataView(low).getUint32(12, true), j = JSON.parse(new TextDecoder().decode(new Uint8Array(low, 20, jl)));
+      const lowTris = j.meshes.flatMap((m) => m.primitives).reduce((n, q) => n + j.accessors[q.indices].count / 3, 0);
+      if (near > 7600 || lowTris > 2280) t.problem('bug', `${id}: ${near} near / ${lowTris} low triangles, over 7,600 / 2,280`); else t.event('mixamo-budget', `${id}: ${near} triangles near, ${lowTris} low (within 7,600 / 2,280)`);
+      f.close();
+      // in a top hat, and beside the procedural body
+      const g = await openFrame(t, `/avatars?body=${id}&bg=studio&pose=idle&hat=tophat&compare=1`, `${id} in a top hat, beside the procedural body`);
+      await t.wait(500); t.scene(`Mixamo: ${id} in a top hat (model beside the procedural body)`);
+      g.close();
+    }
+    t.progress(0.7);
   }
 
   // ---- the quadruped set: the dog's contact sheet, the gaits, the loops, and the same clips on the fox, sheep and horse
