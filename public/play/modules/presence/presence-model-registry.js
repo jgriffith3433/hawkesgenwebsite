@@ -22,6 +22,9 @@
 //             a clip is found by a word in its name (idle, walk, run, jump, fall, swim...). A role with no clip moves procedurally.
 //   rig       the animation set (docs/animations.md, presence-anim.js): mixamo | quadruped | object | none; default from `form`. `restFix`: false, or { LeftArm: [rx, ry, rz] } degrees, for a mixamo
 //             model whose rest pose the measuring against Mixamo's T-pose gets wrong
+//   keepGait  true: the body keeps its own locomotion (the fish's swim, the roll-bot's roll) and takes the set only for idle, the emotes and
+//             hurt (the fish and the roll-bot are `rig: 'object'` with it)
+//   motion    { hop, sway } multipliers on the object set's hop and lean; left out they come from the model's proportions (presence-anim.js)
 //   stride    meters per second at which the walk and run clips look right { walk: 1.6, run: 4.5 } (their speed follows the body's)
 //   parts     named nodes moved procedurally when no clip drives them: [{ node, role, axis, amp, ph }], role leg | arm | tail | ear |
 //             wing | fin | head | wheel (a wheel rolls with the distance, `radius` in meters)
@@ -50,7 +53,7 @@
     person: { ...row('biped'), url: '/play/models/person.glb', lods: lods(7600, 2279, '/play/models/person-low.glb'), h: 1.8, head: 0.85, clips: { walk: 'ArmR', run: 'ArmR2', idle: 'Head', jump: 'LegRTip' }, anchors: { head: { at: [0, 0.99, 0] }, face: { at: [0, 0.78, 0.24] }, neck: { at: [0, 0.52, 0] }, back: { at: [0, 0.4, -0.14] }, rump: { at: [0, 0.22, -0.12] } } },
     robot: { ...row('biped'), ...mdl('robot'), h: 1.8, head: 0.8, clips: BIPED, anchors: A([0, 0.99, 0], [0, 0.79, 0.2], [0, 0.62, 0], [0, 0.45, -0.18], [0, 0.3, -0.15]) },
     tvbot: { ...row('biped'), ...mdl('tvbot'), h: 1.75, head: 0.7, clips: BIPED, anchors: A([0, 0.86, 0], [0, 0.76, 0.2], [0, 0.66, 0], [0, 0.45, -0.17], [0, 0.3, -0.15]) },
-    rollbot: { ...row('legless'), ...mdl('rollbot'), h: 1.35, head: 0.6, anchors: A([0, 0.88, 0], [0, 0.72, 0.2], [0, 0.6, 0], [0, 0.4, -0.2], [0, 0.2, -0.2]) },
+    rollbot: { ...row('legless'), rig: 'object', keepGait: true, ...mdl('rollbot'), h: 1.35, head: 0.6, anchors: A([0, 0.88, 0], [0, 0.72, 0.2], [0, 0.6, 0], [0, 0.4, -0.2], [0, 0.2, -0.2]) },
     // animals: Gen drew most of them as upright vinyl toys, so they are bipeds; the sheep, the horse, the fox (and the pilot's dog) are on four legs
     dog: { ...row('quadruped'), stride: quadStride(0.95), url: '/play/models/dog.glb', lods: lods(7600, 2280, '/play/models/dog-low.glb'), h: 0.95, head: 0.4, clips: { walk: 'ArmR', run: 'ArmR2', idle: 'Head', jump: 'LegBRTip' }, anchors: { head: { at: [0, 0.92, 0.13] }, face: { at: [0, 0.7, 0.4] }, neck: { at: [0, 0.5, 0.25] }, back: { at: [0, 0.62, -0.2] }, rump: { at: [0, 0.55, -0.45] } } },
     cat: { ...row('biped'), ...mdl('cat'), h: 0.8, head: 0.36, clips: BIPED, anchors: A([0, 0.9, 0.02], [0, 0.76, 0.2], [0, 0.62, 0.02], [0, 0.4, -0.2], [0, 0.22, -0.25]) },
@@ -65,7 +68,7 @@
     chicken: { ...row('bird'), ...mdl('chicken'), h: 0.9, head: 0.45, clips: BIPED, anchors: A([0, 0.88, 0], [0, 0.72, 0.26], [0, 0.62, 0.1], [0, 0.45, -0.25], [0, 0.3, -0.28]) },
     dinosaur: { ...row('biped'), ...mdl('dinosaur'), h: 1.9, head: 0.6, clips: BIPED, anchors: A([0, 0.97, 0.1], [0, 0.84, 0.4], [0, 0.72, 0.12], [0, 0.55, -0.2], [0, 0.4, -0.4]) },
     // (the fish's concept was a three-quarter view: its body lies 31.3 degrees from +z, measured on the loaded file, so it is turned back by that, and its anchors are the same offsets turned the same way)
-    fish: { ...row('swimmer'), ...mdl('fish'), h: 0.9, head: 0.4, yaw: -0.546, anchors: A([-0.145, 0.8, 0.239], [-0.234, 0.5, 0.385], [-0.104, 0.45, 0.171], [0.052, 0.7, -0.085], [0.234, 0.45, -0.385]) },
+    fish: { ...row('swimmer'), rig: 'object', keepGait: true, ...mdl('fish'), h: 0.9, head: 0.4, yaw: -0.546, anchors: A([-0.145, 0.8, 0.239], [-0.234, 0.5, 0.385], [-0.104, 0.45, 0.171], [0.052, 0.7, -0.085], [0.234, 0.45, -0.385]) },
     // things
     shoe: { ...row('thing'), url: '/play/models/shoe.glb', lods: lods(7595, 2275, '/play/models/shoe-low.glb'), h: 0.5, head: 0.34, anchors: { head: { at: [0, 0.44, 0.05] }, face: { at: [0, 0.36, 0.36] }, neck: { at: [0, 0.3, 0.2] }, back: { at: [0, 0.4, -0.3] }, rump: { at: [0, 0.2, -0.5] } } },
     toaster: { ...row('thing'), ...mdl('toaster'), h: 1.15, head: 0.7, anchors: A([0, 0.9, 0], [0, 0.5, 0.26], [0, 0.7, 0.1], [0, 0.55, -0.26], [0, 0.3, -0.26]) },

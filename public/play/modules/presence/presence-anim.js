@@ -43,7 +43,7 @@
   const CLASSES = {
     mixamo: { bones: MIXAMO_BONES, need: ['Hips', 'Spine', 'Head', 'LeftArm', 'LeftForeArm', 'RightArm', 'RightForeArm', 'LeftUpLeg', 'LeftLeg', 'LeftFoot', 'RightUpLeg', 'RightLeg', 'RightFoot'], moves: ['Hips'] },
     quadruped: { bones: QUAD_BONES, need: ['Root', 'Body', 'Head', 'LegFL', 'LegFLTip', 'LegFR', 'LegFRTip', 'LegBL', 'LegBLTip', 'LegBR', 'LegBRTip'], moves: ['Root', 'Body'] },
-    object: { bones: ['Body'], need: [], moves: ['Body'] },
+    object: { bones: ['Body', 'ToastL', 'ToastR'], need: [], moves: ['Body', 'ToastL', 'ToastR'], parts: ['ToastL', 'ToastR'] },
   };
   /** The class a registry row uses: its `rig`, else from its form (a roller or a swimmer keeps its own procedural motion). */
   const FORM_CLASS = { biped: 'mixamo', bird: 'mixamo', quadruped: 'quadruped', thing: 'object', legless: 'object' };
@@ -122,7 +122,7 @@
     const tracks = [];
     for (const [bone, tr] of Object.entries(clip.tracks || {})) tracks.push({ bone: norm(bone), rot: tr.rot || null, q: tr.q || null, pos: tr.pos || null, scl: tr.scl || null });
     const events = (clip.events || []).slice().sort((a, b) => a.t - b.t);
-    return (clip._c = { tracks, events, loop: clip.loop !== false, seconds: clip.seconds || 1, ease: clip.ease || (clip.loop === false ? 'smooth' : 'spline'), bones: new Set(tracks.map((t) => t.bone)) });
+    return (clip._c = { tracks, events, loop: clip.loop !== false, seconds: clip.seconds || 1, air: clip.air === true, fade: clip.fade > 0 ? clip.fade : 0, ease: clip.ease || (clip.loop === false ? 'smooth' : 'spline'), bones: new Set(tracks.map((t) => t.bone)) });
   }
 
   /** The values of a key list at u (0 to 1): n numbers after the time. A looping clip wraps from its last key to its first. */
@@ -146,6 +146,7 @@
   /** A compiled clip at u: Map(bone -> { q, p, s }) with only what the clip keys. */
   function sampleClip(c, u) {
     const out = new Map();
+    out.air = c.air ? 1 : 0; // (a clip where the body leaves the ground: nothing holds it down)
     for (const tr of c.tracks) {
       const o = { q: null, p: null, s: null };
       if (tr.rot) { const e = evalKeys(tr.rot, 3, u, c.loop, c.ease); o.q = qeuler(e[0], e[1], e[2]); }
@@ -301,8 +302,9 @@
         const u0 = S.u, adv = dt / S.c.seconds;
         S.u = S.c.loop ? (S.u + adv) % 1 : Math.min(1, S.u + adv);
         if (S.c.loop || S.u > u0) fire(S.c, S.name, u0, S.u);
-        if (!S.c.loop && S.u >= 1 - FADE / S.c.seconds) S.out = true;
-        S.w = S.out ? Math.max(0, S.w - dt / FADE) : Math.min(1, S.w + dt / FADE);
+        const fade = S.c.fade || FADE; // (a clip that is a moment, a landing's squash, says how quick: `fade` seconds)
+        if (!S.c.loop && S.u >= 1 - fade / S.c.seconds) S.out = true;
+        S.w = S.out ? Math.max(0, S.w - dt / fade) : Math.min(1, S.w + dt / fade);
       }
       this.shots = this.shots.filter((S) => S.w > 0 || !S.out);
       return this;
@@ -310,6 +312,7 @@
     /** The pose now: the loops blended by their weights, each one-shot laid over it by its weight on the bones it keys. */
     pose() {
       const out = new Map(), sum = this.loops.reduce((n, L) => n + L.w, 0) || 1;
+      out.air = this.loops.reduce((n, L) => n + (L.c.air ? L.w / sum : 0), 0);
       const base = this.loops.map((L) => ({ w: L.w / sum, s: sampleClip(L.c, L.u) }));
       const bones = new Set();
       for (const L of this.loops) for (const k of L.c.bones) bones.add(k);
@@ -327,6 +330,7 @@
       }
       for (const S of this.shots) {
         const m = sampleClip(S.c, S.u), k = S.w;
+        if (S.c.bones.has('Body')) out.air += ((S.c.air ? 1 : 0) - out.air) * k;
         for (const [bone, v] of m) {
           const cur = out.get(bone) || { q: QI, p: null, s: null };
           out.set(bone, { q: v.q ? qblend(cur.q, v.q, k) : cur.q, p: v.p ? (cur.p || [0, 0, 0]).map((x, i) => x + (v.p[i] - x) * k) : cur.p, s: v.s ? (cur.s || [1, 1, 1]).map((x, i) => x + (v.s[i] - x) * k) : cur.s });
@@ -352,6 +356,9 @@
     if (!b.fit) { A.state = 'unfit'; A.missing = b.missing; }
     return b;
   }
+  /** A body that keeps its own gait (the fish's swim, the roll-bot's roll: a row's `keepGait`) takes the set only for standing, emotes and a hurt. */
+  const OWN_GAIT = new Set(['walk', 'run', 'jump_start', 'jump', 'land', 'fall', 'swim', 'drive', 'knock_down', 'get_up']);
+  const keepsGait = (ent, clipName) => Boolean(ent && ent.keepGait && OWN_GAIT.has(clipName));
   const hasClip = (A, name) => Boolean(A.player && A.player.clip(name));
   /** Which clip of the set a role takes, first found of its names (or null). */
   function roleClip(set, role, glb) {
@@ -374,6 +381,7 @@
     if (!b.fit) return null;
     if (!A.player) A.player = new Player(set);
     const forced = rig.forceClip;
+    if (forced && keepsGait(pm.ent, forced.name)) return null;
     let loop = null, shot = null, emote = false;
     if (forced) {
       const c = set.clips[forced.name];
@@ -383,6 +391,7 @@
       return finish(pm, b, pose);
     }
     const { role, em } = ctx;
+    if (pm.ent.keepGait && role !== 'idle' && OWN_GAIT.has(role)) { release(b); A.player.loops = []; A.player.shots = []; return null; }
     if (em) {
       if (set.clips[em.def.name]) { shot = { key: em, name: em.def.name }; emote = true; }
       else if (ctx.glbEmote) { release(b); A.player.loops = []; A.player.shots = []; return null; } // (the model's own emote clip has the body)
@@ -417,22 +426,60 @@
     if (ev.length) for (const e of ev) for (const f of listeners) { try { f(e.name, rig, e); } catch { /* a listener's error is its own */ } }
     return finish(pm, b, A.player.pose(), emote);
   }
+  /** How this model takes the toaster's clips: `hop` and `sway` multiply the clip's hop and lean (a row's `motion` sets them, else its proportions do). */
+  function motionOf(pm) {
+    if (pm.motion) return pm.motion;
+    const b = pm.b, ent = pm.ent;
+    let hop = 1, sway = 1;
+    if (b) {
+      const H = Math.max(1e-3, b.max.y - b.min.y), W = Math.max(b.max.x - b.min.x, b.max.z - b.min.z, 1e-3);
+      sway = clamp(Math.pow(0.9 / (H / W), 0.6), 0.45, 1.3); // (the toaster is 0.91 tall and 1.0 wide: 1)
+      hop = clamp(Math.sqrt(W / H) / 1.05, 0.55, 1.2);
+    }
+    if (ent.form === 'legless') { sway *= 1.4; hop *= 0.7; } // the duck waddles low and wide
+    return (pm.motion = { hop: ent.motion && ent.motion.hop || hop, sway: ent.motion && ent.motion.sway || sway });
+  }
+  /** Whether the set owns the take-off, the landing and the stretch of this body (it has the clips), so models.js leaves its own out. */
+  const A_own = (pm) => { const s = pm.anim && setOf(pm.anim.cls); return Boolean(s && s.clips.jump_start && s.clips.land && !pm.ent.keepGait); };
+  /**
+   * How far the body must go up (or down) so that its box, leaning as it does, rests on the ground: the box's lowest point after the
+   * turn, against the half height it had upright (models.js already holds the bottom still while it squashes). A toaster rocking
+   * on its waddle rocks over a corner; one knocked on its side lies on the floor and goes through nothing.
+   */
+  function groundSnap(pm, q, s) {
+    const b = pm.b, k = pm.k;
+    if (!b || !k) return 0;
+    const hx = (b.max.x - b.min.x) / 2 * k, hy = pm.ent.h / 2, hz = (b.max.z - b.min.z) / 2 * k, sxz = 1 / Math.sqrt(s[1]);
+    const ax = new BABYLON.Vector3(1, 0, 0).rotateByQuaternionToRef(q, new BABYLON.Vector3()), ay = new BABYLON.Vector3(0, 1, 0).rotateByQuaternionToRef(q, new BABYLON.Vector3()), az = new BABYLON.Vector3(0, 0, 1).rotateByQuaternionToRef(q, new BABYLON.Vector3());
+    const low = Math.abs(ax.y) * hx * sxz * s[0] * Math.sqrt(s[1]) + Math.abs(ay.y) * hy * s[1] + Math.abs(az.y) * hz * sxz * s[2] * Math.sqrt(s[1]);
+    return low - hy * s[1];
+  }
   function finish(pm, b, pose, emote = false) {
     if (b.virtual) {
-      const v = pose.get('Body');
-      if (!v) return { driven: true, emote, body: { x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0, sx: 1, sy: 1, sz: 1 } };
-      const e = new BABYLON.Quaternion(v.q[0], v.q[1], v.q[2], v.q[3]).toEulerAngles(), h = pm.ent.h, p = v.p || [0, 0, 0], s = v.s || [1, 1, 1];
-      return { driven: true, emote, body: { x: p[0] * h, y: p[1] * h, z: p[2] * h, rx: e.x, ry: e.y, rz: e.z, sx: s[0], sy: s[1], sz: s[2] } };
+      const parts = {};
+      for (const name of CLASSES.object.parts) {
+        const w = pose.get(name);
+        if (w) { const wq = w.q || QI, e = new BABYLON.Quaternion(wq[0], wq[1], wq[2], wq[3]).toEulerAngles(), p = w.p || [0, 0, 0]; parts[name] = { x: p[0], y: p[1], z: p[2], rx: e.x, ry: e.y, rz: e.z }; }
+      }
+      const v = pose.get('Body'), own = Boolean(A_own(pm));
+      if (!v) return { driven: true, emote, own, parts, body: { x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0, sx: 1, sy: 1, sz: 1 } };
+      // The clip is in model heights and for the toaster's proportions: the hop and the sway follow this model's (a tall thin cactus
+      // sways less than a wide toaster, a long shoe hops more, a duck waddles), and the body is held on the ground however it leans.
+      const m = motionOf(pm), h = pm.ent.h, vq = v.q || QI, e = new BABYLON.Quaternion(vq[0], vq[1], vq[2], vq[3]).toEulerAngles(), p = v.p || [0, 0, 0], s = v.s || [1, 1, 1];
+      const rx = e.x * m.sway, ry = e.y * m.sway, rz = e.z * m.sway;
+      const y = p[1] * h * m.hop + (1 - (pose.air || 0)) * groundSnap(pm, BABYLON.Quaternion.FromEulerAngles(rx, ry, rz), s);
+      // (models.js multiplies x and z by 1 / sqrt(sy) itself: what the clip adds is only its difference from keeping volume)
+      return { driven: true, emote, own, parts, body: { x: p[0] * h * m.hop, y, z: p[2] * h * m.hop, rx, ry, rz, sx: s[0] * Math.sqrt(s[1]), sy: s[1], sz: s[2] * Math.sqrt(s[1]) } };
     }
     apply(b, pose);
     return { driven: true, emote, body: null };
   }
 
   P.anim = {
-    CLASSES, ROLE_CLIPS, FADE, FORM_CLASS, classOf, norm, validate, compile, sampleClip, evalKeys, toDelta, setData, load, setOf, attach, drive, bind, apply, release, Player, hasClip, roleClip,
+    CLASSES, ROLE_CLIPS, FADE, FORM_CLASS, classOf, motionOf, groundSnap, finish, norm, validate, compile, sampleClip, evalKeys, toDelta, setData, load, setOf, attach, drive, bind, apply, release, Player, hasClip, roleClip,
     q: { mul: qmul, inv: qinv, euler: qeuler, rot: qrot, fromTo: qfromto, blend: qblend, angle: qangle },
     /** Whether a rig's model plays this clip from data now (for /avatars): the set is loaded, fits the model, and has the clip. */
-    has: (rig, name) => { const A = rig && rig.pm && rig.pm.anim; const s = A && setOf(A.cls); return Boolean(s && s.clips[name] && A.state !== 'unfit'); },
+    has: (rig, name) => { const A = rig && rig.pm && rig.pm.anim; const s = A && setOf(A.cls); return Boolean(s && s.clips[name] && A.state !== 'unfit' && !keepsGait(rig.pm.ent, name)); },
     /** What a rig's data animation is doing, for the showcase and tests: { cls, state, clips, missing }. */
     info: (rig) => { const A = rig && rig.pm && rig.pm.anim; if (!A) return null; const s = setOf(A.cls); return { cls: A.cls, state: !s ? 'loading' : A.state === 'unfit' ? 'unfit' : 'ready', clips: s ? s.names : [], missing: A.missing || [], problems: s ? s.problems : [] }; },
     /** Listens to clip events: f(name, rig, event) for a footstep, a hop, a prop pop. */
