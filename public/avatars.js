@@ -201,11 +201,17 @@ function probe(names = []) {
   const bones = {};
   for (const n of names) { const x = find(n); if (x && x.rotationQuaternion) bones[n] = [x.rotationQuaternion.x, x.rotationQuaternion.y, x.rotationQuaternion.z, x.rotationQuaternion.w].map((v) => Math.round(v * 1e5) / 1e5); }
   const mv = pm.mover;
+  // where they are in the world (metres) and where the head and face anchors are: a hat sits on the head anchor, glasses on the face one
+  const at = (x) => { x.computeWorldMatrix(true); const v = x.getAbsolutePosition(); return [v.x, v.y, v.z].map((n) => Math.round(n * 1e3) / 1e3); };
+  const pos = {};
+  for (const n of names) { const x = find(n); if (x) pos[n] = at(x); }
+  const anchors = {};
+  for (const [k, a] of Object.entries(pm.anchors || {})) anchors[k] = at(a.node);
   // the lowest point of the model's boxes in the world (a body leaning through the floor shows here), and the toaster's slices
   let lowest = Infinity;
   for (const r of pm.cur.roots) for (const m of [r, ...r.getChildMeshes(false)]) if (m.getBoundingInfo && m.getTotalIndices && m.getTotalIndices() > 0) { m.computeWorldMatrix(true); lowest = Math.min(lowest, m.getBoundingInfo().boundingBox.minimumWorld.y); }
   const toast = pm.props ? pm.props.parts.map((p) => ({ name: p.name, on: p.node.isEnabled(), y: p.node.position.y })) : null;
-  return { bones, mover: { y: mv.position.y, rx: mv.rotation.x, rz: mv.rotation.z, sx: mv.scaling.x, sy: mv.scaling.y, sz: mv.scaling.z }, lowest: Number.isFinite(lowest) ? lowest : null, toast, t: cur.t, pose: state.pose };
+  return { bones, pos, anchors, mover: { y: mv.position.y, rx: mv.rotation.x, rz: mv.rotation.z, sx: mv.scaling.x, sy: mv.scaling.y, sz: mv.scaling.z }, lowest: Number.isFinite(lowest) ? lowest : null, toast, t: cur.t, pose: state.pose };
 }
 
 // ------------------------------------------------------------------ what a body costs, against docs/characters.md

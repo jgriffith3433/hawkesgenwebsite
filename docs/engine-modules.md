@@ -475,6 +475,28 @@ happened. Add your module's scenarios there (things it makes build from their sp
 floats a crate...). `test/engine/harness.ts` loads the engine and your module: `load({ extra: [yourFile] })`, then `world(H, sceneOf({...}))`
 and `H.tick(seconds)`. `test/engine/runtime.test.ts` has every core scenario to copy from.
 
+## 8b. What a game may ask the editor
+
+A game's scripts run in the same window as the engine (`new Function` in runtime.js), so anything they can post to the
+editor page (`window.parent.postMessage({ source: 'hawkes-play', type, ... })`) is **a request, never a decision**.
+Spending credits and acting on the account belong to the person, in the editor (`public/editor-bridge.js`, the door;
+`public/editor.js`, what is behind it). The rules:
+
+- **An allowlist.** Only the types in `ALLOWED` (editor-bridge.js) are answered; anything else is ignored. A module that
+  needs a new message adds its type there, and to the handler in `editor.js`. Never add one that spends or changes the account.
+- **`generate` is a card, not a call.** The editor shows a card (what, kind, price from `/v1/asset-kinds`, the person's balance)
+  with **Make it** and **Not now**; only Make it posts `/games/:id/generate`. One card at a time: while it is open, `generate`
+  from the frame is dropped. The editor tells the frame when it is answered (`generate-closed`, `made`), which the build
+  card's "Make it with AI" button listens for (build.js). The in-world Gen beam and a waiting model's button go through it.
+- **`ask` only fills the chat box.** The text (and the `@mention`) goes into the editor's chat input, which takes focus; the
+  person presses Enter, and `sendChat` (the only thing that calls `/ai`) runs from their own key. The tour's `asked` step completes then.
+- **`ops` and `spawn-community` stay automatic** (that is the person building), but are limited: `ops` 30 a second,
+  `spawn-community` 2 a second. The excess is dropped, with one console warning per type.
+- **The server is the second guard:** `POST /v1/games/:id/generate` takes 10 a minute and 40 an hour per account (429), and
+  `/ai` allows one message at a time per game (429 while the Overseer is working).
+
+Tests: `test/engine/bridge.test.ts` (a script posts 50 `generate` and 50 `ask`; nothing is requested), `test/portal.test.ts` (the limit).
+
 ## 7f. The sky, the planet and the Overseer (`H.sky`, `H.planet`, `H.overseer`)
 
 The `overseer` module (`public/play/modules/overseer/`) owns the time of day, the light and the sky in every game. Don't
