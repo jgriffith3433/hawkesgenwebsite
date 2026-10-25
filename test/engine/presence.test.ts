@@ -5,6 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { load, world, sceneOf } from './harness.ts';
+import { AVATAR } from '../../src/presence.ts';
 
 const H = await load();
 const P = H.presence;
@@ -240,4 +241,51 @@ test('spectate: watch another player over their shoulder, cycle, and stop (your 
   assert.equal(p.controls, true);
   clearPeers();
   assert.equal(P.spectate('next'), null, 'nobody to watch');
+});
+
+test('the mirror look: eyes, one of 12 accessories in its color, kept by the server\'s lists, on every body, seen on tags', () => {
+  assert.deepEqual(C.LOOK.accessories, AVATAR.accessories, 'client and server agree on the accessories');
+  assert.equal(C.ACCESSORIES.length, 13, 'none and twelve');
+  assert.deepEqual(C.ACCESSORIES.map((a: any) => a.id), C.LOOK.accessories, 'every one has its icon and anchor');
+  assert.ok(C.ACCESSORIES.every((a: any) => a.id === 'none' || ['head', 'face', 'neck', 'back'].includes(a.anchor)));
+  const old = C.cleanLook({ body: '#22c55e' });
+  assert.deepEqual([old.eyeColor, old.accessory, old.accessoryColor], ['#14161d', 'none', '#ffffff'], 'an older look has dark eyes and nothing on');
+  const l = C.cleanLook({ eyeColor: '#2F6FDB', accessory: 'jetpack', accessoryColor: 'red' });
+  assert.deepEqual([l.eyeColor, l.accessory, l.accessoryColor], ['#2f6fdb', 'jetpack', '#ffffff'], 'colors are #hex only');
+  assert.equal(C.cleanLook({ accessory: 'jetski' }).accessory, 'none');
+  assert.ok(JSON.stringify(C.cleanLook(C.randomLook(3))).length < C.LOOK.maxBytes / 2, 'room to spare under the byte limit');
+  const seen = new Set<string>(); for (let i = 0; i < 80; i++) seen.add(C.randomLook(i).accessory);
+  assert.ok(seen.size >= 10, `surprises wear different accessories (${seen.size})`);
+
+  world(H, sceneOf({ floor, start }), { mode: 'play' });
+  H.tick(0.3);
+  const p = H.world.player;
+  p.view = 'third';
+  for (const w of C.WHATS) {
+    let none = 0;
+    for (const a of C.ACCESSORIES) {
+      P.setLook({ what: w.id, accessory: a.id, accessoryColor: '#ec4899', eyeColor: '#22a06b' });
+      H.tick(0.05);
+      const rig = I.rigs.get(p);
+      const n = rig.meshes.length;
+      if (a.id === 'none') { none = n; continue; }
+      assert.ok(n > none, `${w.id} wears ${a.id} (${n} vs ${none} meshes)`);
+      const mats = rig.meshes.filter((m: any) => m.material).map((m: any) => m.material.name);
+      assert.ok(a.id === 'medal' || a.id === 'jetpack' || mats.some((x: string) => x.includes('#ec4899') || x.includes('ec4899')), `${w.id} ${a.id}: in the color picked`);
+    }
+  }
+  // It travels with the look: what the room gets, and what another player's tag shows.
+  P.setLook({ what: 'person', accessory: 'headphones', accessoryColor: '#ef4444', eyeColor: '#2f6fdb' });
+  assert.deepEqual([I.mine().look.accessory, I.mine().look.accessoryColor, I.mine().look.eyeColor], ['headphones', '#ef4444', '#2f6fdb']);
+  world(H, sceneOf({ floor, start }), { mode: 'play' });
+  H.tick(0.2);
+  const them = peer('c2', 'Zed', [0, 0.9, 4], { look: { ...C.cleanLook({}), name: 'Zed', body: '#a855f7', accessory: 'flower', accessoryColor: '#ec4899', eyeColor: '#e11d48' } });
+  H.tick(0.3);
+  const rig = I.rigs.get(them);
+  assert.ok(rig && rig.look.accessory === 'flower' && rig.look.eyeColor === '#e11d48', 'their rig wears what they sent');
+  const tag = shown('p:c2');
+  assert.ok(tag, 'their tag shows');
+  const el = [...(globalThis as any).document.body.children].find((x: any) => x.id === 'pr-layer');
+  assert.ok(el && JSON.stringify(P.shown).includes('Zed'), 'named');
+  clearPeers();
 });
