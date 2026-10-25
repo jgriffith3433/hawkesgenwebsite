@@ -1098,8 +1098,20 @@ async function stageProgress(t, ctx) {
   const driving = () => G().player && G().player.controller === 'drive';
   // Pip comes over after the sign-up and offers the tour in a modal card; while it is open E never reaches the 4x4: close it like a player (Not now).
   const closeCard = () => { const qs = G().events && G().events.quests; if (qs && qs.close) qs.close(); document.querySelectorAll('.qs-panel').forEach((n) => n.remove()); };
+  // The layout, as the player sees it: Pip's card (if it is up) with Accept / Not now whole on the screen, and no two top-left cards overlapping.
+  const layoutCheck = (label) => {
+    const TLY = HP().touchLayout, c = TLY && TLY.hudCheck ? TLY.hudCheck() : null;
+    if (!c) { t.problem('error', 'H.touchLayout.hudCheck is missing'); return; }
+    if (c.card) t.event('quest-card-fits', `${c.w}x${c.h}: card ${c.card.w}x${c.card.h} at ${c.card.x},${c.card.y}; ${c.card.buttons.map((b) => `${b.label} ${b.visible ? 'visible' : 'CUT OFF'}`).join(', ')}`);
+    t.event('hud-no-overlap', `${label} ${c.text}`);
+    if (!c.ok) t.problem('error', `layout (${label}): ${c.problems.join('; ')}`);
+  };
+  await t.wait(1500);
+  layoutCheck('with Pip\'s card');
   if (!driving()) {
     closeCard();
+    await t.wait(300);
+    layoutCheck('cards and Quests button');
     await walkTo(t, 'jeep', 3.2, 40000, 'the 4x4');
     for (let i = 0; i < 4 && !driving(); i++) { closeCard(); await tap(t, 'e'); await t.wait(700); }
   }
