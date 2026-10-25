@@ -28,15 +28,17 @@
   const H = window.HawkesPlay;
   const P = (H.presence = H.presence || {});
   const row = (form) => ({ asset: null, url: null, lods: null, form });
+  // Gen-made models (the pilot): files in public/play/models, made through Hawkes Gen (docs/characters.md "Gen models"). The front of each file is +z.
+  const lods = (tris, low, url) => ({ kind: 'mesh', tris, tex: 1024, levels: [{ tris: low, tex: 1024, url }] });
   P.modelRegistry = {
     // people and machines
     person: row('biped'), robot: row('biped'), tvbot: row('biped'), rollbot: row('roller'),
     // animals
-    dog: row('quadruped'), cat: row('quadruped'), fox: row('quadruped'), pig: row('quadruped'), bear: row('quadruped'),
+    dog: { ...row('quadruped'), url: '/play/models/dog.glb', lods: lods(7600, 2280, '/play/models/dog-low.glb'), h: 0.95, head: 0.4, anchors: { head: { at: [0, 0.92, 0.13] }, face: { at: [0, 0.7, 0.4] }, neck: { at: [0, 0.5, 0.25] }, back: { at: [0, 0.62, -0.2] }, rump: { at: [0, 0.55, -0.45] } } }, cat: row('quadruped'), fox: row('quadruped'), pig: row('quadruped'), bear: row('quadruped'),
     rabbit: row('quadruped'), cow: row('quadruped'), sheep: row('quadruped'), horse: row('quadruped'),
     penguin: row('bird'), chicken: row('bird'), dinosaur: row('biped'), fish: row('swimmer'),
     // things
-    shoe: row('thing'), toaster: row('thing'), cactus: row('thing'), cone: row('thing'), teapot: row('thing'),
+    shoe: { ...row('thing'), url: '/play/models/shoe.glb', lods: lods(7595, 2275, '/play/models/shoe-low.glb'), h: 0.5, head: 0.34, anchors: { head: { at: [0, 0.44, 0.05] }, face: { at: [0, 0.36, 0.36] }, neck: { at: [0, 0.3, 0.2] }, back: { at: [0, 0.4, -0.3] }, rump: { at: [0, 0.2, -0.5] } } }, toaster: row('thing'), cactus: row('thing'), cone: row('thing'), teapot: row('thing'),
     banana: row('thing'), mushroom: row('thing'), potato: row('thing'), duck: row('legless'),
   };
 })();
