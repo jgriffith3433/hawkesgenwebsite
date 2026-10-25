@@ -125,7 +125,7 @@ function servePlayPage(res: ServerResponse, req: IncomingMessage, o: { guest?: b
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', ...(open ? {} : { 'Content-Security-Policy': PLAY_SANDBOX }), 'X-Content-Type-Options': 'nosniff' });
   // A signed-in player's analytics ids (src/analytics.ts): the sandboxed page has no storage to keep its own.
   const ids = o.guest ? null : playIds(users.authenticate(req));
-  if (!ids) return void fs.createReadStream(path.join(PUBLIC, 'play', 'play.html')).pipe(res);
+  if (!ids) return void pipeline(fs.createReadStream(path.join(PUBLIC, 'play', 'play.html')), res).catch(() => {});
   res.end(fs.readFileSync(path.join(PUBLIC, 'play', 'play.html'), 'utf8').replace('</head>', `${playIdsScript(ids)}</head>`));
 }
 
@@ -170,7 +170,8 @@ async function serveStatic(route: string, res: ServerResponse, search = '') {
   // Self-hosted fonts (public/fonts): the play page is sandboxed (origin null), so they need open CORS; they never change under a name.
   const font = path.extname(file) === '.woff2';
   res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] ?? 'application/octet-stream', 'Cache-Control': path.extname(file) === '.html' ? 'no-cache' : versioned || font ? 'public, max-age=31536000, immutable' : 'public, max-age=300', ...(font || route === '/fonts/fonts.css' || (route.startsWith('/play/models/') && path.extname(file) === '.glb') ? { 'Access-Control-Allow-Origin': '*' } : {}) });
-  fs.createReadStream(file).pipe(res);
+  // pipeline, not pipe: a read error (or a client that left) must end this response, never raise an unhandled 'error' that kills the process.
+  pipeline(fs.createReadStream(file), res).catch(() => {});
   return true;
 }
 
@@ -618,6 +619,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(ROOT, 'src
     server.closeIdleConnections();
     setTimeout(() => process.exit(0), 8000).unref();
   };
+  // One request's stray error must not take the process down: that resets every connection at once (blank pages).
+  process.on('uncaughtException', (e) => console.error('[portal] uncaught:', e));
+  process.on('unhandledRejection', (e) => console.error('[portal] unhandled rejection:', e));
   process.on('SIGTERM', leave);
   process.on('SIGINT', leave);
 }
