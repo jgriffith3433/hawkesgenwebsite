@@ -20,6 +20,8 @@
 //             Left out, an anchor comes from the model's bounding box and its form.
 //   clips     { idle, walk, run, jump, fall, swim, sit, sleep, wave, dance, ... }: the GLB animation names to play for each. Left out,
 //             a clip is found by a word in its name (idle, walk, run, jump, fall, swim...). A role with no clip moves procedurally.
+//   rig       the animation set (docs/animations.md, presence-anim.js): mixamo | quadruped | object | none; default from `form`. `restFix`: false, or { LeftArm: [rx, ry, rz] } degrees, for a mixamo
+//             model whose rest pose the measuring against Mixamo's T-pose gets wrong
 //   stride    meters per second at which the walk and run clips look right { walk: 1.6, run: 4.5 } (their speed follows the body's)
 //   parts     named nodes moved procedurally when no clip drives them: [{ node, role, axis, amp, ph }], role leg | arm | tail | ear |
 //             wing | fin | head | wheel (a wheel rolls with the distance, `radius` in meters)

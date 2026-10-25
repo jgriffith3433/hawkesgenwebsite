@@ -11,7 +11,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
 test('the playtest files are valid modules', () => {
-  for (const f of ['portal.js', 'site-layout.js', 'hawkes-playtest.js', 'hawkes-perf.js']) {
+  for (const f of ['portal.js', 'site-layout.js', 'avatar-animations.js', 'hawkes-playtest.js', 'hawkes-perf.js']) {
     const r = spawnSync(process.execPath, ['--check', path.join(ROOT, 'public', 'playtest', f)], { encoding: 'utf8' });
     assert.equal(r.status, 0, `${f}: ${r.stderr}`);
   }
@@ -47,4 +47,11 @@ test('site-layout: three sizes, the checklist in AGENTS.md, horizontal scroll fa
   assert.match(read('public/playtest/portal.js'), /runSiteLayout\(t, options\)/);
   assert.match(read('AGENTS.md'), /The landing page checklist/);
   assert.match(read('public/overseer-sky.js'), /hero\.dataset\.overseer/);
+});
+
+test('avatar-animations: a frame per class, the bone checks, the fallbacks and ten characters; documented in AGENTS.md', () => {
+  const src = read('public/playtest/avatar-animations.js');
+  for (const k of ['clip-file', 'clip-moments', 'bone-checks', 'prefixes-match', 'fallback-procedural', 'template-biped-animates', 'ten-characters', 'standin=mixamo', 'pose=walk&t=0.25']) assert.ok(src.includes(k), k);
+  assert.match(read('public/playtest/portal.js'), /runAvatarAnimations\(t, options\)/);
+  assert.match(read('AGENTS.md'), /avatar-animations/);
 });

@@ -8,15 +8,19 @@
 //   expr  neutral happy surprised sad angry sleepy mischief    hair  short long ponytail curly spiky bun (the person's)
 //   hat, shape, c1 c2 c3 (hex without #: body, accent, detail)   t  seconds into the motion to freeze at (default 1.2)
 //   turn=1 turntable   live=1 keep moving instead of freezing   ui=1 keep the controls
+//   pose may also be any clip of the model's animation set (public/play/anim/<class>.json, docs/animations.md): walk, idle... rendered from the data at t seconds into the clip, exactly
+//   standin=mixamo  the person is a stand-in on the Mixamo skeleton (rigid boxes), until the real models are re-rigged: the mixamo class's clips play on it
 //   standin=1  four types (person, dog, fish, toaster) get tiny stand-in Gen models, real GLBs made in the page and loaded by Babylon's loader
 //   compare=1  the body twice, the procedural one on the left and the Gen model (the registry's row for the type) on the right, both dressed
 //   (a model's triangles are held to the model budget, docs/characters.md "Gen models": 8,000 for the near level on a phone)
 // The page sets document.body.dataset.ready ('true', or 'error') and window.avatarsReady when the picture is final.
 /* global HawkesPlay, HawkesModules, BABYLON */
 import { POSES, overlay } from '/avatars-poses.js';
-import { STANDINS, STANDIN_FOR, toGlb } from '/avatars-standins.js';
+import { STANDINS, STANDIN_FOR, MIXAMO_STANDIN, toGlb } from '/avatars-standins.js';
 
 await HawkesModules.load('play').catch(() => {});
+// the animation sets (one file per rig class) before any body is built, so a frame asked for by name is drawn from the data
+if (window.HawkesPlay && HawkesPlay.presence && HawkesPlay.presence.anim) await Promise.all(Object.keys(HawkesPlay.presence.anim.CLASSES).map((c) => HawkesPlay.presence.anim.load(c)));
 
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
@@ -38,6 +42,11 @@ const THING_POSES = ['gag', 'react', 'boot']; // the things' own: the idle gag a
 const BUDGET = { tris: 2500, draws: 6, mats: 3 }; // docs/characters.md "Budget": the hard limit per character
 
 const standin = q.get('standin') === '1';
+const puppet = q.get('standin') === 'mixamo';
+if (puppet && P && P.models) { // (the person on the Mixamo skeleton, as boxes)
+  const url = URL.createObjectURL(new Blob([toGlb(MIXAMO_STANDIN)], { type: 'model/gltf-binary' }));
+  P.models.register('person', { ...MIXAMO_STANDIN.row, url, lods: null, low: null, clips: {}, rig: 'mixamo', yaw: 0 });
+}
 if (standin && P && P.models) { // (stand-in models through the real loader: GLB bytes made here, loaded from object URLs)
   for (const [what, key] of Object.entries(STANDIN_FOR)) {
     const url = URL.createObjectURL(new Blob([toGlb(STANDINS[key])], { type: 'model/gltf-binary' }));
@@ -47,7 +56,7 @@ if (standin && P && P.models) { // (stand-in models through the real loader: GLB
 const state = {
   compare: q.get('compare') === '1',
   id: WHATS.find((w) => w.id === q.get('body'))?.id || WHATS.find((w) => w.id === location.hash.slice(1))?.id || (WHATS[0] && WHATS[0].id),
-  pose: POSES.includes(q.get('pose')) || THING_POSES.includes(q.get('pose')) || EMOTES.includes(q.get('pose')) ? q.get('pose') : 'idle',
+  pose: /^[a-z0-9_]{1,24}$/.test(q.get('pose') || '') ? q.get('pose') : 'idle', // (a pose of the page, an emote, or a clip of the model's set)
   bg: BGS[q.get('bg')] ? q.get('bg') : shot ? 'night' : 'studio',
   turn: shot ? q.get('turn') === '1' : q.get('turn') !== '0',
   face: C && C.LOOK.faces.includes(q.get('face')) ? q.get('face') : 'eyes',
@@ -123,7 +132,7 @@ function build() {
   readStats();
   refreshUi();
   // a model arrives a moment after the body: the numbers and the picture are final once it has
-  if (P.models && rig.pm) P.models.ready(rig).then(() => { if (cur && cur.rig === rig) { settle(state.freeze ? Math.max(0, Number(q.get('t') ?? 1.2) || 0) : 0.4); readStats(); refreshUi(); cur.ready = true; document.body.dataset.modelState = rig.pm.state; } });
+  if (P.models && rig.pm) P.models.ready(rig).then(() => { if (cur && cur.rig === rig) { cur.t = 0; settle(state.freeze ? Math.max(0, Number(q.get('t') ?? 1.2) || 0) : 0.4); readStats(); refreshUi(); cur.ready = true; document.body.dataset.modelState = rig.pm.state; } });
 }
 /** Advance the motion without drawing, so a screenshot of "walk" is in mid-stride, not at the first frame. */
 function settle(seconds) { for (let i = 0; i < Math.round(seconds * 60); i++) step(1 / 60); }
@@ -139,11 +148,14 @@ function frameCamera() {
   cam.target.set(0, h * 0.5, 0);
 }
 
+const extras = []; // more of the same body for hawkesAvatars.crowd(): { rig, e }
+const perf = { ms: 0, steps: 0 }; // what animating all of them costs (CPU), for crowd()
 function step(dt) {
   if (!cur) return;
   const speed = state.pose === 'walk' ? 2.6 : state.pose === 'run' ? 6.5 : 0;
   const em = EMOTES.includes(state.pose) ? C.emote(state.pose) : null;
-  for (const { rig, e } of [cur, cur.cmp].filter(Boolean)) {
+  const t0 = performance.now();
+  for (const { rig, e } of [cur, cur.cmp, ...extras].filter(Boolean)) {
     e.x += speed * dt; // (the stand-in moves, its node does not: animate() reads the speed from x)
     if (em && !rig.emote) rig.emote = { def: em, t0: rig.time || 0, seconds: em.loop ? undefined : em.seconds };
     if (!em && rig.emote) rig.emote = null;
@@ -151,13 +163,45 @@ function step(dt) {
     // the other bodies get the approximations.
     const model = rig.pm && rig.pm.on;
     rig.forcePose = (rig.person || model) && POSES.includes(state.pose) ? state.pose : rig.thing && THING_POSES.includes(state.pose) ? state.pose : null;
+    rig.forceClip = P.anim && P.anim.has(rig, state.pose) ? { name: state.pose, t: cur.t + dt } : null; // (a clip of the model's set: that moment, from the data)
     rig.exprName = state.expr;
     if (rig.person && state.expr) rig.person.rest = state.expr;
     P.showcase.animate(rig, dt);
     if (!rig.person && !model) rig.pose.scaling.set(1, 1, 1);
     if (!rig.person && !model && POSES.includes(state.pose)) overlay(rig, state.pose, cur.t);
   }
+  perf.ms += performance.now() - t0; perf.steps++;
   cur.t += dt;
+}
+
+/** Ten (or n) of the body in a row, all animating, for a few seconds: what the animation costs on this device (docs/animations.md). */
+async function crowd(n = 10, seconds = 2) {
+  if (!cur || !running) return null;
+  for (const c of extras) { P.showcase.dispose(c.rig); c.e.node.dispose(); }
+  extras.length = 0;
+  for (let i = 1; i < n; i++) {
+    const e = stand(((i % 5) - 2) * 1.5 + (i >= 5 ? 0.7 : 0)); e.z = -Math.floor(i / 5) * 1.6 - 1.2; e.node.position.z = e.z;
+    extras.push({ e, rig: P.showcase.make(e, lookFor(state.id, colorsNow()), lookFor(state.id, colorsNow()).body) });
+  }
+  await Promise.all(extras.map((c) => (P.models && c.rig.pm ? P.models.ready(c.rig) : Promise.resolve())));
+  state.freeze = false; state.turn = false;
+  perf.ms = 0; perf.steps = 0;
+  const t0 = performance.now();
+  await new Promise((r) => setTimeout(r, seconds * 1000));
+  const frames = Math.max(1, perf.steps);
+  const rigs = [cur, ...extras];
+  const meshes = rigs.flatMap((c) => c.rig.root.getChildMeshes(false).filter((m) => m.isEnabled() && m.getTotalIndices && m.getTotalIndices() > 0));
+  return { n: rigs.length, seconds: (performance.now() - t0) / 1000, frames, animateMs: perf.ms / frames, fps: engine.getFps(), draws: meshes.length, triangles: Math.round(meshes.reduce((a, m) => a + m.getTotalIndices() / 3, 0)), tier: window.HawkesPlay && HawkesPlay.device ? HawkesPlay.device.tier : null, animated: rigs.filter((c) => c.rig.pm && c.rig.pm.anim && c.rig.pm.anim.player).length };
+}
+/** The numbers of a few nodes of the model (a bone's rotation) and of its whole body, to tell one moment of a clip from another. */
+function probe(names = []) {
+  const rig = cur && cur.rig, pm = rig && rig.pm;
+  if (!pm || !pm.on) return null;
+  const find = (name) => { const todo = [...pm.cur.roots]; while (todo.length) { const x = todo.shift(); if (x.name === name) return x; todo.push(...x.getChildren(undefined, true)); } return null; };
+  const bones = {};
+  for (const n of names) { const x = find(n); if (x && x.rotationQuaternion) bones[n] = [x.rotationQuaternion.x, x.rotationQuaternion.y, x.rotationQuaternion.z, x.rotationQuaternion.w].map((v) => Math.round(v * 1e5) / 1e5); }
+  const mv = pm.mover;
+  return { bones, mover: { y: mv.position.y, rx: mv.rotation.x, rz: mv.rotation.z, sy: mv.scaling.y }, t: cur.t, pose: state.pose };
 }
 
 // ------------------------------------------------------------------ what a body costs, against docs/characters.md
@@ -183,7 +227,8 @@ function refreshUi() {
   $('say').textContent = w.line;
   $('hudBody').textContent = w.id;
   for (const c of document.querySelectorAll('.av-card')) c.classList.toggle('on', c.dataset.id === w.id);
-  $('poses').replaceChildren(...[...POSES, ...(cur && cur.rig.thing ? THING_POSES : [])].map((p) => button(p, state.pose === p, () => { state.pose = p; state.freeze = false; cur.t = 0; refreshUi(); })));
+  const clips = cur && P.anim && P.anim.info(cur.rig) ? P.anim.info(cur.rig).clips : [];
+  $('poses').replaceChildren(...[...new Set([...POSES, ...(cur && cur.rig.thing ? THING_POSES : []), ...clips])].map((p) => button(p, state.pose === p, () => { state.pose = p; state.freeze = false; cur.t = 0; refreshUi(); })));
   $('emotes').replaceChildren(...EMOTES.map((p) => button(p, state.pose === p, () => { state.pose = p; state.freeze = false; if (cur) cur.rig.emote = null; refreshUi(); })));
   const person = w.body === 'person';
   $('faces').replaceChildren(...C.LOOK.faces.map((f) => { const b = button(f, state.face === f, () => { state.face = f; build(); }); b.disabled = !person; return b; }));
@@ -200,7 +245,7 @@ function refreshUi() {
   const c = colorsNow();
   ['c1', 'c2', 'c3'].forEach((id, i) => { $(id).value = c[i]; });
   $('hat').value = state.hat; $('shape').value = state.shape; $('bg').value = state.bg;
-  $('shotUrl').textContent = `/avatars?body=${w.id}&pose=${state.pose}&bg=${state.bg}${state.compare ? '&compare=1' : ''}${standin ? '&standin=1' : ''}${state.colors ? `&c1=${c[0].slice(1)}&c2=${c[1].slice(1)}&c3=${c[2].slice(1)}` : ''}`;
+  $('shotUrl').textContent = `/avatars?body=${w.id}&pose=${state.pose}&bg=${state.bg}${state.compare ? '&compare=1' : ''}${standin ? '&standin=1' : puppet ? '&standin=mixamo' : ''}${state.colors ? `&c1=${c[0].slice(1)}&c2=${c[1].slice(1)}&c3=${c[2].slice(1)}` : ''}`;
 }
 function pick(id, replace = true) {
   if (!C.WHAT.has(id)) return;
@@ -300,7 +345,7 @@ if (!WHATS.length) {
   loop();
   if (running) {
     // A window for tests and playtests: the same things the buttons do.
-    window.hawkesAvatars = { models: P.models ? C.WHATS.filter((w) => P.models.enabled(w.id)).map((w) => w.id) : [], bodies: WHATS.map((w) => w.id), poses: [...POSES, ...THING_POSES, ...EMOTES], get state() { return { id: state.id, pose: state.pose, bg: state.bg, ...cur.stats }; }, select: (id) => pick(id, false), pose: (p) => { state.pose = p; state.freeze = false; refreshUi(); } };
+    window.hawkesAvatars = { models: P.models ? C.WHATS.filter((w) => P.models.enabled(w.id)).map((w) => w.id) : [], bodies: WHATS.map((w) => w.id), poses: [...POSES, ...THING_POSES, ...EMOTES], anim: () => (cur && P.anim ? P.anim.info(cur.rig) : null), probe, crowd, setPose: (p, t) => { state.pose = p; state.freeze = true; cur.t = 0; if (cur.rig.emote) cur.rig.emote = null; settle(Number(t) || 0); refreshUi(); }, get state() { return { id: state.id, pose: state.pose, bg: state.bg, ...cur.stats }; }, select: (id) => pick(id, false), pose: (p) => { state.pose = p; state.freeze = false; refreshUi(); } };
     thumbnails(cards);
   } else if (!document.body.dataset.ready) document.body.dataset.ready = 'error';
 }
