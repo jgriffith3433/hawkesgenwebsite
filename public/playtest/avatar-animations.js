@@ -7,14 +7,21 @@
 // acceptance criteria are about:
 //   1. clip-file       the file of a class loaded, is sound, and the walk at t = 0.25 and 0.75 are different poses drawn from it
 //   2. bone-checks     a clip naming a bone the class lacks is rejected; mixamorig:, mixamorig7: and unprefixed names are one bone
-//   3. fallback-*      a role the set has no clip for still moves (the toaster swimming: procedural), a template-rigged biped still
+//   3. quadruped-*     the quadruped set (docs/animations.md 2B): every clip is there (`quadruped-clips`), a contact sheet of the dog's walk, trot,
+//                      run, jump, fall, swim, sit and sleep at four moments each (scenes "Sheet: dog run 3/4"), `walk-diagonal` / `trot-diagonal`
+//                      (the feet land in diagonal pairs), `run-gallop` (the back stretches 1.1, the pairs bound), `clip-moves` (every clip
+//                      differs between its moments), `loops-close`, and the fox, sheep and horse playing the same 29 clips (`same-clips`)
+//   4. fallback-*      a role the set has no clip for still moves (the toaster swimming: procedural), a template-rigged biped still
 //                      animates (its own GLB clips), and ten animating characters: the cost of the animation and the draw numbers
 export const AVATAR_ANIMATIONS = {
   id: 'avatar-animations', title: 'Animation clips as data: a walk drawn from the class file for a dog, a toaster and a Mixamo-skeleton puppet; the bone checks; the fallbacks; ten characters animating',
-  description: 'no sign-up, no game. Opens /avatars in a frame per model (scenes "Clip: dog walk 0.25 s" ...), logs clip-file, bone-checks, fallback-procedural, template-biped-animates and ten-characters. Options: bodies (["dog","toaster","puppet"]), crowd (seconds the ten run, default 2)',
-  seconds: 150, tags: ['full'],
+  description: 'no sign-up, no game. Opens /avatars in a frame per model (scenes "Clip: dog walk 0.25 s" ...), logs clip-file, bone-checks, fallback-procedural, template-biped-animates and ten-characters. Options: bodies (["dog","toaster","puppet"]), crowd (seconds the ten run, default 2), quadruped: false (skips the quadruped sheet), sheet (clips for the contact sheet, default walk trot run jump fall swim sit sleep), all: true (the sheet for all 29)',
+  seconds: 330, tags: ['full'],
 };
 
+const QUAD_CLIPS = ['idle', 'idle_sniff', 'idle_fidget', 'walk', 'trot', 'run', 'jump_start', 'jump', 'land', 'fall', 'swim', 'sit', 'lie_down', 'sleep', 'drive', 'wave', 'dance', 'cheer', 'laugh', 'point', 'clap', 'thumbsup', 'heart', 'bark', 'shake_off', 'shrug', 'hurt', 'knock_down', 'get_up'];
+const QUAD_SHEET = ['walk', 'trot', 'run', 'jump', 'fall', 'swim', 'sit', 'sleep'];
+const QUAD_BONES = ['Root', 'Body', 'Head', 'LegFL', 'LegFR', 'LegBL', 'LegBR'];
 const MODELS = {
   dog: { url: '/avatars?body=dog&bg=studio', cls: 'quadruped', bones: ['LegFL', 'LegFR', 'Body'] },
   toaster: { url: '/avatars?body=toaster&bg=studio', cls: 'object', bones: [] },
@@ -94,6 +101,65 @@ export async function runAvatarAnimations(t, options = {}) {
     else t.event('template-biped-animates', `robot (11-joint template rig): set "${info && info.state}", its own walk clip moves a limb ${moved.toFixed(0)} degrees`);
     f.close();
     t.progress(0.05 + 0.6 * (++n / total));
+  }
+
+  // ---- the quadruped set: the dog's contact sheet, the gaits, the loops, and the same clips on the fox, sheep and horse
+  if (options.quadruped !== false) {
+    const f = await openFrame(t, '/avatars?body=dog&bg=studio&pose=idle', 'quadruped set');
+    const A = f.win.HawkesPlay.presence.anim, info = f.win.hawkesAvatars.anim();
+    const missing = QUAD_CLIPS.filter((c) => !info.clips.includes(c));
+    if (missing.length) t.problem('bug', `the quadruped set lacks ${missing.join(', ')}`);
+    else t.event('quadruped-clips', `all ${QUAD_CLIPS.length} clips of docs/animations.md 2B are in quadruped.json (${info.problems.length ? info.problems.length + ' problems' : 'sound'})`);
+    const set = A.setOf('quadruped');
+    const sheet = options.all ? QUAD_CLIPS : (Array.isArray(options.sheet) && options.sheet.length ? options.sheet : QUAD_SHEET).filter((c) => QUAD_CLIPS.includes(c));
+    const moves = [];
+    for (const name of QUAD_CLIPS) {
+      const c = set.clips[name];
+      if (!c) continue;
+      const seen = [];
+      for (let k = 0; k < 4; k++) {
+        f.win.hawkesAvatars.setPose(name, c.seconds * k / 4); await t.wait(sheet.includes(name) ? 320 : 90);
+        if (sheet.includes(name)) t.scene(`Sheet: dog ${name} ${k + 1}/4 (${(c.seconds * k / 4).toFixed(2)} s)`);
+        seen.push(f.win.hawkesAvatars.probe(QUAD_BONES));
+      }
+      let most = 0;
+      for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) for (const b of QUAD_BONES) if (seen[i].bones[b] && seen[j].bones[b]) most = Math.max(most, angle(seen[i].bones[b], seen[j].bones[b]));
+      const bad = seen.some((p) => QUAD_BONES.some((b) => p.bones[b] && p.bones[b].some((x) => !Number.isFinite(x))));
+      if (bad) t.problem('bug', `dog ${name}: a bone is not a number at one of its moments`);
+      if (most < 1) moves.push(name);
+    }
+    if (moves.length) t.problem('bug', `dog: ${moves.join(', ')} look the same at all four moments`); else t.event('clip-moves', `every one of the ${QUAD_CLIPS.length} clips differs between its four moments on the dog`);
+    // the gaits, read from the data the page plays
+    const lag = (a, b) => { const d = Math.abs(a - b) % 1; return Math.min(d, 1 - d); };
+    const when = (n) => Object.fromEntries(set.clips[n].events.map((e) => [e.foot, e.t]));
+    for (const n of ['walk', 'trot']) {
+      const w = when(n);
+      if (lag(w.FL, w.BR) <= 0.15 && lag(w.FR, w.BL) <= 0.15 && Math.abs(lag(w.FL, w.FR) - 0.5) < 0.05) t.event(`${n}-diagonal`, `${n}: the left front lands at ${w.FL}, the right hind at ${w.BR}; the right front at ${w.FR}, the left hind at ${w.BL}: diagonal pairs, half a cycle apart`);
+      else t.problem('bug', `${n}: the feet do not land in diagonal pairs (${JSON.stringify(w)})`);
+    }
+    const stretch = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => A.sampleClip(set.clips.run, i / 8).get('Body').s[2]);
+    if (Math.max(...stretch) >= 1.09 && Math.min(...stretch) < 1) t.event('run-gallop', `run: the back stretches to ${Math.max(...stretch).toFixed(2)} and gathers to ${Math.min(...stretch).toFixed(2)}, ${set.clips.run.events.length} footsteps a cycle of ${set.clips.run.seconds} s`);
+    else t.problem('bug', `run does not stretch the back (${stretch.map((x) => x.toFixed(2)).join(' ')})`);
+    // the loops close
+    const open = QUAD_CLIPS.filter((n) => set.clips[n].loop).filter((n) => [...set.clips[n].tracks].some((tr) => { const a = A.sampleClip({ ...set.clips[n], tracks: [tr] }, 0).get(tr.bone), b = A.sampleClip({ ...set.clips[n], tracks: [tr] }, 0.9999).get(tr.bone); return a.q && b.q && A.q.angle(A.q.mul(a.q, A.q.inv(b.q))) > 2; }));
+    if (open.length) t.problem('bug', `loops that do not close: ${open.join(', ')}`); else t.event('loops-close', `${QUAD_CLIPS.filter((n) => set.clips[n].loop).length} looping clips close (the last frame runs into the first)`);
+    f.close();
+    // the same clips on the other three models
+    for (const id of ['fox', 'sheep', 'horse']) {
+      const g = await openFrame(t, `/avatars?body=${id}&bg=studio&pose=walk&t=0.25`, `${id} quadruped set`);
+      const inf = g.win.hawkesAvatars.anim();
+      if (!inf || inf.state !== 'ready') throw new Error(`${id}: the quadruped set is not ready (${JSON.stringify(inf)})`);
+      let broken = 0;
+      for (const name of QUAD_CLIPS) for (const u of [0, 0.25, 0.5, 0.75]) {
+        g.win.hawkesAvatars.setPose(name, set.clips[name].seconds * u); await t.wait(40);
+        const p = g.win.hawkesAvatars.probe(QUAD_BONES);
+        if (!p || QUAD_BONES.some((b) => !p.bones[b] || p.bones[b].some((x) => !Number.isFinite(x)))) broken++;
+      }
+      for (const name of ['walk', 'run']) { g.win.hawkesAvatars.setPose(name, set.clips[name].seconds * 0.25); await t.wait(300); t.scene(`Sheet: ${id} ${name} 2/4`); }
+      if (broken) t.problem('bug', `${id}: ${broken} moments of the quadruped clips did not draw`); else t.event('same-clips', `${id}: all ${QUAD_CLIPS.length} clips at four moments each play on the model's bones (${inf.clips.length} in the set)`);
+      g.close();
+    }
+    t.progress(0.8);
   }
 
   // ---- ten characters animating
