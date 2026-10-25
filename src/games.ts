@@ -20,7 +20,7 @@ import { addFriend } from './friends.ts';
 import { applyOps, parseScene, sceneText } from './scene.ts';
 import { wordsOf } from './words.ts';
 import { levelUrls, lodsOf, rememberLods } from './lods.ts';
-import { editToken, kickFromRooms, liveCounts } from './rooms.ts';
+import { closePlayRooms, editToken, kickFromRooms, liveCounts } from './rooms.ts';
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS games (
@@ -96,6 +96,23 @@ CREATE INDEX IF NOT EXISTS game_chat_game ON game_chat (game_id, created);
 `);
 // Columns added later. visitors: what signed-in people who aren't members may do in the live game (play, or build).
 if (!(db.prepare('PRAGMA table_info(games)').all() as { name: string }[]).some((c) => c.name === 'visitors')) db.exec("ALTER TABLE games ADD COLUMN visitors TEXT NOT NULL DEFAULT 'play'");
+// Reports and hiding (J, 2026-10-25: "visitors run strangers' code, so give them a way out"): anyone may report a live game
+// (games_reports); an admin hides it (games.hidden: why, when, by whom). A hidden game is closed to players and gone from the gallery.
+db.exec(`
+CREATE TABLE IF NOT EXISTS games_reports (
+  id TEXT PRIMARY KEY,
+  game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  reason TEXT NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  reporter_id TEXT,
+  ip TEXT,
+  created INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS games_reports_game ON games_reports (game_id, created);
+`);
+for (const [c, t] of [['hidden', 'INTEGER NOT NULL DEFAULT 0'], ['hidden_reason', 'TEXT'], ['hidden_at', 'INTEGER'], ['hidden_by', 'TEXT']]) {
+  if (!(db.prepare('PRAGMA table_info(games)').all() as { name: string }[]).some((x) => x.name === c)) db.exec(`ALTER TABLE games ADD COLUMN ${c} ${t}`);
+}
 // Assets by id, with words as labels (src/words.ts): what an asset is ("cow", "spotted cow"), so the engine can find
 // every cow a game has (H.assets.for('cow')), and its title (a community thing's, or Gen's).
 {
@@ -104,7 +121,7 @@ if (!(db.prepare('PRAGMA table_info(games)').all() as { name: string }[]).some((
   if (!cols.includes('title')) db.exec('ALTER TABLE game_assets ADD COLUMN title TEXT');
 }
 
-export type Game = { id: string; slug: string; title: string; description: string; owner_id: string; visibility: 'public' | 'unlisted'; visitors?: 'play' | 'build'; live_version: number | null; cover: string | null; plays: number; created: number; updated: number };
+export type Game = { id: string; slug: string; title: string; description: string; owner_id: string; visibility: 'public' | 'unlisted'; visitors?: 'play' | 'build'; live_version: number | null; cover: string | null; plays: number; created: number; updated: number; hidden?: number; hidden_reason?: string | null; hidden_at?: number | null; hidden_by?: string | null };
 export type Role = 'owner' | 'editor' | 'builder' | 'player';
 export type FileRow = { path: string; content: string; rev: number; updated: number; updated_by: string | null };
 export type AssetRow = { name: string; asset: string; project: string; kind: string | null; mime: string | null; added_by: string | null; created: number; words?: string[] | string | null; title?: string | null };
@@ -157,6 +174,8 @@ export function summary(g: Game, userId?: string) {
     role: userId ? roleOf(g.id, userId) : null,
     members,
     playUrl: `/play/${g.slug}`,
+    // Closed by an admin: the owner sees why (the Games page shows it on the card).
+    closed: g.hidden ? { reason: g.hidden_reason || 'It was reported and an admin closed it.', at: g.hidden_at ?? null } : null,
   };
 }
 
@@ -272,7 +291,7 @@ export function acceptInvite(user: User, code: string) {
 /** A visitor helps build a live game the owner opened to visitors: they join as a builder. */
 export function joinToBuild(user: User, slug: string) {
   const game = gameBySlug(slug);
-  if (!game) throw new PortalError('No such game', { status: 404 });
+  if (!game || game.hidden) throw new PortalError('No such game', { status: 404 });
   const role = roleOf(game.id, user.id);
   if (role) return summary(game, user.id);
   if ((game.visitors ?? 'play') !== 'build') throw new PortalError('The owner builds this one with invited people only. Ask them for an invite.', { status: 403 });
@@ -514,7 +533,7 @@ export function sceneOps(user: User | null, gameId: string, ops: unknown, o: { b
 /** A copy of a published game (its live version: files and assets) as a new game of this customer's. */
 export function remix(user: User, body: { slug?: unknown }) {
   const g = gameBySlug(String(body.slug ?? ''));
-  if (!g) throw new PortalError('No such game', { status: 404 });
+  if (!g || (g.hidden && g.owner_id !== user.id)) throw new PortalError('No such game', { status: 404 });
   const plan = planOf(getUser(user.id));
   const owned = Number((db.prepare('SELECT COUNT(*) AS n FROM games WHERE owner_id = ?').get(user.id) as { n: number }).n);
   if (owned >= plan.games) throw new PortalError(`Your ${plan.name} plan has room for ${plan.games} games. Upgrade for more, or delete one.`, { status: 402 });
@@ -589,10 +608,59 @@ export function restoreRelease(user: User, gameId: string, version: number) {
 
 export const releases = (gameId: string) => (db.prepare('SELECT version, notes, created, created_by FROM game_releases WHERE game_id = ? ORDER BY version DESC LIMIT 50').all(gameId) as { version: number; notes: string; created: number; created_by: string | null }[]).map((r) => ({ ...r, by: nameOf(r.created_by) }));
 
+export const CLOSED = 'This world is closed';
+
+/** Is this slug a game an admin has closed? (The play page and its rooms ask before loading anything.) */
+export const isClosed = (slug: string) => Boolean(gameBySlug(slug)?.hidden);
+
+export const REPORT_REASONS = { broken: 'Broken', scary: 'Scary or rude', scam: 'Scam', other: 'Other' } as const;
+
+/** A report of a live game, from anyone (signed in or not). The route limits how many an address may send. */
+export function reportGame(slug: string, body: { reason?: unknown; note?: unknown }, reporterId: string | null, ip: string) {
+  const g = gameBySlug(slug);
+  if (!g) throw new PortalError('No such game', { status: 404 });
+  const reason = String(body.reason ?? '');
+  if (!(reason in REPORT_REASONS)) throw new PortalError('Pick a reason: broken, scary or rude, scam, or other');
+  const note = String(body.note ?? '').replace(/\s+/g, ' ').trim().slice(0, 500);
+  // The same person (account or address) reporting the same game again for the same reason is one report.
+  const dup = db.prepare('SELECT 1 FROM games_reports WHERE game_id = ? AND reason = ? AND (reporter_id IS ? AND (reporter_id IS NOT NULL OR ip = ?))').get(g.id, reason, reporterId, ip);
+  if (!dup) db.prepare('INSERT INTO games_reports (id, game_id, reason, note, reporter_id, ip, created) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id('rp_', 6), g.id, reason, note, reporterId, ip, Date.now());
+  return { ok: true };
+}
+
+/** Admin: close a game (the owner is told why on their Games page) or open it again. */
+export function setHidden(adminName: string, gameId: string, hidden: boolean, reason?: unknown) {
+  const g = getGame(gameId);
+  if (!g) throw new PortalError('No such game', { status: 404 });
+  if (hidden) {
+    const why = String(reason ?? '').replace(/\s+/g, ' ').trim().slice(0, 300) || 'It was reported and an admin closed it.';
+    db.prepare('UPDATE games SET hidden = 1, hidden_reason = ?, hidden_at = ?, hidden_by = ? WHERE id = ?').run(why, Date.now(), adminName, g.id);
+    closePlayRooms(g.slug);
+  } else db.prepare('UPDATE games SET hidden = 0, hidden_reason = NULL, hidden_at = NULL, hidden_by = NULL WHERE id = ?').run(g.id);
+  return getGame(g.id)!;
+}
+
+/** Admin: games that have reports (or are closed), with the owner and the reports, most reported first. */
+export function reportedGames() {
+  const rows = db.prepare(`SELECT g.*, u.email AS owner_email, u.name AS owner_name,
+      (SELECT COUNT(*) FROM games_reports r WHERE r.game_id = g.id) AS reports, (SELECT MAX(created) FROM games_reports r WHERE r.game_id = g.id) AS last_report
+    FROM games g JOIN users u ON u.id = g.owner_id WHERE g.hidden = 1 OR EXISTS (SELECT 1 FROM games_reports r WHERE r.game_id = g.id)
+    ORDER BY g.hidden ASC, last_report DESC LIMIT 200`).all() as any[];
+  return {
+    games: rows.map((g) => ({
+      id: g.id, slug: g.slug, title: g.title, owner: { id: g.owner_id, name: g.owner_name, email: g.owner_email }, plays: g.plays, url: `/play/${g.slug}`,
+      hidden: Boolean(g.hidden), hiddenReason: g.hidden_reason, hiddenAt: g.hidden_at, hiddenBy: g.hidden_by, reports: g.reports, lastReport: g.last_report,
+      byReason: Object.fromEntries((db.prepare('SELECT reason, COUNT(*) AS n FROM games_reports WHERE game_id = ? GROUP BY reason').all(g.id) as { reason: string; n: number }[]).map((r) => [r.reason, r.n])),
+      recent: (db.prepare('SELECT r.reason, r.note, r.created, u.name AS by FROM games_reports r LEFT JOIN users u ON u.id = r.reporter_id WHERE r.game_id = ? ORDER BY r.created DESC LIMIT 10').all(g.id) as any[]).map((r) => ({ reason: r.reason, note: r.note, created: r.created, by: r.by ?? 'a visitor' })),
+    })),
+  };
+}
+
 /** What a player loads: the game as it is right now (every game is live), or a save when asked. Anyone with the link. */
 export function playBundle(slug: string, version?: number | null, count = true) {
   const g = gameBySlug(slug);
   if (!g) throw new PortalError('No such game', { status: 404 });
+  if (g.hidden) throw new PortalError(CLOSED, { status: 410 });
   const owner = getUser(g.owner_id);
   if (count) db.prepare('UPDATE games SET plays = plays + 1 WHERE id = ?').run(g.id);
   if (!version) {
@@ -614,7 +682,7 @@ export function resolvePlayAsset(parts: { token?: string; slug?: string; version
     return { asset: t.a, project: t.p, immutable: false };
   }
   const g = gameBySlug(String(parts.slug));
-  if (!g) throw new PortalError('No such game', { status: 404 });
+  if (!g || g.hidden) throw new PortalError('No such game', { status: 404 });
   if (parts.version === 'live') {
     const a = db.prepare('SELECT asset, project FROM game_assets WHERE game_id = ? AND name = ?').get(g.id, String(parts.name)) as { asset: string; project: string } | undefined;
     if (!a) throw new PortalError('No such asset', { status: 404 });
@@ -629,7 +697,7 @@ export function resolvePlayAsset(parts: { token?: string; slug?: string; version
 /** The public games, all live: most people in them right now first (then most played), or newest, or most played. */
 export function gallery(sort: 'live' | 'popular' | 'new' = 'live', limit = 60) {
   const overseer = featured().map((t: any) => ({ ...t, ...liveCounts(`t:${t.id}`) }));
-  const rows = db.prepare(`SELECT g.*, u.name AS owner_name FROM games g JOIN users u ON u.id = g.owner_id WHERE g.visibility = 'public' ORDER BY ${sort === 'new' ? 'g.updated' : 'g.plays'} DESC LIMIT 500`).all() as (Game & { owner_name: string })[];
+  const rows = db.prepare(`SELECT g.*, u.name AS owner_name FROM games g JOIN users u ON u.id = g.owner_id WHERE g.visibility = 'public' AND g.hidden = 0 ORDER BY ${sort === 'new' ? 'g.updated' : 'g.plays'} DESC LIMIT 500`).all() as (Game & { owner_name: string })[];
   const list = rows.map((g) => {
     const hasCover = g.cover && db.prepare('SELECT 1 FROM game_assets WHERE game_id = ? AND name = ?').get(g.id, g.cover);
     return { slug: g.slug, title: g.title, description: g.description, by: g.owner_name, plays: g.plays, updated: g.updated, url: `/play/${g.slug}`, visitors: g.visitors ?? 'play', cover: hasCover ? liveAssetUrl(g, g.cover!) : null, ...liveCounts(g.id) };

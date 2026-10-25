@@ -11,7 +11,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
 test('the playtest files are valid modules', () => {
-  for (const f of ['portal.js', 'site-layout.js', 'avatar-animations.js', 'hawkes-playtest.js', 'hawkes-perf.js']) {
+  for (const f of ['portal.js', 'site-layout.js', 'avatar-animations.js', 'world-report.js', 'hawkes-playtest.js', 'hawkes-perf.js']) {
     const r = spawnSync(process.execPath, ['--check', path.join(ROOT, 'public', 'playtest', f)], { encoding: 'utf8' });
     assert.equal(r.status, 0, `${f}: ${r.stderr}`);
   }

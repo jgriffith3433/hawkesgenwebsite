@@ -67,7 +67,7 @@ export function upgrade(req: IncomingMessage, raw: Duplex) {
       key = `play:t/${t[1]}:${code}`; gameId = `t:${t[1]}`;
     } else {
       const g = gameBySlug(slug);
-      if (!g) return deny('No such game');
+      if (!g || g.hidden) return deny('No such game');
       key = `play:${g.slug}:${code}`; gameId = g.id;
     }
     name = String(url.searchParams.get('name') ?? '').replace(/[^\p{L}\p{N} _.-]/gu, '').trim().slice(0, 24) || '';
@@ -109,6 +109,11 @@ export function roomEvent(gameId: string, name: string, data: unknown) {
 export function kickFromRooms(gameId: string, userId: string) {
   const room = rooms.get(`edit:${gameId}`);
   if (room) for (const c of room.conns.values()) if (c.user === userId) (c as Conn).s.close(4003, 'removed');
+}
+
+/** An admin closed a game: everyone playing it together is let go. */
+export function closePlayRooms(slug: string) {
+  for (const [key, room] of rooms) if (key.startsWith(`play:${slug}:`)) for (const c of room.conns.values()) (c as Conn).s.close(4003, 'closed');
 }
 
 export const roomStats = () => ({ rooms: rooms.size, people: [...rooms.values()].reduce((n, r) => n + r.conns.size, 0) });

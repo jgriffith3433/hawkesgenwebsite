@@ -65,6 +65,16 @@ function limitLogins(ip: string) {
   attempts.set(ip, recent);
 }
 
+const reportsMade = new Map<string, number[]>();
+/** Reports an address may send an hour (games.reportGame). */
+function limitReports(ip: string) {
+  const now = Date.now();
+  const recent = (reportsMade.get(ip) ?? []).filter((t) => now - t < 3600_000);
+  if (recent.length >= 10) throw new PortalError('You have sent a lot of reports; try again in a while', { status: 429 });
+  recent.push(now);
+  reportsMade.set(ip, recent);
+}
+
 const inviteMade = new Map<string, number[]>();
 /** Links an address may make an hour (a link is only a signed token, but a room code per call is not worth abusing). */
 function limitInvites(ip: string) {
@@ -305,7 +315,12 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       // down from the Observatory keeps their look and name (this site's storage) and the way back is a plain page load.
       const featuredId = /^\/play\/t\/([a-z0-9-]+)$/.exec(route)?.[1];
       if (featuredId && featured().some((f: any) => f.id === featuredId)) return servePlayPage(res, req, { guest: true });
-      if (/^\/play\/(_draft|t\/[a-z0-9-]+|[a-z0-9-]+(\/v\/\d+)?)$/.test(route) && route !== '/play/runtime.js') return servePlayPage(res, req);
+      if (/^\/play\/(_draft|t\/[a-z0-9-]+|[a-z0-9-]+(\/v\/\d+)?)$/.test(route) && route !== '/play/runtime.js') {
+        // A world an admin closed: a plain page, with no scripts and no bundle (public/closed.html).
+        const closed = /^\/play\/([a-z0-9-]+)(?:\/v\/\d+)?$/.exec(route)?.[1];
+        if (closed && closed !== '_draft' && games.isClosed(closed)) return void res.writeHead(410, { 'Content-Type': TYPES['.html'], 'Cache-Control': 'no-store', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'", 'X-Content-Type-Options': 'nosniff' }).end(method === 'HEAD' ? undefined : fs.readFileSync(path.join(PUBLIC, 'closed.html')));
+        return servePlayPage(res, req);
+      }
       let pa = /^\/play-asset\/d\/([\w-]+\.[\w-]+)\/[^/]+$/.exec(route);
       // ?lod=<level>&v=<hash>: a level of detail of an image or model (Gen's LOD system: lods.ts).
       const lod = { lod: Number(url.searchParams.get('lod')) || undefined, v: url.searchParams.get('v') };
@@ -386,11 +401,22 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (ph && method === 'POST') {
       const t = /^t\/(.+)$/.exec(ph[1]);
       const g = t ? null : games.gameBySlug(ph[1]);
-      if (!t && !g) return send(res, 404, { error: 'No such game' });
+      if (!t && (!g || g.hidden)) return send(res, 404, { error: 'No such game' });
       const gid = t ? `t:${t[1]}` : g!.id;
       markHere(gid, (await readJson(req)).s);
       res.setHeader('Access-Control-Allow-Origin', '*');
       return send(res, 200, liveCounts(gid));
+    }
+    // Report a world (games.reportGame): from its pause menu or the gallery, signed in or not. text/plain keeps it a simple
+    // request, so the sandboxed play page needs no preflight; open CORS because that page has no origin.
+    const rp = /^\/v1\/play\/([a-z0-9-]+)\/report$/.exec(route);
+    if (rp && (method === 'POST' || method === 'OPTIONS')) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      if (method === 'OPTIONS') return void res.writeHead(204, { 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Max-Age': '86400' }).end();
+      limitReports(clientIp(req));
+      let b: any = {};
+      try { b = JSON.parse((await readBody(req, 4096)).toString('utf8') || '{}'); } catch { throw new PortalError('That report could not be read'); }
+      return send(res, 200, games.reportGame(rp[1], b, users.authenticate(req)?.id ?? null, clientIp(req)));
     }
     let pb = /^\/v1\/play\/([a-z0-9-]+)$/.exec(route);
     if (pb && method === 'GET') {
@@ -583,6 +609,9 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       if (route === '/v1/admin/overview' && method === 'GET') return send(res, 200, admin.overview());
       if (route === '/v1/admin/community/sync' && method === 'POST') return send(res, 200, await community.syncStarter());
       if (route === '/v1/admin/users' && method === 'GET') return send(res, 200, admin.listUsers({ search: url.searchParams.get('q'), limit: Number(url.searchParams.get('limit')), offset: Number(url.searchParams.get('offset')) }));
+      if (route === '/v1/admin/reports' && method === 'GET') return send(res, 200, games.reportedGames());
+      const hg = /^\/v1\/admin\/games\/(g_[\w-]+)\/(hide|unhide)$/.exec(route);
+      if (hg && method === 'POST') return send(res, 200, { game: games.summary(games.setHidden(user.email, hg[1], hg[2] === 'hide', (await readJson(req)).reason)) });
       if (route === '/v1/admin/jobs' && method === 'GET') return send(res, 200, { jobs: admin.recentJobs(Number(url.searchParams.get('limit')) || 100) });
       if (route === '/v1/admin/purchases' && method === 'GET') return send(res, 200, { purchases: admin.purchases(Number(url.searchParams.get('limit')) || 100) });
       if (m && !m[2] && method === 'GET') return send(res, 200, admin.userDetail(m[1]));
