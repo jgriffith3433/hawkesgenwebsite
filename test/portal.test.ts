@@ -313,9 +313,24 @@ test('welcome email: SigV4 matches the AWS test suite; the email names the credi
   assert.equal(again.authorization, h.authorization);
   const m = welcomeEmail('Ada <script>', 50);
   assert.match(m.text, /50 free credits/);
-  assert.match(m.text, /\/connect/);
   assert.ok(!m.html.includes('<script>'), 'names are escaped');
   const { giftEmail } = await import('../src/mail.ts');
+  // The welcome, rendered (mail is off on beta): the character's name, a link back to the island, the plain-text twin,
+  // the support address and the legal footer.
+  const w = welcomeEmail('Toaster', 50);
+  assert.match(w.subject, /Toaster/);
+  for (const part of [w.text, w.html]) {
+    assert.match(part, /Toaster/);
+    assert.match(part, /\/app/);
+    assert.match(part, /support@hawkesgen\.com/);
+    assert.match(part, /You're getting this because you made an account at hawkesgen\.com/);
+    assert.match(part, /50 free credits/);
+  }
+  assert.ok(!/<[a-z]/i.test(w.text), 'the plain-text version has no markup');
+  assert.match(w.html, /<a href="[^"]+\/app"/);
+  const anon = welcomeEmail(null, 50);
+  assert.match(anon.text, /\/play\/sandbox/);
+  assert.ok(!/null|undefined/.test(anon.text + anon.html));
   const g = giftEmail('Ada', 500, 550, 'Thanks <b>a lot</b>');
   assert.match(g.subject, /500 Hawkes Gen credits/);
   assert.match(g.text, /550 credits/);
