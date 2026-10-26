@@ -170,6 +170,10 @@
     const st = document.createElement('style');
     st.textContent = `
 .gs-ui{position:fixed;z-index:30;font-family:var(--hud);color:#e8ecf6}
+.gs-aside{inset:0;z-index:90;display:grid;place-items:center;background:rgba(4,6,12,.72);pointer-events:auto}
+.gs-aside .gs-glass{padding:22px 26px;max-width:min(420px,calc(100vw - 32px));text-align:center}
+.gs-aside b{font-size:20px}.gs-aside p{margin:8px 0 16px;color:#b9c2d6;font:14px/1.5 var(--hud)}
+.gs-aside button{font:700 15px var(--hud);color:#0b1020;background:#7cc4ff;border:0;border-radius:10px;padding:11px 18px;cursor:pointer;min-height:44px}
 .gs-glass{background:rgba(10,14,24,.78);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
 .gs-acts{right:12px;top:12px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100vw - 24px);pointer-events:auto}
 .gs-acts button{font:700 14px var(--hud);letter-spacing:.03em;color:#e8ecf6;background:rgba(10,14,24,.78);border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:10px;padding:9px 13px;cursor:pointer;min-height:44px}
@@ -837,6 +841,7 @@
   async function goLive(user, fresh) {
     const H = session.H;
     const id = island.id;
+    takeSeat(user && user.id);
     window.HawkesGuest.accountFirst = false; // (Pip's tour, here)
     try {
       const b = await api('GET', `/v1/games/${id}/bundle`);
@@ -1034,7 +1039,7 @@
   let saving = false, saveTimer = null, rebaseT = null;
   const savedRevs = new Set(); // scene.json revisions our saves made (their feed events are ours, nothing to do)
   async function saveNow(keepalive) {
-    if (!island || saving || !session.H || !session.H.world) return;
+    if (!island || saving || !session.H || !session.H.world || (seat && seat.aside)) return;
     saving = true;
     try {
       const now = Core.snapshot(session.H, { edits: session.edits });
@@ -1065,6 +1070,31 @@
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveNow(true); });
   }
   function toEditor() { return saveNow(false).then(() => { location.href = `/app/g/${island.id}`; }); }
+
+  // One account, one island tab: a second tab of the same account takes the island over (its goLive says so on a
+  // BroadcastChannel). This one steps aside: it leaves the room (two of you in it fought over one player) and stops
+  // saving (two tabs saving one island undid each other), and offers to play here again.
+  let seat = null;
+  function takeSeat(userId) {
+    if (seat || !userId) return;
+    let ch;
+    try { ch = new BroadcastChannel('hg-island-seat'); } catch { return; }
+    seat = { tab: Math.random().toString(36).slice(2), aside: false };
+    ch.onmessage = (e) => { const m = e.data || {}; if (m.t === 'take' && m.user === userId && m.tab !== seat.tab && !seat.aside) stepAside(); };
+    ch.postMessage({ t: 'take', user: userId, tab: seat.tab });
+  }
+  function stepAside() {
+    seat.aside = true;
+    if (saveTimer) { clearInterval(saveTimer); saveTimer = null; }
+    try { if (window.HawkesNet && window.HawkesNet.disconnect) window.HawkesNet.disconnect(); } catch (x) { console.warn('sandbox: leaving the room', x); }
+    try { if (document.pointerLockElement) document.exitPointerLock(); } catch { /* fine */ }
+    track('sandbox_tab_aside', {});
+    const el = document.createElement('div');
+    el.className = 'gs-ui gs-aside';
+    el.innerHTML = '<div class="gs-glass"><b>You&#39;re playing in another tab</b><p>Your island opened in another tab, so this one stepped aside.</p><button type="button">Play here</button></div>';
+    el.querySelector('button').addEventListener('click', () => location.reload());
+    document.body.appendChild(el);
+  }
   /** Signed in: Save shows it's kept (and saves now), Build and Invite open the editor, Ask opens the chat. */
   function signedInButtons() {
     const acts = session.acts;
