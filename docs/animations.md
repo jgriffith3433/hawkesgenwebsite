@@ -305,6 +305,15 @@ own GLB clips.
 - **Cost:** a bone is three quaternion products; ten walking characters are about 0.3 ms of animation a frame in Node, out of
   view nothing is sampled, and the data adds no draw calls or triangles (`test/engine/anim.test.ts`).
 
+### Never in the rest pose (the orb)
+
+A model is built the moment its GLB is in, but its class's file (`anim/<class>.json`) is a separate fetch. A body is never drawn between
+the two (a T-pose, or sliding in one): while the GLB loads, and after it until the clips are there, the model stays hidden (`pm.gated`)
+and a small glowing orb (`rig.orb`, two spheres a child of the rig's root, so it follows the body) stands where it will be. The body shows
+on the first frame `animate` drives it from the clips, and the orb fades out over 0.3 s. A failed file, or 5 s (`LOAD_GRACE`), opens the
+gate: the model's own clips and the procedural motion move it as before. Movement and the camera are the entity's and never wait.
+Test `test/engine/anim.test.ts` ("never drawn in its rest pose").
+
 ### Seeing a clip
 
 `/avatars?body=<id>&pose=<clip>&t=<seconds>` draws any clip of the model's class at that moment from the data (a loop

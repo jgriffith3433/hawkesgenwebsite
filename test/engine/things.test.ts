@@ -26,7 +26,7 @@ test('every thing has a face (eyes and a mouth in one mesh), a rim-lit toy mater
     const { rig, node } = make(id);
     assert.ok(rig.thing && rig.thing.F && rig.thing.F.mesh, `${id}: a face`);
     assert.ok(rig.thing.F.mesh.getTotalVertices() > 40, `${id}: the face has points`);
-    const ms = rig.root.getChildMeshes(false).filter((m: any) => m.getTotalIndices() > 0 && m.isEnabled(false) !== undefined);
+    const ms = rig.root.getChildMeshes(false).filter((m: any) => m.getTotalIndices() > 0 && m.isEnabled(false) !== undefined && !/^pm-orb/.test(m.name)); // (the orb that stands in while a model loads is not the body)
     const tris = ms.reduce((n: number, m: any) => n + m.getTotalIndices() / 3, 0);
     assert.ok(tris <= 3600, `${id}: ${tris} triangles`);
     assert.ok(ms.length <= 14, `${id}: ${ms.length} draw calls`);
