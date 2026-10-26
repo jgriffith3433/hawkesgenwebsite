@@ -184,6 +184,8 @@
   // A phone or tablet, not a laptop with a touchscreen (or a desktop window made small): the device says it's mobile
   // (Chromium), or its only pointer is a finger. ?touch=1 / ?touch=0 overrides, for testing.
   const touchUi = (() => {
+    // (a web page that shows the engine in a window, like /entities and /avatars, has no game HUD: <html data-no-touch-ui>)
+    if (document.documentElement.hasAttribute?.('data-no-touch-ui')) return false;
     const force = new URLSearchParams(location.search).get('touch');
     if (force === '1' || force === '0') return force === '1';
     const coarseOnly = matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches;
