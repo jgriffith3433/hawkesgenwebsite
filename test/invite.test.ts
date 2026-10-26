@@ -11,6 +11,7 @@ import path from 'node:path';
 process.env.PORTAL_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'portal-invite-'));
 process.env.HAWKESGEN_URL = 'http://127.0.0.1:9';
 process.env.HAWKESGEN_KEY = 'hg_test';
+process.env.PORTAL_NET = 'local'; // (rooms here, offline: never ask the real Hawkes Net)
 process.env.SIGNUPS_PER_HOUR = '100';
 process.env.PORTAL_DEV_OPEN_PLAY = '0';
 process.env.PORTAL_WS_PER_IP = '100'; // (the test fills a room from one address)
@@ -89,7 +90,9 @@ test('what an invitation is worth: open while the room is there, otherwise close
   const ok: any = invites.inviteStatus(inv.token, state(true));
   assert.equal(ok.state, 'open');
   assert.deepEqual([ok.room, ok.name, ok.ref], [inv.room, 'Mo', 'abc123']);
-  const closed: any = invites.inviteStatus(inv.token, state(false, 0));
+  assert.equal((invites.inviteStatus(inv.token, state(false, 0)) as any).state, 'open', 'a link just made: the inviter is still connecting');
+  const aged = invites.createInvite('https://x', { name: 'Mo' }, invites.INVITE_TTL - 60);
+  const closed: any = invites.inviteStatus(aged.token, state(false, 0));
   assert.equal(closed.state, 'closed');
   assert.match(closed.message, /Mo has left their island/);
   assert.match(closed.message, /start an island of your own/);
@@ -133,8 +136,11 @@ test('the routes: a guest makes a link, a closed island says so, a signed-in inv
   assert.equal(g.body.ref, null);
   const token = new URL(g.body.link).searchParams.get('invite')!;
   assert.equal(new URL(g.body.link).pathname, '/play/sandbox');
-  // Nobody is in the room yet: closed, with words and no way to join.
-  const closed = await call(`/v1/island-invite/${token}`);
+  // Just made: the inviter is still connecting, so an empty room reads open.
+  assert.equal((await call(`/v1/island-invite/${token}`)).body.state, 'open');
+  // Nobody is in the room (a link made a while ago): closed, with words and no way to join.
+  const old = invites.createInvite('https://x', { name: 'Guest Mo' }, invites.INVITE_TTL - 60);
+  const closed = await call(`/v1/island-invite/${old.token}`);
   assert.equal(closed.status, 200);
   assert.equal(closed.body.state, 'closed');
   assert.match(closed.body.message, /Guest Mo/);
@@ -189,13 +195,14 @@ test('over the wire: the friend joins the open island beside its inviter; a clos
   // Everyone gone: closed again.
   for (const s of [inviter.sock, friend.sock, ...filled]) s.destroy();
   await until(() => !rooms.roomState(invites.islandKey(room)).open);
-  assert.equal(((await call(`/v1/island-invite/${token}`)).body as any).state, 'closed');
+  const agedToken = sign({ k: 'island', r: room, n: 'Mo', f: null }, invites.INVITE_TTL - 60);
+  assert.equal(((await call(`/v1/island-invite/${agedToken}`)).body as any).state, 'closed');
 });
 
 test('access: a visitor with no cookie, no key and no Referer reads an invitation and gets the page and files it needs', async () => {
   const made = await call('/v1/island-invite', { body: { name: 'Mo' } });
   assert.equal(made.status, 200);
-  const token = new URL(made.body.link).searchParams.get('invite')!;
+  const token = sign({ k: 'island', r: made.body.room, n: 'Mo', f: null }, invites.INVITE_TTL - 60);
   // The friend's fetch from a second browser: nothing but the address.
   const read = await call(`/v1/island-invite/${token}`);
   assert.equal(read.status, 200, 'never a 401: the invitation is open to the signed out');
