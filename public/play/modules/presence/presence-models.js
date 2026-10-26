@@ -240,12 +240,69 @@
     const idle = roleGroup(near, 'idle');
     if (idle) { idle.start(true); near.playing.add(idle); near.w.set(idle, 1); }
     if (pm.urls.low) pm.lowWanted = true;
+    gate(rig, pm);
+    if (!pm.gated) dropOrb(rig);
   }
   function disposeLevel(lvl) {
     for (const g of lvl.groups) { try { g.stop(); g.dispose(); } catch {} }
     for (const s of lvl.skeletons) { try { s.dispose(); } catch {} }
     for (const r of lvl.roots) { try { r.dispose(false, false); } catch {} }
   }
+  // ------------------------------------------------------------------ the orb: shown where a body will be until it is whole
+  // A model that is still loading (its file, then its class's clips as data) is never shown in the rest pose it loads in (a T-pose, or sliding
+  // in one): a small glowing orb stands in at the body's middle, follows it (it is a child of the rig's root) and fades out as the body appears.
+  const ORB_FADE = 0.3;
+  function showOrb(rig) {
+    if (rig.orb || !rig.root || !B.MeshBuilder || !B.MeshBuilder.CreateSphere || !B.StandardMaterial || !rig.scene.onBeforeRenderObservable) return;
+    try {
+      const scene = rig.scene;
+      const mat = (n, c, a) => { const m = new B.StandardMaterial(`pm-orb-${n}`, scene); m.disableLighting = true; m.emissiveColor = B.Color3.FromHexString(c); m.alpha = a; m.backFaceCulling = false; return m; };
+      const core = B.MeshBuilder.CreateSphere('pm-orb', { diameter: 0.26, segments: 8 }, scene), halo = B.MeshBuilder.CreateSphere('pm-orb-halo', { diameter: 0.5, segments: 8 }, scene);
+      core.material = mat('core', '#e8f6ff', 1); halo.material = mat('halo', '#7cc4ff', 0.28);
+      for (const m of [core, halo]) { m.parent = rig.root; m.isPickable = false; m.metadata = { decor: true, entity: rig.e }; }
+      const orb = rig.orb = { core, halo, t: 0, fade: -1, last: performance.now() };
+      orb.obs = scene.onBeforeRenderObservable.add(() => {
+        const now = performance.now(), dt = Math.min(0.1, (now - orb.last) / 1000);
+        orb.last = now; orb.t += dt;
+        let k = 1;
+        if (orb.fade >= 0) { orb.fade += dt; k = 1 - orb.fade / ORB_FADE; if (k <= 0) { killOrb(rig); return; } }
+        const pulse = 1 + Math.sin(orb.t * 5) * 0.12;
+        core.position.y = halo.position.y = Math.sin(orb.t * 2.4) * 0.05;
+        core.scaling.setAll(pulse * k); halo.scaling.setAll((1.15 - (pulse - 1)) * k);
+        core.material.alpha = k; halo.material.alpha = 0.28 * k;
+      });
+    } catch { rig.orb = null; }
+  }
+  function killOrb(rig) {
+    const o = rig.orb;
+    if (!o) return;
+    rig.orb = null;
+    try { if (o.obs) rig.scene.onBeforeRenderObservable.remove(o.obs); } catch {}
+    for (const m of [o.core, o.halo]) try { if (m.material) m.material.dispose(); m.dispose(); } catch {}
+  }
+  /** The orb goes (it fades) because the body is here, or because it never will be (a failed file). */
+  function dropOrb(rig, now) { if (!rig.orb) return; if (now) killOrb(rig); else if (rig.orb.fade < 0) rig.orb.fade = 0; }
+  /**
+   * A built model waits, hidden, for its class's clips (presence-anim.js) so its first frame is already a pose from them. Opens when they
+   * are there, when they failed (the model's own clips and the procedural gait move it as before) or after LOAD_GRACE; animate() shows it.
+   */
+  function gate(rig, pm) {
+    const A = pm.anim;
+    if (!A || !P.anim || !P.anim.load || (P.anim.setOf && P.anim.setOf(A.cls))) return;
+    pm.mover.setEnabled(false);
+    pm.gated = true;
+    showOrb(rig);
+    const open = () => { clearTimeout(pm.gateT); if (pm.gated) pm.gated = 'open'; };
+    pm.gateT = setTimeout(open, LOAD_GRACE);
+    pm.gateP = Promise.resolve(P.anim.load(A.cls)).then(open, open);
+  }
+  function ungate(rig, pm) {
+    if (pm.gated !== 'open') return;
+    pm.gated = false;
+    if (pm.mover && !pm.mover.isDisposed()) pm.mover.setEnabled(true);
+    dropOrb(rig);
+  }
+
   /** Gives the rig the model of its type if it has one: now when it is already loaded, else as soon as it has. */
   function attach(rig) {
     if (rig.noModel || !rig.root) return;
@@ -253,6 +310,7 @@
     if (!ent) return;
     const pm = (rig.pm = { on: false, ent, urls: levels(ent), state: 'loading' });
     const c = fetchContainer(rig.scene, pm.urls.near);
+    if (!c.value && !c.failed) showOrb(rig);
     const go = (v) => {
       if (rig.pm !== pm || !rig.root || rig.root.isDisposed()) return;
       try { build(rig, pm, v); } catch (err) { pm.state = 'failed'; pm.error = String(err && err.message || err); if (pm.release) pm.release(); if (H.report) H.report(err, 'presence'); }
@@ -271,13 +329,14 @@
       const kids = pm.held; pm.held = null;
       if (!kids || pm.on || rig.pm !== pm || !rig.root || rig.root.isDisposed()) return;
       for (const k of kids) if (!k.isDisposed()) k.setEnabled(true);
+      dropOrb(rig);
     };
     pm.release = release;
     if (c.value) go(c.value);
     else if (!c.failed) {
       hold();
-      c.promise.then((v) => { clearTimeout(pm.graceT); pm.held = null; go(v); }, () => { if (rig.pm === pm) { pm.state = 'failed'; release(); } });
-      pm.wait = c.promise.then(() => {}, () => {});
+      c.promise.then((v) => { clearTimeout(pm.graceT); pm.held = null; go(v); }, () => { if (rig.pm === pm) { pm.state = 'failed'; release(); dropOrb(rig); } });
+      pm.wait = c.promise.then(() => pm.gateP, () => {}); // (settled once the clips the body waits for are there too)
     } else pm.state = 'failed';
   }
   /** Starts fetching the models of some types so they are there when a player picks one (the mirror calls it as a card is pointed at). */
@@ -289,10 +348,11 @@
     }
   }
   function dispose(rig) {
+    killOrb(rig);
     const pm = rig.pm;
     if (!pm) return;
     rig.pm = null;
-    clearTimeout(pm.graceT);
+    clearTimeout(pm.graceT); clearTimeout(pm.gateT);
     for (const lvl of Object.values(pm.levels || {})) if (lvl) disposeLevel(lvl);
     for (const n of pm.nodes || []) try { n.dispose(); } catch {}
     pm.on = false;
@@ -392,6 +452,7 @@
   function animate(rig, dt, em) {
     const pm = rig.pm;
     if (!pm || !pm.on) return;
+    if (pm.gated) { ungate(rig, pm); if (pm.gated) return; }
     dt = clamp(dt, 0, 0.05);
     wantLevel(rig, pm);
     const lvl = pm.cur, ent = pm.ent, e = rig.e, t = rig.time || 0;
