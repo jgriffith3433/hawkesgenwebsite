@@ -278,7 +278,7 @@ html body.tl .tl-in{position:static!important;inset:auto!important;transform:non
 html body.tl .tl-in[hidden],html body.tl .tl-zone [hidden]{display:none!important}
 
 /* the main buttons and the stick: positioned from the computed rects (so a notch and the build hotbar move them) */
-html body.tl #touch .pad{position:fixed!important;left:var(--tl-stick-x)!important;top:var(--tl-stick-y)!important;right:auto!important;bottom:auto!important;width:var(--tl-stick)!important;height:var(--tl-stick)!important;z-index:27}
+html body.tl #touch .pad{position:fixed!important;left:var(--tl-stick-x)!important;top:var(--tl-stick-y)!important;right:auto!important;bottom:auto!important;width:var(--tl-stick)!important;height:var(--tl-stick)!important;z-index:27;pointer-events:auto}
 html body.tl #touch .a{position:fixed!important;left:var(--tl-jump-x)!important;top:var(--tl-jump-y)!important;right:auto!important;bottom:auto!important;width:var(--tl-btn)!important;height:var(--tl-btn)!important;z-index:27}
 html body.tl #touch .b{position:fixed!important;left:var(--tl-action-x)!important;top:var(--tl-action-y)!important;right:auto!important;bottom:auto!important;width:var(--tl-btn)!important;height:var(--tl-btn)!important;z-index:27}
 html body.tl #touch,html body.tl .mh-touch,html body.tl #veh-touch{display:contents}
