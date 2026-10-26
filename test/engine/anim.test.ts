@@ -881,7 +881,9 @@ test('the Mixamo models (Gen mesh.rig, mixamorig: bones) bind to the Mixamo set,
     const walk = set.clips.walk, feet = (u: number) => { A.apply(b, A.sampleClip(walk, u)); return { lf: at(b, 'LeftFoot'), rf: at(b, 'RightFoot'), hips: at(b, 'Hips') }; };
     const a = feet(0), c = feet(0.5);
     const reach = Math.abs(a.lf.z - a.rf.z);
-    assert.ok(reach > 0.2, `${id}: the feet are a stride apart at the start (${reach.toFixed(2)})`);
+    // A stride is measured against the legs: a quarter of the hips' height over the feet (0.2 on a person's; a penguin's are stubs).
+    const leg = rest.hips.y - rest.foot.y;
+    assert.ok(reach > 0.25 * leg, `${id}: the feet are a stride apart at the start (${reach.toFixed(2)}, legs ${leg.toFixed(2)})`);
     assert.ok((a.lf.z - a.rf.z) * (c.lf.z - c.rf.z) < 0, `${id}: half a stride on the other foot is ahead`);
   }
 });

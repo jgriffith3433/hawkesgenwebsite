@@ -113,7 +113,7 @@ clip('sleep', { loop: true, seconds: 4, keys: 16 }, (u, z) => {
   z.add('Head', [10, 0, 6]); z.add('Neck', [6, 0, 0]);
   z.both('UpLeg', [-78, 0, 0]); z.both('Leg', [112, 0, 0]); z.both('Foot', [10, 0, 0]);
   z.L('Arm', [-40, 0, -58]); z.L('ForeArm', [0, -100, 0]); z.R('Arm', [0, -90, 8]); z.R('ForeArm', [0, -24, 0]); // the arm under it stretched forward along the floor, under the head
-  return { pos: [0, -0.19 + 0.003 * breath, 0], sy: 1 + 0.012 * breath };
+  return { pos: [0, -0.13 + 0.003 * breath, 0], sy: 1 + 0.012 * breath }; // (the hips as high as the lying body needs: the remade person's shoulder under it reached 8% into the floor at -0.19)
 });
 
 // ---- emotes ---------------------------------------------------------------------------------------------------------------------
@@ -205,7 +205,7 @@ clip('get_up', { loop: false, seconds: 1.1, keys: 30 }, (u, z) => {
   z.add('Spine', [14 * (1 - lie) * (1 - stand) + 24 * tuck * (1 - stand), 0, 0]); z.add('Head', [-4 * lie, 0, 0]);
   const reach = rise(u, 0.08, 0.38) * (1 - stand) * (1 - tuck * 0.6);
   z.hang({ Arm: [-40 * reach, 0, 30 * reach] }, { Arm: [-40 * reach, 0, 30 * reach] });
-  const y = lerp(-0.38, plantY(a, b), rise(u, 0.1, 0.4));
+  const y = lerp(-0.34, plantY(a, b), rise(u, 0.1, 0.4)); // (-0.38 put the remade person's hands 6% into the floor)
   return { pos: [0, y, -0.08 * (tuck - stand) * (1 - stand) - 0.04 * lie] };
 });
 
