@@ -485,7 +485,8 @@ async function stageToEditor(t, ctx) {
 /** In the editor. The game frame is sandboxed, so a game script is stood in for by messages delivered to the editor's
  *  own listener as from the frame (named setup shortcut); everything after is what the editor does. */
 async function stageEditor(t) {
-  const frame = await t.until(() => document.getElementById('stage'), 30000, 'the game frame');
+  await t.until(() => document.getElementById('stage'), 30000, 'the game frame'); // (until() resolves with no value)
+  const frame = document.getElementById('stage');
   await t.until(() => document.getElementById('chatInput') && document.getElementById('genCard'), 30000, 'the editor');
   await t.wait(4000); // (the world is loaded)
   t.scene('The editor');
