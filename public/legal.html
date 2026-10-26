@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="/public.css">
   <link rel="stylesheet" href="/site.css">
   <style>
-    .legal { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 48px; padding: 56px 0 96px; }
+    .legal { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 48px; padding: 56px 24px 96px; }
     .legal nav { position: sticky; top: 84px; align-self: start; display: grid; gap: 10px; }
     .legal nav a { text-decoration: none; color: var(--ink-2); font-size: 14px; }
     .legal nav a:hover { color: var(--ink); }
@@ -19,11 +19,11 @@
     .legal h1 { font: 400 52px/1 var(--serif); letter-spacing: -0.02em; }
     .legal h2 { font: 400 34px/1.1 var(--serif); margin: 64px 0 6px; padding-top: 24px; border-top: 1px solid var(--ink); }
     .legal h3 { font: 600 15px/1.4 var(--sans); margin: 28px 0 6px; }
-    .legal p, .legal li { color: var(--ink-2); }
+    .legal p, .legal li { color: var(--ink); }
     .legal ul { padding-left: 1.2em; }
     .legal li { margin: 4px 0; }
     .legal .updated { margin: 14px 0 0; font: 12px var(--mono); color: var(--ink-3); }
-    @media (max-width: 800px) { .legal { grid-template-columns: 1fr; gap: 24px; } .legal nav { position: static; grid-auto-flow: column; justify-content: start; gap: 18px; } }
+    @media (max-width: 800px) { .legal { grid-template-columns: 1fr; gap: 24px; } .legal nav { position: static; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 18px; } .legal h1 { font-size: 40px; } .legal h2 { font-size: 28px; } }
   </style>
   <script src="/sitenav.js" defer></script>
 </head>
