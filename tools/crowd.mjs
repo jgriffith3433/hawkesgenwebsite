@@ -170,11 +170,12 @@ async function rolling() {
   const a = streams[0].a, saved = [];
   const t0 = performance.now();
   let go = true, failures = 0, n = 0;
+  const why = [];
   const saver = (async () => {
     while (go) {
       const content = `// roll ${n++}`;
-      const r = await fetch(new URL(`/v1/games/${a.game}/files`, base), { method: 'PUT', headers: { 'Content-Type': 'application/json', Cookie: a.cookie, ...authHeaders() }, body: JSON.stringify({ path: 'roll.js', content }) }).catch(() => ({ status: 0 }));
-      if (r.status === 200) saved.push(content); else failures++;
+      const r = await fetch(new URL(`/v1/games/${a.game}/files`, base), { method: 'PUT', headers: { 'Content-Type': 'application/json', Cookie: a.cookie, ...authHeaders() }, body: JSON.stringify({ path: 'roll.js', content }) }).catch((e) => ({ status: 0, why: e.cause?.code ?? e.message }));
+      if (r.status === 200) saved.push(content); else { failures++; why.push(r.status || r.why); }
       await sleep(150);
     }
   })();
@@ -189,7 +190,7 @@ async function rolling() {
   const mine = streams.filter((s) => s.a === a);
   const missed = mine.reduce((m, s) => m + saved.filter((c) => !s.got.includes(c)).length, 0);
   const twice = mine.reduce((m, s) => m + s.got.length - new Set(s.got).size, 0);
-  return { state, ms: Math.round(performance.now() - t0), saves: saved.length, saveFailures: failures, streamsWatched: mine.length, streamsMissedSaves: missed, streamsDuplicateSaves: twice, streamReconnects: streams.reduce((m, s) => m + s.reconnects, 0) };
+  return { state, ms: Math.round(performance.now() - t0), saves: saved.length, saveFailures: failures, saveFailureWhy: why, streamsWatched: mine.length, streamsMissedSaves: missed, streamsDuplicateSaves: twice, streamReconnects: streams.reduce((m, s) => m + s.reconnects, 0) };
 }
 
 // ---------------------------------------------------------------- the ramp

@@ -219,6 +219,17 @@ nothing) and exits; the worker goes last (old one stopped before the new one sta
 `failed`. A change to `src/primary.ts` or the unit needs `systemctl restart` (pull.mjs does that by itself, and installs the
 unit file when the repo's differs).
 
+**Measured (2026-10-25/26, the same 8-core machine, back to back; it was shared with other agents, load average 8, so every
+number is worse than a quiet box gives and they move from run to run).** One process: held 450 at best that day (300 in another
+run; the quiet-machine table above has 600). `--web 4` (four web processes and the worker): **held 1,500, the highest level tried**
+(ping p99 41 ms, pages p99 55 ms, 186% of a core across the four, 1.4 GB), 3.3 times that day's single process and 2.5 times the
+table's 600. A rolling restart under 600 players (`--web 4 --roll --levels 600 --hold 40`): all four processes and the worker
+restarted in 57 s, 274 saves in, **0 failed, 0 page errors, every one of the 5 watching editor streams saw every save once**
+(18 stream reconnects), the 600 players told `1012 restarting` and back in their rooms. Under 1,200 players the same restart
+lost one save request out of 293 (not chased down) and the reconnect storm of 1,200 players pushed ping p99 to 230 ms: restarts
+at that size are a thing to do in a quiet minute. Memory: 1.0 GB at 600 players for five processes (each loads the whole portal:
+about 200 MB idle).
+
 `node tools/crowd.mjs --web 4 --roll --levels ... --hold 15` runs the same test against a cluster, restarts it during the last
 level while saving files, and reports whether any request failed and whether every editor stream saw every save once.
 `test/cluster.test.ts` is the same in small: editors on both processes get a save once; the lock holds across processes; a roll
