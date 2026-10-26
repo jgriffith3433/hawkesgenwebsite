@@ -475,8 +475,9 @@ test('ten animating characters stay inside the phone budget (draws, triangles, t
     A.reset();
     const without = measureCrowd(H, '10 without the set', 10);
     for (const [cls, f] of Object.entries(FILES)) A.setData(cls, f);
-    assert.equal(row.draws, without.draws, `the clips add no draw calls (${row.draws})`);
-    assert.equal(row.triangles, without.triangles, 'and no triangles');
+    // (bodies whose class clips are not there yet stay hidden behind a small orb each: no T-pose is ever drawn)
+    assert.ok(without.draws < row.draws, `bodies waiting for their clips are not drawn (${without.draws} draws against ${row.draws})`);
+    assert.ok([...P._internal.rigs.values()].every((r: any) => r.pm.gated || r.pm.gated === false), 'and they wait on the gate');
     console.log(`ten characters: ${row.draws} draws ${row.triangles} tris ${row.frameMs.toFixed(2)} ms a frame with the set, ${without.frameMs.toFixed(2)} ms without`);
   } finally { C.randomLook = randomLook; }
   // the sampler itself: ten walking characters, one frame each, in a tenth of a frame at 60 fps (Node, loose)
@@ -887,4 +888,30 @@ test('the Mixamo models (Gen mesh.rig, mixamorig: bones) bind to the Mixamo set,
     assert.ok(reach > 0.25 * leg, `${id}: the feet are a stride apart at the start (${reach.toFixed(2)}, legs ${leg.toFixed(2)})`);
     assert.ok((a.lf.z - a.rf.z) * (c.lf.z - c.rf.z) < 0, `${id}: half a stride on the other foot is ahead`);
   }
+});
+
+test('a model whose clips have not loaded is never drawn in its rest pose: an orb stands where it will be, and fades as the body appears already moving', async () => {
+  register({ person: rowFor('mixamorig:') });
+  A.reset();
+  const realFetch = (globalThis as any).fetch;
+  let release: (r: any) => void = () => {};
+  (globalThis as any).fetch = () => new Promise((res) => { release = res; });
+  try {
+    const p = stand('person');
+    for (let i = 0; i < 40 && !(p.rig.pm && p.rig.pm.on); i++) await new Promise((r) => setTimeout(r, 5));
+    assert.ok(p.rig.pm.on && p.rig.pm.gated === true, 'the model is built, and waits for its clips');
+    assert.ok(!p.rig.pm.mover.isEnabled(), 'the body is hidden');
+    assert.ok(p.rig.orb && p.rig.orb.core.parent === p.rig.root, 'an orb stands at the body, a child of the rig (it follows)');
+    P.showcase.animate(p.rig, 1 / 60);
+    assert.ok(!p.rig.pm.mover.isEnabled(), 'still hidden while the clips load');
+    release({ ok: true, json: async () => FILES.mixamo });
+    await M.ready(p.rig);
+    P.showcase.animate(p.rig, 1 / 60);
+    assert.ok(p.rig.pm.mover.isEnabled() && !p.rig.pm.gated, 'the body shows on the frame its clips drive it');
+    assert.ok(A.info(p.rig).state === 'ready' && p.rig.pm.anim.player, 'and a clip is playing');
+    assert.ok(p.rig.orb && p.rig.orb.fade >= 0, 'the orb fades out');
+    for (let i = 0; i < 30; i++) { await new Promise((r) => setTimeout(r, 20)); p.rig.scene.onBeforeRenderObservable.notifyObservers(p.rig.scene); if (!p.rig.orb) break; }
+    assert.ok(!p.rig.orb, 'and is gone');
+    P.showcase.dispose(p.rig); p.node.dispose();
+  } finally { (globalThis as any).fetch = realFetch; for (const [cls, f] of Object.entries(FILES)) A.setData(cls, f); }
 });
