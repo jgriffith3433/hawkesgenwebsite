@@ -1,5 +1,6 @@
-// The box deploys itself: every couple of minutes (hawkesgen-portal-pull.timer), if main moved and GitHub's CI passed on
-// the new commit, fast-forward, restart, check health; a commit that fails its health check is rolled back and skipped.
+// The box deploys itself: every couple of minutes (hawkesgen-portal-pull.timer), if main moved and the new commit's
+// typecheck and tests pass HERE (on a clean copy, at low priority: GitHub runs no tests, J 2026-10-25), fast-forward,
+// restart, check health; a commit that fails its tests or its health check is skipped.
 // Runs as root. No dependencies.
 //   node deploy/pull.mjs            once
 //   node deploy/pull.mjs --dry-run  says what it would do
@@ -17,6 +18,38 @@ const token = () => /^GITHUB_TOKEN=(.+)$/m.exec(fs.readFileSync('/etc/hawkes/git
 const state = (() => { try { return JSON.parse(fs.readFileSync(STATE, 'utf8')); } catch { return {}; } })();
 const save = () => { if (!DRY) fs.writeFileSync(STATE, JSON.stringify(state, null, 2)); };
 
+/**
+ * Typecheck and tests of `sha` on a clean copy (a worktree beside the checkout, its own npm ci), niced so the portal
+ * keeps answering, with no secrets in the environment. Once per commit (state.tested). null: couldn't set it up.
+ */
+function testedHere(sha) {
+  if (state.tested?.sha === sha) return state.tested.ok;
+  const wt = '/srv/hawkes/.portal-test';
+  const asHawkes = (cmd, args, opts = {}) => execFileSync('sudo', ['-u', 'hawkes', '-H', cmd, ...args], { encoding: 'utf8', ...opts });
+  const cleanup = () => { try { git('worktree', 'remove', '--force', wt); } catch { /* not there */ } fs.rmSync(wt, { recursive: true, force: true }); try { git('worktree', 'prune'); } catch { /* fine */ } };
+  const t0 = Date.now();
+  try {
+    cleanup();
+    git('worktree', 'add', '--detach', '--quiet', wt, sha);
+    const env = { PATH: process.env.PATH ?? '/usr/local/bin:/usr/bin:/bin', LANG: 'C.UTF-8', CI: '1', NODE_ENV: 'test' };
+    try {
+      asHawkes('env', ['-i', ...Object.entries(env).map(([k, v]) => `${k}=${v}`), 'HOME=/home/hawkes', 'nice', '-n', '19', 'bash', '-c', 'npm ci --no-audit --no-fund --loglevel=error && npm run typecheck && npm test'], { cwd: wt, stdio: ['ignore', 'pipe', 'pipe'], timeout: 30 * 60_000, maxBuffer: 256 * 1024 * 1024 });
+      state.tested = { sha, ok: true, at: new Date().toISOString(), seconds: Math.round((Date.now() - t0) / 1000) };
+    } catch (e) {
+      const out = `${e.stdout ?? ''}\n${e.stderr ?? ''}`.split('\n').filter((l) => /^(✖|not ok|error TS)/.test(l.trim())).slice(0, 6).join(' | ');
+      state.tested = { sha, ok: false, at: new Date().toISOString(), detail: (out || String(e.message).split('\n')[0]).slice(0, 500) };
+    }
+  } catch (e) {
+    say(`${sha.slice(0, 7)}: couldn't set up the test copy: ${String(e.message).split('\n')[0]}`);
+    return null;
+  } finally {
+    cleanup();
+  }
+  save();
+  return state.tested.ok;
+}
+
+/** GitHub's check runs on the commit: only when HAWKESGEN_PULL_GITHUB_CI=1 (GitHub no longer runs the tests). */
 async function ciPassed(sha) {
   const r = await fetch(`https://api.github.com/repos/${REPO}/commits/${sha}/check-runs?per_page=50`, { headers: { Authorization: `Bearer ${token()}`, Accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(20_000) });
   if (!r.ok) throw new Error(`GitHub check-runs answered ${r.status}`);
@@ -39,10 +72,10 @@ git('fetch', '--quiet', 'origin', 'main');
 const head = git('rev-parse', 'HEAD');
 const tip = git('rev-parse', 'origin/main');
 if (head === tip || state.bad === tip) process.exit(0);
-const ci = await ciPassed(tip);
-if (ci === null) { say(`${tip.slice(0, 7)}: CI still running`); process.exit(0); }
-if (!ci) { say(`${tip.slice(0, 7)}: CI failed, not deploying`); state.bad = tip; save(); process.exit(0); }
-if (DRY) { say(`would deploy ${head.slice(0, 7)} -> ${tip.slice(0, 7)}`); process.exit(0); }
+if (DRY) { say(`would test and deploy ${head.slice(0, 7)} -> ${tip.slice(0, 7)}`); process.exit(0); }
+const ci = process.env.HAWKESGEN_PULL_GITHUB_CI === '1' ? await ciPassed(tip) : (say(`${tip.slice(0, 7)}: typecheck and tests here`), testedHere(tip));
+if (ci === null) { say(`${tip.slice(0, 7)}: not tested yet, trying again on the next timer`); process.exit(0); }
+if (!ci) { say(`${tip.slice(0, 7)}: tests failed, not deploying${state.tested?.detail ? `: ${state.tested.detail}` : ''}`); state.bad = tip; save(); process.exit(0); }
 
 git('merge', '--ff-only', '--quiet', tip);
 
