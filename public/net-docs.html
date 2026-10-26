@@ -231,7 +231,8 @@ void Update() {
   }
 
   async function load() {
-    const r = await fetch('/v1/net/me', { credentials: 'same-origin' }).catch(() => null);
+    const who = await fetch('/v1/users/me?soft=1', { credentials: 'same-origin' }).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+    const r = who && who.user ? await fetch('/v1/net/me', { credentials: 'same-origin' }).catch(() => null) : null;
     if (!r || r.status === 401) {
       $('mine').innerHTML = '<p>Sign in to get your API key and see your rooms and usage.</p><a class="btn btn-primary" href="/app">Sign in</a> <span class="note">then come back to this page</span>';
       return false;
