@@ -2028,7 +2028,10 @@ async function stageModels(t, ctx) {
       await P().models.ready(rigOf());
       const rig = rigOf(), st = P().models.stats(rig), row = P().models.entry(id);
       if (!rig.pm || !rig.pm.on) { t.problem('error', `${id}: the Gen model is not on the rig (state ${rig.pm && rig.pm.state}); the procedural body shows`); continue; }
-      const box = rig.pm.holder.getHierarchyBoundingVectors(true), height = box.max.y - box.min.y;
+      // the body alone: the model's own roots, not the holder (hats, glasses and packs hang under the holder's anchors and would be measured as body)
+      const box = { min: { y: Infinity }, max: { y: -Infinity } };
+      for (const r of rig.pm.levels.near.roots) { r.computeWorldMatrix(true); const b = r.getHierarchyBoundingVectors(true); box.min.y = Math.min(box.min.y, b.min.y); box.max.y = Math.max(box.max.y, b.max.y); }
+      const height = box.max.y - box.min.y;
       const headTop = rig.pm.anchors.head.node.getAbsolutePosition().y - box.min.y;
       t.event('model-on', `${id} (${hat}): ${st.nearTris} triangles near (budget ${st.budget}), low level ${rig.pm.urls.low ? 'yes' : 'NO'}, height ${height.toFixed(2)} m of ${row.h}, head anchor ${headTop.toFixed(2)} m up, clips ${st.clips.join('/') || 'none'}, missing ${st.missing.join(',') || 'none'}`);
       if (st.over) t.problem('error', `${id}: ${st.nearTris} triangles is over the ${st.budget} budget`);
