@@ -459,7 +459,22 @@
       case 'shades': part(rig, 'shades', box(0.4, 0.1, 0.03), n, [0, fy, fz], '#020617'); break;
       case 'scarf': { const m = part(rig, 'scarf', ring(0.44, 0.1), p, at(0, 0.28, 0), acc); m.scaling.z = 0.75; part(rig, 'tailS', box(0.1, 0.3, 0.05), p, at(0.12, 0.12, 0.17), acc); break; }
       case 'backpack': part(rig, 'pack', box(0.38, 0.44, 0.18), pBack, at(0, 0.0, -0.24), acc === '#ffffff' ? '#7c2d12' : acc); break;
-      case 'cape': { const m = part(rig, 'cape', box(0.5, 0.78, 0.03), p, at(0, -0.1, -0.18), acc === '#ffffff' ? '#dc2626' : acc); m.rotation.x = 0.12; rig.cape = m; break; }
+      case 'cape': {
+        // A person's cape is 0.78 tall in head units; a Gen model's head is the size of its whole body (a toaster, a banana), so the
+        // same cape would hang as a red slab below its feet. Cut it to the drop from the neck to the ground.
+        let len = 0.78;
+        if (mt && rig.pm && rig.pm.on) {
+          try {
+            for (const n of [rig.pose, p]) n.computeWorldMatrix(true);
+            const ms = p.absoluteScaling.y / (rig.pose.absoluteScaling.y || 1); // (mount units in the pose's meters)
+            const top = B.Vector3.TransformCoordinates(p.getAbsolutePosition(), B.Matrix.Invert(rig.pose.getWorldMatrix())).y + 0.28 * ms; // (the neck anchor)
+            const drop = (top + 0.9) / ms; // (the feet are 0.9 below the pose's middle)
+            if (Number.isFinite(drop) && drop > 0) len = Math.max(0.08, Math.min(0.78, drop * 0.8));
+          } catch {}
+        }
+        const m = part(rig, 'cape', box(0.5 * (len / 0.78), len, 0.03), p, at(0, 0.29 - len / 2, -0.18), acc === '#ffffff' ? '#dc2626' : acc);
+        m.rotation.x = 0.12; rig.cape = m; break;
+      }
       case 'bowtie': part(rig, 'bowL', box(0.09, 0.08, 0.03), p, at(0.05, 0.24, 0.16), acc === '#ffffff' ? '#dc2626' : acc); part(rig, 'bowR', box(0.09, 0.08, 0.03), p, at(-0.05, 0.24, 0.16), acc === '#ffffff' ? '#dc2626' : acc); break;
       case 'wings': { const a = part(rig, 'wingL', box(0.42, 0.5, 0.03), pBack, at(0.24, 0.08, -0.2), '#f8fafc'); a.rotation.y = 0.5; const b = part(rig, 'wingR', box(0.42, 0.5, 0.03), pBack, at(-0.24, 0.08, -0.2), '#f8fafc'); b.rotation.y = -0.5; rig.wings = [a, b]; break; }
       case 'tail': { const m = part(rig, 'tail', cyl(0.04, 0.1, 0.5, 8), pRump, at(0, -0.3, -0.3), body); m.rotation.x = -0.9; rig.tail = m; break; }
