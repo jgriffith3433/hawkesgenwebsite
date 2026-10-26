@@ -8,6 +8,7 @@ import { submit, settle } from './jobs.ts';
 import { getUser, type User } from './users.ts';
 import type { Via } from './oauth.ts';
 import { id, PortalError } from './util.ts';
+import { publish, on, onHub } from './bus.ts';
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS tasks (
@@ -45,8 +46,9 @@ function save(t: Task, patch: Partial<Task>) {
   Object.assign(t, patch, { updated: Date.now() });
   db.prepare('UPDATE tasks SET state = ?, step = ?, jobs = ?, outputs = ?, detail = ?, error = ?, credits = ?, updated = ? WHERE id = ?')
     .run(t.state, t.step, JSON.stringify(t.jobs), JSON.stringify(t.outputs), t.detail, t.error, t.credits, t.updated, t.id);
-  events.emit(t.id, t);
+  publish({ t: 'task-event', task: t }); // (every process hears it, this one included: events.emit below)
 }
+on('task-event', (m) => events.emit(m.task.id, m.task));
 
 /** How far along a task is, 0-1: its finished steps, plus the running one's share. Inside a step: what Gen's job says
  *  ("12/30", "45%") when it says, else time (a step creeps toward 85% of its share and never claims more until it's
@@ -115,6 +117,8 @@ async function waitJob(user: User, jobId: string, t: Task) {
 }
 
 const running = new Set<string>();
+const fresh = new Map<string, Task>(); // (a task just started here, for the worker that is this same process)
+onHub('task-start', (m) => { const t = fresh.get(m.id) ?? getTask(m.id); if (t) void run(t); });
 const started = new Map<string, number>();
 
 async function run(t: Task) {
@@ -162,7 +166,9 @@ export function startTask(user: User, via: Via | null, name: string, steps: Step
   const t: Task = { id: id('task_', 8), user_id: user.id, via, name, steps, state: 'running', step: 0, jobs: [], outputs: [], detail: 'starting', error: null, credits: 0, created: now, updated: now, stepStarted: now };
   started.set(t.id, now);
   db.prepare('INSERT INTO tasks (id, user_id, via, name, steps, state, created, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(t.id, user.id, via ? JSON.stringify(via) : null, name, JSON.stringify(steps), 'running', now, now);
-  void run(t);
+  fresh.set(t.id, t);
+  publish({ t: 'task-start', id: t.id }); // the worker runs it
+  fresh.delete(t.id);
   return t;
 }
 
