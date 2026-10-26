@@ -794,11 +794,16 @@ function flushOne(room, c, now) {
   o.tokensAt = now;
   const m = o.rel;
   o.rel = [];
-  // Avatars: what changed since this connection last got them; near ones every time, far ones 5 times a second.
+  // Avatars: what changed since this connection last got them; near ones every time, far ones 5 times a second, and
+  // past four times as far once a second (a big shared room: a player far across the map costs little).
   const farM2 = room.interest ? room.interest.farAvatarM * room.interest.farAvatarM : Infinity;
+  const remoteM2 = farM2 * 16;
   for (const p of room.conns.values()) {
     if (p === c || !p.meVer || p.meVer <= (o.meSeen[p.idx] || 0)) continue;
-    if (p.pos && c.pos && dist2(c.pos, p.pos[0], p.pos[2]) > farM2 && now - (o.meAt[p.idx] || 0) < 200) continue;
+    if (p.pos && c.pos) {
+      const d2 = dist2(c.pos, p.pos[0], p.pos[2]);
+      if (d2 > farM2 && now - (o.meAt[p.idx] || 0) < (d2 > remoteM2 ? 1000 : 200)) continue;
+    }
     m.push({ t: 'me', c: p.id, s: p.meS, at: p.meAt, _k: p.k });
     o.meSeen[p.idx] = p.meVer;
     o.meAt[p.idx] = now;

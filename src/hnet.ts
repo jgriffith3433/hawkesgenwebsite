@@ -144,6 +144,23 @@ export async function customerTicket(user: User, body: any) {
   return r;
 }
 
+/**
+ * A developer's web game with no server of its own (GET/POST /v1/net/sites, the Hawkes Net dashboard): the sites whose
+ * pages may join their project's rooms with no key, through the service's public door, like Hawkes's own games. The
+ * service takes them only from this portal's key, after this check: paid accounts only, since the relay's bytes are theirs.
+ */
+export async function sites(user: User): Promise<{ origins: string[]; name: string; max: number }> {
+  const r: any = await net(`/v1/net/sites?project=${encodeURIComponent(user.project)}`);
+  const row = Array.isArray(r?.sites) ? r.sites.find((x: any) => x.project === user.project) : null;
+  return { origins: row?.origins ?? [], name: row?.name ?? '', max: Number(r?.max) || 20 };
+}
+export async function setSites(user: User, body: any) {
+  if (user.role !== 'admin' && !paid(user.id)) throw new PortalError('Hawkes Net for your own games needs an account that has bought credits or a plan', { status: 402 });
+  const origins = Array.isArray(body?.origins) ? body.origins.slice(0, 50).map((o: unknown) => String(o ?? '').slice(0, 200)) : [];
+  const name = String(body?.name ?? '').replace(/[^\p{L}\p{N} _.'&-]/gu, '').trim().slice(0, 60);
+  return net('/v1/net/sites', { body: { project: user.project, name, origins } });
+}
+
 const paid = (userId: string) => !!db.prepare("SELECT 1 FROM credit_ledger WHERE user_id = ? AND kind IN ('stripe_purchase', 'subscription_credits') LIMIT 1").get(userId);
 
 /**
@@ -153,11 +170,12 @@ const paid = (userId: string) => !!db.prepare("SELECT 1 FROM credit_ledger WHERE
  */
 export async function developer(user: User, key: { prefix: string; created: number; last_used: number | null } | null) {
   const project = user.project;
-  const [rooms, usage] = await Promise.all([
+  const [rooms, usage, siteList] = await Promise.all([
     net('/v1/net/rooms', { as: project, body: { project } }).catch((e: Error) => ({ error: e.message })),
     genFetch('/v1/net/usage?days=30', { as: project, signal: AbortSignal.timeout(10_000) }).then(async (r) => (r.ok ? r.json() : { error: `Gen answered ${r.status}` })).catch((e: Error) => ({ error: e.message })),
+    sites(user).catch((e: Error) => ({ error: e.message })),
   ]);
-  return { project, paid: user.role === 'admin' || paid(user.id), key: key ? { prefix: key.prefix, created: key.created, lastUsed: key.last_used } : null, service: netUrl(), rooms, usage };
+  return { project, paid: user.role === 'admin' || paid(user.id), key: key ? { prefix: key.prefix, created: key.created, lastUsed: key.last_used } : null, service: netUrl(), rooms, usage, sites: siteList };
 }
 
 /** Is a room open and how full? (Invitations ask before a friend loads anything.) */
