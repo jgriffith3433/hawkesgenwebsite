@@ -13,7 +13,7 @@
 // PORTAL_NET: "auto" (the default: Hawkes Net when Gen says a node is up, else the rooms in this process), "hawkesnet"
 // or "local". The rooms in this process (rooms.ts) stay for "local" and for pages already open on /v1/ws.
 import { env } from './config.ts';
-import { genHeaders, type GenCall } from './gen.ts';
+import { genHeaders, genFetch, type GenCall } from './gen.ts';
 import { verify } from './sign.ts';
 import { PortalError, Limiter } from './util.ts';
 import { getUser, type User } from './users.ts';
@@ -145,6 +145,20 @@ export async function customerTicket(user: User, body: any) {
 }
 
 const paid = (userId: string) => !!db.prepare("SELECT 1 FROM credit_ledger WHERE user_id = ? AND kind IN ('stripe_purchase', 'subscription_credits') LIMIT 1").get(userId);
+
+/**
+ * A developer's own Hawkes Net (GET /v1/net/me, the /net/docs page): whether their account may get tickets, their key's
+ * prefix, the rooms of their project open now (from the service) and their usage these 30 days (from Gen). Each part
+ * answers on its own: one that fails says so instead of failing the page.
+ */
+export async function developer(user: User, key: { prefix: string; created: number; last_used: number | null } | null) {
+  const project = user.project;
+  const [rooms, usage] = await Promise.all([
+    net('/v1/net/rooms', { as: project, body: { project } }).catch((e: Error) => ({ error: e.message })),
+    genFetch('/v1/net/usage?days=30', { as: project, signal: AbortSignal.timeout(10_000) }).then(async (r) => (r.ok ? r.json() : { error: `Gen answered ${r.status}` })).catch((e: Error) => ({ error: e.message })),
+  ]);
+  return { project, paid: user.role === 'admin' || paid(user.id), key: key ? { prefix: key.prefix, created: key.created, lastUsed: key.last_used } : null, service: netUrl(), rooms, usage };
+}
 
 /** Is a room open and how full? (Invitations ask before a friend loads anything.) */
 export async function roomInfo(room: string, again = true): Promise<{ open: boolean; people: number; limit: number }> {
