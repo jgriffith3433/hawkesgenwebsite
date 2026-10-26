@@ -88,21 +88,21 @@ cow: { ...row('biped'), ...mdl('cow'), h: 1.5, head: 0.65, rig: 'mixamo', anchor
   // J, 2026-10-25: all the Gen-made models faced backwards with a turn of pi: they are not turned (yaw 0), said out loud in each row.
   for (const r of Object.values(P.modelRegistry)) if (!Number.isFinite(r.yaw)) r.yaw = 0; // (the fish names its own)
   // Gen-made hats (docs/characters.md "Gen hats"): files in public/play/models, made through Hawkes Gen (prop3d steps), about 1.3k triangles each,
-  // base at y = 0, front +z. `width` is the body of the hat in head units (the unit head is 0.43 wide), `sink` how far it sits into the head,
+  // base at y = 0, front +z. `width` is the body of the hat in head units (the unit head is 0.43 wide), `sink` how far it sits into the head (in head units: the hat's hem, where its crown's opening is as wide as the head there, rests on the head, not its base on the head's top: a brim at the top of the head floats; measured from each file's cross-sections),
   // `tint` whether the look's accent colours it (the model is white where it should take the pick), `flat` a colour for a hat whose bake failed,
   // `plain` (with `tint`) drops a blotchy bake: white, then the pick (the beanie and the helmet).
   // halo, horns and bunny are built from geometry (tools/hat-glbs.mjs: a small cap with the ring on a post, the horns or the ears growing out of it), one
   // piece each, so `flat` colours them. A hat with no row keeps its procedural shape.
   const hat = (kind, o) => ({ url: `/play/models/hat-${kind}.glb`, ...o });
   P.hatRegistry = {
-    cap: hat('cap', { width: 0.46, sink: 0.04, tint: true }),
-    beanie: hat('beanie', { width: 0.44, sink: 0.1, tint: true, plain: true }),
-    tophat: hat('tophat', { width: 0.58 }),
+    cap: hat('cap', { width: 0.46, sink: 0.14, tint: true }),
+    beanie: hat('beanie', { width: 0.44, sink: 0.17, tint: true, plain: true }),
+    tophat: hat('tophat', { width: 0.58, sink: 0.18 }),
     crown: hat('crown', { width: 0.44, flat: '#facc15' }),
-    cowboy: hat('cowboy', { width: 0.78 }),
-    party: hat('party', { width: 0.3, tint: true }),
-    helmet: hat('helmet', { width: 0.5, sink: 0.15, tint: 'body', plain: true }),
-    chef: hat('chef', { width: 0.46 }),
+    cowboy: hat('cowboy', { width: 0.78, sink: 0.34 }),
+    party: hat('party', { width: 0.3, sink: 0.05, tint: true }),
+    helmet: hat('helmet', { width: 0.5, sink: 0.24, tint: 'body', plain: true }),
+    chef: hat('chef', { width: 0.46, sink: 0.06 }),
     halo: hat('halo', { width: 0.44, sink: 0.02, flat: '#fde047' }),
     horns: hat('horns', { width: 0.46, sink: 0.03, flat: '#e5e7eb' }),
     bunny: hat('bunny', { width: 0.4, sink: 0.03, flat: '#ffffff' }),
