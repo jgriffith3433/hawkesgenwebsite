@@ -362,3 +362,15 @@ body.editor-page { height: 100vh; overflow: hidden; display: grid; grid-template
 
 /* ------------------------------------------------------------ public games */
 .gallery-head { display: flex; gap: 12px; align-items: end; justify-content: space-between; margin-bottom: 18px; }
+
+/* The signed-out header must not show the account bits (an inline display or .btn beat the hidden attribute), and phones get a header that fits 390px. */
+.bar #who[hidden], .bar #studioLink[hidden] { display: none !important; }
+.gallery-head > * { min-width: 0; }
+@media (max-width: 560px) {
+  .bar { padding: 0 12px; gap: 8px; }
+  .bar #studioLink, .bar .plan-chip { display: none !important; }
+  .gallery-head { flex-wrap: wrap; align-items: stretch; }
+  .gallery-head .segmented { flex: 1 1 100%; }
+  .gallery-head .segmented button { padding: 8px 6px; white-space: nowrap; }
+  .auth-box { margin: 4vh 16px; max-width: none; padding: 22px; }
+}
