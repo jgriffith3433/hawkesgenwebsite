@@ -220,7 +220,8 @@ async function serveStatic(route: string, res: ServerResponse, search = '') {
   const versioned = route.startsWith('/play/') && path.extname(file) === '.js' && new URLSearchParams(search).get('v') === engineVersion();
   // Self-hosted fonts (public/fonts): the play page is sandboxed (origin null), so they need open CORS; they never change under a name.
   const font = path.extname(file) === '.woff2';
-  res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] ?? 'application/octet-stream', 'Cache-Control': path.extname(file) === '.html' ? 'no-cache' : versioned || font ? 'public, max-age=31536000, immutable' : 'public, max-age=300', ...(font || route === '/fonts/fonts.css' || ((route.startsWith('/play/models/') && path.extname(file) === '.glb') || (route.startsWith('/play/anim/') && path.extname(file) === '.json')) ? { 'Access-Control-Allow-Origin': '*' } : {}) });
+  // (Modules under /play/, the Hawkes Net SDK, are imported by sandboxed game pages, whose origin is null: open CORS.)
+  res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] ?? 'application/octet-stream', 'Cache-Control': path.extname(file) === '.html' ? 'no-cache' : versioned || font ? 'public, max-age=31536000, immutable' : 'public, max-age=300', ...(font || route === '/fonts/fonts.css' || ((route.startsWith('/play/models/') && path.extname(file) === '.glb') || (route.startsWith('/play/anim/') && path.extname(file) === '.json') || (route.startsWith('/play/') && path.extname(file) === '.mjs')) ? { 'Access-Control-Allow-Origin': '*' } : {}) });
   // pipeline, not pipe: a read error (or a client that left) must end this response, never raise an unhandled 'error' that kills the process.
   pipeline(fs.createReadStream(file), res).catch(() => {});
   return true;
