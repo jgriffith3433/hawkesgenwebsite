@@ -6,7 +6,7 @@
   <script src="/site-analytics.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Hawkes Net — multiplayer for web games</title>
-  <meta name="description" content="Hawkes Net: one call joins a room. Small rooms go peer to peer, big ones move to our relay without anyone reconnecting. Try it in two tabs.">
+  <meta name="description" content="Hawkes Net: one call joins a room on our relay. Try it in two tabs.">
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/public.css">
   <link rel="stylesheet" href="/site.css">
@@ -46,7 +46,7 @@
       <div class="wrap">
         <div class="label">Hawkes Net · multiplayer</div>
         <h1 style="margin-top:18px">Play together,<br><em>here, right now.</em></h1>
-        <p class="lede">Every dot is someone with this page open in the same room. Open the invite link in another tab or on your phone. Small rooms go peer to peer; past eight players the room moves to our relay, and nobody reconnects.</p>
+        <p class="lede">Every dot is someone with this page open in the same room. Open the invite link in another tab or on your phone. Every room runs on our relay, so it shows with its players on your project's page at net.hawkesgen.com.</p>
       </div>
     </section>
 
@@ -81,8 +81,8 @@
         <div class="facts">
           <div><b>1,000</b><span>players on one relay node with 4 processes: all connected, none dropped</span></div>
           <div><b>~8 KB/s</b><span>per player on the relay, in a binary protocol about 5 times smaller than JSON</span></div>
-          <div><b>0 bytes</b><span>through our servers for a room of friends that stays peer to peer</span></div>
-          <div><b>1 call</b><span><code>join(room)</code>: the move from peer to peer to the relay happens under your game</span></div>
+          <div><b>Live</b><span>players, rooms and tickets for each project on net.hawkesgen.com</span></div>
+          <div><b>1 call</b><span><code>join(room)</code>, or <code>lobby()</code> for shared rooms by area that rejoin by themselves</span></div>
         </div>
         <div class="actions" style="margin-top:28px"><a class="btn btn-primary btn-lg" href="/net/docs">Use it in your game</a><a class="btn btn-secondary btn-lg" href="/games">Play the games built on it</a></div>
       </div>

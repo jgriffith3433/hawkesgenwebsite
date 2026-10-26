@@ -1,5 +1,5 @@
 // Hawkes Net for the games here (hawkesgen docs/net.md): the engine's rooms run on the Hawkes Net service
-// (https://net.hawkesgen.com, its own box: tickets, rooms and the relay) and peer to peer, not in this process. This file
+// (https://net.hawkesgen.com, its own box: tickets, rooms and the relay), not in this process. This file
 // hands out tickets for them (the game pages are sandboxed and hold no keys, so they ask here and the portal asks the
 // service with its Gen key, which the service checks with Gen), sends the world edits this server saves into the rooms,
 // and says whether an invitation's room is open. PORTAL_NET_URL names the service (default https://net.hawkesgen.com).
@@ -13,7 +13,7 @@
 // PORTAL_NET: "auto" (the default: Hawkes Net when Gen says a node is up, else the rooms in this process), "hawkesnet"
 // or "local". The rooms in this process (rooms.ts) stay for "local" and for pages already open on /v1/ws.
 import { env } from './config.ts';
-import { genHeaders, genFetch, type GenCall } from './gen.ts';
+import { genHeaders, type GenCall } from './gen.ts';
 import { verify } from './sign.ts';
 import { PortalError, Limiter } from './util.ts';
 import { getUser, type User } from './users.ts';
@@ -94,7 +94,7 @@ export async function ticket(body: any, ip: string) {
     if (!ticketsByIp.hit(ip)) throw new PortalError('Too many joins from here; wait a moment', { status: 429 });
     const code = String(body?.room ?? '').toLowerCase();
     if (!CODE.test(code)) throw new PortalError('A room code is 4 to 16 letters and numbers');
-    room = `d/${code}`; name = clean(body?.name) || null; transport = 'auto';
+    room = `d/${code}`; name = clean(body?.name) || null; transport = 'relay';
     const r: any = await net('/v1/net/ticket', { body: { project: NET_PROJECT, room, name, transport, role: 'player', config: { profile: 'light', maxPlayers: 32, p2pMax: 8 }, client: { sdk: String(body?.sdk ?? ''), protocols: [3] } } });
     return { mode: 'hawkesnet', room, ...r };
   } else {
@@ -117,8 +117,9 @@ export async function ticket(body: any, ip: string) {
       if (!info.open) throw new PortalError('This island is closed', { status: 409 });
     }
     name = clean(body?.name) || null;
-    // The public live room of a game is many people: the relay from the start. Rooms of friends start peer to peer.
-    transport = code === 'live' ? 'relay' : 'auto';
+    // Every room on the relay (J, 2026-10-26: peer to peer is not the default): it shows on net.hawkesgen.com with its
+    // players, and nobody's connection depends on another player's.
+    transport = 'relay';
   }
   const r: any = await net('/v1/net/ticket', { body: { project: NET_PROJECT, room, name, sub, transport, role: 'player', client: { sdk: String(body?.sdk ?? ''), protocols: [3] } } });
   return { mode: 'hawkesnet', room, ...r };
@@ -126,56 +127,93 @@ export async function ticket(body: any, ip: string) {
 
 /**
  * A customer's own game (POST /v1/net/rooms/ticket with their API key, from their game's server): a ticket for a room in
- * their own Hawkes Net project (their Gen project, usr_...), so nobody else's game can join it. Their server hands the
- * ticket to the player's page, which passes it to join(). Usage is filed under their project in Gen.
+ * one of their Hawkes Net projects (`project`, made on net.hawkesgen.com), so nobody else's game can join it. The portal's
+ * key narrowed to their account: the service gives tickets only for the account's own projects. Their server hands the
+ * ticket to the player's page, which passes it to join().
  */
 export async function customerTicket(user: User, body: any) {
   // Relay traffic costs us per byte and is not billed yet, so only accounts that have paid (or admins) get tickets: a
   // free sign-up can't run up the relay. (Studio's roadmap has the pricing decision.)
   if (user.role !== 'admin' && !paid(user.id)) throw new PortalError('Hawkes Net for your own games needs an account that has bought credits or a plan', { status: 402 });
   customerTickets.take(user.id, 'Too many tickets a minute for this account');
-  const project = user.project;
+  const project = String(body?.project ?? '');
+  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(project)) throw new PortalError('project is your Hawkes Net project id (net.hawkesgen.com)');
   const room = String(body?.room ?? '');
   if (!/^[a-z0-9][a-z0-9/_.-]{0,63}$/i.test(room)) throw new PortalError('room is 1 to 64 of letters, digits and / _ . -');
-  const transport = ['auto', 'p2p', 'relay'].includes(body?.transport) ? body.transport : 'auto';
+  const transport = ['auto', 'p2p', 'relay'].includes(body?.transport) ? body.transport : 'relay';
   const config = body?.config && typeof body.config === 'object' ? { maxPlayers: body.config.maxPlayers, p2pMax: body.config.p2pMax, profile: body.config.profile, sendHz: body.config.sendHz } : undefined;
   const role = body?.role === 'spectator' ? 'spectator' : 'player';
-  const r: any = await net('/v1/net/ticket', { as: project, body: { project, room, name: clean(body?.name) || null, sub: typeof body?.sub === 'string' ? body.sub.slice(0, 64) : undefined, transport, role, config, client: { sdk: String(body?.sdk ?? ''), protocols: [3] } } });
+  const r: any = await net('/v1/net/ticket', { as: user.project, body: { project, room, name: clean(body?.name) || null, sub: typeof body?.sub === 'string' ? body.sub.slice(0, 64) : undefined, transport, role, config, client: { sdk: String(body?.sdk ?? ''), protocols: [3] } } });
   return r;
-}
-
-/**
- * A developer's web game with no server of its own (GET/POST /v1/net/sites, the Hawkes Net dashboard): the sites whose
- * pages may join their project's rooms with no key, through the service's public door, like Hawkes's own games. The
- * service takes them only from this portal's key, after this check: paid accounts only, since the relay's bytes are theirs.
- */
-export async function sites(user: User): Promise<{ origins: string[]; name: string; max: number }> {
-  const r: any = await net(`/v1/net/sites?project=${encodeURIComponent(user.project)}`);
-  const row = Array.isArray(r?.sites) ? r.sites.find((x: any) => x.project === user.project) : null;
-  return { origins: row?.origins ?? [], name: row?.name ?? '', max: Number(r?.max) || 20 };
-}
-export async function setSites(user: User, body: any) {
-  if (user.role !== 'admin' && !paid(user.id)) throw new PortalError('Hawkes Net for your own games needs an account that has bought credits or a plan', { status: 402 });
-  const origins = Array.isArray(body?.origins) ? body.origins.slice(0, 50).map((o: unknown) => String(o ?? '').slice(0, 200)) : [];
-  const name = String(body?.name ?? '').replace(/[^\p{L}\p{N} _.'&-]/gu, '').trim().slice(0, 60);
-  return net('/v1/net/sites', { body: { project: user.project, name, origins } });
 }
 
 const paid = (userId: string) => !!db.prepare("SELECT 1 FROM credit_ledger WHERE user_id = ? AND kind IN ('stripe_purchase', 'subscription_credits') LIMIT 1").get(userId);
 
 /**
- * A developer's own Hawkes Net (GET /v1/net/me, the /net/docs page): whether their account may get tickets, their key's
- * prefix, the rooms of their project open now (from the service) and their usage these 30 days (from Gen). Each part
- * answers on its own: one that fails says so instead of failing the page.
+ * Hawkes Net projects (the net.hawkesgen.com dashboard, docs/net.md "Projects and accounts"): every account has its own,
+ * kept by the Hawkes Net service. The portal is the account system: it asks the service with its key and names the
+ * signed-in account (`owner`, its Gen project), whether it is an admin (an admin also sees Hawkes's own games to take)
+ * and its tier (paid or free: a free account's projects build and test, with small rooms; sites and server tickets need a
+ * paid account, since the relay's bytes are ours until it is billed).
+ */
+const who = (user: User) => ({ owner: user.project, admin: user.role === 'admin', tier: user.role === 'admin' || paid(user.id) ? 'paid' : 'free' });
+const whoQuery = (user: User) => { const w = who(user); return `owner=${encodeURIComponent(w.owner)}&admin=${w.admin}&tier=${w.tier}`; };
+const PID = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
+const pid = (id: string) => { if (!PID.test(id)) throw new PortalError('No such project', { status: 404 }); return encodeURIComponent(id); };
+const projectCalls = new Limiter(120, 60_000);
+
+export async function projects(user: User, all = false) {
+  projectCalls.take(user.id, 'Too many requests a minute; wait a moment');
+  return net(`/v1/net/projects?${whoQuery(user)}${all && user.role === 'admin' ? '&all=1' : ''}`);
+}
+export async function createProject(user: User, body: any) {
+  projectCalls.take(user.id, 'Too many requests a minute; wait a moment');
+  return net('/v1/net/projects', { body: { ...who(user), name: String(body?.name ?? '').slice(0, 80), ...(body?.id ? { id: String(body.id).slice(0, 40) } : {}) } });
+}
+export async function project(user: User, id: string) {
+  projectCalls.take(user.id, 'Too many requests a minute; wait a moment');
+  return net(`/v1/net/projects/${pid(id)}?${whoQuery(user)}`);
+}
+export async function updateProject(user: User, id: string, body: any) {
+  projectCalls.take(user.id, 'Too many requests a minute; wait a moment');
+  const w = who(user);
+  const sites = Array.isArray(body?.sites) ? body.sites.slice(0, 50).map((o: unknown) => String(o ?? '').slice(0, 200)) : body?.sites === null ? null : undefined;
+  if (sites && sites.some((s: string) => s.trim()) && w.tier !== 'paid') throw new PortalError("Your game's own sites open once your account has bought credits or a plan. Until then, test on localhost: it always may join the test rooms.", { status: 402 });
+  const patch: Record<string, unknown> = {};
+  if (body?.name !== undefined) patch.name = String(body.name).slice(0, 80);
+  if (sites !== undefined) patch.sites = sites;
+  if (body?.p2p !== undefined) patch.p2p = body.p2p === true;
+  if (body?.maxPlayers !== undefined) patch.maxPlayers = body.maxPlayers === null ? null : Number(body.maxPlayers);
+  return net(`/v1/net/projects/${pid(id)}`, { body: { ...w, ...patch } });
+}
+export async function deleteProject(user: User, id: string) {
+  projectCalls.take(user.id, 'Too many requests a minute; wait a moment');
+  return net(`/v1/net/projects/${pid(id)}?${whoQuery(user)}`, { method: 'DELETE' });
+}
+export async function claimProject(user: User, id: string) {
+  if (user.role !== 'admin') throw new PortalError('Only an admin takes one of Hawkes\'s games', { status: 403 });
+  return net(`/v1/net/projects/${pid(id)}/claim`, { body: who(user) });
+}
+const ROOM = /^[a-z0-9][a-z0-9/_.-]{0,63}$/i;
+export async function roomPlayers(user: User, id: string, room: string) {
+  projectCalls.take(user.id, 'Too many requests a minute; wait a moment');
+  if (!ROOM.test(room)) throw new PortalError('No such room', { status: 404 });
+  return net(`/v1/net/projects/${pid(id)}/rooms/${encodeURIComponent(room)}?${whoQuery(user)}`);
+}
+export async function kickPlayer(user: User, id: string, room: string, body: any) {
+  if (!ROOM.test(room)) throw new PortalError('No such room', { status: 404 });
+  return net(`/v1/net/projects/${pid(id)}/rooms/${encodeURIComponent(room)}/kick`, { body: { ...who(user), sub: typeof body?.sub === 'string' ? body.sub.slice(0, 64) : undefined, peer: typeof body?.peer === 'string' ? body.peer.slice(0, 12) : undefined } });
+}
+
+/**
+ * The developer's account on the Hawkes Net dashboard (GET /v1/net/me): who they are, whether their account is paid (or
+ * an admin), their API key's prefix, and their projects (each with players and rooms now and today's numbers). A part
+ * that fails says so instead of failing the page.
  */
 export async function developer(user: User, key: { prefix: string; created: number; last_used: number | null } | null) {
-  const project = user.project;
-  const [rooms, usage, siteList] = await Promise.all([
-    net('/v1/net/rooms', { as: project, body: { project } }).catch((e: Error) => ({ error: e.message })),
-    genFetch('/v1/net/usage?days=30', { as: project, signal: AbortSignal.timeout(10_000) }).then(async (r) => (r.ok ? r.json() : { error: `Gen answered ${r.status}` })).catch((e: Error) => ({ error: e.message })),
-    sites(user).catch((e: Error) => ({ error: e.message })),
-  ]);
-  return { project, paid: user.role === 'admin' || paid(user.id), key: key ? { prefix: key.prefix, created: key.created, lastUsed: key.last_used } : null, service: netUrl(), rooms, usage, sites: siteList };
+  const w = who(user);
+  const list = await projects(user).catch((e: Error) => ({ error: e.message }));
+  return { project: user.project, email: user.email ?? null, name: user.name ?? null, paid: w.tier === 'paid', admin: w.admin, key: key ? { prefix: key.prefix, created: key.created, lastUsed: key.last_used } : null, service: netUrl(), projects: list };
 }
 
 /** Is a room open and how full? (Invitations ask before a friend loads anything.) */

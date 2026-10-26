@@ -109,7 +109,7 @@
     let used = false;
     try {
       const room = await mod.join(first.room, {
-        project: 'hawkesgenwebsite', transport: 'auto', leaveOnHide: true, log: false,
+        project: 'hawkesgenwebsite', transport: 'relay', leaveOnHide: true, log: false,
         ticket: async () => (used ? ask() : ((used = true), first)),
         onRaw: (m) => { try { onMessage(m); } catch (err) { console.warn('net', err); } },
       });
