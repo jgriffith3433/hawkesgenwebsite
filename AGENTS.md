@@ -176,7 +176,9 @@ Push to `main` (going live: Studio fast-forwards main to the playtested beta com
 `DEPLOY hawkesgenwebsite`). No tests gate a deploy (J, 2026-10-26): agents run `npm run typecheck` and `npm test` while
 developing, and beta's playtests and J's go-live are the gate. The box checks every 2 minutes (`hawkesgen-portal-pull.timer`,
 `deploy/pull.mjs`) and deploys a new main: fast-forward, restart, health check, rollback if unhealthy (that commit is then
-skipped). `HAWKESGEN_PULL_TESTS=1` in the pull unit's environment brings back typecheck and tests on a clean copy first. Logs:
+skipped). `HAWKESGEN_PULL_TESTS=1` in the pull unit's environment brings back typecheck and tests on a clean copy first.
+`npm test` is `test/run.mjs`: it passes at once in the box's deploy copy (`/srv/hawkes/.portal-test`, where an older pull.mjs still
+runs it before deploying), so a box on an old pull.mjs takes the new one with the next main; elsewhere it runs every suite. Logs:
 `journalctl -u hawkesgen-portal -u hawkesgen-portal-pull`. Push to main only with J's OK.
 
 **Backups** (`src/backup.ts`, `deploy/hawkesgen-portal-backup.{service,timer}`, `deploy/backup-aws.mjs`; test `test/backup.test.ts`). `.data/portal.db` holds accounts, credits, the ledger and Stripe records.
