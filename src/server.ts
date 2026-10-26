@@ -49,7 +49,7 @@ import { relayAnalytics, playIds, playIdsScript } from './analytics.ts';
 import type { Duplex } from 'node:stream';
 
 const PUBLIC = path.join(ROOT, 'public');
-const PAGES: Record<string, string> = { '/': 'index.html', '/home': 'index.html', '/app': 'games.html', '/app/studio': 'app.html', '/games': 'gallery.html', '/admin': 'admin.html', '/reset': 'reset.html', '/auth/popup': 'auth-popup.html', '/legal': 'legal.html', '/terms': 'legal.html', '/privacy': 'legal.html', '/refunds': 'legal.html', '/connect': 'connect.html', '/net': 'net.html', '/net/docs': 'net-docs.html', '/thanks': 'thanks.html', '/examples': 'examples.html', '/entities': 'entities.html', '/avatars': 'avatars.html', '/community': 'community.html','/oauth/authorize': 'authorize.html', '/client/hawkesgen.mjs': 'hawkesgen.mjs' };
+const PAGES: Record<string, string> = { '/': 'index.html', '/home': 'index.html', '/app': 'games.html', '/app/studio': 'app.html', '/games': 'gallery.html', '/admin': 'admin.html', '/reset': 'reset.html', '/auth/popup': 'auth-popup.html', '/legal': 'legal.html', '/terms': 'legal.html', '/privacy': 'legal.html', '/refunds': 'legal.html', '/connect': 'connect.html', '/net': 'net.html', '/thanks': 'thanks.html', '/examples': 'examples.html', '/entities': 'entities.html', '/avatars': 'avatars.html', '/community': 'community.html','/oauth/authorize': 'authorize.html', '/client/hawkesgen.mjs': 'hawkesgen.mjs' };
 const TYPES: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json', '.webp': 'image/webp', '.gif': 'image/gif', '.mp3': 'audio/mpeg', '.jpg': 'image/jpeg', '.unitypackage': 'application/octet-stream', '.pdf': 'application/pdf', '.md': 'text/markdown; charset=utf-8', '.glb': 'model/gltf-binary', '.json': 'application/json; charset=utf-8', '.woff2': 'font/woff2' };
 
 // Gen routes a signed-in customer may use as they are (Gen scopes them to the customer's project).
@@ -121,7 +121,7 @@ function cors(res: ServerResponse) {
 
 // The Hawkes Net dashboard (net.hawkesgen.com, served by the Net box) reads the signed-in developer's Net data and makes
 // their key here, with the session cookie (same site, so it is sent). Only that origin, only these routes, credentials allowed.
-const NET_DASHBOARD_ROUTES = /^\/v1\/(net\/me|net\/projects(\/.*)?|users\/api-key)$/;
+const NET_DASHBOARD_ROUTES = /^\/v1\/(net\/me|net\/projects(\/.*)?|users\/api-key|users\/(login|signup|forgot|logout))$/;
 const netDashboard = () => (env('PORTAL_NET_DASHBOARD') ?? 'https://net.hawkesgen.com').replace(/\/+$/, '');
 function netDashboardCors(req: IncomingMessage, res: ServerResponse): boolean {
   if (req.headers.origin !== netDashboard()) return false;
@@ -263,6 +263,8 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (NET_DASHBOARD_ROUTES.test(route) && netDashboardCors(req, res) && method === 'OPTIONS') return void res.writeHead(204, { 'Access-Control-Max-Age': '600' }).end();
     // Back to the Net dashboard after signing in here (Google's next= takes paths on this site only).
     if (route === '/net/back' && method === 'GET') return void res.writeHead(302, { Location: netDashboard() + '/' }).end();
+    // The Hawkes Net docs live on net.hawkesgen.com now (J, 2026-10-26: /net advertises, net.hawkesgen.com is the product).
+    if (route === '/net/docs' && method === 'GET') return void res.writeHead(301, { Location: netDashboard() + '/' }).end();
 
     // ------------------------------------------------------------ MCP and its OAuth
     if (route === '/.well-known/oauth-protected-resource' || route === '/.well-known/oauth-protected-resource/mcp') return send(res, 200, oauth.protectedResourceMetadata());
@@ -302,7 +304,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       try {
         return void (await google.callback(req, res, url.searchParams, clientIp(req)));
       } catch (e: any) {
-        return void res.writeHead(302, { Location: `/?signin_error=${encodeURIComponent(e.message ?? 'Google sign-in failed')}` }).end();
+        return void res.writeHead(302, { Location: google.problemPage(google.startedFrom(req), `signin_error=${encodeURIComponent(e.message ?? 'Google sign-in failed')}`) }).end();
       }
     }
 
@@ -485,7 +487,10 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     // "Forgot your password?": a reset link by email. The same answer whether or not there's an account (mail: false
     // when this server sends no email, so the page can say to ask support instead).
     if (route === '/v1/users/forgot' && method === 'POST') {
-      const r = users.forgotPassword((await readJson(req)).email, clientIp(req), publicUrl());
+      const b = await readJson(req);
+      const r = users.forgotPassword(b.email, clientIp(req), publicUrl());
+      // Asked from the Net dashboard: the reset page sends them back there.
+      if (r && b.back === 'net') r.url += '&back=net';
       if (r && mail.mailOn()) mail.sendReset(r.user.email, r.user.name, r.url);
       return send(res, 200, { ok: true, mail: mail.mailOn() });
     }

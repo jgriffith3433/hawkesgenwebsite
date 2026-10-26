@@ -24,6 +24,7 @@
   </div>
   <script type="module">
     const token = new URLSearchParams(location.search).get('token') || '';
+    const fromNet = new URLSearchParams(location.search).get('back') === 'net';
     history.replaceState(null, '', '/reset');
     const err = document.getElementById('err');
     document.getElementById('f').addEventListener('submit', async (e) => {
@@ -37,7 +38,7 @@
       // Came from the sandbox's account sheet: back to the island (its snapshot waits in this browser), to keep it.
       let island = null;
       try { island = JSON.parse(localStorage.getItem('hg_guest_world') || 'null'); } catch { island = null; }
-      location.href = d.user?.role === 'admin' ? '/admin' : island && island.intent ? `/play/sandbox?claim=${encodeURIComponent(island.intent)}` : '/app';
+      location.href = fromNet ? '/net/back' : island && island.intent ? `/play/sandbox?claim=${encodeURIComponent(island.intent)}` : '/app';
     });
   </script>
   <script src="/enter.js"></script>

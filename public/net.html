@@ -5,30 +5,43 @@
   <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
   <script src="/site-analytics.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Hawkes Net — multiplayer for web games</title>
-  <meta name="description" content="Hawkes Net: one call joins a room on our relay. Try it in two tabs.">
+  <title>Hawkes Net: multiplayer for your game</title>
+  <meta name="description" content="Hawkes Net: multiplayer for web, Babylon and Unity WebGL games. Make a project with your hawkesgen.com account, join a room in one call, and watch players, rooms and tickets live.">
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/public.css">
   <link rel="stylesheet" href="/site.css">
   <style>
     .net-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; align-items: start; }
     @media (max-width: 900px) { .net-grid { grid-template-columns: 1fr; } }
-    .net-stage { border: 1px solid var(--rule-strong); border-radius: var(--r); background: var(--paper-2); overflow: hidden; }
+    .net-stage { border: 1px solid var(--border-strong); border-radius: var(--r); background: var(--surface); overflow: hidden; }
     .net-stage canvas { width: 100%; aspect-ratio: 16 / 10; display: block; touch-action: none; }
-    .net-panel { border: 1px solid var(--rule); border-radius: var(--r); padding: 16px; background: var(--paper); }
+    .net-panel { border: 1px solid var(--border); border-radius: var(--r); padding: 16px; background: var(--bg); }
     .net-panel dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; font-size: 14px; }
-    .net-panel dt { color: var(--ink-3); } .net-panel dd { margin: 0; font-variant-numeric: tabular-nums; }
+    .net-panel dt { color: var(--fg-3); } .net-panel dd { margin: 0; font-variant-numeric: tabular-nums; }
     .net-panel ul { list-style: none; padding: 0; margin: 14px 0 0; display: grid; gap: 6px; max-height: 240px; overflow: auto; font-size: 14px; }
     .net-panel li { display: flex; gap: 8px; align-items: center; }
     .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
-    .pill { font: 500 11px var(--mono); padding: 1px 8px; border-radius: 99px; border: 1px solid var(--rule-strong); color: var(--ink-2); margin-left: auto; }
+    .pill { font: 500 11px var(--mono); padding: 1px 8px; border-radius: 99px; border: 1px solid var(--border-strong); color: var(--fg-2); margin-left: auto; }
     .pill.relay { border-color: var(--accent); color: var(--accent); }
     .net-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
-    .net-log { font: 12px/1.45 var(--mono); color: var(--ink-3); white-space: pre-wrap; max-height: 120px; overflow: auto; margin-top: 12px; }
-    .facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); border-top: 1px solid var(--ink); }
-    .facts > div { padding: 18px 20px 18px 0; border-bottom: 1px solid var(--rule); }
+    .net-log { font: 12px/1.45 var(--mono); color: var(--fg-3); white-space: pre-wrap; max-height: 120px; overflow: auto; margin-top: 12px; }
+    .facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); border-top: 1px solid var(--heading); }
+    .facts > div { padding: 18px 20px 18px 0; border-bottom: 1px solid var(--border); }
     .facts b { display: block; font: 400 30px/1.1 var(--serif); }
-    .facts span { color: var(--ink-2); font-size: 14px; }
+    .facts span { color: var(--fg-2); font-size: 14px; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+    .card { border: 1px solid var(--border-strong); border-radius: var(--r); padding: 20px; background: var(--bg); display: flex; flex-direction: column; gap: 8px; color: inherit; text-decoration: none; }
+    a.card:hover { border-color: var(--accent); }
+    .card h3 { margin: 0; font: 600 20px/1.2 var(--sans); }
+    .card p { margin: 0; color: var(--fg-2); font-size: 15px; }
+    .card .more { margin-top: auto; padding-top: 8px; font-weight: 600; color: var(--accent); }
+    .card .tag { font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--fg-3); }
+    .steps { counter-reset: step; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+    .steps .card::before { counter-increment: step; content: counter(step); display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 600; }
+    .plans { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .plans ul { margin: 6px 0 0; padding-left: 18px; color: var(--fg-2); font-size: 15px; }
+    .cta { border: 1px solid var(--border-strong); border-radius: var(--r); padding: 28px; display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; background: var(--surface); }
+    .cta h2 { margin: 0; }
   </style>
   <script src="/sitenav.js" defer></script>
 </head>
@@ -36,8 +49,8 @@
   <header class="hg-navbar">
     <div class="wrap hg-navbar-inner">
       <a href="/" class="hg-brand"><span class="wordmark">Hawkes Gen</span></a>
-      <nav class="hg-nav-links" data-site-nav><a href="/games">Games</a><a href="/community">Community library</a><a href="/entities">Engine codex</a><a href="/app/studio">Asset Studio</a><a href="/#pricing">Pricing</a><a href="/connect">For developers</a></nav>
-      <div class="hg-nav-actions" id="nav"><a class="btn btn-primary" href="/app">Open the studio</a></div>
+      <nav class="hg-nav-links" data-site-nav><a href="/games">Games</a><a href="/community">Community library</a><a href="/entities">Engine codex</a><a href="/app/studio">Asset Studio</a><a href="https://net.hawkesgen.com/">Hawkes Net</a><a href="/#pricing">Pricing</a><a href="/connect">For developers</a></nav>
+      <div class="hg-nav-actions" id="nav"><a class="btn btn-primary" href="https://net.hawkesgen.com/">Open Hawkes Net</a></div>
     </div>
   </header>
 
@@ -45,33 +58,73 @@
     <section class="hero" style="padding-bottom:24px">
       <div class="wrap">
         <div class="label">Hawkes Net · multiplayer</div>
-        <h1 style="margin-top:18px">Play together,<br><em>here, right now.</em></h1>
-        <p class="lede">Every dot is someone with this page open in the same room. Open the invite link in another tab or on your phone. Every room runs on our relay, so it shows with its players on your project's page at net.hawkesgen.com.</p>
+        <h1 style="margin-top:18px">Multiplayer for your game,<br><em>without the server work.</em></h1>
+        <p class="lede">The networking every game on Hawkes Gen runs on, for yours too. Make a project with your hawkesgen.com account, join a room in one call, and watch your players, rooms and tickets live. Web, Babylon and Unity WebGL.</p>
+        <div class="actions" style="margin-top:24px"><a class="btn btn-primary btn-lg" href="https://net.hawkesgen.com/">Open Hawkes Net</a><a class="btn btn-secondary btn-lg" href="#demo">Try it live</a></div>
       </div>
     </section>
 
-    <section class="section" style="padding-top:8px">
-      <div class="wrap net-grid">
-        <div>
-          <div class="net-stage"><canvas id="c" width="960" height="600" aria-label="The room: every dot is a player"></canvas></div>
-          <div class="net-actions">
-            <button class="btn btn-primary" id="share" type="button">Copy the invite link</button>
-            <button class="btn btn-secondary" id="bots" type="button">Add 5 bots</button>
-            <button class="btn btn-secondary" id="migrate" type="button">Move to the relay</button>
-          </div>
-          <div class="fine">Move with the arrow keys, or drag on the room. Bots are more players in this page, on the same network as you.</div>
+    <section class="section" id="games">
+      <div class="wrap">
+        <div class="section-head"><div class="label">Already playing</div><div><h2>Games on Hawkes Net.</h2><p>Our own games run their online play on it.</p></div></div>
+        <div class="cards">
+          <a class="card" href="https://sickofitgame.com/"><span class="tag">Arcade · ghosts</span><h3>Sick Of It</h3><p>Climb 1,000 floors of Hell beside the ghosts of everyone else climbing your floor right now.</p><span class="more">Play Sick Of It</span></a>
+          <a class="card" href="https://yoobalandgame.com/"><span class="tag">MMO · one world</span><h3>Yooba Land</h3><p>Everyone in the same world: one room per area, hundreds together, with emotes, races, co-op puzzles and trading food.</p><span class="more">Play Yooba Land</span></a>
+          <a class="card" href="https://doseofdestruction.com/"><span class="tag">Fighter · versus</span><h3>Dose Of Destruction</h3><p>A platform fighter with the whole cast, and matches against your friends online.</p><span class="more">Play Dose Of Destruction</span></a>
         </div>
-        <aside class="net-panel" aria-live="polite">
-          <dl>
-            <dt>You</dt><dd id="me">joining…</dd>
-            <dt>Carried by</dt><dd id="transport">…</dd>
-            <dt>Host</dt><dd id="host">–</dd>
-            <dt>Round trip</dt><dd id="rtt">–</dd>
-            <dt>Down / up</dt><dd id="bw">–</dd>
-          </dl>
-          <ul id="peers"></ul>
-          <div class="net-log" id="log"></div>
-        </aside>
+      </div>
+    </section>
+
+    <section class="section" id="what">
+      <div class="wrap">
+        <div class="section-head"><div class="label">What you get</div><div><h2>Everything between your players.</h2></div></div>
+        <div class="cards">
+          <div class="card"><h3>One call</h3><p><code>lobby().join('level-1')</code> puts everyone in a level together, moves on to the next room when one fills, and rejoins by itself after a dropped connection.</p></div>
+          <div class="card"><h3>Your projects, live</h3><p>Each project has its own page: players online now and over the day, rooms and who is in them, every ticket and why one was refused, and 30 days of usage.</p></div>
+          <div class="card"><h3>Our relay</h3><p>Avatars by distance (near players often, far ones less), messages once and in order across reconnects, a shared clock, and a binary protocol about 5 times smaller than JSON.</p></div>
+          <div class="card"><h3>No server needed</h3><p>List your game's sites and its pages join with no key. Have a server? It asks for tickets with your API key and decides who plays where.</p></div>
+          <div class="card"><h3>Free to build</h3><p>Your own machine (<code>localhost</code>) always joins your project's test rooms, apart from your players. Open two tabs and play.</p></div>
+          <div class="card"><h3>Your engine</h3><p>One ES module for the web and Babylon.js, a package for Unity WebGL, and raw messages for games with their own netcode.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="start">
+      <div class="wrap">
+        <div class="section-head"><div class="label">Getting started</div><div><h2>Online in three steps.</h2></div></div>
+        <div class="steps">
+          <div class="card"><h3>Sign in</h3><p>Use your hawkesgen.com account at net.hawkesgen.com. Making one is free.</p></div>
+          <div class="card"><h3>Make a project</h3><p>Name it; its id is what your game passes as <code>project</code>. List your game's sites when you are ready to put it online.</p></div>
+          <div class="card"><h3>Add the SDK</h3><p><b>Web</b>: one import, today. <b>Unity WebGL</b>: download the package today; the Asset Store listing is coming soon. <b>Babylon.js</b>: a module of its own is coming soon; the web SDK works with Babylon now.</p></div>
+        </div>
+        <div class="actions" style="margin-top:24px"><a class="btn btn-primary btn-lg" href="https://net.hawkesgen.com/">Open Hawkes Net</a></div>
+      </div>
+    </section>
+
+    <section class="section" id="demo" style="padding-top:8px">
+      <div class="wrap">
+        <div class="section-head"><div class="label">Try it live</div><div><h2>Play together, here, right now.</h2><p>Every dot is someone with this page open in the same room, on our relay. Open the invite link in another tab or on your phone.</p></div></div>
+        <div class="net-grid">
+          <div>
+            <div class="net-stage"><canvas id="c" width="960" height="600" aria-label="The room: every dot is a player"></canvas></div>
+            <div class="net-actions">
+              <button class="btn btn-primary" id="share" type="button">Copy the invite link</button>
+              <button class="btn btn-secondary" id="bots" type="button">Add 5 bots</button>
+            </div>
+            <div class="fine">Move with the arrow keys, or drag on the room. Bots are more players in this page, on the same network as you.</div>
+          </div>
+          <aside class="net-panel" aria-live="polite">
+            <dl>
+              <dt>You</dt><dd id="me">joining…</dd>
+              <dt>Carried by</dt><dd id="transport">…</dd>
+              <dt>Host</dt><dd id="host">–</dd>
+              <dt>Round trip</dt><dd id="rtt">–</dd>
+              <dt>Down / up</dt><dd id="bw">–</dd>
+            </dl>
+            <ul id="peers"></ul>
+            <div class="net-log" id="log"></div>
+          </aside>
+        </div>
       </div>
     </section>
 
@@ -81,10 +134,25 @@
         <div class="facts">
           <div><b>1,000</b><span>players on one relay node with 4 processes: all connected, none dropped</span></div>
           <div><b>~8 KB/s</b><span>per player on the relay, in a binary protocol about 5 times smaller than JSON</span></div>
+          <div><b>39 ms</b><span>median delivery in that 1,000-player load test (81 ms at the 99th percentile)</span></div>
           <div><b>Live</b><span>players, rooms and tickets for each project on net.hawkesgen.com</span></div>
-          <div><b>1 call</b><span><code>join(room)</code>, or <code>lobby()</code> for shared rooms by area that rejoin by themselves</span></div>
         </div>
-        <div class="actions" style="margin-top:28px"><a class="btn btn-primary btn-lg" href="/net/docs">Use it in your game</a><a class="btn btn-secondary btn-lg" href="/games">Play the games built on it</a></div>
+      </div>
+    </section>
+
+    <section class="section" id="plans">
+      <div class="wrap">
+        <div class="section-head"><div class="label">Plans</div><div><h2>Free to build. Pay when you are online.</h2><p>While we set prices, using it costs no credits; each project's page counts player-minutes and relay data, so you see what you'd pay first.</p></div></div>
+        <div class="plans">
+          <div class="card"><h3>Free account</h3><ul><li>Projects, the dashboard and the SDK</li><li>Your game on localhost, in test rooms</li><li>Up to 3 rooms, 16 players and 8 a room per project</li></ul></div>
+          <div class="card"><h3>Paid account</h3><p>Credits or a plan on hawkesgen.com.</p><ul><li>Your game's own sites, and tickets from your server</li><li>Up to 64 players a room, 200 rooms, 2,000 players a project</li><li>Peer to peer for small rooms of friends, if you want it</li></ul></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="cta"><div><h2>Put your game online.</h2><p class="muted" style="margin:6px 0 0">Your hawkesgen.com account is all you need.</p></div><a class="btn btn-primary btn-lg" href="https://net.hawkesgen.com/">Open Hawkes Net</a></div>
       </div>
     </section>
   </main>
@@ -101,7 +169,7 @@
   const $ = (id) => document.getElementById(id);
   const q = new URLSearchParams(location.search);
   let room = (q.get('room') || '').toLowerCase();
-  if (!/^[a-z0-9]{4,16}$/.test(room)) { room = Math.random().toString(36).slice(2, 10); history.replaceState(null, '', `?room=${room}`); }
+  if (!/^[a-z0-9]{4,16}$/.test(room)) { room = Math.random().toString(36).slice(2, 10); history.replaceState(null, '', `?room=${room}${location.hash}`); }
   const log = (s) => { const el = $('log'); el.textContent = `${new Date().toLocaleTimeString()}  ${s}\n${el.textContent}`.slice(0, 3000); };
   const ticket = (name) => async () => {
     const r = await fetch('/v1/net/ticket', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ play: 'net-demo', room, name }) });
@@ -121,7 +189,7 @@
   cv.addEventListener('pointermove', (e) => { if (e.buttons) drag(e); });
   const myName = `Guest ${Math.floor(Math.random() * 900 + 100)}`;
   let net;
-  try { net = await join(room, { project: 'hawkesgenwebsite', transport: 'auto', name: myName, ticket: ticket(myName) }); }
+  try { net = await join(room, { project: 'hawkesgenwebsite', transport: 'relay', name: myName, ticket: ticket(myName) }); }
   catch (e) { $('me').textContent = e.message || 'Could not join'; throw e; }
   log(`You joined as ${net.name}`);
   net.when('transport', (e) => log(`The room moved: ${e.from} to the ${e.to} (${e.why})`));
@@ -136,13 +204,12 @@
     try {
       for (let i = 0; i < 5; i++) {
         const name = `Bot ${bots.length + 1}`;
-        const b = await join(room, { project: 'hawkesgenwebsite', transport: 'auto', name, ticket: ticket(name), sub: `bot-${Math.random()}` });
+        const b = await join(room, { project: 'hawkesgenwebsite', transport: 'relay', name, ticket: ticket(name), sub: `bot-${Math.random()}` });
         bots.push({ net: b, x: Math.random() * W, y: Math.random() * H, a: Math.random() * 6.28 });
       }
     } catch (e) { log(e.message); }
     $('bots').disabled = false;
   };
-  $('migrate').onclick = () => net.migrate('game asked');
   $('share').onclick = async () => { try { await navigator.clipboard.writeText(location.href); $('share').textContent = 'Copied'; } catch { prompt('The invite link', location.href); } setTimeout(() => ($('share').textContent = 'Copy the invite link'), 1500); };
   const ink = () => getComputedStyle(document.body).color;
   let last = performance.now(), prev = { d: 0, u: 0, t: performance.now() };
