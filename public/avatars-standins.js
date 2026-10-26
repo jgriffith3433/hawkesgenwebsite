@@ -91,6 +91,7 @@ export function mixamoPuppet(prefix = 'mixamorig:') {
         b(`${s}ToeBase`, [0, -0.04, 0.1], [0.12, 0.05, 0.1], '#7a3b1d')])])]);
   return {
     form: 'biped', title: 'Stand-in biped on the Mixamo skeleton (rigid boxes, no clips)',
+    boxKids: true, // (each box is a child of its bone, as toContainer makes it: a bone that is itself a mesh is not found by presence-anim's bind)
     nodes: [b('Hips', [0, 0.95, 0], [0.32, 0.18, 0.2], '#1f2937', [
       b('Spine', [0, 0.1, 0], [0.3, 0.12, 0.18], '#f59e0b', [
         b('Spine1', [0, 0.12, 0], [0.34, 0.12, 0.2], '#f59e0b', [
@@ -216,8 +217,10 @@ export function toGlb(spec) {
     const node = { name: n.name, translation: n.t };
     const i = json.nodes.push(node) - 1; index.set(n.name, i);
     const wp = [parentPos[0] + n.t[0], parentPos[1] + n.t[1], parentPos[2] + n.t[2]]; world.set(n.name, wp);
-    if (n.box) node.mesh = geometryMesh(`${n.name}-mesh`, [{ size: n.box, at: [0, 0, 0], color: n.color || '#cccccc' }]);
+    const mesh = n.box ? geometryMesh(`${n.name}-mesh`, [{ size: n.box, at: [0, 0, 0], color: n.color || '#cccccc' }]) : undefined;
+    if (mesh !== undefined && !spec.boxKids) node.mesh = mesh;
     const kids = (n.kids || []).map((k) => add(k, wp));
+    if (mesh !== undefined && spec.boxKids) kids.unshift(json.nodes.push({ name: `${n.name}-mesh`, mesh }) - 1);
     if (kids.length) node.children = kids;
     return i;
   };
