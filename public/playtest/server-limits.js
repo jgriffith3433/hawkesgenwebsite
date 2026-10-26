@@ -45,6 +45,8 @@ export async function runServerLimits(t, options = {}) {
     t.metric('healthWorstMs', Math.round(worst));
     t.event('signins-not-blocking', `${signins} sign-ins at once (${ok} in, ${limited} told to slow down); /v1/health's slowest answer meanwhile ${Math.round(worst)} ms`);
     if (ok + limited !== signins) t.problem('error', `a sign-in failed in a way that is neither success nor the limit: ${results.map((r) => r.status).join(',')}`);
+    // A sign-in the limiter turned away never reached the password hash, so it proves nothing about the loop: most must get in.
+    if (ok < Math.ceil(signins * 0.8)) t.problem('error', `only ${ok} of ${signins} sign-ins reached the password check (${limited} were refused by the sign-in limit), so the burst did not test the event loop`);
     if (worst > 400) t.problem('warning', `/v1/health took ${Math.round(worst)} ms while ${signins} sign-ins ran (browser to server included)`);
     t.progress(0.4);
 
