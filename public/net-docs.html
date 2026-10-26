@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
+  <script src="/site-analytics.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hawkes Net docs</title>
+  <meta name="description" content="Multiplayer for your web game in four steps: an API key, a ticket route on your server, join() in the page, and your rooms and usage here.">
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/public.css">
+  <link rel="stylesheet" href="/site.css">
+  <style>
+    .docs { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 40px; align-items: start; }
+    @media (max-width: 900px) { .docs { grid-template-columns: 1fr; } .docs nav { position: static !important; } }
+    .docs nav { position: sticky; top: 84px; display: grid; gap: 6px; font-size: 14px; }
+    .docs nav a { color: var(--ink-2); text-decoration: none; }
+    .docs nav a:hover { color: var(--accent); }
+    .docs h2 { font: 600 28px/1.15 var(--sans); letter-spacing: -.01em; margin: 44px 0 12px; scroll-margin-top: 84px; }
+    .docs h3 { font: 600 18px/1.3 var(--sans); margin: 26px 0 8px; }
+    .docs p, .docs li { color: var(--ink-2); font-size: 16px; line-height: 1.6; max-width: 46em; }
+    .docs pre { background: #0f1115; color: #e8eaf0; border-radius: var(--r); padding: 16px 18px; overflow: auto; font: 13px/1.6 var(--mono); margin: 10px 0 16px; }
+    .docs code { font-family: var(--mono); font-size: .92em; }
+    .docs p code, .docs li code, .docs td code { background: var(--paper-2); border: 1px solid var(--rule); border-radius: 4px; padding: 1px 5px; }
+    .docs table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 8px 0 16px; }
+    .docs th, .docs td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+    .docs th { color: var(--ink-3); font-weight: 500; }
+    .step { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; font: 600 13px var(--sans); margin-right: 8px; }
+    .mine { border: 1px solid var(--rule-strong); border-radius: var(--r); padding: 20px; background: var(--paper); }
+    .mine .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin: 14px 0; }
+    .tiles div { border: 1px solid var(--rule); border-radius: var(--r); padding: 12px; }
+    .tiles b { display: block; font: 600 22px/1.2 var(--sans); font-variant-numeric: tabular-nums; }
+    .tiles span { color: var(--ink-3); font-size: 13px; }
+    .keybox { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+    .keybox code { background: var(--paper-2); border: 1px solid var(--rule); border-radius: 6px; padding: 6px 10px; word-break: break-all; }
+    .note { font-size: 14px; color: var(--ink-3); }
+    .warn { color: #a15c00; }
+    .pill { font: 500 11px var(--mono); padding: 1px 8px; border-radius: 99px; border: 1px solid var(--rule-strong); color: var(--ink-2); }
+    .pill.relay { border-color: var(--accent); color: var(--accent); }
+  </style>
+  <script src="/sitenav.js" defer></script>
+</head>
+<body class="landing">
+  <header class="hg-navbar">
+    <div class="wrap hg-navbar-inner">
+      <a href="/" class="hg-brand"><span class="wordmark">Hawkes Gen</span></a>
+      <nav class="hg-nav-links" data-site-nav><a href="/games">Games</a><a href="/community">Community library</a><a href="/entities">Engine codex</a><a href="/app/studio">Asset Studio</a><a href="/#pricing">Pricing</a><a href="/connect">For developers</a></nav>
+      <div class="hg-nav-actions" id="nav"><a class="btn btn-primary" href="/app">Open the studio</a></div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" style="padding-bottom:12px">
+      <div class="wrap">
+        <div class="label">Hawkes Net · Docs</div>
+        <h1 style="font:600 52px/1.04 var(--sans);letter-spacing:-.02em;margin:14px 0 14px">Multiplayer for your web game.</h1>
+        <p class="muted" style="font-size:18px;max-width:40em;margin:0">One call joins a room. Small rooms go peer to peer; past eight players the room moves to our relay and nobody reconnects. Four steps, and your rooms and usage are below.</p>
+        <div class="actions" style="margin-top:20px"><a class="btn btn-secondary" href="/net">Try the demo in two tabs</a></div>
+      </div>
+    </section>
+
+    <section class="section" style="padding-top:12px">
+      <div class="wrap docs">
+        <nav aria-label="On this page">
+          <a href="#yours">Your Hawkes Net</a>
+          <a href="#quickstart">Quickstart</a>
+          <a href="#server">1 · Your ticket route</a>
+          <a href="#page">2 · Join in the page</a>
+          <a href="#unity">3 · Unity WebGL</a>
+          <a href="#rooms">Rooms and transports</a>
+          <a href="#messages">Messages and avatars</a>
+          <a href="#state">Shared state</a>
+          <a href="#reference">Reference</a>
+          <a href="#limits">Limits and pricing</a>
+        </nav>
+
+        <div>
+          <h2 id="yours" style="margin-top:0">Your Hawkes Net</h2>
+          <div class="mine" id="mine">
+            <p class="note" id="mineMsg">Loading…</p>
+          </div>
+
+          <h2 id="quickstart">Quickstart</h2>
+          <p>Your players' pages hold no secrets, so a page never asks for a room directly. Your server asks hawkesgen.com for a <b>ticket</b> with your API key (above), hands it to the page, and the page joins with it. A ticket is good for one join, for 90 seconds; the SDK asks your route again when it needs another (reconnecting, moving to the relay).</p>
+
+          <h3 id="server"><span class="step">1</span>Your ticket route</h3>
+          <p>Any server will do. Decide who may join which room (your logins, your matchmaking), then forward the request with your key. Rooms are yours alone: nobody else's game can join them.</p>
+<pre>// Node (Express); the same in any language: one HTTPS POST with your key.
+app.post('/ticket', async (req, res) =&gt; {
+  const r = await fetch('https://hawkesgen.com/v1/net/rooms/ticket', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.HAWKESGEN_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ room: req.body.room, name: req.user.name, sub: req.user.id }),
+  });
+  res.status(r.status).json(await r.json());
+});</pre>
+          <p class="note">Keep the key on your server. <code>sub</code> is your own id for the player (the same person reconnecting keeps their place).</p>
+
+          <h3 id="page"><span class="step">2</span>Join in the page</h3>
+<pre>import { join } from 'https://net.hawkesgen.com/sdk/hawkes-net@1.mjs';
+
+const ticket = () =&gt; fetch('/ticket', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ room: 'lobby' }),
+}).then((r) =&gt; r.json());
+
+const net = await join('lobby', { ticket });
+
+net.on('chat', (text, from) =&gt; show(from.name, text));
+net.send('chat', 'hello');                        // reliable: once, in order
+
+net.pose([x, y, z], yaw);                          // your avatar, as often as you like
+net.onPose((peer, s) =&gt; moveAvatar(peer, s.p, s.y));
+
+net.when('peer:join', (p) =&gt; addAvatar(p.id, p.name));
+net.when('peer:leave', ({ peer }) =&gt; removeAvatar(peer.id));</pre>
+          <p class="note">One ES module, no build step, no dependencies. Prefer a copy? Save <a href="https://net.hawkesgen.com/sdk/hawkes-net@1.mjs">hawkes-net.mjs</a> and <a href="https://net.hawkesgen.com/sdk/hawkes-net-core.mjs">hawkes-net-core.mjs</a> side by side and import your copy.</p>
+
+          <h3 id="unity"><span class="step">3</span>Unity WebGL</h3>
+          <p>The <code>com.hawkes.net</code> package runs the same SDK in the page and gives you a C# room. Point <code>ticketUrl</code> at your route from step 1.</p>
+<pre>var room = HawkesNet.Join("lobby", new HawkesNetOptions { ticketUrl = "https://mygame.example/ticket", name = "Ada" });
+room.OnReady += r =&gt; Debug.Log($"in {r.Name} over {r.Transport}");
+room.On&lt;Chat&gt;("chat", (msg, from) =&gt; Show(room.Peers[from], msg.text));
+room.Send("chat", new Chat { text = "hello" });
+
+void Update() {
+    room.Pose(player.position, player.eulerAngles.y);
+    foreach (var kv in room.Poses) MoveAvatar(kv.Key, kv.Value.position, kv.Value.yaw);
+}</pre>
+          <p class="note">WebGL builds only. Ask us for the package while it waits for its Asset Store listing.</p>
+
+          <h2 id="rooms">Rooms and transports</h2>
+          <p>A room is any name you choose (letters, digits and <code>/ _ . -</code>, up to 64). The first ticket for a name opens it. <code>transport</code> on the ticket picks how it travels:</p>
+          <table>
+            <tr><th>transport</th><th>What happens</th><th>Use it for</th></tr>
+            <tr><td><code>auto</code> (default)</td><td>Peer to peer while small (one player hosts, the others link to them). Past <code>p2pMax</code> players, when the host leaves, or when links fail, the room moves to our relay on the same connections.</td><td>Friends' rooms, invites, small matches</td></tr>
+            <tr><td><code>relay</code></td><td>Through our relay from the start. Interest by distance and a byte budget per player keep it light.</td><td>Public rooms, big worlds, anything with more than a handful</td></tr>
+            <tr><td><code>p2p</code></td><td>Peer to peer only; the room is full at <code>p2pMax</code>.</td><td>Two to eight players who never need the relay</td></tr>
+          </table>
+          <p>Peer-to-peer traffic never touches our servers. <code>net.transport</code> says where a room is now, and <code>net.when('transport', …)</code> tells you when it moves (you don't need to do anything).</p>
+
+          <h2 id="messages">Messages and avatars</h2>
+          <table>
+            <tr><th>Call</th><th>What it does</th></tr>
+            <tr><td><code>net.send(kind, data, opt?)</code></td><td>To everyone. Reliable by default (once, in order, across reconnects and moves). <code>{ reliable: false }</code> may drop; <code>{ to: peerId }</code> sends to one; <code>{ self: true }</code> includes you.</td></tr>
+            <tr><td><code>net.on(kind, (data, from, meta) =&gt; …)</code></td><td>Messages of one kind; <code>'*'</code> for all.</td></tr>
+            <tr><td><code>net.pose([x, y, z], yaw, extra?)</code></td><td>Your avatar. Call it every frame; the newest goes out about 15 times a second, compressed.</td></tr>
+            <tr><td><code>net.onPose((peer, state, at) =&gt; …)</code></td><td>Everyone else's avatar: <code>state.p</code>, <code>state.y</code> and your extras.</td></tr>
+            <tr><td><code>net.when(event, fn)</code></td><td><code>status</code>, <code>ready</code>, <code>peer:join</code>, <code>peer:leave</code>, <code>host</code>, <code>transport</code>, <code>problem</code>.</td></tr>
+            <tr><td><code>net.now()</code></td><td>The room's shared clock, in milliseconds.</td></tr>
+            <tr><td><code>net.leave()</code></td><td>Out of the room (closing the tab does it too).</td></tr>
+          </table>
+
+          <h2 id="state">Shared state</h2>
+          <p><code>net.sync</code> keeps things in step: one player simulates each moving thing (its owner, or the host), and everyone else sees it smoothly.</p>
+          <table>
+            <tr><td><code>net.sync.push(id, [x, y, z, rx, ry, rz, vx, vy, vz])</code></td><td>A thing you simulate</td></tr>
+            <tr><td><code>net.sync.onThing((id, at, values, from) =&gt; …)</code></td><td>Things others simulate</td></tr>
+            <tr><td><code>net.sync.claim(id)</code> / <code>hold(id)</code> / <code>release(id)</code></td><td>Take a thing over (a grab, a car you drive); a held thing stays yours</td></tr>
+            <tr><td><code>net.sync.state(name, data)</code></td><td>A shared document (a score, a door); joiners get its newest copy</td></tr>
+          </table>
+
+          <h2 id="reference">Reference: <code>POST https://hawkesgen.com/v1/net/rooms/ticket</code></h2>
+          <p>With <code>Authorization: Bearer hg_…</code> (your key). JSON body:</p>
+          <table>
+            <tr><th>Field</th><th></th></tr>
+            <tr><td><code>room</code></td><td>Required. The room's name.</td></tr>
+            <tr><td><code>name</code></td><td>Shown to the others (24 characters).</td></tr>
+            <tr><td><code>sub</code></td><td>Your id for this player (64 characters).</td></tr>
+            <tr><td><code>transport</code></td><td><code>auto</code> (default), <code>relay</code> or <code>p2p</code>.</td></tr>
+            <tr><td><code>role</code></td><td><code>player</code> (default) or <code>spectator</code> (watches; doesn't count toward the room's size).</td></tr>
+            <tr><td><code>config</code></td><td>The room's shape when this ticket opens it: <code>maxPlayers</code> (up to 64), <code>p2pMax</code> (up to 8), <code>profile</code> (<code>light</code>, <code>medium</code>, <code>heavy</code>: how much a room sends), <code>sendHz</code>.</td></tr>
+          </table>
+          <p>The answer is what <code>join()</code> takes from your <code>ticket</code> function as it is: <code>ticket</code>, <code>peer</code>, <code>relayUrl</code>, <code>transports</code>, <code>expiresAt</code>, …. Errors: <code>401</code> no key or a wrong one, <code>402</code> your account can't use Hawkes Net yet (below), <code>409</code> the room is full, <code>429</code> too many rooms or tickets.</p>
+
+          <h2 id="limits">Limits and pricing</h2>
+          <ul>
+            <li>Up to 64 players a room; up to 8 peer to peer before the relay.</li>
+            <li>Hawkes Net for your own games is open to accounts that have bought credits or a plan.</li>
+            <li>While we set prices, using it costs no credits. Your usage is counted above (player-minutes and relay data) so you'll see what you'd pay before you pay anything.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <span>© 2026 Hawkes Gen</span>
+      <span><a href="/legal#terms">Terms</a> · <a href="/legal#privacy">Privacy</a> · <a href="mailto:support@hawkesgen.com">support@hawkesgen.com</a></span>
+    </div>
+  </footer>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const num = (n, d = 0) => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: d });
+  const ago = (t) => { const s = Math.max(0, (Date.now() - t) / 1000); return s < 60 ? `${Math.round(s)} s` : s < 3600 ? `${Math.round(s / 60)} min` : `${Math.round(s / 3600)} h`; };
+  let minted = null;
+
+  function render(me) {
+    const el = $('mine');
+    const rooms = me.rooms && !me.rooms.error ? me.rooms.rooms : null;
+    const u = me.usage && !me.usage.error ? me.usage.total : null;
+    const key = minted
+      ? `<div class="keybox"><code id="newKey">${esc(minted)}</code><button class="btn btn-secondary" type="button" id="copyKey">Copy</button></div><p class="note warn">Copy it now: it is shown once. Your previous key stopped working.</p>`
+      : me.key
+        ? `<p class="note">Your key starts <code>${esc(me.key.prefix)}…</code>, made ${new Date(me.key.created).toLocaleDateString()}${me.key.lastUsed ? `, last used ${ago(me.key.lastUsed)} ago` : ', not used yet'}. Lost it? A new one replaces it.</p><button class="btn btn-secondary" type="button" id="mint">Make a new key</button>`
+        : `<p class="note">You have no API key yet.</p><button class="btn btn-primary" type="button" id="mint">Make my API key</button>`;
+    el.innerHTML = `
+      <div class="row"><div><b>Project</b> <code>${esc(me.project)}</code></div><div class="note">Service <code>${esc(me.service)}</code></div></div>
+      ${me.paid ? '' : '<p class="warn" style="margin:12px 0 0">Hawkes Net for your own games opens once your account has bought credits or a plan. <a href="/app#credits">Get credits</a></p>'}
+      <h3 style="margin-top:18px">API key</h3>${key}
+      <h3>Last 30 days</h3>
+      ${u ? `<div class="tiles"><div><b>${num(u.playerMinutes, 1)}</b><span>player-minutes</span></div><div><b>${num(u.relayGb, 3)}</b><span>GB through the relay</span></div><div><b>${num(u.p2pGb, 3)}</b><span>GB peer to peer (free)</span></div><div><b>$${num(u.cost, 2)}</b><span>what the relay cost us</span></div></div>` : `<p class="note">Usage isn't available right now${me.usage?.error ? ` (${esc(me.usage.error)})` : ''}.</p>`}
+      <h3>Rooms open now <span class="note" id="refreshed"></span></h3>
+      ${rooms ? (rooms.length ? `<table><tr><th>Room</th><th>Players</th><th>Transport</th><th>Open for</th></tr>${rooms.map((r) => `<tr><td><code>${esc(r.room)}</code></td><td>${r.players}</td><td><span class="pill ${r.transport === 'relay' ? 'relay' : ''}">${r.transport === 'relay' ? 'relay' : 'peer to peer'}</span></td><td>${ago(r.openedAt)}</td></tr>`).join('')}</table>` : '<p class="note">None right now. Rooms show here while players are in them.</p>') : `<p class="note">Rooms aren't available right now${me.rooms?.error ? ` (${esc(me.rooms.error)})` : ''}.</p>`}`;
+    $('refreshed').textContent = `· updated ${new Date().toLocaleTimeString()}`;
+    $('mint')?.addEventListener('click', async () => {
+      if (me.key && !confirm('Make a new key? Your current key stops working at once, everywhere you use it (your servers, MCP clients, the Unity package).')) return;
+      const r = await fetch('/v1/users/api-key', { method: 'POST' });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.apiKey) return alert(j.error || 'Could not make a key');
+      minted = j.apiKey;
+      load();
+    });
+    $('copyKey')?.addEventListener('click', () => navigator.clipboard?.writeText(minted));
+  }
+
+  async function load() {
+    const r = await fetch('/v1/net/me', { credentials: 'same-origin' }).catch(() => null);
+    if (!r || r.status === 401) {
+      $('mine').innerHTML = '<p>Sign in to get your API key and see your rooms and usage.</p><a class="btn btn-primary" href="/app">Sign in</a> <span class="note">then come back to this page</span>';
+      return false;
+    }
+    if (!r.ok) { $('mineMsg').textContent = 'Could not load your Hawkes Net right now.'; return true; }
+    render(await r.json());
+    return true;
+  }
+  load().then((signedIn) => { if (signedIn) setInterval(() => { if (!document.hidden) load(); }, 15_000); });
+})();
+</script>
+</body>
+</html>

@@ -163,3 +163,19 @@ test("sandboxed game pages (origin null) can import the Hawkes Net SDK: its modu
     assert.match(String(r.headers.get('content-type')), /javascript/, f);
   }
 });
+
+test("a developer's own Hawkes Net (/v1/net/me): their project, whether they may use it, rooms and usage, each part on its own", async () => {
+  assert.equal((await fetch(`${base}/v1/net/me`)).status, 401, 'signed in only');
+  const users = await import('../src/users.ts');
+  const u: any = await users.createAccount({ email: 'net-dev@example.com', password: 'a long password 1' });
+  const user = u.user ?? u;
+  const { apiKey } = users.mintApiKey(user.id);
+  const me = await (await fetch(`${base}/v1/net/me`, { headers: { Authorization: `Bearer ${apiKey}` } })).json();
+  assert.equal(me.project, user.project);
+  assert.equal(me.paid, false);
+  assert.match(me.key.prefix, /^hg_/);
+  assert.ok(me.rooms && me.usage, 'both parts answer (here with the fake service\'s errors, not a failed page)');
+  const page = await fetch(`${base}/net/docs`);
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /Your Hawkes Net/);
+});
