@@ -49,12 +49,12 @@
   const quadStride = (h) => ({ walk: +(h * 1.0).toFixed(2), trot: +(h * 2).toFixed(2), run: +(h * 3.4).toFixed(2) });
   // Anchors are offsets from the model's origin in its own units (the model is about 1 unit tall, feet on y = 0, the face toward +z): see the pictures in /avatars?compare=1.
   const A = (head, face, neck, back, rump) => ({ head: { at: head }, face: { at: face }, neck: { at: neck }, back: { at: back }, rump: { at: rump } });
-  const PERSON_USE_MODEL = true;
+  const PERSON_USE_MODEL = false;
   const PERSON_MIXAMO = { ...row('biped'), url: '/play/models/person.glb', lods: lods(7600, 2280, '/play/models/person-low.glb'), h: 1.8, head: 1.04, rig: 'mixamo', anchors: { head: { node: 'mixamorig:Head', at: [0.0391, 0.8651, 0.0151], rot: [-0.0108, -2.6468, 0.0371] }, face: { node: 'mixamorig:Head', at: [-0.2065, 0.414, -0.4045], rot: [-0.0108, -2.6468, 0.0371] }, neck: { node: 'mixamorig:Neck', at: [-0.0077, -0.0883, 0.0155], rot: [-0.0779, 3.0323, 0.0311] }, back: { node: 'mixamorig:Spine2', at: [0.2249, -0.2463, 0.019], rot: [0.0004, -1.626, 0.0101] }, rump: { node: 'mixamorig:Hips', at: [0.0057, -0.0129, 0.2277], rot: [0.0487, -3.0934, 0.0166] } } };
   P.modelRegistry = {
     // people and machines
-    // The person is the Mixamo model again (2026-10-26): the remake's bake has no empty texels between its islands, so it no longer looks
-    // speckled. PERSON_USE_MODEL false brings back the procedural vinyl toy (presence-person.js).
+    // The person is the procedural vinyl toy (presence-person.js) while PERSON_USE_MODEL is false: the remade person.glb's texture is a blocky
+    // pink skin bake with no clothes (it reads as a faceted pink blob with one big eye in the intro and mirror). Set it true once the model is remade.
     person: PERSON_USE_MODEL ? PERSON_MIXAMO : row('biped'),
     robot: { ...row('biped'), ...mdl('robot'), h: 1.8, head: 0.95, rig: 'mixamo', anchors: { head: { node: 'mixamorig:Head', at: [0.0093, 0.6571, -0.007], rot: [0.019, -0.3771, 0.0012] }, face: { node: 'mixamorig:Head', at: [-0.1263, 0.2359, 0.3367], rot: [0.019, -0.3771, 0.0012] }, neck: { node: 'mixamorig:Neck', at: [-0.0167, -0.2108, 0.0301], rot: [-0.0252, 2.5868, -0.0277] }, back: { node: 'mixamorig:Spine2', at: [0.0017, -0.3261, -0.2474], rot: [0.0191, 0.042, 0.0205] }, rump: { node: 'mixamorig:Hips', at: [-0.0096, -0.1763, 0.2092], rot: [-0.0968, 3.1262, -0.0031] } } },
 tvbot: { ...row('biped'), ...mdl('tvbot'), h: 1.75, head: 0.91, rig: 'mixamo', anchors: { head: { node: 'mixamorig:Head', at: [-0.0104, 0.8461, -0.0059], rot: [0.0356, -2.7148, 0.0032] }, face: { node: 'mixamorig:Head', at: [-0.1532, 0.4273, -0.3169], rot: [0.0356, -2.7148, 0.0032] }, neck: { node: 'mixamorig:Neck', at: [-0.0081, 0.0208, 0.0252], rot: [-0.0664, -3.0389, 0.0176] }, back: { node: 'mixamorig:Spine2', at: [0.0435, -0.1341, -0.2098], rot: [0.0122, -0.1502, 0.0129] }, rump: { node: 'mixamorig:Hips', at: [-0.016, -0.0425, 0.2144], rot: [0.027, 3.1113, -0.0055] } } },
