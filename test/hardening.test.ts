@@ -66,6 +66,14 @@ test('twenty sign-ins at once never block the event loop for more than 50 ms', a
   assert.ok(worst < 50, `the loop was held ${worst.toFixed(1)} ms`);
 });
 
+test('over HTTP the sign-in limit is 20 a quarter hour per address: the 21st is refused before any hash runs', async () => {
+  const h = { 'X-Forwarded-For': '10.9.0.77' };
+  assert.equal((await call('/v1/users/signup', { body: { email: 'burst@example.com', password: 'burst-password' }, headers: h })).status, 200);
+  const codes = await Promise.all(Array.from({ length: 21 }, () => call('/v1/users/login', { body: { email: 'burst@example.com', password: 'burst-password' }, headers: h }).then((r) => r.status)));
+  assert.equal(codes.filter((c) => c === 200).length, 20);
+  assert.equal(codes.filter((c) => c === 429).length, 1);
+});
+
 // ------------------------------------------------------------------ the limiter
 test('the limiter slides, refuses past its max without counting the refusal, and forgets keys', () => {
   const l = new Limiter(2, 1000, 5);

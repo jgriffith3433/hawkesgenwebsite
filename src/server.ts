@@ -455,8 +455,9 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       return send(res, 200, { user: r.user, apiKey: r.apiKey });
     }
     if (route === '/v1/users/login' && method === 'POST') {
-      limitLogins(clientIp(req));
-      const r = await users.login(await readJson(req));
+      const b = await readJson(req);
+      if (!users.signupExempt(String(b?.email ?? '').trim().toLowerCase())) limitLogins(clientIp(req)); // beta playtest accounts: see signupExempt
+      const r = await users.login(b);
       users.setSessionCookie(res, req, r.sessionToken);
       return send(res, 200, { user: r.user });
     }
