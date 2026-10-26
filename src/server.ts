@@ -7,7 +7,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { PORT, ROOT, USER_ID, genKey, env } from './config.ts';
+import { PORT, ROOT, USER_ID, DATA_DIR, genKey, env } from './config.ts';
 import { genFetch, gen } from './gen.ts';
 import { send, readJson, readBody, PortalError, Limiter, clientIp } from './util.ts';
 import * as users from './users.ts';
@@ -28,6 +28,11 @@ import * as games from './games.ts';
 import * as friends from './friends.ts';
 import { presenceRoute } from './presence.ts';
 import { askAssistant, askQuote, generateAsset, pendingGens, markSuggestion, resumeGens, KINDS, AI_CREDITS } from './gameai.ts';
+import { SharedLimiter, sweepShared } from './shared.ts';
+import cluster from 'node:cluster';
+import { runPrimary } from './primary.ts';
+import { hostHub, connectHub, drainBus } from './bus.ts';
+import { role, busPath, setLeaving, isLeaving } from './proc.ts';
 import { join as joinLive, setPresence, closeAll as closeLive } from './live.ts';
 import { templateBundle, featured } from './templates.ts';
 import { details, countRequest, trackServer } from './metrics.ts';
@@ -35,7 +40,7 @@ import { serveVendor } from './vendor.ts';
 import { loaderScript, engineDoc, manifest } from './engine.ts';
 const engineVersion = () => manifest().version;
 import * as community from './community.ts';
-import { upgrade as joinRoom, broadcastOps, markHere, liveCounts, roomState } from './rooms.ts';
+import { upgrade as joinRoom, closeAllRooms, broadcastOps, markHere, liveCounts, roomState } from './rooms.ts';
 import * as invites from './invites.ts';
 import * as hnet from './hnet.ts';
 import { digest } from './sign.ts';
@@ -69,9 +74,10 @@ const limitInvites = (ip: string) => inviteMade.take(ip, 'That is a lot of invit
 
 /** Generations an account may start from a game: 10 a minute and 40 an hour. A second guard: the editor asks the person
  *  first (docs/engine-modules.md, "What a game may ask the editor"), but a script can post to the route itself. */
-const genPerMinute = new Limiter(10, 60_000);
-const genPerHour = new Limiter(40, 3600_000);
+const genPerMinute = new SharedLimiter(10, 60_000, 'gen-min');
+const genPerHour = new SharedLimiter(40, 3600_000, 'gen-hour');
 function limitGenerations(userId: string) {
+  // (In the database, so the limit holds however many web processes the account's requests land on.)
   if (genPerMinute.over(userId) || genPerHour.over(userId)) throw new PortalError('That is a lot of things to make at once; give it a minute and try again.', { status: 429 });
   genPerMinute.hit(userId);
   genPerHour.hit(userId);
@@ -221,10 +227,10 @@ async function serveStatic(route: string, res: ServerResponse, search = '') {
 }
 
 /** WebSocket upgrades: only the game rooms (/v1/ws). */
-export function onUpgrade(req: IncomingMessage, socket: Duplex) {
+export function onUpgrade(req: IncomingMessage, socket: Duplex, head?: Buffer) {
   socket.on('error', () => {});
   if (new URL(req.url ?? '/', 'http://x').pathname !== '/v1/ws') return void socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
-  try { joinRoom(req, socket); } catch (e) { console.error('[portal] ws:', e); socket.destroy(); }
+  try { joinRoom(req, socket, head); } catch (e) { console.error('[portal] ws:', e); socket.destroy(); }
 }
 
 export async function handle(req: IncomingMessage, res: ServerResponse) {
@@ -695,6 +701,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
 export function createPortalServer() {
   const server = http.createServer((req, res) => {
     countRequest();
+    if (isLeaving()) res.setHeader('Connection', 'close');
     // A handler's stray rejection must never leave a socket hanging or take the process down.
     handle(req, res).catch((e) => {
       console.error('[portal] handler:', e);
@@ -713,30 +720,78 @@ export function createPortalServer() {
   return server;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(ROOT, 'src', 'server.ts')) {
-  if (!genKey()) console.warn('[portal] HAWKESGEN_KEY is not set: jobs will fail until it is');
-  // Listen first, so /v1/health answers within a second of starting; the background work follows.
-  const server = createPortalServer();
-  server.listen(PORT, '127.0.0.1', () => console.log(`[portal] http://127.0.0.1:${PORT}`));
+// ------------------------------------------------------------------ roles
+// `node src/server.ts` is one process that does everything (how Studio runs beta, and the tests). PORTAL_ROLE=web is the
+// cluster (src/primary.ts): the primary keeps PORTAL_WEB_PROCS web processes on the port and one worker. Only the worker
+// (or the one process) starts a background loop; what the processes share goes over the bus (src/bus.ts) or the database.
+const leaveWith = (server: http.Server, graceMs = 0) => {
+  // A restart (every beta push, every deploy) must not reset requests under way: stop taking new connections, let the
+  // running ones finish (their answers say Connection: close), drop idle keep-alive ones as they go idle, leave after 8 s at most.
+  let leaving = false;
+  return () => {
+    if (leaving) return;
+    leaving = true;
+    setLeaving();
+    closeLive();
+    closeAllRooms();
+    server.close(() => void drainBus().then(() => process.exit(0)));
+    // (A rolling restart gives idle keep-alive connections a few seconds first: the next request on one is answered with
+    // Connection: close, so a client never sends into a connection that is being shut. See createPortalServer.)
+    setTimeout(() => { const sweep = setInterval(() => server.closeIdleConnections(), 50); sweep.unref(); }, graceMs).unref();
+    setTimeout(() => process.exit(0), 8000 + graceMs).unref();
+  };
+};
+const background = () => {
   watch();
   resumeTasks();
   resumeGens();
   community.watchStarter();
-  // A restart (every beta push, every deploy) must not reset requests under way: stop taking new connections, let the
-  // running ones finish (their answers say Connection: close), drop idle keep-alive ones as they go idle, leave after 8 s at most.
-  let leaving = false;
-  const leave = () => {
-    if (leaving) return;
-    leaving = true;
-    closeLive();
-    server.close(() => process.exit(0));
-    const sweep = setInterval(() => server.closeIdleConnections(), 50);
-    sweep.unref();
-    setTimeout(() => process.exit(0), 8000).unref();
-  };
-  // One request's stray error must not take the process down: that resets every connection at once (blank pages).
+};
+// One request's stray error must not take the process down: that resets every connection at once (blank pages).
+const guard = () => {
   process.on('uncaughtException', (e) => console.error('[portal] uncaught:', e));
   process.on('unhandledRejection', (e) => console.error('[portal] unhandled rejection:', e));
-  process.on('SIGTERM', leave);
-  process.on('SIGINT', leave);
+};
+
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(ROOT, 'src', 'server.ts')) {
+  if (!genKey()) console.warn('[portal] HAWKESGEN_KEY is not set: jobs will fail until it is');
+  const mode = role();
+  if (mode === 'web' && cluster.isPrimary) {
+    runPrimary({ port: PORT, dataDir: DATA_DIR });
+  } else if (mode === 'worker') {
+    // The worker: the bus the web processes share, and every loop. It serves no HTTP.
+    guard();
+    await hostHub(busPath(DATA_DIR));
+    background();
+    // The web processes start tasks and generations by a message; this finds any a restart or a lost message left behind.
+    setInterval(() => { resumeTasks(); resumeGens(); }, 5000).unref();
+    setInterval(sweepShared, 3600_000).unref();
+    process.send?.({ t: 'ready' });
+    const bye = () => process.exit(0);
+    process.on('SIGTERM', bye);
+    process.on('SIGINT', bye);
+    process.on('disconnect', bye);
+  } else {
+    // Listen first, so /v1/health answers within a second of starting; the background work follows.
+    const server = createPortalServer();
+    const leave = leaveWith(server);
+    const leaveRolling = leaveWith(server, 3000);
+    if (mode === 'web') {
+      connectHub(busPath(DATA_DIR));
+      // The primary asks a web process to leave (a rolling restart); sockets for game rooms that another keeps arrive here (rooms.ts handoff).
+      process.on('message', (m: any, handle: any) => {
+        if (m?.t === 'leave') return leaveRolling();
+        if (m?.t !== 'ws-handoff' || !handle) return;
+        if (isLeaving()) return void process.send?.(m, handle); // (sent to a process just leaving: the primary has the new one)
+        server.emit('connection', handle);
+        handle.unshift(Buffer.from(m.head, 'base64'));
+      });
+      process.on('disconnect', leave);
+    }
+    server.listen(PORT, '127.0.0.1', () => console.log(`[portal] http://127.0.0.1:${PORT}${mode === 'web' ? ` (web ${process.env.PORTAL_WEB_INDEX})` : ''}`));
+    if (mode === 'all') background();
+    guard();
+    process.on('SIGTERM', leave);
+    process.on('SIGINT', leave);
+  }
 }

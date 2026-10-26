@@ -60,6 +60,7 @@ export async function readJson(req: IncomingMessage): Promise<any> {
  *  `maxKeys` keys, the oldest let go first, so a flood of made-up keys can't grow the process. */
 export class Limiter {
   readonly windowMs: number;
+  /** The limit for the whole portal; each web process keeps `limit`, its share (PORTAL_PROCS processes take turns). */
   readonly max: number;
   readonly maxKeys: number;
   private hits = new Map<string, number[]>();
@@ -73,12 +74,13 @@ export class Limiter {
       sweeper.unref?.();
     }
   }
+  get limit() { return Math.max(1, Math.ceil(this.max / envInt((k) => process.env[k], 'PORTAL_PROCS', 1))); }
   /** Is this key at its limit right now? Counts nothing. */
   over(key: string, now = Date.now()) {
     const h = this.hits.get(key);
     if (!h) return false;
     while (h.length && now - h[0] >= this.windowMs) h.shift();
-    return h.length >= this.max;
+    return h.length >= this.limit;
   }
   /** Counts a hit and says whether it was allowed. A refused hit is not counted. */
   hit(key: string, now = Date.now()) {

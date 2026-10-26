@@ -7,7 +7,13 @@ Wants=network-online.target
 User=hawkes
 Group=hawkes
 WorkingDirectory=/srv/hawkes/hawkesgenwebsite
+# The cluster primary: PORTAL_WEB_PROCS web processes (default: the CPU count) on the port and one worker for every
+# background loop (src/primary.ts). `systemctl reload` restarts them one at a time (deploy/pull.mjs does that).
+Environment=PORTAL_ROLE=web
 ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning src/server.ts
+ExecReload=/bin/kill -USR2 $MAINPID
+KillMode=mixed
+TimeoutStopSec=20
 Restart=always
 RestartSec=3
 NoNewPrivileges=true
