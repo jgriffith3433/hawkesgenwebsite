@@ -876,7 +876,8 @@ test('the Mixamo models (Gen mesh.rig, mixamorig: bones) bind to the Mixamo set,
     A.apply(b, new Map()); // rest
     const rest = { hips: at(b, 'Hips'), head: at(b, 'Head'), toe: at(b, 'LeftToeBase'), foot: at(b, 'LeftFoot'), lh: at(b, 'LeftHand'), rh: at(b, 'RightHand') };
     assert.ok(rest.head.y > rest.hips.y + 0.2 && rest.hips.y > rest.foot.y + 0.2, `${id}: standing up: head over hips over feet`);
-    assert.ok(rest.toe.z > rest.foot.z + 0.05, `${id}: the toes point to +z (the front)`);
+    // (a pig's toes are hoof stubs: forward by a tenth of the leg, not a fixed 5 cm)
+    assert.ok(rest.toe.z > rest.foot.z + Math.min(0.05, 0.1 * (rest.hips.y - rest.foot.y)), `${id}: the toes point to +z (the front)`);
     assert.ok(Math.abs(rest.lh.x) > 0.3 && Math.abs(rest.rh.x) > 0.3 && rest.lh.x * rest.rh.x < 0, `${id}: the arms are out to either side`);
     const walk = set.clips.walk, feet = (u: number) => { A.apply(b, A.sampleClip(walk, u)); return { lf: at(b, 'LeftFoot'), rf: at(b, 'RightFoot'), hips: at(b, 'Hips') }; };
     const a = feet(0), c = feet(0.5);
