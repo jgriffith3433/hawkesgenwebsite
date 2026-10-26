@@ -92,7 +92,8 @@
     const body = opts.token ? { token: opts.token } : { play: opts.play, room: opts.room, name: opts.name || '', join: Boolean(opts.join) };
     const ask = async () => {
       // text/plain: a simple request, no preflight (the page is sandboxed; no cookies go).
-      const r = await fetch('/v1/net/ticket', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ ...body, sdk: mod.VERSION }) });
+      // (Resolved like the SDK above: the draft frame's base is about:blank.)
+      const r = await fetch(SELF ? new URL('/v1/net/ticket', SELF).href : '/v1/net/ticket', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ ...body, sdk: mod.VERSION }) });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw Object.assign(new Error(j.error || `ticket ${r.status}`), { status: r.status });
       return j;
