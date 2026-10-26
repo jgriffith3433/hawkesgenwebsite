@@ -8,6 +8,7 @@
     ['/entities', 'Engine codex', 'Every kind of thing the game engine builds, live'],
     ['/avatars', 'Avatars', 'Every body a player can be, live'],
     ['/app/studio', 'Asset Studio', 'Make art, 3D, sound and music'],
+    ['https://net.hawkesgen.com/', 'Hawkes Net', 'Multiplayer for your game: your projects, players and rooms'],
     ['/#pricing', 'Pricing', 'Credits and packs'],
     ['/connect', 'For developers', 'MCP, Unity and the API'],
   ];
