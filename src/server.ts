@@ -121,13 +121,13 @@ function cors(res: ServerResponse) {
 
 // The Hawkes Net dashboard (net.hawkesgen.com, served by the Net box) reads the signed-in developer's Net data and makes
 // their key here, with the session cookie (same site, so it is sent). Only that origin, only these routes, credentials allowed.
-const NET_DASHBOARD_ROUTES = /^\/v1\/(net\/me|net\/sites|users\/api-key)$/;
+const NET_DASHBOARD_ROUTES = /^\/v1\/(net\/me|net\/projects(\/.*)?|users\/api-key)$/;
 const netDashboard = () => (env('PORTAL_NET_DASHBOARD') ?? 'https://net.hawkesgen.com').replace(/\/+$/, '');
 function netDashboardCors(req: IncomingMessage, res: ServerResponse): boolean {
   if (req.headers.origin !== netDashboard()) return false;
   res.setHeader('Access-Control-Allow-Origin', netDashboard());
   res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Vary', 'Origin');
   return true;
@@ -514,11 +514,22 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     // Hawkes Net for a customer's own game: a ticket for a room in their own project, from their game's server (hnet.ts).
     if (route === '/v1/net/rooms/ticket' && method === 'POST') return send(res, 200, await hnet.customerTicket(user, await readJson(req)));
     if (route === '/v1/net/me' && method === 'GET') return send(res, 200, await hnet.developer(user, users.profile(user).client));
-    if (route === '/v1/net/sites' && method === 'GET') return send(res, 200, await hnet.sites(user));
-    if (route === '/v1/net/sites' && method === 'POST') {
-      // JSON only: a form on another site can't send it without asking first (CORS lets only the Net dashboard).
-      if (!String(req.headers['content-type'] ?? '').includes('application/json')) throw new PortalError('Send JSON', { status: 415 });
-      return send(res, 200, await hnet.setSites(user, await readJson(req)));
+    // Hawkes Net projects (the net.hawkesgen.com dashboard): the signed-in account's own (hnet.ts). Writes are JSON only:
+    // a form on another site can't send one without asking first, and CORS lets only the Net dashboard.
+    const np = /^\/v1\/net\/projects(?:\/([^/]+)(?:\/(claim|rooms)(?:\/(.+?)(?:\/(kick))?)?)?)?$/.exec(route);
+    if (np) {
+      const [, id, part, roomRaw, kick] = np;
+      const room = roomRaw ? decodeURIComponent(roomRaw) : '';
+      const json = () => { if (!String(req.headers['content-type'] ?? '').includes('application/json')) throw new PortalError('Send JSON', { status: 415 }); return readJson(req); };
+      if (!id && method === 'GET') return send(res, 200, await hnet.projects(user, url.searchParams.get('all') === '1'));
+      if (!id && method === 'POST') return send(res, 200, await hnet.createProject(user, await json()));
+      if (id && !part && method === 'GET') return send(res, 200, await hnet.project(user, id));
+      if (id && !part && method === 'POST') return send(res, 200, await hnet.updateProject(user, id, await json()));
+      if (id && !part && method === 'DELETE') return send(res, 200, await hnet.deleteProject(user, id));
+      if (id && part === 'claim' && method === 'POST') { await json(); return send(res, 200, await hnet.claimProject(user, id)); }
+      if (id && part === 'rooms' && room && !kick && method === 'GET') return send(res, 200, await hnet.roomPlayers(user, id, room));
+      if (id && part === 'rooms' && room && kick && method === 'POST') return send(res, 200, await hnet.kickPlayer(user, id, room, await json()));
+      return send(res, 405, { error: 'Not a projects route' });
     }
 
     // The approve screen (/oauth/authorize): what's asking, then yes or no. Session only: a token can't approve itself.

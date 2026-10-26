@@ -10,7 +10,7 @@ import path from 'node:path';
 
 const calls: { path: string; body: any; project?: string }[] = [];
 let openRooms = new Set<string>();
-const sitesKept = new Map<string, any>();
+const projectsKept = new Map<string, any>();
 const fakeGen = http.createServer(async (req, res) => {
   const chunks: Buffer[] = [];
   for await (const c of req) chunks.push(c);
@@ -24,8 +24,19 @@ const fakeGen = http.createServer(async (req, res) => {
   if (url.pathname === '/v1/net/room') return json(200, { open: openRooms.has(body.room), players: openRooms.has(body.room) ? 2 : 0, limit: 32 });
   if (url.pathname === '/v1/net/publish') return json(200, { delivered: 1, rooms: 1 });
   if (url.pathname === '/v1/lods') return json(200, { lods: {}, queued: 0 });
-  if (url.pathname === '/v1/net/sites' && req.method === 'POST') { sitesKept.set(body.project, body); return json(200, { project: body.project, name: body.name, origins: body.origins, max: 20 }); }
-  if (url.pathname === '/v1/net/sites') { const k = sitesKept.get(url.searchParams.get('project') ?? ''); return json(200, { sites: k ? [{ project: k.project, name: k.name, origins: k.origins }] : [], max: 20 }); }
+  if (url.pathname === '/v1/net/projects' && req.method === 'POST') { const id = body.id ?? String(body.name).toLowerCase().replace(/[^a-z0-9]+/g, '-'); projectsKept.set(id, { id, name: body.name, owner: body.owner, sites: [], p2p: false }); return json(200, projectsKept.get(id)); }
+  if (url.pathname === '/v1/net/projects') { const owner = url.searchParams.get('owner'); return json(200, { owner, admin: url.searchParams.get('admin') === 'true', tier: url.searchParams.get('tier'), projects: [...projectsKept.values()].filter((x) => x.owner === owner), unowned: [] }); }
+  const pm = /^\/v1\/net\/projects\/([^/]+)(\/.*)?$/.exec(url.pathname);
+  if (pm) {
+    const kept = projectsKept.get(pm[1]);
+    const owner = body?.owner ?? url.searchParams.get('owner');
+    if (!kept || kept.owner !== owner) return json(404, { error: 'No project in this account' });
+    if (pm[2] === '/claim') return json(200, { ...kept });
+    if (pm[2]?.startsWith('/rooms/')) return json(200, pm[2].endsWith('/kick') ? { kicked: 1, echo: body } : { players: [{ peer: 'p1', name: 'Ada' }], room: decodeURIComponent(pm[2].slice(7)) });
+    if (req.method === 'DELETE') { projectsKept.delete(pm[1]); return json(200, { ok: true }); }
+    if (req.method === 'POST') { Object.assign(kept, { ...(body.sites !== undefined ? { sites: body.sites } : {}), ...(body.p2p !== undefined ? { p2p: body.p2p } : {}), ...(body.name ? { name: body.name } : {}) }); return json(200, { ...kept, tier: body.tier }); }
+    return json(200, { ...kept, rooms: [], tickets: [] });
+  }
   return json(404, { error: 'not in the fake' });
 });
 await new Promise<void>((r) => fakeGen.listen(0, '127.0.0.1', () => r()));
@@ -54,7 +65,7 @@ test('a game page gets a Hawkes Net ticket for a template room: Gen is asked wit
   assert.equal(j.mode, 'hawkesnet');
   assert.equal(j.room, 't/sandbox/abcd1234');
   assert.equal(j.echo.project, 'hawkesgenwebsite');
-  assert.equal(j.echo.transport, 'auto', 'rooms of friends start peer to peer');
+  assert.equal(j.echo.transport, 'relay', 'every room on the relay (peer to peer is not the default)');
   assert.equal(j.echo.name, 'Ada b', 'the name is cleaned');
 });
 
@@ -106,10 +117,10 @@ test("the play page's CSP lets games reach Gen's relay", () => {
   assert.match(connect, /ws:\/\/127\.0\.0\.1:\d+/, 'the node inside Gen');
 });
 
-test('the public demo (/net) gets a peer-to-peer room of its own, light, up to 8 before the relay', async () => {
+test('the public demo (/net) gets a room of its own on the relay, light', async () => {
   const j = await (await ticket({ play: 'net-demo', room: 'demo1234', name: 'Ada' })).json();
   assert.equal(j.room, 'd/demo1234');
-  assert.equal(j.echo.transport, 'auto');
+  assert.equal(j.echo.transport, 'relay');
   assert.equal(j.echo.config.profile, 'light');
   assert.equal(j.echo.config.p2pMax, 8);
   assert.equal((await ticket({ play: 'net-demo', room: 'no' })).status, 400);
@@ -126,18 +137,20 @@ test("a customer's server gets a ticket in its own Hawkes Net project with its A
   const billing = await import('../src/billing.ts');
   billing.add(user.id, 500, 'stripe_purchase', 'test pack');
   calls.length = 0;
-  const r = await post({ room: 'lobby', name: 'Ada', transport: 'relay', role: 'spectator', config: { maxPlayers: 64, evil: 1 } }, apiKey);
+  assert.equal((await post({ room: 'lobby' }, apiKey)).status, 400, 'which project: a customer has several');
+  const r = await post({ project: 'acme-arena', room: 'lobby', name: 'Ada', transport: 'relay', role: 'spectator', config: { maxPlayers: 64, evil: 1 } }, apiKey);
   assert.equal(r.status, 200);
   const j = await r.json();
   assert.equal(j.ticket, 'hn1.x.y');
-  assert.equal(j.echo.project, user.project, "the customer's own project");
+  assert.equal(j.echo.project, 'acme-arena', 'the project it named (the service checks it is theirs)');
   assert.equal(j.echo.room, 'lobby');
   assert.equal(j.echo.transport, 'relay');
   assert.equal(j.echo.role, 'spectator');
   assert.equal(j.echo.config.maxPlayers, 64);
   assert.equal(j.echo.config.evil, undefined, 'only the known room settings pass');
   assert.equal(calls.find((c) => c.path === '/v1/net/ticket')!.project, user.project, 'the portal key narrowed to their project');
-  assert.equal((await post({ room: '../x y' }, apiKey)).status, 400);
+  assert.equal((await post({ project: 'acme-arena', room: '../x y' }, apiKey)).status, 400);
+  assert.equal((await post({ project: 'acme-arena', room: 'lobby2' }, apiKey).then((x) => x.json())).echo.transport, 'relay', 'the relay unless asked');
 });
 
 test("a closed world: no tickets for its rooms, and the people in them are put out on Hawkes Net", async () => {
@@ -176,8 +189,10 @@ test("a developer's own Hawkes Net (/v1/net/me): their project, whether they may
   const me = await (await fetch(`${base}/v1/net/me`, { headers: { Authorization: `Bearer ${apiKey}` } })).json();
   assert.equal(me.project, user.project);
   assert.equal(me.paid, false);
+  assert.equal(me.admin, false);
   assert.match(me.key.prefix, /^hg_/);
-  assert.ok(me.rooms && me.usage, 'both parts answer (here with the fake service\'s errors, not a failed page)');
+  assert.deepEqual(me.projects.projects, [], 'no projects yet');
+  assert.equal(me.projects.tier, 'free', 'the service is told the account is free');
   const page = await fetch(`${base}/net/docs`);
   assert.equal(page.status, 200);
   assert.match(await page.text(), /Your Hawkes Net/);
@@ -201,28 +216,37 @@ test('the Net dashboard (net.hawkesgen.com) may read /v1/net/me and make a key w
   assert.equal(back.headers.get('location'), dash + '/');
 });
 
-test("a developer's web game sites (the Net dashboard): paid accounts only, set in their own project with the portal's key, JSON only", async () => {
+test("a developer's Hawkes Net projects (the Net dashboard): made, listed, changed and read as their account; sites need a paid account; JSON only", async () => {
   const users = await import('../src/users.ts');
-  const u: any = await users.createAccount({ email: 'net-sites@example.com', password: 'a long password 1' });
+  const u: any = await users.createAccount({ email: 'net-projects@example.com', password: 'a long password 1' });
   const user = u.user ?? u;
   const { apiKey } = users.mintApiKey(user.id);
-  const post = (body: any, type = 'application/json') => fetch(`${base}/v1/net/sites`, { method: 'POST', headers: { 'Content-Type': type, Authorization: `Bearer ${apiKey}` }, body: JSON.stringify(body) });
-  assert.equal((await fetch(`${base}/v1/net/sites`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, 401, 'signed in only');
-  assert.equal((await post({ origins: ['https://acme.games'] })).status, 402, 'a free account: the relay costs us');
+  const call = (method: string, path: string, body?: any, type = 'application/json') => fetch(`${base}${path}`, { method, headers: { 'Content-Type': type, Authorization: `Bearer ${apiKey}` }, body: body === undefined ? undefined : JSON.stringify(body) });
+  assert.equal((await fetch(`${base}/v1/net/projects`)).status, 401, 'signed in only');
+  assert.equal((await call('POST', '/v1/net/projects', { name: 'Acme Arena' }, 'text/plain')).status, 415, 'JSON only');
+  calls.length = 0;
+  const made = await (await call('POST', '/v1/net/projects', { name: 'Acme Arena', owner: 'usr_someone_else', admin: true })).json();
+  assert.equal(made.id, 'acme-arena');
+  const sent = calls.find((c) => c.path === '/v1/net/projects')!;
+  assert.equal(sent.body.owner, user.project, 'always their own account, whatever the page says');
+  assert.equal(sent.body.admin, false, 'and never an admin unless they are one');
+  assert.equal(sent.body.tier, 'free');
+  assert.equal(sent.project, undefined, "the portal's key as it is: the service checks the account it names is one of the key's");
+  const list = await (await call('GET', '/v1/net/projects')).json();
+  assert.deepEqual(list.projects.map((x: any) => x.id), ['acme-arena']);
+  assert.equal((await call('POST', '/v1/net/projects/acme-arena', { sites: ['https://acme.games'] })).status, 402, 'sites need a paid account');
+  assert.equal((await call('POST', '/v1/net/projects/acme-arena', { p2p: true, maxPlayers: 8 })).status, 200, 'settings are fine on the free tier');
   const billing = await import('../src/billing.ts');
   billing.add(user.id, 500, 'stripe_purchase', 'test pack');
-  assert.equal((await post({ origins: ['https://acme.games'] }, 'text/plain')).status, 415, 'JSON only: no form from another site');
-  calls.length = 0;
-  const r = await post({ project: 'usr_someone_else', name: 'Acme <b>Arena', origins: ['https://acme.games'] });
-  assert.equal(r.status, 200);
-  const sent = calls.find((c) => c.path === '/v1/net/sites')!;
-  assert.equal(sent.body.project, user.project, 'always their own project, whatever the page says');
-  assert.equal(sent.body.name, 'Acme bArena');
-  assert.equal(sent.project, undefined, "asked with the portal's key as it is (the service lets only pattern keys set sites)");
-  const got = await (await fetch(`${base}/v1/net/sites`, { headers: { Authorization: `Bearer ${apiKey}` } })).json();
-  assert.deepEqual(got.origins, ['https://acme.games']);
-  const me = await (await fetch(`${base}/v1/net/me`, { headers: { Authorization: `Bearer ${apiKey}` } })).json();
-  assert.deepEqual(me.sites.origins, ['https://acme.games'], '/v1/net/me carries them for the dashboard');
-  const pre = await fetch(`${base}/v1/net/sites`, { method: 'OPTIONS', headers: { Origin: 'https://net.hawkesgen.com', 'Access-Control-Request-Method': 'POST' } });
+  const set = await (await call('POST', '/v1/net/projects/acme-arena', { sites: ['https://acme.games'] })).json();
+  assert.deepEqual(set.sites, ['https://acme.games']);
+  assert.equal(set.tier, 'paid', 'paid now: the service hears it');
+  assert.equal((await call('GET', '/v1/net/projects/acme-arena/rooms/lobby')).status, 200, 'who is in a room');
+  assert.equal((await (await call('POST', '/v1/net/projects/acme-arena/rooms/lobby/kick', { sub: 'u-bo' })).json()).kicked, 1);
+  assert.equal((await call('POST', '/v1/net/projects/sickofit/claim', {})).status, 403, 'only an admin takes a Hawkes game');
+  assert.equal((await call('GET', '/v1/net/projects/not-mine')).status, 404);
+  assert.equal((await call('DELETE', '/v1/net/projects/acme-arena')).status, 200);
+  const pre = await fetch(`${base}/v1/net/projects/acme-arena`, { method: 'OPTIONS', headers: { Origin: 'https://net.hawkesgen.com', 'Access-Control-Request-Method': 'DELETE' } });
   assert.equal(pre.headers.get('access-control-allow-origin'), 'https://net.hawkesgen.com', 'the dashboard may call it');
+  assert.match(pre.headers.get('access-control-allow-methods') ?? '', /DELETE/);
 });

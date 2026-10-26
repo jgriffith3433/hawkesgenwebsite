@@ -54,7 +54,7 @@ class Emitter {
 
 /**
  * Joins a room. Resolves when the room's state has arrived (`ready`), rejects when the join is refused.
- * o: { project, transport: 'auto' | 'p2p' | 'relay', ticket (a string, or a function returning Gen's ticket answer),
+ * o: { project, transport: 'relay' (default) | 'auto' | 'p2p', ticket (a string, or a function returning Gen's ticket answer),
  *      endpoint (the Hawkes Net service, default https://net.hawkesgen.com), key (a Gen API key: servers and bots only), name, sub, role,
  *      config (the room's shape if this join creates it), leaveOnHide (default true), rtc ({ RTCPeerConnection } in Node),
  *      WebSocket (a WebSocket class, default the global one), log (false to silence),
@@ -71,7 +71,8 @@ class Room {
     if (!o.project && !o.ticket) throw new Error('hawkes-net: join(room, { project }) (or a ticket)');
     this.room = room;
     this.project = o.project || '';
-    this.o = { transport: 'auto', endpoint: DEFAULT_ENDPOINT, leaveOnHide: true, role: 'player', ...o };
+    // The relay by default: peer to peer ('auto') only where the game asks and its project allows it.
+    this.o = { transport: 'relay', endpoint: DEFAULT_ENDPOINT, leaveOnHide: true, role: 'player', ...o };
     this.ev = new Emitter();
     this.msgs = new Emitter();
     this.id = null; this.ord = 0; this.host = null; this.status = 'connecting'; this.transport = 'p2p'; this.config = null; this.name = null; this.color = null;
