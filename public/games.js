@@ -82,7 +82,8 @@ async function load() {
 
   // Load games — if none, auto-create and jump in
   const r = await api('/v1/games');
-  if (!r.games.length && !inviteCode) {
+  const fromLink = ['remix','template','build'].some(k => new URLSearchParams(location.search).get(k));
+  if (!r.games.length && !inviteCode && !fromLink) {
     try {
       const g = await api('/v1/games', { body: { title: 'My Game', template: 'planet' } });
       track('game_create', { template: 'planet', auto: true });
