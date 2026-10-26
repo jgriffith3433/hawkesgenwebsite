@@ -152,3 +152,12 @@ test("a closed world: no tickets for its rooms, and the people in them are put o
   assert.equal(kick!.body.kick.sub, null, 'everyone');
   assert.equal((await ticket({ play: game.slug, room: 'abcd1234' })).status, 404);
 });
+
+test("sandboxed game pages (origin null) can import the Hawkes Net SDK: its modules are served with open CORS", async () => {
+  for (const f of ['hawkes-net.mjs', 'hawkes-net-core.mjs']) {
+    const r = await fetch(`${base}/play/${f}`, { headers: { Origin: 'null' } });
+    assert.equal(r.status, 200, f);
+    assert.equal(r.headers.get('access-control-allow-origin'), '*', f);
+    assert.match(String(r.headers.get('content-type')), /javascript/, f);
+  }
+});
