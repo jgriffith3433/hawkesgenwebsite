@@ -20,6 +20,9 @@
 /* global HawkesPlay, BABYLON */
 (function () {
   'use strict';
+  // This script's own address, taken while it runs: a frame with an about:blank base (the draft frame, a sandboxed page)
+  // can't resolve '/play/hawkes-net.mjs', so the SDK is imported from the same place as this file.
+  const SELF = (() => { try { return document.currentScript && document.currentScript.src || ''; } catch { return ''; } })();
   const H = window.HawkesPlay;
   const B = BABYLON;
   let ws = null;
@@ -85,7 +88,7 @@
    *  messages ride it unchanged (raw), and Hawkes Net does the transport, reconnecting and the clock. False: not in use. */
   async function connectHawkesNet(n) {
     let mod;
-    try { mod = await import('/play/hawkes-net.mjs'); } catch (e) { console.warn('net: Hawkes Net SDK did not load', e); return false; }
+    try { mod = await import(SELF ? new URL('hawkes-net.mjs', SELF).href : '/play/hawkes-net.mjs'); } catch (e) { console.warn('net: Hawkes Net SDK did not load', e); return false; }
     const body = opts.token ? { token: opts.token } : { play: opts.play, room: opts.room, name: opts.name || '', join: Boolean(opts.join) };
     const ask = async () => {
       // text/plain: a simple request, no preflight (the page is sandboxed; no cookies go).
