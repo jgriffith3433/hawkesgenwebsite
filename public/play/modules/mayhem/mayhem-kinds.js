@@ -119,6 +119,9 @@
       fields: [['shape.tool', 'rocket-launcher, grenade, sticky-bomb, spawn-gun, gravity-gun, lasso, flamethrower, matches (or any tool)', 'rocket-launcher'], ['shape.respawn', 'seconds until it is back', '10'], ['shape.options', 'the tool\'s options ({ radius, what, ... })', '']],
     },
   });
+  // The floating tool sits this far over its pad, and bobs by BOB around it: the build and the step both read these, so the
+  // two places that set its height cannot disagree. The pad itself stays where the thing was placed.
+  const ITEM_Y = 0.55, BOB = 0.06;
   function toolPickup(sh, o) {
     const tool = String(sh.tool || 'rocket-launcher');
     const [color, label] = TOOL_LOOK[tool] || ['#a78bfa', (H.tools.get(tool) && H.tools.get(tool).title) || tool];
@@ -132,7 +135,7 @@
     const ring = B.MeshBuilder.CreateTorus('tp-ring', { diameter: 1.3, thickness: 0.05, tessellation: 40 }, sc);
     ring.material = glow; ring.parent = root; ring.position.y = 0.1;
     // The tool itself, floating: a stand-in shape per tool.
-    const item = new B.TransformNode('tp-item', sc); item.parent = root; item.position.y = 0.55;
+    const item = new B.TransformNode('tp-item', sc); item.parent = root; item.position.y = ITEM_Y;
     const dark = new B.StandardMaterial('tp-dark', sc); dark.diffuseColor = new B.Color3(0.15, 0.16, 0.2);
     const bit = (m, mat, x, y, z) => { m.material = mat; m.parent = item; m.position.set(x, y, z); return m; };
     if (tool === 'grenade' || tool === 'sticky-bomb') { bit(B.MeshBuilder.CreateSphere('tp-b', { diameter: 0.4, segments: 12 }, sc), tool === 'grenade' ? dark : glow, 0, 0, 0); bit(B.MeshBuilder.CreateBox('tp-c', { width: 0.1, height: 0.12, depth: 0.1 }, sc), glow, 0, 0.24, 0); }
@@ -159,7 +162,7 @@
     for (const e of w.entities) {
       const pk = e.pickup;
       if (!pk || !e.alive) continue;
-      pk.item.rotation.y = t * 1.5; pk.item.position.y = 0.55 + Math.sin(t * 2.2 + e.x) * 0.06;
+      pk.item.rotation.y = t * 1.5; pk.item.position.y = ITEM_Y + Math.sin(t * 2.2 + e.x) * BOB;
       // Gone after taking: back only once the timer is out AND the player has left the (larger) leave radius.
       if (pk.away > 0) {
         pk.away -= dt;

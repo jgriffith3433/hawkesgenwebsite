@@ -390,7 +390,7 @@ game.every(1, passEarly);
 // step you are on, the thing it needs goes there too (made again when it was destroyed), with the Overseer's beam over both
 // and a line in its voice. R on a keyboard, the "Stuck?" button anywhere. (R is also reload: not while a gun is out.)
 const HOME = {
-  jeep: [4, 6.5, 90], heli: [30, 30, 200], rocket: [-38, -30, 0], rod: [86.5, -0.4], rodStand: [82, 0], dock: [58, 0], start: [-3, 1],
+  jeep: [4, 6.5, 90], heli: [30, 30, 200], rocket: [-38, -30, 0], rod: [86.5, -0.4], rodY: 1.15, rodStand: [82, 0], dock: [58, 0], start: [-3, 1],
   barrels: [[50, -18], [51.2, -18.4], [50.5, -19.5], [51.7, -17.2], [49.6, -16.9]], beach: [55, -14],
 };
 // The journey up (below): 'off' until the tour is done, then 'invited' (a marker leads to the rocket) until they dock.
@@ -428,11 +428,15 @@ function bringVehicle(name, id, home, kind) {
   e = maker.call(game, opts);
   return e || null;
 }
+// (The rod lies on the pier's planks, not on the ground under the pier: the ground there is the seabed, 4 m down, and
+// before the terrain has answered `ground()` is a guess. Its height is the world file's own, src/overseer-games/sandbox.ts
+// `pierY + 0.2`; test/engine/sandbox.test.ts keeps the two the same.)
 function ensureRod() {
   const rod = game.find && game.find('rod');
-  if (rod && rod.alive) { settle(rod, at(HOME.rod[0], ground(HOME.rod[0], HOME.rod[1]) + 1.15, HOME.rod[1])); return; }
+  const [x, y, z] = at(HOME.rod[0], HOME.rodY, HOME.rod[1]);
+  if (rod && rod.alive) { settle(rod, [x, y, z]); return; }
   const maker = game['tool-pickup'];
-  if (typeof maker === 'function') { const [x, y, z] = at(HOME.rod[0], ground(HOME.rod[0], HOME.rod[1]) + 1.15, HOME.rod[1]); maker('rod', { x, y, z, name: 'Fishing rod', respawn: 5 }); }
+  if (typeof maker === 'function') maker('rod', { x, y, z, name: 'Fishing rod', respawn: 5 });
 }
 function ensureBarrels() {
   let made = 0;

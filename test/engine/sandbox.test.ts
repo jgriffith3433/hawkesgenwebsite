@@ -185,6 +185,42 @@ test('sandbox: Stuck? puts a flipped 4x4 and the player back, with a beam and th
   assert.deepEqual(clean(), []);
 });
 
+test('sandbox: the rod rests on the pier\'s planks, however the load went and wherever Stuck? puts it', () => {
+  const { game, q } = tourOn();
+  const pier = H.world.byId.get('pier'), rod = H.world.byId.get('rod');
+  const top = pier.y + 0.15; // (the planks are 0.3 m thick)
+  const check = (why: string) => {
+    const seat = rod.y - top; // (the pad sits on the planks; the floating tool bobs over it)
+    assert.ok(seat > 0 && seat < 0.4, `${why}: the rod's pad is on the planks (${seat.toFixed(2)} m over them)`);
+    const item = rod.pickup.item;
+    assert.ok(item.position.y > 0.45 && item.position.y < 0.65, `${why}: the tool bobs about 0.55 m over its pad (${item.position.y.toFixed(2)})`);
+  };
+  check('at the start');
+  H.tick(20);
+  check('20 s later');
+  // The world file and the guide agree on the rod's place (the guide puts it back with Stuck?).
+  const home = scene.entities.rod.transform.position;
+  assert.deepEqual([home[0], home[2]], [86.5, -0.4]);
+  assert.ok(/rodY: ?1\.15\b/.test(bundle.files['scripts/main.js']) && Math.abs(home[1] - 1.15) < 1e-9, 'the guide\'s rod height is the world file\'s');
+  // Stuck? on the rod step: the terrain there is the seabed 4 m down, and before it has answered it is a guess (the
+  // guide once put the rod at that guess plus 1.15: under the sea, or 4 m over the planks).
+  if (q.step('tour') === 'drive') q.advance('tour');
+  H.tick(0.3);
+  assert.equal(q.step('tour'), 'rod');
+  const rescue = g.window.__islandRescueNow;
+  const heightAt = game.terrain.heightAt;
+  for (const [why, answer] of [['seabed', heightAt], ['terrain not answering', () => null]] as const) {
+    rod.position = [rod.x, rod.y + 5, rod.z]; // (somewhere it should not be)
+    game.terrain.heightAt = answer;
+    g.window.__islandRescue.last = -99;
+    assert.equal(rescue('key'), true);
+    game.terrain.heightAt = heightAt;
+    H.tick(0.3);
+    check(`Stuck? (${why})`);
+  }
+  assert.deepEqual(clean(), []);
+});
+
 test('sandbox: Stuck? gets the player out of the sea to the step\'s place, and the same press twice in a row is ignored', () => {
   const { game } = tourOn();
   const q = game.events.quests;
