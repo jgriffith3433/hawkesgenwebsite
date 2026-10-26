@@ -147,11 +147,22 @@ export async function customerTicket(user: User, body: any) {
 const paid = (userId: string) => !!db.prepare("SELECT 1 FROM credit_ledger WHERE user_id = ? AND kind IN ('stripe_purchase', 'subscription_credits') LIMIT 1").get(userId);
 
 /** Is a room open and how full? (Invitations ask before a friend loads anything.) */
-export async function roomInfo(room: string): Promise<{ open: boolean; people: number; limit: number }> {
+export async function roomInfo(room: string, again = true): Promise<{ open: boolean; people: number; limit: number }> {
+  let info: { open: boolean; people: number; limit: number };
   try {
     const r: any = await net('/v1/net/room', { body: { project: NET_PROJECT, room } });
-    return { open: Boolean(r.open), people: Number(r.players) || 0, limit: Number(r.limit) || 32 };
-  } catch { return { open: false, people: 0, limit: 32 }; }
+    info = { open: Boolean(r.open), people: Number(r.players) || 0, limit: Number(r.limit) || 32 };
+  } catch (e) {
+    console.warn(`[portal] hawkes net room info for ${room}: ${(e as Error).message}`);
+    info = { open: false, people: 0, limit: 32 };
+  }
+  // An island whose player is reconnecting (a sign-in, a phone that woke) is empty for a second: ask once more before
+  // telling a friend it is closed.
+  if (!info.open && again) {
+    await new Promise((r) => setTimeout(r, 1500));
+    return roomInfo(room, false);
+  }
+  return info;
 }
 
 /** World edits this server saved: into the game's editor room and every play room of it. Never waits on the caller. */
