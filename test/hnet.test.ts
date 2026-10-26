@@ -90,7 +90,9 @@ test("world edits saved here go to every room of the game on Hawkes Net (g/<id>/
 test("an invitation asks Gen whether the island's room is open", async () => {
   const inv = invites.createInvite(base, { name: 'Bo' });
   openRooms = new Set();
-  assert.equal((await (await fetch(`${base}/v1/island-invite/${inv.token}`)).json()).state, 'closed');
+  assert.equal((await (await fetch(`${base}/v1/island-invite/${inv.token}`)).json()).state, 'open', 'just made: the inviter is still connecting');
+  const aged = sign({ k: 'island', r: inv.room, n: 'Bo', f: null }, invites.INVITE_TTL - 60);
+  assert.equal((await (await fetch(`${base}/v1/island-invite/${aged}`)).json()).state, 'closed');
   openRooms = new Set([`t/sandbox/${inv.room}`]);
   assert.equal((await (await fetch(`${base}/v1/island-invite/${inv.token}`)).json()).state, 'open');
 });
