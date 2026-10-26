@@ -162,6 +162,19 @@ test('a hat with a flat colour drops its texture, and a helmet with no pick take
   for (const t of [a, b]) { P.showcase.dispose(t.rig); t.node.dispose(); }
 });
 
+test('a plain hat drops its blotchy bake and still takes the pick', async () => {
+  hats({ beanie: { url: '/b.glb', width: 0.44, tint: true, plain: true } });
+  const a = wear('person', 'beanie', { accent: '#dc2626' });
+  await done(a.rig);
+  assert.equal(a.rig.hatModel.mats[0].albedoTexture, null);
+  assert.equal(a.rig.hatModel.mats[0].albedoColor.toHexString().toLowerCase(), '#dc2626');
+  const b = wear('person', 'beanie', { accent: '#ffffff' });
+  await done(b.rig);
+  assert.equal(b.rig.hatModel.mats[0].albedoTexture, null);
+  assert.equal(b.rig.hatModel.mats[0].albedoColor.toHexString().toLowerCase(), '#ffffff');
+  for (const t of [a, b]) { P.showcase.dispose(t.rig); t.node.dispose(); }
+});
+
 test('the halo, horns and bunny files (tools/hat-glbs.mjs) are under budget with nothing below the base, and each has a registry row', async () => {
   const fs = await import('node:fs');
   for (const kind of ['halo', 'horns', 'bunny']) {

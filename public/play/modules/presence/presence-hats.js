@@ -80,6 +80,7 @@
     const h = { kind, holder, mats, tris: c.tris, tinted: false };
     if (r.flat) { for (const m of mats) { m.albedoTexture = null; m.albedoColor = B.Color3.FromHexString(r.flat); } } // (a bake that came out black: the colour it should be)
     else if (r.tint) {
+      if (r.plain) for (const m of mats) { m.albedoTexture = null; if ('albedoColor' in m) m.albedoColor = B.Color3.White(); } // (a blotchy bake on a hat that takes the pick: white, then the pick)
       const col = accent && accent !== '#ffffff' ? accent : (r.tint === 'body' ? body : null); // (white is "no pick": a helmet then takes the body colour, as the procedural one does)
       if (col) { tint(h, col); h.tinted = true; }
     }
