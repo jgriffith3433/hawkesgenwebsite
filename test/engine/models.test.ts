@@ -10,7 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { load, world, sceneOf } from './harness.ts';
 import { measureCrowd } from './crowd-measure.ts';
-import { STANDINS, STANDIN_FOR, toContainer, toGlb, standinRows, specOf } from '../../public/avatars-standins.js';
+import { STANDINS, STANDIN_FOR, mixamoPuppet, toContainer, toGlb, standinRows, specOf } from '../../public/avatars-standins.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const H = await load();
@@ -97,6 +97,14 @@ test('the registry names every type, with a form and no file yet: the procedural
     assert.ok(t.rig.body || t.rig.person, `${id}: procedural body built`);
     P.showcase.dispose(t.rig); t.node.dispose();
   }
+});
+
+test('the Mixamo puppet GLB keeps its bones as plain nodes (a bone that is itself a mesh is not bound by the clips: the T-pose that never moved)', () => {
+  const bytes = Buffer.from(toGlb(mixamoPuppet()));
+  const json = JSON.parse(bytes.subarray(20, 20 + bytes.readUInt32LE(12)).toString('utf8'));
+  const hips = json.nodes.find((n: any) => n.name === 'mixamorig:Hips');
+  assert.equal(hips.mesh, undefined, 'the bone has no mesh');
+  assert.ok(hips.children.some((i: number) => json.nodes[i].name === 'mixamorig:Hips-mesh' && json.nodes[i].mesh !== undefined), 'its box hangs under it');
 });
 
 test('the stand-in GLBs are real GLB files that the description makes (and carry what the models need)', () => {
