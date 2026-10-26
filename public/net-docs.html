@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="/site.css">
   <style>
     .docs { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 40px; align-items: start; }
-    @media (max-width: 900px) { .docs { grid-template-columns: 1fr; } .docs nav { position: static !important; } }
+    @media (max-width: 900px) { .docs { grid-template-columns: minmax(0, 1fr); } .docs table { display: block; overflow-x: auto; } .docs nav { position: static !important; } }
     .docs nav { position: sticky; top: 84px; display: grid; gap: 6px; font-size: 14px; }
     .docs nav a { color: var(--ink-2); text-decoration: none; }
     .docs nav a:hover { color: var(--accent); }
@@ -21,6 +21,7 @@
     .docs p, .docs li { color: var(--ink-2); font-size: 16px; line-height: 1.6; max-width: 46em; }
     .docs pre { background: #0f1115; color: #e8eaf0; border-radius: var(--r); padding: 16px 18px; overflow: auto; font: 13px/1.6 var(--mono); margin: 10px 0 16px; }
     .docs code { font-family: var(--mono); font-size: .92em; }
+    .docs h2 code { overflow-wrap: anywhere; }
     .docs p code, .docs li code, .docs td code { background: var(--paper-2); border: 1px solid var(--rule); border-radius: 4px; padding: 1px 5px; }
     .docs table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 8px 0 16px; }
     .docs th, .docs td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
