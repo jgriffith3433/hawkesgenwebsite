@@ -179,15 +179,17 @@ test('live streams are capped per account and in all', async () => {
 });
 
 // ------------------------------------------------------------------ open write routes
-test('analytics beacons are limited per address (120 a minute) and the here ping per game (6 a minute)', async () => {
+test('analytics beacons are limited per address (120 a minute) and the here ping per page session (10 a minute)', async () => {
   const hdr = { 'X-Forwarded-For': '10.4.0.1' };
   let refused = 0;
   for (let i = 0; i < 125; i++) if ((await fetch(`${base}/v1/analytics/collect`, { method: 'POST', headers: hdr, body: '[]' })).status === 429) refused++;
   assert.equal(refused, 5);
   assert.equal((await fetch(`${base}/v1/analytics/collect`, { method: 'POST', headers: { 'X-Forwarded-For': '10.4.0.2' }, body: '[]' })).status, 202, 'another address is fine');
   const statuses: number[] = [];
-  for (let i = 0; i < 8; i++) statuses.push((await call('/v1/play/t/sandbox/here', { body: { s: 'tab' }, headers: hdr })).status);
-  assert.deepEqual(statuses, [200, 200, 200, 200, 200, 200, 429, 429]);
+  for (let i = 0; i < 12; i++) statuses.push((await call('/v1/play/t/sandbox/here', { body: { s: 'tab' }, headers: hdr })).status);
+  assert.deepEqual(statuses, [200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 429, 429]);
+  // Another tab (or another player in the same house) on the same address is its own session.
+  assert.equal((await call('/v1/play/t/sandbox/here', { body: { s: 'tab-two' }, headers: hdr })).status, 200);
 });
 
 // ------------------------------------------------------------------ plays

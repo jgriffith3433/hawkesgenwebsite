@@ -85,7 +85,10 @@ function limitGenerations(userId: string) {
 
 // The open write routes, per address (analytics beacons from published games, the "I'm here" ping of a play page).
 const analyticsPosts = new Limiter(120, 60_000);
-const herePings = new Limiter(6, 60_000);
+// "I'm here" pings (every 30 s a page): per page session, with a cap per address that a house, an office or a school (one
+// address, many players, several tabs) never reaches. (Per address alone, split across the web processes, two tabs went over.)
+const herePings = new Limiter(10, 60_000);
+const herePingsByIp = new Limiter(600, 60_000);
 
 /** Gen's answer straight to the customer: status, the headers that matter, the body as it streams. */
 /** Streams Gen's answer to the browser. A body that errors late (its timeout fires after a player's <audio> stopped
@@ -415,8 +418,9 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       const g = t ? null : games.gameBySlug(ph[1]);
       if (!t && (!g || g.hidden)) return send(res, 404, { error: 'No such game' });
       const gid = t ? `t:${t[1]}` : g!.id;
-      if (!herePings.hit(`${clientIp(req)}:${gid}`)) { res.setHeader('Access-Control-Allow-Origin', '*'); return send(res, 429, { error: 'Once every few seconds is enough' }); }
-      markHere(gid, (await readJson(req)).s);
+      const session = String((await readJson(req))?.s ?? '').slice(0, 32);
+      if (!herePingsByIp.hit(`${clientIp(req)}:${gid}`) || !herePings.hit(`${clientIp(req)}:${gid}:${session}`)) { res.setHeader('Access-Control-Allow-Origin', '*'); return send(res, 429, { error: 'Once every few seconds is enough' }); }
+      markHere(gid, session);
       res.setHeader('Access-Control-Allow-Origin', '*');
       return send(res, 200, liveCounts(gid));
     }
