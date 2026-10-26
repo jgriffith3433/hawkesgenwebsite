@@ -116,6 +116,20 @@ function cors(res: ServerResponse) {
   res.setHeader('Access-Control-Expose-Headers', 'WWW-Authenticate, Mcp-Session-Id');
 }
 
+// The Hawkes Net dashboard (net.hawkesgen.com, served by the Net box) reads the signed-in developer's Net data and makes
+// their key here, with the session cookie (same site, so it is sent). Only that origin, only these routes, credentials allowed.
+const NET_DASHBOARD_ROUTES = /^\/v1\/(net\/me|users\/api-key)$/;
+const netDashboard = () => (env('PORTAL_NET_DASHBOARD') ?? 'https://net.hawkesgen.com').replace(/\/+$/, '');
+function netDashboardCors(req: IncomingMessage, res: ServerResponse): boolean {
+  if (req.headers.origin !== netDashboard()) return false;
+  res.setHeader('Access-Control-Allow-Origin', netDashboard());
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Vary', 'Origin');
+  return true;
+}
+
 const oauthFail = (res: ServerResponse, e: any) => send(res, e.status === 401 ? 401 : 400, { error: e.oauth ?? 'invalid_request', error_description: e.message });
 
 async function readForm(req: IncomingMessage) {
@@ -243,6 +257,9 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       cors(res);
       if (method === 'OPTIONS') return void res.writeHead(204).end();
     }
+    if (NET_DASHBOARD_ROUTES.test(route) && netDashboardCors(req, res) && method === 'OPTIONS') return void res.writeHead(204, { 'Access-Control-Max-Age': '600' }).end();
+    // Back to the Net dashboard after signing in here (Google's next= takes paths on this site only).
+    if (route === '/net/back' && method === 'GET') return void res.writeHead(302, { Location: netDashboard() + '/' }).end();
 
     // ------------------------------------------------------------ MCP and its OAuth
     if (route === '/.well-known/oauth-protected-resource' || route === '/.well-known/oauth-protected-resource/mcp') return send(res, 200, oauth.protectedResourceMetadata());

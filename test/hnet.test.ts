@@ -179,3 +179,21 @@ test("a developer's own Hawkes Net (/v1/net/me): their project, whether they may
   assert.equal(page.status, 200);
   assert.match(await page.text(), /Your Hawkes Net/);
 });
+
+test('the Net dashboard (net.hawkesgen.com) may read /v1/net/me and make a key with the session; no other origin may', async () => {
+  const dash = 'https://net.hawkesgen.com';
+  const pre = await fetch(`${base}/v1/users/api-key`, { method: 'OPTIONS', headers: { Origin: dash, 'Access-Control-Request-Method': 'POST' } });
+  assert.equal(pre.status, 204);
+  assert.equal(pre.headers.get('access-control-allow-origin'), dash);
+  assert.equal(pre.headers.get('access-control-allow-credentials'), 'true');
+  const me = await fetch(`${base}/v1/net/me`, { headers: { Origin: dash } });
+  assert.equal(me.status, 401, 'signed out: the page shows the sign-in');
+  assert.equal(me.headers.get('access-control-allow-origin'), dash, 'and can read that it is signed out');
+  const other = await fetch(`${base}/v1/net/me`, { headers: { Origin: 'https://studio.hawkesgen.com' } });
+  assert.equal(other.headers.get('access-control-allow-origin'), null, 'another subdomain gets no CORS');
+  const elsewhere = await fetch(`${base}/v1/users/me`, { headers: { Origin: dash } });
+  assert.equal(elsewhere.headers.get('access-control-allow-origin'), null, 'only the two dashboard routes');
+  const back = await fetch(`${base}/net/back`, { redirect: 'manual' });
+  assert.equal(back.status, 302);
+  assert.equal(back.headers.get('location'), dash + '/');
+});
