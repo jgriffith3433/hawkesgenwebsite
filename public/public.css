@@ -323,3 +323,8 @@ body.landing .hero-demo .fine { color: var(--fg-3); }
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+/* Under 460px the header's secondary "Your games" button gives way so Start building stays whole. */
+@media (max-width: 460px) {
+  body.at-sky .hg-nav-actions .btn-ghost[href="/app"] { display: none; }
+}
