@@ -25,6 +25,8 @@ const PING_MS = 5000;
 const SEND_MS = 33;
 const LINK_WAIT_MS = 8000;
 const SLEEP_GRACE_MS = 15_000;
+/** After a move to the relay, how long a player missing from the new list has to arrive before they count as gone. */
+const MOVE_GRACE_MS = 5000;
 const RELIABLE_KEEP = 2000;
 const SLOW_BUDGET = 6 * 1024;
 const IMPORTANT = 1 << 12;
@@ -46,6 +48,78 @@ function stableSub() {
 const r2 = (n) => Math.round(n * 100) / 100;
 const r3 = (n) => Math.round(n * 1000) / 1000;
 
+// ================================================================ the background clock (docs/net.md "In the background")
+// A hidden tab, a minimised window or a window covered by another gets no animation frames, and its timers slow to once
+// a second (once a minute after five minutes). So the SDK's own upkeep, sending and a p2p host's bundling run on a
+// worker's timer, which browsers don't slow: a page in the background keeps its room as it was. Where there is no
+// Worker (Node, a strict content policy) it falls back to ordinary timers.
+const CLOCK_MS = 8;
+const AWAY_AFTER_MS = 2000;
+const hasPage = !isNode && typeof document !== 'undefined';
+const clock = { jobs: new Set(), worker: null, timer: null };
+let frameAt = 0;
+let watchingFrames = false;
+function watchFrames() {
+  if (watchingFrames || !hasPage || typeof requestAnimationFrame !== 'function') return;
+  watchingFrames = true;
+  frameAt = wall();
+  const f = () => { frameAt = wall(); requestAnimationFrame(f); };
+  requestAnimationFrame(f);
+}
+function clockTick() {
+  const t = wall();
+  for (const j of [...clock.jobs]) {
+    if (t < j.due) continue;
+    // On the beat (a tick a little late is made up on the next ones); a page that was asleep starts over, no burst.
+    j.due += j.ms;
+    if (t - j.due > 250) j.due = t + j.ms;
+    try { j.fn(); } catch (e) { console.error('[hawkes-net] background clock:', e); }
+  }
+}
+function startClock() {
+  if (clock.worker || clock.timer) return;
+  if (hasPage && typeof Worker === 'function' && typeof Blob === 'function' && typeof URL !== 'undefined' && URL.createObjectURL) {
+    try {
+      const url = URL.createObjectURL(new Blob([`setInterval(() => postMessage(0), ${CLOCK_MS});`], { type: 'text/javascript' }));
+      clock.worker = new Worker(url);
+      URL.revokeObjectURL(url);
+      clock.worker.onmessage = clockTick;
+      return;
+    } catch { clock.worker = null; }
+  }
+  clock.timer = setInterval(clockTick, CLOCK_MS);
+}
+function stopClock() {
+  if (clock.jobs.size) return;
+  if (clock.worker) { clock.worker.terminate(); clock.worker = null; }
+  if (clock.timer) { clearInterval(clock.timer); clock.timer = null; }
+}
+/** fn every `ms` on the background clock. Returns stop(). */
+function every(ms, fn) {
+  const job = { ms, fn, due: wall() + ms };
+  clock.jobs.add(job);
+  startClock();
+  return () => { clock.jobs.delete(job); stopClock(); };
+}
+/** True while this page is in the background: hidden, or no animation frame for `ms` (a window covered by another). */
+export function inBackground(ms = 1000) {
+  if (!hasPage) return false;
+  watchFrames();
+  return Boolean(document.hidden) || wall() - frameAt > ms;
+}
+/**
+ * Keeps a game going while its page is in the background (docs/net.md "In the background"): fn() about `hz` times a
+ * second (default 60), only while the page gets no animation frames (a hidden tab, a minimised or covered window), so
+ * a rollback fight, a turn timer or a host's simulation doesn't stop for the other players. Run your game's step in it,
+ * not its drawing. o: { hz, afterMs (no frames for this long first, default 100) }. Returns stop().
+ */
+export function background(fn, o = {}) {
+  watchFrames();
+  const after = Number.isFinite(o.afterMs) ? o.afterMs : 100;
+  const ms = Math.max(CLOCK_MS, Math.round(1000 / (o.hz || 60)));
+  return every(ms, () => { if (!hasPage || wall() - frameAt > after) fn(); });
+}
+
 class Emitter {
   constructor() { this.h = new Map(); }
   on(k, f) { let s = this.h.get(k); if (!s) this.h.set(k, (s = new Set())); s.add(f); return () => s.delete(f); }
@@ -56,7 +130,8 @@ class Emitter {
  * Joins a room. Resolves when the room's state has arrived (`ready`), rejects when the join is refused.
  * o: { project, transport: 'relay' (default) | 'auto' | 'p2p', ticket (a string, or a function returning Gen's ticket answer),
  *      endpoint (the Hawkes Net service, default https://net.hawkesgen.com), key (a Gen API key: servers and bots only), name, sub, role,
- *      config (the room's shape if this join creates it), leaveOnHide (default true), rtc ({ RTCPeerConnection } in Node),
+ *      config (the room's shape if this join creates it), leaveOnHide (default true), away (default true: tell the room
+ *      when this page is in the background, docs/net.md "Away"), rtc ({ RTCPeerConnection } in Node),
  *      WebSocket (a WebSocket class, default the global one), log (false to silence),
  *      onRaw (an engine with its own multiplayer logic: every room message in the core's shapes, see `raw` below) }
  */
@@ -87,16 +162,22 @@ class Room {
     this.things = new Map(); // id -> the newest 12 values (deltas applied)
     this.pushed = new Map(); // id -> what I last sent of a thing
     this.states = new Map(); this.actions = new Map(); this.hostHandlers = new Set();
-    this.st = { up: 0, down: 0, upMsgs: 0, downMsgs: 0, migrations: 0, linkRetries: 0, reconnects: 0, since: wall() };
+    this.st = { up: 0, down: 0, upMsgs: 0, downMsgs: 0, migrations: 0, linkRetries: 0, reconnects: 0, expressUp: 0, expressDown: 0, since: wall() };
     this.ws = null; this.wsCodec = null; this.resume = null; this.relayUrl = null; this.ice = DEFAULT_ICE;
     this.p2p = null;
     this.closed = false; this.lastBeat = wall(); this.sleptUntil = 0; this.retry = 0; this.pingAt = 0;
-    this.timers = [];
+    this.timers = []; // stop() functions of background clock jobs
+    this.away = false; this._hiddenSince = 0; this._autoAway = false;
     this.sub = o.sub || stableSub();
   }
 
   // ================================================================ the public API
   get isHost() { return this.host !== null && this.host === this.id; }
+  /** Players whose page is in the background right now (their `away` is true; event 'peer:away'). */
+  get awayPeers() { return [...this.peers.values()].filter((p) => p.away); }
+  /** Says this player is away (or back) now: for bots, tests, and engines that know better than the page (a game
+   *  paused in its own menu). In a browser the page's own state takes over again the next time it changes. */
+  setAway(on) { if (!this.closed && Boolean(on) !== this.away) this._setAway(Boolean(on)); }
   /** The shared clock (ms): the room node's. It never jumps: a correction is eased in. */
   now() { return now() + this.offset; }
   /** Sends a message to the room. `kind` is the game's name for it; `data` is JSON-able (or Uint8Array).
@@ -114,7 +195,43 @@ class Room {
   }
   /** fn(data, from, meta) for messages of a kind ('*' for every kind). Returns off(). */
   on(kind, fn) { return this.msgs.on(kind, fn); }
-  /** Connection events: status, ready, peer:join, peer:leave, host, transport, problem. Returns off(). */
+  /**
+   * The game's own bytes, now (docs/net.md "Express"): for what can't wait for the next send (a fighting game's inputs).
+   * Sent the moment it's called, forwarded by the relay or the host the moment it arrives, never queued or sent again;
+   * between peers on an unordered, no-retransmit channel. May be lost or come out of order: carry your own frame numbers
+   * (and repeat what wasn't acknowledged). bytes: a Uint8Array (or any ArrayBuffer view), at most 1200 bytes. opt: { to }.
+   * Returns false when there is no way out right now.
+   */
+  express(bytes, opt = {}) {
+    if (this.closed) return false;
+    const payload = bytes instanceof Uint8Array ? bytes : ArrayBuffer.isView(bytes) ? new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength) : bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : null;
+    if (!payload) throw new TypeError('hawkes-net: express(bytes): a Uint8Array');
+    if (payload.length > core.EXPRESS_MAX) throw new RangeError(`hawkes-net: express is at most ${core.EXPRESS_MAX} bytes`);
+    const f = core.expressFrame(payload, opt.to ? { to: opt.to } : {});
+    this.st.up += f.length; this.st.upMsgs++; this.st.expressUp++;
+    if (this.transport === 'relay') {
+      if (!this.ws || this.ws.readyState !== 1) return false;
+      this.ws.send(f);
+      return true;
+    }
+    const p = this.p2p;
+    if (!p) return false;
+    if (p.hostRoom) { core.receive(p.hostRoom, p.self, f, this.now()); return true; }
+    if (p.chX && p.chX.readyState === 'open') { try { p.chX.send(f); return true; } catch {} }
+    if (p.carrier === 'channel') { if (p.channel && p.channel.readyState === 'open') { p.channel.send(f); return true; } return false; }
+    this._control({ c: 'sig', to: p.host, kind: 'data', body: b64(f) });
+    return true;
+  }
+  /** fn(bytes: Uint8Array, from: peer id) for every express from another player. Returns off(). */
+  onExpress(fn) { return this.ev.on('express', fn); }
+  _expressIn(u8) {
+    const x = core.readExpress(u8);
+    if (!x || !x.from || x.from === this.id) return;
+    this.st.expressDown++;
+    this.ev.emit('express', x.payload, x.from);
+  }
+  /** Connection events: status, ready, peer:join, peer:leave, peer:away ({ peer, away }), away ({ away }: this page),
+   *  host ({ host, previous, reason: 'first' | 'host left' | 'host away' }), transport, problem. Returns off(). */
   when(event, fn) { return this.ev.on(event, fn); }
   /** My avatar: a position, a heading and any small extra values (flags, what I hold). The newest goes each send. */
   pose(p, yaw = 0, extra = null) { this.q.me = { t: 'me', at: this.now(), s: { ...(extra || {}), p: [r3(p[0]), r3(p[1]), r3(p[2])], y: r2(yaw) } }; }
@@ -145,7 +262,7 @@ class Room {
   }
   _raw(m) { if (this.onRaw) { try { this.onRaw(m); } catch (e) { console.error('[hawkes-net] onRaw:', e); } } }
   stats() {
-    return { transport: this.transport, protocol: 3, seconds: (wall() - this.st.since) / 1000, upBytes: this.st.up, downBytes: this.st.down, upMsgs: this.st.upMsgs, downMsgs: this.st.downMsgs, rttMs: this.rtt, clockOffsetMs: Math.round(this.offset), migrations: this.st.migrations, linkRetries: this.st.linkRetries, reconnects: this.st.reconnects };
+    return { transport: this.transport, protocol: 3, seconds: (wall() - this.st.since) / 1000, upBytes: this.st.up, downBytes: this.st.down, upMsgs: this.st.upMsgs, downMsgs: this.st.downMsgs, expressUp: this.st.expressUp, expressDown: this.st.expressDown, rttMs: this.rtt, clockOffsetMs: Math.round(this.offset), migrations: this.st.migrations, linkRetries: this.st.linkRetries, reconnects: this.st.reconnects };
   }
   /** Asks to move the room to the relay (a game that knows it will grow). */
   migrate(why = 'game asked') { this._control({ c: 'migrate', step: 'propose', why }); }
@@ -155,7 +272,9 @@ class Room {
     this.closed = true;
     try { this._control({ c: 'bye', why: reason }); } catch {}
     this._teardownP2p();
-    for (const t of this.timers) clearInterval(t);
+    for (const stop of this.timers) stop();
+    if (this._vis && typeof removeEventListener === 'function') removeEventListener('visibilitychange', this._vis);
+    if (this.arriving) { for (const t of this.arriving.values()) clearTimeout(t); this.arriving.clear(); }
     if (this._hide && typeof removeEventListener === 'function') removeEventListener('pagehide', this._hide);
     const ws = this.ws;
     this.ws = null;
@@ -170,12 +289,18 @@ class Room {
     const t = await this._ticket();
     this._useTicket(t);
     this._connect(`t=${encodeURIComponent(t.ticket)}&want=${this.o.transport}`);
-    this.timers.push(setInterval(() => this._tick(), 1000));
-    this.timers.push(setInterval(() => this._flush(), SEND_MS));
+    this.timers.push(every(1000, () => this._tick()));
+    this.timers.push(every(SEND_MS, () => this._flush()));
     if (!isNode && this.o.leaveOnHide && typeof addEventListener === 'function') {
       this._hide = (e) => { if (!e.persisted) void this.leave('left'); };
       addEventListener('pagehide', this._hide);
       for (const name of ['visibilitychange', 'pageshow', 'online']) addEventListener(name, () => this._wake());
+    }
+    if (hasPage && this.o.away !== false && typeof addEventListener === 'function') {
+      watchFrames();
+      // Back at once (the timer would be a second late); away is decided in the upkeep, after AWAY_AFTER_MS.
+      this._vis = () => this._checkAway();
+      addEventListener('visibilitychange', this._vis);
     }
     const timeout = setTimeout(() => this._refused(new Error('hawkes-net: the room did not answer in 20 s')), 20_000);
     try { await ready; } catch (e) { void this.leave('refused'); throw e; } finally { clearTimeout(timeout); }
@@ -257,6 +382,7 @@ class Room {
     if (typeof data === 'string') return;
     const u8 = new Uint8Array(data);
     this.st.down += u8.length; this.st.downMsgs++;
+    if (u8[0] === core.FRAME.express) return this._expressIn(u8);
     const p = core.peek(u8);
     if (p.kind === 'bundle') {
       if (this.transport !== 'relay') return;
@@ -278,6 +404,7 @@ class Room {
       const was = this.transport;
       this.transport = 'relay';
       if (h.migrated) {
+        this._movedAt = wall();
         // Moved to the relay on the same socket: a new stream both ways (fresh dictionaries and baselines).
         this.wsCodec = { in: new core.Codec(), out: new core.Codec() };
         this._teardownP2p();
@@ -317,8 +444,20 @@ class Room {
   }
   _syncPeers(list) {
     const ids = new Set(list.map((pr) => pr.c));
-    for (const id of [...this.peers.keys()]) if (!ids.has(id)) this._dropPeer(id, 'lost');
+    for (const id of [...this.peers.keys()]) {
+      if (ids.has(id)) continue;
+      // Just moved to the relay: everyone comes over on their own socket, so a player not here yet gets a moment to
+      // arrive (their join clears it) before they count as gone. Without it, a pair room's two players each saw the
+      // other leave the moment the room moved.
+      if (this._movedAt && wall() - this._movedAt < MOVE_GRACE_MS) { this._awaitPeer(id); continue; }
+      this._dropPeer(id, 'lost');
+    }
     for (const pr of list) this._addPeer(pr);
+  }
+  _awaitPeer(id) {
+    if (!this.arriving) this.arriving = new Map();
+    if (this.arriving.has(id)) return;
+    this.arriving.set(id, setTimeout(() => { this.arriving.delete(id); this._dropPeer(id, 'lost'); }, MOVE_GRACE_MS));
   }
   /** Reliable messages the room may not have had: everything after the last it saw from me (a reconnect, a move). */
   _resendAfter(lastSeq) {
@@ -330,7 +469,7 @@ class Room {
   _readyNow(resumed) {
     this._status('online');
     // An engine on raw messages starts over from this: who is here, who hosts, who owns what.
-    if (this.onRaw) this._raw({ t: 'hello', you: this.id, name: this.name, color: this.color, host: this.host, peers: [...this.peers.values()].map((p) => ({ c: p.id, name: p.name, color: p.color, ord: p.ord })), owners: Object.fromEntries(this.owners), locks: Object.fromEntries(this.locks), now: this.now(), transport: this.transport });
+    if (this.onRaw) this._raw({ t: 'hello', you: this.id, name: this.name, color: this.color, host: this.host, peers: [...this.peers.values()].map((p) => ({ c: p.id, name: p.name, color: p.color, ord: p.ord, away: p.away })), owners: Object.fromEntries(this.owners), locks: Object.fromEntries(this.locks), now: this.now(), transport: this.transport });
     const first = !this._wasReady;
     this._wasReady = true;
     if (first) this._ready?.();
@@ -368,11 +507,17 @@ class Room {
     // (Joins, leaves and host changes reach onRaw once, from _addPeer/_dropPeer/_hostChanged, whichever route told us.)
     if (this.onRaw && m.t !== 'hello' && m.t !== 'pong' && m.t !== 'join' && m.t !== 'leave' && m.t !== 'host') this._raw(m);
     switch (m.t) {
-      case 'hello': this._worldHello(m); this._readyNow(false); return;
+      case 'hello': this._worldHello(m); if (this.away) this.q.rel.push({ t: 'away', on: true }); this._readyNow(false); return;
       case 'pong': return this._pong(m.at, m.now);
       case 'join': this._addPeer(m); return;
       case 'leave': return this._dropPeer(m.c, m.why || 'left');
-      case 'host': { const was = this.host; this.host = m.c; return this._hostChanged(m.c, was, 'host left'); }
+      case 'host': { const was = this.host; this.host = m.c; return this._hostChanged(m.c, was, this.peers.get(was)?.away || (was === this.id && this.away) ? 'host away' : 'host left'); }
+      case 'away': {
+        const pr = this.peers.get(m.c);
+        if (!pr || pr.away === Boolean(m.on)) return;
+        pr.away = Boolean(m.on);
+        return this.ev.emit('peer:away', { peer: pr, away: pr.away });
+      }
       case 'me': {
         const pr = this.peers.get(m.c);
         if (!pr) return;
@@ -421,14 +566,22 @@ class Room {
   _addPeer(pr) {
     const id = pr.c ?? pr.id;
     if (!id || id === this.id) return;
+    const wait = this.arriving?.get(id);
+    if (wait) { clearTimeout(wait); this.arriving.delete(id); }
     const had = this.peers.get(id);
-    if (had) { had.name = pr.name ?? had.name; had.ord = pr.ord ?? had.ord; return; }
-    const info = { id, name: pr.name ?? null, color: pr.color ?? null, ord: pr.ord ?? 0, role: pr.role || 'player', route: this.transport === 'relay' ? 'relay' : 'host', rttMs: null, seenAt: this.now(), pose: null };
+    if (had) {
+      had.name = pr.name ?? had.name; had.ord = pr.ord ?? had.ord; if (this.transport === 'relay') had.route = 'relay';
+      if (pr.away !== undefined && Boolean(pr.away) !== had.away) { had.away = Boolean(pr.away); this.ev.emit('peer:away', { peer: had, away: had.away }); }
+      return;
+    }
+    const info = { id, name: pr.name ?? null, color: pr.color ?? null, ord: pr.ord ?? 0, role: pr.role || 'player', route: this.transport === 'relay' ? 'relay' : 'host', rttMs: null, seenAt: this.now(), pose: null, away: Boolean(pr.away) };
     this.peers.set(id, info);
     this.ev.emit('peer:join', info);
     if (this._wasReady) this._raw({ t: 'join', c: id, name: info.name, color: info.color, ord: info.ord });
   }
   _dropPeer(id, reason) {
+    const wait = this.arriving?.get(id);
+    if (wait) { clearTimeout(wait); this.arriving.delete(id); }
     const pr = this.peers.get(id);
     if (!pr) return;
     this.peers.delete(id);
@@ -522,11 +675,29 @@ class Room {
       if (Math.abs(d) <= 10) this.offsetTarget = null;
     }
     if (t - this.pingAt > PING_MS) { this.pingAt = t; this._ping(); }
+    this._checkAway();
     this._syncStates();
     while (this.sentRel.length && t - this.sentRel[0].at > 30_000) this.sentRel.shift();
     if (this.p2p) this._p2pTick(t);
   }
   _wake() { this.lastBeat = wall(); this.sleptUntil = wall() + SLEEP_GRACE_MS; }
+  /** Away after AWAY_AFTER_MS in the background, back the moment the page is seen again. */
+  _checkAway() {
+    if (!hasPage || this.o.away === false || this.closed) return;
+    const bg = inBackground(1000);
+    if (bg && !this._hiddenSince) this._hiddenSince = wall();
+    if (!bg) this._hiddenSince = 0;
+    const want = bg && wall() - this._hiddenSince >= AWAY_AFTER_MS;
+    // Acts when the page's state changes (a game's own setAway stands until then).
+    if (want === this._autoAway) return;
+    this._autoAway = want;
+    if (want !== this.away) this._setAway(want);
+  }
+  _setAway(on) {
+    this.away = on;
+    this.q.rel.push({ t: 'away', on });
+    this.ev.emit('away', { away: on });
+  }
   _status(s) { if (this.status === s) return; this.status = s; this.ev.emit('status', { status: s, peers: this.peers.size, transport: this.transport }); }
   _problem(code, detail) {
     if (code === 'relay-lost' && wall() < this.sleptUntil) return;
@@ -548,6 +719,7 @@ class Room {
         const seedFrom = this._mirror();
         if (seedFrom) core.seed(hostRoom, seedFrom);
         const self = core.newConn(hostRoom, { id: this.id, ord: this.ord, name: this.name, color: this.color, role: this.o.role, v: 2, now: this.now(), send: (text) => this._fromHostRoom(text) });
+        self.sendX = (f) => this._expressIn(f);
         this.p2p = { hostRoom, self, links: new Map(), flushAt: 0, timer: null };
         hostRoom.host = this.id;
         core.join(hostRoom, self, this.now(), { keepHost: true });
@@ -597,6 +769,7 @@ class Room {
     const conn = core.newConn(p.hostRoom, { id: link.id, ord: pr.ord ?? 0, name: pr.name, color: pr.color, role: pr.role, v: 3, now: this.now(), budget: carrier === 'sig' ? SLOW_BUDGET : undefined, send: (f) => this._hostSend(link, conn, f) });
     conn.carrier = carrier;
     conn.slow = carrier === 'sig';
+    conn.sendX = (f) => this._hostSendX(link, conn, f);
     if (old) conn.out.rel.push(...old.out.rel);
     link.conn = conn;
     core.join(p.hostRoom, conn, this.now(), { keepHost: true });
@@ -606,7 +779,7 @@ class Room {
     const link = p?.links.get(id);
     if (!link) return;
     p.links.delete(id);
-    try { link.channel?.close(); link.pc?.close(); } catch {}
+    try { link.chX?.close(); link.channel?.close(); link.pc?.close(); } catch {}
     if (link.conn) core.leave(p.hostRoom, link.conn, 'left');
   }
   _hostSend(link, conn, f) {
@@ -614,8 +787,15 @@ class Room {
     if (conn.carrier === 'channel') { if (link.channel && link.channel.readyState === 'open') { try { link.channel.send(f); } catch {} } return; }
     this._control({ c: 'sig', to: link.id, kind: 'data', body: b64(f) });
   }
+  /** Express to a player: its unordered channel, else its stream's carrier. */
+  _hostSendX(link, conn, f) {
+    if (link.conn !== conn) return;
+    if (link.chX && link.chX.readyState === 'open') { try { link.chX.send(f); return; } catch {} }
+    this._hostSend(link, conn, f);
+  }
   _hostReceive(link, carrier, u8) {
     const p = this.p2p;
+    if (u8[0] === core.FRAME.express) { if (p?.hostRoom && link.conn) core.receive(p.hostRoom, link.conn, u8, this.now()); return; }
     if (!p?.hostRoom || !link.conn || link.conn.carrier !== carrier) return; // the old carrier's tail: that stream is over
     core.receive(p.hostRoom, link.conn, u8, this.now());
   }
@@ -623,13 +803,14 @@ class Room {
     const p = this.p2p;
     if (p.hostRoom) {
       if (!p.timer) {
-        p.timer = setInterval(() => {
+        // On the background clock: a host whose page is hidden still sends everyone their bundles on time.
+        p.timer = every(core.FLUSH_MS, () => {
           if (this.p2p !== p) return;
           const n = this.now();
           core.flush(p.hostRoom, n);
           // Players on the slow route get a bundle 4 times a second.
           if (n - p.flushAt > 250) { p.flushAt = n; for (const l of p.links.values()) if (l.conn?.slow) core.flushConn(p.hostRoom, l.conn, n); }
-        }, core.FLUSH_MS);
+        });
       }
       return;
     }
@@ -640,9 +821,9 @@ class Room {
     const p = this.p2p;
     if (!p) return;
     this.p2p = null;
-    if (p.timer) clearInterval(p.timer);
-    try { p.channel?.close(); p.pc?.close(); } catch {}
-    if (p.links) for (const l of p.links.values()) { try { l.channel?.close(); l.pc?.close(); } catch {} }
+    if (p.timer) p.timer();
+    try { p.chX?.close(); p.channel?.close(); p.pc?.close(); } catch {}
+    if (p.links) for (const l of p.links.values()) { try { l.chX?.close(); l.channel?.close(); l.pc?.close(); } catch {} }
   }
 
   // ------------------------------------------------------------ the player's side: a link to the host
@@ -658,6 +839,11 @@ class Room {
     const ch = pc.createDataChannel('hn', { ordered: true });
     ch.binaryType = 'arraybuffer';
     p.channel = ch;
+    // Express rides its own channel: unordered and never retransmitted, so a lost input never holds up the next one.
+    const chX = pc.createDataChannel('hx', { ordered: false, maxRetransmits: 0 });
+    chX.binaryType = 'arraybuffer';
+    p.chX = chX;
+    chX.onmessage = (e) => { const u8 = new Uint8Array(e.data); if (this.p2p === p && u8[0] === core.FRAME.express) this._expressIn(u8); };
     ch.onopen = () => {
       if (this.p2p !== p) return;
       // A new stream on the link: fresh codecs both ways, starting with 'hi' (the host answers with a new hello).
@@ -691,7 +877,9 @@ class Room {
   _route(id, route) { const pr = this.peers.get(id); if (pr) pr.route = route; }
   _fromHost(u8, carrier) {
     const p = this.p2p;
-    if (!p || p.hostRoom || p.carrier !== carrier) return; // the old carrier's tail
+    if (!p || p.hostRoom) return;
+    if (u8[0] === core.FRAME.express) { this.st.down += u8.length; return this._expressIn(u8); }
+    if (p.carrier !== carrier) return; // the old carrier's tail
     this.st.down += u8.length; this.st.downMsgs++;
     const k = core.peek(u8);
     if (k.kind === 'hello') { p.in = new core.Codec(); this._worldHello(k.value); this._resendAfter(k.value.lastSeq); this._readyNow(false); return; }
@@ -722,6 +910,12 @@ class Room {
         pc.ondatachannel = (e) => {
           const ch = e.channel;
           ch.binaryType = 'arraybuffer';
+          // The player's unordered channel: express only.
+          if (ch.label === 'hx') {
+            link.chX = ch;
+            ch.onmessage = (ev) => { const u8 = new Uint8Array(ev.data); if (u8[0] === core.FRAME.express && link.conn && this.p2p === p) core.receive(p.hostRoom, link.conn, u8, this.now()); };
+            return;
+          }
           link.channel = ch;
           ch.onmessage = (ev) => {
             const u8 = new Uint8Array(ev.data);
@@ -969,12 +1163,14 @@ class Lobby {
 
   // The current room's, while in one (dropped otherwise, as a game's per-frame sends should be).
   send(kind, data, opt) { if (this.ready) this.room.send(kind, data, opt); }
+  express(bytes, opt) { return this.ready ? this.room.express(bytes, opt) : false; }
+  onExpress(fn) { return this.ev.on('express', fn); }
   pose(p, yaw, extra) { if (this.ready) this.room.pose(p, yaw, extra); }
   /** fn(data, from, meta) for messages of a kind ('*' for all), from whichever room the lobby is in. Returns off(). */
   on(kind, fn) { return this.msgs.on(kind, fn); }
   /** fn(peerId, state, at) for other players' avatars. Returns off(). */
   onPose(fn) { return this.ev.on('pose', fn); }
-  /** status ({ status }), joined (room), left (room), peer:join, peer:leave, host, transport, problem. Returns off(). */
+  /** status ({ status }), joined (room), left (room), peer:join, peer:leave, peer:away, away, host, transport, problem. Returns off(). */
   when(event, fn) { return this.ev.on(event, fn); }
 
   async _open() {
@@ -996,7 +1192,8 @@ class Lobby {
     const off = this._off;
     off.push(room.on('*', (data, from, meta) => { if (meta?.kind) this.msgs.emit(meta.kind, data, from, meta); this.msgs.emit('*', data, from, meta); }));
     off.push(room.onPose((...a) => this.ev.emit('pose', ...a)));
-    for (const name of ['peer:join', 'peer:leave', 'host', 'transport']) off.push(room.when(name, (x) => this.ev.emit(name, x)));
+    off.push(room.onExpress((...a) => this.ev.emit('express', ...a)));
+    for (const name of ['peer:join', 'peer:leave', 'peer:away', 'away', 'host', 'transport']) off.push(room.when(name, (x) => this.ev.emit(name, x)));
     off.push(room.when('problem', (x) => { this.lastProblem = `${x.code}${x.detail ? `: ${x.detail}` : ''}`; this.ev.emit('problem', x); }));
     off.push(room.when('status', ({ status }) => {
       if (gen !== this._gen) return;
@@ -1049,4 +1246,4 @@ class Lobby {
   }
 }
 
-export default { join, lobby, VERSION, protocols, Track, Links };
+export default { join, lobby, background, inBackground, VERSION, protocols, Track, Links };
