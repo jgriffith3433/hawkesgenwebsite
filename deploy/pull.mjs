@@ -32,7 +32,7 @@ function testedHere(sha) {
   try {
     cleanup();
     git('worktree', 'add', '--detach', '--quiet', wt, sha);
-    const env = { PATH: process.env.PATH ?? '/usr/local/bin:/usr/bin:/bin', LANG: 'C.UTF-8', CI: '1', NODE_ENV: 'test' };
+    const env = { PATH: process.env.PATH ?? '/usr/local/bin:/usr/bin:/bin', LANG: 'C.UTF-8', CI: '1', NODE_ENV: 'test', HAWKESGEN_RUN_TESTS: '1' }; // (asked for: test/run.mjs runs them)
     try {
       asHawkes('env', ['-i', ...Object.entries(env).map(([k, v]) => `${k}=${v}`), 'HOME=/home/hawkes', 'nice', '-n', '19', 'bash', '-c', 'npm ci --no-audit --no-fund --loglevel=error && npm run typecheck && npm test'], { cwd: wt, stdio: ['ignore', 'pipe', 'pipe'], timeout: 30 * 60_000, maxBuffer: 256 * 1024 * 1024 });
       state.tested = { sha, ok: true, at: new Date().toISOString(), seconds: Math.round((Date.now() - t0) / 1000) };
