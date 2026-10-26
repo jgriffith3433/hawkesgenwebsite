@@ -52,6 +52,21 @@ test('remote things move smoothly at 150 ms with jitter and loss (interpolated, 
   assert.ok(behind > 0.15 && behind < 0.5, `shown ${(behind * 1000).toFixed(0)} ms behind the host`);
 });
 
+test("a jump of the shared clock (a resync, the build room's clock) never leaves the others a second behind", async () => {
+  const scene = sceneOf({ ground, ball: { type: 'sphere', name: 'Ball', physics: 'dynamic', shape: { radius: 0.5 }, body: { friction: 0, damping: [0, 0] }, transform: { position: [0, 6, 0] } } });
+  const { sim, a, b } = await pair({ latency: 80, jitter: 20, loss: 0 }, scene);
+  await a.run(`const e = game.entity('ball'); e.gravity = 0; e.position = [0, 6, 0]; e.velocity = [4, 0, 0];`);
+  await sim.step(1500);
+  // The guest's idea of the shared clock moves by 0.7 s at once (what a resync or a new room's clock does).
+  await b.run(`H.setClockOffset(H.lib.clockOffset + 700)`);
+  await sim.step(500);
+  const behinds: number[] = [];
+  await sim.step(5000, async () => { behinds.push(((await a.run(`return game.entity('ball').x`)) - (await b.run(`return game.entity('ball').x`))) / 4); });
+  const worst = Math.max(...behinds);
+  if (process.env.NET_DEBUG) console.log({ behinds: behinds.map((x) => Math.round(x * 1000)) });
+  assert.ok(worst < 0.4, `after the jump the ball is shown at most ${Math.round(worst * 1000)} ms behind (want under 400: the old estimate drifted to ~500 and stayed)`);
+});
+
 test('your own car answers at once at 150 ms; bumping into it never takes it from you; others see it smoothly', async () => {
   const scene = sceneOf({ ground, start: { type: 'spawn', transform: { position: [0, 0, -4] } }, car: { type: 'car', transform: { position: [0, 0.6, 0] } }, crate: { type: 'box', name: 'Crate', physics: 'dynamic', body: { mass: 40 }, shape: { size: [1.5, 1.5, 1.5] }, transform: { position: [0, 0.75, 14] } } });
   const { sim, a, b } = await pair({ latency: 150, jitter: 30, loss: 0.01 }, scene);

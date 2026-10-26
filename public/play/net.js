@@ -235,15 +235,22 @@
   // ------------------------------------------------------------------ the snapshot buffer (H.sync.track)
   // How late each sender's snapshots arrive: the lower edge (the network's own delay) and how much later than that they
   // tend to be (jitter). A track plays its snapshots back that much (plus one send interval) behind the shared clock.
+  // When the shared clock itself moves (a resync, the build room's own clock, a move to the relay), every delay measured
+  // against it is off by the same jump: start over rather than let the jitter swallow it (2.5x the jitter is how far
+  // behind things play, so a 600 ms jump read as jitter put other players 1-2 s behind for a long while).
   const links = new Map(); // conn -> { transit, jit, n }
+  let linksClock = null;
+  const MAX_JIT = 120;
   function noteLink(from, at) {
+    const off = H.lib.clockOffset;
+    if (linksClock === null || Math.abs(off - linksClock) > 40) { links.clear(); linksClock = off; }
     const d = serverNow() - at;
     if (!Number.isFinite(d)) return;
     let l = links.get(from);
     if (!l) { l = { transit: d, jit: 8, n: 0 }; links.set(from, l); }
     l.n++;
-    if (d < l.transit) l.transit += (d - l.transit) * 0.3; else l.transit += (d - l.transit) * 0.01;
-    l.jit += (Math.max(0, d - l.transit) - l.jit) * 0.06;
+    if (d < l.transit) l.transit += (d - l.transit) * 0.3; else l.transit += (d - l.transit) * 0.02;
+    l.jit = Math.min(MAX_JIT, l.jit + (Math.max(0, d - l.transit) - l.jit) * 0.06);
   }
   const qa = new B.Quaternion(), qb = new B.Quaternion(), qc = new B.Quaternion(), ve = new B.Vector3();
   function lerpAngle(a, b, k) { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return a + d * k; }
@@ -787,7 +794,18 @@
     get me() { return me ? { id: me, name: H.hooks.myName, color: H.hooks.myColor } : null; },
     players() { return [...peers.entries()].map(([id, p]) => ({ id, name: p.name, color: p.color, entity: p.avatar && p.avatar.alive ? p.avatar : null })); },
   };
-  window.HawkesNet = { connect, claim, release, mine: (e) => !e.sceneId || mine(e.sceneId), get online() { return online; }, get me() { return me; }, get host() { return host; }, peers: () => peers, ownerOf, holder: (id) => locks.get(id) || null, flush,
+  /** Out of the room for good (another tab of the same account took the island): no reconnecting. */
+  function disconnect() {
+    hnTry++;
+    if (hn) { const h = hn; hn = null; void h.leave('aside'); }
+    if (ws) { ws.onclose = null; try { ws.close(); } catch { /* gone */ } ws = null; }
+    online = false;
+    for (const id of [...peers.keys()]) dropPeer(id);
+    owners.clear(); locks.clear();
+    flags();
+    status('offline');
+  }
+  window.HawkesNet = { connect, disconnect, claim, release, mine: (e) => !e.sceneId || mine(e.sceneId), get online() { return online; }, get me() { return me; }, get host() { return host; }, peers: () => peers, ownerOf, holder: (id) => locks.get(id) || null, flush,
     /** How this page is connected: 'hawkesnet' (and on what: p2p or relay) or 'site' (/v1/ws). */
     get via() { return hn ? { kind: 'hawkesnet', transport: hn.transport, room: hn.room, stats: hn.stats() } : { kind: ws ? 'site' : 'none' }; } };
 })();
