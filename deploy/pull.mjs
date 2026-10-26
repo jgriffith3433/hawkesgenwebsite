@@ -1,6 +1,7 @@
-// The box deploys itself: every couple of minutes (hawkesgen-portal-pull.timer), if main moved and the new commit's
-// typecheck and tests pass HERE (on a clean copy, at low priority: GitHub runs no tests, J 2026-10-25), fast-forward,
-// restart, check health; a commit that fails its tests or its health check is skipped.
+// The box deploys itself: every couple of minutes (hawkesgen-portal-pull.timer), if main moved: fast-forward, restart,
+// check health, and back to the old commit if it doesn't come up. No tests here (J 2026-10-26: tests are what agents run
+// while developing; beta's playtests and J's go-live are the gate). HAWKESGEN_PULL_TESTS=1 brings back typecheck and
+// tests on a clean copy first; HAWKESGEN_PULL_GITHUB_CI=1 waits for GitHub's checks instead.
 // Runs as root. No dependencies.
 //   node deploy/pull.mjs            once
 //   node deploy/pull.mjs --dry-run  says what it would do
@@ -72,8 +73,10 @@ git('fetch', '--quiet', 'origin', 'main');
 const head = git('rev-parse', 'HEAD');
 const tip = git('rev-parse', 'origin/main');
 if (head === tip || state.bad === tip) process.exit(0);
-if (DRY) { say(`would test and deploy ${head.slice(0, 7)} -> ${tip.slice(0, 7)}`); process.exit(0); }
-const ci = process.env.HAWKESGEN_PULL_GITHUB_CI === '1' ? await ciPassed(tip) : (say(`${tip.slice(0, 7)}: typecheck and tests here`), testedHere(tip));
+if (DRY) { say(`would deploy ${head.slice(0, 7)} -> ${tip.slice(0, 7)}`); process.exit(0); }
+const ci = process.env.HAWKESGEN_PULL_GITHUB_CI === '1' ? await ciPassed(tip)
+  : process.env.HAWKESGEN_PULL_TESTS === '1' ? (say(`${tip.slice(0, 7)}: typecheck and tests here`), testedHere(tip))
+  : true;
 if (ci === null) { say(`${tip.slice(0, 7)}: not tested yet, trying again on the next timer`); process.exit(0); }
 if (!ci) { say(`${tip.slice(0, 7)}: tests failed, not deploying${state.tested?.detail ? `: ${state.tested.detail}` : ''}`); state.bad = tip; save(); process.exit(0); }
 
