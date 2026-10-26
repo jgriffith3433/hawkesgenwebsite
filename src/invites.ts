@@ -8,6 +8,9 @@ import { sign, check } from './sign.ts';
 
 export const INVITE_TTL = 24 * 3600; // seconds a link works
 export const ISLAND = 'sandbox'; // the template whose room an invitation opens
+/** Seconds after a link is made in which an empty room still reads open: the inviter's own connection to the room is
+ *  still being made (a ticket, a socket), and a friend or a check in that moment must not be told it is closed. */
+export const FRESH = 20;
 
 export type RoomState = { open: boolean; people: number; limit: number };
 export type Invite = { room: string; name: string; ref: string | null };
@@ -56,6 +59,8 @@ export function inviteStatus(token: string, state: (key: string) => RoomState): 
   if (c.expired) return { state: 'expired', message: MESSAGES.expired, name: cleanName(v.n) };
   const invite: Invite = { room: v.r, name: cleanName(v.n), ref: cleanRef(v.f) };
   const s = state(islandKey(v.r));
+  const fresh = Date.now() / 1000 - (v.e - INVITE_TTL) < FRESH; // (links made with the usual lifetime only)
+  if (!s.open && fresh) return { state: 'open', ...invite };
   if (!s.open) return { state: 'closed', message: MESSAGES.closed(invite.name), name: invite.name };
   if (s.people >= s.limit) return { state: 'full', message: MESSAGES.full(invite.name), name: invite.name };
   return { state: 'open', ...invite };
