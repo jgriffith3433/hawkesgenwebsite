@@ -198,6 +198,8 @@
     const when = (t) => (t ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—');
     const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
     async function connections() {
+      const who = await fetch('/v1/users/me?soft=1').then((x) => (x.ok ? x.json() : null)).catch(() => null);
+      if (!who || !who.user) return;
       const r = await fetch('/v1/connections');
       if (!r.ok) return;
       const { connections: list } = await r.json();
