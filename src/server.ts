@@ -121,7 +121,7 @@ function cors(res: ServerResponse) {
 
 // The Hawkes Net dashboard (net.hawkesgen.com, served by the Net box) reads the signed-in developer's Net data and makes
 // their key here, with the session cookie (same site, so it is sent). Only that origin, only these routes, credentials allowed.
-const NET_DASHBOARD_ROUTES = /^\/v1\/(net\/me|users\/api-key)$/;
+const NET_DASHBOARD_ROUTES = /^\/v1\/(net\/me|net\/sites|users\/api-key)$/;
 const netDashboard = () => (env('PORTAL_NET_DASHBOARD') ?? 'https://net.hawkesgen.com').replace(/\/+$/, '');
 function netDashboardCors(req: IncomingMessage, res: ServerResponse): boolean {
   if (req.headers.origin !== netDashboard()) return false;
@@ -514,6 +514,12 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     // Hawkes Net for a customer's own game: a ticket for a room in their own project, from their game's server (hnet.ts).
     if (route === '/v1/net/rooms/ticket' && method === 'POST') return send(res, 200, await hnet.customerTicket(user, await readJson(req)));
     if (route === '/v1/net/me' && method === 'GET') return send(res, 200, await hnet.developer(user, users.profile(user).client));
+    if (route === '/v1/net/sites' && method === 'GET') return send(res, 200, await hnet.sites(user));
+    if (route === '/v1/net/sites' && method === 'POST') {
+      // JSON only: a form on another site can't send it without asking first (CORS lets only the Net dashboard).
+      if (!String(req.headers['content-type'] ?? '').includes('application/json')) throw new PortalError('Send JSON', { status: 415 });
+      return send(res, 200, await hnet.setSites(user, await readJson(req)));
+    }
 
     // The approve screen (/oauth/authorize): what's asking, then yes or no. Session only: a token can't approve itself.
     if (route === '/v1/oauth/request' && method === 'GET') return send(res, 200, oauth.authorizeRequest(url.searchParams));

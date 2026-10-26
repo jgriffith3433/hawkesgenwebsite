@@ -19,7 +19,7 @@ export const VERSION = core.VERSION;
 export const protocols = Object.freeze([3]);
 export const Track = core.Track;
 export const Links = core.Links;
-const DEFAULT_ENDPOINT = 'https://gen.hawkesgen.com';
+const DEFAULT_ENDPOINT = 'https://net.hawkesgen.com';
 const DEFAULT_ICE = [{ urls: ['stun:stun.cloudflare.com:3478'] }, { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
 const PING_MS = 5000;
 const SEND_MS = 33;
@@ -55,7 +55,7 @@ class Emitter {
 /**
  * Joins a room. Resolves when the room's state has arrived (`ready`), rejects when the join is refused.
  * o: { project, transport: 'auto' | 'p2p' | 'relay', ticket (a string, or a function returning Gen's ticket answer),
- *      endpoint (Gen, default https://gen.hawkesgen.com), key (a Gen API key: servers and bots only), name, sub, role,
+ *      endpoint (the Hawkes Net service, default https://net.hawkesgen.com), key (a Gen API key: servers and bots only), name, sub, role,
  *      config (the room's shape if this join creates it), leaveOnHide (default true), rtc ({ RTCPeerConnection } in Node),
  *      WebSocket (a WebSocket class, default the global one), log (false to silence),
  *      onRaw (an engine with its own multiplayer logic: every room message in the core's shapes, see `raw` below) }
@@ -893,4 +893,159 @@ class Room {
   }
 }
 
-export default { join, VERSION, protocols, Track, Links };
+// ================================================================ the standard layer: shared rooms by area
+/**
+ * The standard way a game puts its players together (docs/net.md "The standard layer"; Unity's HawkesNetLobby is the
+ * same): one shared room per area ("lobby", "level-1"), everyone in it, kept joined. It names the room for where the page
+ * runs, moves to the next shard when a room is full, joins again by itself when the connection is lost or refused, and
+ * gives one status. Its handlers stay subscribed across rejoins and shards, so a game subscribes once.
+ *
+ *   const lob = lobby({ project: 'mygame', liveHosts: ['mygame.com', 'www.mygame.com'], name: 'Ada' });
+ *   lob.on('chat', (text, from) => show(from.name, text));
+ *   lob.onPose((peer, state) => moveAvatar(peer, state.p, state.y));
+ *   lob.when('status', ({ status }) => hud(status));   // off, connecting, online, reconnecting, offline, full
+ *   lob.join('level-1');
+ *   lob.send('chat', 'hi'); lob.pose([x, y, z], yaw);  // dropped while not in a room
+ *
+ * Room names (the project's test prefix "t-" keeps beta and playtests apart from live, free and out of the counts):
+ *   live hosts:  "level-1", then "level-1.2", "level-1.3"... when full
+ *   elsewhere:   "t-level-1"                   (beta sites, localhost)
+ *   playtest:    "t-<id>/level-1"              (?room=<id> on the page: Gen's playtest.run with peers)
+ * o: join's options (project or ticket, name, transport...) plus liveHosts (the game's own host names), prefix (before
+ * every area: "p1/" for a protocol version), maxShards (20), url (the page's address, for names: default location.href).
+ */
+export function lobby(o = {}) { return new Lobby(o); }
+
+const TEST_ROOM = /^[A-Za-z0-9_.-]{1,24}$/;
+class Lobby {
+  constructor(o) {
+    const { liveHosts = [], prefix = '', maxShards = 20, url, ...join } = o;
+    this.o = { liveHosts: liveHosts.map((h) => String(h).toLowerCase()), prefix, maxShards, url };
+    this.joinOptions = join;
+    this.ev = new Emitter();
+    this.msgs = new Emitter();
+    this.area = ''; this.shard = 1; this.roomName = ''; this.status = 'off'; this.lastProblem = ''; this.room = null;
+    this._explicit = false; this._backoff = 0; this._retry = null; this._gen = 0; this._off = [];
+  }
+  get ready() { return Boolean(this.room && this.room.status === 'online'); }
+  get peers() { return this.room ? this.room.peers : new Map(); }
+  get host() { return this.room ? this.room.host : null; }
+  get id() { return this.room ? this.room.id : null; }
+  now() { return this.room ? this.room.now() : Date.now(); }
+
+  /** The page's address, host and query (empty in Node unless `url` was given). */
+  get url() { return this.o.url ?? (typeof location !== 'undefined' ? location.href : ''); }
+  get pageHost() { try { return new URL(this.url).hostname.toLowerCase(); } catch { return ''; } }
+  query(name) { try { return new URL(this.url).searchParams.get(name) ?? ''; } catch { return ''; } }
+  get isLive() { return this.o.liveHosts.includes(this.pageHost); }
+  get testRoom() { const id = this.query('room'); return TEST_ROOM.test(id) ? id : ''; }
+  /** The full room name for an area and shard here (see above). */
+  nameFor(area, shard = 1) {
+    const name = `${this.o.prefix}${area}${shard > 1 ? `.${shard}` : ''}`;
+    const test = this.testRoom;
+    if (test) return `t-${test}/${name}`;
+    return this.isLive ? name : `t-${name}`;
+  }
+
+  /** Joins an area's shared room (the first shard with room, or this shard). The area you are in does nothing; another
+   *  one leaves this first. */
+  join(area, shard = 0) {
+    if (!area) return this.leave();
+    if (area === this.area && (!shard || shard === this.shard) && (this.room || this.status === 'connecting')) return;
+    this._close();
+    this.area = area;
+    this._explicit = shard > 0;
+    this.shard = Math.max(1, shard);
+    this._backoff = 0;
+    void this._open();
+  }
+  /** Leaves and stays out (no rejoining) until the next join. */
+  leave() {
+    this.area = '';
+    this._close();
+    this._setStatus('off');
+  }
+
+  // The current room's, while in one (dropped otherwise, as a game's per-frame sends should be).
+  send(kind, data, opt) { if (this.ready) this.room.send(kind, data, opt); }
+  pose(p, yaw, extra) { if (this.ready) this.room.pose(p, yaw, extra); }
+  /** fn(data, from, meta) for messages of a kind ('*' for all), from whichever room the lobby is in. Returns off(). */
+  on(kind, fn) { return this.msgs.on(kind, fn); }
+  /** fn(peerId, state, at) for other players' avatars. Returns off(). */
+  onPose(fn) { return this.ev.on('pose', fn); }
+  /** status ({ status }), joined (room), left (room), peer:join, peer:leave, host, transport, problem. Returns off(). */
+  when(event, fn) { return this.ev.on(event, fn); }
+
+  async _open() {
+    const gen = ++this._gen;
+    this.roomName = this.nameFor(this.area, this.shard);
+    this._setStatus('connecting');
+    let room;
+    try {
+      room = await join(this.roomName, { ...this.joinOptions, onRaw: undefined });
+    } catch (e) {
+      if (gen !== this._gen) return;
+      const full = e?.code === 4009;
+      return this._problem(full ? 'full' : e?.status === 429 ? 'capped' : 'ticket', String(e?.message ?? e), false, e?.status);
+    }
+    if (gen !== this._gen) { void room.leave('moved'); return; }
+    this.room = room;
+    this._backoff = 0;
+    this.lastProblem = '';
+    const off = this._off;
+    off.push(room.on('*', (data, from, meta) => { if (meta?.kind) this.msgs.emit(meta.kind, data, from, meta); this.msgs.emit('*', data, from, meta); }));
+    off.push(room.onPose((...a) => this.ev.emit('pose', ...a)));
+    for (const name of ['peer:join', 'peer:leave', 'host', 'transport']) off.push(room.when(name, (x) => this.ev.emit(name, x)));
+    off.push(room.when('problem', (x) => { this.lastProblem = `${x.code}${x.detail ? `: ${x.detail}` : ''}`; this.ev.emit('problem', x); }));
+    off.push(room.when('status', ({ status }) => {
+      if (gen !== this._gen) return;
+      if (status !== 'closed') return this._setStatus(status);
+      // Put out of the room by the game's server (a kick): stay out until the game joins again.
+      if (this.lastProblem.includes('removed from the room')) { this._close(); return this._setStatus('offline'); }
+      this._problem(this.lastProblem.startsWith('full') ? 'full' : 'lost', this.lastProblem, true);
+    }));
+    this._setStatus('online');
+    this.ev.emit('joined', room);
+  }
+
+  _problem(code, detail, wasReady, httpStatus = 0) {
+    this.lastProblem = `${code}${detail ? `: ${detail}` : ''}`;
+    this._close();
+    if (!this.area) return;
+    if (code === 'full' && !this._explicit && this.shard < this.o.maxShards) {
+      this.shard++;
+      void this._open();
+      return;
+    }
+    // Lost: soon, backing off to a minute. Refused at the door: 30 s backing off to five minutes (its limits).
+    const refused = !wasReady && (code === 'ticket' || code === 'capped' || httpStatus === 403 || httpStatus === 429);
+    this._backoff = refused ? Math.min(300, Math.max(30, this._backoff * 2)) : Math.min(60, Math.max(2, this._backoff * 2));
+    this._setStatus(code === 'full' ? 'full' : 'offline');
+    const gen = this._gen;
+    this._retry = setTimeout(() => {
+      if (gen !== this._gen || !this.area) return;
+      if (!this._explicit) this.shard = 1; // the first shard may have room again
+      void this._open();
+    }, this._backoff * 1000);
+  }
+
+  _close() {
+    this._gen++;
+    clearTimeout(this._retry);
+    this._retry = null;
+    for (const f of this._off.splice(0)) f();
+    const room = this.room;
+    this.room = null;
+    if (!room) return;
+    if (room.status !== 'closed') void room.leave('left');
+    this.ev.emit('left', room);
+  }
+
+  _setStatus(s) {
+    if (this.status === s) return;
+    this.status = s;
+    this.ev.emit('status', { status: s, area: this.area, room: this.roomName });
+  }
+}
+
+export default { join, lobby, VERSION, protocols, Track, Links };

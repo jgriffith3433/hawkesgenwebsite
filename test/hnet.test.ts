@@ -10,6 +10,7 @@ import path from 'node:path';
 
 const calls: { path: string; body: any; project?: string }[] = [];
 let openRooms = new Set<string>();
+const sitesKept = new Map<string, any>();
 const fakeGen = http.createServer(async (req, res) => {
   const chunks: Buffer[] = [];
   for await (const c of req) chunks.push(c);
@@ -23,6 +24,8 @@ const fakeGen = http.createServer(async (req, res) => {
   if (url.pathname === '/v1/net/room') return json(200, { open: openRooms.has(body.room), players: openRooms.has(body.room) ? 2 : 0, limit: 32 });
   if (url.pathname === '/v1/net/publish') return json(200, { delivered: 1, rooms: 1 });
   if (url.pathname === '/v1/lods') return json(200, { lods: {}, queued: 0 });
+  if (url.pathname === '/v1/net/sites' && req.method === 'POST') { sitesKept.set(body.project, body); return json(200, { project: body.project, name: body.name, origins: body.origins, max: 20 }); }
+  if (url.pathname === '/v1/net/sites') { const k = sitesKept.get(url.searchParams.get('project') ?? ''); return json(200, { sites: k ? [{ project: k.project, name: k.name, origins: k.origins }] : [], max: 20 }); }
   return json(404, { error: 'not in the fake' });
 });
 await new Promise<void>((r) => fakeGen.listen(0, '127.0.0.1', () => r()));
@@ -196,4 +199,30 @@ test('the Net dashboard (net.hawkesgen.com) may read /v1/net/me and make a key w
   const back = await fetch(`${base}/net/back`, { redirect: 'manual' });
   assert.equal(back.status, 302);
   assert.equal(back.headers.get('location'), dash + '/');
+});
+
+test("a developer's web game sites (the Net dashboard): paid accounts only, set in their own project with the portal's key, JSON only", async () => {
+  const users = await import('../src/users.ts');
+  const u: any = await users.createAccount({ email: 'net-sites@example.com', password: 'a long password 1' });
+  const user = u.user ?? u;
+  const { apiKey } = users.mintApiKey(user.id);
+  const post = (body: any, type = 'application/json') => fetch(`${base}/v1/net/sites`, { method: 'POST', headers: { 'Content-Type': type, Authorization: `Bearer ${apiKey}` }, body: JSON.stringify(body) });
+  assert.equal((await fetch(`${base}/v1/net/sites`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, 401, 'signed in only');
+  assert.equal((await post({ origins: ['https://acme.games'] })).status, 402, 'a free account: the relay costs us');
+  const billing = await import('../src/billing.ts');
+  billing.add(user.id, 500, 'stripe_purchase', 'test pack');
+  assert.equal((await post({ origins: ['https://acme.games'] }, 'text/plain')).status, 415, 'JSON only: no form from another site');
+  calls.length = 0;
+  const r = await post({ project: 'usr_someone_else', name: 'Acme <b>Arena', origins: ['https://acme.games'] });
+  assert.equal(r.status, 200);
+  const sent = calls.find((c) => c.path === '/v1/net/sites')!;
+  assert.equal(sent.body.project, user.project, 'always their own project, whatever the page says');
+  assert.equal(sent.body.name, 'Acme bArena');
+  assert.equal(sent.project, undefined, "asked with the portal's key as it is (the service lets only pattern keys set sites)");
+  const got = await (await fetch(`${base}/v1/net/sites`, { headers: { Authorization: `Bearer ${apiKey}` } })).json();
+  assert.deepEqual(got.origins, ['https://acme.games']);
+  const me = await (await fetch(`${base}/v1/net/me`, { headers: { Authorization: `Bearer ${apiKey}` } })).json();
+  assert.deepEqual(me.sites.origins, ['https://acme.games'], '/v1/net/me carries them for the dashboard');
+  const pre = await fetch(`${base}/v1/net/sites`, { method: 'OPTIONS', headers: { Origin: 'https://net.hawkesgen.com', 'Access-Control-Request-Method': 'POST' } });
+  assert.equal(pre.headers.get('access-control-allow-origin'), 'https://net.hawkesgen.com', 'the dashboard may call it');
 });
