@@ -485,9 +485,16 @@ async function stageToEditor(t, ctx) {
 /** In the editor. The game frame is sandboxed, so a game script is stood in for by messages delivered to the editor's
  *  own listener as from the frame (named setup shortcut); everything after is what the editor does. */
 async function stageEditor(t) {
-  await t.until(() => document.getElementById('stage'), 30000, 'the game frame'); // (until() resolves with no value)
-  const frame = document.getElementById('stage');
+  // The frame is read each time it is used (the editor may swap it for a fresh one), and the stage waits for the draft
+  // game inside it to say it is ready: the engine can take a minute to start on a loaded server.
+  let frameReady = false;
+  const onReady = (e) => { if (e.data && e.data.source === 'hawkes-play' && e.data.type === 'ready') frameReady = true; };
+  window.addEventListener('message', onReady);
+  const frame = { get contentWindow() { const f = document.getElementById('stage'); return f && f.contentWindow; } };
+  await t.until(() => frame.contentWindow, 30000, 'the game frame'); // (until() resolves with no value)
   await t.until(() => document.getElementById('chatInput') && document.getElementById('genCard'), 30000, 'the editor');
+  await t.until(() => frameReady, 60000, 'the game to start in its frame').catch(() => t.problem('warning', 'the game in the frame did not say it was ready within 60 s; going on'));
+  window.removeEventListener('message', onReady);
   await t.wait(4000); // (the world is loaded)
   t.scene('The editor');
   const calls = [];
