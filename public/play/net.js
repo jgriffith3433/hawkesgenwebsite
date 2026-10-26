@@ -193,6 +193,15 @@
         flags(); dispatch('leave', { id: m.c }); status('online');
         return;
       }
+      case 'away': {
+        // A player's page went into the background (a hidden tab, a minimised window) or came back: Hawkes Net hands an
+        // away host's room to a present player itself (the 'host' case), so this is only for the modules to show it.
+        const pr = peers.get(m.c);
+        if (!pr) return;
+        pr.away = Boolean(m.on);
+        dispatch('away', { id: m.c, away: pr.away });
+        return;
+      }
       case 'host': {
         const was = host;
         host = m.c;
