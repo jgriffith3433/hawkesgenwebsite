@@ -291,7 +291,13 @@
     const levels = H.kinds.modelLevels && L.assetEntry ? H.kinds.modelLevels(L.assetEntry(name), 1024) : null;
     if (levels && levels.near) url = H.device && H.device.tier === 'phone' && levels.low ? levels.low : levels.near;
     e._loaded = false;
+    // The built-in body waits a moment before it shows (a model the browser already has arrives first, so a rebuilt
+    // vehicle never flashes its stand-in); a model that takes longer turns from the stand-in into itself (swapIn).
+    const stand = standIn(v);
+    stand.hide();
+    v.standT = setTimeout(() => { v.standT = null; if (e.alive && !e._loaded) stand.show(); }, STAND_DELAY_MS);
     e.ready = B.SceneLoader.ImportMeshAsync('', '', url, scene, null, '.glb').then((r) => {
+      if (v.standT) { clearTimeout(v.standT); v.standT = null; }
       if (!e.alive || world !== W()) { for (const m of r.meshes) m.dispose(); return e; }
       const holder = new B.TransformNode('veh-model', scene);
       for (const m of r.meshes) if (!m.parent) m.parent = holder;
@@ -318,8 +324,82 @@
       if (sh.color || o.color) for (const m of r.meshes) if (m.material && m.material.albedoColor && sh.tint) m.material.albedoColor = L.hex(o.color);
       e._loaded = true;
       e.measure();
+      if (stand.shown) swapIn(v, holder, r.meshes, stand);
       return e;
-    }).catch((err) => { e._loaded = true; H.report(new Error(`Could not load ${name}: ${err.message || err}`)); return e; });
+    }).catch((err) => {
+      if (v.standT) { clearTimeout(v.standT); v.standT = null; }
+      stand.show(); // no model: the built-in body is the vehicle
+      e._loaded = true;
+      H.report(new Error(`Could not load ${name}: ${err.message || err}`));
+      return e;
+    });
+  }
+
+  // ------------------------------------------------------------------ the stand-in and the swap
+  // A vehicle wearing a model has two bodies: its built-in one (shapes, there at once) and the model (loaded). The
+  // built-in body is the stand-in while the model loads; when the model comes, one turns into the other over SWAP_SECONDS
+  // (the stand-in fades and sinks a little, the model fades in and settles from a touch smaller, a shimmer of light).
+  const STAND_DELAY_MS = 180;
+  const SWAP_SECONDS = 1.5;
+  /** The stand-in's meshes: the body's parts and the wheels (their steering nodes). show() / hide() and whether it showed. */
+  function standIn(v) {
+    const st = {
+      shown: false,
+      parts: v.parts.slice(),
+      wheels: v.wheels.map((w) => w.steerNode),
+      hide() { for (const m of st.parts) if (!m.isDisposed()) m.setEnabled(false); for (const n of st.wheels) n.setEnabled(false); },
+      show() { st.shown = true; for (const m of st.parts) if (!m.isDisposed()) m.setEnabled(true); for (const n of st.wheels) n.setEnabled(true); },
+    };
+    return st;
+  }
+  /** The stand-in turns into the model over SWAP_SECONDS. What wearModel hid of the stand-in (the body, the wheels a model
+   *  doesn't need) is shown again to fade out, then hidden; what it kept (the rotors that turn in place of a model's) stays. */
+  function swapIn(v, holder, meshes, stand) {
+    const e = v.e;
+    const goParts = stand.parts.filter((m) => !m.isDisposed() && !m.isEnabled(false));
+    const goWheels = stand.wheels.filter((n) => !n.isEnabled(false));
+    const fadeMeshes = [...goParts, ...goWheels.flatMap((n) => n.getChildMeshes(false))];
+    for (const m of goParts) m.setEnabled(true);
+    for (const n of goWheels) n.setEnabled(true);
+    const model = meshes.filter((m) => m.getTotalVertices && m.getTotalVertices() > 0).map((m) => ({ m, vis: m.visibility }));
+    for (const x of model) x.m.visibility = 0;
+    const scale = holder.scaling.clone();
+    const sinkFrom = v.body.position.y;
+    holder.scaling.copyFrom(scale.scale(0.9));
+    const G = H.game;
+    if (G && G.burst) try { G.burst([e.x, e.y + 0.4, e.z], { color: '#e8f6ff', count: H.device && H.device.tier === 'phone' ? 12 : 28, speed: 3 }); } catch { /* fine */ }
+    let t = 0;
+    const done = () => {
+      const i = H.hooks.frame.indexOf(step);
+      if (i >= 0) H.hooks.frame.splice(i, 1);
+      for (const m of fadeMeshes) if (!m.isDisposed()) m.visibility = 1;
+      for (const m of goParts) if (!m.isDisposed()) m.setEnabled(false);
+      for (const n of goWheels) n.setEnabled(false);
+      v.body.position.y = sinkFrom;
+      for (const x of model) if (!x.m.isDisposed()) x.m.visibility = x.vis;
+      if (!holder.isDisposed()) holder.scaling.copyFrom(scale);
+      v.swap = null;
+      if (e.alive) e.measure();
+    };
+    // (Each frame; its clock is real time, so a slow frame rate doesn't stretch it, or the frames' time when that is
+    // further along: a test that steps the engine.)
+    let frames = 0;
+    const born = performance.now();
+    const step = (elapsed) => {
+      if (!e.alive || holder.isDisposed()) return done();
+      frames += Math.min(0.1, Math.max(0, Number(elapsed) || 0));
+      t = Math.max(frames, (performance.now() - born) / 1000);
+      const k = Math.min(1, t / SWAP_SECONDS);
+      const ease = k * k * (3 - 2 * k);
+      for (const x of model) x.m.visibility = x.vis * ease;
+      for (const m of fadeMeshes) m.visibility = 1 - ease;
+      v.body.position.y = sinkFrom - ease * 0.15 * v.def.size[1];
+      const g = 0.9 + 0.1 * ease + Math.sin(ease * Math.PI) * 0.025; // settles from a touch smaller, a little overshoot
+      holder.scaling.set(scale.x * g, scale.y * g, scale.z * g);
+      if (k >= 1) done();
+    };
+    H.hooks.frame.push(step);
+    v.swap = { done, get t() { return t; } };
   }
 
   /** A helicopter model usually has its rotors baked into one mesh, so they can't turn (and a generated one is often bent,
