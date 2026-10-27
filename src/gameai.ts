@@ -227,6 +227,9 @@ Rules:
 
 ${api()}`;
 
+/** The Overseer's whole system prompt (the line format, how to stage a build, the rules, the engine's docs). */
+export const systemPrompt = () => SYSTEM();
+
 /** Where the player is and what they see, from the editor (build.js context()), for "that", "here" and "it". */
 function playerView(raw: unknown, mention: unknown) {
   const c = raw && typeof raw === 'object' ? (raw as any) : null;

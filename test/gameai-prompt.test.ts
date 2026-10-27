@@ -45,3 +45,13 @@ test('a reply file that messages the page gets named; clean code does not', () =
   assert.deepEqual(many, ['top.', 'opener', 'document.cookie', 'localStorage', 'fetch(', 'XMLHttpRequest', 'WebSocket(', 'import(', 'eval(']);
   assert.deepEqual(riskyCode('game.on("tick", () => { ball.x += 1; });'), []);
 });
+
+test('the system prompt teaches the line format and staging, and still carries the engine docs', async () => {
+  const { systemPrompt } = await import('../src/gameai.ts');
+  const s = systemPrompt();
+  for (const k of ['{"focus":', '{"say":', '{"beat":', '{"op":"create"', '{"wait":', '{"file":', '{"delete":', '{"asset":', '{"reply":']) assert.ok(s.includes(k), k);
+  assert.match(s, /JSON Lines and nothing else/);
+  assert.match(s, /Things arrive still; a later beat wakes them/);
+  assert.match(s, /What you add stays/);
+  assert.ok(s.length > 100_000, 'WORLD.md and API.md are in it');
+});
