@@ -19,7 +19,7 @@ import { broadcast } from './live.ts';
 import { lock, unlock, locked } from './shared.ts';
 import { publish, onHub } from './bus.ts';
 import { search as searchCommunity } from './community.ts';
-import { AREAS, DIRECTOR_SCHEMA, DIRECTOR_SYSTEM, PACE, directorPrompt, pace, parseLine, readLines, resolveFocus } from './overseer-lines.ts';
+import { AREAS, DIRECTOR_SCHEMA, DIRECTOR_SYSTEM, PACE, directorPrompt, lineJoiner, pace, parseLine, readLines, resolveFocus } from './overseer-lines.ts';
 
 export const AI_CREDITS = () => Math.max(1, Number(env('GAME_AI_CREDITS') ?? 8));
 
@@ -189,13 +189,13 @@ Write JSON Lines and nothing else: one JSON object per line, no prose, no markdo
 - {"delete":"scripts/old.js"}: delete a file.
 - {"asset":{"kind":"model","name":"gunship.glb","prompt":"...","community":"a_..."}}: an asset the game needs that doesn't exist yet, for the people to make with one click (community: the best community library match's id, or "").
 - {"reply":"..."}: the LAST line. What you made and how to play it (which keys), a few plain sentences in your voice. No markdown.
-Your first line is a focus and your second a say, written immediately. If the request is unclear or impossible, change nothing: write a say and a reply asking what you need.
+Your first line is a focus and your second a say, written immediately. A short opening line ("A war, then.") has already been spoken for you the moment they asked, so your first say goes straight to the first thing you do. If the request is unclear or impossible, change nothing: write a say and a reply asking what you need.
 
 Build it as a show, never a snap (J: "make the overseer go a step further"; the player must always see you working)
 - Work in beats, in the order a player would love to watch them: the place first (ground, sky, light, weather), then things arriving one by one, then they come alive (a later update op gives them movement: patrol, wander, follow, spin), then they act (a later update op gives them combat or their job), then the player is invited in (a vehicle, tool or weapon right in front of them, and how to use it), then the goal (objectives on screen, a timer or a score, a voice giving orders), then the payoff (a win, a reward, a line from you).
 - Things arrive still; a later beat wakes them; a later beat makes them act. Put a wait between beats. Five to ten beats is a good show for a big request; one or two for a small one ("make the ball red" is one op and a say).
 - Go a step further than the literal words. Someone asking for "a helicopter war" wants to be IN a helicopter war: a role for them, a goal, enemies that fight back, a HUD with what matters, sound, a voice that gives orders, and a way to win. Someone asking for "a race" wants a course, rivals, a countdown, a clock and a finish. Someone asking for a mountain wants it to rise where they are looking. Never change what they asked for, never take away what they have, and keep it to what makes their request great.
-- Make it look good. Use the game's assets and the community library's models (by id) before plain shapes. When there is no model, build the thing from several well-shaped parts with good colors and materials, not one box. Lights, sky and sound set the mood.
+- Make it look good. Use the engine's own kinds for what it has (vehicles such as helicopters, planes, cars and boats; creatures; people; houses and furniture; trees and rocks): they look and move right. Enemy helicopters are helicopters, not boxes. Use the game's assets and the community library's models (by id) before plain shapes. When there is no model, build the thing from several well-shaped parts with good colors and materials, not one box. Lights, sky and sound set the mood.
 - What you add stays: nothing you make vanishes later unless they asked for that (no despawn timers on what you place; waves may spawn more, but what you beamed down stays until destroyed).
 - Keep the player's state. If they are in a vehicle, don't take it away or replace it; when the experience needs them in another one, put it right in front of them (or seat them with game.vehicles.enter in a script) and say so.
 - The rules of the experience (objectives, waves, a commander's radio lines over time, the score, the win) go in one script in scripts/, using game.ui for objectives and the HUD; a world thing can't do that alone.
@@ -502,16 +502,20 @@ export async function askAssistant(user: User, gameId: string, body: { message?:
       const ms = pace(l, paceLeft);
       if (ms > 0) { paceLeft -= ms; await sleep(ms); }
     };
+    const joiner = lineJoiner();
+    const take = async (raw: string) => { for (const line of joiner.push(raw)) await apply(line); };
     try {
       job = await followJob(job, fresh.project, deadline, async (text, ended) => {
         const r = readLines(text, Math.min(next, text.length), ended && job.status === 'done');
         next = r.next;
-        for (const raw of r.lines) await apply(raw);
+        for (const raw of r.lines) await take(raw);
       });
       // The last line, when the end came between two reads.
       if (job.status === 'done') {
         const text = String(job.result?.text ?? '');
-        if (next < text.length) for (const raw of readLines(text, next, true).lines) await apply(raw);
+        if (next < text.length) for (const raw of readLines(text, next, true).lines) await take(raw);
+        const rest = joiner.flush();
+        if (rest) await apply(rest);
       }
       settle(job);
       state.ended = true;

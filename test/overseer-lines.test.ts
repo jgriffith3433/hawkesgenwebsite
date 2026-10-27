@@ -25,7 +25,8 @@ const ANSWER = [
   '{"say":"Bravo Two, on my wing!","who":"Commander Hale"}',
   '{"file":"scripts/war.js","content":"// the war\\ngame.on(\'start\', () => {});\\n"}',
   '{"asset":{"kind":"sfx","name":"rotor.mp3","prompt":"helicopter rotor loop","community":""}}',
-  '{"reply":"Two gunships are up. W to climb."}',
+  '{"reply":"Two gunships are up.',
+  'W to climb."}',
 ];
 const fakeGen = http.createServer(async (req, res) => {
   const chunks: Buffer[] = [];
@@ -113,6 +114,20 @@ test('readLines: only complete lines, each once, the rest when final', () => {
   r = L.readLines('{"a":1}\n{"b":2}\n{"c":3}', r.next, true);
   assert.deepEqual(r.lines, ['{"c":3}']);
   assert.equal(r.next, '{"a":1}\n{"b":2}\n{"c":3}'.length);
+});
+
+test('lineJoiner: a line broken by a raw newline inside a string is joined; a bad line never swallows good ones', () => {
+  const j = L.lineJoiner();
+  assert.deepEqual(j.push('{"say":"hi"}'), ['{"say":"hi"}']);
+  assert.deepEqual(j.push('{"reply":"Four gunships circle.'), []);
+  assert.deepEqual(j.push('Press E to get in."}'), ['{"reply":"Four gunships circle. Press E to get in."}']);
+  assert.deepEqual(j.push('not json at all'), ['not json at all'], 'not an object: through, so it is reported');
+  assert.deepEqual(j.push('{"op":"create","id":"x","json":{"type":"box","name":"A'), [], 'an unclosed op waits');
+  assert.deepEqual(j.push('{"beat":"Next"}'), ['{"op":"create","id":"x","json":{"type":"box","name":"A', '{"beat":"Next"}'], 'a whole line ends the wait');
+  assert.deepEqual(j.push('{"op":"create","id":"y","json":{"type":"box"}}}'), ['{"op":"create","id":"y","json":{"type":"box"}}}'], 'ends with } : through as it is');
+  assert.deepEqual(j.push('{"reply":"cut off'), []);
+  assert.equal(j.flush(), '{"reply":"cut off');
+  assert.equal(j.flush(), null);
 });
 
 test('pace: beats hold longer than things, waits are honoured, the budget runs out', () => {
