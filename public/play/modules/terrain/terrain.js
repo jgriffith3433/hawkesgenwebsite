@@ -856,8 +856,8 @@
     const grown = { ix0: Math.max(0, box.ix0 - 2), ix1: Math.min(n - 1, box.ix1 + 2), iz0: Math.max(0, box.iz0 - 2), iz1: Math.min(n - 1, box.iz1 + 2) };
     const at = [f.x0 + px * f.cell, f.y + (sum >= 0 ? to : from)[pz * n + px], f.z0 + pz * f.cell];
     const radius = Math.max(box.ix1 - box.ix0, box.iz1 - box.iz0) * f.cell / 2;
-    const seconds = o.back ? H.arrive.FALL.terrainBack : H.arrive.FALL.terrainSeconds;
-    t.grow = { from: from.slice(), to, box: grown, t: 0, seconds, meshT: 0, fx: H.arrive.quake(at, { radius, rise: peak, seconds, back: o.back }) };
+    const seconds = o.seconds || (o.back ? H.arrive.FALL.terrainBack : H.arrive.FALL.terrainSeconds);
+    t.grow = { from: from.slice(), to, box: grown, t: 0, seconds, steps: Math.max(1, o.steps || 1), step: 0, meshT: 0, fx: H.arrive.quake(at, { radius, rise: peak, seconds, back: o.back }) };
     return true;
   }
   /** The ground at k (0 the old shape, 1 the new one) in the moving box. */
@@ -876,11 +876,25 @@
     // The collider: every half second while it moves (players are kept on the surface every step meanwhile).
     t.havokAt = final ? -1 : (H.world ? H.world.time : 0) + 0.25;
   }
+  /** How far the ground has moved at k (0-1 of the time): one smooth move, or in steps (the Overseer at work: each step
+   *  moves for 70% of its share and rests for the rest, so the land visibly changes stage by stage). */
+  function growEase(k, steps) {
+    if (steps <= 1) return k * k * (3 - 2 * k);
+    const i = Math.min(steps - 1, Math.floor(k * steps));
+    const p = Math.min(1, (k * steps - i) / 0.7);
+    return (i + p * p * (3 - 2 * p)) / steps;
+  }
   function stepGrow(t, dt) {
     const g = t.grow;
     g.t += dt;
     const k = Math.min(1, g.t / g.seconds);
-    const e = k * k * (3 - 2 * k);
+    const e = growEase(k, g.steps);
+    const step = Math.min(g.steps - 1, Math.floor(k * g.steps));
+    if (g.steps > 1 && step !== g.step) {
+      g.step = step;
+      if (H.work && H.work.pulse) H.work.pulse(1);
+      if (H.game) try { H.game.emit('terrainStep', { step: step + 1, of: g.steps }); } catch { /* a listener's own */ }
+    }
     growAt(t, e);
     if ((g.meshT += dt) >= 1 / GROW_HZ || k >= 1) { g.meshT = 0; growMeshes(t, k >= 1); }
     // Whatever stands on the moving ground rides with it (the player, things, animals).
@@ -1061,6 +1075,10 @@
         const back = b.add.length < a.add.length;
         if (growTo(t, value, { back })) return;
       }
+      // The Overseer reshaping the ground (H.work.active): the new shape rises and sinks in steps under its beams, not a
+      // snap, when only the land's shape changed (same grid, same look: colors, textures, scatter, sea, roads).
+      const look = (c) => JSON.stringify([c.colors, c.textures, c.tile, c.scatter, c.sea, c.road, c.home]);
+      if (t && H.work && H.work.active && look(a) === look(b) && H.arrive && H.arrive.quake && growTo(t, value, { steps: 4, seconds: 8 })) return;
       if (t && prefix && strip(a) === strip(b)) {
         // Only new edits (the brush): apply what isn't already showing.
         const fresh = [];

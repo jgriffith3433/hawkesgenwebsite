@@ -947,6 +947,8 @@
       else H.chat.line({ kind: m.user_id && m.user_id === user.id ? 'me' : 'player', who: m.name || 'Someone', text: m.text });
     });
     on('thinking', (e) => { let d = {}; try { d = JSON.parse(e.data); } catch { /* fine */ } if (H.chat) H.chat.status(d.on ? 'The Overseer is thinking…' : null); });
+    // The Overseer at work (src/overseer-lines.ts): where, the beats, its words, things arriving, the end.
+    on('overseer', (e) => { let d; try { d = JSON.parse(e.data); } catch { return; } if (H.work) H.work.handle(d); });
     on('gen', (e) => {
       let r; try { r = JSON.parse(e.data); } catch { return; }
       if (!r || !H.chat) return;
@@ -979,12 +981,16 @@
     const H = session.H;
     // Known to be out of credits: say so, with the Get credits link, and send nothing (no request that is bound to fail).
     if (session.credits != null && session.price != null && session.credits < session.price) { outOfCredits(); return; }
+    // The Overseer starts working at once (work.js: beams on what they look at, the work pill), before the server answers.
+    const work = H.work;
+    if (work) work.begin({ text });
     try {
       await api('POST', `/v1/games/${id}/ai`, { message: text, context: worldContext(H) || undefined });
       track('assistant_ask', { chars: text.length, where: 'sandbox' });
       me().then((u) => { if (u) session.credits = Number(u.credits) || 0; });
       try { H.game.emit('asked', { chars: text.length }); } catch { /* fine */ }
     } catch (x) {
+      if (work) work.end({ ok: false, why: x.status === 402 ? 'Out of credits.' : x.status === 429 ? 'Still working on the last one.' : "I couldn't hear you." });
       if (x.status === 402) return outOfCredits(x.message);
       if (x.status === 429) throw new Error("I'm still working on the last request. Ask again when it's done.");
       if (!x.status || x.status >= 500) throw new Error("I couldn't hear you just now. Nothing was charged; try again in a moment.");

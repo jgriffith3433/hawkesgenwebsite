@@ -113,7 +113,7 @@
   const ZONE_OF = [
     ['tl', '.pr-hud, .pg-hud, .wh-hud, .qs-btn, .tour-stuck, .tour-track, .qs-track, .wp-hp'],
     ['tr', '.gs-acts, .gs-toast, .corner, #veh-hud, .mh-score, .wp-ammo'],
-    ['mid', '.hc-chat, .hp-use, #veh-prompt, .mh-tip, .water-hud'],
+    ['mid', '.ov-work, .hc-chat, .hp-use, #veh-prompt, .mh-tip, .water-hud'],
     ['ctx', '#touch, .mh-touch, #veh-touch, .sw-fab, .lv-touchbtn'],
   ];
   // What audit() measures: [name, selector, is a button (must be 48 px or more)]

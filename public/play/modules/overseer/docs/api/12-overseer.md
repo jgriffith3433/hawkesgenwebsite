@@ -23,6 +23,11 @@ if (game.sky.hour > 20) game.ui.message('Night falls');
 // How high you are, and whether you've reached space.
 game.every(1, () => { if (game.sky.space > 0.9) game.ui.message('Space!', 1); });
 game.on('docked', () => game.ui.message('Welcome aboard'));
+// While the Overseer builds something someone asked for (its beams, the lit-up area, the work pill):
+game.on('workStart', ({ at }) => {});          // it started (at: where)
+game.on('workBeat', ({ n, title }) => {});     // a new beat of the build ("Gunships arrive")
+game.on('workEnd', ({ ok, ops }) => {});       // it finished (ops: how many changes landed)
+game.on('terrainStep', ({ step, of }) => {});  // the ground it is reshaping moved another step
 ```
 
 | | |

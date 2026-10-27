@@ -52,7 +52,7 @@ export function broadcast(gameId: string, event: string, data: unknown) {
   publish({ t: 'live', game: gameId, event, data, n: NOT_REPLAYED.has(event) ? undefined : nextSeq(gameId) });
 }
 /** State, not history: never numbered or replayed. */
-const NOT_REPLAYED = new Set(['presence', 'cursor', 'hello', 'thinking']);
+const NOT_REPLAYED = new Set(['presence', 'cursor', 'hello', 'thinking', 'overseer']);
 
 // The last events of each game as this process heard them, with their ids. Every web process hears every event, so a stream
 // that comes back here (or to another process that was up) can be given what it missed from this, even when the worker
