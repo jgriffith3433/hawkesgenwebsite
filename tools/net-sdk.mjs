@@ -14,10 +14,12 @@ const PKG = path.join(ROOT, 'node_modules', '@hawkesgen', 'net');
 const OUT = path.join(ROOT, 'public', 'play');
 export const NET_SDK_FILES = ['hawkes-net.mjs', 'hawkes-net-core.mjs'];
 
-/** The files of public/play/ that are not the installed SDK's ("" when they match; null when it isn't installed). */
+/** The files of public/play/ that are not the installed SDK's ("" when they match; null when it isn't installed). Line
+ *  endings don't count: git on Windows checks the copies out with CRLF, npm installs LF. */
 export function netSdkDiffers() {
   if (!fs.existsSync(path.join(PKG, 'package.json'))) return null;
-  return NET_SDK_FILES.filter((f) => !fs.existsSync(path.join(OUT, f)) || !fs.readFileSync(path.join(PKG, f)).equals(fs.readFileSync(path.join(OUT, f)))).join(', ');
+  const text = (p) => fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
+  return NET_SDK_FILES.filter((f) => !fs.existsSync(path.join(OUT, f)) || text(path.join(PKG, f)) !== text(path.join(OUT, f))).join(', ');
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
