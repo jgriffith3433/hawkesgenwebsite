@@ -6,7 +6,7 @@
   <script src="/site-analytics.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Hawkes Net: multiplayer for your game</title>
-  <meta name="description" content="Hawkes Net: multiplayer for web, Babylon and Unity WebGL games. Make a project with your hawkesgen.com account, join a room in one call, and watch players, rooms and tickets live.">
+  <meta name="description" content="Hawkes Net: multiplayer for web, Babylon.js and Unity games. Make a project with your hawkesgen.com account, join a room in one call, and watch players, rooms and tickets live.">
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/public.css">
   <link rel="stylesheet" href="/site.css">
@@ -59,8 +59,8 @@
       <div class="wrap">
         <div class="label">Hawkes Net · multiplayer</div>
         <h1 style="margin-top:18px">Multiplayer for your game,<br><em>without the server work.</em></h1>
-        <p class="lede">The networking every game on Hawkes Gen runs on, for yours too. Make a project with your hawkesgen.com account, join a room in one call, and watch your players, rooms and tickets live. Web, Babylon and Unity WebGL.</p>
-        <div class="actions" style="margin-top:24px"><a class="btn btn-primary btn-lg" href="https://net.hawkesgen.com/">Open Hawkes Net</a><a class="btn btn-secondary btn-lg" href="#demo">Try it live</a></div>
+        <p class="lede">The networking every game on Hawkes Gen runs on, for yours too. Make a project with your hawkesgen.com account, join a room in one call, and watch your players, rooms and tickets live. For the web, Babylon.js and Unity.</p>
+        <div class="actions" style="margin-top:24px"><a class="btn btn-primary btn-lg" href="https://net.hawkesgen.com/">Open Hawkes Net</a><a class="btn btn-secondary btn-lg" href="#sdks">Get the SDK</a><a class="btn btn-secondary btn-lg" href="#demo">Try it live</a></div>
       </div>
     </section>
 
@@ -84,7 +84,7 @@
           <div class="card"><h3>Our relay</h3><p>Avatars by distance (near players often, far ones less), messages once and in order across reconnects, a shared clock, and a binary protocol about 5 times smaller than JSON.</p></div>
           <div class="card"><h3>No server needed</h3><p>List your game's sites and its pages join with no key. Have a server? It asks for tickets with your API key and decides who plays where.</p></div>
           <div class="card"><h3>Free to build</h3><p>Your own machine (<code>localhost</code>) always joins your project's test rooms, apart from your players. Open two tabs and play.</p></div>
-          <div class="card"><h3>Your engine</h3><p>One ES module for the web and Babylon.js, a package for Unity WebGL, and raw messages for games with their own netcode.</p></div>
+          <div class="card"><h3>Your engine</h3><p>One ES module for the web, a module of its own for Babylon.js, a package for Unity (WebGL, the Editor and desktop builds), and raw messages for games with their own netcode.</p></div>
         </div>
       </div>
     </section>
@@ -95,9 +95,20 @@
         <div class="steps">
           <div class="card"><h3>Sign in</h3><p>Use your hawkesgen.com account at net.hawkesgen.com. Making one is free.</p></div>
           <div class="card"><h3>Make a project</h3><p>Name it; its id is what your game passes as <code>project</code>. List your game's sites when you are ready to put it online.</p></div>
-          <div class="card"><h3>Add the SDK</h3><p><b>Web</b>: one import, today. <b>Unity WebGL</b>: download the package today; the Asset Store listing is coming soon. <b>Babylon.js</b>: a module of its own is coming soon; the web SDK works with Babylon now.</p></div>
+          <div class="card"><h3>Add the SDK</h3><p>One import for the web, a module for Babylon.js, a package for Unity: <a href="#sdks">pick yours below</a>. All open source, MIT.</p></div>
         </div>
         <div class="actions" style="margin-top:24px"><a class="btn btn-primary btn-lg" href="https://net.hawkesgen.com/">Open Hawkes Net</a></div>
+      </div>
+    </section>
+
+    <section class="section" id="sdks">
+      <div class="wrap">
+        <div class="section-head"><div class="label">The SDKs</div><div><h2>Pick your engine.</h2><p>Open source under the MIT license. Every one joins the same rooms, so a Unity build and a web page can play together.</p></div></div>
+        <div class="cards">
+          <div class="card"><span class="tag">Web · any engine</span><h3>JavaScript SDK</h3><p>Rooms, lobbies, avatars, synced state, a shared clock, express frames for what can't wait, and games that keep going in a background tab. No dependencies, with TypeScript types.</p><p><code style="overflow-wrap:anywhere">import { lobby } from 'https://net.hawkesgen.com/sdk/hawkes-net@1.mjs'</code></p><span class="more"><a href="https://net.hawkesgen.com/#docs">Docs</a> · <a href="https://net.hawkesgen.com/sdk/hawkes-net@1.mjs">The module</a> · <a href="https://net.hawkesgen.com/sdk/hawkes-net@1.d.ts">Types</a></span></div>
+          <div class="card"><span class="tag">Babylon.js</span><h3>Hawkes Net for Babylon.js</h3><p><code>multiplayer(scene, { project, player })</code>: everyone else as avatars played back smoothly, shared moving things, players in the background shown as away. An example you can open twice.</p><span class="more"><a href="https://github.com/jgriffith3433/hawkesnet-babylon">GitHub: hawkesnet-babylon</a></span></div>
+          <div class="card"><span class="tag">Unity · WebGL, Editor, desktop</span><h3>Hawkes Net for Unity</h3><p>Shared rooms by area, drop-in avatars and messages in C#. WebGL builds and the Editor's Play mode join the same rooms. Install it with Package Manager from the git URL, or as a tarball; the Asset Store listing is in review.</p><span class="more"><a href="https://github.com/jgriffith3433/hawkesnet-unity">GitHub: hawkesnet-unity</a> · <a href="https://net.hawkesgen.com/sdk/com.hawkes.net.tgz">Tarball</a></span></div>
+        </div>
       </div>
     </section>
 
