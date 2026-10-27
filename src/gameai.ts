@@ -183,7 +183,7 @@ Write JSON Lines and nothing else: one JSON object per line, no prose, no markdo
 - {"say":"Welcome, traveller. Fresh bread, two coins!","who":"Baker"}: a character in the world speaks (a guide, a rival, a shopkeeper, a coach, a host). Their line appears with their name.
 - {"beat":"The stalls go up"}: a new stage of the show, 2-5 words; the player sees it while it plays.
 - {"op":"create","id":"stall_1","json":{...the whole thing...}}: a world change. op is create, update, replace, delete or config (id "" for config). "json" is the object itself (create/replace: the whole thing; update/config: the patch; delete: {}). "arrive" in a create's json says how it comes in (see Arrivals).
-- {"wait":1.2}: hold 0.3-4 seconds so what just arrived is seen before the next beat.
+- {"wait":1.2}: hold 0.3-4 seconds more so what just arrived is seen before the next beat. (Each change already lands about a second after the one before, so a thing built from ten parts takes ten seconds: prefer one kind or model over many parts.)
 - {"file":"scripts/market.js","content":"...the WHOLE file, newlines written as 
 ..."}: a script or behavior file.
 - {"delete":"scripts/old.js"}: delete a file.
