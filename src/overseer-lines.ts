@@ -73,6 +73,30 @@ export function readLines(text: string, from: number, final = false): { lines: s
   return { lines, next: at };
 }
 
+/** Rejoins a line the model broke with a raw newline inside a string (a long reply typed with a line break): a line
+ *  that opens an object and doesn't end with "}" waits for the next pieces (joined with a space). A piece that is a whole
+ *  line of its own ends the wait (the broken one goes through as it is, to be reported), so a bad line never swallows good
+ *  ones; at most 20 pieces wait. `push` gives back the lines ready now; `flush` the rest at the end. */
+export function lineJoiner() {
+  let carry: string[] = [];
+  const whole = (s: string) => { try { JSON.parse(s.trim().replace(/,$/, '')); return true; } catch { return false; } };
+  const open = (s: string) => { const t = s.trim().replace(/,$/, ''); return t.startsWith('{') && !t.endsWith('}') && !whole(t); };
+  return {
+    push(raw: string): string[] {
+      if (!carry.length) {
+        if (open(raw)) { carry = [raw]; return []; }
+        return [raw];
+      }
+      if (raw.trim().startsWith('{') && whole(raw)) { const broken = carry.join(' '); carry = []; return [broken, raw]; }
+      carry.push(raw);
+      const joined = carry.join(' ');
+      if (whole(joined) || carry.length >= 20) { carry = []; return [joined]; }
+      return [];
+    },
+    flush(): string | null { const j = carry.length ? carry.join(' ') : null; carry = []; return j; },
+  };
+}
+
 /** How long to hold after a line before the next is shown (ms), and what the budget has left. The show is paced only
  *  while the budget lasts (PACE_BUDGET_MS in all), so a long answer never keeps the player waiting at the end. */
 export const PACE = { beat: 700, op: 160, opDelete: 60, say: 250, file: 120, budget: 45_000 };
