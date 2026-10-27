@@ -406,6 +406,8 @@ function connect() {
       if (ok) askLater({ id: 'editor-assistant', question: 'Did the Overseer get that right?', context: 'assistant reply', comment: true }, 4000);
     }
   });
+  // The Overseer at work (src/overseer-lines.ts): where, the beats, its words, things arriving, the end: into the game.
+  sse.addEventListener('overseer', (e) => { let d; try { d = JSON.parse(e.data); } catch { return; } toStage({ ...d, type: 'overseer-work' }); });
   sse.addEventListener('thinking', (e) => { const d = JSON.parse(e.data); $('thinkingIndicator').hidden = !d.on; if (d.on) $('thinkingIndicator').textContent = `${d.by && d.by !== me?.name ? `${d.by}'s request: ` : ''}working…`; });
   sse.addEventListener('gen', (e) => onGen(JSON.parse(e.data)));
   sse.addEventListener('game', (e) => { const d = JSON.parse(e.data); game = { ...game, ...d }; members = d.members || members; if (document.activeElement !== $('gameTitle')) $('gameTitle').value = game.title; loadSettings(); });
@@ -576,6 +578,9 @@ async function sendChat(text, about, ctx) {
   if (!message) return;
   const target = about ?? mention;
   if (text === undefined) { input.value = ''; backToGame(); }
+  // The Overseer starts working in the game at once (work.js: beams on what they look at, the work pill), before the
+  // server answers; its events (`overseer` below) carry the show on.
+  toStage({ type: 'overseer-work', k: 'begin', text: message.slice(0, 200) });
   const context = ctx ?? (await worldContext());
   const errText = errors.slice(-5).map((e) => `${e.file || 'script'}:${e.line ?? '?'}: ${e.text}`).join('\n');
   try {
@@ -589,6 +594,7 @@ async function sendChat(text, about, ctx) {
     // 402 (no credits) is told by site-analytics.js from the answer itself.
     if (err.status === 429) frustrated('assistant_busy');
     else if (err.status !== 402) frustrated('assistant_unreachable', { status: err.status || 0 });
+    toStage({ type: 'overseer-work', k: 'end', ok: false, why: err.status === 402 ? 'Out of credits.' : err.status === 429 ? 'Still working on the last one.' : "I couldn't hear you." });
     if (err.status === 402) { noCredits(err.message); if (text === undefined) input.value = message; return; }
     addSystem(err.status === 429 ? "I'm still working on the last request. Ask again when it's done."
       : err.status >= 500 || !err.status ? "I couldn't hear you just now. Nothing was charged; try again in a moment." : err.message);
