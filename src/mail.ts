@@ -173,7 +173,7 @@ export function lowBalanceEmail(name: string | null, credits: number, firstBonus
 
 You have ${credits} credit${credits === 1 ? '' : 's'} left on Hawkes Gen.${bonus}
 
-Top up: ${site}/app#credits
+Top up: ${site}/credits
 Packs start at $10 for 1,000 credits: about 200 images, or 20 sprite sheets.
 
 Hawkes Gen
@@ -186,7 +186,7 @@ You get this once when your balance runs low.`;
 <p style="margin:0 0 14px;font-size:15px;line-height:1.6">${esc(hi)}</p>
 <p style="margin:0 0 6px;font:400 40px/1.1 Georgia,'Times New Roman',serif">${credits} credit${credits === 1 ? '' : 's'} left</p>
 <p style="margin:0 0 22px;font-size:15px;line-height:1.6;color:#4b4840">Packs start at $10 for 1,000 credits: about 200 images, or 20 sprite sheets.${firstBonus ? ` <strong style="color:#c8421d">Your first pack comes with ${firstBonus}% more.</strong>` : ''}</p>
-<p style="margin:0"><a href="${site}/app#credits" style="display:inline-block;background:#1a1915;color:#f4f2ed;text-decoration:none;padding:11px 18px;border-radius:3px;font-size:15px;font-weight:600">Top up →</a></p>
+<p style="margin:0"><a href="${site}/credits" style="display:inline-block;background:#1a1915;color:#f4f2ed;text-decoration:none;padding:11px 18px;border-radius:3px;font-size:15px;font-weight:600">Top up →</a></p>
 </div>
 <p style="max-width:520px;margin:14px auto 0;font-size:12px;color:#8b867b;text-align:center">You get this once when your balance runs low.</p>
 </body></html>`;

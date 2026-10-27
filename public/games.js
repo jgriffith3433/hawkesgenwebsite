@@ -131,7 +131,15 @@ function notices() {
   if (q.get('plan') === 'success') { say('<b>Welcome aboard.</b> Your plan is active; this month\'s credits arrive as soon as Stripe confirms the payment (usually seconds).'); $('plansSection').hidden = false; }
   if (q.get('billing') === 'success') { say('<b>Thanks.</b> Your credits are on their way.'); $('plansSection').hidden = false; }
   if (q.get('plan') || q.get('billing')) history.replaceState(null, '', location.pathname);
+  showPlans();
 }
+/** #credits (the game's "Get credits") and #plans (the credits pill): the plans and top-ups, opened and in view. */
+function showPlans() {
+  if (!/^#(plans|credits)$/.test(location.hash)) return;
+  $('plansSection').hidden = false;
+  requestAnimationFrame(() => $('plans').scrollIntoView({ behavior: 'smooth', block: 'start' }));
+}
+addEventListener('hashchange', showPlans);
 
 async function loadInvite() {
   if (!inviteCode) return;

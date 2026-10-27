@@ -8,8 +8,9 @@
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/public.css">
   <link rel="stylesheet" href="/site.css">
+  <link rel="stylesheet" href="/admin.css">
 </head>
-<body class="landing">
+<body class="landing admin-page">
   <header class="hg-navbar">
     <div class="wrap hg-navbar-inner">
       <a href="/" class="hg-brand"><span class="wordmark">Hawkes Gen</span><span class="hg-brand-badge">Admin</span></a>
@@ -50,13 +51,13 @@
     <section data-pane="accounts" hidden>
       <div class="admin-split">
         <div>
-          <form id="searchForm" style="display:flex;gap:8px;margin-bottom:16px">
-            <input id="search" class="form-input" placeholder="Search by email, name or id" style="max-width:360px">
+          <form id="searchForm">
+            <input id="search" class="form-input" placeholder="Search by email, name or id">
             <button class="btn btn-secondary" type="submit">Search</button>
           </form>
           <div class="pricing-table-wrap">
             <table class="data-table" id="accounts">
-              <thead><tr><th>Account</th><th style="text-align:right">Credits</th><th style="text-align:right">Bought</th><th style="text-align:right">Spent</th><th style="text-align:right">Jobs</th><th>Joined</th><th>Last in</th></tr></thead>
+              <thead><tr><th>Account</th><th>Plan</th><th class="num">Credits</th><th class="num">Bought</th><th class="num">Spent</th><th class="num">Jobs</th><th class="num">Games</th><th>Joined</th><th>Last in</th></tr></thead>
               <tbody></tbody>
             </table>
           </div>
@@ -67,11 +68,11 @@
     </section>
 
     <section data-pane="jobs" hidden>
-      <div class="pricing-table-wrap"><table class="data-table" id="jobs"><thead><tr><th>When</th><th>Account</th><th>Tool</th><th style="text-align:right">Credits</th><th>Status</th><th>Job</th></tr></thead><tbody></tbody></table></div>
+      <div class="pricing-table-wrap"><table class="data-table" id="jobs"><thead><tr><th>When</th><th>Account</th><th>Tool</th><th class="num">Credits</th><th>Status</th><th>Job</th></tr></thead><tbody></tbody></table></div>
     </section>
 
     <section data-pane="purchases" hidden>
-      <div class="pricing-table-wrap"><table class="data-table" id="purchases"><thead><tr><th>When</th><th>Account</th><th>Pack</th><th style="text-align:right">Credits</th><th style="text-align:right">Paid</th><th>Stripe session</th></tr></thead><tbody></tbody></table></div>
+      <div class="pricing-table-wrap"><table class="data-table" id="purchases"><thead><tr><th>When</th><th>Account</th><th>Pack</th><th class="num">Credits</th><th class="num">Paid</th><th>Stripe session</th></tr></thead><tbody></tbody></table></div>
     </section>
 
     <section data-pane="reports" hidden>

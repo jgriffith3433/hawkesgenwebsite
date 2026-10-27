@@ -79,7 +79,7 @@ const TOOLS: ToolDef[] = [
     annotations: read,
     async build(_a, { caller }) {
       const u = getUser(caller.user.id)!;
-      return { direct: { email: u.email, credits: u.credits, usd: u.credits / 100, connection: caller.via.name ?? caller.via.kind, daily_limit: caller.via.cap, spent_today: caller.via.cap != null ? spentToday(caller.via.id) : undefined, buy_credits: `${publicUrl()}/app#credits`, manage_limits: `${publicUrl()}/connect` } };
+      return { direct: { email: u.email, credits: u.credits, usd: u.credits / 100, connection: caller.via.name ?? caller.via.kind, daily_limit: caller.via.cap, spent_today: caller.via.cap != null ? spentToday(caller.via.id) : undefined, buy_credits: `${publicUrl()}/credits`, manage_limits: `${publicUrl()}/connect` } };
     },
   },
   {
