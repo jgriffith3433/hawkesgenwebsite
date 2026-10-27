@@ -24,7 +24,10 @@
     .av-hud { position: absolute; left: 12px; top: 12px; right: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; pointer-events: none; }
     .av-chip { font: 500 11px/1 var(--mono); padding: 6px 8px; border-radius: 4px; background: var(--glass); backdrop-filter: var(--glass-blur); border: 1px solid var(--border); color: var(--fg-2); }
     .av-chip b { color: var(--heading); font-weight: 500; }
-    .av-chip.over { border-color: #ef4444; color: #fecaca; }
+    .av-chip.over { border-color: #d9a441; }
+    .av-chip.over b { color: #8a5a00; }
+    .av-load { position: absolute; inset: 0; display: grid; place-items: center; color: #4b5266; font: 13px var(--mono); pointer-events: none; }
+    .av-load[hidden] { display: none; }
     .av-chip.ok b { color: var(--ok); }
     .av-side { padding: 14px; display: grid; gap: 14px; align-content: start; border-left: 1px solid var(--border); overflow: auto; max-height: 640px; }
     .av-side h3 { font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--fg-3); margin: 0 0 8px; }
@@ -101,6 +104,7 @@
       <div class="av-stage" id="viewport">
         <canvas id="stage" aria-label="Live avatar view"></canvas>
         <div id="ui" class="av-ui"></div>
+        <div id="loading" class="av-load" role="status">Loading the live view…</div>
         <div id="error" class="av-err" hidden></div>
         <div class="av-hud">
           <span class="av-chip">body <b id="hudBody"></b></span>
