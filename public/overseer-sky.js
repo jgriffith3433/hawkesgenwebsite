@@ -205,15 +205,17 @@
     input.placeholder = hints[0];
   }
   const replies = ['Beamed in. Now imagine it with a world around it.', 'There it is. I enjoyed that.', 'Appeared. Everything here arrived the same way.', 'Done. In a world, I would build it for you.'];
-  let ri = 0;
+  let ri = 0, going = 0;
   if (form) form.addEventListener('submit', (e) => {
     e.preventDefault();
     const v = input.value.trim().slice(0, 48);
     if (!v) { input.focus(); return; }
     materialize(v, fxs[fi++ % fxs.length]);
     input.value = '';
-    if (reply) { reply.hidden = false; reply.classList.remove('on'); void reply.offsetWidth; reply.querySelector('span').textContent = replies[ri++ % replies.length]; reply.classList.add('on'); }
+    if (reply) { reply.hidden = false; reply.classList.remove('on'); void reply.offsetWidth; reply.querySelector('span').textContent = replies[ri++ % replies.length] + ' Taking you to the sandbox…'; reply.classList.add('on'); }
     if (window.hgAnalytics && window.hgAnalytics.track) window.hgAnalytics.track('sky_wish', { length: v.length });
+    // J, 2026-10-26: 5 s after a wish, off to the sandbox, where the Overseer really builds it
+    if (!going) going = setTimeout(() => { location.href = '/play/sandbox'; }, 5000);
   });
 
   // ---- the Overseer speaks (click it, or wait)
