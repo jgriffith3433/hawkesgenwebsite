@@ -32,8 +32,8 @@ health show bottom right (altitude and throttle in aircraft, depth and ballast i
 | `transform.position` | where its middle is. On the floor: y ≈ car 0.8, truck 1.1, bicycle 0.5, motorbike 0.6, airplane 1.0, helicopter 1.4 (the editor places it for you); a boat or submarine goes on the water's surface | |
 | `transform.rotation` | `[0, yaw, 0]`: which way it faces (+z is forward) | |
 | `transform.scale` | a number: a bigger or smaller one (a monster truck: 1.5) that drives the same way | 1 |
-| `material.color` | its paint | each type has one |
-| `shape.model` | a model asset to wear as the body (the physics stays the vehicle's). Nodes named wheel/tire spin. `shape.modelYaw` turns a model that faces the wrong way (90, 180...) | none: shapes |
+| `material.color` | its paint: the built-in body's only. A vehicle wearing a model (`shape.model`) keeps the model's own colors, so don't promise a color on one: pick a model in that color, or leave the model off for a painted built-in body | each type has one |
+| `shape.model` | a model asset to wear as the body (the physics stays the vehicle's; the built-in body stands in while it loads and turns into it). Nodes named wheel/tire spin. `shape.modelYaw` turns a model that faces the wrong way (90, 180...) | none: shapes |
 | `shape.speed` | top speed in m/s (36 m/s is 130 km/h) | car 40, truck 32, bicycle 13, motorbike 48, boat 26, submarine 13, airplane 75 |
 | `shape.power`, `shape.grip` | engine strength and tire grip, times | 1 |
 | `shape.handling` | `"drift"` (slides more) or `"grippy"` | |
