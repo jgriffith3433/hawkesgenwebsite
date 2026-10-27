@@ -171,6 +171,14 @@ test("a closed world: no tickets for its rooms, and the people in them are put o
   assert.equal((await ticket({ play: game.slug, room: 'abcd1234' })).status, 404);
 });
 
+test('the play page serves the Hawkes Net SDK that package.json pins (npm run net-sdk after a version bump)', async (t) => {
+  // @ts-ignore: a plain .mjs tool without types
+  const { netSdkDiffers } = await import('../tools/net-sdk.mjs');
+  const off = netSdkDiffers();
+  if (off === null) return t.skip('@hawkesgen/net is not installed here (npm install)');
+  assert.equal(off, '', `public/play/ differs from the installed @hawkesgen/net: ${off}`);
+});
+
 test("sandboxed game pages (origin null) can import the Hawkes Net SDK: its modules are served with open CORS", async () => {
   for (const f of ['hawkes-net.mjs', 'hawkes-net-core.mjs']) {
     const r = await fetch(`${base}/play/${f}`, { headers: { Origin: 'null' } });
