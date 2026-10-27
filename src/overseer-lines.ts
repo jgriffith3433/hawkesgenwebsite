@@ -117,12 +117,12 @@ export const DIRECTOR_SCHEMA = {
   additionalProperties: false,
   required: ['say', 'where', 'id', 'radius', 'area', 'beats'],
   properties: {
-    say: { type: 'string', description: "The Overseer's first words, at once: one short sentence in its voice saying what it is starting (\"A war, then. Let me clear the sky.\"). Never a question." },
+    say: { type: 'string', description: "The Overseer's first words, at once: one short sentence in its voice saying what it is starting (\"A race, then. Let me lay the course.\"). Never a question." },
     where: { type: 'string', enum: ['look', 'player', 'thing', 'sky', 'around'], description: 'Where the work goes: the point they look at, around the player, a named thing (id), the sky above them, or all around them.' },
     id: { type: 'string', description: 'For where "thing": the id of the thing (from what they see), else "".' },
-    radius: { type: 'number', description: 'How big the area is, meters (a crate 2, a house 10, a battlefield 80, a whole island 250).' },
+    radius: { type: 'number', description: 'How big the area is, meters (a crate 2, a house 10, a race course 80, a whole island 250).' },
     area: { type: 'string', enum: AREAS, description: 'What kind of work: ground/terrain (reshaping), sky, sea, thing (one object), area (things placed around), player (their controls, view, vehicle), ui, sound.' },
-    beats: { type: 'array', maxItems: 6, items: { type: 'string' }, description: 'The stages of the build as the player will see them, 2-5 words each, in order ("The sky darkens", "Gunships arrive", "They wake", "Your helicopter", "Orders"). 2 to 6.' },
+    beats: { type: 'array', maxItems: 6, items: { type: 'string' }, description: 'The stages of the build as the player will see them, 2-5 words each, in order ("The ground rises", "The track appears", "Rivals arrive", "Your car", "On your marks"). 2 to 6.' },
   },
 };
 
