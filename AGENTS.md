@@ -201,7 +201,7 @@ An engine plugin talks to the same API as everything else; nothing engine-specif
 - **Work:** `POST /v1/billing/quote` (show the price), `POST /v1/jobs` (one tool) or the MCP tools for chains;
   `GET /v1/jobs/:id` (with `queue.ahead` while waiting) or `GET /v1/events` (SSE, the customer's jobs only).
 - **Files out:** `GET /v1/assets/:id/file`; outputs carry `mime` and `title` (a sprite sheet's `.json` is TexturePacker hash).
-- **Credits:** `GET /v1/users/me` (balance); 402 means out of credits: open `https://hawkesgen.com/app#credits`.
+- **Credits:** `GET /v1/users/me` (balance); 402 means out of credits: open `https://hawkesgen.com/credits`.
 - **Built:** `jgriffith3433/hawkesgen-unity` (C:\Projects\hawkesgen-unity), Window > Hawkes Gen, signs in with the same OAuth
   (loopback, any port) and calls the MCP tools. `public/downloads/HawkesGen.unitypackage` is its export (re-export with
   its `HawkesGenExport` dev method when the package changes); the Asset Store listing is pending review.

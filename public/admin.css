@@ -1,0 +1,94 @@
+/* /admin: the light site's tokens (public.css body.landing), laid out as a working dashboard. */
+.admin-page { background: var(--surface); min-height: 100vh; }
+.admin-page main.wrap { max-width: 1320px; }
+
+/* ---- sign-in */
+.admin-page #gate:not([hidden]) { display: grid; place-items: center; min-height: calc(100vh - 140px); }
+.admin-page .hg-nav-actions:not([hidden]) { display: flex; align-items: center; gap: 10px; }
+.admin-page #gate form { width: min(420px, 100%); background: var(--bg); border: 1px solid var(--border); border-radius: 14px; padding: 28px; box-shadow: var(--shadow); }
+
+/* ---- tabs */
+.admin-tabs { display: flex; gap: 4px; padding: 4px; margin-bottom: 22px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; width: max-content; max-width: 100%; overflow-x: auto; }
+.admin-tabs button { font: 500 14px var(--sans); color: var(--fg-2); background: none; border: 0; border-radius: 8px; padding: 8px 16px; cursor: pointer; white-space: nowrap; }
+.admin-tabs button:hover { color: var(--heading); background: var(--surface); }
+.admin-tabs button.on { color: #fff; background: var(--heading); }
+
+/* ---- overview */
+.stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+.stat { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; box-shadow: var(--shadow); }
+.stat .label { color: var(--fg-3); }
+.stat .v { font: 700 30px/1.15 var(--sans); color: var(--heading); margin: 10px 0 6px; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.stat .s { font: 13px/1.4 var(--sans); color: var(--fg-2); }
+
+/* ---- tables */
+.pricing-table-wrap { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; overflow: auto; box-shadow: var(--shadow); }
+.data-table { width: 100%; border-collapse: collapse; font: 14px/1.4 var(--sans); color: var(--fg); }
+.data-table th { position: sticky; top: 0; z-index: 1; background: var(--surface); text-align: left; font: 600 11px var(--sans); text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-3); padding: 10px 14px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.data-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.data-table tr:last-child td { border-bottom: 0; }
+.data-table tr.click { cursor: pointer; }
+.data-table tr.click:hover td { background: var(--surface); }
+.data-table tr.sel td { background: var(--accent-glow); }
+.data-table td.num, .data-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.data-table .pos { color: var(--ok); }
+.data-table .neg { color: var(--bad); }
+.mono { font-family: var(--mono); }
+.sub { font-size: 12px; color: var(--fg-3); margin-top: 2px; }
+
+/* ---- badges */
+.tool-tag.neg { background: #fee2e2; color: #b91c1c; }
+.tool-tag.pos { background: #dcfce7; color: #15803d; }
+.tool-tag.acc { background: var(--accent-glow); color: var(--accent); }
+.tool-tag.warn { background: #fef3c7; color: #92400e; }
+.tool-tag + .tool-tag { margin-left: 4px; }
+
+/* ---- accounts: the list and the open account */
+#searchForm { display: flex; gap: 8px; margin-bottom: 14px; }
+#searchForm .form-input { max-width: 380px; background: var(--bg); }
+.admin-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-items: start; }
+.admin-split:has(.admin-detail:not([hidden])) { grid-template-columns: minmax(0, 1fr) minmax(380px, 460px); }
+.admin-detail { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; background: var(--bg); border: 1px solid var(--border); border-radius: 14px; padding: 22px; box-shadow: var(--shadow); }
+.admin-detail .head { display: flex; gap: 14px; align-items: center; }
+.admin-detail .avatar { flex: none; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; font: 600 18px var(--sans); color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+.admin-detail h3 { margin: 0; font: 600 17px/1.3 var(--sans); color: var(--heading); word-break: break-all; }
+.admin-detail .tags { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
+.admin-detail .tags .tool-tag + .tool-tag { margin-left: 0; }
+.admin-detail .close { margin-left: auto; align-self: flex-start; background: none; border: 0; font-size: 20px; line-height: 1; color: var(--fg-3); cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+.admin-detail .close:hover { background: var(--surface); color: var(--heading); }
+.mini { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 18px 0 4px; }
+.mini div { background: var(--surface); border-radius: 10px; padding: 10px 12px; }
+.mini b { display: block; font: 700 18px/1.2 var(--sans); color: var(--heading); font-variant-numeric: tabular-nums; }
+.mini span { font: 12px var(--sans); color: var(--fg-3); }
+.admin-detail section { padding: 16px 0 4px; border-top: 1px solid var(--border); margin-top: 16px; }
+.admin-detail section > .label { display: block; margin-bottom: 10px; }
+.kv { display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 7px 12px; margin: 0; font: 13.5px/1.4 var(--sans); }
+.kv dt { color: var(--fg-3); }
+.kv dd { margin: 0; color: var(--fg); word-break: break-word; }
+.admin-detail .data-table { font-size: 13px; }
+.admin-detail .data-table td { padding: 7px 8px; }
+.admin-detail .data-table th { padding: 7px 8px; }
+.admin-detail .form-grid { display: grid; gap: 8px; }
+.admin-detail .form-row-2 { display: grid; grid-template-columns: 120px 1fr; gap: 8px; }
+.admin-detail .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn.danger { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+.btn.danger:hover { background: #fecaca; }
+
+/* ---- reports */
+section[data-pane="reports"] > p { max-width: 760px; }
+
+/* ---- the toast */
+.admin-page .banner-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--heading); color: #fff; padding: 10px 16px; border-radius: 10px; font: 14px var(--sans); box-shadow: var(--shadow); z-index: 50; }
+
+/* With an account open beside it, the list keeps what finds a person: account, plan, credits, last in. */
+@media (max-width: 1500px) {
+  .admin-split:has(.admin-detail:not([hidden])) #accounts :is(th, td):nth-child(n+4):nth-child(-n+8) { display: none; }
+}
+@media (max-width: 1000px) {
+  .admin-split:has(.admin-detail:not([hidden])) { grid-template-columns: minmax(0, 1fr); }
+  .admin-detail { position: static; max-height: none; }
+}
+@media (max-width: 600px) {
+  .mini { grid-template-columns: repeat(2, 1fr); }
+  .kv { grid-template-columns: 104px minmax(0, 1fr); }
+  #searchForm .form-input { max-width: none; }
+}

@@ -82,47 +82,108 @@ async function accounts() {
   const q = $('search').value.trim();
   const r = await api(`/v1/admin/users?limit=100${q ? `&q=${encodeURIComponent(q)}` : ''}`);
   $('accounts').querySelector('tbody').innerHTML = r.items.map((u) => `
-    <tr class="click" data-id="${esc(u.id)}">
-      <td><div>${esc(u.email)}${u.role === 'admin' ? ' <span class="tool-tag">admin</span>' : ''}${u.disabled ? ' <span class="tool-tag neg">disabled</span>' : ''}</div><div class="muted" style="font-size:12px">${esc(u.name || '')}</div></td>
-      <td class="num">${n(u.credits)}</td><td class="num">${n(u.bought)}</td><td class="num">${n(u.spent)}</td><td class="num">${n(u.jobs)}</td>
+    <tr class="click${u.id === selected ? ' sel' : ''}" data-id="${esc(u.id)}">
+      <td><div>${esc(u.email)}${u.role === 'admin' ? ' <span class="tool-tag acc">admin</span>' : ''}${u.disabled ? ' <span class="tool-tag neg">disabled</span>' : ''}</div><div class="sub">${esc(u.name || '')}${u.source ? ` · from ${esc(u.source)}` : ''}</div></td>
+      <td>${planTag(u.plan, u.sub_status)}</td>
+      <td class="num">${n(u.credits)}</td><td class="num">${n(u.bought)}</td><td class="num">${n(u.spent)}</td><td class="num">${n(u.jobs)}</td><td class="num">${n(u.games)}</td>
       <td>${day(u.created)}</td><td>${day(u.last_login)}</td>
-    </tr>`).join('') || '<tr><td colspan="7" class="muted">No accounts match.</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="9" class="muted">No accounts match.</td></tr>';
   $('accountsMore').textContent = r.total > r.items.length ? `Showing ${r.items.length} of ${n(r.total)}. Search to narrow it down.` : `${n(r.total)} accounts`;
   $('accounts').querySelectorAll('tr.click').forEach((tr) => tr.addEventListener('click', () => detail(tr.dataset.id)));
   if (selected) detail(selected);
 }
 $('searchForm').addEventListener('submit', (e) => { e.preventDefault(); accounts(); });
 
+/** A plan as a tag: free, or the plan with its subscription state when that isn't simply active. */
+function planTag(plan, status) {
+  if (!plan || plan === 'free') return '<span class="tool-tag">free</span>';
+  const ok = ['active', 'trialing'].includes(status);
+  return `<span class="tool-tag ${ok ? 'pos' : 'warn'}">${esc(plan)}${status && status !== 'active' ? ` · ${esc(status)}` : ''}</span>`;
+}
+const ago = (t) => {
+  if (!t) return 'never';
+  const s = (Date.now() - t) / 1000;
+  return s < 90 ? 'just now' : s < 5400 ? `${Math.round(s / 60)} min ago` : s < 129600 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} days ago`;
+};
+const table = (head, body, empty) => (body.length ? `<table class="data-table"><thead><tr>${head}</tr></thead><tbody>${body.join('')}</tbody></table>` : `<div class="muted" style="font-size:13px">${empty}</div>`);
+
 async function detail(id) {
   selected = id;
+  document.querySelectorAll('#accounts tr.click').forEach((tr) => tr.classList.toggle('sel', tr.dataset.id === id));
   const d = await api(`/v1/admin/users/${id}`);
-  const u = d.user;
+  const u = d.user, st = d.stats || {};
   const el = $('detail');
   el.hidden = false;
+  const initial = esc((u.name || u.email || '?').trim().charAt(0).toUpperCase());
+  const plural = (k, word) => `${n(k)} ${word}${k === 1 ? '' : 's'}`;
+  const tags = [
+    u.role === 'admin' ? '<span class="tool-tag acc">admin</span>' : '<span class="tool-tag">customer</span>',
+    planTag(u.plan, u.sub_status),
+    u.disabled ? '<span class="tool-tag neg">disabled</span>' : '',
+    u.google ? '<span class="tool-tag">Google sign-in</span>' : '',
+    st.sessions ? `<span class="tool-tag pos">signed in on ${plural(st.sessions, 'device')}</span>` : '',
+  ].join('');
+  const look = u.look && u.look.what ? ` · plays as ${esc(u.look.name ? `${u.look.name}, a ${u.look.what}` : `a ${u.look.what}`)}` : '';
   el.innerHTML = `
-    <div class="label">${u.role === 'admin' ? 'Admin' : 'Customer'}${u.disabled ? ' · disabled' : ''}</div>
-    <h3 style="margin-top:8px">${esc(u.email)}</h3>
-    <dl class="kv">
-      <dt>Name</dt><dd>${esc(u.name || '—')}</dd>
-      <dt>Credits</dt><dd>${n(u.credits)}</dd>
-      <dt>Account</dt><dd>${esc(u.id)}</dd>
-      <dt>Joined</dt><dd>${when(u.created)}</dd>
-      <dt>Last in</dt><dd>${when(u.last_login)}</dd>
-      <dt>API key</dt><dd>${d.key ? `${esc(d.key.prefix)}… · used ${when(d.key.last_used)}` : 'none'}</dd>
-      <dt>Stripe</dt><dd>${esc(u.stripe_customer_id || '—')}</dd>
-    </dl>
-    <form id="giftForm" class="form-grid" style="padding:16px 0;border-top:1px solid var(--rule)">
+    <div class="head">
+      <div class="avatar" aria-hidden="true">${initial}</div>
+      <div style="min-width:0"><h3>${esc(u.email)}</h3><div class="sub">${esc(u.name || 'No name')}${look}</div><div class="tags">${tags}</div></div>
+      <button type="button" class="close" id="dClose" aria-label="Close">×</button>
+    </div>
+    <div class="mini">
+      <div><b>${usd(st.paidCents)}</b><span>paid · ${plural(st.purchases, 'purchase')}</span></div>
+      <div><b>${n(u.credits)}</b><span>credits now</span></div>
+      <div><b>${n(st.spent30d)}</b><span>spent, 30 days</span></div>
+      <div><b>${n(st.jobs)}</b><span>jobs · ${n(st.failed)} failed</span></div>
+      <div><b>${n(d.games.length)}</b><span>games owned</span></div>
+      <div><b>${n(st.invited)}</b><span>invited · ${n(st.invitedBought)} bought</span></div>
+    </div>
+    <section>
+      <span class="label">Account</span>
+      <dl class="kv">
+        <dt>Account id</dt><dd class="mono">${esc(u.id)}</dd>
+        <dt>Joined</dt><dd>${when(u.created)}</dd>
+        <dt>Last signed in</dt><dd>${when(u.last_login)} <span class="sub">(${ago(u.last_login)})</span></dd>
+        <dt>Last job</dt><dd>${when(st.lastJob)} <span class="sub">(${ago(st.lastJob)})</span></dd>
+        <dt>Came from</dt><dd>${esc(u.source || 'direct')}${u.referrer ? ` · invited by <a href="#" data-open="${esc(u.referrer.id)}">${esc(u.referrer.email)}</a>${u.referral_paid ? ' (reward paid)' : ''}` : ''}</dd>
+        <dt>Social</dt><dd>${plural(st.friends, 'friend')} · in ${n(st.memberOf)} others' games · ${n(st.shared)} shared to the library · ${plural(st.shareLinks, 'share link')}</dd>
+      </dl>
+    </section>
+    <section>
+      <span class="label">Billing</span>
+      <dl class="kv">
+        <dt>Plan</dt><dd>${planTag(u.plan, u.sub_status)}${u.period_end ? ` <span class="sub">${u.cancel_at_period_end ? 'ends' : 'renews'} ${day(u.period_end)}</span>` : ''}</dd>
+        <dt>Credits</dt><dd>${n(st.bought)} bought · ${n(st.granted)} given free · ${n(st.spent)} spent in all</dd>
+        <dt>Last purchase</dt><dd>${when(st.lastPurchase)}</dd>
+        <dt>Stripe</dt><dd class="mono">${esc(u.stripe_customer_id || '—')}</dd>
+      </dl>
+    </section>
+    <section>
+      <span class="label">Games</span>
+      ${table('<th>Game</th><th class="num">Plays</th><th>Updated</th>', d.games.map((g) => `<tr><td><a href="/play/${esc(g.slug)}" target="_blank" rel="noopener">${esc(g.title)}</a>${g.hidden ? ' <span class="tool-tag neg">closed</span>' : ''}${g.visibility !== 'public' ? ` <span class="tool-tag">${esc(g.visibility)}</span>` : ''}</td><td class="num">${n(g.plays)}</td><td>${day(g.updated)}</td></tr>`), 'No games yet.')}
+    </section>
+    <section>
+      <span class="label">What they use</span>
+      ${table('<th>Tool</th><th class="num">Jobs</th><th class="num">Credits</th>', d.tools.map((t) => `<tr><td class="mono">${esc(t.tool)}</td><td class="num">${n(t.n)}</td><td class="num">${n(t.credits)}</td></tr>`), 'No jobs yet.')}
+    </section>
+    <section>
+      <span class="label">Connections and keys</span>
+      ${table('<th>Editor (MCP)</th><th>Daily cap</th><th>Last used</th>', d.connections.map((c) => `<tr><td>${esc(c.name)}${c.revoked ? ' <span class="tool-tag neg">revoked</span>' : ''}</td><td>${c.daily_cap == null ? 'none' : n(c.daily_cap)}</td><td>${ago(c.last_used)}</td></tr>`), 'No editor connected.')}
+      <div style="height:8px"></div>
+      ${table('<th>API key</th><th>Made</th><th>Last used</th>', d.keys.map((k) => `<tr><td class="mono">${esc(k.prefix)}…${k.disabled ? ' <span class="tool-tag neg">off</span>' : ''}</td><td>${day(k.created)}</td><td>${ago(k.last_used)}</td></tr>`), 'No API keys.')}
+    </section>
+    <form id="giftForm" class="form-grid" style="padding:16px 0;border-top:1px solid var(--border);margin-top:16px">
       <div class="label">Gift credits</div>
       <input id="gCredits" class="form-input" type="number" min="1" step="1" placeholder="Credits, e.g. 500" required style="max-width:200px">
       <textarea id="gMessage" class="form-input" rows="2" maxlength="500" placeholder="A message for them (optional, goes in the email)"></textarea>
       <button class="btn btn-primary btn-sm" type="submit" style="justify-self:start">Gift and email them</button>
     </form>
-    <form id="creditForm" class="form-grid" style="padding:16px 0;border-top:1px solid var(--rule)">
+    <form id="creditForm" class="form-grid" style="padding:16px 0;border-top:1px solid var(--border)">
       <div class="label">Adjust credits</div>
       <div class="form-row-2"><input id="cDelta" class="form-input" type="number" step="1" placeholder="+100 or -50" required><input id="cNote" class="form-input" placeholder="Why (they see this)" required></div>
       <button class="btn btn-secondary btn-sm" type="submit" style="justify-self:start">Apply</button>
     </form>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;padding:16px 0;border-top:1px solid var(--rule)">
+    <div class="actions" style="padding:16px 0;border-top:1px solid var(--border)">
       <button class="btn btn-secondary btn-sm" id="aLink">Password link</button>
       <button class="btn btn-secondary btn-sm" id="aRole">${u.role === 'admin' ? 'Make customer' : 'Make admin'}</button>
       <button class="btn btn-sm ${u.disabled ? 'btn-secondary' : 'danger'}" id="aDisable">${u.disabled ? 'Enable' : 'Disable'}</button>
@@ -131,7 +192,10 @@ async function detail(id) {
     <div class="label" style="margin:12px 0 8px">Ledger</div>
     <table class="data-table"><tbody>${d.ledger.map((e) => `<tr><td style="font-size:12px">${when(e.created)}</td><td>${esc(e.detail || e.kind)}</td><td class="num ${e.delta > 0 ? 'pos' : 'neg'}">${e.delta > 0 ? '+' : ''}${n(e.delta)}</td><td class="num muted">${n(e.balance_after)}</td></tr>`).join('') || '<tr><td class="muted">Nothing yet.</td></tr>'}</tbody></table>
     <div class="label" style="margin:20px 0 8px">Jobs</div>
-    <table class="data-table"><tbody>${d.jobs.map((j) => `<tr><td style="font-size:12px">${when(j.created)}</td><td class="mono" style="font-size:12px">${esc(j.tool)}</td><td>${esc(j.status)}</td><td class="num">${n(j.credits)}</td></tr>`).join('') || '<tr><td class="muted">No jobs yet.</td></tr>'}</tbody></table>`;
+    <table class="data-table"><tbody>${d.jobs.map((j) => `<tr><td style="font-size:12px">${when(j.created)}</td><td class="mono" style="font-size:12px">${esc(j.tool)}</td><td><span class="job-status-badge ${esc(j.status)}">${esc(j.status)}</span></td><td class="num">${n(j.credits)}</td></tr>`).join('') || '<tr><td class="muted">No jobs yet.</td></tr>'}</tbody></table>`;
+
+  $('dClose').addEventListener('click', () => { selected = null; el.hidden = true; document.querySelectorAll('#accounts tr.sel').forEach((tr) => tr.classList.remove('sel')); });
+  el.querySelectorAll('[data-open]').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); detail(a.dataset.open); }));
 
   $('giftForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -173,7 +237,7 @@ async function detail(id) {
 // ---------------------------------------------------------------- jobs, purchases
 async function jobs() {
   const r = await api('/v1/admin/jobs?limit=200');
-  $('jobs').querySelector('tbody').innerHTML = r.jobs.map((j) => `<tr><td>${when(j.created)}</td><td>${esc(j.email)}</td><td class="mono" style="font-size:12px">${esc(j.tool)}</td><td class="num">${n(j.credits)}</td><td><span class="job-status-badge job-status-${esc(j.status)}">${esc(j.status)}</span></td><td class="mono muted" style="font-size:12px">${esc(j.id)}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No jobs yet.</td></tr>';
+  $('jobs').querySelector('tbody').innerHTML = r.jobs.map((j) => `<tr><td>${when(j.created)}</td><td>${esc(j.email)}</td><td class="mono" style="font-size:12px">${esc(j.tool)}</td><td class="num">${n(j.credits)}</td><td><span class="job-status-badge ${esc(j.status)}">${esc(j.status)}</span></td><td class="mono muted" style="font-size:12px">${esc(j.id)}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No jobs yet.</td></tr>';
 }
 
 async function purchases() {

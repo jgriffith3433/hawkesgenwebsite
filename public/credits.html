@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Credits · Hawkes Gen</title>
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/public.css">
+  <link rel="stylesheet" href="/site.css">
+  <link rel="stylesheet" href="/builder.css">
+  <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
+  <script src="/site-analytics.js"></script>
+  <script src="/sitenav.js" defer></script>
+  <style>
+    .cr-main { max-width: 1040px; margin: 0 auto; padding: 32px 20px 80px; }
+    .cr-hero { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 28px; }
+    .cr-hero h1 { margin: 0; font: 700 34px/1.1 var(--sans); color: var(--heading); }
+    .cr-balance { text-align: right; }
+    .cr-balance b { display: block; font: 700 40px/1 var(--sans); color: var(--heading); font-variant-numeric: tabular-nums; }
+    .cr-balance span { font-size: 13px; color: var(--fg-3); }
+    .cr-sec { margin-top: 36px; }
+    .cr-sec h2 { font: 600 20px var(--sans); color: var(--heading); margin: 0 0 6px; }
+    .cr-sec > p { margin: 0 0 16px; color: var(--fg-2); font-size: 14px; max-width: 70ch; }
+    .cr-packs { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+    .cr-pack { border: 1px solid var(--border); border-radius: var(--r-lg); padding: 20px; display: grid; gap: 8px; background: var(--bg); }
+    .cr-pack.best { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+    .cr-pack .price { font: 700 32px/1 var(--sans); color: var(--heading); }
+    .cr-pack .n { font-weight: 600; color: var(--fg); }
+    .cr-pack .bonus { font-size: 13px; color: var(--accent); min-height: 18px; }
+    .cr-note { padding: 12px 16px; border-radius: var(--r-lg); background: var(--accent-glow); color: var(--fg); font-size: 14px; margin-bottom: 16px; }
+    .cr-ledger { width: 100%; border-collapse: collapse; font-size: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+    .cr-ledger td { padding: 9px 14px; border-bottom: 1px solid var(--border); }
+    .cr-ledger tr:last-child td { border-bottom: 0; }
+    .cr-ledger .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .cr-ledger .pos { color: var(--ok); }
+    .cr-gate { max-width: 460px; margin: 80px auto; text-align: center; }
+    @media (max-width: 760px) { .plans { grid-template-columns: 1fr; } .cr-balance { text-align: left; } }
+  </style>
+</head>
+<body class="landing">
+  <header class="bar">
+    <a class="hg-brand" href="/"><img src="/favicon.svg" alt=""><span>Hawkes Gen</span></a>
+    <nav class="hg-nav-links" data-site-nav><a href="/games">Games</a><a href="/community">Community library</a><a href="/entities">Engine codex</a><a href="/app/studio">Asset Studio</a><a href="/#pricing">Pricing</a><a href="/connect">For developers</a></nav>
+    <a class="btn btn-ghost btn-sm" href="/app">Your games</a>
+  </header>
+
+  <main class="cr-main">
+    <div class="cr-gate" id="gate" hidden>
+      <h1 style="font:700 30px var(--sans);color:var(--heading)">Credits</h1>
+      <p class="muted">Sign in to see your credits and top up.</p>
+      <a class="btn btn-primary" href="/app">Sign in</a>
+    </div>
+
+    <div id="page" hidden>
+      <div id="notices"></div>
+      <div class="cr-hero">
+        <div>
+          <h1>Credits</h1>
+          <p class="muted" style="margin:6px 0 0;max-width:60ch;font-size:14px">Credits pay for the AI work in your games: talking to the Overseer (<span id="aiCost">8</span> credits a message), art, 3D models, sound and music. Unused credits never expire.</p>
+        </div>
+        <div class="cr-balance"><b id="balance">0</b><span>credits · <span id="planNote">Free plan</span></span></div>
+      </div>
+
+      <section class="cr-sec">
+        <h2>Top up</h2>
+        <p>One payment, credits right away. Jobs that fail or that you cancel give their credits back.</p>
+        <div class="cr-note" id="firstBonus" hidden></div>
+        <div class="cr-packs" id="packs"></div>
+      </section>
+
+      <section class="cr-sec">
+        <h2>Plans</h2>
+        <p>A plan adds credits every month and raises your limits. Cancel any time; credits you have stay yours.</p>
+        <div class="plans" id="planCards"></div>
+        <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap" id="planActions"></div>
+      </section>
+
+      <div class="form-error" id="billError" hidden style="margin-top:16px"></div>
+
+      <section class="cr-sec">
+        <h2>Recent activity</h2>
+        <table class="cr-ledger"><tbody id="ledger"></tbody></table>
+      </section>
+    </div>
+  </main>
+  <script type="module" src="/credits.js"></script>
+</body>
+</html>

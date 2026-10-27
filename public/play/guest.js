@@ -873,7 +873,7 @@
         emit('credits-told', { credits: n, price });
         if (n >= price) setTimeout(() => offerAsks(), 3500);
       } else {
-        say(`${hi} This island is yours now. What I make uses credits, and you have none right now.`, { label: 'Get credits', href: '/app#credits' });
+        say(`${hi} This island is yours now. What I make uses credits, and you have none right now.`, { label: 'Get credits', href: '/credits' });
         emit('credits-told', { credits: 0, price });
       }
     }, 1200);
@@ -980,7 +980,12 @@
   async function ask(id, text) {
     const H = session.H;
     // Known to be out of credits: say so, with the Get credits link, and send nothing (no request that is bound to fail).
-    if (session.credits != null && session.price != null && session.credits < session.price) { outOfCredits(); return; }
+    // (Before saying no, the balance is read again: credits bought or given in another tab count at once.)
+    if (session.credits != null && session.price != null && session.credits < session.price) {
+      const u = await me();
+      if (u) session.credits = Number(u.credits) || 0;
+      if (session.credits < session.price) { outOfCredits(); return; }
+    }
     // The Overseer starts working at once (work.js: beams on what they look at, the work pill), before the server answers.
     const work = H.work;
     if (work) work.begin({ text });
@@ -1010,11 +1015,12 @@
     track('credits_out', { where: 'sandbox' });
     if (Date.now() - creditsAt < 20000) return;
     creditsAt = Date.now();
-    if (H.chat) H.chat.line({ kind: 'overseer', priority: 'important', keep: 60, text: `The light has gone quiet for now. Take more when you wish, and ask me again: the island will be as you left it.`, action: { label: 'Get credits', href: '/app#credits' } });
+    if (H.chat) H.chat.line({ kind: 'overseer', priority: 'important', keep: 60, text: `The light has gone quiet for now. Take more when you wish, and ask me again: the island will be as you left it.`, action: { label: 'Get credits', href: '/credits' } });
     const back = async () => {
       if (document.visibilityState !== 'visible') return;
       document.removeEventListener('visibilitychange', back);
       const u = await me();
+      if (u) session.credits = Number(u.credits) || 0; // (the balance they came back with is the one asks are checked against)
       if (u && Number(u.credits) > 0 && H.chat) H.chat.line({ kind: 'overseer', text: `You have ${Number(u.credits).toLocaleString()} credits now. Ask me again.` });
     };
     document.addEventListener('visibilitychange', back);

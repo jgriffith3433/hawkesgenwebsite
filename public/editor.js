@@ -530,7 +530,7 @@ function noCredits(message) {
   creditsAskedAt = Date.now();
   if (!fresh) return;
   addOverseer(`The light has gone quiet for now. Take more when you wish, and ask me again: the island will be as you left it.`, {
-    action: { label: 'Get credits', href: '/app#credits' },
+    action: { label: 'Get credits', href: '/credits' },
   });
   const back = () => { if (document.visibilityState !== 'visible') return; document.removeEventListener('visibilitychange', back); get('/v1/users/me').then((r) => { const before = Number(me && me.credits) || 0; me = r.user; if ((Number(me.credits) || 0) > before) addOverseer(`You have ${Number(me.credits).toLocaleString()} credits now. Ask me again.`); }).catch(() => {}); };
   document.addEventListener('visibilitychange', back);
@@ -552,7 +552,7 @@ function startTourPlay() {
     const name = (me && me.name) || '';
     const n = Number(me && me.credits) || 0;
     if (n > 0) addOverseer(`${name ? `Welcome, ${name}. ` : 'Welcome. '}This island is yours now, and I am here: talk to me in this chat. Ask for anything ("a castle on the hill") and I will beam it down. What I make uses your credits: you have ${n.toLocaleString()}.`);
-    else addOverseer(`${name ? `Welcome, ${name}. ` : 'Welcome. '}This island is yours now, and I am here: talk to me in this chat. What I make uses credits, and you have none right now.`, { action: { label: 'Get credits', href: '/app#credits' } });
+    else addOverseer(`${name ? `Welcome, ${name}. ` : 'Welcome. '}This island is yours now, and I am here: talk to me in this chat. What I make uses credits, and you have none right now.`, { action: { label: 'Get credits', href: '/credits' } });
   }, 3500);
 }
 function setMention(m) {

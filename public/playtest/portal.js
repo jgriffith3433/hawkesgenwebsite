@@ -552,8 +552,8 @@ async function stageEditor(t) {
     t.scene('Overseer lines with foreign links: plain text');
     if (evil.length) t.problem('error', `a foreign link was made clickable: ${evil.join(', ')}`);
     else t.event('foreign-links-plain', 'five Overseer lines with another site, javascript:, //host, a backslash and data: links show no link');
-    fromFrame({ type: 'chat-line', kind: 'overseer', text: 'Get credits here', action: { label: 'Get credits', href: '/app#credits' } });
-    await t.until(() => linksOf().includes('/app#credits'), 5000, 'our own link to stay a link');
+    fromFrame({ type: 'chat-line', kind: 'overseer', text: 'Get credits here', action: { label: 'Get credits', href: '/credits' } });
+    await t.until(() => linksOf().includes('/credits'), 5000, 'our own link to stay a link');
     t.event('own-link-kept', 'a path on this site is still a link');
 
     // The game's page has a Content-Security-Policy: a script the game runs cannot fetch an outside site. The probe is a
