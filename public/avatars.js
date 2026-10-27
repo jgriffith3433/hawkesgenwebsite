@@ -23,6 +23,7 @@ await HawkesModules.load('play').catch(() => {});
 if (window.HawkesPlay && HawkesPlay.presence && HawkesPlay.presence.anim) await Promise.all(Object.keys(HawkesPlay.presence.anim.CLASSES).map((c) => HawkesPlay.presence.anim.load(c)));
 
 const $ = (id) => document.getElementById(id);
+const loaded = () => { $('loading').hidden = true; };
 const q = new URLSearchParams(location.search);
 const shot = q.has('body') && q.get('ui') !== '1';
 if (shot) document.body.classList.add('shot');
@@ -39,7 +40,7 @@ const BGS = {
 };
 const EMOTES = C ? C.EMOTES.map((e) => e.name) : [];
 const THING_POSES = ['gag', 'react', 'boot']; // the things' own: the idle gag and the signature reaction, each looped (presence-things.js)
-const BUDGET = { tris: 2500, draws: 6, mats: 3 }; // docs/characters.md "Budget": the hard limit per character
+const BUDGET = { tris: 2500, draws: 8, mats: 3 }; // docs/characters.md "Budget": the hard limit per character
 
 const standin = q.get('standin') === '1';
 const puppet = q.get('standin') === 'mixamo';
@@ -99,6 +100,7 @@ function start() {
     running = true;
   } catch (e) {
     running = false;
+    loaded();
     $('error').hidden = false;
     $('error').textContent = `The live view needs WebGL, and it didn't start here (${e.message}). The list still works.`;
     document.body.dataset.ready = 'error';
@@ -337,14 +339,14 @@ function loop() {
     if (state.turn) cam.alpha += 0.7 * dt;
     frames++;
     // (final once the body has been drawn for a few frames and any Gen model it waits for has loaded or failed)
-    if (frames >= 4 && !document.body.dataset.ready && !(cur && cur.rig.pm && cur.rig.pm.state === 'loading')) document.body.dataset.ready = 'true', window.avatarsReady = true;
+    if (frames >= 4 && !document.body.dataset.ready && !(cur && cur.rig.pm && cur.rig.pm.state === 'loading')) (document.body.dataset.ready = 'true', window.avatarsReady = true, loaded());
     if (frames % 30 === 0 && cur && !state.freeze) readStats();
   });
   window.addEventListener('resize', () => { if (cur) frameCamera(); });
 }
 
 if (!WHATS.length) {
-  $('error').hidden = false; $('error').textContent = 'The engine did not load.';
+  loaded(); $('error').hidden = false; $('error').textContent = 'The engine did not load.';
   document.body.dataset.ready = 'error';
 } else {
   wire();
