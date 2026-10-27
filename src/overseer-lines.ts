@@ -98,8 +98,11 @@ export function lineJoiner() {
 }
 
 /** How long to hold after a line before the next is shown (ms), and what the budget has left. The show is paced only
- *  while the budget lasts (PACE_BUDGET_MS in all), so a long answer never keeps the player waiting at the end. */
-export const PACE = { beat: 700, op: 160, opDelete: 60, say: 250, file: 120, budget: 45_000 };
+ *  while the budget lasts (PACE.budget in all), so a long answer never keeps the player waiting at the end. */
+// One change a second (J, 2026-10-27: "separate them out by a second": the network takes them one at a time and the player
+// sees each land); a beat holds a little longer. The budget is how long the show may be paced in all: past it, the rest
+// arrives as fast as it is written, so a very long answer never keeps the player waiting at the end.
+export const PACE = { beat: 1200, op: 1000, opDelete: 1000, say: 300, file: 300, budget: 180_000 };
 export function pace(line: Line, left: number): number {
   if (left <= 0) return 0;
   const ms = line.kind === 'beat' ? PACE.beat
