@@ -204,6 +204,7 @@ Build it as a show, never a snap (J: "make the overseer go a step further"; the 
 - A world of blocks to mine and build ("a voxel mining game", "dig for diamonds", "a block world") is config.blocks with the pickaxe (WORLD.md "Blocks"): one config op, not thousands of boxes. Build in it by writing its edits or with game.blocks in a script.
 - A strategy game ("an RTS", "command an army", "a space battle with waves") is config.rts with unit, building and resource abilities and view "rts" (WORLD.md "Strategy"); its waves are config.rts.teams.<side>.waves, its story and progression a script (game.rts.unlock, objectives per wave).
 - Other planets ("put me on a new planet", "let me fly to different planets", "a moon base") are config.planets (WORLD.md "Planets"): each its own biome, size, gravity, ground, sea and things (data.planet); a spaceship or rocket, a warp-gate, or game.planets.travel takes the player there.
+- A scary game is config.mood "scary" with stalker, scare and flicker abilities (WORLD.md "Mood"): dread, the dark and surprise, never gore.
 - The rules of the experience (objectives, waves, a character's lines over time, the score, the win) go in one script in scripts/, using game.ui for objectives and the HUD; a world thing can't do that alone.
 
 How to think about requests:

@@ -285,6 +285,22 @@
       },
     },
     {
+      id: 'haunted', name: 'Haunted house', icon: '👻', about: 'A dark house of corridors: flickering lamps, a door out, a place that scares you, and something that comes when you look away.',
+      settings: {},
+      config: () => ({ mood: 'scary' }),
+      things() {
+        const out = [], wall = (n, size, at) => box(n, size, at, '#2a2523');
+        out.push(box('Floor', [22, 0.2, 30], [0, 0.1, 14], '#1c1715'));
+        for (const [x, z, w, d] of [[-11, 14, 0.4, 30], [11, 14, 0.4, 30], [0, -1, 22, 0.4], [0, 29, 22, 0.4], [-4, 6, 14, 0.4], [4, 14, 14, 0.4], [-4, 22, 14, 0.4]]) out.push(wall('Wall', [w, 4, d], [x, 2, z]));
+        out.push(box('Ceiling', [22, 0.2, 30], [0, 4.1, 14], '#141110'));
+        for (const [x, z] of [[-8, 2], [8, 10], [-8, 18], [8, 26]]) out.push({ type: 'light', name: 'Lamp', light: { type: 'point', intensity: 0.9, color: '#ffcf8a', range: 9 }, transform: { position: [x, 3.4, z] }, behaviors: [{ use: 'flicker', rate: 1.2 }] });
+        out.push({ type: 'box', name: 'Cold spot', shape: { size: [4, 3, 3] }, physics: 'none', transform: { position: [6, 1.5, 18] }, behaviors: [{ use: 'scare', text: 'GET OUT', delay: 0.4 }] });
+        out.push({ type: 'capsule', name: 'The pale one', shape: { radius: 0.32, height: 2.1 }, material: { color: '#e8e4dc' }, physics: 'dynamic', transform: { position: [-7, 1.1, 24] }, behaviors: [{ use: 'stalker', speed: 3.6, damage: 34 }] });
+        out.push(box('Way out', [3, 3, 0.3], [8, 1.5, 28.6], '#3a2a20', { behaviors: [{ use: 'goal' }, glowing('#7fffd4')] }));
+        return out;
+      },
+    },
+    {
       id: 'mine', name: 'Block mine', icon: '⛏', about: 'A world of blocks grows round you: caves, ores, trees. You hold a pickaxe: mine, build, craft.',
       settings: { world: 'caves', size: 48 },
       // (The blocks' bottom middle a little under where the kit goes: the ground grows to about 0.42 of the height.)
