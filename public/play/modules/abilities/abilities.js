@@ -431,7 +431,9 @@
     settingsOf: (name) => { const d = H.behaviorDef(name); return d ? settingsOf(d) : []; },
     get riding() { return riding ? { thing: riding.e, mode: riding.mode } : null; },
     get holding() { return holding ? holding.e : null; },
-    getOff, drop: () => drop(false), getOn: (e, mode) => { const b = e && e.behaviors.find((x) => x.def && ['seat', 'drivable', 'flyable'].some((n) => H.behaviorDef(n) === x.def)); if (b) getOn(e, mode || (b.def === H.behaviorDef('drivable') ? 'drive' : b.def === H.behaviorDef('flyable') ? 'fly' : 'sit'), b); },
+    getOff, drop: () => drop(false),
+    /** Picks a thing up as if it were holdable (a flag, a ball): o.throw (m/s). */
+    pick: (e, o = {}) => pickUp(e, { o: { throw: 14, ...o } }), getOn: (e, mode) => { const b = e && e.behaviors.find((x) => x.def && ['seat', 'drivable', 'flyable'].some((n) => H.behaviorDef(n) === x.def)); if (b) getOn(e, mode || (b.def === H.behaviorDef('drivable') ? 'drive' : b.def === H.behaviorDef('flyable') ? 'fly' : 'sit'), b); },
     inside,
   };
   /** A behavior's settings: its own description, else one made from its defaults (numbers, words, yes/no). */

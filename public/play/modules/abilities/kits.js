@@ -10,6 +10,8 @@
   const r2 = (n) => Math.round(n * 100) / 100;
   const box = (name, size, at, color, extra = {}) => ({ type: 'box', name, shape: { size }, material: { color }, physics: 'static', transform: { position: at }, ...extra });
   const glowing = (color) => ({ use: 'glow', color });
+  const cap = (t) => String(t).charAt(0).toUpperCase() + String(t).slice(1);
+  const colorOf = (t) => ({ red: '#ef4444', blue: '#3b82f6' })[t] || '#e5e7eb';
   const PARTY = ['#f43f5e', '#f59e0b', '#22c55e', '#06b6d4', '#a855f7', '#ec4899'];
 
   const KITS = [
@@ -124,6 +126,109 @@
         ];
       },
     },
+    {
+      id: 'football', name: 'Football match', icon: '⚽', about: 'A pitch, two goals, a ball, red against blue: AI players join each side; first to five.',
+      settings: { length: 40, bots: 2 },
+      config: () => ({ match: { teams: ['red', 'blue'], time: 300, score: 5, objective: 'Kick the ball into the other team’s goal' } }),
+      things(o) {
+        const L = Math.max(20, Math.min(120, o.length)), Wd = L * 0.6, out = [];
+        out.push(box('Pitch', [Wd, 0.1, L], [0, 0.05, L / 2], '#15803d'));
+        out.push(box('Halfway line', [Wd, 0.11, 0.2], [0, 0.06, L / 2], '#f8fafc'));
+        for (const [z, team, scorer] of [[0, 'red', 'blue'], [L, 'blue', 'red']]) {
+          out.push({ type: 'spawn', name: `${team} start`, data: { role: team }, transform: { position: [0, 0.2, z === 0 ? 6 : L - 6] } });
+          out.push(box(`${cap(scorer)} scores here`, [7, 2.4, 1.6], [0, 1.2, z === 0 ? -0.8 : L + 0.8], colorOf(team), { material: { color: colorOf(team), opacity: 0.35 }, physics: 'none', behaviors: [{ use: 'score-zone', team: scorer, points: 1 }] }));
+          for (const x of [-3.7, 3.7]) out.push(box('Goal post', [0.3, 2.6, 0.3], [x, 1.3, z], '#f8fafc'));
+          out.push(box('Crossbar', [7.7, 0.3, 0.3], [0, 2.6, z], '#f8fafc'));
+        }
+        for (const x of [-Wd / 2 - 0.5, Wd / 2 + 0.5]) out.push(box('Barrier', [1, 1.2, L + 4], [x, 0.6, L / 2], '#e2e8f0'));
+        out.push({ type: 'sphere', name: 'Ball', shape: { radius: 0.4 }, material: { color: '#f8fafc' }, physics: 'dynamic', transform: { position: [0, 1, L / 2] }, behaviors: [{ use: 'ball', kick: 20 }] });
+        for (let i = 0; i < Math.max(0, Math.min(5, o.bots | 0)); i++) for (const [team, z] of [['red', L / 2 - 6], ['blue', L / 2 + 6]]) out.push({ type: 'capsule', name: `${cap(team)} player ${i + 1}`, shape: { radius: 0.35, height: 1.7 }, material: { color: colorOf(team) }, physics: 'kinematic', transform: { position: [(i - 0.5) * 6, 0.95, z] }, behaviors: [{ use: 'teammate', team, speed: 5 }] });
+        return out;
+      },
+    },
+    {
+      id: 'basketball', name: 'Basketball court', icon: '🏀', about: 'A court, two hoops (2 points each) and a ball you pick up and throw.',
+      settings: {},
+      config: () => ({ match: { teams: ['red', 'blue'], time: 240, objective: 'E picks the ball up, click throws it at the hoop' } }),
+      things() {
+        const out = [box('Court', [15, 0.1, 28], [0, 0.05, 14], '#c2410c')];
+        for (const [z, scorer, team] of [[1, 'blue', 'red'], [27, 'red', 'blue']]) {
+          out.push(box('Backboard', [1.8, 1.1, 0.1], [0, 3.6, z === 1 ? 0.6 : 27.4], '#f8fafc'));
+          out.push({ type: 'torus', name: 'Hoop', shape: { radius: 0.45, thickness: 0.05 }, material: { color: '#f97316' }, physics: 'none', transform: { position: [0, 3.05, z === 1 ? 1.2 : 26.8] } });
+          out.push({ type: 'cylinder', name: `${cap(scorer)} scores here`, shape: { radius: 0.38, height: 0.25 }, material: { color: colorOf(team), opacity: 0.25 }, physics: 'none', transform: { position: [0, 2.9, z === 1 ? 1.2 : 26.8] }, behaviors: [{ use: 'score-zone', team: scorer, points: 2 }] });
+          out.push({ type: 'spawn', name: `${team} start`, data: { role: team }, transform: { position: [0, 0.2, z === 1 ? 5 : 23] } });
+        }
+        out.push({ type: 'sphere', name: 'Basketball', shape: { radius: 0.24 }, material: { color: '#ea580c' }, physics: 'dynamic', transform: { position: [0, 1, 14] }, behaviors: [{ use: 'ball', kick: 10, lift: 6 }, { use: 'holdable', throw: 11 }, { use: 'bouncy', bounce: 0.75 }] });
+        return out;
+      },
+    },
+    {
+      id: 'tennis', name: 'Tennis court', icon: '🎾', about: 'A court and a net: hit the bouncy ball (E or click) over; it landing past your end is their point.',
+      settings: {},
+      config: () => ({ match: { teams: ['red', 'blue'], time: 300, score: 7, objective: 'Hit the ball over the net: E or click' } }),
+      things() {
+        return [
+          box('Court', [11, 0.1, 24], [0, 0.05, 12], '#1d4ed8'),
+          box('Net', [11, 1, 0.08], [0, 0.5, 12], '#f8fafc'),
+          box('Red out', [14, 0.12, 4], [0, 0.07, -2], '#ef4444', { material: { color: '#ef4444', opacity: 0.25 }, physics: 'none', behaviors: [{ use: 'score-zone', team: 'blue' }] }),
+          box('Blue out', [14, 0.12, 4], [0, 0.07, 26], '#3b82f6', { material: { color: '#3b82f6', opacity: 0.25 }, physics: 'none', behaviors: [{ use: 'score-zone', team: 'red' }] }),
+          { type: 'spawn', name: 'red start', data: { role: 'red' }, transform: { position: [0, 0.2, 3] } },
+          { type: 'spawn', name: 'blue start', data: { role: 'blue' }, transform: { position: [0, 0.2, 21] } },
+          { type: 'sphere', name: 'Tennis ball', shape: { radius: 0.18 }, material: { color: '#d9f99d' }, physics: 'dynamic', transform: { position: [0, 1.5, 6] }, behaviors: [{ use: 'ball', kick: 15, lift: 6 }, { use: 'bouncy', bounce: 0.85 }] },
+        ];
+      },
+    },
+    {
+      id: 'ctf', name: 'Capture the flag', icon: '🚩', about: 'Two bases, two flags: carry theirs home while yours is safe.',
+      settings: { apart: 60 },
+      config: () => ({ match: { teams: ['red', 'blue'], time: 600, score: 3, objective: 'Bring their flag to your base' } }),
+      things(o) {
+        const d = Math.max(20, Math.min(300, o.apart)), out = [];
+        for (const [z, team] of [[0, 'red'], [d, 'blue']]) {
+          out.push(box(`${cap(team)} base`, [8, 0.3, 8], [0, 0.15, z], colorOf(team), { behaviors: [{ use: 'score-zone', team, takes: 'flag' }, glowing(colorOf(team))] }));
+          out.push(box(`${cap(team)} flag`, [0.25, 2.2, 0.25], [0, 1.4, z], colorOf(team), { physics: 'dynamic', behaviors: [{ use: 'flag', team }] }));
+          out.push({ type: 'spawn', name: `${team} start`, data: { role: team }, transform: { position: [5, 0.2, z] } });
+        }
+        return out;
+      },
+    },
+    {
+      id: 'deathmatch', name: 'Team deathmatch', icon: '🔫', about: 'An arena with cover; red against blue with blasters; a kill is a point, first to ten.',
+      settings: { size: 40 },
+      config: () => ({ match: { teams: ['red', 'blue'], time: 300, score: 10, kills: true, objective: 'Tag the other team' }, player: { weapon: 'blaster' } }),
+      things(o) {
+        const s = Math.max(20, Math.min(120, o.size)), out = [];
+        for (const [x, z, w, d] of [[0, -s / 2, s, 1], [0, s / 2, s, 1], [-s / 2, 0, 1, s], [s / 2, 0, 1, s]]) out.push(box('Arena wall', [w, 3, d], [x, 1.5, z + s / 2], '#334155'));
+        for (let i = 0; i < 10; i++) { const a = i * 2.4, r = s * 0.28, at = [r2(Math.cos(a) * r), 0.8, r2(s / 2 + Math.sin(a) * r)]; out.push(box('Cover', [2.4, 1.6, 0.6], at, '#64748b', { transform: { position: at, rotation: [0, i * 37, 0] } })); }
+        out.push({ type: 'spawn', name: 'red start', data: { role: 'red' }, transform: { position: [0, 0.2, 3] } });
+        out.push({ type: 'spawn', name: 'blue start', data: { role: 'blue' }, transform: { position: [0, 0.2, s - 3] } });
+        return out;
+      },
+    },
+    {
+      id: 'tag', name: 'Tag', icon: '🏃', about: 'Someone is IT: touch someone to pass it on. Not being it scores.',
+      settings: {},
+      config: () => ({ match: { mode: 'tag', teams: false, time: 180, objective: 'Don’t be IT when the clock runs out' } }),
+      things() { return [box('Tag zone', [24, 0.08, 24], [0, 0.04, 10], '#f43f5e', { material: { color: '#f43f5e', opacity: 0.25 }, physics: 'none' }), ...[0, 1, 2, 3].map((i) => box('Obstacle', [2, 1.4, 2], [i % 2 ? 5 : -5, 0.7, 4 + i * 4], '#a3a3a3'))]; },
+    },
+    {
+      id: 'hide', name: 'Hide and seek', icon: '🙈', about: 'Seekers count in the dark while hiders hide; found hiders join the seekers.',
+      settings: {},
+      config: () => ({ match: { mode: 'hide', time: 240, start: 20, objective: 'Seekers: find everyone. Hiders: stay hidden' } }),
+      things() { return [0, 1, 2, 3, 4, 5].map((i) => { const at = [r2(Math.cos(i) * 10), 1.2, r2(10 + Math.sin(i) * 10)]; return box('Hiding wall', [3, 2.4, 0.4], at, '#78716c', { transform: { position: at, rotation: [0, i * 50, 0] } }); }); },
+    },
+    {
+      id: 'survival', name: 'Survival waves', icon: '🧟', about: 'A walled yard with towers; zombies come in waves every minute; three lives each, hold out.',
+      settings: {},
+      config: () => ({ match: { teams: false, time: 0, lives: 3, kills: true, objective: 'Survive the waves' }, player: { weapon: 'rifle' }, events: { rules: [{ id: 'waves', when: { every: 60 }, do: [{ 'zombie-night': { seconds: 45, count: 8, waves: 3, title: 'Here they come', sub: 'Hold the yard' } }] }, { id: 'first-wave', when: { after: 10 }, do: [{ 'zombie-night': { seconds: 45, count: 6, waves: 2, title: 'Here they come', sub: 'Hold the yard' } }] }] } }),
+      things() {
+        const out = [];
+        for (const [x, z, w, d] of [[0, 0, 30, 1], [0, 30, 30, 1], [-15, 15, 1, 30], [15, 15, 1, 30]]) out.push(box('Yard wall', [w, 2, d], [x, 1, z], '#57534e'));
+        for (const [x, z] of [[-12, 3], [12, 3], [-12, 27], [12, 27]]) { out.push(box('Tower', [3, 4, 3], [x, 2, z], '#78716c')); out.push(box('Tower top', [3.6, 0.3, 3.6], [x, 4.15, z], '#a8a29e')); }
+        out.push(box('Supply crate', [1, 1, 1], [0, 0.5, 15], '#a16207', { physics: 'dynamic', behaviors: [{ use: 'holdable' }] }));
+        return out;
+      },
+    },
   ];
 
   /** The specs, laid out round `at` and turned to `yaw` (radians; the player's facing: forward is +z in a kit). */
@@ -142,8 +247,10 @@
     });
   }
   H.kits = {
-    list: () => KITS.map(({ id, name, icon, about, settings }) => ({ id, name, icon, about, settings: { ...settings } })),
+    list: () => KITS.map(({ id, name, icon, about, settings, config }) => ({ id, name, icon, about, settings: { ...settings }, config: config ? config({ ...settings }) : null })),
     build,
+    /** The world settings a kit needs (a match's rules, a weapon), or null. */
+    config: (id, settings = {}) => { const k = KITS.find((x) => x.id === id); return k && k.config ? k.config({ ...k.settings, ...settings }) : null; },
     /** The spawn wheel's items (🎲 Play kits). */
     items: () => KITS.map((k) => ({ id: `kit:${k.id}`, type: 'kits', cat: 'play', catName: 'Play kits', name: k.name, icon: k.icon, words: [k.name, k.id, ...k.about.toLowerCase().split(/\W+/).filter((w) => w.length > 3)], source: 'kit', kit: k.id })),
   };
