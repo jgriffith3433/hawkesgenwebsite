@@ -2083,6 +2083,9 @@
   function applyFeatures(cfg) {
     W.features = new Map();
     for (const def of featureDefs.values()) if (featureOn(cfg[def.name])) startFeature(def, cfg[def.name]);
+    // (A setting whose module isn't loaded yet (a lazy one): the loader brings it, and it starts when it's here.)
+    const M = window.HawkesModules;
+    if (M && M.ensureConfig) for (const k of Object.keys(cfg || {})) if (!featureDefs.has(k) && featureOn(cfg[k])) M.ensureConfig(k).catch(() => {});
   }
   function startFeature(def, value) {
     const f = { def, value: clone(value), state: {} };
@@ -2100,7 +2103,7 @@
     const cfg = effectiveConfig();
     for (const key of Object.keys(patch || {})) {
       const def = featureDefs.get(key);
-      if (!def) continue;
+      if (!def) { if (window.HawkesModules && window.HawkesModules.ensureConfig && featureOn(cfg[key])) window.HawkesModules.ensureConfig(key).catch(() => {}); continue; }
       const f = W.features.get(key), value = cfg[key];
       if (!featureOn(value)) { stopFeature(key); continue; }
       if (f && def.change) { const old = f.value; f.value = clone(value); try { def.change(f.value, old, featureCtx(key, f)); } catch (err) { report(err, `feature ${key}`); } }

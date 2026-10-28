@@ -453,10 +453,11 @@
     make() {
       const css = document.createElement('style');
       css.textContent = `
+        .rts-box[hidden], .rts-hud[hidden] { display: none !important; }
         .rts-box { position: fixed; z-index: 7; border: 1px solid #7dd3fc; background: rgba(125,211,252,.12); pointer-events: none; }
         .rts-hud { position: fixed; inset: auto 0 0 0; z-index: 5; pointer-events: none; font: 600 12px/1.25 system-ui, sans-serif; color: #e8eef7; }
         .rts-res { position: fixed; top: max(10px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); background: rgba(10,14,22,.78); border: 1px solid rgba(255,255,255,.15); border-radius: 999px; padding: 6px 14px; display: flex; gap: 14px; pointer-events: auto; }
-        .rts-panel { position: fixed; left: 50%; transform: translateX(-50%); bottom: max(12px, env(safe-area-inset-bottom)); background: rgba(10,14,22,.85); border: 1px solid rgba(255,255,255,.15); border-radius: 14px; padding: 8px 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; max-width: min(720px, calc(100vw - 24px)); pointer-events: auto; }
+        .rts-panel { position: fixed; left: 50%; transform: translateX(-50%); bottom: max(64px, calc(env(safe-area-inset-bottom) + 56px)); background: rgba(10,14,22,.85); border: 1px solid rgba(255,255,255,.15); border-radius: 14px; padding: 8px 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; max-width: min(720px, calc(100vw - 24px)); pointer-events: auto; }
         .rts-panel button { min-height: 40px; min-width: 44px; padding: 6px 10px; border-radius: 9px; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.08); color: inherit; font: inherit; cursor: pointer; }
         .rts-panel button:disabled { opacity: .45; cursor: default; }
         .rts-panel button.on { border-color: #ef4444; background: rgba(239,68,68,.25); }

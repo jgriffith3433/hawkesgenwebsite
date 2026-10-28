@@ -59,6 +59,9 @@
     const home = st.home || {};
     const patch = {};
     for (const k of KEYS) patch[k] = p.home ? clone(home[k]) ?? null : p[k] !== undefined ? clone(p[k]) : k === 'planet' ? { ...(clone(home.planet) || {}), biome: p.biome, ...(p.radius ? { radius: p.radius } : {}) } : k === 'look' ? clone(home.look) ?? null : null;
+    // A planet with no ground of its own on a flat home world (no ball underfoot): ground by its biome, so you land.
+    const round = home.planet && typeof home.planet === 'object' && (home.planet.sphere || home.planet.round);
+    if (!p.home && !round && p.terrain === undefined && p.blocks === undefined) patch.terrain = { shape: { desert: 'dunes', lava: 'craters', ice: 'hills', alien: 'craters', ocean: 'flat' }[p.biome] || 'hills' };
     const pl = { ...(clone(home.player) || {}) };
     if (!p.home && p.gravity !== undefined) pl.gravity = Number(p.gravity);
     else if (pl.gravity === undefined) pl.gravity = 1;
@@ -158,6 +161,7 @@
     if (st.ui) return st.ui;
     const css = document.createElement('style');
     css.textContent = `
+      .pl-btn[hidden], .pl-panel[hidden] { display: none !important; }
       .pl-btn { position: fixed; right: 14px; top: max(64px, calc(env(safe-area-inset-top) + 56px)); z-index: 6; min-height: 44px; padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.25); background: rgba(10,14,28,.82); color: #fff; font: 600 13px/1 system-ui, sans-serif; cursor: pointer; }
       .pl-panel { position: fixed; right: 14px; top: max(116px, calc(env(safe-area-inset-top) + 108px)); z-index: 6; width: min(300px, calc(100vw - 28px)); background: rgba(8,12,26,.94); border: 1px solid rgba(255,255,255,.16); border-radius: 14px; padding: 10px; display: grid; gap: 6px; color: #e8eef7; font: 500 13px/1.3 system-ui, sans-serif; }
       .pl-panel button { display: flex; gap: 10px; align-items: center; min-height: 48px; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.05); color: inherit; font: inherit; cursor: pointer; text-align: left; }

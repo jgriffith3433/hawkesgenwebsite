@@ -231,8 +231,9 @@
     make() {
       const css = document.createElement('style');
       css.textContent = `
+        .it-btn[hidden], .it-panel[hidden] { display: none !important; }
         .it-btn { position: fixed; right: 14px; bottom: max(210px, calc(env(safe-area-inset-bottom) + 200px)); z-index: 6; min-height: 44px; min-width: 44px; padding: 8px 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,.25); background: rgba(10,14,24,.82); color: #fff; font: 600 13px/1 system-ui, sans-serif; cursor: pointer; }
-        .it-panel { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 20; width: min(420px, calc(100vw - 24px)); max-height: min(560px, calc(100vh - 40px)); overflow: auto; background: rgba(10,14,24,.96); border: 1px solid rgba(255,255,255,.16); border-radius: 16px; padding: 14px; color: #e8eef7; font: 500 13px/1.35 system-ui, sans-serif; display: grid; gap: 10px; }
+        .it-panel { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 60; width: min(420px, calc(100vw - 24px)); max-height: min(560px, calc(100vh - 40px)); overflow: auto; background: rgba(10,14,24,.96); border: 1px solid rgba(255,255,255,.16); border-radius: 16px; padding: 14px; color: #e8eef7; font: 500 13px/1.35 system-ui, sans-serif; display: grid; gap: 10px; }
         .it-panel h3 { margin: 0; display: flex; justify-content: space-between; align-items: center; font: 700 15px/1.2 system-ui, sans-serif; }
         .it-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
         .it-cell { border: 1px solid rgba(255,255,255,.14); border-radius: 12px; padding: 8px; display: grid; gap: 4px; background: rgba(255,255,255,.04); }

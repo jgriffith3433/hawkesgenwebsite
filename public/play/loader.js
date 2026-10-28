@@ -103,9 +103,18 @@
       const kinds = new Set(list.flatMap((n) => ((M.modules || []).find((x) => x.name === n) || {}).kinds || []));
       const ops = [];
       for (const spec of Object.values((w.graph && w.graph.entities) || {})) if (spec && kinds.has(spec.type)) ops.push({ op: 'replace', entity: spec });
+      // (Its settings already in the world: they start now, as if just set.)
+      const cfg = (w.graph && w.graph.config) || {}, patch = {};
+      for (const n of list) for (const k of ((M.modules || []).find((x) => x.name === n) || {}).config || []) if (cfg[k] !== undefined && cfg[k] !== null) patch[k] = JSON.parse(JSON.stringify(cfg[k]));
+      if (Object.keys(patch).length) ops.push({ op: 'config', patch });
       if (ops.length && H.applyOps) H.applyOps(ops);
     });
   }
+  /** The lazy module that owns a world setting (config.<key>), loaded now (a setting turned on while playing). */
+  M.ensureConfig = function (key) {
+    const m = (M.modules || []).find((x) => x.lazy && (x.config || []).includes(String(key)));
+    return m && !loaded.has(m.name) ? bring([m.name]) : Promise.resolve();
+  };
   /** A module now, by its name or a kind (or tool) it brings. */
   M.ensure = function (what) {
     const w = String(what || '');
