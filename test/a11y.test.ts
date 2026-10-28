@@ -69,10 +69,12 @@ test('the landing: dialog is named and modal, the form errors are announced, the
   assert.match(h, /<canvas aria-hidden="true">/);
 });
 
-test('the sign-up sheet: named dialog, labelled fields, a Tab loop, no Escape when forced, 44 px targets', () => {
+test('the sign-up sheet: named dialog, Google only, a Tab loop, no Escape when forced, 44 px targets', () => {
   const g = read('public/play/guest.js');
   assert.match(g, /role="dialog" aria-modal="true" aria-labelledby="gsTitle"/);
-  for (const id of ['gsEmail', 'gsPw']) assert.match(g, new RegExp(`<label for="${id}"`));
+  // Sign-in is Google only (docs/cloud.md): no email or password fields to label.
+  assert.match(g, /id="gsGoogle"/);
+  for (const id of ['gsEmail', 'gsPw']) assert.doesNotMatch(g, new RegExp(`id="${id}"`));
   assert.match(g, /e\.key !== 'Tab'/);
   assert.match(g, /e\.key === 'Escape' && !forced/);
   assert.match(g, /:focus-visible/);
