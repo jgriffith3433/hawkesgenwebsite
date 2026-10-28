@@ -156,7 +156,7 @@ route('GET', '/auth/google/callback', async ({ req, res, url, ip }) => {
 
 /** Google's ID token → a Firebase Auth user (made on first sign-in) → the portal account → a session cookie. */
 export async function signInWithGoogleToken(googleIdToken: string, ip: string, origin: Origin = {}) {
-  const key = env('FIREBASE_WEB_API_KEY');
+  const key = env('PORTAL_WEB_API_KEY');
   if (!key) throw new PortalError('Sign-in is not set up here', { status: 503 });
   const r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${key}`, {
     method: 'POST',
