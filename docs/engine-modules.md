@@ -184,7 +184,7 @@ and the numbers are never compared.
 `H.physics.joint(type, a, b, opts)` with type `'fixed'`, `'hinge'` (doors, wheels: `axis`, `limits: [min, max]` degrees,
 `motor: { speed, force }`), `'ball'`, `'slider'` (`axis`, `limits`), `'distance'` (`min`, `max`), `'spring'`
 (`stiffness`, `damping`). `pivotA`/`pivotB` are points in each body's own space; `b = null` joins `a` to the world.
-Returns `{ a, b, type, remove(), motor(speed, force), limits(min, max) }`.
+Returns `{ a, b, type, remove(), motor(speed, force), limits(min, max) }`. Hinges and sliders are 6-DoF constraints (Babylon's own Hinge and Prismatic take no limits or motors): positive limits and motor speeds go along `+axis` and turn the way the thing's own rotation counts. `worldPivot` ([x, y, z]) places a joint to the world somewhere other than on `a` (a rope's knot above). The abilities on top of them are `modules/abilities/contraptions.js`.
 
 ### Explosions, events, steps
 

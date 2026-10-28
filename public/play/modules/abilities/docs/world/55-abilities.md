@@ -43,3 +43,20 @@ moment), the condition `{ "signal": "gate" }`. Scripts: `game.signal.set('gate',
 Ready-made bits of play in the spawn wheel (🎲 Play kits), made only of things and abilities: an obstacle course, a coin
 rush, king of the hill, a lever and gate with a hidden bridge, a teleporter pair, a human cannon, a low-gravity bubble, a
 dance floor, silly rides (a drivable couch, a flying carpet, a throwable crate). Build the same from the abilities above.
+
+### Contraptions: things joined by physics
+
+Abilities that join a thing to another (`to`: its name or id) or to the world (`to` empty). The thing moves by physics
+(a static one becomes dynamic).
+
+| Ability | What | Settings |
+|---|---|---|
+| `hinge` | swings round an edge: a door, a gate, a trapdoor, a swing | `axis` (y, x, z), `at` (edge, right, top, bottom, back, center), `min`, `max` (degrees), `to`; presets Door, Trapdoor, Swing |
+| `motor` | turns by itself: a turntable, a wheel, a fan, a windmill, a merry-go-round | `speed` (degrees/s; minus the other way), `force`, `axis`, `signal` (runs only while that signal is on), `to` |
+| `spring` | springs back to where it is when pushed: a springboard, a bouncy block, a punching bag | `stiffness`, `damping`, `give` (meters of free play), `to` |
+| `rope` | hangs on a rope you see: a wrecking ball, a lamp, a tyre swing, a towed thing | `length` (0: as it is), `to` (empty: the point above it), `at` (top...), `color` |
+| `glue` | stuck fast to another thing: they move as one (a mast on a cart, a turret on a tank) | `to` |
+| `piston` | slides along a line: a lift, a crusher, a pusher; back and forth, or out while a signal is on | `axis`, `range` (meters), `speed`, `force`, `signal`; presets Lift, Crusher, Pusher |
+
+A lever (`lever`) sending "mill" and a windmill's `motor` with `signal: "mill"` is a machine you switch on. The kit
+`workshop` has one of each.

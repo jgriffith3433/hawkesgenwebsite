@@ -597,14 +597,16 @@
     switch (j.type) {
       case 'fixed': c = new B.LockConstraint(pivotA, pivotB, axisA, axisB, scene); break;
       case 'ball': c = new B.BallAndSocketConstraint(pivotA, pivotB, axisA, axisB, scene); break;
-      case 'slider': c = new B.PrismaticConstraint(pivotA, pivotB, axisA, axisB, scene); break;
+      // A slider and a hinge are 6-DoF constraints (Babylon's own Prismatic and Hinge have no limits or motors): every
+      // axis locked but the one it moves along (LINEAR_X) or turns round (ANGULAR_X), the constraint's x being `axis`.
+      case 'slider': c = new B.Physics6DoFConstraint({ pivotA, pivotB, axisA, axisB }, [AX().LINEAR_Y, AX().LINEAR_Z, AX().ANGULAR_X, AX().ANGULAR_Y, AX().ANGULAR_Z].map((axis) => ({ axis, minLimit: 0, maxLimit: 0 })), scene); break;
       case 'distance': c = new B.DistanceConstraint(Number(o.max ?? o.distance) || 1, scene); break;
       case 'spring': {
         const lim = [AX().LINEAR_X, AX().LINEAR_Y, AX().LINEAR_Z].map((axis) => ({ axis, minLimit: Number(o.min ?? 0), maxLimit: Number(o.max ?? 0), stiffness: Number(o.stiffness ?? 50), damping: Number(o.damping ?? 2) }));
         c = new B.Physics6DoFConstraint({ pivotA, pivotB, axisA, axisB }, lim, scene);
         break;
       }
-      default: c = new B.HingeConstraint(pivotA, pivotB, axisA, axisB, scene);
+      default: c = new B.Physics6DoFConstraint({ pivotA, pivotB, axisA, axisB }, [AX().LINEAR_X, AX().LINEAR_Y, AX().LINEAR_Z, AX().ANGULAR_Y, AX().ANGULAR_Z].map((axis) => ({ axis, minLimit: 0, maxLimit: 0 })), scene);
     }
     (pa.body).addConstraint(pbB.body, c);
     c.isCollisionsEnabled = Boolean(o.collide);
@@ -624,7 +626,8 @@
     let guess = [0, 0, 0];
     if (b && b.__entity) { b.node.computeWorldMatrix(true); const inv = b.node.getWorldMatrix().clone().invert(); const l = B.Vector3.TransformCoordinates(world, inv); const s = b.node.scaling; guess = [l.x * s.x, l.y * s.y, l.z * s.z]; }
     const j = {
-      type: String(type || 'hinge'), a, b: b && b.__entity ? b : null, o, constraint: null, worldPivot: [world.x, world.y, world.z], pivotBGuess: guess, removed: false,
+      type: String(type || 'hinge'), a, b: b && b.__entity ? b : null, o, constraint: null, worldPivot: !(b && b.__entity) && Array.isArray(o.worldPivot) ? vec(o.worldPivot) : [world.x, world.y, world.z], // (worldPivot: where a joint to the world holds, when not on a: a rope's knot above)
+      pivotBGuess: guess, removed: false,
       remove() { j.removed = true; if (j.constraint) { try { j.constraint.dispose(); } catch {} } j.constraint = null; if (j.anchor) { j.anchor.body.dispose(); j.anchor.node.dispose(); } const list = W() && W().havok ? W().havok.joints : []; const i = list.indexOf(j); if (i >= 0) list.splice(i, 1); },
       motor(speed = 0, force = 100) {
         o.motor = { speed, force };
@@ -632,7 +635,8 @@
         if (!c || !c.setAxisMotorType) return j;
         const axis = j.type === 'slider' ? AX().LINEAR_X : AX().ANGULAR_X;
         c.setAxisMotorType(axis, B.PhysicsConstraintMotorType.VELOCITY);
-        c.setAxisMotorTarget(axis, j.type === 'slider' ? Number(speed) : Number(speed) * RAD);
+        // (Havok's constraint axis runs the other way round: positive is along +axis, and degrees/s the way e.angularVelocity counts.)
+        c.setAxisMotorTarget(axis, j.type === 'slider' ? -Number(speed) : -Number(speed) * RAD);
         c.setAxisMotorMaxForce(axis, Number(force));
         if (j.a._pb) wakeBody(j.a._pb);
         return j;
@@ -644,8 +648,10 @@
         const axis = j.type === 'slider' ? AX().LINEAR_X : AX().ANGULAR_X;
         const k = j.type === 'slider' ? 1 : RAD;
         c.setAxisMode(axis, B.PhysicsConstraintAxisLimitMode.LIMITED);
-        c.setAxisMinLimit(axis, Number(min) * k);
-        c.setAxisMaxLimit(axis, Number(max) * k);
+        // (The constraint's axis runs the other way in Havok's frame: positive along +axis here, and turning the way the
+        // thing's own rotation counts, as the motor.)
+        c.setAxisMinLimit(axis, -Number(max) * k);
+        c.setAxisMaxLimit(axis, -Number(min) * k);
         return j;
       },
     };
