@@ -40,6 +40,7 @@ import { serveVendor } from './vendor.ts';
 import { loaderScript, engineDoc, manifest } from './engine.ts';
 const engineVersion = () => manifest().version;
 import * as community from './community.ts';
+import * as sharedKits from './kits.ts';
 import { upgrade as joinRoom, closeAllRooms, broadcastOps, markHere, liveCounts, roomState } from './rooms.ts';
 import * as invites from './invites.ts';
 import * as hnet from './hnet.ts';
@@ -403,6 +404,11 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       const p = (k: string) => url.searchParams.get(k);
       return send(res, 200, community.search({ q: p('q'), kind: p('kind'), tag: p('tag'), category: p('category'), limit: p('limit'), offset: p('offset'), sort: p('sort'), exact: p('exact') === '1' }));
     }
+    // Shared kits (src/kits.ts): public to list and fetch, from inside the play sandbox too.
+    if (route === '/v1/community/kits' && method === 'GET') { res.setHeader('Access-Control-Allow-Origin', '*'); const q = url.searchParams; return send(res, 200, sharedKits.list({ q: q.get('q'), sort: q.get('sort'), limit: q.get('limit'), full: q.get('full') === '1' })); }
+    const ck = /^\/v1\/community\/kits\/(k_[0-9a-f]+)(\/used)?$/.exec(route);
+    if (ck && method === 'GET' && !ck[2]) { res.setHeader('Access-Control-Allow-Origin', '*'); return send(res, 200, sharedKits.get(ck[1])); }
+    if (ck && method === 'POST' && ck[2]) { res.setHeader('Access-Control-Allow-Origin', '*'); return send(res, 200, sharedKits.used(ck[1])); }
     if (route === '/v1/community/categories' && method === 'GET') return send(res, 200, community.categories());
     if (route === '/v1/community/tags' && method === 'GET') return send(res, 200, { tags: community.tagCounts(url.searchParams.get('kind') ?? undefined) });
     const cf = /^\/v1\/community\/(a_[0-9a-f]+)\/file$/.exec(route);
@@ -567,6 +573,10 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     // ------------------------------------------------------------ sharing with the community
     if (route === '/v1/community' && method === 'POST') return send(res, 200, await community.share(user, await readJson(req)));
     if (route === '/v1/community/mine' && method === 'GET') return send(res, 200, community.mine(user));
+    if (route === '/v1/community/kits' && method === 'POST') return send(res, 200, sharedKits.share(user, await readJson(req)));
+    if (route === '/v1/community/kits/mine' && method === 'GET') return send(res, 200, sharedKits.mine(user));
+    const ckd = /^\/v1\/community\/kits\/(k_[0-9a-f]+)$/.exec(route);
+    if (ckd && method === 'DELETE') return send(res, 200, sharedKits.unshare(user, ckd[1]));
     const cs = /^\/v1\/community\/(a_[0-9a-f]+)$/.exec(route);
     if (cs && method === 'DELETE') return send(res, 200, community.unshare(user, cs[1]));
 

@@ -195,3 +195,18 @@ test('a request streams in: the world changes line by line while the job runs, t
   const q = (await call(`/v1/games/${g.id}/ai/quote`, { cookie })).body;
   assert.equal(q.credits, 8 + 1);
 });
+
+test('a whole game is a project: project.json gives the reply its next step (the Keep building card), until it is done', async () => {
+  const { projectOf } = await import('../src/gameai.ts');
+  const { writeFile } = await import('../src/games.ts');
+  const su = await call('/v1/users/signup', { body: { email: 'project@example.com', password: 'password123' } });
+  const g = (await call('/v1/games', { cookie: su.cookie, body: { title: 'Space RTS', template: 'blank' } })).body;
+  assert.equal(projectOf(g.id), null, 'no project yet');
+  const steps = [{ id: 'world', what: 'The station and the asteroids', done: true }, { id: 'waves', what: 'Red waves every minute', done: false }, { id: 'story', what: 'The commander and three chapters', done: false }];
+  writeFile(null, g.id, { path: 'project.json', content: JSON.stringify({ title: 'Space RTS', steps }) }, { by: 'Assistant' });
+  assert.deepEqual(projectOf(g.id), { title: 'Space RTS', next: 'Red waves every minute', left: 2, total: 3 });
+  writeFile(null, g.id, { path: 'project.json', content: JSON.stringify({ title: 'Space RTS', steps: steps.map((s) => ({ ...s, done: true })) }) }, { by: 'Assistant' });
+  assert.equal(projectOf(g.id), null, 'all done: no card');
+  writeFile(null, g.id, { path: 'project.json', content: 'not json' }, { by: 'Assistant' });
+  assert.equal(projectOf(g.id), null, 'a broken one is no project');
+});

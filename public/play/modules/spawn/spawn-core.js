@@ -255,6 +255,8 @@
   const libOn = () => S.inEditor() && H.mode === 'build' && Date.now() - lib.failed > 30000;
   async function loadShelves() {
     if (lib.shelves || !libOn()) return lib.shelves || [];
+    // (The shared kits too, once: they join 🎲 Play kits > Shared kits.)
+    if (!lib.kits && H.kits && H.kits.add) { lib.kits = true; S.fetchJson(`${lib.base}/v1/community/kits?full=1&limit=40`).then((r) => { for (const k of (r && r.kits) || []) H.kits.add(k); }).catch(() => { lib.kits = false; }); }
     try { const r = await S.fetchJson(`${lib.base}/v1/community/categories`); lib.shelves = (r.kinds || []).flatMap((k) => (k.categories && k.categories.length ? k.categories : [{ category: '', count: k.count }]).map((c) => ({ kind: k.kind, category: c.category, count: c.count }))); }
     catch { lib.failed = Date.now(); lib.shelves = null; return []; }
     return lib.shelves;

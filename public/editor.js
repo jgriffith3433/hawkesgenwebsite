@@ -343,6 +343,16 @@ async function fromGame(m) {
       }
       return;
     }
+    // A kit to share (build.js "📦 Share as kit"): its name from the builder, then the community's kits.
+    case 'kit-share': {
+      const title = (window.prompt('Name your kit (everyone building can drop it into their world):', m.name ? `${m.name} kit` : 'My kit') || '').trim();
+      if (!title) return;
+      try {
+        const r = await post(`${API}/community/kits`, { title, things: m.things, config: m.config || null, about: `${(m.things || []).length} things` });
+        toStage({ type: 'toast', text: `Shared: ${r.title}. It's in 🎲 Play kits > Shared kits for everyone.` });
+      } catch (err) { toStage({ type: 'toast', text: `Couldn't share it: ${err.message}` }); }
+      return;
+    }
     case 'basics': basics = m.list || []; if (libKind === 'basics' && $('library').classList.contains('open')) loadLibrary(); return;
     case 'words': if (libKind === 'game' && $('library').classList.contains('open')) renderWords(m.words || {}, m.assets || []); return;
   }
@@ -494,6 +504,17 @@ function renderChat(fresh) {
       btn.onclick = () => { btn.disabled = true; btn.textContent = 'Asking…'; const said = String(d.retry); const tag = d.mention ? `@${d.mention.name || d.mention.id} ` : ''; sendChat(tag && said.startsWith(tag) ? said.slice(tag.length) : said, d.mention || null); };
       again.appendChild(btn);
       toCard(`${msg.id}:retry`, again, "That didn't work out.");
+    }
+    // A whole game built over several answers (project.json): the next step is one click.
+    if (d.project && d.project.left && msg === chatHistory.filter((x) => x.role === 'ai').at(-1)) {
+      const next = document.createElement('span');
+      next.className = 'sugg';
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = 'Keep building';
+      btn.onclick = () => { btn.disabled = true; btn.textContent = 'Asking…'; sendChat(`Keep building the project: ${d.project.next}`); };
+      next.appendChild(btn);
+      toCard(`${msg.id}:project`, next, `${d.project.title}: next, ${String(d.project.next).slice(0, 60)} (${d.project.total - d.project.left} of ${d.project.total} done)`);
     }
     for (const [i, sg] of (d.assets || []).entries()) {
       const sugg = document.createElement('span');
