@@ -458,7 +458,7 @@
     else if (forced === 'drive') seated = true;
     else if (!forced) {
       seated = e._seatedAt !== undefined && w && w.time - e._seatedAt < 0.3;
-      swim = !seated && !grounded && inWater(rig);
+      swim = !seated && ((!grounded && inWater(rig)) || Boolean(e._airSwim && !grounded)); // (or swimming in the air: abilities/airswim.js)
     }
     const A = pp.air;
     A.t = grounded ? 0 : A.t + dt;

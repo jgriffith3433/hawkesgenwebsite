@@ -48,7 +48,7 @@ test('a look is saved per player, validated and size-limited; the game reaches i
   const look = { body: '#22C55E', head: '#e0ac69', accent: '#ffffff', shape: 'tall', hat: 'crown', face: 'smile', extras: ['cape', 'cape', 'glasses'], model: null, extra: 'dropped' };
   const saved = await call('/v1/users/me/avatar', { cookie: sam.cookie, body: { avatar: look } });
   assert.equal(saved.status, 200);
-  assert.deepEqual(saved.body.avatar, { body: '#22c55e', head: '#e0ac69', accent: '#ffffff', shape: 'tall', hat: 'crown', face: 'smile', extras: ['cape', 'glasses'], model: null, what: 'person', name: null, hair: 'short', hairColor: '#4a3322', bottom: '#3b4a6b', shoes: '#f2f2ee', eyeColor: '#14161d', accessory: 'none', accessoryColor: '#ffffff' });
+  assert.deepEqual(saved.body.avatar, { body: '#22c55e', head: '#e0ac69', accent: '#ffffff', shape: 'tall', hat: 'crown', face: 'smile', extras: ['cape', 'glasses'], model: null, what: 'person', name: null, hair: 'short', hairColor: '#4a3322', bottom: '#3b4a6b', shoes: '#f2f2ee', eyeColor: '#14161d', accessory: 'none', accessoryColor: '#ffffff', headSize: 1, bodySize: 1 });
   // The mirror's eyes and accessory: kept (colors lowercased), and refused when they are not ours.
   const dressed = await call('/v1/users/me/avatar', { cookie: sam.cookie, body: { avatar: { ...saved.body.avatar, eyeColor: '#2F6FDB', accessory: 'headphones', accessoryColor: '#EF4444' } } });
   assert.equal(dressed.status, 200);
@@ -139,4 +139,13 @@ test('what the Overseer remembers is kept per account, cleaned and size-limited'
   // Someone else's is theirs.
   const lee = await signup('lee@example.test', 'Lee');
   assert.equal((await call('/v1/users/me/overseer', { cookie: lee.cookie })).body.overseer, null);
+});
+
+test('an avatar keeps headSize and bodySize (clamped, never refused)', async () => {
+  const { cleanAvatar } = await import('../src/presence.ts');
+  const a = cleanAvatar({ headSize: 2.5, bodySize: 0.5 });
+  assert.equal(a.headSize, 2.5);
+  assert.equal(a.bodySize, 0.5);
+  assert.equal(cleanAvatar({ headSize: 99 }).headSize, 3);
+  assert.equal(cleanAvatar({}).bodySize, 1);
 });

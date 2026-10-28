@@ -10,7 +10,7 @@ Every game has a player. How it plays is in the world's settings, so the assista
 | setting | what | default |
 |---|---|---|
 | `view` | `"first"` (through your eyes), `"third"` (behind you: you see your character), `"top"` (from above), `"rts"` (a commander's camera over the map: WASD pans, wheel zooms, right-drag turns, the mouse stays free to click things) | first |
-| `mode` | `"walk"`, or `"flight"`: always moving forward, steered by the mouse (or WASD), space boosts | walk |
+| `mode` | `"walk"`, `"flight"`: always moving forward, steered by the mouse (or WASD), space boosts, or `"air-swim"`: swim through the air (WASD where you look, space up, C down, drift down when you let go) | walk |
 | `mouse` | `"free"` never captures the mouse (point-and-click games, strategy, menus); `"locked"` captures it when you click | locked |
 | `weapon` | what you carry: `"blaster"`, `"rifle"`, `"shotgun"`, `"launcher"`, or `{ "type": "rifle", "damage": 20, "rate": 8, "ammo": 30, "reload": 1.5, "range": 100, "spread": 0.01, "pellets": 1, "color": "#ffd24a" }`. Click to fire, R reloads | none |
 | `distance` | how far the camera is in third person (or how high, top-down) | 5 / 18 |

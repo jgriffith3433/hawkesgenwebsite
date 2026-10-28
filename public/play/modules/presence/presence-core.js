@@ -145,6 +145,7 @@
     const a = v && typeof v === 'object' && !Array.isArray(v) ? v : {};
     const color = (c, d) => (typeof c === 'string' && HEX.test(c) ? c.toLowerCase() : d);
     const one = (x, list, d) => (list.includes(x) ? x : d);
+    const ratio = (x, lo, hi) => (Number.isFinite(Number(x)) && x !== null && x !== '' ? Math.round(Math.max(lo, Math.min(hi, Number(x))) * 100) / 100 : 1);
     const extras = Array.isArray(a.extras) ? [...new Set(a.extras.filter((x) => LOOK.extras.includes(x)))].slice(0, LOOK.maxExtras) : [];
     return {
       body: color(a.body, '#4a9eff'), head: color(a.head, '#f2c9a0'), accent: color(a.accent, '#ffffff'),
@@ -155,6 +156,8 @@
       hair: one(a.hair, LOOK.hairs, 'short'), hairColor: color(a.hairColor, '#4a3322'), bottom: color(a.bottom, '#3b4a6b'), shoes: color(a.shoes, '#f2f2ee'),
       // The eyes' color, one accessory and its color (an old look has none: dark eyes, no accessory).
       eyeColor: color(a.eyeColor, '#14161d'), accessory: one(a.accessory, LOOK.accessories, 'none'), accessoryColor: color(a.accessoryColor, '#ffffff'),
+      // Proportions (J, 2026-10-27: "a big head and a little body"): the head's size and the whole body's, times normal.
+      headSize: ratio(a.headSize, 0.5, 3), bodySize: ratio(a.bodySize, 0.3, 4),
     };
   }
   /** A random fun look (guests get one): the same seed gives the same look. */

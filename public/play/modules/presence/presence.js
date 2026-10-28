@@ -273,7 +273,8 @@
     const pose = new B.TransformNode('pr-pose', scene); // emotes move this; root holds the shape
     pose.parent = root;
     rig.pose = pose;
-    const s = C.LOOK.sizes[look.shape] || C.LOOK.sizes.normal;
+    const s0 = C.LOOK.sizes[look.shape] || C.LOOK.sizes.normal, k = Number(look.bodySize) > 0 ? Number(look.bodySize) : 1;
+    const s = [s0[0] * k, s0[1] * k, s0[2] * k];
     root.scaling.set(s[0], s[1], s[2]);
     root.position.y = -0.9 * (1 - s[1]); // feet stay on the ground
     rig.baseY = root.position.y;
@@ -293,6 +294,8 @@
     rig.what = 'person';
     // The soft toy person (presence-person.js): a rounded body, a big head with a face, hair, clothes in the look's colors.
     P.softPerson.build(rig, look, { joint, part, box });
+    // A bigger or smaller head (look.headSize): its neck joint, so the face, hair, hats and glasses all follow.
+    if (rig.neck && Number(look.headSize) > 0 && Number(look.headSize) !== 1) rig.neck.scaling.scaleInPlace(Number(look.headSize));
     rig.bodyMeshes = rig.meshes.length; rig.dressArgs = [look, acc, body];
     dress(rig, look, acc, body);
     if (look.model) loadModel(rig, look.model);
@@ -1113,8 +1116,9 @@
     let h = e.half ? e.half[1] : 0.9;
     if (rig) {
       // The block body: feet at -0.9, the top of the head 1.62 above them (times the shape), then the hat.
-      const s = (C.LOOK.sizes[rig.look.shape] || C.LOOK.sizes.normal)[1];
-      h = -0.9 + (1.62 + (HAT_H[rig.look.hat] || 0)) * s;
+      const s = (C.LOOK.sizes[rig.look.shape] || C.LOOK.sizes.normal)[1] * (Number(rig.look.bodySize) > 0 ? Number(rig.look.bodySize) : 1);
+      const hk = Number(rig.look.headSize) > 0 ? Number(rig.look.headSize) : 1;
+      h = -0.9 + (1.62 + 0.55 * (hk - 1) + (HAT_H[rig.look.hat] || 0) * hk) * s; // (a bigger head reaches higher: the name tag sits on it)
       if (rig.emote && rig.emote.def.name === 'sleep') h = -0.45;
       else if (rig.emote && rig.emote.def.name === 'sit') h -= 0.4;
     } else if (e.living && e.living.tall) h = e.living.tall / 2;
