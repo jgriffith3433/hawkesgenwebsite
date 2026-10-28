@@ -8,7 +8,7 @@
 export const ALLOWED = new Set([
   'analytics', 'analytics-activity', 'overseer-lines', 'overseer-memory', 'overseer-seen', 'ready', 'started', 'error', 'log',
   'chat-line', 'chat-status', 'overseer-say', 'ops', 'save', 'resync', 'context', 'ask', 'focus-chat', 'generate', 'open-code',
-  'net', 'mode', 'menu', 'card', 'selected', 'library', 'spawn-community', 'basics', 'words', 'share-open', 'share-media',
+  'net', 'mode', 'menu', 'card', 'selected', 'library', 'spawn-community', 'basics', 'words', 'share-open', 'share-media', 'kit-share',
 ]);
 
 /** The ones that act on their own because the person is building: messages allowed a second (the excess is dropped). */
