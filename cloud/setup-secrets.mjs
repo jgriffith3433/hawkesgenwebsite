@@ -45,7 +45,7 @@ const values = {
   STRIPE_WEBHOOK_SECRET: async () => box.STRIPE_WEBHOOK_SECRET ?? 'unset',
   GOOGLE_CLIENT_SECRET: async () => box.GOOGLE_CLIENT_SECRET ?? readBox().GOOGLE_CLIENT_SECRET,
   PORTAL_SIGNING_KEY: async () => crypto.randomBytes(32).toString('base64url'),
-  RESEND_API_KEY: async () => (arg('resend') ? fs.readFileSync(String(arg('resend')), 'utf8').trim().replace(/^[A-Za-z_ ]*[=:]s*/, '') : 'unset'),
+  RESEND_API_KEY: async () => (arg('resend') ? fs.readFileSync(String(arg('resend')), 'utf8').trim().replace(/^[A-Za-z_ ]*[=:]\s*/, '') : 'unset'),
 };
 for (const [name, get] of Object.entries(values)) {
   const has = exists(name);
