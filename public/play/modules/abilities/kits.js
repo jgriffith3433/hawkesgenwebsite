@@ -237,6 +237,38 @@
       },
     },
     {
+      id: 'rts', name: 'Base battle', icon: '🏰', about: 'Command a base: workers gather crystal, train soldiers and tanks; a red base trains and attacks in waves.',
+      settings: { waves: 60 },
+      config: (o) => ({ rts: { team: 'blue', resources: 250, teams: { red: { ai: true, resources: 250, wave: 4, grow: 2, waves: { every: Number(o.waves) || 60, first: 90, count: 3, grow: 2, unit: 'soldier' } } } }, player: { view: 'rts' } }),
+      things() {
+        const out = [];
+        const base = (team, z) => box(`${cap(team)} base`, [6, 4, 6], [0, 2, z], colorOf(team), { behaviors: [{ use: 'building', team, makes: team === 'blue' ? 'worker,soldier,ranged,tank' : 'worker,soldier,ranged', hp: 1500 }] });
+        const crystal = (x, z) => ({ type: 'cone', name: 'Crystal', shape: { radius: 1, height: 2.6 }, material: { color: '#67e8f9', emissive: '#0e7490' }, physics: 'static', transform: { position: [x, 1.3, z] }, behaviors: [{ use: 'resource', amount: 800 }] });
+        const unit = (team, role, x, z) => ({ type: 'capsule', name: `${cap(team)} ${role}`, shape: { radius: 0.32, height: 1.6 }, material: { color: colorOf(team) }, physics: 'dynamic', transform: { position: [x, 0.9, z] }, behaviors: [{ use: 'unit', team, role, ...(role === 'worker' ? { hp: 60, damage: 3, range: 1.6, gather: 10, speed: 4.5 } : { hp: 120, damage: 10, range: 1.8, speed: 4 }) }] });
+        out.push(base('blue', 8), base('red', 80));
+        for (const [x, z] of [[-10, 14], [10, 14], [-10, 74], [10, 74]]) out.push(crystal(x, z));
+        out.push(unit('blue', 'worker', -3, 13), unit('blue', 'worker', 3, 13), unit('blue', 'soldier', -2, 16), unit('blue', 'soldier', 2, 16));
+        out.push(unit('red', 'worker', -3, 75), unit('red', 'worker', 3, 75));
+        return out;
+      },
+    },
+    {
+      id: 'space-rts', name: 'Space battle', icon: '🚀', about: 'Command a space station: mining ships gather from asteroids, fighters and frigates fight; waves come from the red station.',
+      settings: { waves: 45 },
+      config: (o) => ({ rts: { team: 'blue', resources: 300, teams: { red: { ai: true, resources: 300, wave: 4, grow: 2, waves: { every: Number(o.waves) || 45, first: 60, count: 3, grow: 2, unit: 'fighter', title: 'Wave' } } } }, player: { view: 'rts' } }),
+      things() {
+        const out = [];
+        const station = (team, z) => ({ type: 'cylinder', name: `${cap(team)} station`, shape: { radius: 4, height: 2 }, material: { color: colorOf(team), emissive: team === 'blue' ? '#1e3a8a' : '#7f1d1d' }, physics: 'static', transform: { position: [0, 8, z] }, behaviors: [{ use: 'building', team, makes: team === 'blue' ? 'mining-ship,fighter' : 'mining-ship,fighter,frigate', hp: 2000 }, { use: 'spin', speed: 8 }] });
+        const rock = (x, z, r) => ({ type: 'sphere', name: 'Asteroid', shape: { radius: r }, material: { color: '#78716c' }, physics: 'static', transform: { position: [x, 6, z] }, behaviors: [{ use: 'resource', amount: 900 }] });
+        const ship = (team, role, x, z) => ({ type: role === 'fighter' ? 'cone' : 'sphere', name: `${cap(team)} ${role}`, shape: role === 'fighter' ? { radius: 0.6, height: 1.7 } : { radius: 0.5 }, material: { color: colorOf(team) }, physics: 'kinematic', transform: { position: [x, role === 'fighter' ? 9 : 7, z], rotation: role === 'fighter' ? [90, 0, 0] : [0, 0, 0] }, behaviors: [{ use: 'unit', team, role, ...(role === 'fighter' ? { hp: 90, speed: 9, damage: 8, range: 12, rate: 0.6, sight: 22, fly: 0.01 } : { hp: 70, speed: 6, damage: 0, range: 0, gather: 12, fly: 0.01 }) }] });
+        out.push(station('blue', 6), station('red', 90));
+        for (const [x, z, r] of [[-12, 16, 2.2], [13, 18, 1.8], [-13, 80, 2], [12, 82, 2.4], [0, 48, 3]]) out.push(rock(x, z, r));
+        out.push(ship('blue', 'mining-ship', -4, 14), ship('blue', 'mining-ship', 4, 14), ship('blue', 'fighter', -3, 20), ship('blue', 'fighter', 3, 20));
+        out.push(ship('red', 'mining-ship', -4, 82), ship('red', 'mining-ship', 4, 82));
+        return out;
+      },
+    },
+    {
       id: 'mine', name: 'Block mine', icon: '⛏', about: 'A world of blocks grows round you: caves, ores, trees. You hold a pickaxe: mine, build, craft.',
       settings: { world: 'caves', size: 48 },
       // (The blocks' bottom middle a little under where the kit goes: the ground grows to about 0.42 of the height.)
