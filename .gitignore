@@ -8,3 +8,4 @@ node_modules/
 cloud/functions/node_modules/
 .firebase/
 cloud/functions/assets/
+cloud/.portal-final.db
