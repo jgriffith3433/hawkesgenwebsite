@@ -2,7 +2,6 @@
 // (firebase.json). Each area module registers its routes when imported.
 import './options.ts';
 import { onRequest } from 'firebase-functions/https';
-import { setGlobalOptions } from 'firebase-functions';
 import { handle, route } from './http.ts';
 import { SECRETS, genKey } from './config.ts';
 import './accounts.ts';
@@ -16,7 +15,6 @@ import './mcp.ts';
 export { settleJobs } from './jobs.ts';
 export { advanceTasks } from './tasks.ts';
 
-setGlobalOptions({ region: 'us-east4', maxInstances: 10 });
 
 route('GET', '/v1/health', () => ({ ok: true, service: 'hawkesgen-portal', cloud: 'gcp', gen: Boolean(genKey()), google: Boolean(process.env.GOOGLE_CLIENT_ID) }));
 
