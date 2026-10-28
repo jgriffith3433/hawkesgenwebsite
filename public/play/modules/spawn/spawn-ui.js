@@ -445,7 +445,9 @@
     if (fab.innerHTML !== html) fab.innerHTML = html;
     fab.setAttribute('aria-label', 'Spawn something');
     fab.title = desk ? 'Hold Q for the spawn wheel (click for the searchable panel)' : 'Spawn something';
-    fab.hidden = !show || S.isOpen();
+    // (No button of its own any more: Q on a computer, Controls > Spawn on a phone: modules/controls.)
+    fab.hidden = true;
+    void show;
     if (!show && S.isOpen()) close();
   });
 

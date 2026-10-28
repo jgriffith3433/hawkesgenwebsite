@@ -194,7 +194,13 @@ body.pr-touch .hc-form:not(.on){display:none}`;
     if (typeof m.action.onclick === 'function') {
       a = document.createElement('button');
       a.type = 'button';
-      a.onclick = (e) => { e.preventDefault(); e.stopPropagation(); try { m.action.onclick(a); } catch { /* fine */ } setTimeout(() => { if (!a.disabled || /made|done/i.test(a.textContent)) c.remove(); }, 1500); };
+      const label = m.action.label || 'Open';
+      a.onclick = (e) => {
+        e.preventDefault(); e.stopPropagation();
+        try { m.action.onclick(a); } catch { /* fine */ }
+        // (Sent, Making…, Asking…: it's on its way; the card goes. Back to its own label: it failed, the card stays.)
+        setTimeout(() => { if (a.textContent !== label || !a.disabled) c.remove(); }, 900);
+      };
     } else {
       // A link only when it is ours; anything else (another site, javascript:) is plain text.
       const href = safeHref(m.action.href);
@@ -206,7 +212,7 @@ body.pr-touch .hc-form:not(.on){display:none}`;
     c.appendChild(a);
     const x = document.createElement('button');
     x.type = 'button'; x.className = 'x'; x.textContent = '×'; x.setAttribute('aria-label', 'Dismiss');
-    x.onclick = (e) => { e.preventDefault(); e.stopPropagation(); c.remove(); };
+    x.onclick = (e) => { e.preventDefault(); e.stopPropagation(); c.remove(); try { if (typeof m.action.dismiss === 'function') m.action.dismiss(); } catch { /* fine */ } };
     c.appendChild(x);
     for (const t of ['keydown', 'keyup', 'pointerdown']) c.addEventListener(t, (e) => e.stopPropagation());
     cards.appendChild(c);

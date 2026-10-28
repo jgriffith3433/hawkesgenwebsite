@@ -111,8 +111,8 @@
 
   // ------------------------------------------------------------------ the zones' pieces: which module's element goes where
   const ZONE_OF = [
-    ['tl', '.pr-hud, .pg-hud, .wh-hud, .qs-btn, .tour-stuck, .tour-track, .qs-track, .wp-hp'],
-    ['tr', '.gs-acts, .gs-toast, .corner, #veh-hud, .mh-score, .wp-ammo'],
+    ['tl', '.pr-hud, .ct-btn, .pg-hud, .wh-hud, .qs-btn, .tour-stuck, .tour-track, .qs-track, .wp-hp'],
+    ['tr', '.gs-acts, .jr-btn, .gs-toast, .corner, #veh-hud, .mh-score, .wp-ammo'],
     ['mid', '.ov-work, .hc-chat, .hp-use, #veh-prompt, .mh-tip, .water-hud'],
     ['ctx', '#touch, .mh-touch, #veh-touch, .sw-fab, .lv-touchbtn'],
   ];
@@ -120,7 +120,7 @@
   const WATCH = [
     ['stick', '#touch .pad', true], ['jump', '#touch .a', true], ['action', '#touch .b', true], ['touch-extra', '#touch .tb:not(.a):not(.b)', true],
     ['mayhem', '.mh-touch button', true], ['vehicle', '#veh-touch button', true], ['spawn', '.sw-fab', true], ['throw', '.lv-touchbtn', true],
-    ['hud-toggle', '#tl-hide', true], ['people', '.pr-hud button', true], ['journal', '.qs-btn', true], ['stuck', '.tour-stuck', true],
+    ['hud-toggle', '#tl-hide', true], ['controls', '.ct-btn', true], ['people', '.pr-hud button', true], ['journal', '.qs-btn', true], ['stuck', '.tour-stuck', true],
     ['chat-tool', '.hc-tools button', true], ['prompt', '.hp-use button, #veh-prompt', true], ['account', '.gs-acts button, .gs-toast button', true], ['corner', '.corner button, .corner a', true],
     ['tracker', '.tour-track, .qs-track', false], ['chat', '.hc-chat', false], ['gauges', '#veh-hud', false], ['tip', '.mh-tip, .water-hud', false], ['ammo', '.wp-ammo, .wp-hp, .mh-score', false],
   ];
@@ -225,7 +225,7 @@
   }
 
   H.touchLayout = { compute, zoneOverlaps, cssVars, audit, hudCheck, overlapPairs, insideSafe, insets, K, haptic, zones: ZONE_OF.map((z) => z[0]) };
-  if (!H.touchUi || typeof document === 'undefined' || !document.body) return;
+  if (typeof document === 'undefined' || !document.body) return;
 
   // ------------------------------------------------------------------ the top left on a computer (and a narrow desktop window)
   // The same idea as the phone's `tl` zone: the cards are adopted into one column that flows, so a tracker that grows a
@@ -267,7 +267,8 @@ body:not(.tl) #dl-stack .wh-hud{order:5}
     if (typeof MutationObserver === 'function') new MutationObserver(soon).observe(document.body, { childList: true });
   }
 
-  if (!H.touchUi && typeof document !== 'undefined' && document.body) deskStack();
+  // (A computer gets the stack; the rest of this file is phones and tablets.)
+  if (!H.touchUi) { deskStack(); return; }
 
   // ------------------------------------------------------------------ the page part (phones and tablets only)
   const CSS = `

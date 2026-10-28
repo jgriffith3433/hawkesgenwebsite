@@ -1,5 +1,5 @@
 // Mood (config.mood; J, 2026-10-27: "make a scary game"): how a world feels, made from the engine's own parts.
-// "scary": the dark comes in (the sky's darkness), fog close round you, a flashlight in your hand (L, or the 🔦 button),
+// "scary": the dark comes in (the sky's darkness), fog close round you, a flashlight in your hand (T, or the 🔦 button),
 // a low drone and wind made live (WebAudio, no files), creaks far off, grain and a dark vignette, and a heartbeat that
 // quickens when something is near. Behaviors: `stalker` (comes for you when you aren't looking at it, stops when you are;
 // `mode: "chase"` always comes), `scare` (a place that jump-scares you once), `flicker` (a light or a thing that flickers).
@@ -225,7 +225,7 @@
     const w = W();
     if (!w || !st.on || !st.o) { st.near = Infinity; return; }
     const g = G();
-    if (g && g.input && g.input.pressed('l') && st.o.flashlight) toggleLight();
+    if (g && g.input && g.input.pressed('t') && st.o.flashlight) toggleLight();
     const l = st.o.flashlight ? torch() : null;
     if (l) { l.parent = w.scene.activeCamera; l.setEnabled(st.lightOn && H.mode !== 'build'); l.intensity = 2.2 * (0.94 + Math.random() * 0.06); }
     // The heartbeat: faster and louder as something comes.
@@ -251,7 +251,7 @@
       title: 'Mood', group: 'World features',
       what: 'How the world feels. "scary": dark, fog close round you, a flashlight (L), a drone and wind, creaks, grain, a heartbeat when something is near.',
       value: 'scary',
-      fields: [['preset', 'scary, eerie, calm', 'scary'], ['dark', '0-1', '0.82'], ['fog', 'meters you see', '30'], ['flashlight', 'true: L toggles it', 'true'], ['sound', 'the drone, wind and creaks', 'true'], ['grain', 'film grain and a vignette', 'true'], ['heartbeat', 'when something is near', 'true']],
+      fields: [['preset', 'scary, eerie, calm', 'scary'], ['dark', '0-1', '0.82'], ['fog', 'meters you see', '30'], ['flashlight', 'true: T toggles it', 'true'], ['sound', 'the drone, wind and creaks', 'true'], ['grain', 'film grain and a vignette', 'true'], ['heartbeat', 'when something is near', 'true']],
     },
   });
   H.hooks.world.push({ leave() { if (st.on) remove(); } });

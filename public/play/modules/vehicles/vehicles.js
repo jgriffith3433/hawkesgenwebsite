@@ -51,8 +51,11 @@
       if (v.q && v.M) axes(v);
     }
   });
-  const myId = () => (H.sync && H.sync.online && H.sync.me ? H.sync.me : 'local');
-  const isMe = (who) => who === 'local' || (who && H.sync && who === H.sync.me);
+  // (Every id this player has had in the room: a reconnect gives a new one, and a seat taken under the old one is still
+  // theirs, so getting out and in again never sticks.)
+  const myIds = new Set(['local']);
+  const myId = () => { const id = H.sync && H.sync.online && H.sync.me ? H.sync.me : 'local'; myIds.add(id); return id; };
+  const isMe = (who) => { if (H.sync && H.sync.me) myIds.add(H.sync.me); return Boolean(who) && myIds.has(who); };
 
   const havokOn = () => H.physics.engine === 'havok' && Boolean(W() && W().havok);
   /** Its pose travels with the engine's own sync (a scene thing with a real body), or with ours. */
@@ -1514,6 +1517,7 @@
     for (const w of v.wheels) { w.spinRate = fs / w.r; if (!w.contact) w.hitDist = v.def.suspension.travel * 0.55 + w.r; }
   }
   function register(v) {
+    if (V._onBorn && v.e.alive) V._onBorn(v);
     if (!H.sync || !v.e.alive) return;
     if (v.sync) v.sync.remove();
     v.sync = H.sync.state(`veh:${v.key}`, { rate: 20, important: true, where: () => (v.e.alive ? [v.e.x, v.e.y, v.e.z] : null), owner: () => v.e.alive && simulatedByMe(v), get: () => snapshot(v), set: (s, changed, from, meta) => applyRemote(v, s, meta) });

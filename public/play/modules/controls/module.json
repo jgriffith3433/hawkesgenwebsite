@@ -1,0 +1,6 @@
+{
+  "title": "Controls: the keys that work now (a computer), big buttons that do them (a phone); K changes a thing's look",
+  "order": 96,
+  "scripts": ["controls.js"],
+  "kinds": []
+}
