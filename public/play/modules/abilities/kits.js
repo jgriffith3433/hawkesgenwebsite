@@ -328,6 +328,25 @@
       },
     },
     {
+      id: 'workshop', name: 'Workshop of contraptions', icon: '⚙️', about: 'A door on a hinge, a windmill a lever switches on, a wrecking ball on a rope, a lift, a springboard and a cart with a mast glued on.',
+      settings: {},
+      things() {
+        const out = [];
+        out.push(box('Door frame', [0.3, 3, 0.3], [-5.15, 1.5, 4], '#78716c'));
+        out.push(box('Hinged door', [2, 2.8, 0.15], [-4, 1.45, 4], '#a16207', { physics: 'dynamic', behaviors: [{ use: 'hinge', axis: 'y', at: 'edge', min: -100, max: 100 }] }));
+        out.push(box('Windmill tower', [0.6, 5, 0.6], [4, 2.5, 8], '#d6d3d1'));
+        out.push(box('Windmill sails', [6, 0.5, 0.15], [4, 5, 7.5], '#fafaf9', { physics: 'dynamic', behaviors: [{ use: 'motor', axis: 'z', speed: 120, signal: 'mill' }] }));
+        out.push(box('Lever stand', [0.6, 1, 0.6], [2, 0.5, 6], '#57534e', { behaviors: [{ use: 'lever', signal: 'mill' }] }));
+        out.push(box('Gantry', [0.4, 7, 0.4], [-8, 3.5, 12], '#44403c'));
+        out.push({ type: 'sphere', name: 'Wrecking ball', shape: { radius: 0.7 }, material: { color: '#1c1917' }, physics: 'dynamic', mass: 40, transform: { position: [-6, 3, 12] }, behaviors: [{ use: 'rope', length: 4, anchor: [-8, 7, 12] }] });
+        out.push(box('Lift', [2.4, 0.3, 2.4], [6, 0.3, 14], '#38bdf8', { physics: 'dynamic', behaviors: [{ use: 'piston', axis: 'y', range: 4, speed: 1 }] }));
+        out.push(box('Springboard', [1.6, 0.25, 1.6], [0, 1, 12], '#22c55e', { physics: 'dynamic', behaviors: [{ use: 'spring', stiffness: 120, damping: 3 }] }));
+        out.push(box('Cart', [2, 0.5, 1.2], [-2, 0.4, 16], '#b91c1c', { physics: 'dynamic' }));
+        out.push(box('Cart mast', [0.15, 2, 0.15], [-2, 1.65, 16], '#e7e5e4', { physics: 'dynamic', behaviors: [{ use: 'glue', to: 'Cart' }] }));
+        return out;
+      },
+    },
+    {
       id: 'mine', name: 'Block mine', icon: '⛏', about: 'A world of blocks grows round you: caves, ores, trees. You hold a pickaxe: mine, build, craft.',
       settings: { world: 'caves', size: 48 },
       // (The blocks' bottom middle a little under where the kit goes: the ground grows to about 0.42 of the height.)
