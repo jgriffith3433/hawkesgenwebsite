@@ -59,7 +59,7 @@ browser ──https──▶ Firebase Hosting (public/, CDN)
 | Games, the assistant, scene, releases, members, invites, play pages, play assets, live feed | `games.ts`, `gameai.ts`, … | ported |
 | Community, kits, shares, LODs, templates, gallery, portfolio, demo, prices, analytics relay | `community.ts`, … | ported |
 | Admin, presence, friends, Hawkes Net tickets, health | `admin.ts`, `presence.ts`, `friends.ts`, `hnet.ts` | ported |
-| Sign-in buttons on the pages (Google only), data move from portal.db | `public/`, `cloud/migrate.mjs` | to do |
+| Sign-in buttons on the pages (Google only), data move from portal.db | `public/`, `cloud/migrate.mjs` | ported; the data move is being matched to each module |
 
 Staging: https://hawkes-staging.web.app (deployed 2026-10-28). Scheduled functions: settleJobs (2 min), advanceTasks (1 min),
 advanceGameGens (1 min), syncStarter (10 min), refreshLods (15 min); gameAssistant runs on a Firestore trigger.
@@ -74,4 +74,5 @@ advanceGameGens (1 min), syncStarter (10 min), refreshLods (15 min); gameAssista
 - New levels of detail can take up to 15 minutes to appear (refreshLods), unless a share or the starter sync recorded them.
 - Game rooms are Hawkes Net's only (no in-process rooms).
 - No email yet (welcome, gifts, low balance): SES needed the AWS box's role. To do: a mail provider.
-- One-time per project:  (the default compute service account's roles), .
+- One-time per project: `cloud/grant-build.ps1` (the default compute service account's roles) and
+  `cloud/setup-secrets.mjs` (the keys in Secret Manager).
