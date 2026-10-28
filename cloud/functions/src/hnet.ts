@@ -81,13 +81,14 @@ const clean = (v: unknown) => String(v ?? '').replace(/[^\p{L}\p{N} _.-]/gu, '')
 
 /**
  * What a ticket needs to know about games, which are the games area's: it replaces these when it loads (as caller.ts
- * accessTokens). Until then they read Firestore by the shared convention: games/{id} (slug, hidden), and
- * gameMembers/{game_id}:{user_id} (role), the SQLite tables' rows (cloud/migrate.mjs).
+ * accessTokens). They read Firestore where games.ts keeps it: games/{id} (slug, hidden) and games/{id}/members/{user_id}
+ * (role), which cloud/migrate.mjs writes the same way.
  */
 export const netGames = {
   /** Throws 404 unless `user` is a member of the game (any role: playing is enough). */
   async member(user: User, gameId: string): Promise<void> {
-    const [g, m] = await db.getAll(db.collection('games').doc(gameId), db.collection('gameMembers').doc(`${gameId}:${user.id}`));
+    const g0 = db.collection('games').doc(gameId);
+    const [g, m] = await db.getAll(g0, g0.collection('members').doc(user.id));
     if (!g.exists || !m.exists) throw new PortalError('No such game', { status: 404 });
   },
   /** A game by its slug (null when there is none). */
