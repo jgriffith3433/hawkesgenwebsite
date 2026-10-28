@@ -1,0 +1,6 @@
+{
+  "title": "A league: your club, recruits, rival clubs, fixtures and a points table (config.league)",
+  "order": 83,
+  "scripts": ["league.js"],
+  "kinds": []
+}
