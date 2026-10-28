@@ -18,7 +18,7 @@
 //   credit_ledger    users/{user_id}/ledger/{id} (without user_id: the path holds it), and the unique indexes as
 //                    once/{key} = { user, tx, at }: stripe:<stripe_session_id>, invoice:<stripe_invoice_id>,
 //                    refund:<job_id> for each job_refund row, first_bonus:<user> for a first_purchase_bonus row.
-//   jobs             jobs/{id} with hold: null (the old ledger rows are the record of what was taken).
+//   jobs             jobs/{id}; one still running gets holds/hold_<job id> from its job_reserve row, so it can be refunded.
 //   friends          friends/{user_id}:{friend_id} (friends.ts: the unique pair is the key, not the old fr_ id).
 //   friend_requests  friendRequests/{from_id}:{to_id} (presence.ts).
 // Not copied: sessions and password_tokens (everyone signs in with Google again), and what only mattered for a moment
@@ -98,6 +98,8 @@ if (has('api_keys')) {
 }
 
 let orphans = 0;
+/** What each job took (its job_reserve row), so a job still running at the move keeps a hold billing.ts can give back. */
+const reserves = new Map();
 if (has('credit_ledger')) {
   for (const r of rowsOf('credit_ledger')) {
     const e = strip(r);
@@ -111,6 +113,7 @@ if (has('credit_ledger')) {
     if (e.stripe_invoice_id) once(`invoice:${e.stripe_invoice_id}`);
     if (e.kind === 'job_refund' && e.job_id) once(`refund:${e.job_id}`);
     if (e.kind === 'first_purchase_bonus') once(`first_bonus:${user}`);
+    if (e.kind === 'job_reserve' && e.job_id) reserves.set(e.job_id, { user, tx, credits: -Number(e.delta) });
   }
 }
 
@@ -120,10 +123,15 @@ if (has('jobs')) {
     const j = strip(r);
     const id = j.id;
     delete j.id;
-    j.hold = null;
     j.via ??= null;
     j.settled ??= null;
-    if (j.settled === null) unsettled++;
+    j.hold = null;
+    const taken = reserves.get(id);
+    if (j.settled === null && taken) {
+      // Same shape billing.ts hold() makes; release() gives it back once (once key refund:<hold id>).
+      j.hold = `hold_${id}`;
+      put('holds', `holds/${safeId(j.hold)}`, { user: taken.user, credits: taken.credits, tx: taken.tx, job: id, created: j.created });
+    } else if (j.settled === null) unsettled++;
     put('jobs', `jobs/${safeId(id)}`, j);
   }
 }
@@ -157,7 +165,7 @@ for (const [c, n] of [...counts].sort((a, b) => a[0].localeCompare(b[0]))) conso
 console.log(`  ${'(documents in all)'.padEnd(22)} ${writes.length}`);
 if (skipped.length) console.log(`Not copied: ${skipped.join(', ')}`);
 if (orphans) console.log(`Ledger rows of accounts that no longer exist (not copied): ${orphans}`);
-if (unsettled) console.log(`Jobs not yet settled: ${unsettled}. They are copied with hold: null; jobs.ts settles them, but gives credits back only through a hold, so check them by hand after the move (GET /v1/admin/users/<id>).`);
+if (unsettled) console.log(`Jobs not yet settled with no reserve row: ${unsettled}. They cannot be refunded automatically; check them by hand after the move (GET /v1/admin/users/<id>).`);
 if (!apply) { console.log('Nothing written. Add --apply to write.'); process.exit(0); }
 
 const require = createRequire(new URL('./functions/package.json', import.meta.url));
