@@ -140,6 +140,15 @@
     .chip button { border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 13px; padding: 0 3px; }
     .chips select { font: 500 11.5px var(--sans); color: #fff; background: #141826; border: 1px dashed var(--line); border-radius: 999px; padding: 4px 8px; }
     .chips .muted { color: var(--fg-2); font-size: 12px; }
+    .chip.on { background: rgba(168,85,247,.32); border-color: #c084fc; }
+    .chip .chip-name { font: inherit; font-size: 11.5px; padding: 0; }
+    .ab-form { display: grid; gap: 7px; padding: 10px; border-radius: 10px; background: rgba(168,85,247,.08); border: 1px solid rgba(168,85,247,.25); }
+    .ab-says { font: 12px var(--sans); color: var(--fg-2); }
+    .ab-row { display: grid; grid-template-columns: 1fr 1.3fr auto; align-items: center; gap: 8px; font: 12.5px var(--sans); color: #e5e7eb; }
+    .ab-row output { font: 11.5px var(--mono, monospace); color: var(--fg-2); min-width: 54px; text-align: right; }
+    .ab-row input[type=checkbox] { justify-self: start; }
+    .ab-row input:not([type=range]):not([type=checkbox]):not([type=color]), .ab-row select { grid-column: 2 / 4; font: 12.5px var(--sans); color: #fff; background: rgba(255,255,255,.05); border: 1px solid var(--line); border-radius: 7px; padding: 5px 7px; }
+    .ab-presets { display: flex; flex-wrap: wrap; gap: 5px; }
     .card-ask { display: flex; gap: 5px; margin: 10px 0 8px; padding: 4px; border-radius: 10px; background: rgba(74,158,255,.08); border: 1px solid rgba(74,158,255,.3); }
     .card-ask input { flex: 1; min-width: 0; border: 0; background: transparent; color: #fff; font: 13px var(--sans); padding: 5px 6px; outline: none; }
     .card-ask button { border: 0; border-radius: 7px; background: var(--accent); color: #fff; font: 600 12px var(--sans); padding: 6px 10px; cursor: pointer; }

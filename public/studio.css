@@ -53,6 +53,19 @@ body.studio input, body.studio textarea, body.studio .CodeMirror { -webkit-user-
 .msg .sugg button { font: 700 11px var(--display); letter-spacing: .08em; padding: 5px 9px; border: 0; background: linear-gradient(90deg, #4a9eff, #a855f7); color: #fff; cursor: pointer; }
 .msg .sugg button:disabled { opacity: .6; }
 .msg .sugg .sugg-link { font: 700 11px var(--display); letter-spacing: .08em; padding: 5px 9px; background: linear-gradient(90deg, #f2b33d, #ff7a45); color: #16130a; text-decoration: none; text-shadow: none; }
+/* Cards above the chat (editor.js chatCards): what to act on, apart from the conversation, each with ×. */
+.st-chat-cards { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: 8px; pointer-events: none; }
+.chat-card { pointer-events: auto; display: flex; align-items: center; gap: 8px; max-width: 100%; padding: 6px 6px 6px 12px; border-radius: 12px; background: rgba(6,10,20,.85); border: 1px solid rgba(242,179,61,.5); box-shadow: 0 6px 18px rgba(0,0,0,.35); color: #eef3ff; font: 600 13px/1.3 var(--hud); animation: chat-card-in .25s ease-out; }
+.chat-card .sugg { margin: 0; box-shadow: none; background: none; padding: 0; clip-path: none; display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.chat-card .sugg button { font: 700 11px var(--display); letter-spacing: .08em; padding: 6px 10px; border: 0; border-radius: 8px; background: linear-gradient(90deg, #4a9eff, #a855f7); color: #fff; cursor: pointer; }
+.chat-card .sugg button:disabled { opacity: .6; }
+.chat-card .sugg-link { font: 700 11px var(--display); letter-spacing: .08em; padding: 6px 10px; border-radius: 8px; background: linear-gradient(90deg, #f2b33d, #ff7a45); color: #16130a; text-decoration: none; }
+.chat-card .sugg-pick { width: 34px; height: 34px; padding: 0 !important; background: rgba(255,255,255,.08) !important; border-radius: 8px; overflow: hidden; }
+.chat-card .sugg-pick img { width: 100%; height: 100%; object-fit: cover; }
+.chat-card-words { opacity: .85; }
+.chat-card-x { flex: none; width: 26px; height: 26px; border: 0; border-radius: 50%; background: rgba(255,255,255,.08); color: #cfe8ff; font: 700 15px/1 system-ui; cursor: pointer; padding: 0; }
+.chat-card-x:hover { background: rgba(255,255,255,.18); }
+@keyframes chat-card-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .msg.new { animation: msg-in .3s ease both; }
 @keyframes msg-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .st-chat-status { font: 700 11px var(--display); letter-spacing: .2em; text-transform: uppercase; color: #7cc8ff; text-shadow: 0 0 10px rgba(74,158,255,.8); text-align: center; }

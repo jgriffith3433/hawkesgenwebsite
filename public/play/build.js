@@ -617,6 +617,28 @@
     toParent({ type: 'selected', entity: null });
     $('hudLeader').classList.remove('on');
   }
+  /** The settings of one ability on the card (its settings description: H.abilities), and its presets. */
+  function abilityForm(raw) {
+    const b = typeof raw === 'string' ? { use: raw } : raw || {};
+    const name = b.use || b.type;
+    const def = H.behaviorDef(name);
+    if (!def) return '';
+    const sets = H.abilities ? H.abilities.settingsOf(name) : [];
+    const val = (k) => (b[k] !== undefined ? b[k] : (def.defaults || {})[k]);
+    const row = (s) => {
+      const v = val(s.key), id = `ab-${s.key}`;
+      const input = s.type === 'number' ? `<input id="${id}" data-ab="${esc(s.key)}" data-t="number" type="range" min="${s.min ?? 0}" max="${s.max ?? 100}" step="${s.step ?? 1}" value="${Number(v) || 0}"><output>${esc(String(v ?? ''))}${s.unit ? ` ${esc(s.unit)}` : ''}</output>`
+        : s.type === 'bool' ? `<input id="${id}" data-ab="${esc(s.key)}" data-t="bool" type="checkbox" ${v ? 'checked' : ''}>`
+        : s.type === 'choice' ? `<select id="${id}" data-ab="${esc(s.key)}" data-t="choice">${(s.options || []).map(([ov, ot]) => `<option value="${esc(ov)}" ${String(v) === String(ov) ? 'selected' : ''}>${esc(ot)}</option>`).join('')}</select>`
+        : s.type === 'color' ? `<input id="${id}" data-ab="${esc(s.key)}" data-t="text" type="color" value="${/^#[0-9a-f]{6}$/i.test(v) ? v : '#4a9eff'}">`
+        : s.type === 'thing' ? `<input id="${id}" data-ab="${esc(s.key)}" data-t="thing" list="ab-things" value="${esc(Array.isArray(v) ? v.join(', ') : v ?? '')}"><datalist id="ab-things">${Object.values(W().graph.entities).filter((x) => x.name).slice(0, 80).map((x) => `<option value="${esc(x.name)}">`).join('')}</datalist>`
+        : `<input id="${id}" data-ab="${esc(s.key)}" data-t="text" value="${esc(v ?? '')}">`;
+      return `<label class="ab-row" for="${id}"><span>${esc(s.label)}</span>${input}</label>`;
+    };
+    const presets = def.presets ? `<div class="ab-presets">${Object.entries(def.presets).map(([n, o]) => `<button type="button" class="card-btn" data-preset="${esc(JSON.stringify(o))}">${esc(n)}</button>`).join('')}</div>` : '';
+    return `<div class="card-row ab-form"><label>${esc(def.title)}</label><div class="ab-says">${esc(def.says ? def.says({ ...(def.defaults || {}), ...b }) : '')}</div>${presets}${sets.map(row).join('') || '<div class="muted">Nothing to set.</div>'}</div>`;
+  }
+
   function renderCard() {
     const { e, el } = popup;
     const spec = specOf(e) || {};
@@ -624,8 +646,14 @@
     const motionChoices = editorOf(e.kind).motion || [['static', 'Stays put'], ['dynamic', 'Falls & throws'], ['kinematic', 'Moves itself'], ['none', 'Walk-through']];
     const isLight = e.kind === 'light';
     const color = isLight ? (spec.light && spec.light.color) || '#ffffff' : (spec.material && spec.material.color) || e.color || '#cccccc';
-    const behaviors = (spec.behaviors || []).map((b, i) => { const name = typeof b === 'string' ? b : b.use || b.type; const def = H.behaviorDef(name); return `<span class="chip" title="${esc(def && def.says ? def.says({ ...(def.defaults || {}), ...b }) : name)}">${esc(def ? def.title : name)}<button type="button" data-unb="${i}" aria-label="Remove">×</button></span>`; }).join('');
-    const menu = (H.behaviorMenu || []).map(([k, t]) => `<option value="${k}">${esc(t)}</option>`).join('');
+    const behaviors = (spec.behaviors || []).map((b, i) => { const name = typeof b === 'string' ? b : b.use || b.type; const def = H.behaviorDef(name); return `<span class="chip${popup.editing === i ? ' on' : ''}" title="${esc(def && def.says ? def.says({ ...(def.defaults || {}), ...b }) : name)}"><button type="button" class="chip-name" data-edb="${i}" title="Its settings">${esc(def ? `${def.icon ? `${def.icon} ` : ''}${def.title}` : name)}</button><button type="button" data-unb="${i}" aria-label="Remove">×</button></span>`; }).join('');
+    // Every ability, grouped (abilities module: H.abilities), else the plain list.
+    const groups = new Map();
+    for (const a of H.abilities ? H.abilities.list() : (H.behaviorMenu || []).map(([name, title]) => ({ name, title, group: 'More', icon: '' }))) { if (!groups.has(a.group)) groups.set(a.group, []); groups.get(a.group).push(a); }
+    const ORDER = ['Riding', 'Hands', 'Moving you', 'Signals', 'Games', 'Motion', 'Physics', 'Looks', 'Talking', 'Sound'];
+    const rank = (g) => (ORDER.includes(g) ? ORDER.indexOf(g) : ORDER.length);
+    const menu = [...groups].sort((a, b) => rank(a[0]) - rank(b[0])).map(([g, list]) => `<optgroup label="${esc(g)}">${list.map((a) => `<option value="${esc(a.name)}">${esc(`${a.icon ? `${a.icon} ` : ''}${a.title}`)}</option>`).join('')}</optgroup>`).join('');
+    const editing = Number.isInteger(popup.editing) && (spec.behaviors || [])[popup.editing] ? abilityForm(spec.behaviors[popup.editing]) : '';
     if (!popup.full) return renderSimple(e, el, spec, isLight, color);
     el.className = 'card';
     const scaleNow = e.node.scaling.x / (popup.scale0.x || 1);
@@ -645,7 +673,7 @@
       ${e.physics === 'dynamic' ? `<div class="card-row"><label>Bounciness</label><input type="range" id="cBounce" min="0" max="0.95" step="0.05" value="${(spec.body && spec.body.bounce) || 0}"></div>` : ''}
       ${!isLight && e.kind !== 'spawn' ? `<div class="card-row"><label>Turn</label><input type="range" id="cTurn" min="-180" max="180" step="5" value="${Math.round(((e.rotation % 360) + 540) % 360 - 180)}"></div>` : ''}
       ${e.kind === 'text' ? `<div class="card-row"><label>Words</label><input class="card-in" id="cText" value="${esc((spec.shape && spec.shape.text) || '')}"></div>` : ''}
-      ${e.kind !== 'spawn' ? `<div class="card-row"><label>What it does</label><div class="chips">${behaviors || '<span class="muted">Nothing on its own yet</span>'}<select id="cAdd" aria-label="Add a behavior"><option value="">+ Add…</option>${menu}</select></div></div>` : ''}
+      ${e.kind !== 'spawn' ? `<div class="card-row"><label>What it does</label><div class="chips">${behaviors || '<span class="muted">Nothing on its own yet</span>'}<select id="cAdd" aria-label="Add an ability"><option value="">+ Ability…</option>${menu}</select></div></div>${editing}` : ''}
       </div>` : ''}
       ${kindCardButton(e)}
       <div class="card-foot">
@@ -689,13 +717,22 @@
     if (bright) bright.onchange = () => { update(e, { light: { intensity: Number(bright.value) } }, 'brightness'); refresh(); };
     const txt = q('cText');
     if (txt) txt.onchange = () => { update(e, { shape: { text: txt.value.slice(0, 200) } }, 'the words'); refresh(); };
-    for (const b of el.querySelectorAll('[data-unb]')) b.onclick = () => { const list = clone(spec.behaviors || []); list.splice(Number(b.dataset.unb), 1); update(e, { behaviors: list }, 'what it does'); refresh(); };
+    for (const b of el.querySelectorAll('[data-unb]')) b.onclick = () => { const list = clone(spec.behaviors || []); list.splice(Number(b.dataset.unb), 1); popup.editing = null; update(e, { behaviors: list }, 'what it does'); refresh(); };
+    for (const b of el.querySelectorAll('[data-edb]')) b.onclick = () => { const i = Number(b.dataset.edb); popup.editing = popup.editing === i ? null : i; renderCard(); };
+    // An ability's settings: each control changes that one option (saved, undoable); a preset sets several at once.
+    const setAbility = (patchOpts) => { const list = clone(spec.behaviors || []); const i = popup.editing; const cur = typeof list[i] === 'string' ? { use: list[i] } : list[i]; list[i] = { ...cur, ...patchOpts }; update(e, { behaviors: list }, 'its settings'); refresh(); };
+    for (const inp of el.querySelectorAll('[data-ab]')) inp.onchange = () => { const k = inp.dataset.ab, t = inp.dataset.t; const v = t === 'number' ? Number(inp.value) : t === 'bool' ? inp.checked : t === 'thing' && /^-?[\d.]+\s*,\s*-?[\d.]+\s*,\s*-?[\d.]+$/.test(inp.value) ? inp.value.split(',').map(Number) : inp.value; setAbility({ [k]: v }); };
+    for (const p of el.querySelectorAll('[data-preset]')) p.onclick = () => { try { setAbility(JSON.parse(p.dataset.preset)); } catch { /* not a preset */ } };
     const add = q('cAdd');
     if (add) add.onchange = () => {
       if (!add.value) return;
       const list = clone(spec.behaviors || []);
       list.push({ use: add.value });
+      popup.editing = list.length - 1; // (its settings open at once)
       const patch = { behaviors: list };
+      // Riding or carrying moves it: a thing that never moves would stay put under you.
+      if (['drivable', 'flyable'].includes(add.value) && e.physics === 'static') patch.physics = 'kinematic';
+      if (add.value === 'holdable' && e.physics !== 'dynamic') patch.physics = 'dynamic';
       // Some behaviors need the thing to move: say so with a sensible change, not an error.
       if (['hop', 'bouncy'].includes(add.value) && e.physics !== 'dynamic') patch.physics = 'dynamic';
       if (add.value === 'collectible' && e.physics === 'dynamic') patch.physics = 'static';

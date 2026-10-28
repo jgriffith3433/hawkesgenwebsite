@@ -302,6 +302,8 @@
   defineCondition('var', (c, ctx) => compare(getVar(c.var, ctx.who, c), c));
   defineCondition('count', (c, ctx) => compare(things(c.count, ctx).length, c));
   defineCondition('chance', (c) => Math.random() < num(c.chance, 0.5));
+  // A signal is on (or off: "off": true).
+  defineCondition('signal', (c) => Boolean(H.signals && H.signals.get(c.signal)) === !c.off);
   defineCondition('who', (c, ctx) => {
     const w = lower(c.who), who = ctx.who || meWho();
     if (w === 'any' || w === 'anyone') return true;
@@ -355,6 +357,8 @@
     }
     if (typeof t !== 'object') return null;
     if (t.type) return { ...t, type: lower(t.type) === 'on' ? 'event' : lower(t.type) };
+    // A signal (abilities: buttons, levers, plates; H.signals): when it turns on (or off: "off": true; any change: "any": true).
+    if (typeof t.signal === 'string') return { type: 'event', event: 'signal', where: { name: t.signal, ...(t.any ? {} : { on: !t.off }) } };
     for (const k of TRIGGERS) if (k in t) {
       if (k === 'on') return { ...t, type: 'event', event: t.on };
       if (k === 'quest') return { ...t, type: 'event', event: 'quest', where: { ...(t.where || {}), id: t.quest, ...(t.is || t.state ? { state: t.is || t.state } : {}), ...(t.step ? { step: t.step } : {}) } };
@@ -978,6 +982,17 @@
   });
   defineAction('sound', { scope: toPlayer, run(a) { playSound(a.sound === true ? 'chime' : a.sound, a); } });
   defineAction('music', { scope: 'all', run(a) { const g = G(); if (!a.music) { g.stopMusic(); return; } const n = String(a.music); const asset = ASSET_EXT.map((x) => n + x).find((x) => g.hasAsset(x)); if (asset) g.music(asset, { volume: num(a.volume, 0.5) }); } });
+  // Signals (abilities module): { "signal": "gate" } turns it on, "to": "off" | "toggle", "seconds": 2 a pulse.
+  defineAction('signal', {
+    scope: 'host',
+    run(a) {
+      if (!H.signals || !a.signal) return;
+      const to = a.to ?? a.set ?? 'on';
+      if (to === 'toggle') H.signals.toggle(a.signal);
+      else if (a.seconds || to === 'pulse') H.signals.pulse(a.signal, num(a.seconds, 1));
+      else H.signals.set(a.signal, !(to === 'off' || to === false));
+    },
+  });
   defineAction('say', {
     scope: 'all', text: ['say'],
     run(a, ctx) {

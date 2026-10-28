@@ -31,6 +31,7 @@
     { id: 'tools', name: 'Tools', icon: '🛠' },
     { id: 'world', name: 'World', icon: '🌍' },
     { id: 'effects', name: 'Effects', icon: '✨' },
+    { id: 'kits', name: 'Play kits', icon: '🎲' },
     { id: 'game', name: 'This game', icon: '🎮' },
   ];
   const PSEUDO = { recent: { id: 'recent', name: 'Recent', icon: '🕘' }, favorites: { id: 'favorites', name: 'Favorites', icon: '★' } };
@@ -57,7 +58,7 @@
   // Kinds the wheel doesn't offer as such: they need an asset (the game's own and the library's come as those),
   // they're another word for one that is, or they're offered another way (animals by species, tools as pickups).
   const KIND_ICON = { car: '🚗', truck: '🛻', motorbike: '🏍', bicycle: '🚲', boat: '🚤', submarine: '⚓', airplane: '✈', helicopter: '🚁', rocket: '🚀', spaceship: '🛸', table: '🍽', desk: '🖥', shelf: '📚', plant: '🪴', rug: '🟫', fridge: '🧊', cupboard: '🗄', switch: '🔘', sink: '🚰', bathtub: '🛁', shower: '🚿', toilet: '🚽', oven: '🍳', clock: '🕰', piano: '🎹', computer: '💻', projector: '📽', cctv: '📹', radio: '📻', remote: '🎛', phone: '📱', wall: '🧱', cone: '🔺', capsule: '💊', torus: '⭕', plane: '▭', mirror: '🪞', trigger: '▢' };
-  const CAT_ICON = { 'vehicles:road': '🚙', 'vehicles:water': '🚤', 'vehicles:air': '✈', 'vehicles:models': '◆', 'living:farm': '🐄', 'living:pets': '🐕', 'living:wild': '🦁', 'living:birds': '🦜', 'living:water': '🐟', 'living:people': '🧍', 'living:strange': '🦖', 'living:herds': '🐑', 'things:shapes': '🔷', 'things:mayhem': '🛢', 'things:furniture': '🛋', 'things:kitchen': '🛁', 'things:screens': '📺', 'things:signs': '💡', 'things:game': '🏁', 'nature:plants': '🌳', 'nature:rocks': '🪨', 'buildings:houses': '🏠', 'buildings:walls': '🚪', 'tools:mayhem': '🚀', 'tools:weapons': '🔫', 'tools:outdoors': '🎣', 'world:terrain': '⛰', 'world:land': '🏝', 'world:water': '🌊', 'world:weather': '⛈', 'world:disasters': '🌪', 'world:skies': '🌅', 'effects:boom': '💥', 'effects:sparkle': '🎆', 'effects:time': '🐢', 'effects:music': '♫', 'effects:sounds': '♪', 'game:models': '◆', 'game:pictures': '🖼', 'game:sounds': '♪', 'game:videos': '▶' };
+  const CAT_ICON = { 'kits:play': '🎲', 'vehicles:road': '🚙', 'vehicles:water': '🚤', 'vehicles:air': '✈', 'vehicles:models': '◆', 'living:farm': '🐄', 'living:pets': '🐕', 'living:wild': '🦁', 'living:birds': '🦜', 'living:water': '🐟', 'living:people': '🧍', 'living:strange': '🦖', 'living:herds': '🐑', 'things:shapes': '🔷', 'things:mayhem': '🛢', 'things:furniture': '🛋', 'things:kitchen': '🛁', 'things:screens': '📺', 'things:signs': '💡', 'things:game': '🏁', 'nature:plants': '🌳', 'nature:rocks': '🪨', 'buildings:houses': '🏠', 'buildings:walls': '🚪', 'tools:mayhem': '🚀', 'tools:weapons': '🔫', 'tools:outdoors': '🎣', 'world:terrain': '⛰', 'world:land': '🏝', 'world:water': '🌊', 'world:weather': '⛈', 'world:disasters': '🌪', 'world:skies': '🌅', 'effects:boom': '💥', 'effects:sparkle': '🎆', 'effects:time': '🐢', 'effects:music': '♫', 'effects:sounds': '♪', 'game:models': '◆', 'game:pictures': '🖼', 'game:sounds': '♪', 'game:videos': '▶' };
   S.CAT_ICON = CAT_ICON;
   const SKIP = new Set(['model', 'sprite', 'video', 'vehicle', 'critter', 'creature', 'tool-pickup']);
   const GROUP_TYPE = [[/vehicle/i, 'vehicles'], [/living|animal|creature|people|person/i, 'living'], [/nature|plant|tree|rock/i, 'nature'], [/home|house|building|room/i, 'buildings'], [/tool|weapon/i, 'tools'], [/world|terrain|water|weather|sky/i, 'world'], [/effect|particle|fx/i, 'effects']];
@@ -189,6 +190,8 @@
       if (!k.maker && !ex) continue;
       addItem(out, { id: `kind:${k.name}`, type, cat, catName, name: cap(word), icon: KIND_ICON[k.name] || (TYPES.find((t) => t.id === type) || {}).icon || '▣', words: [word, k.name], source: 'kind', kind: k.name, make: () => { const s = ex ? clone(ex) : { type: k.name }; delete s.transform; delete s.id; if (!s.name) s.name = cap(word); return s; }, floats: k.name === 'boat' || k.name === 'submarine' });
     }
+    // Play kits (abilities module: H.kits): ready-made bits of play, a few things with their abilities.
+    if (H.kits) for (const k of H.kits.items()) addItem(out, k);
     // Animals and people: every species Living things knows (and the other words it draws).
     if (H.living && H.living.species && H.kinds.has('creature')) {
       const names = [...H.living.species.list(), ...(H.living.species.looks ? H.living.species.looks() : [])];
