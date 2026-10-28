@@ -48,7 +48,7 @@ export function createBridge({ run, warn = (t) => console.warn(t), now = () => D
  *  '//' or '/\\', which a browser reads as another host) or an https page of ours is a link; anything else (another
  *  site, javascript:, data:) is shown as plain text. `origins` adds this page's own origin (the beta host). Returns the
  *  link to use, or null. The game side has the same rule (play/modules/overseer/chat.js `safeHref`). */
-export const OWN_ORIGINS = ['https://hawkesgen.com', 'https://www.hawkesgen.com'];
+export const OWN_ORIGINS = ['https://hawkesgen.ai', 'https://www.hawkesgen.ai'];
 export function safeHref(href, origins = []) {
   const s = String(href ?? '').trim();
   if (!s || /[\u0000-\u001f\u007f\\]/.test(s)) return null;

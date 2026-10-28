@@ -498,7 +498,7 @@ Spending credits and acting on the account belong to the person, in the editor (
   editor hands it to the window it opened when that says `ready` (`share-done {url}` goes back). `share-open` is limited to 2 a
   second. A sandboxed page played on its own has no page around it and says sharing works from the editor.
 - **Links are ours or plain text.** A chat line's `action.href` (editor.js, chat.js) is a link only if `safeHref`
-  (editor-bridge.js) accepts it: a path with one `/`, or https on hawkesgen.com / this page's origin. Anything else is shown as text.
+  (editor-bridge.js) accepts it: a path with one `/`, or https on hawkesgen.ai / this page's origin. Anything else is shown as text.
 - **The page's policy.** A game page carries a Content-Security-Policy beside its sandbox (`src/server.ts playCsp`, hosts in
   `PLAY_HOSTS`): a script's `fetch` to a site not listed is refused. Add a host there when the engine starts using one
   (test `test/play-csp.test.ts` finds engine files that name one that is not listed). Inline scripts of play.html get a nonce per load.

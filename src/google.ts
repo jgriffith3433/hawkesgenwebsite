@@ -21,8 +21,8 @@ export const googleEnabled = () => Boolean(env('GOOGLE_CLIENT_ID') && env('GOOGL
 const redirectUri = () => `${publicUrl()}/auth/google/callback`;
 /** Only our own pages: a path, never another site. */
 const safeNext = (n: unknown) => (typeof n === 'string' && /^\/(?!\/)[^\s\\]*$/.test(n) ? n : '/app');
-/** The Hawkes Net dashboard (net.hawkesgen.com): a sign-in that started there (next=/net/back) ends there, a problem too. */
-const netDashboard = () => (env('PORTAL_NET_DASHBOARD') ?? 'https://net.hawkesgen.com').replace(/\/+$/, '');
+/** The Hawkes Net dashboard (net.hawkesgen.ai): a sign-in that started there (next=/net/back) ends there, a problem too. */
+const netDashboard = () => (env('PORTAL_NET_DASHBOARD') ?? 'https://net.hawkesgen.ai').replace(/\/+$/, '');
 const FROM_NET = '/net/back';
 /** Where a sign-in problem is shown: the page it started from (the Net dashboard, or the landing page's dialog). */
 export function problemPage(next: unknown, q: string) { return safeNext(next) === FROM_NET ? `${netDashboard()}/?${q}` : `/?${q}`; }
@@ -83,11 +83,11 @@ export async function callback(req: IncomingMessage, res: ServerResponse, q: URL
   const t: any = await r.json().catch(() => ({}));
   if (!r.ok) throw new PortalError(`Google said no: ${t.error_description ?? t.error ?? r.status}`);
   const user = await accountFor(checkClaims(t.id_token, env('GOOGLE_CLIENT_ID')!), ip, originOf(req));
-  if (user.disabled) throw new PortalError('This account is disabled. Contact support@hawkesgen.com.', { status: 403 });
+  if (user.disabled) throw new PortalError('This account is disabled. Contact support@hawkesgen.ai.', { status: 403 });
   db.prepare('UPDATE users SET last_login = ? WHERE id = ?').run(Date.now(), user.id);
   setSessionCookie(res, req, createSession(user.id));
   // Where it started: the home page's sign-in goes to /app (everyone, admins too: Admin is a button there), the Net
-  // dashboard's back to net.hawkesgen.com (/net/back), the sandbox's popup closes itself.
+  // dashboard's back to net.hawkesgen.ai (/net/back), the sandbox's popup closes itself.
   const next = saved.n;
   res.setHeader('Set-Cookie', [res.getHeader('Set-Cookie') as string, `${COOKIE}=; HttpOnly; SameSite=Lax; Path=/auth/google; Max-Age=0`]);
   res.writeHead(302, { Location: next }).end();

@@ -26,7 +26,7 @@
     if (s[0] === '/') return s[1] === '/' ? null : s;
     try {
       const u = new URL(s);
-      const own = ['https://hawkesgen.com', 'https://www.hawkesgen.com', location.protocol + '//' + location.host];
+      const own = ['https://hawkesgen.ai', 'https://www.hawkesgen.ai', location.protocol + '//' + location.host];
       return u.protocol === 'https:' && own.includes(u.origin) ? u.href : null;
     } catch { return null; }
   }

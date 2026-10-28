@@ -164,7 +164,7 @@ const SCENARIOS = [
 const onSandbox = () => /^\/play\/sandbox\/?$/.test(location.pathname);
 const onGame = () => /^\/play\/t\/[a-z0-9-]+\/?$/.test(location.pathname) && /[?&]from=observatory\b/.test(location.search);
 const onEditor = () => /^\/app\/g\/g_[0-9a-f]+\/?$/.test(location.pathname);
-const isLive = () => /^(www\.)?hawkesgen\.com$/.test(location.hostname);
+const isLive = () => /^(www\.)?hawkesgen\.ai$/.test(location.hostname);
 const HP = () => window.HawkesPlay;
 const W = () => HP() && HP().world;
 const G = () => HP() && HP().game;
@@ -331,9 +331,9 @@ function checkSelfHosted(t) {
   else t.event('engine-self-hosted', `${own.length} files from /vendor, ${Math.round(bytes / 1024)} KB over the wire (${own.filter((e) => e.transferSize === 0).length} from cache)`);
   t.metric('vendorKB', Math.round(bytes / 1024));
   // Models, textures and sounds: from Gen's CDN when it has them backed up, else through this site (/play-asset, /v1/community).
-  const fromCdn = urls.filter((e) => /^https:\/\/cdn\.hawkesgen\.com\/sha256\//.test(e.name));
+  const fromCdn = urls.filter((e) => /^https:\/\/cdn\.hawkesgen\.ai\/sha256\//.test(e.name));
   const viaSite = urls.filter((e) => /\/(play-asset\/|v1\/community\/a_)/.test(e.name));
-  t.event('asset-sources', `${fromCdn.length} files from cdn.hawkesgen.com, ${viaSite.length} through the site (not backed up yet, or Gen's CDN is off)`);
+  t.event('asset-sources', `${fromCdn.length} files from cdn.hawkesgen.ai, ${viaSite.length} through the site (not backed up yet, or Gen's CDN is off)`);
   t.metric('assetsFromCdn', fromCdn.length);
   t.metric('assetsViaSite', viaSite.length);
 }

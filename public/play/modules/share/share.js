@@ -348,13 +348,13 @@
       g.fillStyle = '#2b2b2b'; g.font = `600 ${Math.round(foot * 0.36)}px Rajdhani, Inter, sans-serif`; g.textBaseline = 'middle';
       g.fillText(title || 'Hawkes Play', pad, pad * 2 + src.height + foot / 2 - pad / 2);
       g.textAlign = 'right'; g.fillStyle = '#8a8a8a'; g.font = `500 ${Math.round(foot * 0.24)}px Rajdhani, Inter, sans-serif`;
-      g.fillText('hawkesgen.com', c.width - pad, pad * 2 + src.height + foot / 2 - pad / 2);
+      g.fillText('hawkesgen.ai', c.width - pad, pad * 2 + src.height + foot / 2 - pad / 2);
     } else if (title) {
       const s = Math.max(12, Math.round(src.width * 0.014));
       g.font = `600 ${s}px Rajdhani, Inter, sans-serif`; g.textAlign = 'right'; g.textBaseline = 'bottom';
       g.shadowColor = 'rgba(0,0,0,.7)'; g.shadowBlur = s / 2; g.fillStyle = 'rgba(255,255,255,.82)';
       const lb = frame === 'letterbox' || o.letterbox ? M.letterbox(src.width, src.height, o.aspect || box.aspect) : 0;
-      g.fillText(`${title} · hawkesgen.com`, pad + src.width - s, pad + src.height - lb - s * 0.7);
+      g.fillText(`${title} · hawkesgen.ai`, pad + src.width - s, pad + src.height - lb - s * 0.7);
     }
     return c;
   };

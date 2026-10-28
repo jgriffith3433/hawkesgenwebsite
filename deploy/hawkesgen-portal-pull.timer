@@ -1,5 +1,5 @@
 [Unit]
-Description=hawkesgen.com portal: check for a new main every 2 minutes
+Description=hawkesgen.ai portal: check for a new main every 2 minutes
 
 [Timer]
 OnBootSec=1min

@@ -1,5 +1,5 @@
 [Unit]
-Description=hawkesgen.com portal: back up portal.db (hourly; the day's first copy goes to S3 when PORTAL_BACKUP_BUCKET is set)
+Description=hawkesgen.ai portal: back up portal.db (hourly; the day's first copy goes to S3 when PORTAL_BACKUP_BUCKET is set)
 After=network-online.target
 
 [Service]

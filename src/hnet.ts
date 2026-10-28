@@ -1,8 +1,8 @@
 // Hawkes Net for the games here (hawkesgen docs/net.md): the engine's rooms run on the Hawkes Net service
-// (https://net.hawkesgen.com, its own box: tickets, rooms and the relay), not in this process. This file
+// (https://net.hawkesgen.ai, its own box: tickets, rooms and the relay), not in this process. This file
 // hands out tickets for them (the game pages are sandboxed and hold no keys, so they ask here and the portal asks the
 // service with its Gen key, which the service checks with Gen), sends the world edits this server saves into the rooms,
-// and says whether an invitation's room is open. PORTAL_NET_URL names the service (default https://net.hawkesgen.com).
+// and says whether an invitation's room is open. PORTAL_NET_URL names the service (default https://net.hawkesgen.ai).
 //
 // Room names (one Hawkes Net project, "hawkesgenwebsite"):
 //   g/<gameId>/edit          the game's members in the editor (a signed edit token from /bundle)
@@ -27,7 +27,7 @@ const ticketsByIp = new Limiter(40, 60_000);
 const customerTickets = new Limiter(600, 60_000);
 
 /** The Hawkes Net service: tickets, room info and publish go here (not through Gen, which only checks the key). */
-export const netUrl = () => (env('PORTAL_NET_URL') ?? 'https://net.hawkesgen.com').replace(/\/+$/, '');
+export const netUrl = () => (env('PORTAL_NET_URL') ?? 'https://net.hawkesgen.ai').replace(/\/+$/, '');
 async function netFetch(route: string, o: GenCall = {}) {
   return fetch(`${netUrl()}${route}`, {
     method: o.method ?? (o.body !== undefined ? 'POST' : 'GET'),
@@ -64,7 +64,7 @@ export async function netUp(): Promise<boolean> {
 export const netUpCached = () => (env('PORTAL_NET') === 'hawkesnet' ? true : env('PORTAL_NET') === 'local' ? false : state.up);
 
 /** What a game page must be allowed to reach (its Content-Security-Policy): the Hawkes Net service's sockets, plus any
- *  other relay boxes named in PORTAL_NET_HOSTS (wss://net2.hawkesgen.com,...). */
+ *  other relay boxes named in PORTAL_NET_HOSTS (wss://net2.hawkesgen.ai,...). */
 export function netHosts(): string[] {
   const g = new URL(netUrl());
   const own = `${g.protocol === 'https:' ? 'wss' : 'ws'}://${g.host}`;
@@ -117,7 +117,7 @@ export async function ticket(body: any, ip: string) {
       if (!info.open) throw new PortalError('This island is closed', { status: 409 });
     }
     name = clean(body?.name) || null;
-    // Every room on the relay (J, 2026-10-26: peer to peer is not the default): it shows on net.hawkesgen.com with its
+    // Every room on the relay (J, 2026-10-26: peer to peer is not the default): it shows on net.hawkesgen.ai with its
     // players, and nobody's connection depends on another player's.
     transport = 'relay';
   }
@@ -127,7 +127,7 @@ export async function ticket(body: any, ip: string) {
 
 /**
  * A customer's own game (POST /v1/net/rooms/ticket with their API key, from their game's server): a ticket for a room in
- * one of their Hawkes Net projects (`project`, made on net.hawkesgen.com), so nobody else's game can join it. The portal's
+ * one of their Hawkes Net projects (`project`, made on net.hawkesgen.ai), so nobody else's game can join it. The portal's
  * key narrowed to their account: the service gives tickets only for the account's own projects. Their server hands the
  * ticket to the player's page, which passes it to join().
  */
@@ -137,7 +137,7 @@ export async function customerTicket(user: User, body: any) {
   if (user.role !== 'admin' && !paid(user.id)) throw new PortalError('Hawkes Net for your own games needs an account that has bought credits or a plan', { status: 402 });
   customerTickets.take(user.id, 'Too many tickets a minute for this account');
   const project = String(body?.project ?? '');
-  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(project)) throw new PortalError('project is your Hawkes Net project id (net.hawkesgen.com)');
+  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(project)) throw new PortalError('project is your Hawkes Net project id (net.hawkesgen.ai)');
   const room = String(body?.room ?? '');
   if (!/^[a-z0-9][a-z0-9/_.-]{0,63}$/i.test(room)) throw new PortalError('room is 1 to 64 of letters, digits and / _ . -');
   const transport = ['auto', 'p2p', 'relay'].includes(body?.transport) ? body.transport : 'relay';
@@ -150,7 +150,7 @@ export async function customerTicket(user: User, body: any) {
 const paid = (userId: string) => !!db.prepare("SELECT 1 FROM credit_ledger WHERE user_id = ? AND kind IN ('stripe_purchase', 'subscription_credits') LIMIT 1").get(userId);
 
 /**
- * Hawkes Net projects (the net.hawkesgen.com dashboard, docs/net.md "Projects and accounts"): every account has its own,
+ * Hawkes Net projects (the net.hawkesgen.ai dashboard, docs/net.md "Projects and accounts"): every account has its own,
  * kept by the Hawkes Net service. The portal is the account system: it asks the service with its key and names the
  * signed-in account (`owner`, its Gen project), whether it is an admin (an admin also sees Hawkes's own games to take)
  * and its tier (paid or free: a free account's projects build and test, with small rooms; sites and server tickets need a

@@ -2,7 +2,7 @@
   "name": "hawkesgen-portal-cloud",
   "private": true,
   "type": "module",
-  "description": "hawkesgen.com on Google Cloud: the portal's API as Cloud Functions over Firestore and Firebase Auth (docs/cloud.md).",
+  "description": "hawkesgen.ai on Google Cloud: the portal's API as Cloud Functions over Firestore and Firebase Auth (docs/cloud.md).",
   "main": "src/index.ts",
   "engines": {
     "node": "24"

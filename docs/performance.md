@@ -30,7 +30,7 @@ load times, phone support, frames per second, RAM.
 ## Pinned libraries on our own address (2026-10-25)
 
 Babylon, its loaders, Havok (and its wasm), the monitor's Inspector, CodeMirror, marked and model-viewer used to load
-from jsDelivr, cdnjs and unpkg with no integrity hashes: a compromised CDN would have run code on hawkesgen.com or in
+from jsDelivr, cdnjs and unpkg with no integrity hashes: a compromised CDN would have run code on hawkesgen.ai or in
 every game. They now live in `public/vendor/<name>@<version>/` with their licenses, each with a `.br` and a `.gz` beside
 it. `src/vendor.ts` serves the best one the browser accepts (`Content-Encoding`, `Vary: Accept-Encoding`), `immutable`
 for a year (the version is in the path), open CORS (the play page has no origin), Havok's wasm as `application/wasm`.
@@ -185,7 +185,7 @@ more avatars). Before this, `PORTAL_WS_MAX` stood at 3,000 sockets, five times w
 
 **Beta** runs on the studio's control server next to Gen and Studio, so the tool refuses more than 200 players against any
 address but this machine's:
-`node tools/crowd.mjs --url https://hawkesgenwebsite.hawkesgen.com --cookie '<studio session cookie>' --levels 50,100,200`
+`node tools/crowd.mjs --url https://hawkesgenwebsite.hawkesgen.ai --cookie '<studio session cookie>' --levels 50,100,200`
 (everyone then arrives from one address, so the per-address caps (12 sockets, 30 new a minute) refuse most of them and are
 reported as refused; `PORTAL_WS_PER_IP` and `PORTAL_WS_PER_MIN` would have to be raised on a test portal to measure more).
 

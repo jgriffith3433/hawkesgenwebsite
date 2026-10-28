@@ -14,7 +14,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 process.env.PORTAL_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'portal-vendor-'));
 process.env.HAWKESGEN_URL = 'http://127.0.0.1:9';
 process.env.HAWKESGEN_KEY = 'hg_test';
-process.env.PUBLIC_URL = 'https://hawkesgen.com';
+process.env.PUBLIC_URL = 'https://hawkesgen.ai';
 
 const { handle } = await import('../src/server.ts');
 const portal = http.createServer((req, res) => void handle(req, res));

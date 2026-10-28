@@ -1,22 +1,22 @@
-// Email from support@hawkesgen.com through Resend (resend.com). On only where PORTAL_MAIL=resend (live); staging sends
+// Email from support@hawkesgen.ai through Resend (resend.com). On only where PORTAL_MAIL=resend (live); staging sends
 // nothing. Sending never blocks or breaks what triggered it: a failure is logged. The welcome, gift and low-balance
 // emails are the old box's, unchanged (src/mail.ts); password resets are gone with passwords.
 import { env, publicUrl, SECRETS } from './config.ts';
 
-const FROM = 'Hawkes Gen <support@hawkesgen.com>';
+const FROM = 'Hawkes Gen <support@hawkesgen.ai>';
 export const mailOn = () => env('PORTAL_MAIL') === 'resend';
 
 export async function sendEmail(to: string, subject: string, text: string, html: string) {
   if (!mailOn()) return { skipped: true };
-  // hawkesgen.com has no mailboxes but support@: anything else there is a test account.
-  if (/@hawkesgen\.com$/i.test(to.trim()) && to.trim().toLowerCase() !== 'support@hawkesgen.com') return { skipped: true };
+  // hawkesgen.ai has no mailboxes but support@: anything else there is a test account.
+  if (/@hawkesgen\.ai$/i.test(to.trim()) && to.trim().toLowerCase() !== 'support@hawkesgen.ai') return { skipped: true };
   // The secret file may hold "RESEND_API_KEY=re_..." as it was saved; the key is what follows the name.
   const key = (SECRETS.resend.value() ?? '').trim().replace(/^[A-Za-z_ ]*[=:]\s*/, '');
   if (!key || key === 'unset') return { skipped: true };
   const r = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: FROM, to: [to], reply_to: 'support@hawkesgen.com', subject, text, html }),
+    body: JSON.stringify({ from: FROM, to: [to], reply_to: 'support@hawkesgen.ai', subject, text, html }),
     signal: AbortSignal.timeout(10_000),
   });
   if (!r.ok) throw new Error(`Resend ${r.status}: ${(await r.text()).slice(0, 200)}`);
@@ -40,7 +40,7 @@ export function welcomeEmail(name: string | null, credits: number) {
     : { text: `The island is open whenever you wish to see it.`, label: 'Come and see the island', url: `${site}/play/sandbox` };
   const makes = 'Ask, and I will send it down: an image, a sprite sheet, a model you can walk around, a voice, a sound, a little music. In the island, say it in the chat ("a castle on the hill") and watch the light carry it in.';
   const plain = `In plain words: your account has ${credits} free credits, enough for about ${images} images or a sprite sheet. What I make uses them. If they run out, the chat will say so and offer more; nothing is taken without your asking.`;
-  const ask = 'If something did not come down as it should, or you have an idea, write to support@hawkesgen.com. Replying to this email reaches the same place.';
+  const ask = 'If something did not come down as it should, or you have an idea, write to support@hawkesgen.ai. Replying to this email reaches the same place.';
   const text = `${hi}
 
 ${who}
@@ -57,7 +57,7 @@ ${ask}
 Hawkes Gen
 ${site}
 
-You're getting this because you made an account at hawkesgen.com.`;
+You're getting this because you made an account at hawkesgen.ai.`;
   const p = (t: string, extra = '') => `<p style="margin:0 0 16px;font-size:15px;line-height:1.65${extra}">${t}</p>`;
   const html = `<!doctype html><html><body style="margin:0;background:#f4f2ed;padding:32px 16px;font-family:'IBM Plex Sans',Helvetica,Arial,sans-serif;color:#1a1915">
 <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #d6d1c6;border-radius:3px;padding:32px">
@@ -68,9 +68,9 @@ ${p(esc(island.text))}
 <p style="margin:0 0 22px"><a href="${island.url}" style="display:inline-block;background:#1a1915;color:#f4f2ed;text-decoration:none;padding:11px 18px;border-radius:3px;font-size:15px;font-weight:600">${island.label} →</a></p>
 ${p(esc(makes))}
 ${p(esc(plain), ';color:#4b4840;font-size:14px')}
-${p('If something did not come down as it should, or you have an idea, write to <a href="mailto:support@hawkesgen.com" style="color:#1a1915">support@hawkesgen.com</a>. Replying to this email reaches the same place.', ';color:#4b4840;font-size:14px')}
+${p('If something did not come down as it should, or you have an idea, write to <a href="mailto:support@hawkesgen.ai" style="color:#1a1915">support@hawkesgen.ai</a>. Replying to this email reaches the same place.', ';color:#4b4840;font-size:14px')}
 </div>
-<p style="max-width:520px;margin:14px auto 0;font-size:12px;color:#8b867b;text-align:center">You're getting this because you made an account at hawkesgen.com.</p>
+<p style="max-width:520px;margin:14px auto 0;font-size:12px;color:#8b867b;text-align:center">You're getting this because you made an account at hawkesgen.ai.</p>
 </body></html>`;
   return { subject: name ? `${name}, your island is waiting` : 'Welcome to Hawkes Gen', text, html };
 }
@@ -114,7 +114,7 @@ ${message ? `<p style="margin:0 0 22px;padding:2px 0 2px 14px;border-left:2px so
 <p style="margin:0 0 0;font-size:14px;line-height:1.6"><a href="${site}/connect" style="color:#1a1915">Or from Unity, Claude Code, Cursor or VS Code →</a></p>
 <p style="margin:22px 0 0;font-size:14px;line-height:1.6;color:#4b4840">Questions? Reply to this email. It comes straight to us.</p>
 </div>
-<p style="max-width:520px;margin:14px auto 0;font-size:12px;color:#8b867b;text-align:center">You're getting this because you have an account at hawkesgen.com.</p>
+<p style="max-width:520px;margin:14px auto 0;font-size:12px;color:#8b867b;text-align:center">You're getting this because you have an account at hawkesgen.ai.</p>
 </body></html>`;
   return { subject: `A gift: ${n(credits)} Hawkes Gen credits`, text, html };
 }

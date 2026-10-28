@@ -21,7 +21,7 @@ const envFile = path.join(HERE, 'functions', `.env.${project}`);
 const prefix = fs.readFileSync(envFile, 'utf8').match(/^PORTAL_PROJECT_PREFIX=(.+)$/m)?.[1]?.trim() ?? 'usr_';
 const client = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.hawkes', 'client.json'), 'utf8'));
 const genUrl = String(arg('gen-url', client.genUrl)).replace(/\/+$/, '');
-if (!/\.run\.app$|hawkesgen\.com$/.test(new URL(genUrl).host)) { console.error(`Unexpected Gen address ${genUrl}`); process.exit(1); }
+if (!/\.run\.app$|hawkesgen\.ai$/.test(new URL(genUrl).host)) { console.error(`Unexpected Gen address ${genUrl}`); process.exit(1); }
 const name = project === 'hawkes-prod' ? 'portal (live)' : 'portal (staging)';
 console.log(`${project}: Gen ${genUrl}, key "${name}" for ${prefix}*`);
 

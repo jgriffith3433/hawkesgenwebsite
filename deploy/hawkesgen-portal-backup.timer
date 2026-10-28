@@ -1,5 +1,5 @@
 [Unit]
-Description=hawkesgen.com portal: hourly database backup
+Description=hawkesgen.ai portal: hourly database backup
 
 [Timer]
 OnCalendar=hourly

@@ -1,4 +1,4 @@
-// The Hawkes Gen MCP server (https://hawkesgen.com/mcp, Streamable HTTP, stateless). Game-dev tools an agent can use the
+// The Hawkes Gen MCP server (https://hawkesgen.ai/mcp, Streamable HTTP, stateless). Game-dev tools an agent can use the
 // way a developer would: give it a file (an asset ref, a URL, inline bytes, or a one-time `curl -T` upload link), ask for
 // a sprite sheet / 3D model / sound, and get back previews it can see and download links it can save into the project.
 // Each tool is a task (tasks.ts): one or more Gen jobs, paid per job within the connection's daily limit. Long tasks

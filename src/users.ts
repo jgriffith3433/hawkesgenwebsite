@@ -92,7 +92,7 @@ export function originOf(req: IncomingMessage): Origin {
   return { ref: clean(c.hg_ref, 16), source: clean(c.hg_src, 40) };
 }
 
-/** A customer's referral code (made the first time it's asked for): hawkesgen.com/?ref=<code>. */
+/** A customer's referral code (made the first time it's asked for): hawkesgen.ai/?ref=<code>. */
 export function refCode(userId: string): string {
   const u = db.prepare('SELECT ref_code FROM users WHERE id = ?').get(userId) as { ref_code: string | null } | undefined;
   if (u?.ref_code) return u.ref_code;
@@ -155,7 +155,7 @@ export async function login(input: { email?: unknown; password?: unknown }) {
   if (!email || !password) throw new PortalError('Email and password are required');
   const user = getUserByEmail(email);
   if (!user || !(await verifyPassword(password, user.password_hash))) throw new PortalError('Invalid email or password', { status: 401 });
-  if (user.disabled) throw new PortalError('This account is disabled. Contact support@hawkesgen.com.', { status: 403 });
+  if (user.disabled) throw new PortalError('This account is disabled. Contact support@hawkesgen.ai.', { status: 403 });
   db.prepare('UPDATE users SET last_login = ? WHERE id = ?').run(Date.now(), user.id);
   return { user: toPublicUser(getUser(user.id)!), sessionToken: createSession(user.id) };
 }

@@ -1,10 +1,10 @@
-# hawkesgen.com: the portal on this box, HTTPS from Let's Encrypt. Nothing else is served here; Gen, Studio and the beta
+# hawkesgen.ai: the portal on this box, HTTPS from Let's Encrypt. Nothing else is served here; Gen, Studio and the beta
 # sites live on the control server under their own names.
 {
 	email jgriffith3433@gmail.com
 }
 
-hawkesgen.com {
+hawkesgen.ai {
 	encode zstd gzip
 	request_body {
 		max_size 64MB
@@ -29,6 +29,6 @@ hawkesgen.com {
 	}
 }
 
-www.hawkesgen.com {
-	redir https://hawkesgen.com{uri} permanent
+www.hawkesgen.ai {
+	redir https://hawkesgen.ai{uri} permanent
 }

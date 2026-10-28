@@ -15,10 +15,10 @@ export const SECRETS = {
 export const env = (k: string): string | undefined => process.env[k] || undefined;
 
 /** Hawkes Gen, the backend: every job runs there. */
-export const genUrl = () => (env('HAWKESGEN_URL') ?? 'https://gen.hawkesgen.com').replace(/\/+$/, '');
+export const genUrl = () => (env('HAWKESGEN_URL') ?? 'https://gen.hawkesgen.ai').replace(/\/+$/, '');
 export const genKey = () => SECRETS.genKey.value();
 /** This site's own address (links in mail, Stripe's return pages, Google's redirect). */
-export const publicUrl = () => (env('PUBLIC_URL') ?? 'https://hawkesgen.com').replace(/\/+$/, '');
+export const publicUrl = () => (env('PUBLIC_URL') ?? 'https://hawkesgen.ai').replace(/\/+$/, '');
 /** Customers' Gen projects are this prefix plus 16 hex digits (usr_ on live; staging has its own). */
 export const PROJECT_PREFIX = (() => {
   const p = env('PORTAL_PROJECT_PREFIX') ?? 'usr_';
@@ -27,5 +27,5 @@ export const PROJECT_PREFIX = (() => {
 })();
 export const USER_ID = `${PROJECT_PREFIX}[0-9a-f]+`;
 export const isLive = () => PROJECT_PREFIX === 'usr_';
-/** Gen's CDN hosts whose links public answers may carry (the play page CSP's asset hosts): cdn.hawkesgen.com plus PORTAL_CDN_HOSTS. */
-export const cdnHosts = () => [...new Set(['https://cdn.hawkesgen.com', ...(env('PORTAL_CDN_HOSTS') ?? '').split(',').map((h) => h.trim().replace(/\/+$/, '')).filter((h) => /^https:\/\/[a-z0-9.-]+(:\d+)?$/.test(h))])];
+/** Gen's CDN hosts whose links public answers may carry (the play page CSP's asset hosts): cdn.hawkesgen.ai plus PORTAL_CDN_HOSTS. */
+export const cdnHosts = () => [...new Set(['https://cdn.hawkesgen.ai', ...(env('PORTAL_CDN_HOSTS') ?? '').split(',').map((h) => h.trim().replace(/\/+$/, '')).filter((h) => /^https:\/\/[a-z0-9.-]+(:\d+)?$/.test(h))])];

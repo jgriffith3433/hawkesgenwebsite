@@ -36,7 +36,7 @@ async function setup() {
   const owner = await account('Maker');
   const g = (await call('/v1/games', { cookie: owner, body: { title: 'Odd world', template: 'blank' } })).body;
   const { ensureAdmin, passwordLink } = await import('../src/users.ts');
-  const a = await ensureAdmin('boss@hawkesgen.com', 'Boss');
+  const a = await ensureAdmin('boss@hawkesgen.ai', 'Boss');
   const token = new URL(passwordLink(a.id, 'https://hawkesgen.test')).searchParams.get('token');
   const boss = (await call('/v1/users/password', { body: { token, password: 'a-real-password' } })).cookie!;
   return { owner, g, boss };
@@ -105,7 +105,7 @@ test('only admins see reports or hide; a hidden world is closed, gone from the g
   assert.equal((await call(`/v1/games/${g.id}`, { cookie: owner })).status, 200);
   const row = (await call('/v1/admin/reports', { cookie: boss })).body.games.find((x: any) => x.slug === g.slug);
   assert.equal(row.hidden, true);
-  assert.equal(row.hiddenBy, 'boss@hawkesgen.com');
+  assert.equal(row.hiddenBy, 'boss@hawkesgen.ai');
 
   const open = await call(`/v1/admin/games/${g.id}/unhide`, { cookie: boss, body: {} });
   assert.equal(open.body.game.closed, null);

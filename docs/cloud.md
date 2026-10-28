@@ -1,4 +1,4 @@
-# hawkesgen.com on Google Cloud (serverless)
+# hawkesgen.ai on Google Cloud (serverless)
 
 J, 2026-10-28: move the portal off AWS, "cloud forward and cheap", production class, Google sign-in only (no email and
 password), small function endpoints. Phase A (done the same day) moved the box as it is to a Google VM. Phase B, this
@@ -15,7 +15,7 @@ browser ──https──▶ Firebase Hosting (public/, CDN)
 ```
 
 - **Projects:** `hawkes-staging` (https://hawkes-staging.web.app, customers `ustg_…`, its own Gen key, no Stripe) and
-  `hawkes-prod` (hawkesgen.com, customers `usr_…`). `.firebaserc` aliases `staging` and `prod`.
+  `hawkes-prod` (hawkesgen.ai, customers `usr_…`). `.firebaserc` aliases `staging` and `prod`.
 - **Deploy:** `firebase deploy --only hosting,functions:portal,firestore --project staging` from the repo root. Live
   (`--project prod`) only after J's `DEPLOY hawkesgenwebsite`.
 - **Settings:** plain ones in `cloud/functions/.env.<project>` (committed, nothing secret); keys in Secret Manager

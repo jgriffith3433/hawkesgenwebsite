@@ -1,4 +1,4 @@
-// Gen's CDN links (src/lods.ts cdnOf, games.ts assetMap): a published game's bundle points at cdn.hawkesgen.com for every file
+// Gen's CDN links (src/lods.ts cdnOf, games.ts assetMap): a published game's bundle points at cdn.hawkesgen.ai for every file
 // Gen has backed up (originals and levels) and at the portal's own /play-asset links for the rest; the proxy still serves;
 // a draft in the editor keeps its signed links; community rows and share pages use the CDN too; the play page's CSP names it.
 // Against a fake Gen.
@@ -9,7 +9,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
-const CDN = 'https://cdn.hawkesgen.com';
+const CDN = 'https://cdn.hawkesgen.ai';
 const STARTER = 'usr_00000000000000c0';
 const calls: string[] = [];
 const hash = (s: string) => s.padEnd(64, '0');
@@ -120,7 +120,7 @@ test("a draft in the editor keeps its signed links: every asset loads through th
   for (const id of ['a_aa01', 'a_bb02', 'a_cc03', 'a_dd04']) {
     const a = find(b, id);
     assert.match(a.url, /^\/play-asset\/d\//, id);
-    assert.equal(a.url.includes('cdn.hawkesgen.com'), false);
+    assert.equal(a.url.includes('cdn.hawkesgen.ai'), false);
     const r = await fetch(base + a.url);
     assert.equal(r.status, 200, id);
     await r.text();
@@ -142,7 +142,7 @@ test("a game's page may load from the CDN and nowhere else new", async () => {
   const r = await fetch(`${base}/play/${slug}`);
   const csp = r.headers.get('content-security-policy')!;
   for (const d of ['connect-src', 'img-src', 'media-src']) assert.match(csp, new RegExp(`${d}[^;]* ${CDN}`), d);
-  assert.doesNotMatch(csp, /script-src[^;]*cdn\.hawkesgen\.com/);
+  assert.doesNotMatch(csp, /script-src[^;]*cdn\.hawkesgen\.ai/);
   assert.doesNotMatch(csp, /evil\.example/);
 });
 
