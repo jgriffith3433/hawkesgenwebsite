@@ -1,0 +1,47 @@
+name: Firebase
+
+# hawkesgen.com on Google Cloud (docs/cloud.md): a push to beta deploys staging (https://hawkes-staging.web.app), a push
+# to main deploys live (https://hawkesgen.com). Main only moves when J goes live (Studio's DEPLOY hawkesgenwebsite).
+# No keys: GitHub's signed OIDC token is exchanged for a short-lived Google token (Workload Identity Federation, set up
+# once per project by cloud/setup-ci.ps1), as the deployer service account of that project.
+
+on:
+  push:
+    branches: [beta, main]
+    paths: ['public/**', 'cloud/**', 'src/templates.ts', 'src/overseer-games/**', 'docs/world/**', 'docs/api/**', 'firebase.json', '.firebaserc', '.github/workflows/firebase.yml']
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: firebase-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PROJECT: ${{ github.ref_name == 'main' && 'hawkes-prod' || 'hawkes-staging' }}
+      PROJECT_NUMBER: ${{ github.ref_name == 'main' && '598611630218' || '388576319982' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Check
+        working-directory: cloud/functions
+        run: npm ci && npx tsc -p .
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/${{ env.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github/providers/github
+          service_account: deployer@${{ env.PROJECT }}.iam.gserviceaccount.com
+      - name: Deploy
+        run: npx --yes firebase-tools@15 deploy --only hosting,functions:portal,firestore --project ${{ env.PROJECT }} --non-interactive --force
+      - name: Health
+        run: |
+          url=${{ github.ref_name == 'main' && 'https://hawkesgen.com' || 'https://hawkes-staging.web.app' }}
+          for i in $(seq 1 12); do curl -sf "$url/v1/health" | grep -q '"cloud":"gcp"' && { echo ok; exit 0; }; sleep 10; done
+          echo "health check failed at $url"; exit 1
