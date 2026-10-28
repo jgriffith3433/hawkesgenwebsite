@@ -1,0 +1,6 @@
+{
+  "title": "Looks: choose how a thing looks (the library, yours, or a new one made with Hawkes Gen)",
+  "order": 87,
+  "scripts": ["looks-core.js", "looks.js"],
+  "kinds": []
+}

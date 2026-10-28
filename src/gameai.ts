@@ -188,6 +188,7 @@ Write JSON Lines and nothing else: one JSON object per line, no prose, no markdo
 ..."}: a script or behavior file.
 - {"delete":"scripts/old.js"}: delete a file.
 - {"asset":{"kind":"model","name":"fruit-stall.glb","prompt":"...","community":"a_..."}}: an asset the game needs that doesn't exist yet, for the people to make with one click (community: the best community library match's id, or "").
+- {"look":{"id":"blue_truck","suggest":["a_...","a_..."],"prompt":"a rugged off-road truck, chrome bull bar, deep blue paint, game asset","why":"Pick one, or have a new one made."}}: lets them CHOOSE how a thing looks. Their screen opens a chooser on that thing: the community library's looks (your suggest ids first: the best matches from the community list, any kind of model), the game's own models, and "make a new one" with Hawkes Gen (your prompt, which they can edit; it costs them credits and takes minutes). Whatever they pick, the thing keeps what it does (a truck wearing a teapot still drives).
 - {"reply":"..."}: the LAST line. What you made and how to play it (which keys), a few plain sentences in your voice. No markdown.
 Your first line is a focus and your second a say, written immediately. A short opening line has already been spoken for you the moment they asked, so your first say goes straight to the first thing you do. If the request is unclear or impossible, change nothing: write a say and a reply asking what you need.
 
@@ -195,6 +196,7 @@ Build it as a show, never a snap (J: "make the overseer go a step further"; the 
 - Work in beats, in the order a player would love to watch them: the place first (ground, sky, light, weather), then things arriving one by one, then they come alive (a later update op gives them movement: patrol, wander, follow, spin), then they act (a later update op gives them their job), then the player is invited in (what they need, right in front of them, and how to use it), then the goal (objectives on screen, a timer or a score, a character who guides them), then the payoff (a win, a reward, a line from you).
 - Things arrive still; a later beat wakes them; a later beat makes them act. Put a wait between beats. Five to ten beats is a good show for a big request; one or two for a small one ("make the ball red" is one op and a say).
 - Go a step further than the literal words. Someone asking for something to do wants to be IN it: a role for them, a goal, something that responds to what they do, a HUD with what matters, sound, a character to talk to, and a way to finish or win. Someone asking for "a race" wants a course, rivals, a countdown, a clock and a finish; "a market" wants stalls, traders who call out, things to buy; "a mountain" wants it to rise where they are looking. Never change what they asked for, never take away what they have, and keep it to what makes their request great.
+- How something LOOKS is the player's choice. When they ask to change a thing's look without naming the one exact change ("make it look better", "make it cooler", "change how it looks", "give it a different model", "I don't like how it looks"), don't build parts onto it and don't guess: write a look line for that thing (and a say: "Choose how it should look."). A plain, named change ("make it blue", "make it bigger", "add a flag on it") you still just do. A new thing they ask for ("give me a blue truck") you still make yourself.
 - Make it look good. Use the engine's own kinds for what it has (vehicles, creatures, people, houses and furniture, trees and rocks): they look and move right. A car is a car kind, not a box. Use the game's assets and the community library's models (by id) before plain shapes. When there is no model, build the thing from several well-shaped parts with good colors and materials, not one box. Lights, sky and sound set the mood.
 - What you add stays: nothing you make vanishes later unless they asked for that (no despawn timers on what you place; waves may spawn more, but what you beamed down stays until destroyed).
 - Keep the player's state. If they are in a vehicle, don't take it away or replace it; when the experience needs them in another one, put it right in front of them (or seat them with game.vehicles.enter in a script) and say so.
@@ -497,6 +499,7 @@ export async function askAssistant(user: User, gameId: string, body: { message?:
           break;
         case 'asset': suggestedRaw.push(l.asset); break;
         case 'reply': reply = l.text; break;
+        case 'look': show({ k: 'look', id: l.id, prompt: l.prompt, suggest: l.suggest, why: l.why }); break;
         case 'wait': break;
       }
       const ms = pace(l, paceLeft);

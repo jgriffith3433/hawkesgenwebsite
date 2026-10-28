@@ -49,9 +49,10 @@ test('a reply file that messages the page gets named; clean code does not', () =
 test('the system prompt teaches the line format and staging, and still carries the engine docs', async () => {
   const { systemPrompt } = await import('../src/gameai.ts');
   const s = systemPrompt();
-  for (const k of ['{"focus":', '{"say":', '{"beat":', '{"op":"create"', '{"wait":', '{"file":', '{"delete":', '{"asset":', '{"reply":']) assert.ok(s.includes(k), k);
+  for (const k of ['{"focus":', '{"say":', '{"beat":', '{"op":"create"', '{"wait":', '{"file":', '{"delete":', '{"asset":', '{"look":', '{"reply":']) assert.ok(s.includes(k), k);
   assert.match(s, /JSON Lines and nothing else/);
   assert.match(s, /Things arrive still; a later beat wakes them/);
   assert.match(s, /What you add stays/);
+  assert.match(s, /How something LOOKS is the player's choice/);
   assert.ok(s.length > 100_000, 'WORLD.md and API.md are in it');
 });

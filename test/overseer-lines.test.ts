@@ -99,6 +99,7 @@ test('parseLine: every kind, json as an object or as text, and what is not a lin
   assert.deepEqual(L.parseLine('{"wait":9}'), { kind: 'wait', seconds: 4 });
   assert.deepEqual(L.parseLine('{"file":"scripts/a.js","content":"x"}'), { kind: 'file', path: 'scripts/a.js', content: 'x' });
   assert.deepEqual(L.parseLine('{"reply":" Done. "}'), { kind: 'reply', text: 'Done.' });
+  assert.deepEqual(L.parseLine('{"look":{"id":"blue_truck","suggest":["a_5b069a758ac32489","nope"],"prompt":"a rugged truck","why":"Pick one."}}'), { kind: 'look', id: 'blue_truck', prompt: 'a rugged truck', suggest: ['a_5b069a758ac32489'], why: 'Pick one.' }, 'only real asset ids are suggested');
   assert.equal(L.parseLine('```json'), null);
   assert.equal(L.parseLine('   '), null);
   assert.ok('problem' in (L.parseLine('{"op":"explode","id":"a"}') as any));

@@ -650,6 +650,7 @@
       ${kindCardButton(e)}
       <div class="card-foot">
         <button type="button" class="card-btn" id="cMore">${popup.full ? 'Less' : 'More…'}</button>
+        ${H.looks && e.sceneId ? '<button type="button" class="card-btn" id="cLook" title="Choose how it looks: the library, yours, or a new one">🎨 Look</button>' : ''}
         <button type="button" class="card-btn" id="cCopy">Copy</button>
         <button type="button" class="card-btn" id="cChat">In chat</button>
         ${advanced ? '<button type="button" class="card-btn" id="cCode">Code</button><button type="button" class="card-btn" id="cGizmo">Gizmo</button>' : ''}
@@ -705,6 +706,7 @@
     if (make) make.onclick = () => { toParent({ type: 'generate', kind: 'model', name: e._waiting, prompt: e.name || e._waiting.replace(/\.[a-z]+$/, '') }); make.disabled = true; make.textContent = 'Say yes on the card…'; makeBtn = make; };
     q('cAsk').onsubmit = (ev) => { ev.preventDefault(); const v = q('cAskIn').value.trim(); if (!v) return; toParent({ type: 'ask', text: v, mention: { id: e.sceneId, name: e.name || e.sceneId }, context: context() }); q('cAskIn').value = ''; q('cAskIn').placeholder = 'In the chat: press Enter to send it'; };
     q('cCopy').onclick = () => copyThing(W().byId.get(e.sceneId) || e);
+    if (q('cLook')) q('cLook').onclick = () => { const t = W().byId.get(e.sceneId) || e; closePopup(); H.looks.open(t); };
     q('cChat').onclick = () => { toParent({ type: 'focus-chat', mention: { id: e.sceneId, name: e.name || e.sceneId } }); };
     q('cDel').onclick = () => removeThing(W().byId.get(e.sceneId) || e);
     const code = q('cCode');
