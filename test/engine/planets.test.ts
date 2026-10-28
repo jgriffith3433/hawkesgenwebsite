@@ -81,3 +81,12 @@ test('the planet hop kit: planets in the settings, a gate, a ship', () => {
   for (const s of specs) { assert.ok(H.kinds.has(s.type), s.type); for (const b of s.behaviors || []) assert.ok(H.behaviorDef(b.use), b.use); }
   assert.equal(H.kits.config('planets').planets.list.length, 3);
 });
+
+test('a bare planet on a flat home world gets ground of its biome: you land on it', () => {
+  world(H, sceneOf({ floor, start: { type: 'spawn', transform: { position: [0, 0, 0] } } }, { planet: false, planets: { list: [{ id: 'dust', name: 'Dust', biome: 'desert' }], travel: 'anywhere' } }));
+  H.tick(0.3);
+  H.planets.travel('dust', { fx: false });
+  steps(2);
+  assert.equal(H.world.graph.config.terrain.shape, 'dunes');
+  assert.ok(H.world.player.y > -5, `standing, not falling (${H.world.player.y.toFixed(1)})`);
+});

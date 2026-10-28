@@ -258,6 +258,7 @@
     make() {
       const css = document.createElement('style');
       css.textContent = `
+        .bk-bar[hidden] { display: none !important; }
         .bk-bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: max(78px, calc(env(safe-area-inset-bottom) + 70px)); z-index: 5; display: flex; gap: 4px; align-items: flex-end; font: 600 11px/1 system-ui, sans-serif; color: #fff; pointer-events: auto; }
         .bk-bar button { position: relative; width: 44px; height: 44px; border-radius: 8px; border: 2px solid rgba(255,255,255,.25); background: rgba(10,14,22,.7); cursor: pointer; padding: 0; color: inherit; font: inherit; }
         .bk-bar button.on { border-color: #fff; box-shadow: 0 0 0 2px rgba(255,255,255,.35); }
@@ -511,6 +512,8 @@
     _: { get cur() { return cur; }, redraw: () => cur && redraw(cur, 1e9), toBlocks: (p) => cur && toBlocks(cur, p), ui, bag },
   };
   H.blocks = api;
+  // (Another world: no bar left over from this one.)
+  H.hooks.world.push({ leave() { ui.show(false); } });
   H.hooks.game.push((game) => { game.blocks = api; });
 
   function start(value, ctx) {

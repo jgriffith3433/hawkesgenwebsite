@@ -16,7 +16,7 @@
   function sceneAt(at, dy = 0) {
     const p = at ? [at[0], at[1] + dy, at[2]] : [0, dy, 0];
     const f = H.planet && H.planet.frame;
-    const q = at && f && f.on && f.toScene ? f.toScene({ position: p, rotation: 0 }).position : p;
+    const q = at && f && f.on && f.toPlanet ? f.toPlanet(p) : p; // (a point round you -> the planet's numbers)
     return q.map((v) => Math.round(v));
   }
   const PARTY = ['#f43f5e', '#f59e0b', '#22c55e', '#06b6d4', '#a855f7', '#ec4899'];
@@ -302,7 +302,8 @@
       things() {
         const out = [], wall = (n, size, at) => box(n, size, at, '#2a2523');
         out.push(box('Floor', [22, 0.2, 30], [0, 0.1, 14], '#1c1715'));
-        for (const [x, z, w, d] of [[-11, 14, 0.4, 30], [11, 14, 0.4, 30], [0, -1, 22, 0.4], [0, 29, 22, 0.4], [-4, 6, 14, 0.4], [4, 14, 14, 0.4], [-4, 22, 14, 0.4]]) out.push(wall('Wall', [w, 4, d], [x, 2, z]));
+        // (The front wall leaves a doorway in the middle: you walk in.)
+        for (const [x, z, w, d] of [[-11, 14, 0.4, 30], [11, 14, 0.4, 30], [-6.5, -1, 9, 0.4], [6.5, -1, 9, 0.4], [0, 29, 22, 0.4], [-4, 6, 14, 0.4], [4, 14, 14, 0.4], [-4, 22, 14, 0.4]]) out.push(wall('Wall', [w, 4, d], [x, 2, z]));
         out.push(box('Ceiling', [22, 0.2, 30], [0, 4.1, 14], '#141110'));
         for (const [x, z] of [[-8, 2], [8, 10], [-8, 18], [8, 26]]) out.push({ type: 'light', name: 'Lamp', light: { type: 'point', intensity: 0.9, color: '#ffcf8a', range: 9 }, transform: { position: [x, 3.4, z] }, behaviors: [{ use: 'flicker', rate: 1.2 }] });
         out.push({ type: 'box', name: 'Cold spot', shape: { size: [4, 3, 3] }, physics: 'none', transform: { position: [6, 1.5, 18] }, behaviors: [{ use: 'scare', text: 'GET OUT', delay: 0.4 }] });
@@ -332,8 +333,8 @@
       settings: {},
       things() {
         const out = [];
-        out.push(box('Door frame', [0.3, 3, 0.3], [-5.15, 1.5, 4], '#78716c'));
-        out.push(box('Hinged door', [2, 2.8, 0.15], [-4, 1.45, 4], '#a16207', { physics: 'dynamic', behaviors: [{ use: 'hinge', axis: 'y', at: 'edge', min: -100, max: 100 }] }));
+        out.push(box('Door frame', [0.3, 3, 0.3], [-5.3, 1.5, 4], '#78716c'));
+        out.push(box('Hinged door', [2, 2.8, 0.15], [-4, 1.5, 4], '#a16207', { physics: 'dynamic', behaviors: [{ use: 'hinge', axis: 'y', at: 'edge', min: -100, max: 100 }] }));
         out.push(box('Windmill tower', [0.6, 5, 0.6], [4, 2.5, 8], '#d6d3d1'));
         out.push(box('Windmill sails', [6, 0.5, 0.15], [4, 5, 7.5], '#fafaf9', { physics: 'dynamic', behaviors: [{ use: 'motor', axis: 'z', speed: 120, signal: 'mill' }] }));
         out.push(box('Lever stand', [0.6, 1, 0.6], [2, 0.5, 6], '#57534e', { behaviors: [{ use: 'lever', signal: 'mill' }] }));
@@ -409,7 +410,7 @@
     const w = H.world;
     if (!w || !w.graph) return { things: [], config: null };
     const f = H.planet && H.planet.frame;
-    const c = f && f.on && f.toScene ? f.toScene({ position: center, rotation: 0 }).position : center;
+    const c = f && f.on && f.toPlanet ? f.toPlanet(center) : center;
     const near = Object.values(w.graph.entities).filter((s) => {
       const p = s.transform && s.transform.position;
       return p && s.type !== 'spawn' && Math.hypot(p[0] - c[0], p[2] - c[2]) <= radius && Math.abs(p[1] - c[1]) < radius;

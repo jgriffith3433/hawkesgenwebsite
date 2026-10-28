@@ -12,6 +12,7 @@
 
   const css = document.createElement('style');
   css.textContent = `
+    .bb-blocks [hidden], .bb-blocks[hidden] { display: none !important; }
     .bb-blocks { position: fixed; left: 12px; top: 160px; z-index: 6; font: 500 12px/1.3 system-ui, sans-serif; color: #e8eef7; }
     .bb-blocks > button { background: rgba(14,18,28,.82); color: #e8eef7; border: 1px solid rgba(255,255,255,.18); border-radius: 10px; padding: 7px 11px; cursor: pointer; font: inherit; }
     .bb-blocks > button.on { border-color: #4a9eff; background: rgba(74,158,255,.25); }
@@ -66,7 +67,8 @@
   }
   /** Where the player is, in the world file's frame (a round world), the blocks' bottom middle a bit under their feet. */
   function scenePoint(p) {
-    const sc = H.planet && H.planet.frame && H.planet.frame.toScene ? H.planet.frame.toScene({ position: [p.x, p.bottom - 14, p.z], rotation: 0 }) : { position: [p.x, p.bottom - 14, p.z] };
+    const f = H.planet && H.planet.frame, here = [p.x, p.bottom - 14, p.z];
+    const sc = { position: f && f.on && f.toPlanet ? f.toPlanet(here) : here };
     return sc.position.map((v) => Math.round(v));
   }
   // The world's changes, saved a moment after the last one (one config op, not one per block).

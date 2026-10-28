@@ -120,3 +120,11 @@ test('the block mine kit: a block world round where it is placed, and the pickax
   assert.ok(H.kits.build('mine', [0, 0, 0], 0).length, 'a lamp to mark it');
   assert.ok(H.kits.list().some((k: any) => k.id === 'mine'));
 });
+
+test('the block mine kit on a round planet: placed where you are, in the planet’s numbers (no error)', () => {
+  world(H, sceneOf({ start }, { planet: { sphere: true, radius: 50000 } }));
+  H.tick(0.3);
+  const cfg = H.kits.config('mine', {}, [3, 1, 4]);
+  assert.ok(Array.isArray(cfg.blocks.at) && cfg.blocks.at.every((v: number) => Number.isFinite(v)));
+  assert.ok(Math.abs(cfg.blocks.at[0] - 3) < 1 && Math.abs(cfg.blocks.at[2] - 4) < 1, `round you (${cfg.blocks.at})`);
+});

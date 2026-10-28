@@ -62,6 +62,8 @@
     defaults: { to: '', axis: 'y', at: 'edge', min: -100, max: 100, collide: false },
     settings: [{ key: 'to', label: 'Hinged to (empty: the world)', type: 'thing' }, { key: 'axis', label: 'Turns round', type: 'choice', options: ['y', 'x', 'z'] }, { key: 'at', label: 'Where', type: 'choice', options: ['edge', 'right', 'top', 'bottom', 'center'] }, { key: 'min', label: 'Swings from', type: 'number', min: -180, max: 0, unit: '°' }, { key: 'max', label: 'Swings to', type: 'number', min: 0, max: 180, unit: '°' }],
     presets: [{ label: 'Door', values: { axis: 'y', at: 'edge', min: -100, max: 100 } }, { label: 'Trapdoor', values: { axis: 'x', at: 'back', min: -95, max: 0 } }, { label: 'Swing', values: { axis: 'x', at: 'top', min: -80, max: 80 } }],
+    // (Almost no friction unless it says: a door rubbing its frame or the floor would never swing.)
+    start(e, o) { if (o.friction === undefined) e.friction = 0.02; },
     update(e, dt, o, s) { const ax = axisOf(o.axis); join(e, s, 'hinge', { pivotA: pivot(e, o.at, ax), axis: ax, limits: [num(o.min, -100), num(o.max, 100)], collide: Boolean(o.collide) }, o); },
   });
   part('motor', {

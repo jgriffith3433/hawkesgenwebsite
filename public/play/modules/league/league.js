@@ -130,6 +130,7 @@
     if (p) { p.position = [mid[0] - fx * len * 0.3, pt.ours[1] + 0.5, mid[2] - fz * len * 0.3]; p.velocity = [0, 0, 0]; }
     if (H.match.resetBalls) H.match.resetBalls();
     L.live = { rival: rid };
+    ui.open = false; // (the table goes away for the match; 🏆 opens it again)
     H.match.start();
     G().emit('matchday', { rival: r.name, n: L.n + 1, of: L.fixtures.length });
     G().ui.message(`Match ${L.n + 1} of ${L.fixtures.length}: ${L.club.name} v ${r.name}`, 3);
@@ -184,8 +185,9 @@
     make() {
       const css = document.createElement('style');
       css.textContent = `
+        .lg-btn[hidden], .lg-panel[hidden] { display: none !important; }
         .lg-btn { position: fixed; left: 14px; top: max(110px, calc(env(safe-area-inset-top) + 100px)); z-index: 6; min-height: 44px; padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.25); background: rgba(10,14,24,.82); color: #fff; font: 600 13px/1 system-ui, sans-serif; cursor: pointer; }
-        .lg-panel { position: fixed; left: 14px; top: max(162px, calc(env(safe-area-inset-top) + 152px)); z-index: 6; width: min(380px, calc(100vw - 28px)); max-height: calc(100vh - 200px); overflow: auto; background: rgba(8,12,22,.95); border: 1px solid rgba(255,255,255,.15); border-radius: 14px; padding: 12px; color: #e8eef7; font: 500 12px/1.35 system-ui, sans-serif; display: grid; gap: 10px; }
+        .lg-panel { position: fixed; left: 14px; top: max(162px, calc(env(safe-area-inset-top) + 152px)); z-index: 9; width: min(380px, calc(100vw - 28px)); max-height: calc(100vh - 200px); overflow: auto; background: rgba(8,12,22,.95); border: 1px solid rgba(255,255,255,.15); border-radius: 14px; padding: 12px; color: #e8eef7; font: 500 12px/1.35 system-ui, sans-serif; display: grid; gap: 10px; }
         .lg-panel h3 { margin: 0; font: 700 13px/1.2 system-ui, sans-serif; }
         .lg-panel table { width: 100%; border-collapse: collapse; }
         .lg-panel td, .lg-panel th { padding: 3px 4px; text-align: right; }
