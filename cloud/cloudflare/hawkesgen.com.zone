@@ -1,0 +1,19 @@
+; hawkesgen.com for Cloudflare (DNS > Records > Import and Export > Import). Rebuilt 2026-10-28 after Route 53 stopped
+; answering: Firebase's own record list, the Hawkes Net VM, Resend's sending records. Every record is DNS only (grey
+; cloud): Firebase and Caddy issue their own certificates and need to see the real address.
+$ORIGIN hawkesgen.com.
+$TTL 300
+; The portal: Firebase Hosting, project hawkes-prod (hostState, ownership and certificate all ACTIVE).
+@                    300 IN A     199.36.158.100
+www                  300 IN A     199.36.158.100
+@                    300 IN TXT   "hosting-site=hawkes-prod"
+; Hawkes Net (Google VM hawkes-net, us-east4-c).
+net                  300 IN A     34.86.89.28
+; Email sent as support@ through Resend.
+resend._domainkey    300 IN TXT   "p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC3CsYE2fBa5I6hBit66WY30fh0urIevB447V/+rW6QxBVJxgHkbrdZbLY1lTa2L8r9VlRnmZW0UoGD6z8bIBXAtA7H1kBlQO/i+aPPrBaL0sHAmnfCQd6FyuWwMcnaKP79GTYtzm2HEIqL3NXR18+Uyt83wjOfqszDUwV9ZspNQwIDAQAB"
+rsend                300 IN CNAME rsend.forge.rmta.net.
+send                 300 IN CNAME send.forge.rmta.net.
+_dmarc               300 IN TXT   "v=DMARC1; p=none;"
+; Not here on purpose (see README.md): studio, gen, the beta sites and cdn were on the AWS control server and its S3,
+; which no longer answer; hawkesnet (beta Net) and the old MX (SES inbound) were AWS too. Mail to support@ comes back
+; through Cloudflare Email Routing, which adds its own MX and SPF records when it's turned on.

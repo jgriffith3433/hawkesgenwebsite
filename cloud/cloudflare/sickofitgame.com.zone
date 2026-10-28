@@ -1,0 +1,10 @@
+; sickofitgame.com for Cloudflare (Import). The live site is GitHub Pages (jgriffith3433/sickofitgamewebsite, CNAME
+; sickofitgame.com): GitHub's four Pages addresses and www to the account's Pages host. DNS only (grey cloud), so
+; GitHub can keep issuing the site's certificate.
+$ORIGIN sickofitgame.com.
+$TTL 300
+@                    300 IN A     185.199.108.153
+@                    300 IN A     185.199.109.153
+@                    300 IN A     185.199.110.153
+@                    300 IN A     185.199.111.153
+www                  300 IN CNAME jgriffith3433.github.io.
