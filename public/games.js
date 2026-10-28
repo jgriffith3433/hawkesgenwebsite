@@ -17,34 +17,13 @@ let me = null;
 
 // ------------------------------------------------------------------ signing in
 function bindAuth() {
-  let mode = 'signup';
-  const set = (m) => {
-    mode = m;
-    $('tabSignup').classList.toggle('on', m === 'signup');
-    $('tabLogin').classList.toggle('on', m === 'login');
-    $('nameWrap').hidden = m !== 'signup';
-    $('authSubmit').textContent = m === 'signup' ? 'Create account' : 'Sign in';
-    $('password').autocomplete = m === 'signup' ? 'new-password' : 'current-password';
-  };
-  $('tabSignup').onclick = () => set('signup');
-  $('tabLogin').onclick = () => set('login');
+  // Google only (no email and password); google-gate.js adds the referral (?ref=, ?src=) when the link is followed.
   $('google').href = `/auth/google?next=${encodeURIComponent(location.pathname)}`;
-  $('authForm').onsubmit = async (e) => {
-    e.preventDefault();
-    $('authError').hidden = true;
-    try {
-      const body = { email: $('email').value.trim(), password: $('password').value };
-      if (mode === 'signup') body.name = $('name').value.trim();
-      await api(mode === 'signup' ? '/v1/users/signup' : '/v1/users/login', { body });
-      // signup itself (and the account's id from now on) is told by site-analytics.js, the same for email and Google.
-      if (mode === 'login') track('login', { via: 'builder' });
-      await load();
-      try { window.hgAnalytics?.refresh(); } catch {}
-    } catch (err) {
-      $('authError').textContent = err.message;
-      $('authError').hidden = false;
-    }
-  };
+  const problem = new URLSearchParams(location.search).get('signin_error');
+  if (problem) {
+    $('authError').textContent = problem;
+    $('authError').hidden = false;
+  }
 }
 
 // ------------------------------------------------------------------ the page

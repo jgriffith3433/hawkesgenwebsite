@@ -168,8 +168,19 @@ loaded only by a browser under automation (`navigator.webdriver`, a `?playtest=`
   `stage "<name>": timed out waiting for <what>` in the problems and log. The page changes once, at the Play click; the
   sandbox page replays the landing page's events (`page-changed`) so one report covers the path.
 - The selectors it relies on are the game's own: `[data-play-now]`, `.hp-enter button`, `.mr` (`[data-what]`, `[data-a]`,
-  `.mr-name`), `#gsEmail`, `#gsPw`, `#gsGo`, `#gsSwap [data-swap]`, the quest `tour` (`drive`, `rod`, `fish`) and the entities
+  `.mr-name`), the account sheet (`#gsGoogle`, `#gsTitle`, `#gsErr`; the old form's `#gsEmail`, `#gsPw`, `#gsGo`,
+  `#gsSwap [data-swap]` exist only on the old `src/` server), the quest `tour` (`drive`, `rod`, `fish`) and the entities
   `jeep`, `dock`, `rod`. Change one of those and update the scenario.
+- **Signing in is Google only (2026-10-28, the cloud portal: `cloud/`, docs/cloud.md).** Every sign-in and sign-up on the
+  pages is one "Continue with Google" button (`/auth/google?next=<path>&ref=<hg_ref>&src=<hg_src>`, built by
+  `public/google-gate.js` / `guest.js googleUrl`; the sandbox's popup flow through `/auth/popup` stays), and
+  `/v1/users/login|signup|forgot|reset` answer 410 `google_only`. **So no scenario can make a throwaway email account any
+  more:** the sandbox scenarios stop at the account sheet (`stageSheet` logs `signup-unavailable` with a warning and ends
+  `done`; the scenarios that played on after the sign-up, such as `sandbox-observatory`, `island-race`, `sandbox-return`
+  and `share-moment`, get no further) unless the runner's browser is already signed in to a Google account on that site;
+  `server-limits` and `world-report` fail at their throwaway sign-up with the 410's message, and `world-report`'s
+  `adminEmail` / `adminPassword` no longer sign in. Bringing them back needs a test sign-in route on staging (not built).
+  `/reset` now says passwords are gone and offers Google; `/admin` has no password links.
 
 ## Beta (Hawkes Studio)
 
