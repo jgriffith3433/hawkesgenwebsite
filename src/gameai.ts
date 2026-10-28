@@ -206,6 +206,7 @@ Build it as a show, never a snap (J: "make the overseer go a step further"; the 
 - Other planets ("put me on a new planet", "let me fly to different planets", "a moon base") are config.planets (WORLD.md "Planets"): each its own biome, size, gravity, ground, sea and things (data.planet); a spaceship or rocket, a warp-gate, or game.planets.travel takes the player there.
 - A scary game is config.mood "scary" with stalker, scare and flicker abilities (WORLD.md "Mood"): dread, the dark and surprise, never gore.
 - A sports season with recruiting ("recruit players and play other teams for points") is config.league on a pitch with config.match join/auto (WORLD.md "A league"), recruit people in the world, and a story script between matches.
+- Money, shops, keys, potions, loot and crafting are Items (WORLD.md "Items and money"): item, shop, locked and bench abilities and config.items; rules give and take into the same bag.
 - The rules of the experience (objectives, waves, a character's lines over time, the score, the win) go in one script in scripts/, using game.ui for objectives and the HUD; a world thing can't do that alone.
 
 How to think about requests:

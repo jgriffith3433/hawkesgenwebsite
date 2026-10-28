@@ -312,6 +312,22 @@
       },
     },
     {
+      id: 'market', name: 'Market and vault', icon: '🛒', about: 'Coins to find, a stall that sells potions and a key and buys gems, a locked vault with a gem inside, a crafting bench.',
+      settings: {},
+      config: () => ({ items: { start: { coins: 10 }, recipes: [{ make: 'health potion', count: 1, from: { food: 2 } }] } }),
+      things() {
+        const out = [];
+        out.push(box('Market stall', [3, 1, 1.4], [-4, 0.5, 5], '#b45309', { behaviors: [{ use: 'shop', name: 'Market stall', sells: 'health potion:10, speed potion:15, jump potion:15, key:25, food:3', buys: 'gem:40, food:1' }] }));
+        out.push(box('Stall roof', [3.4, 0.15, 1.8], [-4, 2.3, 5], '#f59e0b', { physics: 'none' }));
+        for (const [x, z] of [[2, 3], [3, 6], [1, 9], [-1, 11], [4, 12]]) out.push({ type: 'cylinder', name: 'Coin', shape: { radius: 0.35, height: 0.08 }, material: { color: '#facc15', emissive: '#854d0e' }, physics: 'none', transform: { position: [x, 0.9, z], rotation: [90, 0, 0] }, behaviors: [{ use: 'item', item: 'coins', count: 5, respawn: 60 }] });
+        for (const [x, w, d, z] of [[6, 0.3, 4, 14], [10, 0.3, 4, 14], [8, 4.3, 0.3, 16]]) out.push(box('Vault wall', [w, 3, d], [x, 1.5, z], '#57534e'));
+        out.push(box('Vault door', [3.7, 3, 0.3], [8, 1.5, 12], '#78350f', { behaviors: [{ use: 'locked', needs: 'key', move: 3.2 }] }));
+        out.push({ type: 'sphere', name: 'Gem', shape: { radius: 0.3 }, material: { color: '#38bdf8', emissive: '#0c4a6e' }, physics: 'none', transform: { position: [8, 1, 14.5] }, behaviors: [{ use: 'item', item: 'gem', count: 1 }] });
+        out.push(box('Crafting bench', [1.8, 0.9, 0.9], [-4, 0.45, 9], '#92400e', { behaviors: [{ use: 'bench' }] }));
+        return out;
+      },
+    },
+    {
       id: 'mine', name: 'Block mine', icon: '⛏', about: 'A world of blocks grows round you: caves, ores, trees. You hold a pickaxe: mine, build, craft.',
       settings: { world: 'caves', size: 48 },
       // (The blocks' bottom middle a little under where the kit goes: the ground grows to about 0.42 of the height.)
