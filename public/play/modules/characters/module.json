@@ -1,0 +1,6 @@
+{
+  "title": "Characters: talk with answers, sides that like or hate you, a day's routine (config.factions)",
+  "order": 76,
+  "scripts": ["characters.js"],
+  "kinds": []
+}

@@ -208,6 +208,7 @@ Build it as a show, never a snap (J: "make the overseer go a step further"; the 
 - A sports season with recruiting ("recruit players and play other teams for points") is config.league on a pitch with config.match join/auto (WORLD.md "A league"), recruit people in the world, and a story script between matches.
 - Money, shops, keys, potions, loot and crafting are Items (WORLD.md "Items and money"): item, shop, locked and bench abilities and config.items; rules give and take into the same bag.
 - Machines and moving parts (doors that swing, windmills, wrecking balls, lifts, springboards, carts) are contraptions: hinge, motor, spring, rope, glue, piston abilities (WORLD.md "Contraptions"), switched by levers and signals.
+- People who talk back, take sides and live a day are characters: talk (lines or a tree of answers), faction (config.factions) and routine abilities (WORLD.md "Characters").
 - The rules of the experience (objectives, waves, a character's lines over time, the score, the win) go in one script in scripts/, using game.ui for objectives and the HUD; a world thing can't do that alone.
 
 How to think about requests:

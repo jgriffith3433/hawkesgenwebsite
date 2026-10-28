@@ -347,6 +347,26 @@
       },
     },
     {
+      id: 'village', name: 'Village with sides', icon: '🏘', about: 'Villagers who live a day and talk with you, guards on your side, and a bandit camp that hates you both.',
+      settings: {},
+      config: () => ({ factions: { villagers: { player: 'friendly' }, guards: { player: 'friendly', likes: ['villagers'] }, bandits: { player: 'hostile', hates: ['villagers', 'guards'] } } }),
+      things() {
+        const out = [];
+        const person = (name, at, color, behaviors) => ({ type: 'capsule', name, shape: { radius: 0.34, height: 1.75 }, material: { color }, physics: 'dynamic', transform: { position: [at[0], 0.95, at[1]] }, behaviors });
+        out.push(box('Well', [1.6, 1, 1.6], [0, 0.5, 8], '#78716c'));
+        out.push(box('Market table', [2, 0.9, 1], [5, 0.45, 8], '#a16207'));
+        out.push(box('Village bed', [2, 0.5, 1.2], [-6, 0.25, 12], '#7c2d12'));
+        out.push(box('Workbench', [1.6, 0.9, 0.8], [6, 0.45, 13], '#57534e'));
+        const talkTree = { start: 'hi', nodes: { hi: { say: 'Bandits camp past the hill. Will you help us?', choices: [{ text: 'I will', go: 'yes', standing: 10 }, { text: 'Not my problem', end: true }] }, yes: { say: 'Take this. Come back when they are gone.', choices: [{ text: 'Thanks', give: 'health potion', end: true }] } } };
+        out.push(person('Mira', [-2, 9], '#fda4af', [{ use: 'talk', tree: talkTree, side: 'villagers' }, { use: 'faction', side: 'villagers', fights: false }, { use: 'routine', eat: 'Market table', sleep: 'Village bed', work: 'Well' }]));
+        out.push(person('Old Tam', [3, 11], '#c4b5fd', [{ use: 'talk', lines: 'Nice weather.|Keep away from the hill at night.', side: 'villagers' }, { use: 'faction', side: 'villagers', fights: false }, { use: 'routine', eat: 'Market table', sleep: 'Village bed', work: 'Workbench' }]));
+        out.push(person('Guard', [-4, 4], '#60a5fa', [{ use: 'faction', side: 'guards', damage: 18, hp: 160 }, { use: 'talk', lines: 'Stay safe out there.' }]));
+        for (const [x, z] of [[-3, 40], [2, 42], [0, 45]]) out.push(person('Bandit', [x, z], '#78350f', [{ use: 'faction', side: 'bandits', damage: 10, hp: 90 }]));
+        out.push(box('Bandit tent', [3, 2, 3], [5, 1, 46], '#451a03'));
+        return out;
+      },
+    },
+    {
       id: 'mine', name: 'Block mine', icon: '⛏', about: 'A world of blocks grows round you: caves, ores, trees. You hold a pickaxe: mine, build, craft.',
       settings: { world: 'caves', size: 48 },
       // (The blocks' bottom middle a little under where the kit goes: the ground grows to about 0.42 of the height.)
