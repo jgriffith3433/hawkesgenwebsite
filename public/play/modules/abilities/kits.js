@@ -154,6 +154,17 @@
       },
     },
     {
+      id: 'league', name: 'Football league', icon: '🏆', about: 'Your club in a season: a pitch, free agents to sign with coins, rival clubs, a match each, a points table.',
+      settings: { length: 44 },
+      config: () => ({ match: { teams: ['red', 'blue'], join: 'blue', auto: false, time: 180, score: 5, start: 3, objective: 'Score in their goal' }, league: { team: { name: 'Hawkes FC' }, squad: 3, coins: 120, rivals: [{ name: 'Harbour United', strength: 2 }, { name: 'Ridge Rovers', strength: 3 }, { name: 'Dockside Athletic', strength: 4 }, { name: 'Summit City', strength: 5 }] } }),
+      things(o) {
+        const out = KITS.find((k) => k.id === 'football').things({ length: o.length, bots: 0 });
+        const L = Math.max(20, Math.min(120, o.length)), x = L * 0.3 + 4;
+        [['Rio Banks', 8, 5, 70], ['Mae Stone', 5, 8, 75], ['Tom Reed', 6, 6, 60]].forEach(([name, speed, kick, cost], i) => out.push({ type: 'capsule', name, shape: { radius: 0.35, height: 1.75 }, material: { color: '#a3a3a3' }, physics: 'static', transform: { position: [x, 0.9, L / 2 - 3 + i * 3] }, behaviors: [{ use: 'recruit', name, speed, kick, cost }] }));
+        return out;
+      },
+    },
+    {
       id: 'basketball', name: 'Basketball court', icon: '🏀', about: 'A court, two hoops (2 points each) and a ball you pick up and throw.',
       settings: {},
       config: () => ({ match: { teams: ['red', 'blue'], time: 240, objective: 'E picks the ball up, click throws it at the hoop' } }),

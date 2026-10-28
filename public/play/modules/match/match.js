@@ -63,6 +63,8 @@
       if (M.lives[p.id] === undefined) M.lives[p.id] = Math.max(0, num(cfg && cfg.lives, 0));
       if (!M.teams.length || M.team[p.id]) continue;
       if (M.mode === 'hide') { const seekers = Object.values(M.team).filter((t) => t === 'seekers').length; M.team[p.id] = seekers < Math.max(1, Math.round(ps.length / 5)) ? 'seekers' : 'hiders'; continue; }
+      // (config.match.join: the team every player is on: a league's home side.)
+      if (cfg && cfg.join && M.teams.includes(String(cfg.join))) { M.team[p.id] = String(cfg.join); continue; }
       const counts = M.teams.map((t) => Object.values(M.team).filter((x) => x === t).length);
       M.team[p.id] = M.teams[counts.indexOf(Math.min(...counts))];
     }
@@ -212,8 +214,9 @@ body.pr-touch .mt-hud{top:auto;bottom:auto;top:max(8px,env(safe-area-inset-top))
       value: { teams: ['red', 'blue'], time: 180, score: 5 },
       fields: [['teams', '["red", "blue"], a number, or false (everyone for themselves)', '2'], ['time', 'seconds a round (0: no clock)', '300'], ['rounds', 'rounds in the match', '1'], ['score', 'points to win a round (0: the clock decides)', '0'], ['lives', 'lives each (0: endless)', '0'], ['mode', 'classic, tag, hide', 'classic'], ['start', 'countdown seconds', '5'], ['kills', 'a kill is a point', 'true'], ['objective', 'a line under the scoreboard', '']],
     },
-    apply(value) { cfg = value && typeof value === 'object' ? value : {}; startMatch(); },
-    change(value) { cfg = value && typeof value === 'object' ? value : {}; startMatch(); },
+    // (auto: false waits for H.match.start(): a league's match day.)
+    apply(value) { cfg = value && typeof value === 'object' ? value : {}; if (cfg.auto !== false) startMatch(); },
+    change(value) { cfg = value && typeof value === 'object' ? value : {}; if (cfg.auto !== false) startMatch(); },
     update(dt) { try { step(dt); } catch (err) { H.report(err, 'match'); } },
     dispose() { M = blank(); cfg = null; dark(false); if (frozen && W() && W().player) W().player.controls = true; frozen = false; hud(); },
   });
@@ -240,6 +243,10 @@ body.pr-touch .mt-hud{top:auto;bottom:auto;top:max(8px,env(safe-area-inset-top))
     end(winner) { if (isHost()) endRound(winner); },
     /** fn(state) on every change. Returns off(). */
     listen(fn) { listeners.add(fn); return () => listeners.delete(fn); },
+    /** Every ball back where it started, still. */
+    resetBalls() { for (const b of W().entities) if (b.alive && homes.has(b)) resetBall(b); },
+    /** The match's settings now (config.match). */
+    get config() { return cfg ? JSON.parse(JSON.stringify(cfg)) : null; },
     _: { step, people, meId, tag: (to) => tagAct({ from: meId(), to }) },
   };
   // Rules: { "point": "red" } (or "point": "player": the one who set it off; "n": 3).
