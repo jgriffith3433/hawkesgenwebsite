@@ -1,0 +1,48 @@
+// Puts the portal's secrets into a Google Cloud project's Secret Manager (from J's PC). Values travel on stdin and are
+// never printed. Idempotent: an existing secret gets a new version only with --replace.
+//   node cloud/setup-secrets.mjs --project hawkes-staging            staging: its own Gen key (ustg_*), no Stripe
+//   node cloud/setup-secrets.mjs --project hawkes-prod --from-box     live: the values the portal box has
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+
+const arg = (k) => { const i = process.argv.indexOf(`--${k}`); return i >= 0 ? (process.argv[i + 1] ?? true) : undefined; };
+const project = arg('project');
+if (!project) throw new Error('usage: node cloud/setup-secrets.mjs --project <id> [--from-box] [--replace]');
+const replace = Boolean(arg('replace'));
+const gcloud = path.join(process.env.LOCALAPPDATA ?? '', 'Google', 'Cloud SDK', 'google-cloud-sdk', 'bin', 'gcloud.cmd');
+const run = (args, input) => spawnSync(gcloud, args, { input, encoding: 'utf8', shell: true, windowsHide: true });
+
+function readBox() {
+  const key = path.resolve('..', 'hawkesstudio', 'deploy', '.keys', 'gen_public_ed25519');
+  const r = spawnSync('ssh', ['-o', 'BatchMode=yes', '-i', key, 'ubuntu@34.181.136.216', 'sudo cat /srv/hawkes/hawkesgenwebsite/.env'], { encoding: 'utf8', windowsHide: true });
+  if (r.status !== 0) throw new Error('could not read the portal box .env');
+  return Object.fromEntries(r.stdout.split(/\r?\n/).map((l) => /^([A-Z0-9_]+)=(.*)$/.exec(l)).filter(Boolean).map((m) => [m[1], m[2].replace(/^['"]|['"]$/g, '')]));
+}
+
+async function genKeyFor(prefix) {
+  const c = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.hawkes', 'client.json'), 'utf8'));
+  const gen = String(c.genUrl).trim().replace(/\/+$/, '');
+  const r = await fetch(`${gen}/v1/clients`, { method: 'POST', headers: { Authorization: `Bearer ${String(c.genKey).trim()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: `hawkesgen.com portal (${project})`, role: 'user', projects: [`${prefix}*`] }) });
+  if (!r.ok) throw new Error(`Gen would not make the key: ${r.status} ${(await r.text()).slice(0, 200)}`);
+  return (await r.json()).key;
+}
+
+const box = arg('from-box') ? readBox() : {};
+const exists = (name) => run(['secrets', 'describe', name, '--project', project, '--format=value(name)']).status === 0;
+const values = {
+  HAWKESGEN_KEY: async () => box.HAWKESGEN_KEY ?? genKeyFor('ustg_'),
+  STRIPE_SECRET_KEY: async () => box.STRIPE_SECRET_KEY ?? 'unset',
+  STRIPE_WEBHOOK_SECRET: async () => box.STRIPE_WEBHOOK_SECRET ?? 'unset',
+  GOOGLE_CLIENT_SECRET: async () => box.GOOGLE_CLIENT_SECRET ?? readBox().GOOGLE_CLIENT_SECRET,
+  PORTAL_SIGNING_KEY: async () => crypto.randomBytes(32).toString('base64url'),
+};
+for (const [name, get] of Object.entries(values)) {
+  const has = exists(name);
+  if (has && !replace) { console.log(`${name}: kept`); continue; }
+  const v = await get();
+  const r = has ? run(['secrets', 'versions', 'add', name, '--data-file=-', '--project', project], v) : run(['secrets', 'create', name, '--data-file=-', '--replication-policy=automatic', '--project', project], v);
+  console.log(`${name}: ${r.status === 0 ? (has ? 'new version' : 'made') : 'FAILED ' + (r.stderr || '').trim().split('\n').pop()}`);
+}

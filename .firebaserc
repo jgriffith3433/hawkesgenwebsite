@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "hawkes-staging",
+    "staging": "hawkes-staging",
+    "prod": "hawkes-prod"
+  }
+}
