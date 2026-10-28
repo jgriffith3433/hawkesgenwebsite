@@ -13,8 +13,10 @@ const SITE = 'projects/hawkes-prod/sites/hawkes-prod';
 const NET_IP = '34.86.89.28';
 const sdk = path.join(process.env.LOCALAPPDATA ?? '', 'Google', 'Cloud SDK', 'google-cloud-sdk');
 const gcloud = (...a) => spawnSync(path.join(sdk, 'platform', 'bundledpython', 'python.exe'), [path.join(sdk, 'lib', 'gcloud.py'), ...a], { encoding: 'utf8' });
+// The CLI's own script through Node (no shell, so JSON arguments arrive intact on Windows).
+const cfMain = path.join(spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['root', '-g'], { encoding: 'utf8', shell: process.platform === 'win32' }).stdout.trim(), 'cf', 'bin', 'cf');
 const cf = (...a) => {
-  const r = spawnSync(process.platform === 'win32' ? 'cloudflare.cmd' : 'cloudflare', a, { encoding: 'utf8', shell: process.platform === 'win32' });
+  const r = spawnSync(process.execPath, [cfMain, ...a], { encoding: 'utf8' });
   if (r.status !== 0) throw new Error(`cloudflare ${a.slice(0, 3).join(' ')}: ${(r.stderr || r.stdout).slice(-300)}`);
   try { return JSON.parse(r.stdout); } catch { return r.stdout; }
 };
@@ -54,6 +56,6 @@ for (const w of wanted) {
   const content = String(w.content).replace(/\.$/, '');
   if (rows.some((r) => r.name === name && r.type === w.type && String(r.content).replace(/^"|"$/g, '') === content.replace(/^"|"$/g, ''))) { console.log(`Cloudflare: ${w.type} ${name} already there`); continue; }
   console.log(`Cloudflare: ${w.type} ${name} -> ${content}${apply ? '' : ' (dry run)'}`);
-  if (apply) cf('dns', 'records', 'create', '-z', DOMAIN, '--type', w.type, '--name', name, '--content', content, '--ttl', '300', '--proxied', 'false');
+  if (apply) cf('dns', 'records', 'create', '-z', DOMAIN, '--body', JSON.stringify({ type: w.type, name, content, ttl: 300, proxied: false }));
 }
 console.log(apply ? '\nDone. Firebase checks the records by itself; run this again later to see the certificate go ACTIVE.' : '\nDry run: add --apply.');
