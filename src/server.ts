@@ -1,4 +1,4 @@
-// hawkesgen.com: the customer portal. Pages (public/), accounts, credits and Stripe here; every job, file and event is
+// hawkesgen.ai: the customer portal. Pages (public/), accounts, credits and Stripe here; every job, file and event is
 // Hawkes Gen's, reached with the portal's key narrowed to the customer's project. Only the routes listed below go to Gen.
 import fs from 'node:fs';
 import http from 'node:http';
@@ -120,10 +120,10 @@ function cors(res: ServerResponse) {
   res.setHeader('Access-Control-Expose-Headers', 'WWW-Authenticate, Mcp-Session-Id');
 }
 
-// The Hawkes Net dashboard (net.hawkesgen.com, served by the Net box) reads the signed-in developer's Net data and makes
+// The Hawkes Net dashboard (net.hawkesgen.ai, served by the Net box) reads the signed-in developer's Net data and makes
 // their key here, with the session cookie (same site, so it is sent). Only that origin, only these routes, credentials allowed.
 const NET_DASHBOARD_ROUTES = /^\/v1\/(net\/me|net\/projects(\/.*)?|users\/api-key|users\/(login|signup|forgot|logout))$/;
-const netDashboard = () => (env('PORTAL_NET_DASHBOARD') ?? 'https://net.hawkesgen.com').replace(/\/+$/, '');
+const netDashboard = () => (env('PORTAL_NET_DASHBOARD') ?? 'https://net.hawkesgen.ai').replace(/\/+$/, '');
 function netDashboardCors(req: IncomingMessage, res: ServerResponse): boolean {
   if (req.headers.origin !== netDashboard()) return false;
   res.setHeader('Access-Control-Allow-Origin', netDashboard());
@@ -153,12 +153,12 @@ const PLAY_SANDBOX = 'sandbox allow-scripts allow-pointer-lock allow-popups';
  *  Gen's analytics origin moving with Gen) and only then; a game's own fetch to anywhere else is meant to fail. */
 const PLAY_HOSTS = {
   /** Hawkes Gen: the analytics SDK (play.html) and its relay. */
-  gen: ['https://gen.hawkesgen.com'],
+  gen: ['https://gen.hawkesgen.ai'],
   /** The stand-in boombox model (kinds.js). */
   models: ['https://models.babylonjs.com'],
   /** Realtime (play/net.js): Hawkes Net's nodes (hnet.ts netHosts: the one inside Gen, and PORTAL_NET_HOSTS). */
   get realtime(): string[] { return hnet.netHosts(); },
-  /** Where public assets come from when Gen has them on its CDN (cdn.hawkesgen.com; config.ts cdnHosts; CORS is open there). */
+  /** Where public assets come from when Gen has them on its CDN (cdn.hawkesgen.ai; config.ts cdnHosts; CORS is open there). */
   get assets(): string[] { return cdnHosts(); },
 };
 export function playCsp(nonce: string): string {
@@ -264,7 +264,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (NET_DASHBOARD_ROUTES.test(route) && netDashboardCors(req, res) && method === 'OPTIONS') return void res.writeHead(204, { 'Access-Control-Max-Age': '600' }).end();
     // Back to the Net dashboard after signing in here (Google's next= takes paths on this site only).
     if (route === '/net/back' && method === 'GET') return void res.writeHead(302, { Location: netDashboard() + '/' }).end();
-    // The Hawkes Net docs live on net.hawkesgen.com now (J, 2026-10-26: /net advertises, net.hawkesgen.com is the product).
+    // The Hawkes Net docs live on net.hawkesgen.ai now (J, 2026-10-26: /net advertises, net.hawkesgen.ai is the product).
     if (route === '/net/docs' && method === 'GET') return void res.writeHead(301, { Location: netDashboard() + '/' }).end();
 
     // ------------------------------------------------------------ MCP and its OAuth
@@ -293,7 +293,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       const c = users.bearer(req) ? caller(req) : null;
       if (!c) {
         res.setHeader('WWW-Authenticate', `Bearer resource_metadata="${publicUrl()}/.well-known/oauth-protected-resource/mcp"${users.bearer(req) ? ', error="invalid_token"' : ''}`);
-        return send(res, 401, { error: 'Sign in: connect at https://hawkesgen.com/connect, or send an API key (Authorization: Bearer hg_...)' });
+        return send(res, 401, { error: 'Sign in: connect at https://hawkesgen.ai/connect, or send an API key (Authorization: Bearer hg_...)' });
       }
       return await handleMcp(c, req, res);
     }
@@ -525,7 +525,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     // Hawkes Net for a customer's own game: a ticket for a room in their own project, from their game's server (hnet.ts).
     if (route === '/v1/net/rooms/ticket' && method === 'POST') return send(res, 200, await hnet.customerTicket(user, await readJson(req)));
     if (route === '/v1/net/me' && method === 'GET') return send(res, 200, await hnet.developer(user, users.profile(user).client));
-    // Hawkes Net projects (the net.hawkesgen.com dashboard): the signed-in account's own (hnet.ts). Writes are JSON only:
+    // Hawkes Net projects (the net.hawkesgen.ai dashboard): the signed-in account's own (hnet.ts). Writes are JSON only:
     // a form on another site can't send one without asking first, and CORS lets only the Net dashboard.
     const np = /^\/v1\/net\/projects(?:\/([^/]+)(?:\/(claim|rooms)(?:\/(.+?)(?:\/(kick))?)?)?)?$/.exec(route);
     if (np) {

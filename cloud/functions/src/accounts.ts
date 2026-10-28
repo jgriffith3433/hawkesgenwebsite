@@ -97,7 +97,7 @@ const googleClientId = () => env('GOOGLE_CLIENT_ID') ?? '';
 const redirectUri = () => `${publicUrl()}/auth/google/callback`;
 /** Only our own pages: a path, never another site. */
 const safeNext = (n: unknown) => (typeof n === 'string' && /^\/(?!\/)[^\s\\]*$/.test(n) ? n : '/app');
-const netDashboard = () => (env('PORTAL_NET_DASHBOARD') ?? 'https://net.hawkesgen.com').replace(/\/+$/, '');
+const netDashboard = () => (env('PORTAL_NET_DASHBOARD') ?? 'https://net.hawkesgen.ai').replace(/\/+$/, '');
 const problemPage = (next: unknown, q: string) => (safeNext(next) === '/net/back' ? `${netDashboard()}/?${q}` : `/?${q}`);
 
 /** Signed, short-lived state (HMAC with the portal's signing key). */
@@ -182,7 +182,7 @@ export async function accountForLogin(uid: string, email: string, name: string |
     if (user) await db.collection('logins').doc(uid).set({ user: user.id });
     else user = await createAccount({ email, name, uid }, ip, origin);
   }
-  if (user.disabled) throw new PortalError('This account is disabled. Contact support@hawkesgen.com.', { status: 403 });
+  if (user.disabled) throw new PortalError('This account is disabled. Contact support@hawkesgen.ai.', { status: 403 });
   await users().doc(user.id).update({ last_login: Date.now(), uid });
   return user;
 }
@@ -315,7 +315,7 @@ void json;
 
 // ------------------------------------------------------------ stream links
 // Firebase Hosting holds a function's answer until it ends, so a server-sent stream (the editor's live feed, the job
-// feed) can't pass through hawkesgen.com. The page asks here, on its own origin with its session, for a link to the
+// feed) can't pass through hawkesgen.ai. The page asks here, on its own origin with its session, for a link to the
 // function's direct address that carries a signed token for that one path (ten minutes); the stream goes there.
 export const STREAMS = /^\/v1\/(games\/g_[0-9a-f]+\/live|events)$/;
 export const streamUrl = () => (env('PORTAL_STREAM_URL') ?? '').replace(/\/+$/, '');

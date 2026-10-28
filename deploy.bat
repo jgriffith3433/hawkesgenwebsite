@@ -37,7 +37,7 @@ if errorlevel 1 (
 ) else (
     echo.
     echo ===== Deploy complete! =====
-    echo Portal is live at https://hawkesgen.com
+    echo Portal is live at https://hawkesgen.ai
 )
 
 echo.

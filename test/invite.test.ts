@@ -76,9 +76,9 @@ function open(query: string) {
 const until = async (f: () => boolean, ms = 3000) => { const t = Date.now(); while (!f()) { if (Date.now() - t > ms) throw new Error('timed out'); await new Promise((r) => setTimeout(r, 25)); } };
 
 test('an invitation: a signed link to a room of the island, with the name and referral code cleaned', () => {
-  const inv = invites.createInvite('https://hawkesgen.com', { name: '  <b>Mo</b>  ', ref: 'ABC123x' });
+  const inv = invites.createInvite('https://hawkesgen.ai', { name: '  <b>Mo</b>  ', ref: 'ABC123x' });
   assert.match(inv.room, /^[a-z0-9]{8}$/);
-  assert.equal(inv.link, `https://hawkesgen.com/play/sandbox?invite=${inv.token}&ref=abc123x`);
+  assert.equal(inv.link, `https://hawkesgen.ai/play/sandbox?invite=${inv.token}&ref=abc123x`);
   assert.equal(invites.createInvite('https://x', { name: 'A', ref: 'no way!' }).link.includes('&ref='), false, 'a code that is not one is left out');
   assert.equal(invites.cleanName('x'.repeat(80)).length, 24);
   assert.equal(invites.islandKey('abcd1234'), 'play:t/sandbox:abcd1234');

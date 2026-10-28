@@ -14,7 +14,7 @@ process.env.PORTAL_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'portal-csp-
 process.env.HAWKESGEN_URL = 'http://127.0.0.1:9';
 process.env.HAWKESGEN_KEY = 'hg_test';
 process.env.PORTAL_DEV_OPEN_PLAY = '0';
-process.env.PUBLIC_URL = 'https://hawkesgen.com';
+process.env.PUBLIC_URL = 'https://hawkesgen.ai';
 
 const { handle } = await import('../src/server.ts');
 const { safeHref } = await import(path.join(ROOT, 'public', 'editor-bridge.js'));
@@ -29,7 +29,7 @@ function parse(csp: string) {
   return d;
 }
 /** Would `directive` let a page at the portal's address load `url`? (hosts, schemes, 'self'; not paths) */
-function allows(d: Record<string, string[]>, directive: string, url: string, self = 'https://hawkesgen.com') {
+function allows(d: Record<string, string[]>, directive: string, url: string, self = 'https://hawkesgen.ai') {
   const list = d[directive] ?? d['default-src'] ?? [];
   const u = new URL(url);
   return list.some((s) => {
@@ -76,27 +76,27 @@ test('the nonce is new for every page load', async () => {
 
 test("a game script's fetch to an outside site is refused; what the engine needs is allowed", async () => {
   const d = parse(String((await fetch(`${base}/play/my-game`)).headers.get('content-security-policy')));
-  for (const url of ['https://example.com/', 'https://evil.example/steal?c=1', 'wss://example.com/', 'http://hawkesgen.com/', 'https://gen.hawkesgen.com.evil.example/']) {
+  for (const url of ['https://example.com/', 'https://evil.example/steal?c=1', 'wss://example.com/', 'http://hawkesgen.ai/', 'https://gen.hawkesgen.ai.evil.example/']) {
     assert.equal(allows(d, 'connect-src', url), false, url);
     assert.equal(allows(d, 'img-src', url), false, `img ${url}`);
     assert.equal(allows(d, 'script-src', url), false, `script ${url}`);
   }
   // Its own site (assets, the room), Babylon and Havok from the CDN, Gen's analytics.
-  assert.ok(allows(d, 'connect-src', 'https://hawkesgen.com/v1/play-template/x'));
-  assert.ok(allows(d, 'connect-src', 'wss://hawkesgen.com/v1/ws'));
+  assert.ok(allows(d, 'connect-src', 'https://hawkesgen.ai/v1/play-template/x'));
+  assert.ok(allows(d, 'connect-src', 'wss://hawkesgen.ai/v1/ws'));
   // Babylon, the loaders, Havok and its wasm are our own (/vendor): no CDN is on the list.
-  assert.ok(allows(d, 'connect-src', 'https://hawkesgen.com/vendor/havok@1.3.10/HavokPhysics.wasm'));
-  assert.ok(allows(d, 'script-src', 'https://hawkesgen.com/vendor/babylonjs@7.54.3/babylon.js'));
+  assert.ok(allows(d, 'connect-src', 'https://hawkesgen.ai/vendor/havok@1.3.10/HavokPhysics.wasm'));
+  assert.ok(allows(d, 'script-src', 'https://hawkesgen.ai/vendor/babylonjs@7.54.3/babylon.js'));
   for (const cdn of ['https://cdn.jsdelivr.net/npm/babylonjs@7.54.3/babylon.js', 'https://cdnjs.cloudflare.com/x.js', 'https://unpkg.com/x.js']) assert.equal(allows(d, 'script-src', cdn), false, cdn);
-  assert.ok(allows(d, 'script-src', 'https://gen.hawkesgen.com/sdk/analytics@1.js'));
-  assert.ok(allows(d, 'img-src', 'blob:https://hawkesgen.com/abc'));
+  assert.ok(allows(d, 'script-src', 'https://gen.hawkesgen.ai/sdk/analytics@1.js'));
+  assert.ok(allows(d, 'img-src', 'blob:https://hawkesgen.ai/abc'));
   assert.ok(d['script-src'].includes("'unsafe-eval'") && d['script-src'].includes("'wasm-unsafe-eval'"));
   assert.deepEqual(d['worker-src'], ['blob:', "'self'"]);
 });
 
 test('every external host the game page and engine name is on the policy list', () => {
   // A host added to the engine must be added to PLAY_HOSTS (server.ts); this finds the ones that were not.
-  const listed = new Set(['https://gen.hawkesgen.com', 'https://models.babylonjs.com', 'https://hawkesgen.com']);
+  const listed = new Set(['https://gen.hawkesgen.ai', 'https://models.babylonjs.com', 'https://hawkesgen.ai']);
   const files = ['public/play/play.html', 'public/play/engine.json', 'public/play/kinds.js', 'public/play/loader.js', 'public/play/runtime.js', 'public/play/net.js', 'public/play/modules/monitor/monitor.js'];
   for (const f of files) {
     for (const m of fs.readFileSync(path.join(ROOT, f), 'utf8').matchAll(/https:\/\/([a-z0-9.-]+)/g)) {
@@ -108,10 +108,10 @@ test('every external host the game page and engine name is on the policy list', 
 });
 
 test('a link from a game or its chat is a link only when it is ours', () => {
-  const ok = ['/app#credits', '/app/g/g_1', 'https://hawkesgen.com/app', 'https://www.hawkesgen.com/'];
+  const ok = ['/app#credits', '/app/g/g_1', 'https://hawkesgen.ai/app', 'https://www.hawkesgen.ai/'];
   for (const h of ok) assert.ok(safeHref(h), h);
   assert.ok(safeHref('https://beta.example.net/app', ['https://beta.example.net']), 'this page\'s own origin');
-  for (const h of ['https://example.com/', 'http://hawkesgen.com/', 'javascript:alert(1)', ' javascript:alert(1)', 'JaVaScRiPt:alert(1)', 'data:text/html,x', '//example.com/x', '/\\example.com/x', '/\t/example.com', 'https://hawkesgen.com.evil.example/', 'https://evil.example/https://hawkesgen.com/', '', null, undefined, 'app/x', 'mailto:a@b.c']) {
+  for (const h of ['https://example.com/', 'http://hawkesgen.ai/', 'javascript:alert(1)', ' javascript:alert(1)', 'JaVaScRiPt:alert(1)', 'data:text/html,x', '//example.com/x', '/\\example.com/x', '/\t/example.com', 'https://hawkesgen.ai.evil.example/', 'https://evil.example/https://hawkesgen.ai/', '', null, undefined, 'app/x', 'mailto:a@b.c']) {
     assert.equal(safeHref(h), null, String(h));
   }
 });

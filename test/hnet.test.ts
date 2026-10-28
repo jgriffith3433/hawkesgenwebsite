@@ -202,17 +202,17 @@ test("a developer's own Hawkes Net (/v1/net/me): their project, whether they may
   assert.deepEqual(me.projects.projects, [], 'no projects yet');
   assert.equal(me.projects.tier, 'free', 'the service is told the account is free');
   const docs = await fetch(`${base}/net/docs`, { redirect: 'manual' });
-  assert.equal(docs.status, 301, '/net/docs moved to net.hawkesgen.com');
-  assert.equal(docs.headers.get('location'), 'https://net.hawkesgen.com/');
+  assert.equal(docs.status, 301, '/net/docs moved to net.hawkesgen.ai');
+  assert.equal(docs.headers.get('location'), 'https://net.hawkesgen.ai/');
   const page = await (await fetch(`${base}/net`)).text();
   assert.match(page, /Games on Hawkes Net/, '/net is the offering');
-  assert.match(page, /https:\/\/net\.hawkesgen\.com\//, 'its buttons open net.hawkesgen.com');
+  assert.match(page, /https:\/\/net\.hawkesgen\.ai\//, 'its buttons open net.hawkesgen.ai');
   assert.match(page, /sickofitgame\.com/);
   assert.doesNotMatch(page, /\/net\/docs/);
 });
 
 test('signing in from the Net dashboard: its page may sign in, sign up and sign out here; Google and a reset come back to it', async () => {
-  const dash = 'https://net.hawkesgen.com';
+  const dash = 'https://net.hawkesgen.ai';
   for (const r of ['/v1/users/login', '/v1/users/signup', '/v1/users/forgot', '/v1/users/logout']) {
     const pre = await fetch(`${base}${r}`, { method: 'OPTIONS', headers: { Origin: dash, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'content-type' } });
     assert.equal(pre.status, 204, r);
@@ -226,18 +226,18 @@ test('signing in from the Net dashboard: its page may sign in, sign up and sign 
   const login = await fetch(`${base}/v1/users/login`, { method: 'POST', headers: { Origin: dash, 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'net-signin@example.com', password: 'a long password 1' }) });
   assert.equal(login.status, 200);
   assert.equal(login.headers.get('access-control-allow-origin'), dash, 'the dashboard reads the answer');
-  assert.match(login.headers.get('set-cookie') ?? '', /hg_session=/, 'and the session is set on hawkesgen.com');
+  assert.match(login.headers.get('set-cookie') ?? '', /hg_session=/, 'and the session is set on hawkesgen.ai');
   // Google (not set up in tests): the problem goes back to the page the sign-in started from.
   const fromNet = await fetch(`${base}/auth/google?next=/net/back`, { redirect: 'manual' });
-  assert.match(fromNet.headers.get('location') ?? '', /^https:\/\/net\.hawkesgen\.com\/\?signin_error=/);
+  assert.match(fromNet.headers.get('location') ?? '', /^https:\/\/net\.hawkesgen\.ai\/\?signin_error=/);
   const fromHome = await fetch(`${base}/auth/google?next=/app`, { redirect: 'manual' });
   assert.match(fromHome.headers.get('location') ?? '', /^\/\?signin_error=/);
   const back = await fetch(`${base}/net/back`, { redirect: 'manual' });
   assert.equal(back.headers.get('location'), `${dash}/`);
 });
 
-test('the Net dashboard (net.hawkesgen.com) may read /v1/net/me and make a key with the session; no other origin may', async () => {
-  const dash = 'https://net.hawkesgen.com';
+test('the Net dashboard (net.hawkesgen.ai) may read /v1/net/me and make a key with the session; no other origin may', async () => {
+  const dash = 'https://net.hawkesgen.ai';
   const pre = await fetch(`${base}/v1/users/api-key`, { method: 'OPTIONS', headers: { Origin: dash, 'Access-Control-Request-Method': 'POST' } });
   assert.equal(pre.status, 204);
   assert.equal(pre.headers.get('access-control-allow-origin'), dash);
@@ -245,7 +245,7 @@ test('the Net dashboard (net.hawkesgen.com) may read /v1/net/me and make a key w
   const me = await fetch(`${base}/v1/net/me`, { headers: { Origin: dash } });
   assert.equal(me.status, 401, 'signed out: the page shows the sign-in');
   assert.equal(me.headers.get('access-control-allow-origin'), dash, 'and can read that it is signed out');
-  const other = await fetch(`${base}/v1/net/me`, { headers: { Origin: 'https://studio.hawkesgen.com' } });
+  const other = await fetch(`${base}/v1/net/me`, { headers: { Origin: 'https://studio.hawkesgen.ai' } });
   assert.equal(other.headers.get('access-control-allow-origin'), null, 'another subdomain gets no CORS');
   const elsewhere = await fetch(`${base}/v1/users/me`, { headers: { Origin: dash } });
   assert.equal(elsewhere.headers.get('access-control-allow-origin'), null, 'only the two dashboard routes');
@@ -284,7 +284,7 @@ test("a developer's Hawkes Net projects (the Net dashboard): made, listed, chang
   assert.equal((await call('POST', '/v1/net/projects/sickofit/claim', {})).status, 403, 'only an admin takes a Hawkes game');
   assert.equal((await call('GET', '/v1/net/projects/not-mine')).status, 404);
   assert.equal((await call('DELETE', '/v1/net/projects/acme-arena')).status, 200);
-  const pre = await fetch(`${base}/v1/net/projects/acme-arena`, { method: 'OPTIONS', headers: { Origin: 'https://net.hawkesgen.com', 'Access-Control-Request-Method': 'DELETE' } });
-  assert.equal(pre.headers.get('access-control-allow-origin'), 'https://net.hawkesgen.com', 'the dashboard may call it');
+  const pre = await fetch(`${base}/v1/net/projects/acme-arena`, { method: 'OPTIONS', headers: { Origin: 'https://net.hawkesgen.ai', 'Access-Control-Request-Method': 'DELETE' } });
+  assert.equal(pre.headers.get('access-control-allow-origin'), 'https://net.hawkesgen.ai', 'the dashboard may call it');
   assert.match(pre.headers.get('access-control-allow-methods') ?? '', /DELETE/);
 });

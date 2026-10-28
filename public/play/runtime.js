@@ -1,4 +1,4 @@
-// Hawkes Play: the engine every game on hawkesgen.com runs in, in the editor and when published. A friendly layer over
+// Hawkes Play: the engine every game on hawkesgen.ai runs in, in the editor and when published. A friendly layer over
 // Babylon.js. A game is a world (scene.json: things with a shape, a look, a way of moving and behaviors, see WORLD.md)
 // plus scripts (one global, `game`, see API.md). The engine gives every game a first-person player, box physics
 // (falling, bouncing, pushing, carrying on platforms), fall catching, behaviors, screen text, sound and errors, and

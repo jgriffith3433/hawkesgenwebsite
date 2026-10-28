@@ -91,7 +91,7 @@ export const editToken = (gameId: string, user: { id: string }) => signToken({ k
 // ------------------------------------------------------------------ Hawkes Net (src/hnet.ts publishOps / kick)
 // Game rooms are Hawkes Net's (a function holds no sockets): world edits saved here are published to the game's rooms
 // (g/<id>/*), and people put out of a game are kicked there. PORTAL_NET=local turns it off.
-export const netUrl = () => (env('PORTAL_NET_URL') ?? 'https://net.hawkesgen.com').replace(/\/+$/, '');
+export const netUrl = () => (env('PORTAL_NET_URL') ?? 'https://net.hawkesgen.ai').replace(/\/+$/, '');
 export const NET_PROJECT = 'hawkesgenwebsite';
 async function netPublish(body: Record<string, unknown>) {
   if (env('PORTAL_NET') === 'local') return;
@@ -111,7 +111,7 @@ export const netKick = (room: string, sub?: string) => netPublish({ room, kick: 
 // ------------------------------------------------------------------ levels of detail and CDN links (src/lods.ts, read side)
 export type GenLevel = { level: number; bytes: number; w?: number; h?: number; tris?: number; tex?: number; role?: string; sha: string; inS3?: boolean; cdn?: string };
 export type GenLods = { kind: 'image' | 'mesh'; state: string; size?: [number, number]; tris?: number; tex?: number; bytes: number; sha: string; inS3?: boolean; cdn?: string; levels: GenLevel[] };
-export const cdnHosts = () => [...new Set(['https://cdn.hawkesgen.com', ...(env('PORTAL_CDN_HOSTS') ?? '').split(',').map((h) => h.trim().replace(/\/+$/, '')).filter((h) => /^https:\/\/[a-z0-9.-]+(:\d+)?$/.test(h))])];
+export const cdnHosts = () => [...new Set(['https://cdn.hawkesgen.ai', ...(env('PORTAL_CDN_HOSTS') ?? '').split(',').map((h) => h.trim().replace(/\/+$/, '')).filter((h) => /^https:\/\/[a-z0-9.-]+(:\d+)?$/.test(h))])];
 const CDN_URL = /^(https:\/\/[a-z0-9.-]+(?::\d+)?)\/sha256\/[0-9a-f]+$/;
 const goodCdn = (x: unknown): string | null => { const m = typeof x === 'string' ? CDN_URL.exec(x) : null; return m && cdnHosts().includes(m[1]) ? (x as string) : null; };
 const FRESH = { made: 24 * 3600_000, making: 60_000, none: 10 * 60_000, notBackedUp: 15 * 60_000 };

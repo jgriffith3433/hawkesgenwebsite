@@ -234,7 +234,7 @@ test('Stripe: a signed, paid checkout adds the pack once; a bad signature adds n
 
 test('admins: made from the CLI path with a one-time link; customers never see the admin routes', async () => {
   const { ensureAdmin, passwordLink } = await import('../src/users.ts');
-  const a = await ensureAdmin('boss@hawkesgen.com', 'Boss');
+  const a = await ensureAdmin('boss@hawkesgen.ai', 'Boss');
   const link = passwordLink(a.id, 'https://hawkesgen.test');
   const token = new URL(link).searchParams.get('token');
   assert.equal((await call('/v1/users/password', { body: { token, password: 'short' } })).status, 400);
@@ -257,13 +257,13 @@ test('admins: made from the CLI path with a one-time link; customers never see t
   assert.equal((await call(`/v1/admin/users/${c.user.id}/credits`, { cookie: boss, body: { delta: -500, note: 'too much' } })).status, 400);
   assert.equal((await call(`/v1/admin/users/${c.user.id}/credits`, { cookie: boss, body: { delta: 25, note: 'Launch thank-you' } })).body.credits, 75);
   const detail = (await call(`/v1/admin/users/${c.user.id}`, { cookie: boss })).body;
-  assert.match(detail.ledger[0].detail, /Launch thank-you \(by boss@hawkesgen.com\)/);
+  assert.match(detail.ledger[0].detail, /Launch thank-you \(by boss@hawkesgen.ai\)/);
   assert.equal((await call(`/v1/admin/users/${c.user.id}/gift`, { cookie: boss, body: { credits: -5 } })).status, 400, 'gifts are positive');
   assert.equal((await call(`/v1/admin/users/${c.user.id}/gift`, { cookie: c.cookie, body: { credits: 5 } })).status, 404, 'admins only');
   const gift = (await call(`/v1/admin/users/${c.user.id}/gift`, { cookie: boss, body: { credits: 500, message: 'Thanks for the bug report' } })).body;
   assert.equal(gift.credits, 575);
   assert.equal(gift.emailed, false, 'mail is off in tests');
-  assert.match((await call(`/v1/admin/users/${c.user.id}`, { cookie: boss })).body.ledger[0].detail, /^Gift: Thanks for the bug report \(by boss@hawkesgen.com\)/);
+  assert.match((await call(`/v1/admin/users/${c.user.id}`, { cookie: boss })).body.ledger[0].detail, /^Gift: Thanks for the bug report \(by boss@hawkesgen.ai\)/);
 
   await call(`/v1/admin/users/${c.user.id}/disable`, { cookie: boss, body: {} });
   assert.equal((await call('/v1/users/me', { cookie: c.cookie })).status, 401);
@@ -330,8 +330,8 @@ test('welcome email: SigV4 matches the AWS test suite; the email names the credi
   for (const part of [w.text, w.html]) {
     assert.match(part, /Toaster/);
     assert.match(part, /\/app/);
-    assert.match(part, /support@hawkesgen\.com/);
-    assert.match(part, /You're getting this because you made an account at hawkesgen\.com/);
+    assert.match(part, /support@hawkesgen\.ai/);
+    assert.match(part, /You're getting this because you made an account at hawkesgen\.ai/);
     assert.match(part, /50 free credits/);
   }
   assert.ok(!/<[a-z]/i.test(w.text), 'the plain-text version has no markup');

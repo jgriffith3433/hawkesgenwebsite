@@ -33,7 +33,7 @@ test('npm test runs the crowd tool tiny: players join, are heard back, nobody re
 });
 
 test('the tool will not point more than 200 players at another address', async () => {
-  const code: number = await new Promise((res) => execFile(process.execPath, ['tools/crowd.mjs', '--url', 'https://hawkesgenwebsite.hawkesgen.com', '--levels', '300'], { cwd: path.resolve(import.meta.dirname, '..') }, (e: any) => res(e ? e.code : 0)));
+  const code: number = await new Promise((res) => execFile(process.execPath, ['tools/crowd.mjs', '--url', 'https://hawkesgenwebsite.hawkesgen.ai', '--levels', '300'], { cwd: path.resolve(import.meta.dirname, '..') }, (e: any) => res(e ? e.code : 0)));
   assert.equal(code, 2);
 });
 

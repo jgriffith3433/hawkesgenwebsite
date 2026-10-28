@@ -32,7 +32,7 @@ function readBox() {
 async function genKeyFor(prefix) {
   const c = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.hawkes', 'client.json'), 'utf8'));
   const gen = String(c.genUrl).trim().replace(/\/+$/, '');
-  const r = await fetch(`${gen}/v1/clients`, { method: 'POST', headers: { Authorization: `Bearer ${String(c.genKey).trim()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: `hawkesgen.com portal (${project})`, role: 'user', projects: [`${prefix}*`] }) });
+  const r = await fetch(`${gen}/v1/clients`, { method: 'POST', headers: { Authorization: `Bearer ${String(c.genKey).trim()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: `hawkesgen.ai portal (${project})`, role: 'user', projects: [`${prefix}*`] }) });
   if (!r.ok) throw new Error(`Gen would not make the key: ${r.status} ${(await r.text()).slice(0, 200)}`);
   return (await r.json()).key;
 }

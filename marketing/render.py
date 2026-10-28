@@ -37,7 +37,7 @@ def dur(p):
     return float(subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', p]))
 lines = ['This is Hawkes Gen. Game assets, made to order.', 'Give it a character.', 'Get a walk cycle. Sliced. Looping. Ready for Unity.',
          'Need variants? Fire. Ice. Poison. Same knight.', 'Pixel art, in seconds.', 'Materials that tile, with every map.',
-         'Ask for it from Unity, Claude Code, Cursor or VS Code.', 'hawkesgen.com. Your first 50 credits are on me.']
+         'Ask for it from Unity, Claude Code, Cursor or VS Code.', 'hawkesgen.ai. Your first 50 credits are on me.']
 lead = 0.35
 scenes, t0 = [], 0.0
 for i, p in enumerate(vo):
@@ -110,7 +110,7 @@ def chrome(d, n):
     d.text((70, 90), 'HAWKES GEN', font=mono(34), fill=INK3)
     d.text((W - 70 - d.textlength(f'{n}/7', font=mono(34)), 90), f'{n}/7' if n else '', font=mono(34), fill=INK3)
     d.line([70, 150, W - 70, 150], fill=INK, width=3)
-    centered(d, H - 150, 'hawkesgen.com', mono(40), INK2)
+    centered(d, H - 150, 'hawkesgen.ai', mono(40), INK2)
 
 def headline(d, top, k, a, b=None, size=110):
     y = 230 + int((1 - ease(k)) * 40)
@@ -169,7 +169,7 @@ def draw(t):
     else:
         z = ease(k(0, .7))
         col = tuple(int(PAPER[q] + (INK[q] - PAPER[q]) * z) for q in range(3))
-        centered(d, 560, 'hawkesgen.com', serif(118), col)
+        centered(d, 560, 'hawkesgen.ai', serif(118), col)
         if k(1.2) > 0:
             acc = tuple(int(PAPER[q] + (ACCENT[q] - PAPER[q]) * ease(k(1.2))) for q in range(3))
             centered(d, 740, '50 free credits.', serifi(104), acc)

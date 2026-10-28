@@ -5,7 +5,7 @@
 //
 //   node tools/crowd.mjs                              25, 50, 100 players, 8 s each
 //   node tools/crowd.mjs --levels 100,300,600,1000    the full local run (docs/performance.md "Server capacity")
-//   node tools/crowd.mjs --url https://hawkesgenwebsite.hawkesgen.com --cookie 'hawkes_session=...' --levels 50,100,200
+//   node tools/crowd.mjs --url https://hawkesgenwebsite.hawkesgen.ai --cookie 'hawkes_session=...' --levels 50,100,200
 //   options: --hold <s> per level (8)  --room 16 players per room  --pages 5 page/asset loads a second  --editors 6 live streams
 //            --signins 3 sign-ins per level  --json (one JSON line)  --tiny (what npm test runs: 6 players, 1.5 s)
 //            --web N  start the portal as a cluster of N web processes and a worker (PORTAL_ROLE=web), not one process

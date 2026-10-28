@@ -16,20 +16,20 @@
   <meta property="og:site_name" content="Hawkes Gen">
   <meta property="og:title" content="Hawkes Gen — Say what should exist">
   <meta property="og:description" content="Say what should exist. The Overseer makes it, and you play it in the browser.">
-  <meta property="og:url" content="https://hawkesgen.com/">
-  <meta property="og:image" content="https://hawkesgen.com/brand/og.png">
+  <meta property="og:url" content="https://hawkesgen.ai/">
+  <meta property="og:image" content="https://hawkesgen.ai/brand/og.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="The Overseer, a glowing sphere, in its starry sky">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Hawkes Gen — Say what should exist">
   <meta name="twitter:description" content="Say what should exist. The Overseer makes it, and you play it in the browser.">
-  <meta name="twitter:image" content="https://hawkesgen.com/brand/og.png">
+  <meta name="twitter:image" content="https://hawkesgen.ai/brand/og.png">
   <link rel="stylesheet" href="/public.css">
   <link rel="stylesheet" href="/site.css">
   <link rel="stylesheet" href="/overseer-sky.css">
   <script>document.documentElement.classList.add("js")</script>
-  <script src="https://gen.hawkesgen.com/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
+  <script src="https://gen.hawkesgen.ai/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
   <script src="/site-analytics.js"></script>
   <script defer src="/google-gate.js"></script>
   <script>if("serviceWorker"in navigator&&!navigator.webdriver)addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))</script>
@@ -188,7 +188,7 @@
         <div>
           <div class="label">04 — Multiplayer</div>
           <h2 style="font:600 48px/1.02 var(--sans);letter-spacing:-.02em;margin:14px 0 16px">Hawkes Net: multiplayer for web games.</h2>
-          <p class="muted" style="font-size:17px;max-width:34em;margin:0 0 20px">The networking every game here runs on, for yours too. Sign in with this account at net.hawkesgen.com, make a project, and your game is online: players, rooms and tickets live on its page.</p>
+          <p class="muted" style="font-size:17px;max-width:34em;margin:0 0 20px">The networking every game here runs on, for yours too. Sign in with this account at net.hawkesgen.ai, make a project, and your game is online: players, rooms and tickets live on its page.</p>
           <ul class="unity-list">
             <li><b>One call</b>: <code>lobby().join('level-1')</code> puts everyone in a level together, and rejoins by itself</li>
             <li><b>Our relay</b>: interest by distance and a binary protocol about 5 times smaller than JSON</li>
@@ -197,14 +197,14 @@
             <li>Already in <a href="https://sickofitgame.com/">Sick Of It</a>, <a href="https://yoobalandgame.com/">Yooba Land</a> and <a href="https://doseofdestruction.com/">Dose Of Destruction</a></li>
           </ul>
           <div class="actions" style="margin-top:24px">
-            <a class="btn btn-primary btn-lg" href="https://net.hawkesgen.com/">Open Hawkes Net</a>
+            <a class="btn btn-primary btn-lg" href="https://net.hawkesgen.ai/">Open Hawkes Net</a>
             <a class="btn btn-secondary btn-lg" href="/net">See how it works</a>
           </div>
           <div class="fine">Measured on our load test: 1,000 players on one relay node with 4 processes, none dropped, about 8 KB/s each.</div>
         </div>
         <figure class="unity-window">
           <div class="unity-bar"><span></span><span></span><span></span><b>game.js</b></div>
-          <pre class="unity-body" style="margin:0;padding:18px;font:13px/1.6 var(--mono, 'JetBrains Mono', monospace);white-space:pre-wrap;overflow:auto">import { lobby } from 'https://net.hawkesgen.com/sdk/hawkes-net@1.mjs';
+          <pre class="unity-body" style="margin:0;padding:18px;font:13px/1.6 var(--mono, 'JetBrains Mono', monospace);white-space:pre-wrap;overflow:auto">import { lobby } from 'https://net.hawkesgen.ai/sdk/hawkes-net@1.mjs';
 
 const net = lobby({ project: 'my-game', liveHosts: ['mygame.com'] });
 net.join('level-1');
@@ -213,7 +213,7 @@ net.pose([x, y, z], yaw);
 net.onPose((peer, s) =&gt; moveAvatar(peer, s.p, s.y));
 net.on('chat', (text, from) =&gt; show(from.name, text));
 net.send('chat', 'hello');</pre>
-          <figcaption class="fine" style="padding:0 16px 14px">A whole client. <code>my-game</code> is your project's id on net.hawkesgen.com; pages on your sites join with no key.</figcaption>
+          <figcaption class="fine" style="padding:0 16px 14px">A whole client. <code>my-game</code> is your project's id on net.hawkesgen.ai; pages on your sites join with no key.</figcaption>
         </figure>
       </div>
     </section>
@@ -341,22 +341,22 @@ net.send('chat', 'hello');</pre>
           <div class="label">09 — API</div>
           <div>
             <h2>Your pipeline, not ours.</h2>
-            <p>Everything in the app is an HTTP call, and an MCP server: connect Claude Code, Cursor, VS Code or Claude at <a href="/connect">hawkesgen.com/connect</a> and ask for assets in plain words. Or make a key and call it from build scripts, tools or your engine.</p>
+            <p>Everything in the app is an HTTP call, and an MCP server: connect Claude Code, Cursor, VS Code or Claude at <a href="/connect">hawkesgen.ai/connect</a> and ask for assets in plain words. Or make a key and call it from build scripts, tools or your engine.</p>
           </div>
         </div>
         <div class="api-grid">
           <div>
             <h3>REST</h3>
             <p><code>POST /v1/jobs</code> to start, <code>GET /v1/jobs/:id</code> or the <code>/v1/events</code> stream to follow, <code>/v1/assets/:id/file</code> to download. <code>POST /v1/run</code> starts one and waits.</p>
-            <div class="sheet"><pre>curl https://hawkesgen.com/v1/billing/quote \
+            <div class="sheet"><pre>curl https://hawkesgen.ai/v1/billing/quote \
   -H "Authorization: Bearer hg_…" \
   -d '{"tool":"audio.sfx","params":{"prompt":"door creak"}}'</pre></div>
           </div>
           <div>
             <h3>JavaScript</h3>
             <p>One file, no dependencies, for the browser and Node.</p>
-            <div class="sheet"><pre>import { HawkesGen } from 'https://hawkesgen.com/client/hawkesgen.mjs';
-const gen = new HawkesGen({ url: 'https://hawkesgen.com', key });
+            <div class="sheet"><pre>import { HawkesGen } from 'https://hawkesgen.ai/client/hawkesgen.mjs';
+const gen = new HawkesGen({ url: 'https://hawkesgen.ai', key });
 const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
           </div>
         </div>
@@ -367,7 +367,7 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
   <footer class="footer">
     <div class="wrap">
       <span>© 2026 Hawkes Gen</span>
-      <span><a href="/legal#terms">Terms</a> · <a href="/legal#privacy">Privacy</a> · <a href="/legal#refunds">Refunds</a> · <a href="mailto:support@hawkesgen.com">support@hawkesgen.com</a></span>
+      <span><a href="/legal#terms">Terms</a> · <a href="/legal#privacy">Privacy</a> · <a href="/legal#refunds">Refunds</a> · <a href="mailto:support@hawkesgen.ai">support@hawkesgen.ai</a></span>
     </div>
   </footer>
 

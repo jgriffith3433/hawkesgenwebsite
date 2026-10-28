@@ -44,7 +44,7 @@ function ask(frame, msg) {
 }
 
 export async function runWorldReport(t, options = {}) {
-  if (/^(www\.)?hawkesgen\.com$/.test(location.hostname)) throw new Error('world-report makes a world and a report: never on the live site');
+  if (/^(www\.)?hawkesgen\.ai$/.test(location.hostname)) throw new Error('world-report makes a world and a report: never on the live site');
   t.event('plan', 'world-report');
   t.progress(0.02);
   let slug = String(options.closed || '');

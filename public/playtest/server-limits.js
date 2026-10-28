@@ -11,7 +11,7 @@ export const SERVER_LIMITS = {
   seconds: 90, tags: ['full'],
 };
 
-const isLive = () => /^(www\.)?hawkesgen\.com$/.test(location.hostname);
+const isLive = () => /^(www\.)?hawkesgen\.ai$/.test(location.hostname);
 const json = async (url, init = {}) => {
   const r = await fetch(url, { credentials: 'include', ...init, headers: { 'Content-Type': 'application/json', ...(init.headers || {}) } });
   let body = null; try { body = await r.json(); } catch {}

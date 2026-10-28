@@ -81,7 +81,7 @@ export async function choosePlan(user: User, body: { plan?: unknown; successUrl?
     if (u.plan === plan.id && !u.cancel_at_period_end) return { changed: false, subscription: subscription(u) };
     const sub = await stripe(`/v1/subscriptions/${u.stripe_subscription_id}`);
     const item = sub?.items?.data?.[0]?.id;
-    if (!item) throw new PortalError('Could not read your subscription; try again or contact support@hawkesgen.com', { status: 502 });
+    if (!item) throw new PortalError('Could not read your subscription; try again or contact support@hawkesgen.ai', { status: 502 });
     const upgrade = plan.priceCents > (PLANS.find((p) => p.id === u.plan)?.priceCents ?? 0);
     const updated = await stripe(`/v1/subscriptions/${u.stripe_subscription_id}`, new URLSearchParams({
       'items[0][id]': item,

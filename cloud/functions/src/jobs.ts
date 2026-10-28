@@ -38,7 +38,7 @@ export async function submit(user: User, specs: any[], via?: Via, opts: { minCre
     if (opts.minCredits && q.credits < opts.minCredits) q.credits = opts.minCredits;
     if (via?.cap != null) {
       const spent = await spentToday(via.id);
-      if (spent + q.credits > via.cap) throw new PortalError(`${via.name ?? 'This connection'} has a daily limit of ${via.cap} credits and has used ${spent} today; this needs ${q.credits}. Raise the limit at hawkesgen.com/connect.`, { status: 402 });
+      if (spent + q.credits > via.cap) throw new PortalError(`${via.name ?? 'This connection'} has a daily limit of ${via.cap} credits and has used ${spent} today; this needs ${q.credits}. Raise the limit at hawkesgen.ai/connect.`, { status: 402 });
     }
     const holdId = await hold(user.id, q.credits, `${q.credits} credits for ${q.tool}`);
     let job: GenJob;

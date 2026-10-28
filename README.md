@@ -1,4 +1,4 @@
-# hawkesgen.com
+# hawkesgen.ai
 
 Build browser games with friends and an AI assistant, and make their art, 3D, sound and music with Hawkes Gen.
 
@@ -17,5 +17,5 @@ npm run typecheck
 npm test             # offline, against a fake Gen; engine tests run Havok headlessly
 ```
 
-Beta (J's Hawkes Studio login): https://hawkesgenwebsite.hawkesgen.com/. Live: https://hawkesgen.com/ (going live is
+Beta (J's Hawkes Studio login): https://hawkesgenwebsite.hawkesgen.ai/. Live: https://hawkesgen.ai/ (going live is
 J's `DEPLOY hawkesgenwebsite` in Studio).

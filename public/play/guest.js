@@ -28,7 +28,7 @@
 // "short"), the mirror, and the sheet as always (J's rule); at the mirror's end they join the room and are beamed in beside
 // the inviter, who sees the beam and the name and hears from the Overseer: "Someone is coming." ?ref=<code> in the link is kept
 // as the landing page keeps it (hg_ref), so a sign-up credits the inviter.
-// Analytics (Hawkes analytics, gen.hawkesgen.com/sdk/analytics@1.js): sandbox_start, sandbox_first_action,
+// Analytics (Hawkes analytics, gen.hawkesgen.ai/sdk/analytics@1.js): sandbox_start, sandbox_first_action,
 // sandbox_try (each thing to try, once), sandbox_objective (each step of Pip's tour), sandbox_prompt (a button),
 // signup_open, sandbox_signup, sandbox_claimed.
 // The funnel, in order, each with `ms` (since the page loaded; track() adds it) and nothing personal (no email, name or
@@ -131,7 +131,7 @@
   }
   (function loadAnalytics() {
     const s = document.createElement('script');
-    s.src = 'https://gen.hawkesgen.com/sdk/analytics@1.js';
+    s.src = 'https://gen.hawkesgen.ai/sdk/analytics@1.js';
     s.defer = true;
     s.dataset.product = 'hawkesgen';
     // Every event from here says it's the no-sign-up sandbox, played as a guest (who sticks around, by where they came in).

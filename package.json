@@ -2,7 +2,7 @@
   "name": "hawkesgenwebsite",
   "private": true,
   "type": "module",
-  "description": "hawkesgen.com: the Hawkes Gen customer portal (accounts, credits, Stripe) on top of the Hawkes Gen backend.",
+  "description": "hawkesgen.ai: the Hawkes Gen customer portal (accounts, credits, Stripe) on top of the Hawkes Gen backend.",
   "engines": {
     "node": ">=24"
   },
