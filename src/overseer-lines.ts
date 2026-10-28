@@ -19,7 +19,8 @@ export type Line =
   | { kind: 'file'; path: string; content: string }
   | { kind: 'delete'; path: string }
   | { kind: 'asset'; asset: { kind: string; name: string; prompt: string; community: string } }
-  | { kind: 'reply'; text: string };
+  | { kind: 'reply'; text: string }
+  | { kind: 'look'; id: string; prompt: string; suggest: string[]; why: string };
 
 export const AREAS = ['ground', 'terrain', 'sky', 'sea', 'thing', 'area', 'player', 'ui', 'sound'];
 const OPS = new Set(['create', 'update', 'replace', 'delete', 'config']);
@@ -55,6 +56,10 @@ export function parseLine(raw: string): Line | { problem: string } | null {
     return { kind: 'asset', asset: { kind: String(a.kind ?? ''), name: String(a.name ?? ''), prompt: String(a.prompt ?? ''), community: String(a.community ?? '') } };
   }
   if (typeof o.reply === 'string') return { kind: 'reply', text: o.reply.trim() };
+  if (o.look && typeof o.look === 'object' && typeof o.look.id === 'string' && o.look.id) {
+    const lk = o.look;
+    return { kind: 'look', id: lk.id.slice(0, 64), prompt: String(lk.prompt ?? '').slice(0, 300), suggest: (Array.isArray(lk.suggest) ? lk.suggest : []).filter((x: unknown) => typeof x === 'string' && /^a_[0-9a-f]{6,40}$/.test(x)).slice(0, 12), why: String(lk.why ?? '').slice(0, 160) };
+  }
   return { problem: `a line of no known kind (${Object.keys(o).slice(0, 3).join(', ')})` };
 }
 

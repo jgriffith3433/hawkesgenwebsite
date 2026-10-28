@@ -25,6 +25,7 @@
   const GLOW = '#8fd8ff';
 
   let S = null; // the session: { t, at, radius, area, beams, sel, pill, beats, beat, n, ops, ended, endT }
+  let lookOffer = null; // a look the answer asked the player to choose (opened at the end)
 
   // ------------------------------------------------------------------ where
   const v3 = (p) => new B.Vector3(p[0], p[1], p[2]);
@@ -438,7 +439,15 @@
         case 'say': return say(m);
         case 'op': return op(m);
         case 'file': if (S && S.pill) S.pill.b.textContent = `Writing ${String(m.path || '').replace(/^.*\//, '')}`; return;
-        case 'end': return end(m);
+        // How a thing should look is the player's choice (modules/looks): the chooser opens when the build is done.
+        case 'look': lookOffer = { id: m.id, prompt: m.prompt, suggest: m.suggest, why: m.why }; if (S && S.pill) S.pill.b.textContent = 'Choose how it looks'; return;
+        case 'end': {
+          end(m);
+          const o = lookOffer;
+          lookOffer = null;
+          if (o && m.ok !== false && H.looks) setTimeout(() => { try { H.looks.offer(o); } catch (err) { if (H.report) H.report(err, 'work'); } }, 900);
+          return;
+        }
       }
     } catch (err) { if (H.report) H.report(err, 'work'); }
   }

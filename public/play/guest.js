@@ -951,6 +951,7 @@
     on('overseer', (e) => { let d; try { d = JSON.parse(e.data); } catch { return; } if (H.work) H.work.handle(d); });
     on('gen', (e) => {
       let r; try { r = JSON.parse(e.data); } catch { return; }
+      if (r && H.looks) H.looks.onGen(r); // (a new look being made for a thing takes its place when done)
       if (!r || !H.chat) return;
       if (r.state === 'running') H.chat.status(`Making ${r.name || r.kind}${r.steps ? ` · step ${r.step} of ${r.steps}` : ''}${r.progress != null ? ` · ${Math.round(r.progress * 100)}%` : ''}`);
       else if (!seen.has(`gen:${r.task_id}:${r.state}`)) {
@@ -1195,7 +1196,27 @@
   }
 
   // ------------------------------------------------------------------ the page: claim (back from signing in), or play
+  // Choosing how a thing looks (modules/looks): the island is the player's own game, so a look is kept here like any
+  // change (saved with the next save), a library model joins the island, and a new one is made with their credits.
+  const looksApi = {
+    async save(ops) { const H = session.H; H.applyOps(ops, { local: true }); await saveNow(false); },
+    async useLibrary(item) {
+      try {
+        const r = await api('POST', `/v1/games/${island.id}/community`, { id: item.id, mode: 'variant' });
+        const b = await api('GET', `/v1/games/${island.id}/bundle`);
+        if (b.assets) session.H.setAssets(b.assets);
+        return { ok: true, asset: r.asset };
+      } catch (x) { return { ok: false, error: x.message }; }
+    },
+    async generate(prompt, name) {
+      try { return { ok: true, row: await api('POST', `/v1/games/${island.id}/generate`, { kind: 'model', prompt, name }) }; }
+      catch (x) { if (x.status === 402) outOfCredits(x.message); return { ok: false, error: x.message }; }
+    },
+  };
+
   window.HawkesGuest = {
+    /** Looks can be chosen once the island is theirs (signed in): save, useLibrary, generate. Else null. */
+    get looks() { return island && session.H ? looksApi : null; },
     /** The signed-in user, asking for the account with the sheet if there is none (the moment chip's one tap): a user, or null. */
     async account() {
       const user = await me();

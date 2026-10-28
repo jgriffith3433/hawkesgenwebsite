@@ -331,6 +331,18 @@ async function fromGame(m) {
       } catch (err) { toStage({ type: 'spawn-community', req: m.req, ok: false, error: err.message }); }
       return;
     }
+    // Looks (play/modules/looks): a new model for a thing, made with Hawkes Gen from their credits; the game puts it on
+    // the thing when the generation is done (the gen feed below reaches the game too).
+    case 'looks-generate': {
+      try {
+        const row = await post(`${API}/games/${gameId}/generate`, { kind: 'model', prompt: String(m.prompt || '').slice(0, 300), name: m.name });
+        toStage({ type: 'looks-generate', req: m.req, ok: true, row });
+      } catch (err) {
+        if (err.status === 402) noCredits(err.message);
+        toStage({ type: 'looks-generate', req: m.req, ok: false, error: err.message });
+      }
+      return;
+    }
     case 'basics': basics = m.list || []; if (libKind === 'basics' && $('library').classList.contains('open')) loadLibrary(); return;
     case 'words': if (libKind === 'game' && $('library').classList.contains('open')) renderWords(m.words || {}, m.assets || []); return;
   }
