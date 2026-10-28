@@ -1918,17 +1918,21 @@ async function stageTouch(t, ctx) {
   void fire;
 
   // the spawn wheel
-  const fab = $('.sw-fab');
-  if (fab && fab.offsetParent !== null) {
-    audit('spawn button');
-    await tapButton(t, fab); await t.wait(600);
+  const ctl = $('.ct-btn');
+  if (ctl && ctl.offsetParent !== null) {
+    audit('controls button');
+    await tapButton(t, ctl); await t.wait(400);
+    const sp = $('.ct-panel [data-act="Spawn"]');
+    t.event('touch-controls', sp ? 'Controls opened with a Spawn button' : 'Controls opened without a Spawn button');
+    if (sp) await tapButton(t, sp);
+    await t.wait(600);
     const sheet = $('.sw-sheet:not([hidden]), .sw-wheel:not([hidden])');
     t.event('touch-spawn-wheel', sheet ? 'the spawn wheel opened by touch' : 'the spawn button did not open the wheel');
     if (!sheet) t.problem('error', 'the spawn button did not open the spawn wheel');
     t.scene('Touch: spawn wheel');
     const close = $('.sw-head button[data-a=close], .sw-head button:last-child');
     if (close) { await tapButton(t, close); await t.wait(400); }
-  } else t.event('touch-spawn-skipped', 'no spawn button on screen');
+  } else t.event('touch-spawn-skipped', 'no Controls button on screen');
 
   // helicopter and rocket flight: the player put beside each (named shortcut), B to board, A for thrust, the buttons, B out
   for (const [id, name] of [['heli', 'helicopter'], ['rocket', 'rocket']]) {

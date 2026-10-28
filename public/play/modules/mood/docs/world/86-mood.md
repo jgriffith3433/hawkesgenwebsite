@@ -1,7 +1,7 @@
 ## Mood: how the world feels (`config.mood`), and scary things
 
 `"mood": "scary"` makes a world frightening with the engine's own parts: the dark comes in, fog close round you (30 m),
-a **flashlight** in your hand (L, or 🔦 on a phone), a low drone and wind made live, creaks far off, film grain and a
+a **flashlight** in your hand (T, or 🔦 on a phone), a low drone and wind made live, creaks far off, film grain and a
 dark vignette, and a **heartbeat** that quickens when something is near. `"eerie"` is the same, lighter. `"calm"` is
 none of it. Or an object: `{ "preset": "scary", "dark": 0.9, "fog": 20, "fogColor": "#05070a", "flashlight": true,
 "sound": true, "grain": true, "heartbeat": true }`.

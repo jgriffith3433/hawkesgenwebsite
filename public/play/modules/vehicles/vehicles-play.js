@@ -15,7 +15,10 @@
 
   // The local player's ride: { v, seat, cam: 'chase' | 'far' | 'cockpit', look: {...}, saved, hud... } or null.
   let local = null;
-  let lastSwitch = -1;
+  // When the player last got in or out, on that world's clock (a world that starts again, a hot reload of a script,
+  // starts its clock at 0: an old time from the last world must never block E for minutes).
+  let lastSwitch = { w: null, t: -1 };
+  const settled = () => lastSwitch.w !== W() || W().time - lastSwitch.t > 0.25;
 
   // ------------------------------------------------------------------ seats (taken in the room's one order)
   const byKey = (k) => V.list().find((e) => e.vehicle.key === k) || null;
@@ -26,19 +29,25 @@
     g.net.on('veh', (d) => onSeat(d));
     g.net.on('leave', (d) => { for (const e of V.list()) for (const s of e.vehicle.seats) if (s.who && d && s.who === d.id) { s.who = null; emit(e, 'exit', { id: d.id }, s.i); } });
   }
+  const asked = new Map(); // request -> its fallback timer
   function send(d) {
     ensureNet();
-    if (H.sync && H.sync.online) G().net.everyone('veh', d);
-    else onSeat(d);
+    if (!(H.sync && H.sync.online)) { onSeat(d); return; }
+    G().net.everyone('veh', d);
+    const k = `${d.op}|${d.k}|${d.who}`;
+    clearTimeout(asked.get(k));
+    asked.set(k, setTimeout(() => { asked.delete(k); onSeat(d); }, 900));
   }
   function onSeat(d) {
     if (!d || !d.k) return;
+    { const k = `${d.op}|${d.k}|${d.who}`; if (asked.has(k)) { clearTimeout(asked.get(k)); asked.delete(k); } }
     const e = byKey(d.k);
     if (!e) return;
     const v = e.vehicle;
     v.seatEvents = true;
     if (d.op === 'sit') {
       if (v.wrecked) { if (V.isMe(d.who)) G().ui.message('It\'s a wreck', 1.2); return; }
+      freeStale(v, d.who);
       const already = v.seats.find((s) => s.who === d.who);
       let idx = -1;
       if (typeof d.seat === 'number' && v.seats[d.seat] && (!v.seats[d.seat].who || v.seats[d.seat].who === d.who)) idx = d.seat;
@@ -59,6 +68,16 @@
       X.wake(v);
       if (V.isMe(d.who) && local && local.v === v) leaveLocal(d.pop);
       emit(e, 'exit', { id: d.who }, s.i);
+    }
+  }
+  /** Seats held by players who are gone (a dropped connection, my own id before a reconnect) are free again. */
+  function freeStale(v, asker) {
+    const online = H.sync && H.sync.online;
+    const here = new Set(online ? (G().net.players || []).map((p) => p.id) : []);
+    for (const s of v.seats) {
+      if (!s.who || s.who === 'npc') continue;
+      if (V.isMe(s.who) && V.isMe(asker) && s.who !== asker) { s.who = asker; continue; } // (mine, under an old id)
+      if (online && !V.isMe(s.who) && !here.has(s.who)) s.who = null;
     }
   }
   function emit(e, name, who, seat) {
@@ -105,11 +124,14 @@
     p.held = true; // (its character controller rests while it sits)
     p.physics = 'trigger';
     // The driver simulates the vehicle (no lag at the wheel): they take it over from whoever had it.
-    if (seat === 0 && H.sync && H.sync.online && v.e.sceneId) H.sync.claim(v.e);
+    if (seat === 0 && H.sync && H.sync.online && v.e.sceneId && !H.sync.claim(v.e)) {
+      const h = H.sync.holder(v.e), here = (g.net.players || []).some((x) => x.id === h);
+      if (!here || V.isMe(h)) H.sync.claim(v.e, { force: true });
+    }
     p.velocity = [0, 0, 0];
     p.flying = false;
     if (p.controller !== 'drive') p.control('drive', { vehicle: v.e, seat });
-    lastSwitch = W().time;
+    lastSwitch = { w: W(), t: W().time };
     if (!switching) {
       startAudio();
       const D = v.def;
@@ -123,7 +145,7 @@
     if (!local) return;
     const { v, saved } = local;
     local = null;
-    lastSwitch = W() ? W().time : 0;
+    lastSwitch = { w: W(), t: W() ? W().time : 0 };
     const g = G();
     const p = g && W().player;
     if (g && W().player) W().player._seatHidden = false;
@@ -169,7 +191,25 @@
     if (local && local.v === v) exit(true);
     for (const s of v.seats) if (s.who === 'npc' && s.entity) unboard(s.entity);
   };
-  V._onGone = (v) => { if (local && local.v === v) { const keep = local; leaveLocal(false); void keep; } };
+  // A vehicle rebuilt (a new look, an edit that remade it) is the same vehicle: whoever sat in it sits in the new one, in
+  // the same seat, and the driver keeps driving. Gone for good (destroyed, wrecked away): the rider steps out.
+  const reborn = new Map(); // key -> { seats: [who], mine: seat or -1, at: ms }
+  V._onGone = (v) => {
+    const mine = local && local.v === v ? local.seat : -1;
+    // (It can be told twice for one rebuild: the second, after the rider stepped out, never forgets the first.)
+    const had = v.key && reborn.get(v.key);
+    if (v.key && !(had && had.mine >= 0 && mine < 0 && performance.now() - had.at < 1400)) reborn.set(v.key, { seats: v.seats.map((s) => s.who), mine, at: performance.now() });
+    if (mine >= 0) leaveLocal(false, true);
+    // (Not back within a moment: it really is gone, so step out where it was.)
+    if (mine >= 0) setTimeout(() => { const r = reborn.get(v.key); if (r && r.mine >= 0) { reborn.delete(v.key); const p = W() && W().player; if (p && p.alive) { p.position = [v.e.x + 2, v.e.y + 1, v.e.z]; p.velocity = [0, 2, 0]; } } }, 1500);
+  };
+  V._onBorn = (v) => {
+    const r = v.key && reborn.get(v.key);
+    if (!r || performance.now() - r.at > 1400) return;
+    reborn.delete(v.key);
+    r.seats.forEach((who, i) => { if (who && v.seats[i] && !V.isMe(who)) v.seats[i].who = who; });
+    if (r.mine >= 0 && v.seats[r.mine]) { v.seats[r.mine].who = V.myId(); enterLocal(v, r.mine, false); }
+  };
 
   // ------------------------------------------------------------------ the controller
   H.controllers.register('drive', {
@@ -217,14 +257,14 @@
       const s = v.seats.find((x) => V.isMe(x.who));
       if (s) { s.who = null; if (s.i === 0) v.input = { ...X.ZERO_INPUT }; }
     }
-    if (local) return { entity: local.v.e, label: `Get out of the ${local.v.def.title.toLowerCase()}`, key: 'e', priority: 100, act: () => { if (W().time - lastSwitch > 0.25) exit(false); } };
+    if (local) return { entity: local.v.e, label: `Get out of the ${local.v.def.title.toLowerCase()}`, key: 'e', priority: 100, act: () => { if (settled()) exit(false); } };
     if (!p.controls || p.controller !== 'walk' || p._view === 'rts') return null;
     const e = nearest(p, REACH);
     if (!e) return null;
     const v = e.vehicle;
     const verb = v.seats[0].who ? 'Ride in' : ['plane', 'heli', 'rocket', 'ship'].includes(v.def.class) ? 'Fly' : v.def.twoWheels ? 'Ride' : 'Drive';
     const d = Math.hypot(p.x - e.x, p.y - e.y, p.z - e.z) - Math.max(v.def.size[0], v.def.size[2]) / 2;
-    return { entity: e, label: `${verb} the ${e.name && e.name !== v.def.title ? e.name : v.def.title.toLowerCase()}`, key: 'e', distance: Math.max(0, d), act: () => { if (W().time - lastSwitch > 0.25) enter(e); } };
+    return { entity: e, label: `${verb} the ${e.name && e.name !== v.def.title ? e.name : v.def.title.toLowerCase()}`, key: 'e', distance: Math.max(0, d), act: () => { if (settled()) enter(e); } };
   }
   let near = null;
   H.use.register('vehicles:enter', { near: (p) => useOffer(p) });
@@ -464,6 +504,7 @@ body.veh-touching #veh-hud .hint{display:none}
   }
   const escape = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+  V.hintFor = (D) => hintFor(D);
   function hintFor(D) {
     const t = H.touchUi;
     if (D.class === 'plane') return t ? 'Stick: pitch and roll. ⤒ throttle up, ▼ down. Push up on the ground to roll, pull back at speed to lift off.' : 'Hold W to roll, S lifts off at speed. W/S pitch, A/D roll, space/C throttle, shift boost, E out.';
@@ -529,8 +570,8 @@ body.veh-touching #veh-hud .hint{display:none}
       + (D.class === 'rocket' ? bar('Fuel', v.fuel / (D.engine.fuel || 150), '#a78bfa') : '')
       + (D.class === 'sub' ? bar('Ballast', (v.ballast + 1) / 2, '#22d3ee') : '')
       + bar('Boost', v.boostFuel, '#ffb020')
-      + bar('Health', v.health / D.health, v.health < D.health * 0.3 ? '#ff5a4a' : '#34d399')
-      + (local.seat === 0 ? `<div class="hint">${escape(hintFor(D))}</div>` : '<div class="hint">Riding along · V camera · E gets out</div>');
+      + bar('Health', v.health / D.health, v.health < D.health * 0.3 ? '#ff5a4a' : '#34d399');
+    // (The keys are in Controls now, and said once on getting in: the gauges stay small.)
     if (html !== hudEl.__last) { hudEl.innerHTML = html; hudEl.__last = html; }
   }
   /** Height above the planet's surface (sea level), for things that go high. */

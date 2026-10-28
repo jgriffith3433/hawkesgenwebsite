@@ -144,7 +144,7 @@
     const st = document.createElement('style');
     st.id = 'journal-style';
     st.textContent = [
-      '.jr-btn{position:fixed;right:max(12px,env(safe-area-inset-right));top:max(10px,env(safe-area-inset-top));z-index:25;width:44px;height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.3);background:rgba(10,14,24,.7);color:#fff;font:600 22px system-ui,sans-serif;cursor:pointer;pointer-events:auto;backdrop-filter:blur(4px)}',
+      '.jr-btn{position:fixed;right:max(12px,env(safe-area-inset-right));top:max(60px,calc(env(safe-area-inset-top) + 52px));z-index:25;width:44px;height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.3);background:rgba(10,14,24,.7);color:#fff;font:600 22px system-ui,sans-serif;cursor:pointer;pointer-events:auto;backdrop-filter:blur(4px)}',
       '.jr-btn.new::after{content:"";position:absolute;right:5px;top:5px;width:9px;height:9px;border-radius:50%;background:#ffd84a}',
       '.jr-btn[hidden],.jr[hidden]{display:none}',
       // (the bottom 150px stay clear: the phone's stick and buttons)

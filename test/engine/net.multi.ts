@@ -230,3 +230,29 @@ test('the host rewinds the world for everyone', async () => {
   const back = await b.run(`return game.entity('ball').x`);
   assert.ok(Math.abs(back) < 0.6, `the guest sees it back where it started (${back.toFixed(2)})`);
 });
+
+test('online: changing the look of the car you sit in keeps you driving; after a world restart E still gets you in', async () => {
+  const scene = sceneOf({ ground, start: { type: 'spawn', transform: { position: [0, 0, -4] } }, car: { type: 'car', transform: { position: [0, 0.6, 0] } } });
+  const { sim, b } = await pair({ latency: 80, jitter: 10, loss: 0 }, scene);
+  await b.run(`game.player.position = [0, 1, -3]; game.vehicles.enter(game.entity('car'))`);
+  await sim.step(1200);
+  assert.equal(await b.run(`return game.vehicles.current === game.entity('car')`), true, 'B is driving');
+  // A new look rebuilds the car (an update of shape.model): B is still at the wheel of the new one.
+  await b.run(`H.applyOps([{ op: 'update', id: 'car', patch: { shape: { model: 'tree.glb' } } }], { local: true })`);
+  await sim.step(800);
+  assert.equal(await b.run(`return game.vehicles.current === game.entity('car') && game.entity('car').alive`), true, 'still in it after the new look');
+  const z0 = await b.run(`H.input.held.add('w'); return game.entity('car').z`);
+  await sim.step(1500);
+  assert.ok((await b.run(`H.input.held.delete('w'); return game.entity('car').z`)) > z0 + 2, 'and it drives');
+  // Out, then the world starts again (a script hot reload: its clock back at 0): E (the offer) gets B in again.
+  await b.run(`game.vehicles.exit()`);
+  await sim.step(1200);
+  await b.run(`H.reload({ 'scripts/x.js': '// new' })`);
+  await sim.step(1500);
+  await b.run(`const c = game.entity('car'); game.player.position = [c.x - 2.6, 1, c.z]`);
+  await sim.step(500);
+  const acted = await b.run(`return H.use.act()`);
+  await sim.step(1500);
+  assert.equal(acted, 'vehicles:enter', 'the offer was there');
+  assert.equal(await b.run(`return game.vehicles.current === game.entity('car')`), true, 'E got B in after the restart');
+});

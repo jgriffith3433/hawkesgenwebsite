@@ -452,7 +452,7 @@
     const id = e.sceneId;
     if (heldByOther(id) && !o.force) return false;
     const hold = Boolean(o.hold);
-    if (owners.get(id) === me && (!hold || locks.get(id) === me)) return true;
+    if (owners.get(id) === me && (!hold || locks.get(id) === me)) { if (e.remote) takeOver(e); return true; }
     owners.set(id, me);
     if (hold) locks.set(id, me);
     if (e.remote) takeOver(e);

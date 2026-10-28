@@ -8,7 +8,7 @@
 // becomes their game (claim 'tour') and Pip's tour carries on in the editor, where the Overseer is the chat and what it
 // makes is paid from their credits. Until then Pip waits (HawkesGuest.accountFirst: src/overseer-games/sandbox.js).
 //
-// When they want more ("Save this world", "Build your own", "Ask the Overseer", "Invite a friend"), the world as it is
+// When they want more ("Save this world", "Build your own", "Invite a friend"), the world as it is
 // now is snapshotted (HawkesGuestCore.snapshot: every thing from scene.json still there, where it is now, and the
 // things they spawned; terrain they dug) into localStorage, and the sign-up sheet opens (email, or Google, which comes
 // back to /play/sandbox?claim=<intent>). Signed in, the snapshot becomes their first game: POST /v1/games (template
@@ -223,8 +223,8 @@
 .gs-busy{font:700 14px var(--display);letter-spacing:.18em;color:#7cc4ff;text-align:center}
 .gs-busy small{display:block;margin-top:10px;font:500 14px var(--sans);letter-spacing:0;color:#a5acc2}
 @media (max-width:640px){
-   .gs-acts .opt{display:none}.gs-acts .more{display:inline-block}
- .gs-acts.open{flex-direction:column;align-items:stretch}.gs-acts.open .opt{display:inline-block}
+   .gs-acts button{padding:8px 10px;font-size:13px}
+ body.tl .gs-acts{flex-direction:column;align-items:stretch}
  .gs-toast{left:12px;flex-wrap:wrap}
 }`;
     document.head.appendChild(st);
@@ -266,9 +266,8 @@
     const touring = () => { try { return H.game.events.quests.state('tour') === 'active'; } catch { return false; } };
 
     // The buttons that open the account side.
-    const acts = el(`<button type="button" class="primary" data-intent="save">Save this world</button><button type="button" class="opt" data-intent="build">Build your own</button><button type="button" class="opt" data-intent="assistant">Ask the Overseer</button><button type="button" class="opt" data-intent="invite">Invite a friend</button><button type="button" class="opt" data-look title="Change how you look (L)">Change my look</button><button type="button" class="more" data-more aria-label="More">⋯</button>`, 'gs-acts');
+    const acts = el(`<button type="button" class="primary" data-intent="save">Save this world</button><button type="button" class="opt" data-intent="build">Build your own</button><button type="button" class="opt" data-intent="invite">Invite a friend</button>`, 'gs-acts');
     acts.querySelectorAll('[data-intent]').forEach((b) => { b.onclick = () => { acts.classList.remove('open'); want(b.dataset.intent, 'button'); }; });
-    acts.querySelector('[data-more]').onclick = () => acts.classList.toggle('open');
     session.acts = acts;
 
     // One gentle nudge, once: after two things tried, at the end of the tour, or after four minutes.
@@ -351,18 +350,13 @@
         setTimeout(() => { try { window.hawkesAnalytics?.ask?.({ id: 'sandbox-tour', question: 'How was the island tour?', context: 'sandbox tour', kind: 'stars', comment: true, theme: { background: '#14161b', color: '#f1f2f4', accent: '#f2b33d', font: 'Inter, system-ui, sans-serif', radius: '12px' } }); } catch { /* fine */ } }, 20000);
       }
     });
-    // After the tour (or 5 minutes in without finishing it): the assistant is the next big thing, so its button glows
-    // with a word on what it does, until it's clicked.
+    // After the tour (or 5 minutes in without finishing it): the Overseer is the next big thing, and it is the chat: one
+    // line from it says so, once (there is no button for it: J, 2026-10-28).
     let highlighted = false;
     function highlightAssistant(why) {
-      if (highlighted) return;
-      const b = acts.querySelector('[data-intent="assistant"]');
-      if (!b) return;
+      if (highlighted || !H.chat) return;
       highlighted = true;
-      b.classList.add('glow');
-      b.dataset.tip = 'Describe anything ("a volcano", "a race around the island") and the Overseer builds it.';
-      if (window.matchMedia && window.matchMedia('(max-width: 700px)').matches) acts.classList.add('open');
-      b.addEventListener('click', () => { b.classList.remove('glow'); delete b.dataset.tip; }, { once: true });
+      H.chat.line({ kind: 'overseer', keep: 30, text: 'Ask me for anything: "a volcano", "a race around the island". Press Enter, or tap the chat, and say it.' });
       track('sandbox_highlight', { what: 'assistant', why, s: Math.round((performance.now() - t0) / 1000) });
     }
     setTimeout(() => highlightAssistant('5min'), 5 * 60 * 1000);
@@ -370,12 +364,13 @@
     let gated = Boolean(session.friend && session.friend.user); // (a signed-in friend has no sheet)
     // Changing how you look is always one press away (L, or the button): the mirror's questions, anywhere.
     const look = () => { try { if (H.mirror && H.mirror.dress && !H.mirror.isOpen) { track('sandbox_look_open', { returning: Boolean(session.returning) }); H.mirror.dress(); } } catch { /* fine */ } };
-    acts.querySelector('[data-look]').onclick = () => { acts.classList.remove('open'); look(); };
     window.addEventListener('keydown', (e) => {
       if (e.key !== 'l' && e.key !== 'L') return;
       if (e.ctrlKey || e.metaKey || e.altKey || document.body.dataset.gsSheet || inUi(e)) return;
       const t = e.target;
       if (t && (t.isContentEditable || /^(input|textarea|select)$/i.test(t.tagName))) return;
+      const pl = H.world && H.world.player;
+      if (pl && pl.controller && pl.controller !== 'walk') return; // (in a vehicle L is its lights)
       look();
     });
     // ------------------------------------------------------------------ invitations: the inviter's link, the friend's arrival
@@ -477,7 +472,7 @@
       track('sandbox_return', { signedIn: Boolean(rec.signedIn), tour: rec.tour || null });
       const name = lookName(H) || rec.name || '';
       if (!rec.signedIn && !gated) {
-        setTimeout(() => { if (H.chat) H.chat.line({ kind: 'overseer', keep: 30, text: name ? `Welcome back, ${name}. The mirror is there if you want a new look: press L.` : 'Welcome back. The mirror is there if you want a new look: press L.' }); }, 2600);
+        setTimeout(() => { if (H.chat) H.chat.line({ kind: 'overseer', keep: 30, text: name ? `Welcome back, ${name}. The mirror is there if you want a new look: ${H.touchUi ? 'Controls, then My look' : 'press L'}.` : `Welcome back. The mirror is there if you want a new look: ${H.touchUi ? 'Controls, then My look' : 'press L'}.` }); }, 2600);
         gated = true;
         setTimeout(() => want('tour', 'return'), 6500);
       }
@@ -867,7 +862,7 @@
     const say = (text, action) => H.chat && H.chat.line({ kind: 'overseer', text, action, keep: 30 });
     const emit = (ev, d) => { try { H.game.emit(ev, d); } catch { /* fine */ } };
     setTimeout(() => {
-      if (!fresh) say(`${name ? `Welcome back, ${name}.` : 'Welcome back.'} Your island, as you left it${window.HawkesGuest.resumed && window.HawkesGuest.resumed !== 'done' ? ', and the tour where you stopped' : ''}. Press L to change how you look; talk to me here any time.`);
+      if (!fresh) say(`${name ? `Welcome back, ${name}.` : 'Welcome back.'} Your island, as you left it${window.HawkesGuest.resumed && window.HawkesGuest.resumed !== 'done' ? ', and the tour where you stopped' : ''}. ${H.touchUi ? 'Controls has your look and everything else' : 'Press L to change how you look'}; talk to me here any time.`);
       else if (n > 0) {
         say(`${hi} This island is yours now. You have ${n.toLocaleString()} credits, and a message to me costs ${price}${n >= price ? `: that is ${Math.floor(n / price).toLocaleString()} ${Math.floor(n / price) === 1 ? 'ask' : 'asks'}` : ', so you are a little short'}. Nothing is spent until you send.`);
         emit('credits-told', { credits: n, price });
@@ -888,16 +883,19 @@
   }
   /** Three things to ask for, each a line with its price and a Send: nothing is asked or charged until it is tapped. */
   const EXAMPLE_ASKS = ['a lighthouse', 'a tune for the island', 'a hat for me'];
+  const asksDone = { get() { try { return JSON.parse(localStorage.getItem('hg_asks_done') || '[]'); } catch { return []; } }, add(t) { try { const l = asksDone.get(); if (!l.includes(t)) { l.push(t); localStorage.setItem('hg_asks_done', JSON.stringify(l)); } } catch { /* fine */ } } };
   async function offerAsks(again) {
     const H = session.H;
     if (!island || !H.chat) return;
     if (!again && session.offered) return;
     session.offered = true;
+    const left = EXAMPLE_ASKS.filter((t) => !asksDone.get().includes(t));
+    if (!left.length) return; // (they've asked already: the chat is the way now)
     const price = await askPrice(island.id);
     if (session.credits < price) { outOfCredits(); return; }
     H.chat.line({ kind: 'overseer', text: `Here is what I can do. Tap one to send it, or type your own. Each message costs ${price} credits; whatever I offer to make shows its own price before it runs.`, keep: 40 });
-    for (const t of EXAMPLE_ASKS) {
-      H.chat.line({ kind: 'sys', text: `“${t}” · ${price} credits`, keep: 60, action: { label: 'Send', onclick: (btn) => sendExample(t, btn) } });
+    for (const t of left) {
+      H.chat.line({ kind: 'sys', text: `“${t}” · ${price} credits`, keep: 60, action: { label: 'Send', onclick: (btn) => sendExample(t, btn), dismiss: () => asksDone.add(t) } });
     }
     try { H.game.emit('asks-offered', { asks: EXAMPLE_ASKS, price }); } catch { /* fine */ }
     track('sandbox_asks_offered', { price, credits: session.credits });
@@ -905,6 +903,7 @@
   async function sendExample(text, btn) {
     const H = session.H;
     if (btn) { btn.disabled = true; btn.textContent = 'Sent'; }
+    asksDone.add(text);
     track('sandbox_ask_example', { text });
     try { await ask(island.id, text); } catch (x) { if (btn) { btn.disabled = false; btn.textContent = 'Send'; } if (H.chat) H.chat.line({ kind: 'sys', text: x.message }); }
   }
@@ -983,6 +982,9 @@
   /** A message to the Overseer, with what the player sees (the editor sends the same: build.js context()). */
   async function ask(id, text) {
     const H = session.H;
+    // (They're talking to the Overseer: the example asks have done their job.)
+    for (const t of EXAMPLE_ASKS) asksDone.add(t);
+    try { if (H.chat && H.chat.clearCards) H.chat.clearCards('Send'); } catch { /* fine */ }
     // Known to be out of credits: say so, with the Get credits link, and send nothing (no request that is bound to fail).
     // (Before saying no, the balance is read again: credits bought or given in another tab count at once.)
     if (session.credits != null && session.price != null && session.credits < session.price) {
@@ -1117,12 +1119,12 @@
     const acts = session.acts;
     if (!acts) return;
     const b = (k) => acts.querySelector(`[data-intent="${k}"]`);
-    if (b('save')) { b('save').textContent = 'Saved ✓'; b('save').classList.remove('primary'); }
+    if (b('save')) b('save').remove(); // (signed in, the island saves itself)
     if (b('build')) { b('build').textContent = 'Build'; b('build').classList.add('primary'); }
   }
   function flashSaved() {
     const s = session.acts && session.acts.querySelector('[data-intent="save"]');
-    if (!s) return;
+    if (!s) return; // (signed in there's no Save button: it saves itself)
     s.textContent = 'Saved ✓';
     s.classList.add('glow');
     setTimeout(() => s.classList.remove('glow'), 1200);
