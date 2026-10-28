@@ -22,7 +22,17 @@ const gid = g.game?.id ?? g.id;
 const t0 = Date.now();
 const at = () => `+${((Date.now() - t0) / 1000).toFixed(1)}s`;
 try {
-  const r = await fetch(`${base}/v1/games/${gid}/live`, { headers: { ...auth, Accept: 'text/event-stream' }, signal: AbortSignal.timeout(100_000) });
+  // WHICH=link: what the pages do now (a stream link from the site, then the function's own address, no key or cookie).
+  let target = `${base}/v1/games/${gid}/live`;
+  let headers = { ...auth, Accept: 'text/event-stream' };
+  if (process.env.WHICH === 'link') {
+    const l = await (await fetch(`${SITE}/v1/stream-link?path=${encodeURIComponent(`/v1/games/${gid}/live`)}`, { headers: auth })).json();
+    target = l.url;
+    headers = { Accept: 'text/event-stream', Origin: SITE };
+    console.log(`link: ${target.split('?')[0]} (ttl ${l.ttl}s)`);
+  }
+  const r = await fetch(target, { headers, signal: AbortSignal.timeout(Number(process.env.SECONDS ?? 100) * 1000) });
+  console.log(`cors: ${r.headers.get('access-control-allow-origin')}`);
   console.log(`${process.env.WHICH}: status ${r.status} headers at ${at()} content-type=${r.headers.get('content-type')}`);
   const rd = r.body.getReader();
   let n = 0;
