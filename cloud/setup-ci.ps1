@@ -23,6 +23,8 @@ foreach ($p in $projects) {
   foreach ($r in $roles) { & $g projects add-iam-policy-binding $p.id --member="serviceAccount:$sa" --role=$r --condition=None --quiet 2>$null | Out-Null; Ok $r }
   # The functions run as the default compute account: the deployer may act as it.
   & $g iam service-accounts add-iam-policy-binding "$($p.number)-compute@developer.gserviceaccount.com" --member="serviceAccount:$sa" --role=roles/iam.serviceAccountUser --project $p.id --quiet 2>$null | Out-Null; Ok 'act as the functions account'
+  # Firebase's deploy also checks the project's App Engine default account (<project>@appspot.gserviceaccount.com).
+  & $g iam service-accounts add-iam-policy-binding "$($p.id)@appspot.gserviceaccount.com" --member="serviceAccount:$sa" --role=roles/iam.serviceAccountUser --project $p.id --quiet 2>$null | Out-Null; Ok 'act as the App Engine default account'
   & $g iam service-accounts add-iam-policy-binding $sa --role=roles/iam.workloadIdentityUser --project $p.id --quiet `
     --member="principalSet://iam.googleapis.com/projects/$($p.number)/locations/global/workloadIdentityPools/github/attribute.repository/$repo" 2>$null | Out-Null; Ok 'GitHub may be the deployer'
 }
