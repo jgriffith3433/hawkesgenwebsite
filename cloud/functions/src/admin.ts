@@ -138,7 +138,7 @@ export async function userDetail(userId: string) {
       sessions: 0,
       invited: await count(users().where('referred_by', '==', userId)),
       invitedBought: await count(users().where('referred_by', '==', userId).where('referral_paid', '==', true)),
-      memberOf: await count(db.collection('gameMembers').where('user_id', '==', userId)),
+      memberOf: await count(db.collectionGroup('members').where('user_id', '==', userId)),
       friends: await count(db.collection('friends').where('user_id', '==', userId)),
       shared: await count(db.collection('communityAssets').where('by_user', '==', userId)),
       shareLinks: await count(db.collection('shares').where('user_id', '==', userId)),
