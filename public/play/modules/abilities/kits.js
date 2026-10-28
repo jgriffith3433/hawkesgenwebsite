@@ -269,6 +269,22 @@
       },
     },
     {
+      id: 'planets', name: 'Planet hop', icon: '🪐', about: 'Three more planets in the sky (lava, ice, a small moon), a warp gate and a spaceship to fly to them.',
+      settings: {},
+      config: () => ({ planets: { travel: 'space', list: [
+        { id: 'ember', name: 'Ember', about: 'lava and low gravity', biome: 'lava', gravity: 0.6, time: { hour: 21 } },
+        { id: 'frost', name: 'Frost', about: 'snow and ice', biome: 'ice', gravity: 0.9 },
+        { id: 'moon', name: 'The Moon', about: 'tiny, you nearly float', biome: 'ice', gravity: 0.17 },
+      ] } }),
+      things() {
+        return [
+          { type: 'torus', name: 'Warp gate', shape: { radius: 2, thickness: 0.35 }, material: { color: '#a78bfa', emissive: '#4c1d95' }, physics: 'none', transform: { position: [0, 2.2, 6], rotation: [90, 0, 0] }, behaviors: [{ use: 'spin', speed: 30 }, glowing('#a78bfa')] },
+          { type: 'box', name: 'Warp field', shape: { size: [3, 3.6, 0.4] }, material: { color: '#c4b5fd', opacity: 0.25 }, physics: 'none', ghost: true, transform: { position: [0, 2.2, 6] }, behaviors: [{ use: 'warp-gate' }] },
+          { type: 'spaceship', name: 'Spaceship', transform: { position: [8, 1.5, 4] } },
+        ];
+      },
+    },
+    {
       id: 'mine', name: 'Block mine', icon: '⛏', about: 'A world of blocks grows round you: caves, ores, trees. You hold a pickaxe: mine, build, craft.',
       settings: { world: 'caves', size: 48 },
       // (The blocks' bottom middle a little under where the kit goes: the ground grows to about 0.42 of the height.)
