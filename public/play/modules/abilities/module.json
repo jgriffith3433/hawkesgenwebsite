@@ -1,6 +1,6 @@
 {
   "title": "Abilities and kits: anything can be ridden, flown, carried, wired with signals; ready-made bits of play",
   "order": 18,
-  "scripts": ["abilities.js", "kits.js"],
+  "scripts": ["abilities.js", "kits.js", "airswim.js"],
   "kinds": []
 }

@@ -50,6 +50,7 @@ export function cleanAvatar(v: unknown) {
   const a = v as Record<string, unknown>;
   const color = (k: string, d: string) => { const c = a[k] ?? d; if (typeof c !== 'string' || !HEX.test(c)) throw new PortalError(`avatar.${k} must be a color like #4a9eff`); return c.toLowerCase(); };
   const one = (k: string, list: string[], d: string) => { const x = a[k] ?? d; if (typeof x !== 'string' || !list.includes(x)) throw new PortalError(`avatar.${k} must be one of ${list.join(', ')}`); return x; };
+  const ratio = (k: string, lo: number, hi: number) => { const x = Number(a[k]); return a[k] === undefined || a[k] === null || !Number.isFinite(x) ? 1 : Math.round(Math.max(lo, Math.min(hi, x)) * 100) / 100; };
   const extras = a.extras ?? [];
   if (!Array.isArray(extras) || extras.length > AVATAR.maxExtras || extras.some((x) => typeof x !== 'string' || !AVATAR.extras.includes(x))) throw new PortalError(`avatar.extras: up to ${AVATAR.maxExtras} of ${AVATAR.extras.join(', ')}`);
   const model = a.model ?? null;
@@ -63,6 +64,8 @@ export function cleanAvatar(v: unknown) {
     hair: one('hair', AVATAR.hairs, 'short'), hairColor: color('hairColor', '#4a3322'), bottom: color('bottom', '#3b4a6b'), shoes: color('shoes', '#f2f2ee'),
     // The eyes' color, one accessory and its color.
     eyeColor: color('eyeColor', '#14161d'), accessory: one('accessory', AVATAR.accessories, 'none'), accessoryColor: color('accessoryColor', '#ffffff'),
+    // Proportions: the head's size and the whole body's, times normal (out of range is clamped, not refused).
+    headSize: ratio('headSize', 0.5, 3), bodySize: ratio('bodySize', 0.3, 4),
     // A name is only words over your head: one line, no markup, short (anything else is dropped, not refused).
     name: typeof a.name === 'string' ? a.name.replace(/[\u0000-\u001f\u007f<>]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, AVATAR.nameMax) || null : null,
   };

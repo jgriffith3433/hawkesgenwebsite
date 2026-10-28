@@ -160,3 +160,31 @@ test('building: abilities still work (a lever and a gate), the hidden bridge sho
   steps(1);
   assert.ok(H.game.entity('gate').y > 4, 'the gate opens while building too');
 });
+
+test('swimming in the air: the air-swim mode floats you; space swims up, letting go drifts down slowly', () => {
+  world(H, sceneOf({ floor, start }, { player: { mode: 'air-swim' } }));
+  H.tick(0.3);
+  const p = H.world.player;
+  assert.equal(p.controller, 'air-swim');
+  assert.equal(p._airSwim, true, 'the body swims');
+  key('keydown', ' ');
+  steps(1.5);
+  key('keyup', ' ');
+  const top = p.y;
+  assert.ok(top > 4, `swam up (${top.toFixed(1)})`);
+  steps(1);
+  const coast = p.y;
+  assert.ok(coast < top + 1.5, `the swim stops soon after letting go (${top.toFixed(1)} -> ${coast.toFixed(1)})`);
+  steps(1.5);
+  assert.ok(p.y < coast && p.y > coast - 2, `then drifts down slowly (${coast.toFixed(1)} -> ${p.y.toFixed(1)})`);
+});
+
+test('proportions: a look keeps headSize and bodySize, clamped', () => {
+  const C = H.presence.core;
+  const lk = C.cleanLook({ headSize: 2.2, bodySize: 0.6 });
+  assert.equal(lk.headSize, 2.2);
+  assert.equal(lk.bodySize, 0.6);
+  assert.equal(C.cleanLook({ headSize: 9, bodySize: -1 }).headSize, 3);
+  assert.equal(C.cleanLook({ bodySize: -1 }).bodySize, 0.3);
+  assert.equal(C.cleanLook({}).headSize, 1, 'an old look: normal');
+});
