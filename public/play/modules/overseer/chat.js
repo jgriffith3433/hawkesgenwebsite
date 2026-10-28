@@ -33,6 +33,7 @@
   const embedded = (() => { try { return window.parent !== window && location.pathname.replace(/\/+$/, '') === '/play/_draft'; } catch { return false; } })();
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const KEEP = 14; // seconds a line stays before fading (all of them show again while you type)
+  let cards = null;
   let box = null, log = null, form = null, input = null, statusEl = null, attached = null, fallback = null;
   const sender = () => attached || fallback;
 
@@ -53,6 +54,15 @@
 .hc-log p.me b{color:#d8b4fe}
 .hc-log p.sys{color:rgba(200,225,255,.78);font-style:italic;font-weight:500;font-size:13.5px}
 .hc-log .act{border:0;cursor:pointer;display:inline-block;margin-left:8px;font:700 11px var(--display,system-ui);letter-spacing:.08em;padding:5px 9px;background:linear-gradient(90deg,#f2b33d,#ff7a45);color:#16130a;text-decoration:none;text-shadow:none}
+.hc-cards{display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none}
+.hc-card{pointer-events:auto;display:flex;align-items:center;gap:10px;max-width:100%;padding:8px 8px 8px 14px;border-radius:12px;background:rgba(6,10,20,.82);border:1px solid rgba(242,179,61,.55);box-shadow:0 6px 18px rgba(0,0,0,.35);color:#f3f6ff;font:600 13.5px/1.3 var(--hud,system-ui,sans-serif);text-align:left;animation:hc-in .25s ease-out}
+.hc-card span{overflow-wrap:anywhere}
+.hc-card .act{flex:none;border:0;cursor:pointer;font:700 11px var(--display,system-ui);letter-spacing:.08em;padding:7px 11px;border-radius:8px;background:linear-gradient(90deg,#f2b33d,#ff7a45);color:#16130a;text-decoration:none}
+.hc-card .act:disabled{opacity:.6;cursor:default}
+.hc-card .x{flex:none;width:26px;height:26px;border:0;border-radius:50%;background:rgba(255,255,255,.08);color:#cfe8ff;font:700 15px/1 system-ui;cursor:pointer;padding:0}
+.hc-card .x:hover{background:rgba(255,255,255,.18)}
+@keyframes hc-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+body.pr-touch .hc-cards{align-items:flex-start}
 .hc-status{font:700 11px var(--display,system-ui);letter-spacing:.2em;text-transform:uppercase;color:#7cc8ff;text-shadow:0 0 10px rgba(74,158,255,.8);text-align:center}
 .hc-status[hidden],.hc-form[hidden]{display:none}
 .hc-tools{position:absolute;right:0;bottom:calc(100% + 2px);display:flex;gap:6px;pointer-events:auto;opacity:.45;transition:opacity .2s}
@@ -85,9 +95,13 @@ body.pr-touch .hc-form:not(.on){display:none}`;
     style();
     box = document.createElement('div');
     box.className = 'hc-chat sh-keep';
-    box.innerHTML = '<div class="hc-log" aria-live="polite"></div><div class="hc-status" hidden></div><div class="hc-panel" hidden role="dialog" aria-label="Overseer sound and captions"><b>The Overseer</b><label>Captions <input type="checkbox" data-s="captions"></label><label>Voice <input type="range" min="0" max="100" data-s="voice" aria-label="Voice volume"></label><label>Music <input type="range" min="0" max="100" data-s="music" aria-label="Music volume"></label></div><div class="hc-tools"><button type="button" class="hc-replay" title="Replay the last line" aria-label="Replay the last line">&#8635;</button><button type="button" class="hc-gear" title="Captions and volume" aria-label="Captions and volume">&#9881;</button></div><form class="hc-form" hidden><input type="text" maxlength="4000" enterkeyhint="send" autocomplete="off" placeholder="Press Enter to talk to the Overseer" aria-label="Message the Overseer"></form>';
+    box.innerHTML = '<div class="hc-cards" aria-live="polite"></div><div class="hc-log" aria-live="polite"></div><div class="hc-status" hidden></div><div class="hc-panel" hidden role="dialog" aria-label="Overseer sound and captions"><b>The Overseer</b><label>Captions <input type="checkbox" data-s="captions"></label><label>Voice <input type="range" min="0" max="100" data-s="voice" aria-label="Voice volume"></label><label>Music <input type="range" min="0" max="100" data-s="music" aria-label="Music volume"></label></div><div class="hc-tools"><button type="button" class="hc-replay" title="Replay the last line" aria-label="Replay the last line">&#8635;</button><button type="button" class="hc-gear" title="Captions and volume" aria-label="Captions and volume">&#9881;</button></div><form class="hc-form" hidden><input type="text" maxlength="4000" enterkeyhint="send" autocomplete="off" placeholder="Press Enter to talk to the Overseer" aria-label="Message the Overseer"></form>';
     document.body.appendChild(box);
     log = box.querySelector('.hc-log');
+    cards = box.querySelector('.hc-cards');
+    // The E prompt (use.js) sits above the chat: it rises by the cards' height, so a card never hides it.
+    const lift = () => { try { document.documentElement.style.setProperty('--hc-cards', `${cards.children.length ? cards.offsetHeight + 8 : 0}px`); } catch { /* fine */ } };
+    try { new MutationObserver(lift).observe(cards, { childList: true }); } catch { /* no observer: tests */ }
     statusEl = box.querySelector('.hc-status');
     form = box.querySelector('.hc-form');
     input = form.querySelector('input');
@@ -156,30 +170,54 @@ body.pr-touch .hc-form:not(.on){display:none}`;
       p._finish = () => { clearTimeout(timer); timer = null; t.textContent = text; };
       tick();
     }
-    if (m.action && typeof m.action.onclick === 'function') {
-      const a = document.createElement('button');
-      a.type = 'button'; a.className = 'act';
-      a.textContent = m.action.label || 'Do it';
-      a.onclick = (e) => { e.preventDefault(); e.stopPropagation(); try { m.action.onclick(a); } catch { /* fine */ } };
-      p.appendChild(a);
-    } else if (m.action && m.action.href) {
-      // A link only when it is ours; anything else (another site, javascript:) is plain text.
-      const href = safeHref(m.action.href);
-      const a = document.createElement(href ? 'a' : 'span');
-      a.className = 'act';
-      if (href) { a.href = href; a.target = '_blank'; a.rel = 'noopener'; }
-      a.textContent = m.action.label || 'Open';
-      p.appendChild(a);
-    }
+    // Something to act on (Get credits, Make it) is a card above the conversation, never a button in it: it stays until
+    // it's used or dismissed (×), and the same card isn't shown twice.
+    if (m.action && (typeof m.action.onclick === 'function' || m.action.href)) { card(m, kind === 'sys' ? text : null); if (kind === 'sys') return null; }
     log.appendChild(p);
     while (log.children.length > 8) log.firstChild.remove();
     setTimeout(() => p.classList.add('old'), (m.keep || KEEP) * 1000);
     return p;
   }
 
+  /** A card above the chat: its words (a short line), the action and ×. At most three; the oldest goes first. */
+  function card(m, words) {
+    if (!cards) return;
+    const key = `${m.action.label || ''}|${m.action.href || ''}|${words || ''}`;
+    for (const c of cards.children) if (c.dataset.key === key) c.remove();
+    const c = document.createElement('div');
+    c.className = 'hc-card';
+    c.dataset.key = key;
+    const say = document.createElement('span');
+    say.textContent = words || (m.action.href && /credit/i.test(m.action.label || '') ? 'You are out of credits for now.' : String(m.text).slice(0, 90));
+    c.appendChild(say);
+    let a;
+    if (typeof m.action.onclick === 'function') {
+      a = document.createElement('button');
+      a.type = 'button';
+      a.onclick = (e) => { e.preventDefault(); e.stopPropagation(); try { m.action.onclick(a); } catch { /* fine */ } setTimeout(() => { if (!a.disabled || /made|done/i.test(a.textContent)) c.remove(); }, 1500); };
+    } else {
+      // A link only when it is ours; anything else (another site, javascript:) is plain text.
+      const href = safeHref(m.action.href);
+      a = document.createElement(href ? 'a' : 'span');
+      if (href) { a.href = href; a.target = '_blank'; a.rel = 'noopener'; a.addEventListener('click', () => setTimeout(() => c.remove(), 300)); }
+    }
+    a.className = 'act';
+    a.textContent = m.action.label || 'Open';
+    c.appendChild(a);
+    const x = document.createElement('button');
+    x.type = 'button'; x.className = 'x'; x.textContent = '×'; x.setAttribute('aria-label', 'Dismiss');
+    x.onclick = (e) => { e.preventDefault(); e.stopPropagation(); c.remove(); };
+    c.appendChild(x);
+    for (const t of ['keydown', 'keyup', 'pointerdown']) c.addEventListener(t, (e) => e.stopPropagation());
+    cards.appendChild(c);
+    while (cards.children.length > 3) cards.firstChild.remove();
+  }
+
   H.chat = {
     embedded,
     line,
+    /** Takes down the cards (all, or those whose action label matches). */
+    clearCards(label) { if (cards) for (const c of [...cards.children]) if (!label || c.dataset.key.startsWith(`${label}|`)) c.remove(); },
     /** Typing talks to the Overseer: send(text) does it (and says what went wrong by throwing). */
     attach(o) {
       attached = o && typeof o.send === 'function' ? o : null;

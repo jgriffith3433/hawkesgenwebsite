@@ -448,9 +448,19 @@ async function loadChat() {
   try { chatHistory = (await get(`${API}/games/${gameId}/chat`)).messages || []; renderChat(); } catch {}
   try { pendingGens = ((await get(`${API}/games/${gameId}/generate`)).gens || []).filter((g) => g && g.state === 'running'); renderGens(); for (const g of pendingGens) toStage({ type: 'gen', row: g }); } catch {}
 }
+// Something to act on (Get credits, Make it, community picks, Try again) is a card above the conversation, not inside
+// it: the newest three, each with × (dismissed ones stay gone).
+const dismissedCards = new Set();
+function chatCards() {
+  let el = $('chatCards');
+  if (!el) { el = document.createElement('div'); el.id = 'chatCards'; el.className = 'st-chat-cards'; $('chatLog').before(el); }
+  return el;
+}
 function renderChat(fresh) {
   const log = $('chatLog');
   log.innerHTML = '';
+  const cards = [];
+  const toCard = (key, el, words) => { if (!dismissedCards.has(key)) cards.push({ key, el, words }); };
   // Game chat: only the last few lines, fading out as they go up (studio.css), nothing to scroll.
   for (const msg of chatHistory.slice(-6)) {
     const div = document.createElement('div');
@@ -472,7 +482,7 @@ function renderChat(fresh) {
       link.textContent = msg.action.label;
       if (msg.action.onclick) link.onclick = msg.action.onclick;
       a.appendChild(link);
-      div.appendChild(a);
+      toCard(`${msg.id}:action`, a, String(msg.text).slice(0, 90));
     }
     // It didn't work out: one click asks again, the same way (only the last failed one, so old ones don't pile up).
     if (d.error && d.retry && msg === chatHistory.filter((x) => x.data && x.data.error).at(-1) && msg === chatHistory.at(-1)) {
@@ -483,7 +493,7 @@ function renderChat(fresh) {
       btn.textContent = 'Try again';
       btn.onclick = () => { btn.disabled = true; btn.textContent = 'Asking…'; const said = String(d.retry); const tag = d.mention ? `@${d.mention.name || d.mention.id} ` : ''; sendChat(tag && said.startsWith(tag) ? said.slice(tag.length) : said, d.mention || null); };
       again.appendChild(btn);
-      div.appendChild(again);
+      toCard(`${msg.id}:retry`, again, "That didn't work out.");
     }
     for (const [i, sg] of (d.assets || []).entries()) {
       const sugg = document.createElement('span');
@@ -513,9 +523,22 @@ function renderChat(fresh) {
         btn.onclick = async () => { btn.disabled = true; btn.textContent = 'Making…'; try { await post(`${API}/games/${gameId}/generate`, { kind: sg.kind, prompt: sg.prompt, name: sg.name, messageId: msg.id, suggestion: i }); } catch (err) { btn.disabled = false; btn.textContent = `${picks.length ? 'Make our own' : 'Make it'} · ${sg.credits || ''}`; if (err.status === 402) noCredits(err.message); else addSystem(err.message); } };
         sugg.appendChild(btn);
       }
-      div.appendChild(sugg);
+      if (!sg.used) toCard(`${msg.id}:asset:${i}`, sugg, null);
     }
     log.appendChild(div);
+  }
+  const shelf = chatCards();
+  shelf.innerHTML = '';
+  for (const c of cards.slice(-3)) {
+    const card = document.createElement('div');
+    card.className = 'chat-card';
+    if (c.words) { const w = document.createElement('span'); w.className = 'chat-card-words'; w.textContent = c.words; card.appendChild(w); }
+    card.appendChild(c.el);
+    const x = document.createElement('button');
+    x.type = 'button'; x.className = 'chat-card-x'; x.textContent = '×'; x.setAttribute('aria-label', 'Dismiss');
+    x.onclick = () => { dismissedCards.add(c.key); card.remove(); };
+    card.appendChild(x);
+    shelf.appendChild(card);
   }
   if (fresh) {
     // A new line shows a little more history for a moment.

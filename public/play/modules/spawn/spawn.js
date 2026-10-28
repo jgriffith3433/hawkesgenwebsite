@@ -149,6 +149,7 @@
     const building = H.mode === 'build';
     if (it.build && !building) { say(`${it.name}: only while building`); return { ok: false, error: 'build only' }; }
     const pre = S.place(quickSpec(it), { count, floats: it.floats });
+    if (it.kit) return kit(it, pre);
     busy = Boolean(it.lib);
     if (it.lib) say(`Bringing ${it.name} from the library…`);
     let r;
@@ -179,6 +180,24 @@
     done(it, count, ids);
     return { ok: true, count: specs.length, ids };
   };
+  /** A play kit (H.kits): its things laid out round the spot, facing you; saved while building, shared while playing. */
+  function kit(it, pre) {
+    const building = H.mode === 'build';
+    const specs = H.kits.build(it.kit, pre.center, radYaw()).map((s) => ({ ...s, id: newId(s.name || it.kit) }));
+    if (!specs.length) { say(`${it.name} can't be placed`, 2); return { ok: false, error: 'empty kit' }; }
+    S.recent.add(it);
+    let ids = [];
+    if (building) {
+      edit(specs.map((s) => ({ op: 'create', entity: s })), `adding ${it.name.toLowerCase()}`, 'materialize');
+      ids = specs.map((s) => s.id);
+      say(`${it.name} ✓ · Ctrl+Z takes it back`);
+    } else {
+      ids = runtime(specs);
+      say(`${it.name} ✓`, 1.4);
+    }
+    done(it, 1, ids);
+    return { ok: true, count: specs.length, ids };
+  }
   function done(it, count, ids = []) { try { G().emit('spawn', { item: { id: it.id, name: it.name, type: it.type, category: it.cat }, count, ids }); } catch { /* no world */ } }
   /** A world edit (building): through the editor's tools (saved, undoable), or applied here when there is no editor. */
   function edit(ops, label, fx) {

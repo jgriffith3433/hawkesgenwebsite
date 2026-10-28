@@ -42,7 +42,7 @@ test('layers 2 and 3: categories and things from the kind registry, species and 
   assert.ok(ids(S.categories('things')).includes('furniture'), 'homes\' furniture');
   assert.ok(ids(S.categories('world')).includes('disasters') && ids(S.categories('world')).includes('terrain'));
   // Every thing has a name, an icon and something to do.
-  for (const it of S.all()) assert.ok(it.name && it.icon && (it.make || it.world || it.effect || it.asset), `${it.id} is complete`);
+  for (const it of S.all()) assert.ok(it.name && it.icon && (it.make || it.world || it.effect || it.asset || it.kit), `${it.id} is complete`);
   // A kind a new module registers shows up by its codex group.
   H.kinds.register('jetpack-test', { build: (_: any, o: any) => H.lib.shape('jetpack-test', () => new (globalThis as any).BABYLON.MeshBuilder.CreateBox('j', { size: 1 }, H.world.scene), o), maker: true, codex: { group: 'Vehicles', what: 'test' } });
   assert.ok(S.items('vehicles', 'vehicles').some((i: any) => i.kind === 'jetpack-test'), 'a module\'s new kind is in the wheel with no edit here');

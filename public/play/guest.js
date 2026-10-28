@@ -1022,6 +1022,7 @@
       document.removeEventListener('visibilitychange', back);
       const u = await me();
       if (u) session.credits = Number(u.credits) || 0; // (the balance they came back with is the one asks are checked against)
+      if (u && Number(u.credits) > 0 && H.chat && H.chat.clearCards) H.chat.clearCards('Get credits');
       if (u && Number(u.credits) > 0 && H.chat) H.chat.line({ kind: 'overseer', text: `You have ${Number(u.credits).toLocaleString()} credits now. Ask me again.` });
     };
     document.addEventListener('visibilitychange', back);

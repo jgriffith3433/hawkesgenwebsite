@@ -2249,6 +2249,8 @@
     restart: () => { if (W) W.restartAsked = true; },
     behavior: (name, def) => defineBehavior(name, def, true),
     behaviorDef: (name) => findDef(name),
+    /** Every behavior once (its first name; aliases share a def): [{ name, def }], the built-ins then the game's own. */
+    behaviorList: () => { const seen = new Set(), out = []; for (const m of [builtinDefs, behaviorDefs]) for (const [name, def] of m) if (!seen.has(def)) { seen.add(def); out.push({ name, def }); } return out; },
     hooks,
     /** How fast the world runs: 1 normal, 0.35 slow motion, 0 stopped (H.slow for several owners). */
     get timeScale() { return timeScale; },
