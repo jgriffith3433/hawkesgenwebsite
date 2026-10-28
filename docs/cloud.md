@@ -51,12 +51,27 @@ browser ──https──▶ Firebase Hosting (public/, CDN)
 
 | Area | Module | State |
 |---|---|---|
-| Router, settings, Firestore, sign-in (Google via Firebase Auth), accounts, API keys, referral | `http.ts`, `config.ts`, `store.ts`, `accounts.ts`, `caller.ts` | written |
-| Credits, packs, Stripe Checkout and webhook, holds | `billing.ts` | written |
-| Jobs: quote, submit, settle (scheduled sweep), Gen pass-through, uploads | `jobs.ts`, `gen.ts` | written |
-| Plans and subscriptions | `plans.ts` | to port |
-| OAuth server, MCP, tasks, files and signed links, connections | `oauth.ts`, `mcp.ts`, `tasks.ts`, `files.ts` | to port |
-| Games, the assistant, scene, releases, members, invites, play pages, play assets, live feed | `games.ts`, `gameai.ts`, … | to port |
-| Community, kits, shares, LODs, templates, gallery, portfolio, demo, prices, analytics relay | `community.ts`, … | to port |
-| Admin, presence, friends, Hawkes Net tickets, health | `admin.ts`, `presence.ts`, `friends.ts`, `hnet.ts` | to port |
+| Router, settings, Firestore, sign-in (Google via Firebase Auth), accounts, API keys, referral | `http.ts`, `config.ts`, `store.ts`, `accounts.ts`, `caller.ts` | ported |
+| Credits, packs, Stripe Checkout and webhook, holds | `billing.ts` | ported |
+| Jobs: quote, submit, settle (scheduled sweep), Gen pass-through, uploads | `jobs.ts`, `gen.ts` | ported |
+| Plans and subscriptions | `plans.ts` | ported |
+| OAuth server, MCP, tasks, files and signed links, connections | `oauth.ts`, `mcp.ts`, `tasks.ts`, `files.ts` | ported |
+| Games, the assistant, scene, releases, members, invites, play pages, play assets, live feed | `games.ts`, `gameai.ts`, … | ported |
+| Community, kits, shares, LODs, templates, gallery, portfolio, demo, prices, analytics relay | `community.ts`, … | ported |
+| Admin, presence, friends, Hawkes Net tickets, health | `admin.ts`, `presence.ts`, `friends.ts`, `hnet.ts` | ported |
 | Sign-in buttons on the pages (Google only), data move from portal.db | `public/`, `cloud/migrate.mjs` | to do |
+
+Staging: https://hawkes-staging.web.app (deployed 2026-10-28). Scheduled functions: settleJobs (2 min), advanceTasks (1 min),
+advanceGameGens (1 min), syncStarter (10 min), refreshLods (15 min); gameAssistant runs on a Firestore trigger.
+
+## What changed from the box (decide or check on staging)
+
+- Sign-in is Google only. Old email accounts link by email. Studio's sign-up playtests stop at the account sheet.
+- Uploads through a function: 30 MB (Google's 32 MB request limit), was 64 MB; bigger files by https URL.
+- Long waits end sooner: /v1/run and MCP streams within ~270 s (then get_task); Hosting may cut a function request at
+  60 s and buffer server-sent streams: check /v1/run, MCP progress, the editor's live feed and large /play-asset files.
+- Library search matches whole words and word starts (no full-text search in Firestore).
+- New levels of detail can take up to 15 minutes to appear (refreshLods), unless a share or the starter sync recorded them.
+- Game rooms are Hawkes Net's only (no in-process rooms).
+- No email yet (welcome, gifts, low balance): SES needed the AWS box's role. To do: a mail provider.
+- One-time per project:  (the default compute service account's roles), .
