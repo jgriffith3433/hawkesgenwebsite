@@ -2,6 +2,8 @@
 // never printed. Idempotent: an existing secret gets a new version only with --replace.
 //   node cloud/setup-secrets.mjs --project hawkes-staging            staging: its own Gen key (ustg_*), no Stripe
 //   node cloud/setup-secrets.mjs --project hawkes-prod --from-box     live: the values the portal box has
+//   node cloud/setup-secrets.mjs --project hawkes-prod --resend C:/Projects/resend.txt --replace   Resend's sending key from a file
+//   (staging gets RESEND_API_KEY "unset": it sends no mail)
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -43,10 +45,12 @@ const values = {
   STRIPE_WEBHOOK_SECRET: async () => box.STRIPE_WEBHOOK_SECRET ?? 'unset',
   GOOGLE_CLIENT_SECRET: async () => box.GOOGLE_CLIENT_SECRET ?? readBox().GOOGLE_CLIENT_SECRET,
   PORTAL_SIGNING_KEY: async () => crypto.randomBytes(32).toString('base64url'),
+  RESEND_API_KEY: async () => (arg('resend') ? fs.readFileSync(String(arg('resend')), 'utf8').trim().replace(/^[A-Za-z_ ]*[=:]s*/, '') : 'unset'),
 };
 for (const [name, get] of Object.entries(values)) {
   const has = exists(name);
-  if (has && !replace) { console.log(`${name}: kept`); continue; }
+  // --replace with --resend only replaces the Resend key; the others stay as they are.
+  if (has && (!replace || (arg('resend') && name !== 'RESEND_API_KEY'))) { console.log(`${name}: kept`); continue; }
   const v = await get();
   const r = has ? run(['secrets', 'versions', 'add', name, '--data-file=-', '--project', project], v) : run(['secrets', 'create', name, '--data-file=-', '--replication-policy=automatic', '--project', project], v);
   console.log(`${name}: ${r.status === 0 ? (has ? 'new version' : 'made') : 'FAILED ' + (r.stderr || '').trim().split('\n').pop()}`);

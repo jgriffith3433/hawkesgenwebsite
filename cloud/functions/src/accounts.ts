@@ -9,6 +9,7 @@ import type { Response } from 'express';
 import { auth, db, users, ledgerOf, first } from './store.ts';
 import { env, publicUrl, PROJECT_PREFIX, SECRETS } from './config.ts';
 import { PortalError, id, sha256, cookies, route, redirect, send, json, Limiter } from './http.ts';
+import { sendWelcome } from './mail.ts';
 
 export type User = {
   id: string;
@@ -85,6 +86,7 @@ export async function createAccount(input: { email: string; name?: string | null
   if (starter > 0) batch.create(ledgerOf(userId).doc(id('tx_', 6)), { delta: starter, balance_after: starter, kind: 'signup_bonus', detail: `Welcome bonus (${starter} credits)`, created: now });
   if (bonus) batch.create(ledgerOf(userId).doc(id('tx_', 6)), { delta: bonus, balance_after: starter + bonus, kind: 'referral_bonus', detail: `Invited by a friend (+${bonus} credits)`, created: now });
   await batch.commit();
+  await sendWelcome(email, input.name?.trim() ? user.name : null, starter + bonus);
   return { id: userId, ...user };
 }
 
