@@ -88,7 +88,7 @@ export async function sweep() {
   return open.size;
 }
 
-export const settleJobs = onSchedule({ schedule: 'every 2 minutes', secrets: [SECRETS.genKey], timeoutSeconds: 240 }, async () => { await sweep(); });
+export const settleJobs = onSchedule({ region: 'us-east4', schedule: 'every 2 minutes', secrets: [SECRETS.genKey], timeoutSeconds: 240 }, async () => { await sweep(); });
 
 // ------------------------------------------------------------ routes
 
