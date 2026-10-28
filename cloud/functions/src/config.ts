@@ -25,3 +25,5 @@ export const PROJECT_PREFIX = (() => {
 })();
 export const USER_ID = `${PROJECT_PREFIX}[0-9a-f]+`;
 export const isLive = () => PROJECT_PREFIX === 'usr_';
+/** Gen's CDN hosts whose links public answers may carry (the play page CSP's asset hosts): cdn.hawkesgen.com plus PORTAL_CDN_HOSTS. */
+export const cdnHosts = () => [...new Set(['https://cdn.hawkesgen.com', ...(env('PORTAL_CDN_HOSTS') ?? '').split(',').map((h) => h.trim().replace(/\/+$/, '')).filter((h) => /^https:\/\/[a-z0-9.-]+(:\d+)?$/.test(h))])];

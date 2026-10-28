@@ -1,0 +1,35 @@
+// The landing page's tool table, from Gen's own quotes (src/prices.ts on the old server): what each tool costs at its
+// floor, asked as the demo project (a quote starts no work and takes nothing). Hosting's CDN keeps the answer 5 minutes
+// (Cache-Control public 300); each function instance also keeps it half an hour, a soft cache nothing relies on.
+import { gen } from './gen.ts';
+import { DEMO_PROJECT } from './demo.ts';
+import { route } from './http.ts';
+
+export const PRICED_TOOLS = [
+  'image.generate', 'image.edit', 'image.cutout', 'image.angles', 'image.panorama', 'texture.maps',
+  'video.t2v', 'video.i2v', 'video.animate', 'video.upscale', 'video.interpolate',
+  'image.viewsheet', 'mesh.views3d', 'mesh.textured',
+  'mesh.rig', 'motion.from-text', 'blender.character',
+  'audio.voice', 'audio.voice-design', 'audio.sfx', 'audio.music',
+];
+
+const TTL = 30 * 60_000;
+let cache: { at: number; tools: Record<string, number> } | null = null;
+
+export async function toolPrices(now = Date.now()) {
+  if (cache && now - cache.at < TTL) return cache.tools;
+  const tools: Record<string, number> = {};
+  await Promise.all(PRICED_TOOLS.map(async (tool) => {
+    try {
+      const q = await gen<{ credits?: number }>('/v1/billing/quote', { as: DEMO_PROJECT, body: { tool, params: {} }, signal: AbortSignal.timeout(8000) });
+      if (Number.isFinite(q.credits) && Number(q.credits) > 0) tools[tool] = Number(q.credits);
+    } catch { /* not priced here: the page keeps its printed figure */ }
+  }));
+  if (Object.keys(tools).length) cache = { at: now, tools };
+  return tools;
+}
+
+route('GET', '/v1/prices', async ({ res }) => {
+  const tools = await toolPrices();
+  res.status(200).set({ 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300' }).send(JSON.stringify({ tools }));
+});

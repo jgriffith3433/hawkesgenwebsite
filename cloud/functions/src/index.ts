@@ -8,6 +8,16 @@ import './accounts.ts';
 import './billing.ts';
 import './jobs.ts';
 export { settleJobs } from './jobs.ts';
+import './community.ts';
+import './kits.ts';
+import './shares.ts';
+import './gallery.ts';
+import './portfolio.ts';
+import './prices.ts';
+import './demo.ts';
+import './analytics.ts';
+export { syncStarter } from './community.ts';
+export { refreshLods } from './lods.ts';
 
 setGlobalOptions({ region: 'us-east4', maxInstances: 10 });
 
