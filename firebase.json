@@ -50,7 +50,7 @@
     ]
   },
   "functions": [
-    { "source": "cloud/functions", "codebase": "portal", "runtime": "nodejs24", "ignore": ["node_modules", "test", "*.log"] }
+    { "source": "cloud/functions", "codebase": "portal", "runtime": "nodejs24", "ignore": ["node_modules", "test", "*.log"], "predeploy": ["node cloud/functions/tools/prebuild.mjs"] }
   ],
   "firestore": { "database": "(default)", "location": "us-east4", "rules": "cloud/firestore.rules", "indexes": "cloud/firestore.indexes.json" }
 }

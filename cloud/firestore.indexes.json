@@ -273,6 +273,48 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "playHere",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "game",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "at",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "gameGen",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "game_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "created",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "gameGen",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "game_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": [
@@ -325,6 +367,170 @@
           "queryScope": "COLLECTION_GROUP"
         }
       ]
+    },
+    {
+      "collectionGroup": "members",
+      "fieldPath": "user_id",
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "DESCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "arrayConfig": "CONTAINS",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "presence",
+      "fieldPath": "user",
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "DESCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "arrayConfig": "CONTAINS",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "presence",
+      "fieldPath": "at",
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "DESCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "presence",
+      "fieldPath": "expires",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "live",
+      "fieldPath": "expires",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "live",
+      "fieldPath": "data",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "playHere",
+      "fieldPath": "expires",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "playSeen",
+      "fieldPath": "expires",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "aiRuns",
+      "fieldPath": "expires",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "locks",
+      "fieldPath": "expires",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "genLimits",
+      "fieldPath": "expires",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "files",
+      "fieldPath": "content",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "chat",
+      "fieldPath": "data",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "chat",
+      "fieldPath": "text",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "releases",
+      "fieldPath": "files",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "releases",
+      "fieldPath": "assets",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "parts",
+      "fieldPath": "text",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "aiRuns",
+      "fieldPath": "job",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "aiRuns",
+      "fieldPath": "director",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "aiRuns",
+      "fieldPath": "context",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "gameGen",
+      "fieldPath": "steps",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "gameGen",
+      "fieldPath": "outputs",
+      "indexes": []
     }
   ]
 }
