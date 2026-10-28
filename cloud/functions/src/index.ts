@@ -14,6 +14,16 @@ import './tasks.ts';
 import './mcp.ts';
 export { settleJobs } from './jobs.ts';
 export { advanceTasks } from './tasks.ts';
+import './community.ts';
+import './kits.ts';
+import './shares.ts';
+import './gallery.ts';
+import './portfolio.ts';
+import './prices.ts';
+import './demo.ts';
+import './analytics.ts';
+export { syncStarter } from './community.ts';
+export { refreshLods } from './lods.ts';
 
 
 route('GET', '/v1/health', () => ({ ok: true, service: 'hawkesgen-portal', cloud: 'gcp', gen: Boolean(genKey()), google: Boolean(process.env.GOOGLE_CLIENT_ID) }));
