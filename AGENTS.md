@@ -1,5 +1,13 @@
 # hawkesgen.com — the Hawkes Gen customer portal
 
+> **Since 2026-10-28 the portal runs serverless on Google Cloud** (J: "cloud forward and cheap", Google sign-in only).
+> **The API is `cloud/functions/src/`** (Cloud Functions over Firestore and Firebase Auth); `public/` is served by
+> Firebase Hosting. **`src/` is the old Node server: retired, nothing runs it. Change `cloud/functions/src/` instead**
+> (its conventions: `docs/cloud.md`). A push to `beta` deploys https://hawkes-staging.web.app and a push to `main`
+> deploys hawkesgen.com, both through GitHub Actions (`.github/workflows/firebase.yml`); going live is still J's
+> `DEPLOY hawkesgenwebsite`. Checks: `cd cloud/functions && npm ci && npx tsc -p .` (plus the old `npm test` for
+> `public/`). The sections below describe the old server; where they disagree with `docs/cloud.md`, docs/cloud.md wins.
+
 The site paying customers use: the landing page and portfolio (`/`), the Creator Studio (`/app`), accounts, credits
 and Stripe. It does no generation itself. **Hawkes Gen is the backend** (jobs, the GPU fleet, the library), and the
 portal is one of its customers, exactly like Hawkes Studio: one Gen key, scoped in Gen to the projects `usr_*`.
