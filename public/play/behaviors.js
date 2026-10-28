@@ -229,7 +229,7 @@
       s.made = s.made.filter((x) => x.alive);
       if (s.t < o.every || s.made.length >= o.max) return;
       s.t = 0;
-      const src = o.of ? H.world.graph.entities[o.of] : e.spec;
+      const src = o.of ? H.world.graph.entities[o.of] || Object.values(H.world.graph.entities).find((x) => x.name === o.of) : e.spec; // (by id, or by name)
       if (!src) return;
       const spec = JSON.parse(JSON.stringify(src));
       spec.id = `${spec.id}~${Math.random().toString(36).slice(2, 7)}`;

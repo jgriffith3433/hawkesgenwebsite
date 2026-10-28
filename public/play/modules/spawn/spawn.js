@@ -180,19 +180,24 @@
     done(it, count, ids);
     return { ok: true, count: specs.length, ids };
   };
+  /** While playing, a kit's settings reach everyone in the room (not saved: playing changes nothing for good). */
+  const kitConfig = H.sync && H.sync.action ? H.sync.action('_kitcfg', (patch) => { try { H.applyOps([{ op: 'config', patch }], { local: true }); } catch (err) { H.report(err, 'kit'); } }) : (patch) => H.applyOps([{ op: 'config', patch }], { local: true });
   /** A play kit (H.kits): its things laid out round the spot, facing you; saved while building, shared while playing. */
   function kit(it, pre) {
     const building = H.mode === 'build';
     const specs = H.kits.build(it.kit, pre.center, radYaw()).map((s) => ({ ...s, id: newId(s.name || it.kit) }));
     if (!specs.length) { say(`${it.name} can't be placed`, 2); return { ok: false, error: 'empty kit' }; }
     S.recent.add(it);
+    // A kit that is a game (a match, a weapon, waves) changes the world's settings too.
+    const cfg = H.kits.config ? H.kits.config(it.kit) : null;
     let ids = [];
     if (building) {
-      edit(specs.map((s) => ({ op: 'create', entity: s })), `adding ${it.name.toLowerCase()}`, 'materialize');
+      edit([...specs.map((s) => ({ op: 'create', entity: s })), ...(cfg ? [{ op: 'config', patch: cfg }] : [])], `adding ${it.name.toLowerCase()}`, 'materialize');
       ids = specs.map((s) => s.id);
       say(`${it.name} ✓ · Ctrl+Z takes it back`);
     } else {
       ids = runtime(specs);
+      if (cfg) kitConfig(cfg);
       say(`${it.name} ✓`, 1.4);
     }
     done(it, 1, ids);

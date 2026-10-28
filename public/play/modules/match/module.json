@@ -1,0 +1,6 @@
+{
+  "title": "Matches: teams, rounds, a clock, lives, a score to win; tag, hide and seek; balls, goals, flags and AI players",
+  "order": 82,
+  "scripts": ["match.js"],
+  "kinds": []
+}
