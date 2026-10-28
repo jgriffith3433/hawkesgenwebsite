@@ -2,3 +2,7 @@
 .env
 .env.*
 node_modules/
+
+# Cloud functions settings per project (nothing secret: keys are in Secret Manager)
+!cloud/functions/.env.hawkes-*
+cloud/functions/node_modules/

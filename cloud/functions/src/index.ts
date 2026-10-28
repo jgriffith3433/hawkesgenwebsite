@@ -1,0 +1,19 @@
+// hawkesgen.com's API on Google Cloud (docs/cloud.md). Firebase Hosting serves public/ and sends the dynamic paths here
+// (firebase.json). Each area module registers its routes when imported.
+import { onRequest } from 'firebase-functions/https';
+import { setGlobalOptions } from 'firebase-functions';
+import { handle, route } from './http.ts';
+import { SECRETS, genKey } from './config.ts';
+import './accounts.ts';
+import './billing.ts';
+import './jobs.ts';
+export { settleJobs } from './jobs.ts';
+
+setGlobalOptions({ region: 'us-east4', maxInstances: 10 });
+
+route('GET', '/v1/health', () => ({ ok: true, service: 'hawkesgen-portal', cloud: 'gcp', gen: Boolean(genKey()), google: Boolean(process.env.GOOGLE_CLIENT_ID) }));
+
+export const api = onRequest(
+  { memory: '512MiB', concurrency: 80, timeoutSeconds: 300, minInstances: 0, secrets: Object.values(SECRETS), invoker: 'public' },
+  handle,
+);
