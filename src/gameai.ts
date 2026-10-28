@@ -211,6 +211,12 @@ Build it as a show, never a snap (J: "make the overseer go a step further"; the 
 - People who talk back, take sides and live a day are characters: talk (lines or a tree of answers), faction (config.factions) and routine abilities (WORLD.md "Characters").
 - The rules of the experience (objectives, waves, a character's lines over time, the score, the win) go in one script in scripts/, using game.ui for objectives and the HUD; a world thing can't do that alone.
 
+Whole games are projects (J, 2026-10-27: "an RTS game in space with waves and a story and progression"):
+- When they ask for a whole game (a genre with its levels or waves, a story, progression, several systems), one answer can't build it well. Plan it: write project.json with a file line, {"title":"...","pitch":"one sentence","steps":[{"id":"world","what":"The station, the asteroid field, the red base","done":true},{"id":"units","what":"Mining ships, fighters, frigates and what they cost","done":false},...]}, 4 to 8 steps in the order a player would want them, each one playable when done. Build the first step (or two) in this answer, mark what you finished done, and end the reply naming the next step ("Next: the waves. Say keep building.").
+- project.json is in Files when it exists. "Keep building", "continue", "next" (or "Continue the project: ...") mean: do the first step that isn't done, then write project.json again with it done. If Errors lists a problem from the game, fix that first. Before marking a step done, check it against WORLD.md and API.md (the abilities, kinds and settings you used exist, ids you point at are there).
+- Steps are things the player can try at once. Put the story's words in a script (objectives with game.ui, characters' lines with say who), progression in data (unlock with game.rts.unlock, new kits, a shop's stock), not in promises.
+- A small request in a game that has a project is just that request: don't advance the project unless they ask.
+
 How to think about requests:
 - People describe things the way they see them: "make that ball bounce", "put a tower over there", "the door should open when I get close". Work out what that means in the engine: which thing ("that" is what they are looking at or mentioned with @), which physics, which behaviors, and whether it needs a custom behavior file.
 - "That", "this", "it" and "here" mean the thing they are looking at (lookingAt), the @mentioned thing, or the point they are looking at (lookPoint). Put new things near the player, in front of them, resting on what's under them (center y = surface y + half the height), unless they say where.
@@ -257,6 +263,20 @@ function playerView(raw: unknown, mention: unknown) {
     if (c.mode) lines.push(`They are ${c.mode === 'build' ? 'building' : 'playing'}.`);
   }
   return lines.length ? `What the player sees right now:\n${lines.join('\n')}\n` : '';
+}
+
+/** A whole-game project's state (project.json, written by the assistant): its title, the next step, how many are left.
+ *  Null when there is none or it is finished (the chat then has no Keep building card). */
+export function projectOf(gameId: string): { title: string; next: string; left: number; total: number } | null {
+  const row = db.prepare("SELECT content FROM game_files WHERE game_id = ? AND path = 'project.json'").get(gameId) as { content: string } | undefined;
+  if (!row) return null;
+  try {
+    const p = JSON.parse(row.content);
+    const steps = Array.isArray(p.steps) ? p.steps.filter((x: any) => x && typeof x === 'object') : [];
+    const open = steps.filter((x: any) => !x.done);
+    if (!open.length) return null;
+    return { title: String(p.title || 'Your game').slice(0, 80), next: String(open[0].what || open[0].id || 'the next part').slice(0, 140), left: open.length, total: steps.length };
+  } catch { return null; }
 }
 
 function context(gameId: string, focus?: string) {
@@ -543,7 +563,7 @@ export async function askAssistant(user: User, gameId: string, body: { message?:
       const suggested = suggestedRaw.filter((a: any) => KINDS[a?.kind] && a?.prompt && !have.has(a.name)).slice(0, 8)
         .map((a: any) => ({ kind: a.kind, name: String(a.name), prompt: String(a.prompt), credits: KINDS[a.kind].credits, community: communityFor(a) }));
       const text = reply || (changed.length || world.length ? 'Done.' : 'I had nothing to change.');
-      chatMessage(game.id, null, 'ai', problems.length ? `${text}\n\n(Notes: ${problems.join('; ')})` : text, { changed, deleted, world, assets: suggested, replyTo: asked.id, job: job.id });
+      chatMessage(game.id, null, 'ai', problems.length ? `${text}\n\n(Notes: ${problems.join('; ')})` : text, { changed, deleted, world, assets: suggested, replyTo: asked.id, job: job.id, project: projectOf(game.id) });
       show({ k: 'end', ok: true, ops: world.length, files: changed.length });
     } catch (e: any) {
       console.error('[portal] assistant:', e);

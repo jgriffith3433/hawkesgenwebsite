@@ -60,3 +60,10 @@ Abilities that join a thing to another (`to`: its name or id) or to the world (`
 
 A lever (`lever`) sending "mill" and a windmill's `motor` with `signal: "mill"` is a machine you switch on. The kit
 `workshop` has one of each.
+
+### Shared kits
+
+A builder shares what they made: **📦 Share as kit** on a thing's card takes it and every thing within 12 m (with the
+world settings of the kind of game it is: a match, strategy, a league, sides, items, a mood, planets, rules), asks for a
+name, and puts it in the community's kits. Everyone building finds it in the spawn wheel under 🎲 Play kits > Shared
+kits and drops it in like any kit. (GET /v1/community/kits lists them, most used first.)

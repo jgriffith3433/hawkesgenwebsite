@@ -188,3 +188,24 @@ test('proportions: a look keeps headSize and bodySize, clamped', () => {
   assert.equal(C.cleanLook({ bodySize: -1 }).bodySize, 0.3);
   assert.equal(C.cleanLook({}).headSize, 1, 'an old look: normal');
 });
+
+test('shared kits: capture what is round a thing, add a shared one, it builds and is in the wheel', () => {
+  world(H, sceneOf({ floor, start,
+    a: { type: 'box', name: 'Ramp', shape: { size: [2, 0.5, 4] }, transform: { position: [10, 0.25, 10] }, behaviors: [{ use: 'boost' }] },
+    b: { type: 'sphere', name: 'Ball', shape: { radius: 0.5 }, physics: 'dynamic', transform: { position: [12, 0.5, 11] } },
+    far: { type: 'box', name: 'Far away', shape: { size: [1, 1, 1] }, transform: { position: [60, 0.5, 60] } },
+  }, { match: { teams: false, time: 60 } }));
+  H.tick(0.3);
+  const k = H.kits.capture([10, 0, 10], 12);
+  assert.deepEqual(k.things.map((t: any) => t.name).sort(), ['Ball', 'Ramp']);
+  assert.ok(k.things.every((t: any) => t.id === undefined));
+  assert.deepEqual(k.things.find((t: any) => t.name === 'Ball').transform.position, [2, 0.5, 1], 'from the floor where it was');
+  assert.deepEqual(k.config, { match: { teams: false, time: 60 } });
+  const added = H.kits.add({ id: 'k_0123abcd', title: 'Ramp and ball', icon: '🛹', things: k.things, config: k.config });
+  assert.ok(added);
+  const item = H.kits.items().find((i: any) => i.kit === added.id);
+  assert.equal(item.catName, 'Shared kits');
+  assert.equal(H.kits.build(added.id, [0, 0, 0], 0).length, 2);
+  assert.deepEqual(H.kits.config(added.id), { match: { teams: false, time: 60 } });
+  assert.equal(H.kits.sharedId(added.id), 'k_0123abcd');
+});

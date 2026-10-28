@@ -377,7 +377,7 @@
 
   /** The specs, laid out round `at` and turned to `yaw` (radians; the player's facing: forward is +z in a kit). */
   function build(id, at, yaw = 0, settings = {}) {
-    const kit = KITS.find((k) => k.id === id);
+    const kit = all().find((k) => k.id === id);
     if (!kit) return [];
     const o = { ...kit.settings, ...settings };
     const c = Math.cos(yaw), s = Math.sin(yaw);
@@ -390,13 +390,54 @@
       return { ...spec, transform: { ...t, position: [r2(at[0] + x), r2(at[1] + p[1]), r2(at[2] + z)], rotation: rot } };
     });
   }
+  // ------------------------------------------------------------------ shared kits (src/kits.ts: GET /v1/community/kits)
+  const SHARED = new Map(); // id -> { id, shared, name, icon, about, settings, config(), things() }
+  const clone = (v) => (v === undefined || v === null ? v : JSON.parse(JSON.stringify(v)));
+  /** A kit someone shared ({ id: k_..., title, icon, about, things, config }): it joins the list (🎲 Play kits > Shared kits). */
+  function add(row) {
+    if (!row || !/^k_[0-9a-f]+$/.test(String(row.id)) || !Array.isArray(row.things)) return null;
+    const k = { id: `shared-${row.id}`, shared: row.id, name: String(row.title || 'A kit'), icon: String(row.icon || '📦'), about: String(row.about || `${row.things.length} things`), by: row.by || null, settings: {}, config: row.config ? () => clone(row.config) : null, things: () => clone(row.things) };
+    SHARED.set(k.id, k);
+    return k;
+  }
+  const all = () => [...KITS, ...SHARED.values()];
+  // World settings a kit can carry (the rules of its game); the rest of the world's settings stay the world's.
+  const CARRY = ['match', 'rts', 'league', 'factions', 'items', 'mood', 'planets', 'events'];
+  /** The things round a point (the world file's specs within `radius` meters), made a kit: positions from that point's
+   *  floor, ids and parents dropped, and the world settings of the kinds of game it is. */
+  function capture(center, radius = 12) {
+    const w = H.world;
+    if (!w || !w.graph) return { things: [], config: null };
+    const f = H.planet && H.planet.frame;
+    const c = f && f.on && f.toScene ? f.toScene({ position: center, rotation: 0 }).position : center;
+    const near = Object.values(w.graph.entities).filter((s) => {
+      const p = s.transform && s.transform.position;
+      return p && s.type !== 'spawn' && Math.hypot(p[0] - c[0], p[2] - c[2]) <= radius && Math.abs(p[1] - c[1]) < radius;
+    }).slice(0, 120);
+    const floor = near.length ? Math.min(...near.map((s) => s.transform.position[1])) : c[1];
+    const things = near.map((s) => {
+      const x = clone(s);
+      delete x.id; delete x.parent;
+      const p = x.transform.position;
+      x.transform = { ...x.transform, position: [r2(p[0] - c[0]), r2(p[1] - Math.min(floor, c[1])), r2(p[2] - c[2])] };
+      return x;
+    });
+    const cfg = w.graph.config || {}, config = {};
+    for (const k of CARRY) if (cfg[k] !== undefined) config[k] = clone(cfg[k]);
+    return { things, config: Object.keys(config).length ? config : null };
+  }
+
   H.kits = {
     list: () => KITS.map(({ id, name, icon, about, settings, config }) => ({ id, name, icon, about, settings: { ...settings }, config: config ? config({ ...settings }) : null })),
     build,
     /** The world settings a kit needs (a match's rules, a weapon), or null. */
     /** A kit's world settings; `at` (a point round you) for the kits whose settings say where (the block mine). */
-    config: (id, settings = {}, at = null) => { const k = KITS.find((x) => x.id === id); return k && k.config ? k.config({ ...k.settings, ...settings }, at) : null; },
+    config: (id, settings = {}, at = null) => { const k = all().find((x) => x.id === id); return k && k.config ? k.config({ ...k.settings, ...settings }, at) : null; },
     /** The spawn wheel's items (🎲 Play kits). */
-    items: () => KITS.map((k) => ({ id: `kit:${k.id}`, type: 'kits', cat: 'play', catName: 'Play kits', name: k.name, icon: k.icon, words: [k.name, k.id, ...k.about.toLowerCase().split(/\W+/).filter((w) => w.length > 3)], source: 'kit', kit: k.id })),
+    items: () => all().map((k) => ({ id: `kit:${k.id}`, type: 'kits', cat: k.shared ? 'shared' : 'play', catName: k.shared ? 'Shared kits' : 'Play kits', name: k.name, icon: k.icon, words: [k.name, k.id, ...k.about.toLowerCase().split(/\W+/).filter((w) => w.length > 3)], source: 'kit', kit: k.id })),
+    add,
+    capture,
+    /** The shared kit's id (k_...) behind a kit id, or null for one of ours. */
+    sharedId: (id) => { const k = SHARED.get(id); return k ? k.shared : null; },
   };
 })();

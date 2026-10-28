@@ -201,6 +201,8 @@
       say(`${it.name} ✓`, 1.4);
     }
     done(it, 1, ids);
+    const shared = H.kits.sharedId && H.kits.sharedId(it.kit);
+    if (shared) try { fetch(`${(S.library && S.library.base) || ''}/v1/community/kits/${shared}/used`, { method: 'POST', credentials: 'omit' }).catch(() => {}); } catch { /* fine */ }
     return { ok: true, count: specs.length, ids };
   }
   function done(it, count, ids = []) { try { G().emit('spawn', { item: { id: it.id, name: it.name, type: it.type, category: it.cat }, count, ids }); } catch { /* no world */ } }

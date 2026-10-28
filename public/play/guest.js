@@ -938,6 +938,9 @@
       if (!firstTime) return;
       if (m.role === 'ai') {
         H.chat.line({ kind: 'overseer', text: m.text, keep: 30 });
+        // A whole game built over several answers (project.json): the next step is one tap.
+        const pj = m.data && m.data.project;
+        if (pj && pj.left) H.chat.line({ kind: 'sys', text: `${pj.title}: next, ${String(pj.next).slice(0, 70)} (${pj.total - pj.left} of ${pj.total} done).`, keep: 120, action: { label: 'Keep building', onclick: () => ask(id, `Keep building the project: ${pj.next}`) } });
         // What it offers to make (a model, a sound...): one tap makes it, paid from their credits.
         for (const [i, sg] of ((m.data && m.data.assets) || []).entries()) {
           if (sg.used || sg.task) continue;
