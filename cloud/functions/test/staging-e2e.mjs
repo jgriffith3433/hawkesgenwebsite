@@ -53,7 +53,7 @@ try {
   const asset = r.json?.id ?? r.json?.asset?.id ?? null;
   ok('upload to Gen', r.status === 200 && Boolean(asset), `${r.status} ${asset ?? r.text.slice(0, 120)}`);
 
-  const spec = { tool: 'image.transform', inputs: { image: `asset:${asset}` }, params: { op: 'pixel', size: 2 } };
+  const spec = { tool: 'image.transform', inputs: { image: `asset:${asset}` }, params: { ops: [{ op: 'pixelate', size: 2, colors: 4 }], format: 'png' } };
   r = await api('POST', '/v1/billing/quote', spec);
   ok('quote', r.status === 200 && Number.isFinite(r.json?.credits), `${r.status} credits=${r.json?.credits}`);
   const price = r.json?.credits ?? 0;
