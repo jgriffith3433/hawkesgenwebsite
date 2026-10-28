@@ -1,0 +1,6 @@
+{
+  "title": "Real-time strategy: units, buildings and resources you command (config.rts)",
+  "order": 84,
+  "scripts": ["rts.js"],
+  "kinds": []
+}
