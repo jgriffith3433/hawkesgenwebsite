@@ -27,7 +27,7 @@ const step = (s) => console.log(`\x1b[36m[golive] ${s}\x1b[0m`);
 const fail = (s) => { console.error(`\x1b[31m[golive] ${s}\x1b[0m`); process.exit(1); };
 
 function run(cmd, args, o = {}) {
-  const r = spawnSync(cmd, args, { cwd: o.cwd ?? ROOT, encoding: 'utf8', shell: o.shell ?? false, stdio: o.quiet ? 'pipe' : ['pipe', 'inherit', 'inherit'], input: o.input, env: { ...process.env, ...(o.env ?? {}) } });
+  const r = spawnSync(cmd, args, { cwd: o.cwd ?? ROOT, encoding: 'utf8', maxBuffer: 512 * 1024 * 1024, shell: o.shell ?? false, stdio: o.quiet ? 'pipe' : ['pipe', 'inherit', 'inherit'], input: o.input, env: { ...process.env, ...(o.env ?? {}) } });
   if (r.status !== 0 && !o.ok) fail(`${path.basename(cmd)} ${args.slice(0, 3).join(' ')} failed (${r.status})${o.quiet ? `: ${(r.stderr || r.stdout || '').trim().split('\n').pop()}` : ''}`);
   return r;
 }
@@ -99,14 +99,14 @@ async function switchOver() {
   ssh('sudo systemctl stop hawkesgen-portal-pull.timer hawkesgen-portal-backup.timer hawkesgen-portal; systemctl is-active hawkesgen-portal; true');
   const db = path.join(HERE, '.portal-final.db');
   const dump = ssh(`sudo -u hawkes node -e "const {DatabaseSync}=require('node:sqlite');require('fs').rmSync('/tmp/final.db',{force:true});new DatabaseSync('/srv/hawkes/hawkesgenwebsite/.data/portal.db',{readOnly:true}).exec(\\"VACUUM INTO '/tmp/final.db'\\")" && sudo base64 -w0 /tmp/final.db && sudo rm -f /tmp/final.db`, { quiet: true, ok: true });
-  if (dump.status !== 0 || !dump.stdout) { step('could not copy the database: starting the VM portal again'); ssh('sudo systemctl start hawkesgen-portal hawkesgen-portal-pull.timer'); fail('database copy failed'); }
+  if (dump.status !== 0 || !dump.stdout) { step('could not copy the database: starting the VM portal again'); ssh('sudo systemctl start hawkesgen-portal hawkesgen-portal-pull.timer hawkesgen-portal-backup.timer'); fail('database copy failed'); }
   fs.writeFileSync(db, Buffer.from(dump.stdout.trim(), 'base64'));
   try {
     const m = (extra) => run('node', ['--disable-warning=ExperimentalWarning', path.join(HERE, 'migrate.mjs'), db, '--project', PROJECT, ...extra], { cwd: path.join(HERE, 'functions'), env: { GOOGLE_CLOUD_PROJECT: PROJECT } });
     m(['--check']);
     m(['--apply']);
   } catch (e) {
-    ssh('sudo systemctl start hawkesgen-portal hawkesgen-portal-pull.timer');
+    ssh('sudo systemctl start hawkesgen-portal hawkesgen-portal-pull.timer hawkesgen-portal-backup.timer');
     throw e;
   } finally {
     fs.rmSync(db, { force: true });
