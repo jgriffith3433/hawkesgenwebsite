@@ -7,7 +7,13 @@ import { SECRETS, genKey } from './config.ts';
 import './accounts.ts';
 import './billing.ts';
 import './jobs.ts';
+import './plans.ts';
+import './oauth.ts';
+import './files.ts';
+import './tasks.ts';
+import './mcp.ts';
 export { settleJobs } from './jobs.ts';
+export { advanceTasks } from './tasks.ts';
 
 setGlobalOptions({ region: 'us-east4', maxInstances: 10 });
 
