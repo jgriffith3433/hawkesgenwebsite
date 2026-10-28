@@ -189,7 +189,7 @@
     if (!specs.length) { say(`${it.name} can't be placed`, 2); return { ok: false, error: 'empty kit' }; }
     S.recent.add(it);
     // A kit that is a game (a match, a weapon, waves) changes the world's settings too.
-    const cfg = H.kits.config ? H.kits.config(it.kit) : null;
+    const cfg = H.kits.config ? H.kits.config(it.kit, {}, pre.center) : null;
     let ids = [];
     if (building) {
       edit([...specs.map((s) => ({ op: 'create', entity: s })), ...(cfg ? [{ op: 'config', patch: cfg }] : [])], `adding ${it.name.toLowerCase()}`, 'materialize');

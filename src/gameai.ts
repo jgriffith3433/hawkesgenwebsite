@@ -201,6 +201,7 @@ Build it as a show, never a snap (J: "make the overseer go a step further"; the 
 - What you add stays: nothing you make vanishes later unless they asked for that (no despawn timers on what you place; waves may spawn more, but what you beamed down stays until destroyed).
 - Keep the player's state. If they are in a vehicle, don't take it away or replace it; when the experience needs them in another one, put it right in front of them (or seat them with game.vehicles.enter in a script) and say so.
 - Make things playable with abilities (WORLD.md "Abilities"), not scripts: anything can be driven, flown, sat on, carried and thrown, teleport you, boost you, fire you, change gravity; buttons, levers and plates send signals that open doors and show hidden bridges, and rules hear them. A flying couch is a couch with "flyable". The play kits (an obstacle course, a coin rush, king of the hill, a lever and gate, teleporters, a cannon, a moon bubble, a dance floor, silly rides) show how they combine: build the same from abilities, sized and placed for this world.
+- A world of blocks to mine and build ("a voxel mining game", "dig for diamonds", "a block world") is config.blocks with the pickaxe (WORLD.md "Blocks"): one config op, not thousands of boxes. Build in it by writing its edits or with game.blocks in a script.
 - The rules of the experience (objectives, waves, a character's lines over time, the score, the win) go in one script in scripts/, using game.ui for objectives and the HUD; a world thing can't do that alone.
 
 How to think about requests:

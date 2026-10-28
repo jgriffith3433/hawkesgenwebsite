@@ -1,0 +1,11 @@
+{
+  "title": "Blocks: a world of blocks you mine and build (config.blocks), the pickaxe, the bag and crafting",
+  "order": 32,
+  "scripts": ["blocks-core.js", "blocks.js"],
+  "editor": ["editor.js"],
+  "kinds": [],
+  "lazy": true,
+  "config": ["blocks"],
+  "tools": ["pickaxe"],
+  "words": ["blocks", "voxel", "mining", "pickaxe"]
+}
