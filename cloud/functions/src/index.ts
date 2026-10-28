@@ -8,6 +8,9 @@ import './accounts.ts';
 import './billing.ts';
 import './jobs.ts';
 export { settleJobs } from './jobs.ts';
+import './games.ts';
+import './playpages.ts';
+export { gameAssistant, advanceGameGens } from './gameai.ts';
 
 setGlobalOptions({ region: 'us-east4', maxInstances: 10 });
 
