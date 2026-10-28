@@ -396,12 +396,20 @@ async function stageMirror(t, ctx) {
 }
 
 async function stageSheet(t, ctx) {
-  await t.until(() => $('#gsEmail'), 20000, 'the account sheet to open after the mirror');
+  await t.until(() => $('#gsEmail') || $('#gsGoogle'), 20000, 'the account sheet to open after the mirror');
   t.scene('Account sheet');
   t.event('sheet-shown', ($('#gsTitle') || {}).textContent || '');
   await t.wait(1500);
   if (ctx.options.signup === false || isLive()) {
     t.event('signup-skipped', isLive() ? 'live site: a playtest never signs up' : 'signup: false');
+    t.finish('done');
+    return 'stop';
+  }
+  // Signing in is Google only on the cloud portal (no email and password form): a playtest cannot make a throwaway
+  // account there, so the run ends at the sheet. (A browser the runner signed in beforehand never sees the sheet.)
+  if (!$('#gsEmail')) {
+    t.event('signup-unavailable', 'the sheet has only Continue with Google: a playtest cannot make a throwaway account');
+    t.problem('warning', 'sign-up is Google only: the stages after the account sheet need a browser already signed in');
     t.finish('done');
     return 'stop';
   }
@@ -1635,7 +1643,7 @@ async function stageBack(t, ctx) {
   const m = G().mirror;
   if (m && (m.isOpen || m.pending)) t.problem('error', 'the mirror opened again on the second visit');
   else t.event('beginning-skipped', 'no intro, no mirror, no account sheet');
-  if ($('#gsEmail')) t.problem('error', 'the account sheet opened for a player who is signed in');
+  if ($('#gsEmail') || $('#gsGoogle')) t.problem('error', 'the account sheet opened for a player who is signed in');
   t.scene('Second visit: the tour where it stopped');
   t.progress(1);
 }
@@ -2353,9 +2361,10 @@ async function stageMoment(t, ctx) {
   // 3. One tap: the guest gets the sheet.
   document.querySelector('.sh-moment [data-a="keep"]').click();
   t.event('chip-tapped', 'one tap on the chip');
-  await t.until(() => $('#gsEmail'), 40000, 'the account sheet to open for the moment');
+  await t.until(() => $('#gsEmail') || $('#gsGoogle'), 40000, 'the account sheet to open for the moment');
   t.scene('The sign-up sheet, from the moment');
   t.event('sheet-for-share', ($('#gsTitle') || {}).textContent || '');
+  if (!$('#gsEmail')) throw new Error('the sheet is Google only: a playtest cannot sign back in with a throwaway account');
   if (!ctx.account) throw new Error('no throwaway account from the sheet stage');
   const set = (id, v) => { const el = $(id); el.focus(); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); };
   const swap = $('#gsSwap [data-swap]');

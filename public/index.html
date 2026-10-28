@@ -377,41 +377,22 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
         <h3 id="authTitle">Create an account</h3>
         <button type="button" class="btn btn-ghost btn-sm" id="authClose" aria-label="Close">Close</button>
       </div>
-      <div class="segmented" style="margin-bottom:18px">
-        <button type="button" data-mode="signup" class="on" aria-pressed="true">New account</button>
-        <button type="button" data-mode="login" aria-pressed="false">Sign in</button>
-      </div>
+      <p class="muted" id="authLede" style="margin:0 0 18px">One button for both: a new account is made the first time you continue with Google.</p>
       <a class="btn btn-secondary btn-lg google-btn" id="googleBtn" href="/auth/google?next=/app" style="width:100%"><svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg><span>Continue with Google</span></a>
-        <div class="or"><span>or with email</span></div>
-      <form id="authForm" class="form-grid">
-        <div class="form-field" id="authNameField"><label for="authName">Name or studio</label><input id="authName" class="form-input" autocomplete="organization"></div>
-        <div class="form-field"><label for="authEmail">Email</label><input id="authEmail" type="email" class="form-input" autocomplete="email" required></div>
-        <div class="form-field"><label for="authPassword">Password <span class="muted" id="pwHint">(8 characters or more)</span></label><input id="authPassword" type="password" class="form-input" minlength="8" autocomplete="new-password" required></div>
-        <div class="form-error" id="authError" role="alert" hidden></div>
-        <button type="submit" class="btn btn-primary btn-lg" id="authSubmit" style="width:100%">Create account</button>
-        <p class="muted" id="authTerms" style="margin:0;font-size:12.5px">By creating an account you agree to the <a href="/legal#terms" target="_blank">terms</a> and <a href="/legal#privacy" target="_blank">privacy policy</a>.</p>
-      </form>
+      <div class="form-error" id="authError" role="alert" hidden style="margin-top:14px"></div>
+      <p class="muted" id="authTerms" style="margin:14px 0 0;font-size:12.5px">By continuing you agree to the <a href="/legal#terms" target="_blank">terms</a> and <a href="/legal#privacy" target="_blank">privacy policy</a>.</p>
     </div>
   </div>
 
   <script type="module">
     const modal = document.getElementById('authModal');
-    const form = document.getElementById('authForm');
     const err = document.getElementById('authError');
-    let mode = 'signup';
+    // Signing in is Google only (no email and password): the dialog says which of the two the button was, nothing more.
     function setMode(m) {
-      mode = m;
-      document.querySelectorAll('#authModal .segmented button').forEach((b) => { b.classList.toggle('on', b.dataset.mode === m); b.setAttribute('aria-pressed', String(b.dataset.mode === m)); });
       document.getElementById('authTitle').textContent = m === 'signup' ? 'Create an account' : 'Sign in';
-      document.getElementById('authSubmit').textContent = m === 'signup' ? 'Create account' : 'Sign in';
-      document.getElementById('authNameField').hidden = m !== 'signup';
-      document.getElementById('pwHint').hidden = m !== 'signup';
-      document.getElementById('authTerms').hidden = m !== 'signup';
-      document.getElementById('authPassword').autocomplete = m === 'signup' ? 'new-password' : 'current-password';
       err.hidden = true;
     }
-    document.querySelectorAll('[data-open-auth]').forEach((b) => b.addEventListener('click', () => { opener = b; setMode(b.dataset.openAuth); modal.hidden = false; setTimeout(() => document.getElementById('googleBtn').focus(), 0); if (b.dataset.openAuth === 'signup') window.hawkesAnalytics?.track?.('signup_open', { from: b.closest('section')?.id || 'header' }); document.getElementById('authEmail').focus(); }));
-    document.querySelectorAll('#authModal .segmented button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+    document.querySelectorAll('[data-open-auth]').forEach((b) => b.addEventListener('click', () => { opener = b; setMode(b.dataset.openAuth); modal.hidden = false; setTimeout(() => document.getElementById('googleBtn').focus(), 0); if (b.dataset.openAuth === 'signup') window.hawkesAnalytics?.track?.('signup_open', { from: b.closest('section')?.id || 'header' }); }));
     let opener = null;
     const closeModal = () => { modal.hidden = true; if (opener && opener.isConnected) opener.focus(); opener = null; };
     document.getElementById('authClose').addEventListener('click', closeModal);
@@ -425,26 +406,6 @@ const job = await gen.run('audio.sfx', { prompt: 'door creak' });</pre></div>
       if (!modal.contains(document.activeElement)) { e.preventDefault(); f[0].focus(); }
       else if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
       else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
-    });
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      err.hidden = true;
-      const submit = document.getElementById('authSubmit');
-      submit.disabled = true;
-      const body = { email: document.getElementById('authEmail').value.trim(), password: document.getElementById('authPassword').value };
-      if (mode === 'signup') body.name = document.getElementById('authName').value.trim();
-      try {
-        const r = await fetch(mode === 'signup' ? '/v1/users/signup' : '/v1/users/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        const data = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(data.error || 'That did not work. Try again.');
-        if (data.apiKey) try { localStorage.setItem('hg_last_minted_key', data.apiKey); } catch {}
-        location.href = '/app';
-      } catch (x) {
-        err.textContent = x.message;
-        err.hidden = false;
-      } finally {
-        submit.disabled = false;
-      }
     });
     // Back from Google with a problem: say so in the sign-in dialog.
     // Where a visitor came from: ?ref=<friend's code> and ?utm_source= are kept 30 days for the sign-up (users.ts originOf).
