@@ -3,6 +3,8 @@
 #   py -I cloud/dns.py show
 #   py -I cloud/dns.py set <name> <type> <value> [<value> ...]   replaces that name's records of that type
 #   py -I cloud/dns.py add <name> <type> <value>                  adds one value, keeping the others (TXT next to SES's)
+#   py -I cloud/dns.py point <name> <A|CNAME> <value> [...]       where a name's traffic goes: its A/AAAA/CNAME records are
+#                                                                 replaced by these, in one change (a CNAME can't sit next to an A)
 import sys
 import boto3
 
@@ -35,6 +37,17 @@ if mode == 'show':
             print(x['Name'], x['Type'], x.get('TTL'), [v['Value'] for v in x.get('ResourceRecords', [])])
 elif mode == 'set':
     upsert(sys.argv[2], sys.argv[3], sys.argv[4:])
+elif mode == 'point':
+    name, rtype, values = fq(sys.argv[2]), sys.argv[3], sys.argv[4:]
+    changes = []
+    for x in r53.list_resource_record_sets(HostedZoneId=ZONE, StartRecordName=name)['ResourceRecordSets']:
+        if x['Name'] != name:
+            break
+        if x['Type'] in ('A', 'AAAA', 'CNAME') and x['Type'] != rtype:
+            changes.append({'Action': 'DELETE', 'ResourceRecordSet': x})
+    changes.append({'Action': 'UPSERT', 'ResourceRecordSet': {'Name': name, 'Type': rtype, 'TTL': 60, 'ResourceRecords': [{'Value': v} for v in values]}})
+    print(name, rtype, '->', ', '.join(values), f"(replacing {', '.join(c['ResourceRecordSet']['Type'] for c in changes[:-1]) or 'nothing else'})",
+          r53.change_resource_record_sets(HostedZoneId=ZONE, ChangeBatch={'Changes': changes, 'Comment': 'hawkesgen.com on Google Cloud'})['ChangeInfo']['Status'])
 elif mode == 'add':
     have = records(sys.argv[2], sys.argv[3])
     want = quote(sys.argv[3], sys.argv[4])
