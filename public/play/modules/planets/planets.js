@@ -197,6 +197,7 @@
     says: (o) => `walk in: travel to ${o.planet || 'the next planet'}`,
     defaults: { planet: '' },
     settings: [{ key: 'planet', label: 'To (a planet id; empty: the next)', type: 'text' }],
+    start(e) { if (e.physics === 'none') e.physics = 'trigger'; else e.ghost = true; },
     hit(e, other, o) {
       if (other !== W().player || st.busy || st.cool > 0) return;
       const ids = list().map((p) => p.id);

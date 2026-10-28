@@ -1,0 +1,6 @@
+{
+  "title": "Mood: how a world feels (config.mood: scary, eerie), stalkers, jump scares, flickering lights",
+  "order": 86,
+  "scripts": ["mood.js"],
+  "kinds": []
+}
