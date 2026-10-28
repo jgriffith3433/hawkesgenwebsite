@@ -39,17 +39,8 @@ async function start() {
   show(location.hash.slice(1) || 'overview');
 }
 
-$('gateForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  $('gError').hidden = true;
-  try {
-    await api('/v1/users/login', { email: $('gEmail').value.trim(), password: $('gPassword').value });
-    location.reload();
-  } catch (x) {
-    $('gError').textContent = x.message;
-    $('gError').hidden = false;
-  }
-});
+// Signing in is Google only: the gate's one button (google-gate.js adds the referral, not that an admin needs it).
+$('gateForm').addEventListener('submit', (e) => e.preventDefault());
 $('signOut').addEventListener('click', async () => { await api('/v1/users/logout', {}).catch(() => {}); location.href = '/'; });
 
 // ---------------------------------------------------------------- tabs
@@ -184,11 +175,9 @@ async function detail(id) {
       <button class="btn btn-secondary btn-sm" type="submit" style="justify-self:start">Apply</button>
     </form>
     <div class="actions" style="padding:16px 0;border-top:1px solid var(--border)">
-      <button class="btn btn-secondary btn-sm" id="aLink">Password link</button>
       <button class="btn btn-secondary btn-sm" id="aRole">${u.role === 'admin' ? 'Make customer' : 'Make admin'}</button>
       <button class="btn btn-sm ${u.disabled ? 'btn-secondary' : 'danger'}" id="aDisable">${u.disabled ? 'Enable' : 'Disable'}</button>
     </div>
-    <div id="linkOut" hidden style="margin-bottom:16px"></div>
     <div class="label" style="margin:12px 0 8px">Ledger</div>
     <table class="data-table"><tbody>${d.ledger.map((e) => `<tr><td style="font-size:12px">${when(e.created)}</td><td>${esc(e.detail || e.kind)}</td><td class="num ${e.delta > 0 ? 'pos' : 'neg'}">${e.delta > 0 ? '+' : ''}${n(e.delta)}</td><td class="num muted">${n(e.balance_after)}</td></tr>`).join('') || '<tr><td class="muted">Nothing yet.</td></tr>'}</tbody></table>
     <div class="label" style="margin:20px 0 8px">Jobs</div>
@@ -214,15 +203,6 @@ async function detail(id) {
       const r = await api(`/v1/admin/users/${id}/credits`, { delta: Number($('cDelta').value), note: $('cNote').value });
       toast(`Balance is now ${n(r.credits)} credits`);
       accounts();
-    } catch (x) { toast(x.message); }
-  });
-  $('aLink').addEventListener('click', async () => {
-    try {
-      const r = await api(`/v1/admin/users/${id}/password-link`, {});
-      const out = $('linkOut');
-      out.hidden = false;
-      out.innerHTML = `<div class="label" style="margin-bottom:6px">One use, ${r.expiresInHours} hours. Send it to them yourself.</div><input class="form-input mono" readonly value="${esc(r.url)}" style="font-size:12px">`;
-      out.querySelector('input').select();
     } catch (x) { toast(x.message); }
   });
   $('aRole').addEventListener('click', async () => {

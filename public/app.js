@@ -505,61 +505,17 @@ function updateWalletUI(credits) {
 }
 
 // ============================================================================
-// INLINE AUTHENTICATION (/v1/users/login & /v1/users/signup)
+// INLINE AUTHENTICATION: Google only (the "Continue with Google" link; google-gate.js adds the referral)
 // ============================================================================
 
 function bindInlineAuth() {
-  let mode = 'login';
-  const tabLogin = document.getElementById('inlineTabLogin');
-  const tabSignup = document.getElementById('inlineTabSignup');
-  const nameWrap = document.getElementById('inlineNameWrap');
-  const titleEl = document.getElementById('inlineAuthTitle');
+  // Back from Google with a problem (?signin_error=): say so under the button.
   const errEl = document.getElementById('inlineAuthError');
-  const form = document.getElementById('inlineAuthForm');
-
-  const setMode = (m) => {
-    mode = m;
-    errEl.style.display = 'none';
-    if (mode === 'signup') {
-      titleEl.textContent = 'Create Your Creator Studio Account';
-      nameWrap.style.display = '';
-      tabSignup.className = 'btn btn-secondary';
-      tabLogin.className = 'btn btn-ghost';
-    } else {
-      titleEl.textContent = 'Sign In to Creator Studio';
-      nameWrap.style.display = 'none';
-      tabLogin.className = 'btn btn-secondary';
-      tabSignup.className = 'btn btn-ghost';
-    }
-  };
-
-  tabLogin?.addEventListener('click', () => setMode('login'));
-  tabSignup?.addEventListener('click', () => setMode('signup'));
-
-  form?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    errEl.style.display = 'none';
-    const email = document.getElementById('inlineEmail').value.trim();
-    const password = document.getElementById('inlinePassword').value;
-    const name = document.getElementById('inlineName').value.trim();
-    const endpoint = mode === 'signup' ? '/v1/users/signup' : '/v1/users/login';
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(mode === 'signup' ? { email, password, name } : { email, password }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error || 'Authentication failed');
-      if (body.apiKey) {
-        try { localStorage.setItem('hg_last_minted_key', body.apiKey); } catch {}
-      }
-      await checkSession();
-    } catch (err) {
-      errEl.textContent = err.message || String(err);
-      errEl.style.display = 'block';
-    }
-  });
+  const problem = new URLSearchParams(location.search).get('signin_error');
+  if (problem && errEl) {
+    errEl.textContent = problem;
+    errEl.style.display = 'block';
+  }
 
   document.getElementById('logoutBtn')?.addEventListener('click', async () => {
     await fetch('/v1/users/logout', { method: 'POST' }).catch(() => {});

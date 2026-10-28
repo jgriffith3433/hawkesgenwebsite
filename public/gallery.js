@@ -140,56 +140,14 @@ function setupAuth() {
       openAuth(mode);
     };
   });
-
-  document.getElementById('tabSignup').onclick = () => openAuth('signup');
-  document.getElementById('tabLogin').onclick = () => openAuth('login');
-
-  document.getElementById('authForm').onsubmit = async (e) => {
-    e.preventDefault();
-
-    const mode = document.getElementById('tabSignup').classList.contains('on') ? 'signup' : 'login';
-    const email = document.getElementById('email').value;
-    const password = document.getElementById('password').value;
-    const name = document.getElementById('name').value;
-
-    const errorEl = document.getElementById('authError');
-    errorEl.hidden = true;
-
-    try {
-      const body = mode === 'signup' ? { email, password, name } : { email, password };
-      const res = await fetch(`${API}/users/${mode}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(body)
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Authentication failed');
-      }
-
-      if (pendingRemix) { me = (await get(`${API}/users/me`)).user; document.getElementById('authModal').hidden = true; return remixIt(pendingRemix); }
-      location.href = '/app';
-    } catch (err) {
-      errorEl.textContent = err.message;
-      errorEl.hidden = false;
-    }
-  };
 }
 
+// Google only (no email and password). A remix asked for while signed out: back here after Google, to pick it again.
 function openAuth(mode) {
-  const modal = document.getElementById('authModal');
-  const nameWrap = document.getElementById('nameWrap');
-  const submitBtn = document.getElementById('authSubmit');
-
-  document.getElementById('tabSignup').classList.toggle('on', mode === 'signup');
-  document.getElementById('tabLogin').classList.toggle('on', mode === 'login');
-
-  nameWrap.hidden = mode !== 'signup';
-  submitBtn.textContent = mode === 'signup' ? 'Create account' : 'Sign in';
-
-  modal.hidden = false;
+  const google = document.getElementById('google');
+  google.href = `/auth/google?next=${encodeURIComponent(pendingRemix ? location.pathname + location.search : '/app')}`;
+  document.getElementById('authTitle').textContent = mode === 'login' ? 'Sign in' : 'Build games with friends and AI.';
+  document.getElementById('authModal').hidden = false;
 }
 
 // Modal close
