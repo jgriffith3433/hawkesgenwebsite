@@ -13,7 +13,7 @@
 //   gameInvites/{code}            game_id, created_by, created, expires, revoked
 //   gamesReports/{rp_id}          game_id, reason, note, reporter_id, ip, created
 //   playSeen/{game}_{who}         a play counted once per player per game per hour (expires: TTL)
-//   genLods/{a_id}                Gen's levels of detail per asset, as Gen answered (lods: JSON text, state, fetched, cdn)
+//   genLods/{a_id}                Gen's levels of detail per asset, as Gen answered (lods: a map, state, fetched, cdn)
 //
 // Who can do what (the owner sets it): owner (everything, people and restores), editor (the world, code, settings),
 // builder (the world: placing, moving, the assistant, saving), player (plays it; a member who can't change it).
@@ -28,6 +28,8 @@ import { applyOps, parseScene, sceneText } from './scene.ts';
 import { wordsOf } from './words.ts';
 import { templates, type Template } from './engine.ts';
 import { tell, kick, liveCounts, allLiveCounts, join, setPresence } from './live.ts';
+// Friends both ways, once, keyed friends/{user}:{friend} (friends.ts owns the key; areFriends reads it).
+import { addFriend } from './friends.ts';
 
 export type Game = { id: string; slug: string; title: string; description: string; owner_id: string; visibility: 'public' | 'unlisted'; visitors?: 'play' | 'build'; live_version: number | null; cover: string | null; plays: number; created: number; updated: number; hidden?: number; hidden_reason?: string | null; hidden_at?: number | null; hidden_by?: string | null; files_count?: number; files_bytes?: number };
 export type Role = 'owner' | 'editor' | 'builder' | 'player';
@@ -122,7 +124,8 @@ export async function rememberLods(asset: string, lods: GenLods | null | undefin
   if (!ASSET_ID.test(asset)) return;
   const cdn = goodCdn(lods?.cdn) ?? goodCdn(o.cdn);
   if (lods === undefined) { if (cdn) await lodsCol().doc(asset).set({ asset, cdn }, { merge: true }); return; }
-  await lodsCol().doc(asset).set({ asset, lods: lods ? JSON.stringify(lods) : null, state: lods?.state ?? null, fetched: lods || o.asked ? Date.now() : 0, ...(cdn ? { cdn } : {}) }, { merge: true });
+  // A map, as lods.ts writes and reads it (community, gallery and shares read genLods through lods.ts).
+  await lodsCol().doc(asset).set({ asset, lods: lods ?? null, state: lods?.state ?? null, fetched: lods || o.asked ? Date.now() : 0, ...(cdn ? { cdn } : {}) }, { merge: true });
 }
 export const rememberAsset = (a: { id?: string; lods?: GenLods | null; cdn?: unknown } | null | undefined) => (a?.id ? rememberLods(a.id, a.lods ?? null, { cdn: a.cdn }).catch(() => {}) : Promise.resolve());
 
@@ -378,15 +381,6 @@ export async function inviteInfo(code: string) {
   return { game: { id: game.id, title: game.title, description: game.description }, from: await nameOf(inv.created_by) };
 }
 
-/** Friends (src/friends.ts addFriend): both ways, once (friends/{user}_{friend}). */
-async function addFriend(userId: string, friendId: string) {
-  if (userId === friendId) return;
-  const now = Date.now();
-  const b = db.batch();
-  b.set(db.collection('friends').doc(`${userId}_${friendId}`), { id: `fr_${userId.slice(-6)}${friendId.slice(-6)}`, user_id: userId, friend_id: friendId, created: now }, { merge: true });
-  b.set(db.collection('friends').doc(`${friendId}_${userId}`), { id: `fr_${friendId.slice(-6)}${userId.slice(-6)}`, user_id: friendId, friend_id: userId, created: now }, { merge: true });
-  await b.commit();
-}
 
 /** Adds a builder within the owner's plan's room for people (in one transaction: two can't both take the last place). */
 async function addBuilder(game: Game, userId: string) {
