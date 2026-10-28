@@ -13,10 +13,12 @@ const project = arg('project');
 if (!project) throw new Error('usage: node cloud/setup-secrets.mjs --project <id> [--from-box] [--replace]');
 const replace = Boolean(arg('replace'));
 const gcloud = path.join(process.env.LOCALAPPDATA ?? '', 'Google', 'Cloud SDK', 'google-cloud-sdk', 'bin', 'gcloud.cmd');
-const run = (args, input) => spawnSync(gcloud, args, { input, encoding: 'utf8', shell: true, windowsHide: true });
+// gcloud is a .cmd under "Cloud SDK" (a space): run it through cmd with the path quoted.
+const run = (args, input) => spawnSync(`"${gcloud}"`, args, { input, encoding: 'utf8', shell: true, windowsHide: true });
+const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
 
 function readBox() {
-  const key = path.resolve('..', 'hawkesstudio', 'deploy', '.keys', 'gen_public_ed25519');
+  const key = path.resolve(HERE, '..', '..', 'hawkesstudio', 'deploy', '.keys', 'gen_public_ed25519');
   const r = spawnSync('ssh', ['-o', 'BatchMode=yes', '-i', key, 'ubuntu@34.181.136.216', 'sudo cat /srv/hawkes/hawkesgenwebsite/.env'], { encoding: 'utf8', windowsHide: true });
   if (r.status !== 0) throw new Error('could not read the portal box .env');
   return Object.fromEntries(r.stdout.split(/\r?\n/).map((l) => /^([A-Z0-9_]+)=(.*)$/.exec(l)).filter(Boolean).map((m) => [m[1], m[2].replace(/^['"]|['"]$/g, '')]));
