@@ -1,7 +1,7 @@
 // hawkesgen.com goes live on Firebase (docs/cloud.md). J runs it from his PC; every step says what it does and checks
 // itself, and the old portal (the Google VM) is stopped, not deleted, so `rollback` is a DNS change and a restart.
 //
-//   node cloud/golive.mjs prepare    1. deploy to hawkes-prod (its own address; hawkesgen.com still points at the VM)
+//   node cloud/golive.mjs prepare [--no-deploy]   1. deploy to hawkes-prod (its own address; hawkesgen.com still points at the VM)
 //                                    2. register hawkesgen.com and www with Firebase Hosting
 //                                    3. add the verification and certificate records Firebase asks for (not the A records)
 //                                    4. wait for the certificate (it can take a while: run `status` later)
@@ -49,6 +49,8 @@ const domain = (d) => hosting('GET', `/customDomains/${d}`);
 function wanted(cd) {
   const out = [];
   for (const set of cd.requiredDnsUpdates?.desired ?? []) for (const r of set.records ?? []) out.push({ name: r.domainName ?? set.domainName, type: r.type, value: r.rdata, action: r.requiredAction });
+  // The certificate's DNS check (_acme-challenge TXT): with it, the certificate is made before any traffic moves.
+  for (const set of cd.cert?.verification?.dns?.desired ?? []) for (const r of set.records ?? []) out.push({ name: r.domainName ?? set.domainName, type: r.type, value: r.rdata, action: r.requiredAction ?? 'ADD' });
   return out;
 }
 
@@ -62,7 +64,8 @@ async function status() {
 
 async function prepare() {
   step('1. deploy to hawkes-prod (https://hawkes-prod.web.app; hawkesgen.com is not touched)');
-  run('firebase', ['deploy', '--only', 'hosting,functions:portal,firestore', '--project', 'prod', '--non-interactive', '--force'], { shell: true });
+  if (process.argv.includes('--no-deploy')) console.log('    (skipped: --no-deploy)');
+  else run('firebase', ['deploy', '--only', 'hosting,functions:portal,firestore', '--project', 'prod', '--non-interactive', '--force'], { shell: true });
   const h = await (await fetch('https://hawkes-prod.web.app/v1/health')).json().catch(() => null);
   if (!h?.ok) fail('hawkes-prod.web.app/v1/health is not ok');
   console.log('   ', JSON.stringify(h));
@@ -74,7 +77,8 @@ async function prepare() {
   step('3. the verification and certificate records (TXT, CNAME): A records wait for `switch`');
   for (const d of DOMAINS) {
     for (const r of wanted(await domain(d))) {
-      if (r.action !== 'ADD' || r.type === 'A' || r.type === 'AAAA') continue;
+      // A, AAAA and a CNAME on the domain itself move its traffic: those wait for `switch`.
+      if (r.action !== 'ADD' || ['A', 'AAAA'].includes(r.type) || (r.type === 'CNAME' && r.name.replace(/\.$/, '') === d)) continue;
       if (r.type === 'TXT') dns('add', r.name, 'TXT', r.value);
       else dns('set', r.name, r.type, r.value);
     }
@@ -112,10 +116,12 @@ async function switchOver() {
   for (const d of DOMAINS) {
     const a = wanted(await domain(d)).filter((r) => r.type === 'A' && r.name.replace(/\.$/, '') === d).map((r) => r.value);
     const aaaa = wanted(await domain(d)).filter((r) => r.type === 'AAAA' && r.name.replace(/\.$/, '') === d).map((r) => r.value);
-    if (a.length) dns('set', d, 'A', ...a);
-    if (aaaa.length) dns('set', d, 'AAAA', ...aaaa);
     const cname = wanted(await domain(d)).filter((r) => r.type === 'CNAME' && r.name.replace(/\.$/, '') === d);
-    if (cname.length) dns('set', d, 'CNAME', cname[0].value);
+    if (cname.length) dns('point', d, 'CNAME', cname[0].value);
+    else {
+      if (a.length) dns('point', d, 'A', ...a);
+      if (aaaa.length) dns('set', d, 'AAAA', ...aaaa);
+    }
   }
   step('waiting for https://hawkesgen.com to answer from Firebase');
   for (let i = 0; i < 60; i++) {
@@ -131,8 +137,8 @@ async function switchOver() {
 async function rollback() {
   step('DNS back to the VM, and the VM portal started again');
   ssh('sudo systemctl enable -q hawkesgen-portal hawkesgen-portal-pull.timer; sudo systemctl start hawkesgen-portal hawkesgen-portal-pull.timer; sleep 3; curl -s -m 5 http://127.0.0.1:8800/v1/health');
-  dns('set', 'hawkesgen.com', 'A', VM);
-  dns('set', 'www.hawkesgen.com', 'A', VM);
+  dns('point', 'hawkesgen.com', 'A', VM);
+  dns('point', 'www.hawkesgen.com', 'A', VM);
   step('done. Anything made on Firebase since the switch stays in Firestore; tell Claude so it can be carried back.');
 }
 
