@@ -12,6 +12,7 @@ import { PACKS } from './billing.ts';
 import { getUser, requireUser, toPublicUser, type User } from './accounts.ts';
 import { PortalError, route, send, json } from './http.ts';
 import { AggregateField } from 'firebase-admin/firestore';
+import { sendGift } from './mail.ts';
 
 const DAY = 24 * 3600_000;
 
@@ -171,14 +172,15 @@ export async function adjustCredits(admin: User, userId: string, delta: unknown,
   return { credits: e!.balance_after };
 }
 
-/** A gift: credits added (in their ledger as a gift, with the admin's message). The cloud portal sends no email yet,
- *  so `emailed` is false and the page says so. */
+/** A gift: credits added (in their ledger as a gift, with the admin's message) and an email from support@ (mail.ts). */
 export async function giftCredits(admin: User, userId: string, credits: unknown, message: unknown) {
   const n = Math.round(Number(credits));
   if (!Number.isFinite(n) || n <= 0 || n > 1_000_000) throw new PortalError('Gift: a whole number of credits, more than zero');
   const note = String(message ?? '').trim().slice(0, 500);
   const r = await adjustCredits(admin, userId, n, note ? `Gift: ${note.slice(0, 180)}` : 'Gift');
-  return { ...r, emailed: false };
+  const u = await getUser(userId);
+  const emailed = u ? await sendGift(u.email, u.name, n, r.credits, note) : false;
+  return { ...r, emailed };
 }
 
 export async function setDisabled(admin: User, userId: string, disabled: boolean) {

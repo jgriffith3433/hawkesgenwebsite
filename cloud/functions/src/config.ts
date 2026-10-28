@@ -8,6 +8,8 @@ export const SECRETS = {
   stripeWebhook: defineSecret('STRIPE_WEBHOOK_SECRET'),
   googleSecret: defineSecret('GOOGLE_CLIENT_SECRET'),
   signing: defineSecret('PORTAL_SIGNING_KEY'),
+  /** Resend's sending key (mail.ts); "unset" where no mail is sent (staging). */
+  resend: defineSecret('RESEND_API_KEY'),
 };
 
 export const env = (k: string): string | undefined => process.env[k] || undefined;

@@ -6,6 +6,7 @@ import { db, users, ledgerOf, changeCredits, happened } from './store.ts';
 import { env, publicUrl, SECRETS } from './config.ts';
 import { getUser, requireUser, REFERRAL_REWARD, type User } from './accounts.ts';
 import { id, PortalError, route, send } from './http.ts';
+import { sendLowBalance } from './mail.ts';
 
 export type Pack = { id: string; name: string; label: string; priceCents: number; priceUsd: number; credits: number; bonusPercent: number };
 export const PACKS: Pack[] = [
@@ -45,12 +46,21 @@ export const hasBought = async (userId: string) => !(await ledgerOf(userId).wher
 
 // ------------------------------------------------------------ holds: credits taken for work sent to Gen
 
+/** The low-balance email, once per drop: never again until they buy (a purchase clears low_emailed). */
+async function lowBalance(userId: string) {
+  const u = await getUser(userId);
+  if (!u || u.credits >= LOW_BALANCE || u.low_emailed) return;
+  await users().doc(userId).update({ low_emailed: Date.now() });
+  await sendLowBalance(u.email, u.name, u.credits, (await hasBought(userId)) ? 0 : FIRST_PURCHASE_BONUS);
+}
+
 /** Takes credits for work about to be sent to Gen; `attach` names the job Gen gives back, `release` returns them. */
 export async function hold(userId: string, credits: number, detail: string) {
   const holdId = id('hold_', 6);
   const n = Math.max(0, Math.round(credits));
   const e = await changeCredits(userId, -n, { kind: 'job_reserve', detail, job_id: holdId }, { once: `reserve:${holdId}` });
   await db.collection('holds').doc(holdId).create({ user: userId, credits: n, tx: e!.id, job: null, created: Date.now() });
+  await lowBalance(userId);
   return holdId;
 }
 export async function attach(holdId: string, jobId: string) {
