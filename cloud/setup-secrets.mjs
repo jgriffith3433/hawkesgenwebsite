@@ -19,8 +19,11 @@ const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z
 
 function readBox() {
   const key = path.resolve(HERE, '..', '..', 'hawkesstudio', 'deploy', '.keys', 'gen_public_ed25519');
-  const r = spawnSync('ssh', ['-o', 'BatchMode=yes', '-i', key, 'ubuntu@34.181.136.216', 'sudo cat /srv/hawkes/hawkesgenwebsite/.env'], { encoding: 'utf8', windowsHide: true });
-  if (r.status !== 0) throw new Error('could not read the portal box .env');
+  // Git's ssh (Windows' own refuses keys whose file permissions it doesn't like, and asks about new hosts).
+  const gitSsh = 'C:\\Program Files\\Git\\usr\\bin\\ssh.exe';
+  const ssh = fs.existsSync(gitSsh) ? gitSsh : 'ssh';
+  const r = spawnSync(ssh, ['-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=accept-new', '-o', 'ConnectTimeout=15', '-i', key, 'ubuntu@34.181.136.216', 'sudo cat /srv/hawkes/hawkesgenwebsite/.env'], { encoding: 'utf8', windowsHide: true });
+  if (r.status !== 0) throw new Error(`could not read the portal box .env: ${(r.stderr || '').trim().split('\n').pop()}`);
   return Object.fromEntries(r.stdout.split(/\r?\n/).map((l) => /^([A-Z0-9_]+)=(.*)$/.exec(l)).filter(Boolean).map((m) => [m[1], m[2].replace(/^['"]|['"]$/g, '')]));
 }
 
