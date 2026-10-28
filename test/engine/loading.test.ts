@@ -178,7 +178,7 @@ test('the manifest: lazy modules are left out of what a page loads first; everyt
   const { manifest } = await import('../../src/engine.ts');
   const m = manifest();
   const lazy = m.modules.filter((x: any) => x.lazy).map((x: any) => x.name).sort();
-  assert.deepEqual(lazy, ['events', 'homes', 'race', 'share', 'vehicles']);
+  assert.deepEqual(lazy, ['blocks', 'events', 'homes', 'race', 'share', 'vehicles']);
   for (const x of m.modules.filter((y: any) => y.lazy)) {
     assert.ok(x.scripts.length && x.scripts.every((s: string) => m.scripts.includes(s)), `${x.name}: listed with the rest`);
     assert.ok(x.scripts.every((s: string) => !m.eager.includes(s)), `${x.name}: not loaded first`);
@@ -208,5 +208,6 @@ test('which lazy modules a game needs: its kinds, config, tools and the words it
   assert.deepEqual(needs(bundleOf({ config: {}, entities: { p: { type: 'tool-pickup', shape: { tool: 'remote' } } } })), ['homes'], 'a tool to pick up');
   assert.deepEqual(needs(bundleOf({ config: {}, entities: {} }, { 'main.js': "game.car({ x: 3 });\ngame.share.photo();" })), ['vehicles', 'share'], 'scripts');
   assert.deepEqual(needs(bundleOf({ config: {}, entities: {} }, { 'main.js': '// a scary story' })), [], 'a word inside another word is not one');
-  assert.deepEqual(needs(null), ['vehicles', 'race', 'homes', 'events', 'share'], 'no bundle: all of them');
+  assert.deepEqual(needs(bundleOf({ config: { blocks: { world: 'caves' } }, entities: {} })), ['blocks'], 'a block world');
+  assert.deepEqual(needs(null), ['blocks', 'vehicles', 'race', 'homes', 'events', 'share'], 'no bundle: all of them');
 });

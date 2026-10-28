@@ -12,6 +12,13 @@
   const glowing = (color) => ({ use: 'glow', color });
   const cap = (t) => String(t).charAt(0).toUpperCase() + String(t).slice(1);
   const colorOf = (t) => ({ red: '#ef4444', blue: '#3b82f6' })[t] || '#e5e7eb';
+  /** A point round you (`dy` meters up) in the world file's numbers (a round planet keeps its own), rounded. */
+  function sceneAt(at, dy = 0) {
+    const p = at ? [at[0], at[1] + dy, at[2]] : [0, dy, 0];
+    const f = H.planet && H.planet.frame;
+    const q = at && f && f.on && f.toScene ? f.toScene({ position: p, rotation: 0 }).position : p;
+    return q.map((v) => Math.round(v));
+  }
   const PARTY = ['#f43f5e', '#f59e0b', '#22c55e', '#06b6d4', '#a855f7', '#ec4899'];
 
   const KITS = [
@@ -229,6 +236,13 @@
         return out;
       },
     },
+    {
+      id: 'mine', name: 'Block mine', icon: '⛏', about: 'A world of blocks grows round you: caves, ores, trees. You hold a pickaxe: mine, build, craft.',
+      settings: { world: 'caves', size: 48 },
+      // (The blocks' bottom middle a little under where the kit goes: the ground grows to about 0.42 of the height.)
+      config: (o, at) => ({ blocks: { world: o.world, size: [o.size, 32, o.size], seed: Math.floor(Math.random() * 100000), at: sceneAt(at, -14) }, player: { tool: 'pickaxe' } }),
+      things() { return [{ type: 'box', name: 'Miner lamp', shape: { size: [0.3, 0.3, 0.3] }, material: { color: '#ffd66a' }, physics: 'none', transform: { position: [1.5, 2.2, 1.5] }, behaviors: [glowing('#ffd66a')] }]; },
+    },
   ];
 
   /** The specs, laid out round `at` and turned to `yaw` (radians; the player's facing: forward is +z in a kit). */
@@ -250,7 +264,8 @@
     list: () => KITS.map(({ id, name, icon, about, settings, config }) => ({ id, name, icon, about, settings: { ...settings }, config: config ? config({ ...settings }) : null })),
     build,
     /** The world settings a kit needs (a match's rules, a weapon), or null. */
-    config: (id, settings = {}) => { const k = KITS.find((x) => x.id === id); return k && k.config ? k.config({ ...k.settings, ...settings }) : null; },
+    /** A kit's world settings; `at` (a point round you) for the kits whose settings say where (the block mine). */
+    config: (id, settings = {}, at = null) => { const k = KITS.find((x) => x.id === id); return k && k.config ? k.config({ ...k.settings, ...settings }, at) : null; },
     /** The spawn wheel's items (🎲 Play kits). */
     items: () => KITS.map((k) => ({ id: `kit:${k.id}`, type: 'kits', cat: 'play', catName: 'Play kits', name: k.name, icon: k.icon, words: [k.name, k.id, ...k.about.toLowerCase().split(/\W+/).filter((w) => w.length > 3)], source: 'kit', kit: k.id })),
   };
