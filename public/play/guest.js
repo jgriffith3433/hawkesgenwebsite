@@ -789,9 +789,13 @@
     let es = null, last = '', tries = 0, timer = null, gone = false;
     const handlers = [];
     const on = (name, fn) => { handlers.push([name, fn]); es && es.addEventListener(name, fn); };
-    const open = () => {
+    // The stream's address: on Google Cloud a signed link to the function itself (Hosting would hold the stream: docs/cloud.md).
+    const linkFor = (path) => fetch(`/v1/stream-link?path=${encodeURIComponent(path)}`, { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : null)).then((d) => (d && d.url) || path, () => path);
+    const open = () => { if (!gone) linkFor(`/v1/games/${id}/live`).then(listen); };
+    const listen = (u) => {
       if (gone) return;
-      es = new EventSource(`/v1/games/${id}/live${last ? `?last=${encodeURIComponent(last)}` : ''}`, { withCredentials: true });
+      es = new EventSource(`${u}${last ? `${u.includes('?') ? '&' : '?'}last=${encodeURIComponent(last)}` : ''}`, { withCredentials: u.startsWith('/') });
       es.addEventListener('open', () => { tries = 0; });
       for (const [name, fn] of handlers) es.addEventListener(name, fn);
       for (const name of ['chat', 'gen', 'asset', 'file', 'deleted']) es.addEventListener(name, (e) => { if (e.lastEventId) last = e.lastEventId; });

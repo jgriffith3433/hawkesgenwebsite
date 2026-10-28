@@ -944,10 +944,15 @@ async function loadJobs() {
   renderJobsFeed();
 }
 
-function connectEventStream() {
+async function connectEventStream() {
   if (state.eventSource) state.eventSource.close();
+  // On Google Cloud a signed link to the function itself (Hosting would hold the stream: docs/cloud.md).
+  const url = await fetch('/v1/stream-link?path=%2Fv1%2Fevents', { credentials: 'same-origin' })
+    .then((r) => (r.ok ? r.json() : null)).then((d) => (d && d.url) || '/v1/events', () => '/v1/events');
   try {
-    const es = new EventSource('/v1/events');
+    const es = new EventSource(url);
+    // The link lasts ten minutes and the stream a few: when it closes, get a fresh link.
+    es.onerror = () => { if (es.readyState === EventSource.CLOSED || !url.startsWith('/')) { es.close(); setTimeout(connectEventStream, 3000); } };
     state.eventSource = es;
     es.addEventListener('job', (ev) => {
       try {
