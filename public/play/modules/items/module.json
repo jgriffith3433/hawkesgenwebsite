@@ -1,0 +1,6 @@
+{
+  "title": "Items and money: bags, pickups, usable items, shops, locked doors, crafting (config.items)",
+  "order": 41,
+  "scripts": ["items.js"],
+  "kinds": []
+}

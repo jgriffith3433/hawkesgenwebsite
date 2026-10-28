@@ -323,9 +323,11 @@
   defineCondition('alive', (c, ctx) => things(c.alive, ctx).length > 0);
 
   // ------------------------------------------------------------------ items (a bag per player; tools are items too)
+  // (With the Items module the bags are its bags: one bag, the same for rules, shops, pickups and scripts.)
   function hasItem(who, item, n = 1) {
     const pid = (who && who.id) || net.me;
     const name = lower(item);
+    if (H.items && H.items.has(name, n, pid)) return true;
     if (S && S.inv[pid] && (S.inv[pid][name] || 0) >= n) return true;
     if (pid === net.me) {
       const held = H.tools && H.tools.held;
@@ -339,6 +341,7 @@
   function addItem(who, item, n) {
     const pid = (who && who.id) || net.me;
     const name = lower(item);
+    if (H.items) { H.items._.apply({ op: n >= 0 ? 'give' : 'take', who: pid, item: name, n: Math.abs(n), quiet: true }); return; }
     const bag = (S.inv[pid] = S.inv[pid] || {});
     bag[name] = Math.max(0, (bag[name] || 0) + n);
     if (!bag[name]) delete bag[name];
@@ -1081,7 +1084,7 @@
       const c = Math.max(1, Math.floor(num(a.count, 1)));
       addItem(ctx.who, n, c);
       perform({ _toast: a.say || `+${c} ${n}`, to: 'player' }, ctx);
-      perform({ emit: 'item', data: { item: lower(n), count: c, total: S.inv[(ctx.who && ctx.who.id) || net.me] ? S.inv[(ctx.who && ctx.who.id) || net.me][lower(n)] || 0 : 0, by: ctx.who } }, ctx);
+      if (!H.items) perform({ emit: 'item', data: { item: lower(n), count: c, total: S.inv[(ctx.who && ctx.who.id) || net.me] ? S.inv[(ctx.who && ctx.who.id) || net.me][lower(n)] || 0 : 0, by: ctx.who } }, ctx);
     },
   });
   defineAction('take', {
@@ -1446,7 +1449,7 @@
       standings: (name) => standings(String(name)),
       /** Items: has(item), items() this player's bag. */
       has: (item, n = 1) => hasItem(meWho(), item, n),
-      items: (player) => (live() ? { ...(S.inv[player || net.me] || {}) } : {}),
+      items: (player) => (H.items && H.items._.bags[player || net.me] ? { ...H.items._.bags[player || net.me] } : live() ? { ...(S.inv[player || net.me] || {}) } : {}),
       give: (item, count = 1) => { if (net.host) perform({ give: item, count }, { who: meWho() }); },
       /** New actions and conditions, by name: action('confetti', (a, ctx) => {...}, { scope: 'all' }). */
       action: (name, fn, o = {}) => defineAction(name, { scope: o.scope || 'all', text: o.text || [], at: o.at || [], run: fn }),
