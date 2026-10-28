@@ -208,6 +208,13 @@ export async function fromApiKey(key: string) {
 
 /** The signed-in account behind the session cookie. */
 export async function fromSession(req: Request): Promise<User | null> {
+  // A stream link (?st=, from /v1/stream-link): the page's own session, carried to the function's direct address.
+  const st = new URL(req.originalUrl || req.url || '/', 'https://x');
+  const link = st.searchParams.get('st');
+  if (link) {
+    const v = verify<{ u: string; p: string }>(link);
+    return v && v.p === st.pathname ? active(await getUser(v.u)) : null;
+  }
   const c = cookies(req)[SESSION_COOKIE];
   if (!c || c.startsWith('g.')) return null;
   try {
@@ -303,3 +310,17 @@ for (const p of ['/v1/users/login', '/v1/users/signup', '/v1/users/forgot', '/v1
   route('POST', p, ({ res }) => send(res, 410, { error: 'Sign in with Google: email and password sign-in has ended.', code: 'google_only' }));
 }
 void json;
+
+// ------------------------------------------------------------ stream links
+// Firebase Hosting holds a function's answer until it ends, so a server-sent stream (the editor's live feed, the job
+// feed) can't pass through hawkesgen.com. The page asks here, on its own origin with its session, for a link to the
+// function's direct address that carries a signed token for that one path (ten minutes); the stream goes there.
+export const STREAMS = /^\/v1\/(games\/g_[0-9a-f]+\/live|events)$/;
+export const streamUrl = () => (env('PORTAL_STREAM_URL') ?? '').replace(/\/+$/, '');
+route('GET', '/v1/stream-link', async ({ req, url }) => {
+  const user = await requireUser(req);
+  const path = String(url.searchParams.get('path') ?? '');
+  if (!STREAMS.test(path)) throw new PortalError('Not a stream', { status: 400 });
+  if (!streamUrl()) return { url: path };
+  return { url: `${streamUrl()}${path}?st=${encodeURIComponent(sign({ u: user.id, p: path }, 600))}`, ttl: 600 };
+});

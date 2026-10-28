@@ -379,9 +379,17 @@ async function sendAssets() {
 let sseLast = '', sseTries = 0, sseTimer = null;
 const sseLater = () => { clearTimeout(sseTimer); sseTimer = setTimeout(connect, Math.min(30_000, 1000 * 2 ** sseTries++)); };
 addEventListener('pagehide', () => { clearTimeout(sseTimer); if (sse) sse.close(); });
+// The stream's address: on Google Cloud, a signed link to the function itself (Firebase Hosting would hold a stream until
+// it ends: docs/cloud.md); a server without stream links answers the path as it is.
+const streamLink = (path) => fetch(`${API}/stream-link?path=${encodeURIComponent(path)}`, { credentials: 'same-origin' })
+  .then((r) => (r.ok ? r.json() : null)).then((d) => (d && d.url) || path, () => path);
 function connect() {
   if (sse) sse.close();
-  sse = new EventSource(`${API}/games/${gameId}/live${sseLast ? `?last=${encodeURIComponent(sseLast)}` : ''}`, { withCredentials: true });
+  sse = null;
+  streamLink(`${API}/games/${gameId}/live`).then(listen);
+}
+function listen(u) {
+  sse = new EventSource(`${u}${sseLast ? `${u.includes('?') ? '&' : '?'}last=${encodeURIComponent(sseLast)}` : ''}`, { withCredentials: u.startsWith('/') });
   sse.addEventListener('open', () => { sseTries = 0; });
   sse.addEventListener('bye', () => { sse.close(); sseTries = 0; sseLater(); });
   for (const ev of ['file', 'file-deleted', 'file-renamed', 'asset', 'asset-removed', 'asset-renamed', 'chat', 'gen', 'game', 'release', 'role', 'removed', 'deleted']) sse.addEventListener(ev, (e) => { if (e.lastEventId) sseLast = e.lastEventId; });

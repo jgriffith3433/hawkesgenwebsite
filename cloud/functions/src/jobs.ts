@@ -163,3 +163,27 @@ route('POST', UPLOAD, async ({ req, res, route: path, url }) => {
   url.searchParams.set('project', c.user.project);
   return relay(await genFetch(`${path}?${url.searchParams}`, { as: c.user.project, method: 'POST', rawBody: new Uint8Array(req.rawBody), headers, signal: AbortSignal.timeout(280_000) }), res);
 });
+
+// The customer's job feed: Gen's own stream narrowed to their project, for up to ~4.5 minutes (a function's answer has an
+// end; the page's EventSource opens it again). Reached at the function's direct address through a stream link.
+route('GET', '/v1/events', async ({ req, res }) => {
+  const c = await requireCaller(req);
+  const ctrl = new AbortController();
+  const stop = setTimeout(() => ctrl.abort(), 270_000);
+  req.on('close', () => ctrl.abort());
+  try {
+    const gr = await genFetch('/v1/events', { as: c.user.project, signal: ctrl.signal, headers: { Accept: 'text/event-stream' } });
+    res.status(gr.status).set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' });
+    res.flushHeaders();
+    if (!gr.body) return void res.end();
+    const reader = gr.body.getReader();
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      res.write(Buffer.from(value));
+    }
+  } catch { /* the page left, or the time is up */ } finally {
+    clearTimeout(stop);
+    if (!res.writableEnded) res.end();
+  }
+});
