@@ -6,7 +6,7 @@ $roles = 'roles/cloudbuild.builds.builder', 'roles/artifactregistry.writer', 'ro
 foreach ($p in $projects.Keys) {
   $sa = "serviceAccount:$($projects[$p])-compute@developer.gserviceaccount.com"
   foreach ($r in $roles) {
-    & $g projects add-iam-policy-binding $p --member=$sa --role=$r --condition=None --quiet *> $null
-    if ($?) { Write-Host "$p $r ok" -ForegroundColor Green } else { Write-Host "$p $r FAILED" -ForegroundColor Red }
+    & $g projects add-iam-policy-binding $p --member=$sa --role=$r --condition=None --quiet 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) { Write-Host "$p $r ok" -ForegroundColor Green } else { Write-Host "$p $r FAILED" -ForegroundColor Red }
   }
 }

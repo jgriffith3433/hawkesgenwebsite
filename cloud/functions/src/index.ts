@@ -24,13 +24,20 @@ export { advanceTasks } from './tasks.ts';
 import './community.ts';
 import './kits.ts';
 import './shares.ts';
-import './gallery.ts';
 import './portfolio.ts';
 import './prices.ts';
 import './demo.ts';
 import './analytics.ts';
 export { syncStarter } from './community.ts';
 export { refreshLods } from './lods.ts';
+import './games.ts';
+import './playpages.ts';
+import './use-community.ts';
+// The assistant searches the community library (gameai.ts's hook, set here so neither area imports the other).
+import { community as assistantLibrary } from './gameai.ts';
+import { search as librarySearch } from './community.ts';
+assistantLibrary.search = librarySearch as typeof assistantLibrary.search;
+export { gameAssistant, advanceGameGens } from './gameai.ts';
 
 
 route('GET', '/v1/health', () => ({ ok: true, service: 'hawkesgen-portal', cloud: 'gcp', gen: Boolean(genKey()), google: Boolean(process.env.GOOGLE_CLIENT_ID) }));
