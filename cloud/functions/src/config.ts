@@ -21,7 +21,9 @@ export const genUrl = () => (env('HAWKESGEN_URL') ?? 'https://gen.hawkesgen.ai')
 export const genKey = () => SECRETS.genKey.value();
 /** Hawkes Studio's front door (studio.hawkesgen.ai; studio-beta on beta): Continue with Google there takes a customer to
  *  their own Studio, or to a short sign-up when they have none. An org's own Studio is `<this>/o/<its Studio id>/`. */
-export const studioUrl = () => (env('PORTAL_STUDIO_URL') ?? 'https://studio.hawkesgen.ai').replace(/\/+$/, '');
+export const studioUrl = () => (env('PORTAL_STUDIO_URL')?.trim() || 'https://studio.hawkesgen.ai').replace(/\/+$/, '');
+/** A page of Studio: its address and a path joined with exactly one slash, whatever either side ends or starts with. */
+export const studioPage = (path = '/', base = studioUrl()) => `${base.trim().replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
 /** This site's own address (links in mail, Stripe's return pages, Google's redirect). */
 export const publicUrl = () => (env('PUBLIC_URL') ?? 'https://hawkesgen.ai').replace(/\/+$/, '');
 /** Customers' Gen projects are this prefix plus 16 hex digits (usr_ on live; staging has its own). */

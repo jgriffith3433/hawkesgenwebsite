@@ -11,7 +11,7 @@
 // before), so existing subscribers keep their plan in their personal org with no move of billing.
 import crypto from 'node:crypto';
 import { db, users, ledgerOf } from './store.ts';
-import { publicUrl, studioUrl } from './config.ts';
+import { publicUrl, studioPage } from './config.ts';
 import { getUser, requireUser, requireAdmin, authenticate, type User } from './accounts.ts';
 import { sendEmail } from './mail.ts';
 import { PortalError, sha256, id, route, json, redirect, Limiter } from './http.ts';
@@ -117,7 +117,7 @@ export async function myOrgs(user: User): Promise<OrgContext[]> {
 // the Studio checks who signs in. No platform token rides along (Studio's own Google sign-in is the way in).
 export const STUDIO_ORG_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
 /** Where "Open Studio" goes for an org: its own Studio, else the front door. Per lane (config.ts studioUrl). */
-export const studioLink = (org?: Pick<Org, 'studio'> | null) => (org?.studio && STUDIO_ORG_RE.test(org.studio) ? `${studioUrl()}/o/${org.studio}/` : `${studioUrl()}/`);
+export const studioLink = (org?: Pick<Org, 'studio'> | null) => studioPage(org?.studio && STUDIO_ORG_RE.test(org.studio) ? `/o/${org.studio}/` : '/');
 
 export const publicOrg = (c: OrgContext) => ({ id: c.org.id, name: c.org.name, personal: c.org.personal, role: c.role, plan: { id: c.plan.id, name: c.plan.name, seats: c.plan.seats }, entitlements: c.entitlements, studio: studioLink(c.org) });
 
