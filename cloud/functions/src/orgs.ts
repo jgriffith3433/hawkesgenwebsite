@@ -11,7 +11,7 @@
 import crypto from 'node:crypto';
 import { db, users, ledgerOf } from './store.ts';
 import { publicUrl } from './config.ts';
-import { getUser, requireUser, type User } from './accounts.ts';
+import { getUser, requireUser, requireAdmin, type User } from './accounts.ts';
 import { sendEmail } from './mail.ts';
 import { PortalError, sha256, id, route, json, Limiter } from './http.ts';
 import {
@@ -286,8 +286,8 @@ export async function deleteOrg(user: User, orgId: string) {
 }
 
 /** A team org's plan, set by a portal admin (design partners; Stripe bills orgs later). */
-export async function setOrgPlan(user: User, orgId: string, body: any) {
-  if (user.role !== 'admin') throw new PortalError('Admins only', { status: 403 });
+export async function setOrgPlan(admin: User, orgId: string, body: any) {
+  const user = admin; // the route has checked: requireAdmin (J's Google sign-in), never a stored role
   const org = await getOrg(orgId);
   if (!org) throw new PortalError('No such org', { status: 404 });
   if (org.personal) throw new PortalError("A personal org's plan is its owner's subscription", { status: 409 });
@@ -325,4 +325,4 @@ route('PATCH', new RegExp(`^/v1/orgs/${ORG}/members/${USER}$`), async ({ req, pa
   return setRole(await requireUser(req), params[0], params[1], role);
 });
 route('DELETE', new RegExp(`^/v1/orgs/${ORG}/members/${USER}$`), async ({ req, params }) => setRole(await requireUser(req), params[0], params[1], null));
-route('POST', new RegExp(`^/v1/orgs/${ORG}/plan$`), async ({ req, params }) => setOrgPlan(await requireUser(req), params[0], json(req)));
+route('POST', new RegExp(`^/v1/orgs/${ORG}/plan$`), async ({ req, params }) => setOrgPlan(await requireAdmin(req), params[0], json(req)));

@@ -36,6 +36,9 @@ export function route(method: string, pattern: string | RegExp, handler: Handler
   routes.push({ method, pattern: re, handler });
 }
 
+/** Every registered route's method and pattern (tests check that each admin route answers only an admin). */
+export const routeTable = () => routes.map((r) => ({ method: r.method, pattern: r.pattern }));
+
 export const id = (prefix: string, bytes = 8) => `${prefix}${crypto.randomBytes(bytes).toString('hex')}`;
 export const sha256 = (s: Buffer | string) => crypto.createHash('sha256').update(s).digest('hex');
 

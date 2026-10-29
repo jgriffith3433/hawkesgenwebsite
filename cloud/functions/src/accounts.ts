@@ -17,6 +17,7 @@ export type User = {
   name: string | null;
   project: string;
   credits: number;
+  /** Stored but grants nothing: admin is `adminFrom` (J's verified Google sign-in on PORTAL_ADMIN_EMAILS), per request. */
   role: 'customer' | 'admin';
   disabled?: boolean;
   plan?: import('./platform.ts').PlanId;
@@ -41,7 +42,8 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const REFERRAL_BONUS = 50;
 export const REFERRAL_REWARD = 100;
 
-export const toPublicUser = (u: User) => ({ id: u.id, email: u.email, name: u.name, project: u.project, credits: u.credits, role: u.role, created: u.created, last_login: u.last_login, plan: ['active', 'trialing', 'past_due'].includes(String(u.sub_status)) ? (u.plan ?? 'free') : 'free' });
+/** `admin`: whether this request is an admin's (`adminFrom`); the stored role is never shown as one. */
+export const toPublicUser = (u: User, admin = false) => ({ id: u.id, email: u.email, name: u.name, project: u.project, credits: u.credits, role: admin ? 'admin' as const : 'customer' as const, created: u.created, last_login: u.last_login, plan: ['active', 'trialing', 'past_due'].includes(String(u.sub_status)) ? (u.plan ?? 'free') : 'free' });
 
 export async function getUser(userId: string): Promise<User | null> {
   const s = await users().doc(userId).get();
@@ -241,6 +243,54 @@ export async function requireUser(req: Request) {
   return u;
 }
 
+// ------------------------------------------------------------ admin: J alone
+// Admin is never a stored role (anyone with Firestore access, or a bug, could set one) and never an API key or OAuth
+// token. It is a Google sign-in, checked on every request: the session cookie verified with Firebase (and not revoked),
+// signed in with google.com, its email verified by Google and on PORTAL_ADMIN_EMAILS (J's address when unset), and the
+// same email as the portal account it maps to.
+
+export const DEFAULT_ADMIN_EMAILS = 'piercehawkes3@gmail.com';
+/** Who may use the admin features: PORTAL_ADMIN_EMAILS, comma-separated (set but empty: nobody). */
+export const adminEmails = () => (process.env.PORTAL_ADMIN_EMAILS ?? DEFAULT_ADMIN_EMAILS).split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+
+/** What a verified Firebase session cookie says (the parts the admin check reads). */
+export type SessionClaims = { uid: string; email?: string; email_verified?: boolean; firebase?: { sign_in_provider?: string } };
+
+/** The rule, on its own: a Google-verified email on the list, matching the account; the account's role plays no part. */
+export function isAdmin(claims: SessionClaims | null | undefined, user: Pick<User, 'email' | 'disabled'> | null | undefined, allow = adminEmails()) {
+  if (!claims || !user || user.disabled) return false;
+  const email = String(claims.email ?? '').trim().toLowerCase();
+  return Boolean(email) && claims.email_verified === true && claims.firebase?.sign_in_provider === 'google.com'
+    && allow.includes(email) && String(user.email ?? '').trim().toLowerCase() === email;
+}
+
+/** How the check reaches Firebase and Firestore (tests replace these). */
+export const adminDeps = {
+  verify: async (cookie: string): Promise<SessionClaims> => (await auth.verifySessionCookie(cookie, true)) as SessionClaims,
+  account: async (uid: string): Promise<User | null> => {
+    const map = await db.collection('logins').doc(uid).get();
+    return map.exists ? getUser(map.get('user')) : null;
+  },
+};
+
+/** The admin making this request, or null. Bearer tokens (hg_ keys, hgo_ OAuth tokens) and stream links never are. */
+export async function adminFrom(req: Request): Promise<User | null> {
+  if (bearer(req)) return null;
+  const c = cookies(req)[SESSION_COOKIE];
+  if (!c || c.startsWith('g.')) return null;
+  let claims: SessionClaims;
+  try { claims = await adminDeps.verify(c); } catch { return null; }
+  const user = claims?.uid ? await adminDeps.account(claims.uid) : null;
+  return isAdmin(claims, user) ? user : null;
+}
+
+/** 403 for anyone but an admin (signed out, a customer, a stored role, a key or a token). */
+export async function requireAdmin(req: Request): Promise<User> {
+  const a = await adminFrom(req);
+  if (!a) throw new PortalError('Admins only', { status: 403, code: 'not_admin' });
+  return a;
+}
+
 // ------------------------------------------------------------ the account's own routes
 
 /** A new personal API key; the old ones stop working. Shown once. */
@@ -262,9 +312,9 @@ async function currentKey(userId: string) {
   return { id: k.id, prefix: k.prefix, created: k.created, last_used: k.last_used ?? null };
 }
 
-export async function profile(user: User) {
+export async function profile(user: User, admin = false) {
   const bought = !(await ledgerOf(user.id).where('kind', '==', 'stripe_purchase').limit(1).get()).empty;
-  return { user: { ...toPublicUser(user), bought, source: user.source ?? null }, client: await currentKey(user.id) };
+  return { user: { ...toPublicUser(user, admin), bought, source: user.source ?? null }, client: await currentKey(user.id) };
 }
 
 /** A customer's referral code (made the first time it's asked for). */
@@ -284,8 +334,8 @@ export async function refCode(user: User): Promise<string> {
   }
 }
 
-route('GET', '/v1/users/me', async ({ req }) => profile(await requireUser(req)));
-route('GET', '/v1/me', async ({ req }) => profile(await requireUser(req)));
+route('GET', '/v1/users/me', async ({ req }) => profile(await requireUser(req), Boolean(await adminFrom(req))));
+route('GET', '/v1/me', async ({ req }) => profile(await requireUser(req), Boolean(await adminFrom(req))));
 route('POST', '/v1/users/api-key', async ({ req }) => mintApiKey((await requireUser(req)).id));
 route('POST', '/v1/users/logout', async ({ req, res }) => {
   const c = cookies(req)[SESSION_COOKIE];

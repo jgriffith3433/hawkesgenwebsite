@@ -4,7 +4,7 @@
 import { onSchedule } from 'firebase-functions/scheduler';
 import { db } from './store.ts';
 import { gen, genFetch } from './gen.ts';
-import { hold, attach, release } from './billing.ts';
+import { hold, attach, release, releaseIn, releaseOrphanHolds } from './billing.ts';
 import { requireCaller, type Via } from './caller.ts';
 import type { User } from './accounts.ts';
 import { PortalError, route, send } from './http.ts';
@@ -62,19 +62,21 @@ export async function submit(user: User, specs: any[], via?: Via, opts: { minCre
 }
 
 /** Records how a job stands; at its end, keeps the credits (done) or gives them back (failed, cancelled). Once. */
+// The job's end and its refund are one transaction: a function stopped between them can't leave a failed job settled
+// with its credits kept.
 export async function settle(job: { id: string; status: string; error?: string }) {
   const ref = jobs().doc(job.id);
-  const ended = await db.runTransaction(async (t) => {
+  await db.runTransaction(async (t) => {
     const row = await t.get(ref);
-    if (!row.exists || row.get('settled')) return null;
+    if (!row.exists || row.get('settled')) return;
     if (!TERMINAL.has(job.status)) {
       if (row.get('status') !== job.status) t.update(ref, { status: job.status });
-      return null;
+      return;
     }
+    const holdId = row.get('hold') as string | null;
+    if (holdId && job.status !== 'done') await releaseIn(t, holdId, job.status === 'cancelled' ? 'Cancelled: credits returned' : `Failed: credits returned${job.error ? ` (${String(job.error).slice(0, 120)})` : ''}`);
     t.update(ref, { status: job.status, settled: Date.now() });
-    return row.get('hold') as string;
   });
-  if (ended && job.status !== 'done') await release(ended, job.status === 'cancelled' ? 'Cancelled: credits returned' : `Failed: credits returned${job.error ? ` (${String(job.error).slice(0, 120)})` : ''}`);
 }
 
 /** Asks Gen about every unsettled job. One Gen no longer knows, after an hour, is given back. */
@@ -85,6 +87,7 @@ export async function sweep() {
     if (r?.ok) await settle(await r.json());
     else if (r?.status === 404 && Date.now() - Number(d.get('created')) > 3600_000) await settle({ id: d.id, status: 'failed', error: 'lost by the backend' });
   }
+  await releaseOrphanHolds().catch((e) => console.error('[portal] orphan holds:', e));
   return open.size;
 }
 

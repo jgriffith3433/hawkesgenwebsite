@@ -18,7 +18,7 @@ import type { Response } from 'express';
 import { onSchedule } from 'firebase-functions/scheduler';
 import { db, FieldValue, users } from './store.ts';
 import { gen, genFetch } from './gen.ts';
-import { requireUser, type User } from './accounts.ts';
+import { requireUser, requireAdmin, adminFrom, type User } from './accounts.ts';
 import { PortalError, route } from './http.ts';
 import { SECRETS } from './config.ts';
 import { known, levelUrls, rememberAsset, rememberMany, type GenLods } from './lods.ts';
@@ -188,9 +188,9 @@ export async function share(user: User, body: { asset?: unknown; title?: unknown
 }
 
 /** Stops sharing (games that already use it keep it). */
-export async function unshare(user: User, assetId: string) {
+export async function unshare(user: User, assetId: string, admin = false) {
   const s = await assets().doc(assetId).get();
-  if (!s.exists || (s.get('by_user') !== user.id && user.role !== 'admin')) throw new PortalError('Not one of yours', { status: 404 });
+  if (!s.exists || (s.get('by_user') !== user.id && !admin)) throw new PortalError('Not one of yours', { status: 404 });
   await s.ref.update({ hidden: 1 });
   return { ok: true };
 }
@@ -372,11 +372,10 @@ route('GET', /^\/v1\/community\/(a_[0-9a-f]+)\/file$/, async ({ req, res, url, p
 // An account's own.
 route('POST', '/v1/community', async ({ req }) => share(await requireUser(req), (req.body ?? {}) as any));
 route('GET', '/v1/community/mine', async ({ req }) => mine(await requireUser(req)));
-route('DELETE', /^\/v1\/community\/(a_[0-9a-f]+)$/, async ({ req, params }) => unshare(await requireUser(req), params[0]));
+route('DELETE', /^\/v1\/community\/(a_[0-9a-f]+)$/, async ({ req, params }) => unshare(await requireUser(req), params[0], Boolean(await adminFrom(req))));
 
-// An admin runs the starter sync now (anyone else: 404, like every admin route).
+// An admin runs the starter sync now (anyone else: 403, like every admin route).
 route('POST', '/v1/admin/community/sync', async ({ req }) => {
-  const u = await requireUser(req).catch(() => null);
-  if (u?.role !== 'admin') throw new PortalError('Not found', { status: 404 });
+  await requireAdmin(req);
   return syncStarterPack();
 });

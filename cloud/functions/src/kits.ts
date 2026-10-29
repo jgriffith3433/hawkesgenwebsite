@@ -5,7 +5,7 @@
 // Firestore: communityKits/{k_id} with the SQLite columns. `things` and `config` stay JSON strings, as they were: a
 // thing's spec may hold arrays of arrays (points, paths), which Firestore can't store as values.
 import { db, users } from './store.ts';
-import { requireUser, type User } from './accounts.ts';
+import { requireUser, adminFrom, type User } from './accounts.ts';
 import { id, PortalError, route } from './http.ts';
 
 type Row = { id: string; by_user: string; title: string; about: string; icon: string; things: string; config: string | null; uses: number; created: number; hidden: number };
@@ -92,9 +92,9 @@ export async function used(kitId: string) {
 }
 
 /** The sharer (or an admin) takes it back. */
-export async function unshare(user: User, kitId: string) {
+export async function unshare(user: User, kitId: string, admin = false) {
   const s = await kits().doc(kitId).get();
-  if (!s.exists || (s.get('by_user') !== user.id && user.role !== 'admin')) throw new PortalError('Not one of yours', { status: 404 });
+  if (!s.exists || (s.get('by_user') !== user.id && !admin)) throw new PortalError('Not one of yours', { status: 404 });
   await s.ref.update({ hidden: 1 });
   return { ok: true };
 }
@@ -111,4 +111,4 @@ route('GET', '/v1/community/kits/mine', async ({ req }) => mine(await requireUse
 route('POST', '/v1/community/kits', async ({ req }) => share(await requireUser(req), (req.body ?? {}) as any));
 route('GET', /^\/v1\/community\/kits\/(k_[0-9a-f]+)$/, async ({ res, params }) => { open(res); return get(params[0]); });
 route('POST', /^\/v1\/community\/kits\/(k_[0-9a-f]+)\/used$/, async ({ res, params }) => { open(res); return used(params[0]); });
-route('DELETE', /^\/v1\/community\/kits\/(k_[0-9a-f]+)$/, async ({ req, params }) => unshare(await requireUser(req), params[0]));
+route('DELETE', /^\/v1\/community\/kits\/(k_[0-9a-f]+)$/, async ({ req, params }) => unshare(await requireUser(req), params[0], Boolean(await adminFrom(req))));

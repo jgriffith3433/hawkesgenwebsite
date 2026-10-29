@@ -1,5 +1,6 @@
 // The admin page: overview, accounts (with ledger, jobs and actions), jobs, purchases. Everything comes from
-// /v1/admin/*, which answers only admins.
+// /v1/admin/*, which answers only admins: a Google sign-in on PORTAL_ADMIN_EMAILS (cloud accounts.ts adminFrom); roles
+// are not set here.
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const n = (v) => Number(v || 0).toLocaleString('en-US');
@@ -175,7 +176,6 @@ async function detail(id) {
       <button class="btn btn-secondary btn-sm" type="submit" style="justify-self:start">Apply</button>
     </form>
     <div class="actions" style="padding:16px 0;border-top:1px solid var(--border)">
-      <button class="btn btn-secondary btn-sm" id="aRole">${u.role === 'admin' ? 'Make customer' : 'Make admin'}</button>
       <button class="btn btn-sm ${u.disabled ? 'btn-secondary' : 'danger'}" id="aDisable">${u.disabled ? 'Enable' : 'Disable'}</button>
     </div>
     <div class="label" style="margin:12px 0 8px">Ledger</div>
@@ -204,9 +204,6 @@ async function detail(id) {
       toast(`Balance is now ${n(r.credits)} credits`);
       accounts();
     } catch (x) { toast(x.message); }
-  });
-  $('aRole').addEventListener('click', async () => {
-    try { await api(`/v1/admin/users/${id}/role`, { role: u.role === 'admin' ? 'customer' : 'admin' }); accounts(); } catch (x) { toast(x.message); }
   });
   $('aDisable').addEventListener('click', async () => {
     if (!u.disabled && !confirm(`Disable ${u.email}? They are signed out and their API key stops working until you enable them.`)) return;

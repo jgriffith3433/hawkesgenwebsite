@@ -4,7 +4,7 @@
 // The webhook itself is billing.ts's: this module registers its events on `subscriptionHandlers`.
 import { db, users, changeCredits } from './store.ts';
 import { env, publicUrl } from './config.ts';
-import { stripe, rewardReferrer, subscriptionHandlers } from './billing.ts';
+import { stripe, rewardReferrer, subscriptionHandlers, slowBilling, termsLine } from './billing.ts';
 import { getUser, requireUser, type User } from './accounts.ts';
 import { PortalError, route, json } from './http.ts';
 import { PLANS, PAID_STATES, planOf, offeredPlans, type Plan } from './platform.ts';
@@ -64,6 +64,7 @@ async function fresh(user: User) {
  *  difference's credits arrive with that invoice). */
 export async function choosePlan(user: User, body: { plan?: unknown; successUrl?: unknown; cancelUrl?: unknown }) {
   const plan = paidPlan(body.plan);
+  slowBilling(user);
   const u = await fresh(user);
   if (isLive(u)) {
     if (u.plan === plan.id && !u.cancel_at_period_end) return { changed: false, subscription: await subscription(u) };
@@ -95,6 +96,7 @@ export async function choosePlan(user: User, body: { plan?: unknown; successUrl?
     'metadata[plan]': plan.id,
     'subscription_data[metadata][user_id]': u.id,
     'subscription_data[metadata][plan]': plan.id,
+    'custom_text[submit][message]': termsLine(),
   });
   if (u.stripe_customer_id) form.set('customer', u.stripe_customer_id);
   else form.set('customer_email', u.email);
@@ -106,6 +108,7 @@ export async function choosePlan(user: User, body: { plan?: unknown; successUrl?
 export async function setCancel(user: User, cancel: boolean) {
   const u = await fresh(user);
   if (!isLive(u)) throw new PortalError('You have no subscription to change');
+  slowBilling(user);
   const sub = await stripe(`/v1/subscriptions/${u.stripe_subscription_id}`, new URLSearchParams({ cancel_at_period_end: String(cancel) }));
   await applySubscription(sub, u.id);
   return subscription(u);
@@ -115,6 +118,7 @@ export async function setCancel(user: User, cancel: boolean) {
 export async function billingPortal(user: User) {
   const u = await fresh(user);
   if (!u.stripe_customer_id) throw new PortalError('Nothing to manage yet: you have not paid with a card here');
+  slowBilling(user);
   const s = await stripe('/v1/billing_portal/sessions', new URLSearchParams({ customer: u.stripe_customer_id, return_url: `${publicUrl()}/app` }));
   return { url: s.url as string };
 }
@@ -134,11 +138,15 @@ async function userFor(meta: any, customer: unknown, subId?: unknown): Promise<U
   return null;
 }
 
+/** The plan a Stripe price is for: its lookup key, hg_plan_<id>_<cents> (priceFor). A plan changed in Stripe's own
+ *  billing portal keeps the subscription's old metadata, so the price is what says which plan it is now. */
+export const planOfPrice = (price: any): string | null => /^hg_plan_([a-z]+)_\d+$/.exec(String(price?.lookup_key ?? ''))?.[1] ?? (typeof price?.metadata?.plan === 'string' ? price.metadata.plan : null);
+
 /** Keeps a subscription's plan, state and paid-until date on the account. */
 async function applySubscription(sub: any, userId?: string) {
   const u = userId ? await getUser(userId) : await userFor(sub?.metadata, sub?.customer, sub?.id);
   if (!u) return null;
-  const plan = PLANS.find((p) => p.id === sub?.metadata?.plan)?.id ?? (PLANS.find((p) => p.id === u.plan)?.id || 'free');
+  const plan = PLANS.find((p) => p.id === planOfPrice(sub?.items?.data?.[0]?.price))?.id ?? PLANS.find((p) => p.id === sub?.metadata?.plan)?.id ?? (PLANS.find((p) => p.id === u.plan)?.id || 'free');
   const end = Number(sub?.current_period_end ?? sub?.items?.data?.[0]?.current_period_end ?? 0);
   const status = String(sub?.status ?? 'active');
   await users().doc(u.id).update({
@@ -158,9 +166,12 @@ async function invoicePaid(inv: any) {
   const details = inv?.parent?.subscription_details ?? inv?.subscription_details ?? {};
   const meta = details.metadata ?? inv?.lines?.data?.[0]?.metadata ?? {};
   const subId = details.subscription ?? inv?.subscription ?? null;
+  // Only a subscription's invoices carry a month's credits (a one-off invoice sent from Stripe is not a plan month).
+  if (!subId) return { ok: true, type: 'invoice.paid', ignored: true };
   const u = await userFor(meta, inv?.customer, subId);
   if (!u) throw new PortalError('Invoice for an unknown customer');
-  const plan = PLANS.find((p) => p.id === (meta.plan ?? u.plan) && p.priceCents > 0);
+  const line = inv?.lines?.data?.find((l: any) => Number(l?.amount ?? 0) > 0) ?? inv?.lines?.data?.[0];
+  const plan = PLANS.find((p) => p.id === (planOfPrice(line?.price) ?? meta.plan ?? u.plan) && p.priceCents > 0);
   if (!plan || !inv?.id) return { ok: true, type: 'invoice.paid', ignored: true };
   const reason = String(inv.billing_reason ?? 'subscription_cycle');
   const paid = Math.max(0, Number(inv.amount_paid ?? 0));
