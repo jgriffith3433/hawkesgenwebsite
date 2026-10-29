@@ -119,7 +119,7 @@ admin route against nobody, a customer, a customer with `role: "admin"` set by h
 
 ## Production checklist (2026-10-29)
 
-**Verified in code and tests** (`npm test` in `cloud/functions` with `GOOGLE_CLOUD_PROJECT=hawkes-staging`: 31 pass):
+**Verified in code and tests** (`npm test` in `cloud/functions` with `GOOGLE_CLOUD_PROJECT=hawkes-staging`: 33 pass):
 - Admin is J's Google sign-in alone (above). Orgs, entitlements and the platform token have no admin bypass: an org's
   role is its `orgMembers` row, `orgContext` 404s a non-member, minting a token for an org needs membership, and the one
   portal-admin action there (a team org's plan) uses `requireAdmin`.
@@ -130,6 +130,11 @@ admin route against nobody, a customer, a customer with `role: "admin"` set by h
 - Plans: Checkout, `invoice.paid` gives a month's credits once per invoice (only a subscription's invoices; a one-off
   invoice gives none), the plan is read from the price's lookup key (a change made in Stripe's billing portal counts),
   cancel and resume (`cancel_at_period_end`), Stripe's billing portal (`/v1/billing/portal`).
+- One Stripe account for the portal, Gen and Studio: everything the portal makes carries `metadata[product]=portal`
+  (a pack's session; a plan's session and `subscription_data`, so its invoices and subscription events carry it). The
+  webhook answers 200 and does nothing for an event tagged with another product (`billing.ts productOf`), or for an
+  account it doesn't have; never a 4xx for those (Stripe would retry, then turn the endpoint off). Older untagged
+  portal sessions and subscriptions still work.
 - Failed payments: Stripe marks the subscription `past_due` (the plan holds while Stripe retries the card: the grace
   period in `platform.ts planOf`); no month's credits until an invoice is paid; when Stripe gives up the subscription is
   deleted or `unpaid` and the plan is free. Credits already given always stay.

@@ -4,7 +4,7 @@
 // The webhook itself is billing.ts's: this module registers its events on `subscriptionHandlers`.
 import { db, users, changeCredits } from './store.ts';
 import { env, publicUrl } from './config.ts';
-import { stripe, rewardReferrer, subscriptionHandlers, slowBilling, termsLine } from './billing.ts';
+import { stripe, rewardReferrer, subscriptionHandlers, slowBilling, termsLine, PRODUCT, notOurs } from './billing.ts';
 import { getUser, requireUser, type User } from './accounts.ts';
 import { PortalError, route, json } from './http.ts';
 import { PLANS, PAID_STATES, planOf, offeredPlans, type Plan } from './platform.ts';
@@ -77,6 +77,7 @@ export async function choosePlan(user: User, body: { plan?: unknown; successUrl?
       'items[0][price]': await priceFor(plan),
       proration_behavior: upgrade ? 'always_invoice' : 'none',
       cancel_at_period_end: 'false',
+      'metadata[product]': PRODUCT,
       'metadata[user_id]': u.id,
       'metadata[plan]': plan.id,
     }));
@@ -92,8 +93,10 @@ export async function choosePlan(user: User, body: { plan?: unknown; successUrl?
     cancel_url: ours(body.cancelUrl) ?? `${site}/app?plan=cancelled`,
     'line_items[0][price]': await priceFor(plan),
     'line_items[0][quantity]': '1',
+    'metadata[product]': PRODUCT,
     'metadata[user_id]': u.id,
     'metadata[plan]': plan.id,
+    'subscription_data[metadata][product]': PRODUCT,
     'subscription_data[metadata][user_id]': u.id,
     'subscription_data[metadata][plan]': plan.id,
     'custom_text[submit][message]': termsLine(),
@@ -169,7 +172,7 @@ async function invoicePaid(inv: any) {
   // Only a subscription's invoices carry a month's credits (a one-off invoice sent from Stripe is not a plan month).
   if (!subId) return { ok: true, type: 'invoice.paid', ignored: true };
   const u = await userFor(meta, inv?.customer, subId);
-  if (!u) throw new PortalError('Invoice for an unknown customer');
+  if (!u) return notOurs({ type: 'invoice.paid' }, 'no such account');
   const line = inv?.lines?.data?.find((l: any) => Number(l?.amount ?? 0) > 0) ?? inv?.lines?.data?.[0];
   const plan = PLANS.find((p) => p.id === (planOfPrice(line?.price) ?? meta.plan ?? u.plan) && p.priceCents > 0);
   if (!plan || !inv?.id) return { ok: true, type: 'invoice.paid', ignored: true };
