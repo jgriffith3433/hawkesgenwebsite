@@ -56,6 +56,20 @@ export const slowBilling = (user: User) => billingCalls.take(user.id, 'Too many 
 /** The line above Stripe Checkout's pay button: what paying agrees to (the site's own pages). */
 export const termsLine = () => `By paying you agree to our [Terms](${publicUrl()}/terms) and [Privacy Policy](${publicUrl()}/privacy). See also our [Refunds](${publicUrl()}/refunds) policy.`;
 
+// One Stripe account serves the portal, Gen and Studio (J's decision), so every endpoint gets every product's events.
+// Everything the portal makes carries metadata product=portal (a pack's session; a plan's session and subscription, so
+// its invoices carry it too); an event tagged for another product is answered 200 and left alone, as is one for an
+// account the portal doesn't have. Never a 4xx for those: Stripe retries, then turns the endpoint off.
+export const PRODUCT = 'portal';
+/** The product an event's object is tagged with: its own metadata, its subscription's (an invoice), or a line's. */
+export function productOf(o: any): string | null {
+  const metas = [o?.metadata, o?.parent?.subscription_details?.metadata, o?.subscription_details?.metadata, o?.subscription_data?.metadata, ...(Array.isArray(o?.lines?.data) ? o.lines.data.map((l: any) => l?.metadata) : [])];
+  for (const m of metas) if (m && typeof m.product === 'string' && m.product) return m.product;
+  return null;
+}
+/** The answer for an event that isn't the portal's. */
+export const notOurs = (event: any, why: string) => ({ ok: true, type: event?.type ?? 'unknown', ignored: true, why });
+
 export const hasBought = async (userId: string) => !(await ledgerOf(userId).where('kind', '==', 'stripe_purchase').limit(1).get()).empty;
 
 // ------------------------------------------------------------ holds: credits taken for work sent to Gen
@@ -136,7 +150,7 @@ export async function checkout(user: User, body: { packId?: unknown; successUrl?
     mode: 'payment', client_reference_id: user.id, customer_email: user.email,
     success_url: ours(body.successUrl) ?? `${site}/app?billing=success&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: ours(body.cancelUrl) ?? `${site}/app?billing=cancelled`,
-    'metadata[user_id]': user.id, 'metadata[pack_id]': pack.id, 'metadata[credits]': String(pack.credits),
+    'metadata[product]': PRODUCT, 'metadata[user_id]': user.id, 'metadata[pack_id]': pack.id, 'metadata[credits]': String(pack.credits),
     'line_items[0][quantity]': '1', 'line_items[0][price_data][currency]': 'usd', 'line_items[0][price_data][unit_amount]': String(pack.priceCents),
     'line_items[0][price_data][product_data][name]': pack.label,
     'line_items[0][price_data][product_data][description]': `${pack.credits.toLocaleString('en-US')} Hawkes Gen generation credits`,
@@ -179,6 +193,8 @@ export async function stripeWebhook(rawBody: Buffer, header: string) {
   verifyStripeSignature(rawBody, header);
   let event: any;
   try { event = JSON.parse(rawBody.toString('utf8')); } catch { throw new PortalError('Webhook body is not valid JSON'); }
+  const product = productOf(event?.data?.object);
+  if (product && product !== PRODUCT) return notOurs(event, `product ${product}`);
   const sub = subscriptionHandlers.find((h) => h.is(event));
   if (sub) return sub.handle(event);
   const s = event?.data?.object ?? {};
@@ -186,7 +202,8 @@ export async function stripeWebhook(rawBody: Buffer, header: string) {
   const userId = String(s.metadata?.user_id ?? s.client_reference_id ?? '');
   const credits = Math.round(Number(s.metadata?.credits ?? 0));
   const sessionId = String(s.id ?? '');
-  if (!userId || !sessionId || credits <= 0) throw new PortalError('Checkout session is missing user_id, credits or id');
+  if (!userId || !sessionId || credits <= 0) return notOurs(event, 'not a portal pack');
+  if (!(await getUser(userId))) return notOurs(event, 'no such account');
   const pack = PACKS.find((p) => p.id === s.metadata?.pack_id);
   const e = await changeCredits(userId, credits, { kind: 'stripe_purchase', detail: pack ? `Purchased ${pack.label}` : `Credit purchase (+${credits})`, stripe_session_id: sessionId }, { once: `stripe:${sessionId}` });
   // What follows the credits is idempotent, so a retried event (Stripe retries until we answer 200) finishes a delivery

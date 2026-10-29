@@ -48,6 +48,33 @@ test('a plan is read from its price (a change in Stripe\'s billing portal), chec
   assert.match(B.termsLine(), /\(https:\/\/beta\.hawkesgen\.ai\/terms\).*\(https:\/\/beta\.hawkesgen\.ai\/privacy\)/);
 });
 
+// The route as Stripe calls it: the status it answers (a 4xx makes Stripe retry and then turn the endpoint off).
+async function deliver(event: unknown) {
+  const { handle } = await import('../src/http.ts');
+  const s = signed(event);
+  const out = { status: 0, body: '' };
+  const res: any = { headersSent: false, status(n: number) { out.status = n; return res; }, set() { return res; }, setHeader() { return res; }, send(b: string) { out.body = b; res.headersSent = true; return res; }, end() { res.headersSent = true; return res; } };
+  await handle({ method: 'POST', originalUrl: '/v1/billing/webhook', url: '/v1/billing/webhook', headers: { 'stripe-signature': s.header, 'content-type': 'application/json' }, body: {}, rawBody: s.raw, ip: '' } as any, res);
+  return { status: out.status, body: JSON.parse(out.body || 'null') };
+}
+// Another product's events (one Stripe account for the portal, Gen and Studio), each with a portal-looking user_id.
+const genCheckout = (user: string) => ({ type: 'checkout.session.completed', data: { object: { id: 'cs_test_gen1', mode: 'payment', payment_status: 'paid', client_reference_id: user, metadata: { product: 'gen', user_id: user, credits: '1000' } } } });
+const genInvoice = (user: string) => ({ type: 'invoice.paid', data: { object: { id: 'in_test_gen1', customer: 'cus_gen1', billing_reason: 'subscription_cycle', amount_paid: 2900, parent: { subscription_details: { subscription: 'sub_gen1', metadata: { product: 'gen', user_id: user, plan: 'indie' } } }, lines: { data: [{ amount: 2900, price: { lookup_key: 'hg_plan_indie_2900' } }] } } } });
+const genSub = (user: string) => ({ type: 'customer.subscription.updated', data: { object: { id: 'sub_gen1', customer: 'cus_gen1', status: 'canceled', metadata: { product: 'gen', user_id: user } } } });
+
+test("another product's events are answered 200 and left alone", async () => {
+  assert.equal(B.productOf({ metadata: { product: 'gen' } }), 'gen');
+  assert.equal(B.productOf({ parent: { subscription_details: { metadata: { product: 'studio' } } } }), 'studio');
+  assert.equal(B.productOf({ lines: { data: [{ metadata: { product: 'gen' } }] } }), 'gen');
+  assert.equal(B.productOf({ metadata: {} }), null);
+  for (const e of [genCheckout('ustg_0000000000000001'), genInvoice('ustg_0000000000000001'), genSub('ustg_0000000000000001')]) {
+    const r = await deliver(e);
+    assert.equal(r.status, 200, `${e.type}: ${JSON.stringify(r.body)}`);
+    assert.equal(r.body.ignored, true);
+    assert.equal(r.body.why, 'product gen');
+  }
+});
+
 test('billing calls are limited per account', () => {
   const u = { id: `ustg_limit${Date.now()}` } as any;
   for (let i = 0; i < 10; i++) B.slowBilling(u);
@@ -125,6 +152,27 @@ test('packs, plans, failed payments and holds on staging', { skip: !ON && 'set G
   await t.test('a plan changed in the billing portal is read from the price', async () => {
     await hook({ type: 'customer.subscription.updated', data: { object: { id: `sub_${hex}`, customer: `cus_${hex}`, status: 'active', metadata: { user_id: uid, plan: 'indie' }, items: { data: [{ price: { lookup_key: 'hg_plan_team_9900' } }] } } } });
     assert.equal((await getUser(uid))!.plan, 'team');
+  });
+
+  await t.test("Gen's events for this account, and untagged ones for no account, change nothing (200)", async () => {
+    const before = await balance();
+    const rows = (await ledgerOf(uid).get()).size;
+    const plan = (await getUser(uid))!.plan;
+    for (const e of [genCheckout(uid), genInvoice(uid), genSub(uid)]) {
+      const r = await deliver(e);
+      assert.equal(r.status, 200);
+      assert.equal(r.body.ignored, true, `${e.type} ignored`);
+    }
+    const unknownInvoice = { type: 'invoice.paid', data: { object: { id: `in_test_nobody${hex}`, customer: `cus_nobody${hex}`, billing_reason: 'subscription_cycle', amount_paid: 2900, parent: { subscription_details: { subscription: `sub_nobody${hex}`, metadata: {} } }, lines: { data: [{ amount: 2900, price: { lookup_key: 'hg_plan_indie_2900' } }] } } } };
+    const unknownPack = { type: 'checkout.session.completed', data: { object: { id: `cs_test_nobody${hex}`, mode: 'payment', payment_status: 'paid', metadata: { user_id: `ustg_${'0'.repeat(15)}9`, credits: '1000' } } } };
+    const unknownSub = { type: 'customer.subscription.updated', data: { object: { id: `sub_nobody${hex}`, customer: `cus_nobody${hex}`, status: 'active', metadata: {} } } };
+    for (const e of [unknownInvoice, unknownPack, unknownSub]) {
+      const r = await deliver(e);
+      assert.equal(r.status, 200, `${e.type} for nobody: ${JSON.stringify(r.body)}`);
+    }
+    assert.equal(await balance(), before);
+    assert.equal((await ledgerOf(uid).get()).size, rows, 'no ledger rows');
+    assert.equal((await getUser(uid))!.plan, plan, "Gen's cancelled subscription leaves the portal plan alone");
   });
 
   await t.test('a failed job gives its credits back once; a hold with no job is given back after an hour', async () => {
