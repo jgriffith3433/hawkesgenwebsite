@@ -3,7 +3,7 @@
 // invoice adds the month's credits once (`once` key invoice:<id>), and subscription events keep the plan and its state.
 // The webhook itself is billing.ts's: this module registers its events on `subscriptionHandlers`.
 import { db, users, changeCredits } from './store.ts';
-import { env, publicUrl } from './config.ts';
+import { env, publicUrl, studioUrl } from './config.ts';
 import { stripe, rewardReferrer, subscriptionHandlers, slowBilling, termsLine, PRODUCT, notOurs } from './billing.ts';
 import { getUser, requireUser, type User } from './accounts.ts';
 import { PortalError, route, json } from './http.ts';
@@ -247,7 +247,7 @@ export async function subscriptionStats() {
 
 // ------------------------------------------------------------------ routes
 
-route('GET', '/v1/plans', () => ({ plans: offered(), aiCredits: AI_CREDITS() }));
+route('GET', '/v1/plans', () => ({ plans: offered(), aiCredits: AI_CREDITS(), studio: `${studioUrl()}/` }));
 route('GET', '/v1/billing/subscription', async ({ req }) => subscription(await requireUser(req)));
 route('POST', '/v1/billing/plan', async ({ req }) => choosePlan(await requireUser(req), json(req)));
 route('POST', '/v1/billing/cancel', async ({ req }) => setCancel(await requireUser(req), json(req).cancel !== false));

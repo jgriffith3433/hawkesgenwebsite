@@ -9,6 +9,7 @@ const ON = process.env.GOOGLE_CLOUD_PROJECT === 'hawkes-staging';
 // Settings the modules read (staging's own; nothing here sends mail or reaches Gen).
 process.env.PORTAL_PROJECT_PREFIX = 'ustg_';
 process.env.PUBLIC_URL = 'https://beta.hawkesgen.ai';
+process.env.PORTAL_STUDIO_URL = 'https://studio-beta.hawkesgen.ai/';
 const { newSigningKeyPem, loadSigningKeys, verifyPlatformToken, personalOrgId } = await import('../src/platform.ts');
 const PEM = newSigningKeyPem();
 process.env.PORTAL_PLATFORM_KEY = PEM; // defineSecret reads the environment
@@ -16,6 +17,26 @@ process.env.PORTAL_PLATFORM_KEY = PEM; // defineSecret reads the environment
 type U = import('../src/accounts.ts').User;
 const hex = () => `feed${crypto.randomBytes(6).toString('hex')}`;
 const made = { users: [] as string[], orgs: [] as string[], clients: [] as string[] };
+const FRONT = 'https://studio-beta.hawkesgen.ai/';
+
+test("Open Studio: the lane's front door, or an org's own Studio at /o/<id>/ (no Firestore)", async () => {
+  const { studioLink, STUDIO_ORG_RE } = await import('../src/orgs.ts');
+  const { handle } = await import('../src/http.ts');
+  assert.equal(studioLink(null), FRONT);
+  assert.equal(studioLink({ studio: null }), FRONT);
+  assert.equal(studioLink({ studio: 'acme-games-3f2a' }), 'https://studio-beta.hawkesgen.ai/o/acme-games-3f2a/');
+  for (const bad of ['../x', 'A', 'a/b', 'x'.repeat(64), '-a', 'a b']) {
+    assert.ok(!STUDIO_ORG_RE.test(bad), bad);
+    assert.equal(studioLink({ studio: bad }), FRONT, `a bad stored id is never put in a link: ${bad}`);
+  }
+  // Signed out, /studio is the front door (its sign-up), whatever org is asked for.
+  for (const path of ['/studio', '/studio?org=org_0123456789abcdef', '/studio?org=https://evil.example']) {
+    const res: any = { headersSent: false, statusCode: 0, headers: {} as Record<string, string>, status(s: number) { this.statusCode = s; return this; }, set(k: string, v: string) { this.headers[k] = v; return this; }, end() { this.headersSent = true; }, json() { this.headersSent = true; }, send() { this.headersSent = true; } };
+    await handle({ method: 'GET', url: path, originalUrl: path, headers: {}, socket: {} } as any, res);
+    assert.equal(res.statusCode, 302, path);
+    assert.equal(res.headers.Location, FRONT, path);
+  }
+});
 
 test('orgs, members and the platform token on staging', { skip: !ON && 'set GOOGLE_CLOUD_PROJECT=hawkes-staging' }, async (t) => {
   const { db, users, ledgerOf } = await import('../src/store.ts');
@@ -107,6 +128,27 @@ test('orgs, members and the platform token on staging', { skip: !ON && 'set GOOG
     assert.equal(d.members.length, 2);
     assert.equal(d.seats.used, 2);
     assert.equal(d.seats.of, 5);
+  });
+
+  await t.test('Open Studio: an org records its Studio id; members are sent there, others to the front door', async () => {
+    assert.equal((await O.myOrgs(ana)).map(O.publicOrg)[0].studio, FRONT, 'no Studio yet: the front door');
+    await assert.rejects(O.updateOrg(bo, team, { studio: 'test-team-ab12' }), (e: any) => e.status === 403, 'a member cannot set it');
+    await assert.rejects(O.updateOrg(ana, team, { studio: '../../evil' }), (e: any) => e.status === 400);
+    await assert.rejects(O.updateOrg(ana, team, {}), (e: any) => e.status === 400);
+    assert.deepEqual(await O.updateOrg(ana, team, { studio: 'Test-Team-AB12' }), { name: 'Test Team', studio: 'https://studio-beta.hawkesgen.ai/o/test-team-ab12/' });
+    const own = 'https://studio-beta.hawkesgen.ai/o/test-team-ab12/';
+    assert.equal((await O.orgDetail(bo, team)).studio, own, 'members see the link');
+    assert.equal(await O.studioFor(bo, team), own);
+    assert.equal(await O.studioFor(bo, null), own, 'no org asked: the first of theirs with a Studio');
+    assert.equal(await O.studioFor(sub, team), FRONT, 'not a member: the front door, nothing about the org');
+    assert.equal(await O.studioFor(sub, null), FRONT);
+    assert.equal(await O.studioFor(null, team), FRONT);
+    // Renaming keeps it; "" forgets it. A personal org can have one too.
+    assert.equal((await O.updateOrg(ana, team, { name: 'Test Team' })).studio, own);
+    assert.equal((await O.updateOrg(ana, team, { studio: '' })).studio, FRONT);
+    assert.equal(await O.studioFor(bo, team), FRONT);
+    assert.equal((await O.updateOrg(sub, personalOrgId(sub.id), { studio: 'solo-9c1d' })).studio, 'https://studio-beta.hawkesgen.ai/o/solo-9c1d/');
+    assert.equal(await O.studioFor(sub, null), 'https://studio-beta.hawkesgen.ai/o/solo-9c1d/');
   });
 
   await t.test('OAuth: scopes cut to the org picked; the token carries the org', async () => {

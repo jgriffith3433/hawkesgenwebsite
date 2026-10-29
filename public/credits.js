@@ -85,6 +85,8 @@ async function load(user) {
   if (cur.id !== 'free') acts.push('<button class="btn btn-secondary btn-sm" id="manage">Cards and invoices</button>');
   if (cur.id !== 'free' && !sub.cancelAtPeriodEnd) acts.push('<button class="btn btn-ghost btn-sm" id="cancel">Cancel plan</button>');
   if (sub.cancelAtPeriodEnd) acts.push('<button class="btn btn-secondary btn-sm" id="resume">Keep my plan</button>');
+  // Hawkes Studio: /studio sends you to your org's own Studio, or to its front door (Continue with Google, a short sign-up).
+  acts.push('<a class="btn btn-ghost btn-sm" href="/studio">Open Hawkes Studio</a>');
   $('planActions').innerHTML = acts.join('');
   if ($('manage')) $('manage').onclick = async () => { try { location.href = (await api('/v1/billing/portal', { body: {} })).url; } catch (e) { billError(e); } };
   if ($('cancel')) $('cancel').onclick = async () => { if (!confirm('Cancel your plan? It stays on until the end of the month you paid for, and your credits stay yours.')) return; try { await api('/v1/billing/cancel', { body: { cancel: true } }); location.reload(); } catch (e) { billError(e); } };

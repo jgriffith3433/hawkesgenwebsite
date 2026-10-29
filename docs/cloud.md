@@ -32,6 +32,7 @@ J, 2026-10-29: the portal follows Gen and Studio's lanes. `dev` deploys nothing;
 | Address (`PUBLIC_URL`) | https://beta.hawkesgen.ai (and hawkes-staging.web.app) | https://hawkesgen.ai |
 | Gen (`HAWKESGEN_URL`, secret `HAWKESGEN_KEY`) | https://gen-beta.hawkesgen.ai, key "portal (beta)" | https://gen.hawkesgen.ai, key "portal (live)" |
 | Hawkes Net (`PORTAL_NET_URL`, `PORTAL_NET_DASHBOARD`) | https://hawkesnet.hawkesgen.ai | https://net.hawkesgen.ai (the default) |
+| Hawkes Studio, "Open Studio" (`PORTAL_STUDIO_URL`) | https://studio-beta.hawkesgen.ai | https://studio.hawkesgen.ai (the default) |
 | Customers (`PORTAL_PROJECT_PREFIX`) | `ustg_` | `usr_` |
 | Stripe | test mode (`sk_test_…` and its webhook secret in Secret Manager; a live key is refused) | live |
 | Mail | none (`unset`) | on |
@@ -104,6 +105,22 @@ are pure functions in `platform.ts` (`test/platform.test.ts`); Firestore is `org
   `node cloud/setup-secrets.mjs --project <id> --only PORTAL_PLATFORM_KEY`). Rotate by putting a new PEM first and the
   old one after it (both are published), then dropping the old one after 10 minutes. Without the secret the JWKS is
   empty and minting answers 503.
+
+## Open Studio (2026-10-29)
+
+Customers' Studios are cells (hawkesstudio `docs/studio-customers.md`): an org's own Studio is
+`studio.hawkesgen.ai/o/<its Studio id>/`, and `studio.hawkesgen.ai` is the front door (Continue with Google; no Studio
+yet means a short sign-up). Every "Open Studio" link on the portal is **`/studio`** (orgs.ts), which redirects:
+- signed in, `?org=<org_…>` they are a member of with a Studio: that Studio's `/o/<id>/`;
+- signed in, no org asked: the first of their orgs (personal first) with a Studio;
+- otherwise (signed out, no Studio, not a member): the front door.
+The address is the lane's (`config.ts studioUrl`, `PORTAL_STUDIO_URL`: studio-beta on beta). Studio's org ids are its
+own (a slug and 4 hex), so an org records its Studio id in `orgs/{id}.studio`, set by its owners and admins with
+`PATCH /v1/orgs/<id> {"studio": "<id>"}` (`""` forgets it); `/v1/orgs` and the org page show it as `studio` (the link),
+`/v1/plans` carries the front door. It is only a link: the Studio checks who signs in, and no platform token rides along
+(Studio's own Google sign-in is the way in; the portal never linked to `/auth/platform`). Links: the plans' actions on
+`/app` and `/credits`, and the landing page's pricing notes. Tests `test/orgs.test.ts`, `test/lanes.test.ts`.
+Open: Studio's control plane could tell the portal an org's Studio id when it makes the cell (today an owner sets it).
 
 ## Admin: J alone (2026-10-29)
 
