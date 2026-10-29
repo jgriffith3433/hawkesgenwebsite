@@ -3,6 +3,7 @@
 //   node cloud/setup-secrets.mjs --project hawkes-staging            beta: its own key on gen-beta (ustg_*), no Stripe
 //   node cloud/setup-secrets.mjs --project hawkes-prod --from-box     live: the values the portal box has
 //   node cloud/setup-secrets.mjs --project hawkes-prod --resend C:/Projects/resend.txt --replace   Resend's sending key from a file
+//   node cloud/setup-secrets.mjs --project hawkes-staging --only PORTAL_PLATFORM_KEY   just the platform token's signing key
 //   (staging gets RESEND_API_KEY "unset": it sends no mail)
 import fs from 'node:fs';
 import os from 'node:os';
@@ -49,11 +50,15 @@ const values = {
   STRIPE_WEBHOOK_SECRET: async () => box.STRIPE_WEBHOOK_SECRET ?? 'unset',
   GOOGLE_CLIENT_SECRET: async () => box.GOOGLE_CLIENT_SECRET ?? readBox().GOOGLE_CLIENT_SECRET,
   PORTAL_SIGNING_KEY: async () => crypto.randomBytes(32).toString('base64url'),
+  // The platform token's Ed25519 key (functions/src/platform-token.ts), PKCS#8 PEM. To rotate: --replace with a new key
+  // first and the old one after it in the same secret (both are published in the JWKS), then drop the old one.
+  PORTAL_PLATFORM_KEY: async () => crypto.generateKeyPairSync('ed25519').privateKey.export({ format: 'pem', type: 'pkcs8' }),
   RESEND_API_KEY: async () => (arg('resend') ? fs.readFileSync(String(arg('resend')), 'utf8').trim().replace(/^[A-Za-z_ ]*[=:]\s*/, '') : 'unset'),
 };
 for (const [name, get] of Object.entries(values)) {
   const has = exists(name);
-  // --replace with --resend only replaces the Resend key; the others stay as they are.
+  // --replace with --resend only replaces the Resend key; --only NAME touches that one secret alone.
+  if (arg('only') && name !== arg('only')) continue;
   if (has && (!replace || (arg('resend') && name !== 'RESEND_API_KEY'))) { console.log(`${name}: kept`); continue; }
   const v = await get();
   const r = has ? run(['secrets', 'versions', 'add', name, '--data-file=-', '--project', project], v) : run(['secrets', 'create', name, '--data-file=-', '--replication-policy=automatic', '--project', project], v);

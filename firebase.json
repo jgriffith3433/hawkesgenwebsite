@@ -27,6 +27,7 @@
       { "source": "/avatars", "destination": "/avatars.html" },
       { "source": "/community", "destination": "/community.html" },
       { "source": "/oauth/authorize", "destination": "/authorize.html" },
+      { "source": "/orgs/join", "destination": "/org-join.html" },
       { "source": "/share/new", "destination": "/share.html" },
       { "source": "/client/hawkesgen.mjs", "destination": "/hawkesgen.mjs" },
       { "source": "/v1/**", "function": { "functionId": "api", "region": "us-east4" } },
@@ -43,7 +44,7 @@
     ],
     "headers": [
       { "source": "**/*.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
-      { "regex": "^/(home|app|app/studio|app/g/.*|app/join/.*|games|admin|credits|reset|auth/popup|legal|terms|privacy|refunds|connect|net|thanks|examples|entities|avatars|community|oauth/authorize|share/new)?$", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
+      { "regex": "^/(home|app|app/studio|app/g/.*|app/join/.*|games|admin|credits|reset|auth/popup|legal|terms|privacy|refunds|connect|net|thanks|examples|entities|avatars|community|oauth/authorize|orgs/join|share/new)?$", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
       { "source": "/vendor/**", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }, { "key": "Access-Control-Allow-Origin", "value": "*" }] },
       { "source": "/fonts/**", "headers": [{ "key": "Access-Control-Allow-Origin", "value": "*" }] },
       { "source": "/play/**/*.@(mjs|glb|json)", "headers": [{ "key": "Access-Control-Allow-Origin", "value": "*" }] },

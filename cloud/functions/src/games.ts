@@ -53,16 +53,8 @@ const fileKey = (path: string) => encodeURIComponent(path);
 const assetKey = (name: string) => encodeURIComponent(name);
 
 // ------------------------------------------------------------------ plans (src/plans.ts: what a plan allows here)
-export type Plan = { id: 'free' | 'maker' | 'pro'; name: string; priceCents: number; priceUsd: number; monthlyCredits: number; games: number; members: number; blurb: string };
-export const PLANS: Plan[] = [
-  { id: 'free', name: 'Free', priceCents: 0, priceUsd: 0, monthlyCredits: 0, games: 3, members: 3, blurb: 'Build and publish small games. Starter credits to try the AI.' },
-  { id: 'maker', name: 'Maker', priceCents: 1500, priceUsd: 15, monthlyCredits: 1500, games: 20, members: 8, blurb: '1,500 credits every month for AI help, art, models, sound and music.' },
-  { id: 'pro', name: 'Pro', priceCents: 4000, priceUsd: 40, monthlyCredits: 4500, games: 100, members: 25, blurb: '4,500 credits every month, room for a whole crew and many games.' },
-];
-export const planOf = (u: Pick<User, 'plan' | 'sub_status'> | null | undefined): Plan => {
-  const pid = u && ['active', 'trialing', 'past_due'].includes(String(u.sub_status)) ? u.plan : 'free';
-  return PLANS.find((p) => p.id === pid) ?? PLANS[0];
-};
+export { PLANS, planOf, type Plan } from './platform.ts';
+import { planOf } from './platform.ts';
 
 // ------------------------------------------------------------------ signed links (src/sign.ts's format, the portal's signing key)
 const b64 = (b: Buffer | string) => Buffer.from(b).toString('base64url');

@@ -10,6 +10,8 @@ import './billing.ts';
 import './jobs.ts';
 import './plans.ts';
 import './oauth.ts';
+import './orgs.ts';
+import './platform-token.ts';
 import './files.ts';
 import './tasks.ts';
 import './mcp.ts';

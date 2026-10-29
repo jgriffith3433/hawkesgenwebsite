@@ -1,10 +1,15 @@
 // OAuth 2.1 for MCP clients (Claude, Cursor, VS Code, ChatGPT...): the editor finds us (/.well-known/...), registers
 // itself (dynamic client registration), sends the customer to /oauth/authorize (sign in, then approve with a daily credit
 // limit), and swaps the code for tokens with PKCE (S256). Each approval is a connection the customer can see and revoke.
+// Scopes (platform.ts SCOPES: generate, playtest, backlog, build, agents) say what the app may do; the customer picks the
+// org it acts for (orgs.ts) and gets what was asked, cut to what that org's plan and their role allow. A token with no
+// scope asked gets `generate`, as every token did before scopes. Connections made before carry no org or scopes: they
+// are the account's personal org and `generate`.
 // Firestore (secrets are kept only as their sha256, the document id):
 //   oauthClients/{mcp_...}        a registered app: name, redirect_uris, created
-//   oauthCodes/{sha256(code)}     a code for one app and customer, five minutes, used once
-//   connections/{conn_...}        an approval: user_id, client_id, name, daily_cap (null: no limit), last_used, revoked
+//   oauthCodes/{sha256(code)}     a code for one app, customer and org, five minutes, used once
+//   connections/{conn_...}        an approval: user_id, org_id, scopes, client_id, name, daily_cap (null: no limit),
+//                                 last_used, revoked
 //   oauthTokens/{sha256(token)}   access (an hour) and refresh (90 days) tokens of a connection
 import crypto from 'node:crypto';
 import { db } from './store.ts';
@@ -13,6 +18,8 @@ import { getUser, requireUser, bearer, type User } from './accounts.ts';
 import { accessTokens, type Caller } from './caller.ts';
 import { spentToday } from './jobs.ts';
 import { id, sha256, PortalError, route, send, json, form, type Ctx } from './http.ts';
+import { myOrgs, orgContext } from './orgs.ts';
+import { SCOPES, SCOPE_INFO, parseScopes, grantScopes, personalOrgId, isScope, type Scope } from './platform.ts';
 
 const ACCESS_TTL = 3600;
 const REFRESH_TTL = 90 * 24 * 3600;
@@ -26,7 +33,7 @@ const tokens = () => db.collection('oauthTokens');
 export const resourceUrl = () => `${publicUrl()}/mcp`;
 
 export function protectedResourceMetadata() {
-  return { resource: resourceUrl(), authorization_servers: [publicUrl()], bearer_methods_supported: ['header'], scopes_supported: ['generate'], resource_name: 'Hawkes Gen' };
+  return { resource: resourceUrl(), authorization_servers: [publicUrl()], bearer_methods_supported: ['header'], scopes_supported: [...SCOPES], resource_name: 'Hawkes Gen' };
 }
 
 export function authorizationServerMetadata() {
@@ -37,11 +44,12 @@ export function authorizationServerMetadata() {
     token_endpoint: `${base}/oauth/token`,
     registration_endpoint: `${base}/oauth/register`,
     revocation_endpoint: `${base}/oauth/revoke`,
+    jwks_uri: `${base}/.well-known/jwks.json`,
     response_types_supported: ['code'],
     grant_types_supported: ['authorization_code', 'refresh_token'],
     code_challenge_methods_supported: ['S256'],
     token_endpoint_auth_methods_supported: ['none'],
-    scopes_supported: ['generate'],
+    scopes_supported: [...SCOPES],
     service_documentation: `${base}/connect`,
   };
 }
@@ -68,7 +76,7 @@ export async function registerClient(body: any) {
   const clientId = id('mcp_', 12);
   const now = Date.now();
   await clients().doc(clientId).create({ name, redirect_uris: uris, created: now });
-  return { client_id: clientId, client_id_issued_at: Math.floor(now / 1000), client_name: name, redirect_uris: uris, grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'], token_endpoint_auth_method: 'none', scope: 'generate' };
+  return { client_id: clientId, client_id_issued_at: Math.floor(now / 1000), client_name: name, redirect_uris: uris, grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'], token_endpoint_auth_method: 'none', scope: typeof body?.scope === 'string' ? parseScopes(body.scope).join(' ') : SCOPES.join(' ') };
 }
 
 /** A registered return address matches exactly, or, for a loopback http one, on any port (RFC 8252 7.3: desktop apps
@@ -100,15 +108,39 @@ export async function authorizeRequest(q: URLSearchParams) {
   if (q.get('code_challenge_method') !== 'S256' || !/^[A-Za-z0-9_-]{43,128}$/.test(q.get('code_challenge') ?? '')) throw new PortalError('PKCE (S256) is required');
   const resource = q.get('resource');
   if (resource && resource.replace(/\/+$/, '') !== resourceUrl() && resource.replace(/\/+$/, '') !== publicUrl()) throw new PortalError('Unknown resource');
-  return { client: { id: client.id, name: client.name }, redirect, state: q.get('state'), challenge: q.get('code_challenge')!, host: new URL(redirect).host || new URL(redirect).protocol.replace(':', '') };
+  return { client: { id: client.id, name: client.name }, redirect, state: q.get('state'), challenge: q.get('code_challenge')!, host: new URL(redirect).host || new URL(redirect).protocol.replace(':', ''), scopes: parseScopes(q.get('scope')) };
 }
 
-/** The customer said yes: a code for the app, back on its redirect. */
-export async function approve(user: User, q: URLSearchParams, dailyCap: unknown) {
+/**
+ * The consent screen: the request, what it asks in plain words, and each of the customer's orgs with what it would get
+ * there (the plan and their role decide; `missing` says why the rest is left out).
+ */
+export async function consentInfo(user: User, q: URLSearchParams) {
   const r = await authorizeRequest(q);
+  const orgs = await myOrgs(user);
+  return {
+    ...r,
+    scopes: r.scopes.map((s) => ({ id: s, label: SCOPE_INFO[s].label })),
+    orgs: orgs.map((o) => {
+      const granted = grantScopes(r.scopes, o.entitlements, o.role);
+      return {
+        id: o.org.id, name: o.org.name, personal: o.org.personal, role: o.role, plan: o.plan.name, granted,
+        missing: r.scopes.filter((s) => !granted.includes(s)).map((s) => ({ id: s, why: SCOPE_INFO[s].needs(o.entitlements) ? `needs the ${SCOPE_INFO[s].role} role or higher` : `comes with ${SCOPE_INFO[s].plan}` })),
+      };
+    }),
+  };
+}
+
+/** The customer said yes, for one of their orgs (none named: their personal org): a code for the app, back on its
+ *  redirect, carrying the scopes that org allows them. */
+export async function approve(user: User, q: URLSearchParams, dailyCap: unknown, orgId?: unknown) {
+  const r = await authorizeRequest(q);
+  const ctx = await orgContext(user, typeof orgId === 'string' && orgId ? orgId : null);
+  const scopes = grantScopes(r.scopes, ctx.entitlements, ctx.role);
+  if (!scopes.length) throw new PortalError(`${r.client.name} asks for what ${ctx.org.name} can't give on its ${ctx.plan.name} plan (or your ${ctx.role} role). Pick another org or upgrade.`, { status: 403, code: 'scope_not_allowed' });
   const cap = dailyCap === null || dailyCap === '' || dailyCap === undefined ? null : Math.max(0, Math.min(1_000_000, Math.round(Number(dailyCap))));
   const code = crypto.randomBytes(32).toString('base64url');
-  await codes().doc(sha256(code)).create({ client_id: r.client.id, user_id: user.id, redirect_uri: r.redirect, challenge: r.challenge, daily_cap: Number.isNaN(cap) ? DEFAULT_DAILY_CAP : cap, expires: Date.now() + 5 * 60_000, used: null });
+  await codes().doc(sha256(code)).create({ client_id: r.client.id, user_id: user.id, org_id: ctx.org.id, scopes, redirect_uri: r.redirect, challenge: r.challenge, daily_cap: Number.isNaN(cap) ? DEFAULT_DAILY_CAP : cap, expires: Date.now() + 5 * 60_000, used: null });
   const to = new URL(r.redirect);
   to.searchParams.set('code', code);
   if (r.state) to.searchParams.set('state', r.state);
@@ -124,14 +156,17 @@ export async function deny(q: URLSearchParams) {
   return to.toString();
 }
 
+/** A connection's scopes (one made before scopes: `generate`). */
+const scopesOf = (v: unknown): Scope[] => (Array.isArray(v) ? v.filter(isScope) : ['generate']);
+
 /** A new access and refresh token for a connection, written in the caller's transaction. */
-function issue(t: FirebaseFirestore.Transaction, connectionId: string) {
+function issue(t: FirebaseFirestore.Transaction, connectionId: string, scopes: Scope[]) {
   const access = `hgo_${crypto.randomBytes(32).toString('base64url')}`;
   const refresh = `hgr_${crypto.randomBytes(32).toString('base64url')}`;
   const now = Date.now();
   t.create(tokens().doc(sha256(access)), { connection_id: connectionId, kind: 'access', expires: now + ACCESS_TTL * 1000 });
   t.create(tokens().doc(sha256(refresh)), { connection_id: connectionId, kind: 'refresh', expires: now + REFRESH_TTL * 1000 });
-  return { access_token: access, token_type: 'Bearer', expires_in: ACCESS_TTL, refresh_token: refresh, scope: 'generate' };
+  return { access_token: access, token_type: 'Bearer', expires_in: ACCESS_TTL, refresh_token: refresh, scope: scopes.join(' ') };
 }
 
 export async function token(body: Record<string, string>) {
@@ -149,8 +184,9 @@ export async function token(body: Record<string, string>) {
       const client = await t.get(clients().doc(String(row.client_id)));
       const connId = id('conn_', 8);
       t.update(codeRef, { used: Date.now() });
-      t.create(connections().doc(connId), { user_id: row.user_id, client_id: row.client_id, name: client.exists ? client.get('name') : 'An MCP client', daily_cap: row.daily_cap ?? null, created: Date.now(), last_used: null, revoked: null });
-      return issue(t, connId);
+      const scopes = scopesOf(row.scopes);
+      t.create(connections().doc(connId), { user_id: row.user_id, org_id: row.org_id ?? null, scopes, client_id: row.client_id, name: client.exists ? client.get('name') : 'An MCP client', daily_cap: row.daily_cap ?? null, created: Date.now(), last_used: null, revoked: null });
+      return issue(t, connId, scopes);
     });
   }
   if (body.grant_type === 'refresh_token') {
@@ -162,7 +198,7 @@ export async function token(body: Record<string, string>) {
       const conn = await t.get(connections().doc(String(row.connection_id)));
       if (!conn.exists || conn.get('revoked') || row.expires < Date.now()) throw oauthError('invalid_grant', 'The refresh token is invalid or expired');
       t.delete(ref);
-      return issue(t, String(row.connection_id));
+      return issue(t, String(row.connection_id), scopesOf(conn.get('scopes')));
     });
   }
   throw oauthError('unsupported_grant_type', 'grant_type must be authorization_code or refresh_token');
@@ -183,13 +219,13 @@ export async function fromAccessToken(tokenValue: string): Promise<Caller | null
   const user = await getUser(String(conn.get('user_id')));
   if (!user || user.disabled) return null;
   void conn.ref.update({ last_used: Date.now() }).catch(() => {});
-  return { user, via: { kind: 'connection', id: conn.id, name: conn.get('name'), cap: (conn.get('daily_cap') ?? null) as number | null } };
+  return { user, via: { kind: 'connection', id: conn.id, name: conn.get('name'), cap: (conn.get('daily_cap') ?? null) as number | null, org: (conn.get('org_id') as string | null) || personalOrgId(user.id), scopes: scopesOf(conn.get('scopes')) } };
 }
 accessTokens.from = fromAccessToken;
 
 export async function listConnections(userId: string) {
   const s = await connections().where('user_id', '==', userId).where('revoked', '==', null).orderBy('created', 'desc').get();
-  return Promise.all(s.docs.map(async (d) => ({ id: d.id, name: d.get('name'), daily_cap: d.get('daily_cap') ?? null, created: d.get('created'), last_used: d.get('last_used') ?? null, spent_today: await spentToday(d.id) })));
+  return Promise.all(s.docs.map(async (d) => ({ id: d.id, name: d.get('name'), org_id: d.get('org_id') || personalOrgId(userId), scopes: scopesOf(d.get('scopes')), daily_cap: d.get('daily_cap') ?? null, created: d.get('created'), last_used: d.get('last_used') ?? null, spent_today: await spentToday(d.id) })));
 }
 
 export async function updateConnection(userId: string, connId: string, b: { daily_cap?: unknown; revoke?: unknown }) {
@@ -270,14 +306,14 @@ corsRoute('/oauth/revoke', async ({ req, res, method }) => {
 // ------------------------------------------------------------ the approve screen and connections (session or API key)
 
 // The approve screen (/oauth/authorize): what's asking, then yes or no. Session only: a token can't approve itself.
-route('GET', '/v1/oauth/request', async ({ req, url }) => { await requireUser(req); return authorizeRequest(url.searchParams); });
+route('GET', '/v1/oauth/request', async ({ req, url }) => consentInfo(await requireUser(req), url.searchParams));
 for (const p of ['/v1/oauth/approve', '/v1/oauth/deny']) {
   route('POST', p, async ({ req, route: path }) => {
     const user = await requireUser(req);
     if (bearer(req) || !String(req.headers['content-type'] ?? '').includes('application/json')) throw new PortalError('Approve from the browser', { status: 403 });
     const b = json(req);
     const q = new URLSearchParams(String(b.query ?? ''));
-    return { redirect: path.endsWith('approve') ? await approve(user, q, b.daily_cap) : await deny(q) };
+    return { redirect: path.endsWith('approve') ? await approve(user, q, b.daily_cap, b.org) : await deny(q) };
   });
 }
 route('GET', '/v1/connections', async ({ req }) => ({ connections: await listConnections((await requireUser(req)).id), default_daily_cap: DEFAULT_DAILY_CAP }));

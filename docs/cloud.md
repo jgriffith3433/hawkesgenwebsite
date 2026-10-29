@@ -65,8 +65,44 @@ J, 2026-10-29: the portal follows Gen and Studio's lanes. `dev` deploys nothing;
   signature). At most 32 MB: bigger uploads go through signed links.
 - **Cookies:** Hosting forwards only `__session`. The session is a Firebase session cookie there; nothing else may need
   a cookie (the old `hg_ref` / `hg_src` ride as query parameters on `/auth/google`).
-- **Tests:** `node --test` in `cloud/functions/test/`, against the staging project (no emulator on J's PC). Use
-  documents under test-only ids and delete them after.
+- **Tests:** `npm test` in `cloud/functions` (`GOOGLE_CLOUD_PROJECT=hawkes-staging` for the ones that use Firestore),
+  against the staging project (no emulator on J's PC). Use documents under test-only ids and delete them after.
+
+## Orgs, entitlements, scopes and the platform token (2026-10-29, platform Phase 0)
+
+The portal is the one account system for Gen, Studio and Net (hawkesstudio `docs/platform-plan.md`, 4.2). The rules
+are pure functions in `platform.ts` (`test/platform.test.ts`); Firestore is `orgs.ts`; the token is `platform-token.ts`.
+
+- **Orgs** (`orgs/{org_…}`, `orgMembers/{org}__{user}`, `orgInvites/{sha256(token)}`). Every account has a **personal
+  org**, `org_<the account's hex>`, made on first touch (`ensurePersonalOrg`: idempotent, safe under concurrency; or all
+  at once with `GOOGLE_CLOUD_PROJECT=<project> node tools/migrate-orgs.ts [--apply]` in `cloud/functions`). Its plan is
+  the owner's subscription, so Stripe bills accounts exactly as before. **Team orgs** are made by a person (their owner)
+  and carry their own `plan` / `sub_status`, set by a portal admin for now (`POST /v1/orgs/<id>/plan`); Stripe billing
+  per org is the next step. Roles: owner > admin > member > viewer (admins manage members and viewers only; the last
+  owner can't leave). Seats are everyone but viewers. Invites go by email (Resend where mail is on) with a link
+  `/orgs/join#<token>` (`public/org-join.html`) that only the invited Google account can accept; the inviter gets the
+  link too. Routes: `GET|POST /v1/orgs`, `GET|PATCH|DELETE /v1/orgs/<id>`, `POST /v1/orgs/<id>/invites`,
+  `DELETE /v1/orgs/<id>/invites/<id>`, `PATCH|DELETE /v1/orgs/<id>/members/<user>`, `POST /v1/orgs/invites/peek|accept`.
+- **Plans and entitlements** (`platform.ts PLANS`): free, indie (~$29), team (~$99), studio (~$299), with games, seats,
+  desktop minutes and monthly credits, and `entitlements` per product (`gen`, `studio`, `net`). **Prices and limits are
+  provisional.** `PORTAL_PLATFORM_PLANS=on` (beta only; `test/lanes.test.ts` keeps it off live) offers them; otherwise
+  free, maker and pro are offered as before. Maker and pro subscribers keep their plan either way (`legacy`). Hawkes
+  Net's live rooms are the `net` entitlement now (`hnet.ts`), not "any purchase": a paid plan, or a `grants.net` on the
+  personal org that the migration gives accounts that ever paid and every credit pack sets (`grantNetLive`).
+- **OAuth scopes** (`oauth.ts`): `generate`, `playtest`, `backlog`, `build`, `agents`, in plain words on the consent page
+  with an org picker for people in more than one org. A token gets what was asked, cut to what the picked org's plan
+  and the person's role allow; no scope asked means `generate` (as before). The connection keeps its `org_id` and
+  `scopes`; old connections read as the personal org with `generate`. A connection without `generate` can't run Gen
+  work here (`caller.ts`; `/mcp` answers 403 insufficient_scope) but can mint platform tokens.
+- **The platform token**: `POST /v1/platform/token` (a session, an `hg_` key, or an `hgo_` token; body `org`, `scope`,
+  `aud` optional) returns a JWT (EdDSA, Ed25519, 10 minutes): `iss` (this lane's `PUBLIC_URL`), `aud` (`hawkesgen`,
+  `hawkesstudio`, `hawkesnet`), `sub`/`user`, `org`, `project` (the Gen project), `role`, `plan`, `entitlements`,
+  `scopes`, `via`. A connection gets its own org and scopes only. Gen and Studio verify it with
+  **`/.well-known/jwks.json`** (also `jwks_uri` in the OAuth metadata) using `verifyPlatformToken` (copy it: it needs
+  only `node:crypto`), checking `iss` for their lane. The key is the secret **`PORTAL_PLATFORM_KEY`** (PKCS#8 PEM;
+  `node cloud/setup-secrets.mjs --project <id> --only PORTAL_PLATFORM_KEY`). Rotate by putting a new PEM first and the
+  old one after it (both are published), then dropping the old one after 10 minutes. Without the secret the JWKS is
+  empty and minting answers 503.
 
 ## Status
 
@@ -80,6 +116,7 @@ J, 2026-10-29: the portal follows Gen and Studio's lanes. `dev` deploys nothing;
 | Games, the assistant, scene, releases, members, invites, play pages, play assets, live feed | `games.ts`, `gameai.ts`, … | ported |
 | Community, kits, shares, LODs, templates, gallery, portfolio, demo, prices, analytics relay | `community.ts`, … | ported |
 | Admin, presence, friends, Hawkes Net tickets, health | `admin.ts`, `presence.ts`, `friends.ts`, `hnet.ts` | ported |
+| Orgs, members, invites, entitlements, OAuth scopes, the platform token (JWT + JWKS) | `platform.ts`, `orgs.ts`, `platform-token.ts` | new (2026-10-29), on beta first |
 | Sign-in buttons on the pages (Google only), data move from portal.db | `public/`, `cloud/migrate.mjs` | ported; the data move is being matched to each module |
 
 Staging: https://hawkes-staging.web.app (deployed 2026-10-28). Scheduled functions: settleJobs (2 min), advanceTasks (1 min),

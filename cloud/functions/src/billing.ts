@@ -7,6 +7,7 @@ import { env, publicUrl, SECRETS } from './config.ts';
 import { getUser, requireUser, REFERRAL_REWARD, type User } from './accounts.ts';
 import { id, PortalError, route, send } from './http.ts';
 import { sendLowBalance } from './mail.ts';
+import { grantNetLive } from './orgs.ts';
 
 export type Pack = { id: string; name: string; label: string; priceCents: number; priceUsd: number; credits: number; bonusPercent: number };
 export const PACKS: Pack[] = [
@@ -154,6 +155,8 @@ export async function stripeWebhook(rawBody: Buffer, header: string) {
   const after = bonus ? await changeCredits(userId, bonus, { kind: 'first_purchase_bonus', detail: `First purchase bonus (+${FIRST_PURCHASE_BONUS}%)` }, { once: `first_bonus:${userId}` }) : null;
   await users().doc(userId).update({ low_emailed: null, ...(typeof s.customer === 'string' ? { stripe_customer_id: s.customer } : {}) });
   await rewardReferrer(userId);
+  // Buying credits opens Hawkes Net's live rooms for the buyer's own games (orgs.ts grants; hnet.ts reads it).
+  await grantNetLive(userId).catch((e) => console.error('[portal] net grant:', e));
   return { ok: true, type: event.type, duplicate: false, creditsAdded: credits + (after ? bonus : 0), bonus: after ? bonus : 0, balance: (after ?? e).balance_after };
 }
 

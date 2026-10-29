@@ -29,7 +29,16 @@
           <dt>Credits</dt><dd id="credits"></dd>
           <dt>Returns to</dt><dd id="host"></dd>
         </dl>
-        <p class="muted" style="margin:0;font-size:14px">It will be able to run Hawkes Gen tools for you, which spend your credits, and read the files you make. It can't see your password or buy credits.</p>
+        <div class="form-field" id="orgField" hidden>
+          <label for="org">Acts for</label>
+          <select id="org" class="form-select"></select>
+        </div>
+        <div>
+          <p style="margin:0 0 6px;font-size:14px">It will be able to:</p>
+          <ul id="scopes" style="margin:0;padding-left:18px;font-size:14px"></ul>
+          <p class="muted" id="missing" style="margin:8px 0 0;font-size:13px" hidden></p>
+        </div>
+        <p class="muted" style="margin:0;font-size:13px">It can't see your password, buy credits or change your plan.</p>
         <div class="form-field">
           <label for="cap">Daily spending limit for this app</label>
           <select id="cap" class="form-select">
@@ -40,7 +49,7 @@
           </select>
         </div>
         <div style="display:flex;gap:10px">
-          <button class="btn btn-primary btn-lg" type="submit" style="flex:1">Allow</button>
+          <button class="btn btn-primary btn-lg" type="submit" id="allow" style="flex:1">Allow</button>
           <button class="btn btn-secondary btn-lg" type="button" id="deny">Cancel</button>
         </div>
         <p class="muted" style="margin:0;font-size:12.5px">Change the limit or disconnect any time at <a href="/connect">hawkesgen.ai/connect</a>.</p>
@@ -53,6 +62,7 @@
     const $ = (id) => document.getElementById(id);
     const query = location.search.slice(1);
     const fail = (m) => { $('err').textContent = m; $('err').hidden = false; };
+    const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
     const post = async (path, body) => {
       const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const d = await r.json().catch(() => ({}));
@@ -77,6 +87,22 @@
       $('signin').hidden = true;
       $('who').textContent = me.user.email;
       $('credits').textContent = `${Number(me.user.credits).toLocaleString()}`;
+      // Which org the app acts for: the plan and the person's role there decide what it gets.
+      const label = Object.fromEntries(req.scopes.map((s) => [s.id, s.label]));
+      const orgs = req.orgs || [];
+      $('org').innerHTML = orgs.map((o, i) => `<option value="${esc(o.id)}"${i === 0 ? ' selected' : ''}>${esc(o.personal ? `${o.name} (just you)` : o.name)} · ${esc(o.plan)}${o.personal ? '' : ` · ${esc(o.role)}`}</option>`).join('');
+      $('orgField').hidden = orgs.length < 2;
+      const show = () => {
+        const o = orgs.find((x) => x.id === $('org').value) || orgs[0];
+        const granted = o ? o.granted : req.scopes.map((s) => s.id);
+        $('scopes').innerHTML = granted.map((s) => `<li>${esc(label[s] || s)}</li>`).join('');
+        const miss = o ? o.missing : [];
+        $('missing').hidden = !miss.length;
+        $('missing').textContent = miss.length ? `Not in ${o.name}: ${miss.map((m) => `${(label[m.id] || m.id).replace(/^./, (c) => c.toLowerCase())} (${m.why})`).join('; ')}.` : '';
+        $('allow').disabled = !granted.length;
+      };
+      $('org').onchange = show;
+      show();
       $('consent').hidden = false;
     }
 
@@ -85,7 +111,7 @@
       e.preventDefault();
       try {
         const cap = $('cap').value;
-        const d = await post('/v1/oauth/approve', { query, daily_cap: cap === '' ? null : Number(cap) });
+        const d = await post('/v1/oauth/approve', { query, daily_cap: cap === '' ? null : Number(cap), org: $('org').value || null });
         $('consent').hidden = true;
         $('title').textContent = 'Connected';
         $('lede').textContent = 'You can go back to your editor now.';
