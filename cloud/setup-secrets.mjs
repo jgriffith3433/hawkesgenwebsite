@@ -1,6 +1,6 @@
 // Puts the portal's secrets into a Google Cloud project's Secret Manager (from J's PC). Values travel on stdin and are
 // never printed. Idempotent: an existing secret gets a new version only with --replace.
-//   node cloud/setup-secrets.mjs --project hawkes-staging            beta: its own key on gen-beta (ustg_*), no Stripe
+//   node cloud/setup-secrets.mjs --project hawkes-staging            beta: its own key on gen-beta (ustg_*); Stripe test keys are added by hand (docs/cloud.md)
 //   node cloud/setup-secrets.mjs --project hawkes-prod --from-box     live: the values the portal box has
 //   node cloud/setup-secrets.mjs --project hawkes-prod --resend C:/Projects/resend.txt --replace   Resend's sending key from a file
 //   node cloud/setup-secrets.mjs --project hawkes-staging --only PORTAL_PLATFORM_KEY   just the platform token's signing key

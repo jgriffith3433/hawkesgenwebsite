@@ -15,7 +15,7 @@ browser ──https──▶ Firebase Hosting (public/, CDN)
 ```
 
 - **Projects:** `hawkes-staging` (beta: https://beta.hawkesgen.ai and https://hawkes-staging.web.app, customers `ustg_…`,
-  gen-beta, beta Net, no Stripe) and `hawkes-prod` (hawkesgen.ai, customers `usr_…`). `.firebaserc` aliases `staging`
+  gen-beta, beta Net, Stripe in test mode) and `hawkes-prod` (hawkesgen.ai, customers `usr_…`). `.firebaserc` aliases `staging`
   and `prod`.
 - **Deploy:** `firebase deploy --only hosting,functions:portal,firestore --project staging` from the repo root. Live
   (`--project prod`) only after J's `DEPLOY hawkesgenwebsite`.
@@ -33,7 +33,8 @@ J, 2026-10-29: the portal follows Gen and Studio's lanes. `dev` deploys nothing;
 | Gen (`HAWKESGEN_URL`, secret `HAWKESGEN_KEY`) | https://gen-beta.hawkesgen.ai, key "portal (beta)" | https://gen.hawkesgen.ai, key "portal (live)" |
 | Hawkes Net (`PORTAL_NET_URL`, `PORTAL_NET_DASHBOARD`) | https://hawkesnet.hawkesgen.ai | https://net.hawkesgen.ai (the default) |
 | Customers (`PORTAL_PROJECT_PREFIX`) | `ustg_` | `usr_` |
-| Stripe, mail | none (`unset`) | on |
+| Stripe | test mode (`sk_test_…` and its webhook secret in Secret Manager; a live key is refused) | live |
+| Mail | none (`unset`) | on |
 
 - `cloud/functions/test/lanes.test.ts` checks both `.env` files (`node --test test/lanes.test.ts`, no keys needed).
 - `cloud/point-gen.mjs --project <id>` makes the lane's Gen key on that lane's Gen (it checks Gen's `/v1/health` `lane`)
@@ -103,6 +104,69 @@ are pure functions in `platform.ts` (`test/platform.test.ts`); Firestore is `org
   `node cloud/setup-secrets.mjs --project <id> --only PORTAL_PLATFORM_KEY`). Rotate by putting a new PEM first and the
   old one after it (both are published), then dropping the old one after 10 minutes. Without the secret the JWKS is
   empty and minting answers 503.
+
+## Admin: J alone (2026-10-29)
+
+Admin is never a stored role. `accounts.ts adminFrom(req)` decides it on every request: the `__session` cookie verified
+by Firebase (revocation checked), signed in with `google.com`, its email verified by Google and on **`PORTAL_ADMIN_EMAILS`**
+(comma-separated; unset means `piercehawkes3@gmail.com`; set but empty means nobody), and the same email as the portal
+account it maps to. A bearer token (an `hg_` key, an `hgo_` OAuth token) and a stream link are never an admin. Everything
+admin goes through it: `/admin` and `/v1/admin/*` (403 to anyone else), `/v1/health/details`, `POST /v1/orgs/<id>/plan`,
+taking back someone else's community thing or kit, and Hawkes Net's dashboard admin (`hnet.ts developerOf`). The
+`role` field on accounts stays in Firestore but grants nothing; `/v1/users/me` shows `role: "admin"` only on J's own
+session. `cloud/make-admin.mjs` is gone, and `/v1/admin/users/<id>/role` answers 410. Test: `test/admin.test.ts` (every
+admin route against nobody, a customer, a customer with `role: "admin"` set by hand, a key, a token: 403).
+
+## Production checklist (2026-10-29)
+
+**Verified in code and tests** (`npm test` in `cloud/functions` with `GOOGLE_CLOUD_PROJECT=hawkes-staging`: 31 pass):
+- Admin is J's Google sign-in alone (above). Orgs, entitlements and the platform token have no admin bypass: an org's
+  role is its `orgMembers` row, `orgContext` 404s a non-member, minting a token for an org needs membership, and the one
+  portal-admin action there (a team org's plan) uses `requireAdmin`.
+- Sign-in is Google only (`signInWithIdp`, a verified email required); email and password routes answer 410.
+- Packs: Checkout (`billing.ts checkout`), the signed webhook (HMAC, 5 minutes), credits once per session (`once`
+  `stripe:<session>`), the first-pack bonus once, and a retried delivery now finishes what a stopped one left (bonus,
+  referral, Net grant). Unpaid async sessions wait for `async_payment_succeeded`.
+- Plans: Checkout, `invoice.paid` gives a month's credits once per invoice (only a subscription's invoices; a one-off
+  invoice gives none), the plan is read from the price's lookup key (a change made in Stripe's billing portal counts),
+  cancel and resume (`cancel_at_period_end`), Stripe's billing portal (`/v1/billing/portal`).
+- Failed payments: Stripe marks the subscription `past_due` (the plan holds while Stripe retries the card: the grace
+  period in `platform.ts planOf`); no month's credits until an invoice is paid; when Stripe gives up the subscription is
+  deleted or `unpaid` and the plan is free. Credits already given always stay.
+- Holds for Gen work: a failed or cancelled job's refund is now in the same transaction as its end (no settled job with
+  its credits kept), once; a hold no job was ever attached to (the function stopped before Gen answered) is given back
+  after an hour by the 2-minute sweep (`releaseOrphanHolds`).
+- Limits: sign-ins 20 per 15 minutes and sign-ups 5 an hour per address; checkouts, plan changes, cancel and billing
+  portal 10 per 10 minutes per account (new). Checkout shows a line linking `/terms`, `/privacy` and `/refunds` above
+  the pay button (`custom_text`).
+- Beta reads `STRIPE_SECRET_KEY` (a `sk_test_` key, checked 2026-10-29) and `STRIPE_WEBHOOK_SECRET` from hawkes-staging's
+  Secret Manager (the `api` function binds every secret in `config.ts SECRETS` at deploy); a live key there is refused.
+
+**Left (not done):**
+- Limits are per function instance (in memory), so soft. A hard limit on sign-in, sign-up and checkout needs Firestore
+  counters or a Cloudflare / Cloud Armor rate rule.
+- Starter credits (50) go to every new Google account: one per Google email, but nothing stops many Google accounts.
+  Options: fewer, only after a first purchase, or Turnstile on sign-up.
+- Refunds and disputes: `charge.refunded` and `charge.dispute.created` are not handled, so credits stay after a refund
+  made in Stripe. Take them back by hand in `/admin` for now.
+- Receipts: the portal sends no purchase email. Turn on Stripe's "successful payments" and "failed payments" customer
+  emails (live mode; test mode sends none to customers).
+- Packs and plans are billed per account; team orgs' plans are still set by J (`/v1/orgs/<id>/plan`), not Stripe.
+
+**J's steps for a test-card purchase on beta:**
+1. Stripe dashboard, **test mode**: Developers > Webhooks: an endpoint `https://beta.hawkesgen.ai/v1/billing/webhook` with
+   `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `invoice.paid`,
+   `customer.subscription.created`, `.updated`, `.deleted`. Its signing secret must be hawkes-staging's
+   `STRIPE_WEBHOOK_SECRET` (else add it as a new version of that secret). Settings > Billing > Customer portal: save it
+   once in test mode (the portal link fails until then). Settings > Subscriptions: after all retries fail, cancel.
+2. Deploy beta (push `dev` to `beta`: `deploy-beta.bat`); the secrets bind at deploy.
+3. Sign in at https://beta.hawkesgen.ai with Google, open `/credits`, buy the Starter pack with card `4242 4242 4242 4242`,
+   any future date, any CVC and ZIP. Back in `/app`: 1,000 credits and the 250 first-purchase bonus in the ledger.
+4. Subscribe to Indie (beta offers the platform plans) with the same card: 1,500 credits and the plan. Manage billing
+   opens Stripe's portal; cancel there or in `/credits` (ends at the period's end), choose the plan again to resume.
+5. A failed payment: in the portal, change the card to `4000 0000 0000 0341` (attaches, then declines), then in the
+   dashboard advance the subscription with a test clock or "Create invoice" > charge: it goes `past_due`, no credits.
+6. Check: the webhook endpoint shows 200s; `/admin` > Purchases lists the pack.
 
 ## Status
 

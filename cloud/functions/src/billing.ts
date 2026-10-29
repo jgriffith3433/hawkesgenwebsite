@@ -3,9 +3,9 @@
 // paid, a hold given back) is a `once` document created in that transaction.
 import crypto from 'node:crypto';
 import { db, users, ledgerOf, changeCredits, happened } from './store.ts';
-import { env, publicUrl, SECRETS } from './config.ts';
+import { env, publicUrl, isLive, SECRETS } from './config.ts';
 import { getUser, requireUser, REFERRAL_REWARD, type User } from './accounts.ts';
-import { id, PortalError, route, send } from './http.ts';
+import { id, PortalError, route, send, Limiter } from './http.ts';
 import { sendLowBalance } from './mail.ts';
 import { grantNetLive } from './orgs.ts';
 
@@ -19,7 +19,13 @@ export const PACKS: Pack[] = [
 export const FIRST_PURCHASE_BONUS = 25;
 export const LOW_BALANCE = 10;
 
-const stripeSecret = () => { const k = SECRETS.stripeSecret.value(); return k && k !== 'unset' ? k : null; };
+/** The Stripe key this lane may use: none for "unset", and never a live key on beta (beta never touches live money). */
+export function usableStripeKey(k: string | undefined | null, live = isLive()) {
+  if (!k || k === 'unset') return null;
+  if (!live && /_live_/.test(k)) { console.error('[portal] a live Stripe key on beta: refused'); return null; }
+  return k;
+}
+const stripeSecret = () => usableStripeKey(SECRETS.stripeSecret.value());
 const webhookSecret = () => { const k = SECRETS.stripeWebhook.value(); return k && k !== 'unset' ? k : null; };
 export const stripeBase = () => (env('STRIPE_API_BASE') ?? 'https://api.stripe.com').replace(/\/+$/, '');
 export function stripeStatus() {
@@ -43,6 +49,13 @@ export async function stripe(path: string, form?: URLSearchParams, method?: stri
   return data;
 }
 
+/** Checkouts, plan changes and billing-portal links per account (each one is a call to Stripe). */
+export const billingCalls = new Limiter(10, 10 * 60_000);
+export const slowBilling = (user: User) => billingCalls.take(user.id, 'Too many payment pages at once; wait a few minutes');
+
+/** The line above Stripe Checkout's pay button: what paying agrees to (the site's own pages). */
+export const termsLine = () => `By paying you agree to our [Terms](${publicUrl()}/terms) and [Privacy Policy](${publicUrl()}/privacy). See also our [Refunds](${publicUrl()}/refunds) policy.`;
+
 export const hasBought = async (userId: string) => !(await ledgerOf(userId).where('kind', '==', 'stripe_purchase').limit(1).get()).empty;
 
 // ------------------------------------------------------------ holds: credits taken for work sent to Gen
@@ -60,7 +73,7 @@ export async function hold(userId: string, credits: number, detail: string) {
   const holdId = id('hold_', 6);
   const n = Math.max(0, Math.round(credits));
   const e = await changeCredits(userId, -n, { kind: 'job_reserve', detail, job_id: holdId }, { once: `reserve:${holdId}` });
-  await db.collection('holds').doc(holdId).create({ user: userId, credits: n, tx: e!.id, job: null, created: Date.now() });
+  await db.collection('holds').doc(holdId).create({ user: userId, credits: n, tx: e!.id, job: null, created: Date.now(), released: null });
   await lowBalance(userId);
   return holdId;
 }
@@ -76,7 +89,32 @@ export async function release(holdOrJob: string, reason: string) {
     h = q.empty ? null : q.docs[0];
   }
   if (!h?.exists || !h.get('credits')) return null;
-  return changeCredits(h.get('user'), Number(h.get('credits')), { kind: 'job_refund', detail: reason, job_id: h.get('job') ?? h.id }, { once: `refund:${h.id}` });
+  const e = await changeCredits(h.get('user'), Number(h.get('credits')), { kind: 'job_refund', detail: reason, job_id: h.get('job') ?? h.id }, { once: `refund:${h.id}` });
+  await h.ref.update({ released: Date.now() }).catch(() => {});
+  return e;
+}
+
+/** A hold's refund inside the caller's transaction (jobs.ts settle: a job's end and its refund are one write). It reads
+ *  first, so call it before the transaction writes anything. */
+export async function releaseIn(t: FirebaseFirestore.Transaction, holdId: string, reason: string) {
+  const ref = db.collection('holds').doc(holdId);
+  const h = await t.get(ref);
+  if (!h.exists || !h.get('credits')) return null;
+  const e = await changeCredits(h.get('user'), Number(h.get('credits')), { kind: 'job_refund', detail: reason, job_id: h.get('job') ?? h.id }, { once: `refund:${h.id}`, t });
+  if (e) t.update(ref, { released: Date.now() });
+  return e;
+}
+
+/** Holds no job was ever attached to (the function stopped between taking the credits and Gen's answer), after an
+ *  hour: given back, once. The customer may have had that work free; they never pay for nothing. */
+export async function releaseOrphanHolds(now = Date.now()) {
+  const s = await db.collection('holds').where('job', '==', null).where('released', '==', null).limit(200).get();
+  let n = 0;
+  for (const d of s.docs) {
+    if (Number(d.get('created')) > now - 3600_000) continue;
+    if (await release(d.id, 'Not started: credits returned')) n++;
+  }
+  return n;
 }
 
 export async function ledger(userId: string, limit = 100) {
@@ -91,6 +129,7 @@ export async function ledger(userId: string, limit = 100) {
 export async function checkout(user: User, body: { packId?: unknown; successUrl?: unknown; cancelUrl?: unknown }) {
   const pack = PACKS.find((p) => p.id === String(body.packId ?? ''));
   if (!pack) throw new PortalError(`Unknown credit pack. Choose one of: ${PACKS.map((p) => p.id).join(', ')}`);
+  slowBilling(user);
   const site = publicUrl();
   const ours = (u: unknown) => (typeof u === 'string' && u.startsWith(`${site}/`) ? u : null);
   const form = new URLSearchParams({
@@ -101,6 +140,7 @@ export async function checkout(user: User, body: { packId?: unknown; successUrl?
     'line_items[0][quantity]': '1', 'line_items[0][price_data][currency]': 'usd', 'line_items[0][price_data][unit_amount]': String(pack.priceCents),
     'line_items[0][price_data][product_data][name]': pack.label,
     'line_items[0][price_data][product_data][description]': `${pack.credits.toLocaleString('en-US')} Hawkes Gen generation credits`,
+    'custom_text[submit][message]': termsLine(),
   });
   if (user.stripe_customer_id) { form.delete('customer_email'); form.set('customer', user.stripe_customer_id); }
   const data = await stripe('/v1/checkout/sessions', form);
@@ -148,15 +188,18 @@ export async function stripeWebhook(rawBody: Buffer, header: string) {
   const sessionId = String(s.id ?? '');
   if (!userId || !sessionId || credits <= 0) throw new PortalError('Checkout session is missing user_id, credits or id');
   const pack = PACKS.find((p) => p.id === s.metadata?.pack_id);
-  const first = !(await hasBought(userId));
   const e = await changeCredits(userId, credits, { kind: 'stripe_purchase', detail: pack ? `Purchased ${pack.label}` : `Credit purchase (+${credits})`, stripe_session_id: sessionId }, { once: `stripe:${sessionId}` });
-  if (!e) return { ok: true, type: event.type, duplicate: true, creditsAdded: 0, balance: (await getUser(userId))?.credits ?? null };
+  // What follows the credits is idempotent, so a retried event (Stripe retries until we answer 200) finishes a delivery
+  // that stopped half way. The first-purchase bonus is this session's when no other session ever paid.
+  const bought = (await ledgerOf(userId).where('kind', '==', 'stripe_purchase').limit(2).get()).docs;
+  const first = bought.every((d) => d.get('stripe_session_id') === sessionId);
   const bonus = first ? Math.round((credits * FIRST_PURCHASE_BONUS) / 100) : 0;
   const after = bonus ? await changeCredits(userId, bonus, { kind: 'first_purchase_bonus', detail: `First purchase bonus (+${FIRST_PURCHASE_BONUS}%)` }, { once: `first_bonus:${userId}` }) : null;
   await users().doc(userId).update({ low_emailed: null, ...(typeof s.customer === 'string' ? { stripe_customer_id: s.customer } : {}) });
   await rewardReferrer(userId);
   // Buying credits opens Hawkes Net's live rooms for the buyer's own games (orgs.ts grants; hnet.ts reads it).
   await grantNetLive(userId).catch((e) => console.error('[portal] net grant:', e));
+  if (!e) return { ok: true, type: event.type, duplicate: true, creditsAdded: after ? bonus : 0, balance: (await getUser(userId))?.credits ?? null };
   return { ok: true, type: event.type, duplicate: false, creditsAdded: credits + (after ? bonus : 0), bonus: after ? bonus : 0, balance: (after ?? e).balance_after };
 }
 

@@ -1,6 +1,7 @@
 // What an admin sees and does (/admin; src/admin.ts): the business at a glance, every account with its ledger and jobs,
-// credit adjustments and gifts, disabling an account, roles. Every change of credits is a ledger row (store.ts
-// changeCredits). /v1/admin/* answers 404 to anyone but an admin.
+// credit adjustments and gifts, disabling an account. Every change of credits is a ledger row (store.ts changeCredits).
+// /v1/admin/* answers 403 to anyone but an admin, who is J's Google sign-in alone (accounts.ts adminFrom); roles are
+// not set here any more (a stored role grants nothing).
 // Not here: reports and hiding games (/v1/admin/reports, /v1/admin/games/<id>/hide|unhide) are the games area's, the
 // starter sync (/v1/admin/community/sync) the community area's. Password links are gone (Google only): 410.
 // Firestore has no joins, LIKE or GROUP BY: counts and sums are aggregation queries, the search reads the accounts and
@@ -9,18 +10,12 @@
 import { db, users, ledgerOf, changeCredits, auth } from './store.ts';
 import { USER_ID } from './config.ts';
 import { PACKS } from './billing.ts';
-import { getUser, requireUser, toPublicUser, type User } from './accounts.ts';
+import { getUser, requireAdmin, toPublicUser, adminEmails, type User } from './accounts.ts';
 import { PortalError, route, send, json } from './http.ts';
 import { AggregateField } from 'firebase-admin/firestore';
 import { sendGift } from './mail.ts';
 
 const DAY = 24 * 3600_000;
-
-async function requireAdmin(req: Parameters<typeof requireUser>[0]) {
-  const user = await requireUser(req);
-  if (user.role !== 'admin') throw new PortalError('Not found', { status: 404 });
-  return user;
-}
 
 // What a purchase paid, from its pack (credits bought -> the pack's price).
 const centsFor = (credits: number) => PACKS.find((p) => p.credits === credits)?.priceCents ?? credits;
@@ -68,7 +63,7 @@ export async function overview() {
 async function listRow(u: User) {
   const jobs = db.collection('jobs').where('user_id', '==', u.id);
   return {
-    id: u.id, email: u.email, name: u.name, credits: u.credits, role: u.role, disabled: u.disabled ? 1 : 0, created: u.created, last_login: u.last_login,
+    id: u.id, email: u.email, name: u.name, credits: u.credits, role: adminEmails().includes(String(u.email).toLowerCase()) ? 'admin' : 'customer', disabled: u.disabled ? 1 : 0, created: u.created, last_login: u.last_login,
     plan: u.plan ?? 'free', sub_status: u.sub_status ?? null, source: u.source ?? null,
     games: await count(db.collection('games').where('owner_id', '==', u.id)),
     jobs: await count(jobs),
@@ -118,7 +113,7 @@ export async function userDetail(userId: string) {
   const keys = (await docs(db.collection('apiKeys').where('user_id', '==', userId))).sort(byNewest);
   return {
     user: {
-      ...toPublicUser(u), disabled: Boolean(u.disabled), stripe_customer_id: u.stripe_customer_id ?? null,
+      ...toPublicUser(u, adminEmails().includes(String(u.email).toLowerCase())), disabled: Boolean(u.disabled), stripe_customer_id: u.stripe_customer_id ?? null,
       sub_status: u.sub_status ?? null, period_end: u.period_end ?? null, cancel_at_period_end: Boolean(u.cancel_at_period_end),
       source: u.source ?? null, google: Boolean(x.uid || x.google_sub), look,
       referrer: referrer ? { id: referrer.id, email: referrer.email } : null, referral_paid: Boolean(u.referral_paid),
@@ -194,14 +189,6 @@ export async function setDisabled(admin: User, userId: string, disabled: boolean
   return (await userDetail(userId)).user;
 }
 
-export async function setRole(admin: User, userId: string, role: unknown) {
-  if (role !== 'admin' && role !== 'customer') throw new PortalError('Role is admin or customer');
-  if (userId === admin.id && role !== 'admin') throw new PortalError("You can't remove your own admin role");
-  if (!(await getUser(userId))) throw new PortalError('No such account', { status: 404 });
-  await users().doc(userId).update({ role });
-  return (await userDetail(userId)).user;
-}
-
 export async function recentJobs(limit = 100) {
   const s = await db.collection('jobs').orderBy('created', 'desc').limit(Math.max(1, Math.min(500, limit))).get();
   const ids = [...new Set(s.docs.map((d) => String(d.get('user_id'))))];
@@ -235,7 +222,8 @@ route('POST', new RegExp(`^/v1/admin/users/(${USER_ID})/(credits|gift|disable|en
   if (what === 'credits') return adjustCredits(admin, userId, b.delta, b.note);
   if (what === 'gift') return giftCredits(admin, userId, b.credits, b.message);
   if (what === 'disable' || what === 'enable') return setDisabled(admin, userId, what === 'disable');
-  if (what === 'role') return setRole(admin, userId, b.role);
+  // Roles: admin is PORTAL_ADMIN_EMAILS on a Google sign-in, never a stored role, so there is none to set.
+  if (what === 'role') return send(res, 410, { error: 'Admin comes from PORTAL_ADMIN_EMAILS (a Google sign-in), not a role on the account.', code: 'admin_by_email' });
   // Password links: signing in is Google only, so there is no password to set.
   send(res, 410, { error: 'There are no passwords any more: they sign in with Google, with the same email as their account.', code: 'google_only' });
 });

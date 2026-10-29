@@ -23,6 +23,13 @@ test('beta (hawkes-staging) uses gen-beta, beta Net and its own customers', () =
   for (const k of ['PORTAL_NET_HOSTS', 'PORTAL_CDN_HOSTS']) for (const h of (env[k] ?? '').split(',').filter(Boolean)) assert.doesNotMatch(h, /\/\/(net|gen)\.hawkesgen\.ai/, `${k} names a live host`);
 });
 
+test("admin is J's address on both lanes (accounts.ts adminEmails: unset means piercehawkes3@gmail.com)", () => {
+  for (const project of ['hawkes-staging', 'hawkes-prod']) {
+    const v = read(project).PORTAL_ADMIN_EMAILS;
+    if (v !== undefined) assert.equal(v.trim().toLowerCase(), 'piercehawkes3@gmail.com', `${project} names another admin: ${v}`);
+  }
+});
+
 test('live (hawkes-prod) uses live Gen and live Net, never a beta one', () => {
   const env = read('hawkes-prod');
   assert.equal(host(env, 'HAWKESGEN_URL', 'https://gen.hawkesgen.ai'), 'gen.hawkesgen.ai');

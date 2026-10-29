@@ -20,7 +20,7 @@ import { genHeaders, type GenCall } from './gen.ts';
 import { verify } from './sign.ts';
 import { db } from './store.ts';
 import { PortalError, Limiter, route, send, json, redirect } from './http.ts';
-import { getUser, requireUser, profile, type User } from './accounts.ts';
+import { getUser, requireUser, adminFrom, profile, type User } from './accounts.ts';
 import { orgContext } from './orgs.ts';
 
 export const NET_PROJECT = 'hawkesgenwebsite';
@@ -161,7 +161,7 @@ const paid = async (user: User) => (await orgContext(user)).entitlements.net.roo
  * one of their Hawkes Net projects, the portal's key narrowed to their account.
  */
 export async function customerTicket(user: User, body: any) {
-  if (user.role !== 'admin' && !(await paid(user))) throw new PortalError('Hawkes Net for your own games needs an account that has bought credits or a plan', { status: 402 });
+  if (!(await paid(user))) throw new PortalError('Hawkes Net for your own games needs an account that has bought credits or a plan', { status: 402 });
   customerTickets.take(user.id, 'Too many tickets a minute for this account');
   const project = String(body?.project ?? '');
   if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(project)) throw new PortalError('project is your Hawkes Net project id (net.hawkesgen.ai)');
@@ -175,7 +175,16 @@ export async function customerTicket(user: User, body: any) {
 
 // ------------------------------------------------------------ Hawkes Net projects (the net.hawkesgen.ai dashboard)
 
-const who = async (user: User) => ({ owner: user.project, admin: user.role === 'admin', tier: user.role === 'admin' || (await paid(user)) ? 'paid' : 'free' });
+// Admin on the Net dashboard is J's Google sign-in on this request (accounts.ts adminFrom), never a stored role: the
+// routes mark the account object they loaded for this one request (`developerOf`), and nothing else adds to the set.
+const netAdmins = new WeakSet<User>();
+const isNetAdmin = (user: User) => netAdmins.has(user);
+async function developerOf(req: Request) {
+  const user = await requireUser(req);
+  if (await adminFrom(req)) netAdmins.add(user);
+  return user;
+}
+const who = async (user: User) => ({ owner: user.project, admin: isNetAdmin(user), tier: isNetAdmin(user) || (await paid(user)) ? 'paid' : 'free' });
 const whoQuery = async (user: User) => { const w = await who(user); return `owner=${encodeURIComponent(w.owner)}&admin=${w.admin}&tier=${w.tier}`; };
 const PID = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
 const pid = (id: string) => { if (!PID.test(id)) throw new PortalError('No such project', { status: 404 }); return encodeURIComponent(id); };
@@ -184,7 +193,7 @@ const slow = (user: User) => projectCalls.take(user.id, 'Too many requests a min
 
 export async function projects(user: User, all = false) {
   slow(user);
-  return net(`/v1/net/projects?${await whoQuery(user)}${all && user.role === 'admin' ? '&all=1' : ''}`);
+  return net(`/v1/net/projects?${await whoQuery(user)}${all && isNetAdmin(user) ? '&all=1' : ''}`);
 }
 export async function createProject(user: User, body: any) {
   slow(user);
@@ -211,7 +220,7 @@ export async function deleteProject(user: User, id: string) {
   return net(`/v1/net/projects/${pid(id)}?${await whoQuery(user)}`, { method: 'DELETE' });
 }
 export async function claimProject(user: User, id: string) {
-  if (user.role !== 'admin') throw new PortalError('Only an admin takes one of Hawkes\'s games', { status: 403 });
+  if (!isNetAdmin(user)) throw new PortalError('Only an admin takes one of Hawkes\'s games', { status: 403 });
   return net(`/v1/net/projects/${pid(id)}/claim`, { body: await who(user) });
 }
 export async function roomPlayers(user: User, id: string, room: string) {
@@ -301,7 +310,7 @@ route('POST', '/v1/net/ticket', async ({ req, res, ip }) => { ticketCors(res); r
 
 // A customer's own game: a ticket in their own project, from their game's server (their API key).
 route('POST', '/v1/net/rooms/ticket', async ({ req }) => customerTicket(await requireUser(req), json(req)));
-route('GET', '/v1/net/me', async ({ req, res }) => { netDashboardCors(req, res); return developer(await requireUser(req)); });
+route('GET', '/v1/net/me', async ({ req, res }) => { netDashboardCors(req, res); return developer(await developerOf(req)); });
 
 // Projects: the signed-in account's own. Writes are JSON only: a form on another site can't send one without asking
 // first, and CORS lets only the Net dashboard.
@@ -309,7 +318,7 @@ const NP = /^\/v1\/net\/projects(?:\/([^/]+)(?:\/(claim|rooms)(?:\/(.+?)(?:\/(ki
 for (const method of ['GET', 'POST', 'DELETE', 'PUT', 'PATCH']) {
   route(method, NP, async ({ req, res, url, params }) => {
     netDashboardCors(req, res);
-    const user = await requireUser(req);
+    const user = await developerOf(req);
     const [id, part, roomRaw, kickIt] = params;
     const room = roomRaw ? decodeURIComponent(roomRaw) : '';
     const body = () => { if (!String(req.headers['content-type'] ?? '').includes('application/json')) throw new PortalError('Send JSON', { status: 415 }); return json(req); };

@@ -7,7 +7,7 @@ import { db } from './store.ts';
 import { genUrl, env } from './config.ts';
 import { genFetch } from './gen.ts';
 import { netUrl } from './hnet.ts';
-import { authenticate } from './accounts.ts';
+import { adminFrom } from './accounts.ts';
 import { route, send } from './http.ts';
 
 const started = Date.now();
@@ -55,6 +55,6 @@ export async function details() {
 }
 
 route('GET', '/v1/health/details', async ({ req, res }) => {
-  if ((await authenticate(req))?.role !== 'admin') return send(res, 404, { error: 'Not found' });
+  if (!(await adminFrom(req))) return send(res, 403, { error: 'Admins only', code: 'not_admin' });
   return details();
 });

@@ -22,7 +22,7 @@ import type { Transaction } from 'firebase-admin/firestore';
 import { db, users, FieldValue } from './store.ts';
 import { gen, genHeaders } from './gen.ts';
 import { env, SECRETS, USER_ID } from './config.ts';
-import { getUser, requireUser, type User } from './accounts.ts';
+import { getUser, requireUser, requireAdmin, type User } from './accounts.ts';
 import { id, PortalError, route, send, json } from './http.ts';
 import { applyOps, parseScene, sceneText } from './scene.ts';
 import { wordsOf } from './words.ts';
@@ -1036,12 +1036,7 @@ route('DELETE', new RegExp(`^/v1/games/${G}/members/(${USER_ID})$`), async ({ re
 route('GET', new RegExp(`^/v1/games/${G}/chat$`), async ({ req, url, params }) => chatHistory(await requireUser(req), params[0], Number(url.searchParams.get('limit')) || 80));
 route('POST', new RegExp(`^/v1/games/${G}/chat$`), async ({ req, params }) => postChat(await requireUser(req), params[0], body(req).text));
 
-// Admin (reports and closing worlds): anyone else gets a 404, as /v1/admin/* does.
-async function requireAdmin(req: any) {
-  const u = await requireUser(req).catch(() => null);
-  if (!u || u.role !== 'admin') throw new PortalError('Not found', { status: 404 });
-  return u;
-}
+// Admin (reports and closing worlds): J's Google sign-in alone (accounts.ts requireAdmin); anyone else gets a 403.
 route('GET', '/v1/admin/reports', async ({ req }) => { await requireAdmin(req); return reportedGames(); });
 route('POST', /^\/v1\/admin\/games\/(g_[\w-]+)\/(hide|unhide)$/, async ({ req, params }) => {
   const admin = await requireAdmin(req);
