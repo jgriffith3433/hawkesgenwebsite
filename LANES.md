@@ -9,7 +9,7 @@ Agents' fixes land on `beta` (pull requests Studio merges); `sync.bat` brings th
 | | Address |
 |---|---|
 | Local | [http://127.0.0.1:8800](http://127.0.0.1:8800) |
-| Beta | [https://hawkes-staging.web.app](https://hawkes-staging.web.app) |
+| Beta | [https://beta.hawkesgen.ai](https://beta.hawkesgen.ai) (also [hawkes-staging.web.app](https://hawkes-staging.web.app)) |
 | Live | [https://hawkesgen.ai](https://hawkesgen.ai) |
 | Deploys (GitHub Actions) | [github.com/jgriffith3433/hawkesgenwebsite/actions](https://github.com/jgriffith3433/hawkesgenwebsite/actions) |
 

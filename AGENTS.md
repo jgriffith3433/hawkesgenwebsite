@@ -5,9 +5,12 @@
 > **Since 2026-10-28 the portal runs serverless on Google Cloud** (J: "cloud forward and cheap", Google sign-in only).
 > **The API is `cloud/functions/src/`** (Cloud Functions over Firestore and Firebase Auth); `public/` is served by
 > Firebase Hosting. **`src/` is the old Node server: retired, nothing runs it. Change `cloud/functions/src/` instead**
-> (its conventions: `docs/cloud.md`). A push to `beta` deploys https://hawkes-staging.web.app and a push to `main`
-> deploys hawkesgen.ai, both through GitHub Actions (`.github/workflows/firebase.yml`); going live is still J's
-> `DEPLOY hawkesgenwebsite`. Checks: `cd cloud/functions && npm ci && npx tsc -p .` (plus the old `npm test` for
+> (its conventions: `docs/cloud.md`). Lanes dev -> beta -> main (`LANES.md`): `dev` deploys nothing; a push to `beta`
+> deploys Firebase `hawkes-staging` (**https://beta.hawkesgen.ai**, also https://hawkes-staging.web.app) and a push to
+> `main` deploys hawkesgen.ai (`hawkes-prod`), both through GitHub Actions (`.github/workflows/firebase.yml`); going
+> live is still J's `DEPLOY hawkesgenwebsite`. **Beta never touches live:** beta uses gen-beta.hawkesgen.ai (its own
+> Gen key, `ustg_*` customers), beta Hawkes Net (hawkesnet.hawkesgen.ai) and no Stripe or mail; the settings are
+> `cloud/functions/.env.<project>` and `test/lanes.test.ts` in `cloud/functions` checks them (docs/cloud.md "Lanes"). Checks: `cd cloud/functions && npm ci && npx tsc -p .` (plus the old `npm test` for
 > `public/`). The sections below describe the old server; where they disagree with `docs/cloud.md`, docs/cloud.md wins.
 
 The site paying customers use: the landing page and portfolio (`/`), the Creator Studio (`/app`), accounts, credits
@@ -194,15 +197,14 @@ loaded only by a browser under automation (`navigator.webdriver`, a `?playtest=`
 
 ## Beta (Hawkes Studio)
 
-Work goes to the `beta` branch (agents open pull requests into it; `.github/workflows/hawkes-studio.yml` tells Studio
-about every push). **https://hawkesgenwebsite.hawkesgen.ai/** (Studio's login) is the real portal running beta's
-commit on Studio's server, restarted on every push to beta (`hawkesstudio/src/apps.ts`, products.json `app`): its own
-database, Gen on the same server with its own key, customers as `ubeta_<16 hex>` (`PORTAL_PROJECT_PREFIX=ubeta_`, so it
-never touches a live customer's `usr_` project), `PUBLIC_URL` the beta host, and no Stripe, Google or mail. An agent
-change opens at `/c/<change id>/` on the same host (its own server and database); `/c/beta/` goes back. Studio
-playtests beta and live with read-only site crawls. Keep the server starting from `node src/server.ts` with only `PORT`,
-`PORTAL_DATA_DIR`, `PUBLIC_URL`, `HAWKESGEN_URL`, `HAWKESGEN_KEY` and `PORTAL_PROJECT_PREFIX` set, and `/v1/health`
-answering 200: that is how Studio runs it.
+Since 2026-10-29 beta is the Firebase project `hawkes-staging` at **https://beta.hawkesgen.ai** (docs/cloud.md "Lanes"):
+a push to `beta` deploys it. It is wired only to beta services: Gen `https://gen-beta.hawkesgen.ai` (key "portal (beta)"
+made there, secret `HAWKESGEN_KEY` in hawkes-staging: `cloud/point-gen.mjs --project hawkes-staging`), Hawkes Net
+`https://hawkesnet.hawkesgen.ai` (`PORTAL_NET_URL`, `PORTAL_NET_DASHBOARD`), customers `ustg_<16 hex>`, Google sign-in
+through the same OAuth client (redirect `https://beta.hawkesgen.ai/auth/google/callback`), no Stripe, no mail. The beta
+Net dashboard reads this portal with the session cookie, which works because both are under hawkesgen.ai (from
+hawkes-staging.web.app it would be a blocked third-party cookie). The old Studio-hosted beta
+(hawkesgenwebsite.hawkesgen.ai, `ubeta_`) ran on the AWS control server and is gone.
 
 ## Deploys
 
