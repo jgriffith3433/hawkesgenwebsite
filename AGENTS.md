@@ -1,5 +1,7 @@
 # hawkesgen.ai — the Hawkes Gen customer portal
 
+**Lanes, local dev and deploys:** `LANES.md` (branches dev -> beta -> main; `dev.bat`, `deploy-beta.bat`, `deploy-prod.bat`, `status.bat`, `links.bat`, `sync.bat`; beta and live links).
+
 > **Since 2026-10-28 the portal runs serverless on Google Cloud** (J: "cloud forward and cheap", Google sign-in only).
 > **The API is `cloud/functions/src/`** (Cloud Functions over Firestore and Firebase Auth); `public/` is served by
 > Firebase Hosting. **`src/` is the old Node server: retired, nothing runs it. Change `cloud/functions/src/` instead**
