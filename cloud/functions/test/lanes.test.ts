@@ -24,6 +24,25 @@ test('beta (hawkes-staging) uses gen-beta, beta Net and its own customers', () =
   for (const k of ['PORTAL_NET_HOSTS', 'PORTAL_CDN_HOSTS']) for (const h of (env[k] ?? '').split(',').filter(Boolean)) assert.doesNotMatch(h, /\/\/(net|gen)\.hawkesgen\.ai/, `${k} names a live host`);
 });
 
+test('Studio links join the lane address and the path with one slash (config.ts studioPage)', async () => {
+  const { studioPage } = await import('../src/config.ts');
+  for (const [project, host] of [['hawkes-staging', 'https://studio-beta.hawkesgen.ai'], ['hawkes-prod', 'https://studio.hawkesgen.ai']]) {
+    const set = read(project).PORTAL_STUDIO_URL ?? 'https://studio.hawkesgen.ai';
+    assert.equal(set.replace(/\/+$/, ''), host, project);
+    for (const base of [set, `${host}/`, `${host}//`, ` ${host}/ `, `${host}\r\n`]) {
+      assert.equal(studioPage('/', base), `${host}/`, `${project} front door from ${JSON.stringify(base)}`);
+      assert.equal(studioPage('', base), `${host}/`);
+      assert.equal(studioPage('/o/acme-3f2a/', base), `${host}/o/acme-3f2a/`);
+      assert.equal(studioPage('o/acme-3f2a/', base), `${host}/o/acme-3f2a/`);
+      assert.doesNotMatch(studioPage('/o/acme-3f2a/', base).slice(8), /\/\//, 'no double slash after the scheme');
+    }
+  }
+  // The env var with a trailing slash, as read at run time.
+  const was = process.env.PORTAL_STUDIO_URL;
+  process.env.PORTAL_STUDIO_URL = 'https://studio-beta.hawkesgen.ai/';
+  try { assert.equal(studioPage(), 'https://studio-beta.hawkesgen.ai/'); } finally { if (was === undefined) delete process.env.PORTAL_STUDIO_URL; else process.env.PORTAL_STUDIO_URL = was; }
+});
+
 test("admin is J's address on both lanes (accounts.ts adminEmails: unset means piercehawkes3@gmail.com)", () => {
   for (const project of ['hawkes-staging', 'hawkes-prod']) {
     const v = read(project).PORTAL_ADMIN_EMAILS;
