@@ -3,17 +3,18 @@
 // Team orgs are made by a person, who becomes their owner, and filled by email invites. The rules (roles, seats, plans,
 // entitlements) are platform.ts's; this module keeps them in Firestore:
 //   orgs/{org_…}                    name, personal, owner_id, created; a team org's own plan and sub_status (set by an
-//                                   admin for design partners until Stripe bills orgs), grants (platform.ts Grants)
+//                                   admin for design partners until Stripe bills orgs), grants (platform.ts Grants),
+//                                   studio (the org's id in Hawkes Studio, when it has a Studio there: its link only)
 //   orgMembers/{org_…}__{usr_…}     org_id, user_id, role, email, added, by
 //   orgInvites/{sha256(token)}      org_id, email, role, by, created, expires, accepted, revoked
 // A personal org's plan is its owner's subscription (users/{id} plan and sub_status: Stripe keeps billing accounts as
 // before), so existing subscribers keep their plan in their personal org with no move of billing.
 import crypto from 'node:crypto';
 import { db, users, ledgerOf } from './store.ts';
-import { publicUrl } from './config.ts';
-import { getUser, requireUser, requireAdmin, type User } from './accounts.ts';
+import { publicUrl, studioUrl } from './config.ts';
+import { getUser, requireUser, requireAdmin, authenticate, type User } from './accounts.ts';
 import { sendEmail } from './mail.ts';
-import { PortalError, sha256, id, route, json, Limiter } from './http.ts';
+import { PortalError, sha256, id, route, json, redirect, Limiter } from './http.ts';
 import {
   planOf, entitlementsOf, personalOrgId, canSetRole, can, takesSeat, isRole, PLANS, PAID_STATES, ORG_ID,
   type Role, type Plan, type Grants, type Entitlements,
@@ -30,7 +31,7 @@ export const MAX_OWNED = 10;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const invitesByUser = new Limiter(30, 3600_000);
 
-export type Org = { id: string; name: string; personal: boolean; owner_id: string; created: number; plan?: string | null; sub_status?: string | null; grants?: Grants };
+export type Org = { id: string; name: string; personal: boolean; owner_id: string; created: number; plan?: string | null; sub_status?: string | null; grants?: Grants; studio?: string | null };
 export type Member = { org_id: string; user_id: string; role: Role; email: string; name?: string | null; added: number; by: string | null };
 /** An org as one member sees it. */
 export type OrgContext = { org: Org; role: Role; plan: Plan; entitlements: Entitlements };
@@ -109,7 +110,16 @@ export async function myOrgs(user: User): Promise<OrgContext[]> {
   return out.filter((x): x is OrgContext => Boolean(x)).sort((a, b) => Number(b.org.personal) - Number(a.org.personal) || a.org.created - b.org.created);
 }
 
-export const publicOrg = (c: OrgContext) => ({ id: c.org.id, name: c.org.name, personal: c.org.personal, role: c.role, plan: { id: c.plan.id, name: c.plan.name, seats: c.plan.seats }, entitlements: c.entitlements });
+// Hawkes Studio (hawkesstudio docs/studio-customers.md): every customer org has a Studio of its own at
+// studio.hawkesgen.ai/o/<its Studio id>/, and the front door (studio.hawkesgen.ai) signs people in with Google and takes
+// them there, or to a short sign-up. Studio's org ids are its own (a slug and 4 hex), so an org records its Studio id
+// when it has one (`studio`, set by its owners and admins); without one the link is the front door. It is only a link:
+// the Studio checks who signs in. No platform token rides along (Studio's own Google sign-in is the way in).
+export const STUDIO_ORG_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
+/** Where "Open Studio" goes for an org: its own Studio, else the front door. Per lane (config.ts studioUrl). */
+export const studioLink = (org?: Pick<Org, 'studio'> | null) => (org?.studio && STUDIO_ORG_RE.test(org.studio) ? `${studioUrl()}/o/${org.studio}/` : `${studioUrl()}/`);
+
+export const publicOrg = (c: OrgContext) => ({ id: c.org.id, name: c.org.name, personal: c.org.personal, role: c.role, plan: { id: c.plan.id, name: c.plan.name, seats: c.plan.seats }, entitlements: c.entitlements, studio: studioLink(c.org) });
 
 async function need(user: User, orgId: string, ok: (r: Role) => boolean, what: string) {
   const c = await orgContext(user, orgId);
@@ -142,12 +152,35 @@ export async function orgDetail(user: User, orgId: string) {
   return { ...publicOrg(c), members, invites, seats: { used: await seatsUsed(orgId), of: c.plan.seats } };
 }
 
-export async function renameOrg(user: User, orgId: string, body: any) {
-  await need(user, orgId, can.rename, 'owners and admins');
-  const name = cleanName(body?.name);
-  if (!name) throw new PortalError('Give the org a name');
-  await orgs().doc(orgId).update({ name });
-  return { name };
+/** Renames an org and/or records its Hawkes Studio id (`studio`: "" or null forgets it). Owners and admins. */
+export async function updateOrg(user: User, orgId: string, body: any) {
+  const c = await need(user, orgId, can.rename, 'owners and admins');
+  const set: Partial<Org> = {};
+  if (body?.name !== undefined) {
+    const name = cleanName(body.name);
+    if (!name) throw new PortalError('Give the org a name');
+    set.name = name;
+  }
+  if (body?.studio !== undefined) {
+    const s = String(body.studio ?? '').trim().toLowerCase();
+    if (s && !STUDIO_ORG_RE.test(s)) throw new PortalError('A Studio id is lowercase letters, digits and dashes (the part after /o/ in its address)');
+    set.studio = s || null;
+  }
+  if (!Object.keys(set).length) throw new PortalError('Nothing to change: send name or studio');
+  // A personal org is made on first touch (orgContext made it), so the doc is there to update.
+  await orgs().doc(c.org.id).update(set);
+  const org = { ...c.org, ...set };
+  return { name: org.name, studio: studioLink(org) };
+}
+
+/** Where /studio sends a person: the asked org's Studio (if they are in it), else the first of their orgs with one, else
+ *  the front door. Signed out (or any error), the front door. */
+export async function studioFor(user: User | null, orgId?: string | null): Promise<string> {
+  if (!user) return studioLink(null);
+  try {
+    if (orgId) return studioLink((await orgContext(user, orgId)).org);
+    return studioLink((await myOrgs(user)).find((c) => c.org.studio)?.org);
+  } catch { return studioLink(null); }
 }
 
 async function pendingInvites(orgId: string, t?: FirebaseFirestore.Transaction) {
@@ -315,7 +348,12 @@ route('POST', '/v1/orgs', async ({ req }) => ({ org: await createOrg(await requi
 route('POST', '/v1/orgs/invites/peek', async ({ req }) => peekInvite(await requireUser(req), String(json(req).token ?? '')));
 route('POST', '/v1/orgs/invites/accept', async ({ req }) => ({ org: await acceptInvite(await requireUser(req), String(json(req).token ?? '')) }));
 route('GET', new RegExp(`^/v1/orgs/${ORG}$`), async ({ req, params }) => orgDetail(await requireUser(req), params[0]));
-route('PATCH', new RegExp(`^/v1/orgs/${ORG}$`), async ({ req, params }) => renameOrg(await requireUser(req), params[0], json(req)));
+route('PATCH', new RegExp(`^/v1/orgs/${ORG}$`), async ({ req, params }) => updateOrg(await requireUser(req), params[0], json(req)));
+// "Open Studio" on every page links here, so the lane's Studio address and the org's own Studio are decided in one place.
+route('GET', '/studio', async ({ req, res, url }) => {
+  const org = url.searchParams.get('org');
+  redirect(res, await studioFor(await authenticate(req).catch(() => null), org && ORG_ID.test(org) ? org : null));
+});
 route('DELETE', new RegExp(`^/v1/orgs/${ORG}$`), async ({ req, params }) => deleteOrg(await requireUser(req), params[0]));
 route('POST', new RegExp(`^/v1/orgs/${ORG}/invites$`), async ({ req, params }) => invite(await requireUser(req), params[0], json(req)));
 route('DELETE', new RegExp(`^/v1/orgs/${ORG}/invites/([0-9a-f]{64})$`), async ({ req, params }) => revokeInvite(await requireUser(req), params[0], params[1]));

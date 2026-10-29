@@ -35,6 +35,7 @@
       { "source": "/oauth/**", "function": { "functionId": "api", "region": "us-east4" } },
       { "source": "/.well-known/**", "function": { "functionId": "api", "region": "us-east4" } },
       { "source": "/auth/**", "function": { "functionId": "api", "region": "us-east4" } },
+      { "source": "/studio", "function": { "functionId": "api", "region": "us-east4" } },
       { "source": "/net/**", "function": { "functionId": "api", "region": "us-east4" } },
       { "source": "/dl/**", "function": { "functionId": "api", "region": "us-east4" } },
       { "source": "/up/**", "function": { "functionId": "api", "region": "us-east4" } },
