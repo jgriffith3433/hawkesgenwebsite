@@ -1,6 +1,6 @@
 // Puts the portal's secrets into a Google Cloud project's Secret Manager (from J's PC). Values travel on stdin and are
 // never printed. Idempotent: an existing secret gets a new version only with --replace.
-//   node cloud/setup-secrets.mjs --project hawkes-staging            staging: its own Gen key (ustg_*), no Stripe
+//   node cloud/setup-secrets.mjs --project hawkes-staging            beta: its own key on gen-beta (ustg_*), no Stripe
 //   node cloud/setup-secrets.mjs --project hawkes-prod --from-box     live: the values the portal box has
 //   node cloud/setup-secrets.mjs --project hawkes-prod --resend C:/Projects/resend.txt --replace   Resend's sending key from a file
 //   (staging gets RESEND_API_KEY "unset": it sends no mail)
@@ -30,9 +30,13 @@ function readBox() {
 }
 
 async function genKeyFor(prefix) {
+  // Beta never touches live: the staging project's key is made on gen-beta with the beta owner key (cloud/point-gen.mjs
+  // does the same and also sets HAWKESGEN_URL).
+  if (project === 'hawkes-prod') throw new Error('live takes its Gen key from the box (--from-box) or cloud/point-gen.mjs');
   const c = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.hawkes', 'client.json'), 'utf8'));
-  const gen = String(c.genUrl).trim().replace(/\/+$/, '');
-  const r = await fetch(`${gen}/v1/clients`, { method: 'POST', headers: { Authorization: `Bearer ${String(c.genKey).trim()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: `hawkesgen.ai portal (${project})`, role: 'user', projects: [`${prefix}*`] }) });
+  const gen = 'https://gen-beta.hawkesgen.ai';
+  if (!c.genBetaKey) throw new Error('~/.hawkes/client.json has no genBetaKey');
+  const r = await fetch(`${gen}/v1/clients`, { method: 'POST', headers: { Authorization: `Bearer ${String(c.genBetaKey).trim()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'portal (beta)', role: 'user', projects: [`${prefix}*`] }) });
   if (!r.ok) throw new Error(`Gen would not make the key: ${r.status} ${(await r.text()).slice(0, 200)}`);
   return (await r.json()).key;
 }
