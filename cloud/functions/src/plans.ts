@@ -7,26 +7,16 @@ import { env, publicUrl } from './config.ts';
 import { stripe, rewardReferrer, subscriptionHandlers } from './billing.ts';
 import { getUser, requireUser, type User } from './accounts.ts';
 import { PortalError, route, json } from './http.ts';
+import { PLANS, PAID_STATES, planOf, offeredPlans, type Plan } from './platform.ts';
 
-export type PlanId = 'free' | 'maker' | 'pro';
-export type Plan = { id: PlanId; name: string; priceCents: number; priceUsd: number; monthlyCredits: number; games: number; members: number; blurb: string };
+// The plans themselves (prices, limits, entitlements per product) are platform.ts's, shared with games.ts and orgs.ts.
+export { PLANS, planOf, type Plan, type PlanId } from './platform.ts';
 
-export const PLANS: Plan[] = [
-  { id: 'free', name: 'Free', priceCents: 0, priceUsd: 0, monthlyCredits: 0, games: 3, members: 3, blurb: 'Build and publish small games. Starter credits to try the AI.' },
-  { id: 'maker', name: 'Maker', priceCents: 1500, priceUsd: 15, monthlyCredits: 1500, games: 20, members: 8, blurb: '1,500 credits every month for AI help, art, models, sound and music.' },
-  { id: 'pro', name: 'Pro', priceCents: 4000, priceUsd: 40, monthlyCredits: 4500, games: 100, members: 25, blurb: '4,500 credits every month, room for a whole crew and many games.' },
-];
+/** The plans offered now (platform.ts offeredPlans; PORTAL_PLATFORM_PLANS=on offers the platform plans). */
+export const offered = () => offeredPlans(env('PORTAL_PLATFORM_PLANS') === 'on');
 
 /** What one message to the game assistant costs at least (src/gameai.ts AI_CREDITS; the same setting). */
 export const AI_CREDITS = () => Math.max(1, Number(env('GAME_AI_CREDITS') ?? 8));
-
-const PAID_STATES = ['active', 'trialing', 'past_due'];
-
-export const planOf = (u: Pick<User, 'plan' | 'sub_status'> | null | undefined): Plan => {
-  // A plan counts while Stripe still calls it paid (active), or is retrying a card (past_due) for its grace period.
-  const id = u && PAID_STATES.includes(String(u.sub_status)) ? u.plan : 'free';
-  return PLANS.find((p) => p.id === id) ?? PLANS[0];
-};
 
 export async function subscription(user: User) {
   const fresh = (await getUser(user.id)) ?? user;
@@ -35,7 +25,7 @@ export async function subscription(user: User) {
     status: fresh.sub_status ?? null,
     periodEnd: fresh.period_end ?? null,
     cancelAtPeriodEnd: Boolean(fresh.cancel_at_period_end),
-    plans: PLANS,
+    plans: [...new Set([...offered(), planOf(fresh)])].sort((a, b) => a.priceCents - b.priceCents),
   };
 }
 
@@ -49,7 +39,7 @@ async function priceFor(plan: Plan) {
   const found = await stripe(`/v1/prices?active=true&lookup_keys[]=${lookup}`);
   let price = found?.data?.[0]?.id as string | undefined;
   if (!price) {
-    const product = await stripe('/v1/products', new URLSearchParams({ name: `Hawkes Gen ${plan.name}`, description: `${plan.monthlyCredits.toLocaleString('en-US')} credits every month, up to ${plan.games} games` }));
+    const product = await stripe('/v1/products', new URLSearchParams({ name: plan.legacy ? `Hawkes Gen ${plan.name}` : `Hawkes ${plan.name}`, description: `${plan.monthlyCredits.toLocaleString('en-US')} credits every month, up to ${plan.games} games` }));
     price = (await stripe('/v1/prices', new URLSearchParams({ product: product.id, currency: 'usd', unit_amount: String(plan.priceCents), 'recurring[interval]': 'month', lookup_key: lookup, 'metadata[plan]': plan.id }))).id as string;
   }
   priceIds.set(lookup, price);
@@ -57,8 +47,8 @@ async function priceFor(plan: Plan) {
 }
 
 const paidPlan = (id: unknown) => {
-  const plan = PLANS.find((p) => p.id === id && p.priceCents > 0);
-  if (!plan) throw new PortalError(`Choose a plan: ${PLANS.filter((p) => p.priceCents).map((p) => p.id).join(', ')}`);
+  const plan = offered().find((p) => p.id === id && p.priceCents > 0);
+  if (!plan) throw new PortalError(`Choose a plan: ${offered().filter((p) => p.priceCents).map((p) => p.id).join(', ')}`);
   return plan;
 };
 
@@ -243,7 +233,7 @@ export async function subscriptionStats() {
 
 // ------------------------------------------------------------------ routes
 
-route('GET', '/v1/plans', () => ({ plans: PLANS, aiCredits: AI_CREDITS() }));
+route('GET', '/v1/plans', () => ({ plans: offered(), aiCredits: AI_CREDITS() }));
 route('GET', '/v1/billing/subscription', async ({ req }) => subscription(await requireUser(req)));
 route('POST', '/v1/billing/plan', async ({ req }) => choosePlan(await requireUser(req), json(req)));
 route('POST', '/v1/billing/cancel', async ({ req }) => setCancel(await requireUser(req), json(req).cancel !== false));

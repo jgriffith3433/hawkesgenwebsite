@@ -19,7 +19,7 @@ export type User = {
   credits: number;
   role: 'customer' | 'admin';
   disabled?: boolean;
-  plan?: 'free' | 'maker' | 'pro';
+  plan?: import('./platform.ts').PlanId;
   sub_status?: string | null;
   stripe_customer_id?: string | null;
   stripe_subscription_id?: string | null;

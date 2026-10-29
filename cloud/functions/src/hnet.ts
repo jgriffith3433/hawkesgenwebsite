@@ -18,9 +18,10 @@ import type { Response } from 'express';
 import { env } from './config.ts';
 import { genHeaders, type GenCall } from './gen.ts';
 import { verify } from './sign.ts';
-import { db, ledgerOf } from './store.ts';
+import { db } from './store.ts';
 import { PortalError, Limiter, route, send, json, redirect } from './http.ts';
 import { getUser, requireUser, profile, type User } from './accounts.ts';
+import { orgContext } from './orgs.ts';
 
 export const NET_PROJECT = 'hawkesgenwebsite';
 const CODE = /^[a-z0-9]{4,16}$/;
@@ -151,15 +152,16 @@ export async function ticket(body: any, ip: string) {
   return { mode: 'hawkesnet', room, ...r };
 }
 
-/** Has this account paid (credits or a plan)? Relay traffic is ours until it is billed. */
-const paid = async (userId: string) => !(await ledgerOf(userId).where('kind', 'in', ['stripe_purchase', 'subscription_credits']).limit(1).get()).empty;
+/** May this account's own games use Hawkes Net's live rooms? Its personal org's `net` entitlement (orgs.ts): a paid plan,
+ *  or a purchase (before plans carried Net, buying credits did; orgs.ts grants it). Relay traffic is ours until billed. */
+const paid = async (user: User) => (await orgContext(user)).entitlements.net.rooms === 'live';
 
 /**
  * A customer's own game (POST /v1/net/rooms/ticket with their API key, from their game's server): a ticket for a room in
  * one of their Hawkes Net projects, the portal's key narrowed to their account.
  */
 export async function customerTicket(user: User, body: any) {
-  if (user.role !== 'admin' && !(await paid(user.id))) throw new PortalError('Hawkes Net for your own games needs an account that has bought credits or a plan', { status: 402 });
+  if (user.role !== 'admin' && !(await paid(user))) throw new PortalError('Hawkes Net for your own games needs an account that has bought credits or a plan', { status: 402 });
   customerTickets.take(user.id, 'Too many tickets a minute for this account');
   const project = String(body?.project ?? '');
   if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(project)) throw new PortalError('project is your Hawkes Net project id (net.hawkesgen.ai)');
@@ -173,7 +175,7 @@ export async function customerTicket(user: User, body: any) {
 
 // ------------------------------------------------------------ Hawkes Net projects (the net.hawkesgen.ai dashboard)
 
-const who = async (user: User) => ({ owner: user.project, admin: user.role === 'admin', tier: user.role === 'admin' || (await paid(user.id)) ? 'paid' : 'free' });
+const who = async (user: User) => ({ owner: user.project, admin: user.role === 'admin', tier: user.role === 'admin' || (await paid(user)) ? 'paid' : 'free' });
 const whoQuery = async (user: User) => { const w = await who(user); return `owner=${encodeURIComponent(w.owner)}&admin=${w.admin}&tier=${w.tier}`; };
 const PID = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
 const pid = (id: string) => { if (!PID.test(id)) throw new PortalError('No such project', { status: 404 }); return encodeURIComponent(id); };

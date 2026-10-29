@@ -645,6 +645,11 @@ export const toolNames = () => TOOLS.map((t) => t.name);
 corsRoute('/mcp', async ({ req, res, method }) => {
   if (method !== 'POST') return void res.status(405).set({ Allow: 'POST', 'Content-Type': 'application/json' }).send(JSON.stringify({ error: 'This server answers POST (Streamable HTTP, stateless).' }));
   const c = bearer(req) ? await callerOf(req) : null;
+  if (!c && bearer(req) && (await callerOf(req, { anyScope: true }))) {
+    // A connection approved without `generate` (only Studio's scopes): the tools here are Gen's.
+    res.setHeader('WWW-Authenticate', `Bearer resource_metadata="${publicUrl()}/.well-known/oauth-protected-resource/mcp", error="insufficient_scope", scope="generate"`);
+    return send(res, 403, { error: 'This connection was approved without Hawkes Gen tools (scope generate). Connect again and allow them.' });
+  }
   if (!c) {
     res.setHeader('WWW-Authenticate', `Bearer resource_metadata="${publicUrl()}/.well-known/oauth-protected-resource/mcp"${bearer(req) ? ', error="invalid_token"' : ''}`);
     return send(res, 401, { error: 'Sign in: connect at https://hawkesgen.ai/connect, or send an API key (Authorization: Bearer hg_...)' });

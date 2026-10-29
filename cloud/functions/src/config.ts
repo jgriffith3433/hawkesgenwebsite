@@ -8,6 +8,8 @@ export const SECRETS = {
   stripeWebhook: defineSecret('STRIPE_WEBHOOK_SECRET'),
   googleSecret: defineSecret('GOOGLE_CLIENT_SECRET'),
   signing: defineSecret('PORTAL_SIGNING_KEY'),
+  /** The platform token's Ed25519 private key(s), PKCS#8 PEM (platform-token.ts); "unset" until J makes it. */
+  platformKey: defineSecret('PORTAL_PLATFORM_KEY'),
   /** Resend's sending key (mail.ts); "unset" where no mail is sent (staging). */
   resend: defineSecret('RESEND_API_KEY'),
 };
