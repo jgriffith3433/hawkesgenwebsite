@@ -14,12 +14,33 @@ browser ──https──▶ Firebase Hosting (public/, CDN)
                   Firestore (us-east4)    Firebase Auth (Google)        Stripe
 ```
 
-- **Projects:** `hawkes-staging` (https://hawkes-staging.web.app, customers `ustg_…`, its own Gen key, no Stripe) and
-  `hawkes-prod` (hawkesgen.ai, customers `usr_…`). `.firebaserc` aliases `staging` and `prod`.
+- **Projects:** `hawkes-staging` (beta: https://beta.hawkesgen.ai and https://hawkes-staging.web.app, customers `ustg_…`,
+  gen-beta, beta Net, no Stripe) and `hawkes-prod` (hawkesgen.ai, customers `usr_…`). `.firebaserc` aliases `staging`
+  and `prod`.
 - **Deploy:** `firebase deploy --only hosting,functions:portal,firestore --project staging` from the repo root. Live
   (`--project prod`) only after J's `DEPLOY hawkesgenwebsite`.
 - **Settings:** plain ones in `cloud/functions/.env.<project>` (committed, nothing secret); keys in Secret Manager
   (`cloud/setup-secrets.mjs`; `config.ts SECRETS`).
+
+## Lanes (dev -> beta -> main; beta never touches live)
+
+J, 2026-10-29: the portal follows Gen and Studio's lanes. `dev` deploys nothing; `beta` deploys `hawkes-staging`;
+`main` deploys `hawkes-prod` (J's `DEPLOY hawkesgenwebsite`).
+
+| | Beta (`hawkes-staging`) | Live (`hawkes-prod`) |
+|---|---|---|
+| Address (`PUBLIC_URL`) | https://beta.hawkesgen.ai (and hawkes-staging.web.app) | https://hawkesgen.ai |
+| Gen (`HAWKESGEN_URL`, secret `HAWKESGEN_KEY`) | https://gen-beta.hawkesgen.ai, key "portal (beta)" | https://gen.hawkesgen.ai, key "portal (live)" |
+| Hawkes Net (`PORTAL_NET_URL`, `PORTAL_NET_DASHBOARD`) | https://hawkesnet.hawkesgen.ai | https://net.hawkesgen.ai (the default) |
+| Customers (`PORTAL_PROJECT_PREFIX`) | `ustg_` | `usr_` |
+| Stripe, mail | none (`unset`) | on |
+
+- `cloud/functions/test/lanes.test.ts` checks both `.env` files (`node --test test/lanes.test.ts`, no keys needed).
+- `cloud/point-gen.mjs --project <id>` makes the lane's Gen key on that lane's Gen (it checks Gen's `/v1/health` `lane`)
+  and stores it; `cloud/cloudflare/beta-domain.mjs` adds beta.hawkesgen.ai (Firebase custom domain, Cloudflare DNS,
+  Firebase Auth's authorized domains) and prints the OAuth redirect URI to add by hand. Both are J's (dry run first).
+- Hawkes analytics stays one place (the SDK always posts to gen.hawkesgen.ai, as for every product) and files events
+  from `*.hawkesgen.ai` as `beta`.
 
 ## Conventions (every area follows them)
 

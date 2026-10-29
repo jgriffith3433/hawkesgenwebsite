@@ -1,12 +1,14 @@
 #!/usr/bin/env node
-// Points the portal at a Hawkes Gen (2026-10-28: Gen moved to Cloud Run with a new, empty key list, so the portal
-// needs a new key and the new address). From J's PC, after tools/gen-cloudrun/deploy.ps1 set ~/.hawkes/client.json:
-//   node cloud/point-gen.mjs --project hawkes-staging     makes Gen key "portal (staging)" for ustg_* projects
-//   node cloud/point-gen.mjs --project hawkes-prod        makes Gen key "portal (live)" for usr_* projects
-// Each: a user key on Gen narrowed to the portal's customer projects (the owner key in client.json makes it), stored as
-// the secret HAWKESGEN_KEY in that Firebase project (value on stdin, never printed), and HAWKESGEN_URL in
-// cloud/functions/.env.<project>. The functions pick both up at their next deploy (beta push: staging; main: live).
-// Without --apply it prints what it would do.
+// Points the portal at its lane's Hawkes Gen (2026-10-28: Gen moved to Cloud Run with a new, empty key list, so the
+// portal needs a new key and the new address). Beta never touches live (2026-10-29): hawkes-staging (the portal's beta)
+// uses gen-beta, hawkes-prod (live) uses gen. From J's PC, after tools/gen-cloudrun/deploy.ps1 set ~/.hawkes/client.json:
+//   node cloud/point-gen.mjs --project hawkes-staging     makes key "portal (beta)" on gen-beta for ustg_* projects
+//                                                         (the owner key genBetaKey in client.json makes it)
+//   node cloud/point-gen.mjs --project hawkes-prod        makes key "portal (live)" on gen for usr_* projects (genKey)
+// Each: a user key on that Gen narrowed to the portal's customer projects, stored as the secret HAWKESGEN_KEY in that
+// Firebase project (value on stdin, never printed), and HAWKESGEN_URL in cloud/functions/.env.<project>. The functions
+// pick both up at their next deploy (beta push: staging; main: live): the running ones keep the version they were
+// deployed with, so store the key first and push after. Without --apply it prints what it would do.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -20,15 +22,24 @@ const HERE = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z
 const envFile = path.join(HERE, 'functions', `.env.${project}`);
 const prefix = fs.readFileSync(envFile, 'utf8').match(/^PORTAL_PROJECT_PREFIX=(.+)$/m)?.[1]?.trim() ?? 'usr_';
 const client = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.hawkes', 'client.json'), 'utf8'));
-const genUrl = String(arg('gen-url', client.genUrl)).replace(/\/+$/, '');
-if (!/\.run\.app$|hawkesgen\.ai$/.test(new URL(genUrl).host)) { console.error(`Unexpected Gen address ${genUrl}`); process.exit(1); }
-const name = project === 'hawkes-prod' ? 'portal (live)' : 'portal (staging)';
+const live = project === 'hawkes-prod';
+// The lane's Gen: its public name (the Worker), not the run.app address client.json may hold for beta.
+const genUrl = String(arg('gen-url', live ? 'https://gen.hawkesgen.ai' : 'https://gen-beta.hawkesgen.ai')).replace(/\/+$/, '');
+const ownerKey = String((live ? client.genKey : client.genBetaKey) ?? '').trim();
+const host = new URL(genUrl).host;
+if (!/\.run\.app$|hawkesgen\.ai$/.test(host)) { console.error(`Unexpected Gen address ${genUrl}`); process.exit(1); }
+// Beta never on live Gen, live never on beta Gen.
+if (live === /beta/.test(host)) { console.error(`${project} must not use ${genUrl} (${live ? 'live uses live Gen' : 'beta uses gen-beta'})`); process.exit(1); }
+if (!ownerKey) { console.error(`~/.hawkes/client.json has no ${live ? 'genKey' : 'genBetaKey'}`); process.exit(1); }
+const name = live ? 'portal (live)' : 'portal (beta)';
 console.log(`${project}: Gen ${genUrl}, key "${name}" for ${prefix}*`);
 
 if (!apply) { console.log('Dry run: add --apply.'); process.exit(0); }
-const auth = { Authorization: `Bearer ${client.genKey}`, 'Content-Type': 'application/json' };
-const health = await fetch(`${genUrl}/v1/health`).then((r) => r.status).catch((e) => e.message);
-if (health !== 200) { console.error(`Gen doesn't answer (${health})`); process.exit(1); }
+const auth = { Authorization: `Bearer ${ownerKey}`, 'Content-Type': 'application/json' };
+const health = await fetch(`${genUrl}/v1/health`).then(async (r) => (r.ok ? r.json() : { status: r.status })).catch((e) => ({ status: e.message }));
+if (!health.ok) { console.error(`Gen doesn't answer (${health.status})`); process.exit(1); }
+// Gen says its own lane (HAWKESGEN_LANE): the key is made only on the lane this project belongs to.
+if ((health.lane ?? 'live') !== (live ? 'live' : 'beta')) { console.error(`${genUrl} says it is the ${health.lane ?? 'live'} lane; ${project} needs ${live ? 'live' : 'beta'}`); process.exit(1); }
 const made = await fetch(`${genUrl}/v1/clients`, { method: 'POST', headers: auth, body: JSON.stringify({ name, role: 'user', projects: [`${prefix}*`] }) });
 if (!made.ok) { console.error(`Gen refused to make the key (${made.status}): ${(await made.text()).slice(0, 200)}`); process.exit(1); }
 const { key } = await made.json();
