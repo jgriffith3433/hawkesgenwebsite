@@ -161,7 +161,9 @@ export async function checkout(user: User, body: { packId?: unknown; successUrl?
   return { url: data.url as string, sessionId: data.id as string, pack };
 }
 
-/** Stripe's signature: HMAC-SHA256 of "<t>.<body>" with the endpoint's secret, within 5 minutes. */
+/** Stripe's signature: HMAC-SHA256 of "<t>.<body>" with the endpoint's secret, within 5 minutes. STRIPE_WEBHOOK_SECRET may
+ *  hold several, comma-separated (one per endpoint: hawkesgen.ai's and hawkesgames.com's while the portal moves,
+ *  docs/domain-move.md); a signature from any of them passes. Each payment is credited once whichever endpoint delivers it. */
 export function verifyStripeSignature(rawBody: Buffer, header: string, secret = webhookSecret(), toleranceSec = 300) {
   if (!secret) throw new PortalError('Payments are not set up yet', { status: 503 });
   let t = 0;
@@ -173,8 +175,9 @@ export function verifyStripeSignature(rawBody: Buffer, header: string, secret = 
   }
   if (!t || !sigs.length) throw new PortalError('Malformed Stripe-Signature header');
   if (Math.abs(Date.now() / 1000 - t) > toleranceSec) throw new PortalError('Stripe webhook timestamp outside tolerance');
-  const expected = crypto.createHmac('sha256', secret).update(`${t}.${rawBody.toString('utf8')}`, 'utf8').digest();
-  if (!sigs.some((s) => /^[0-9a-f]{64}$/i.test(s) && crypto.timingSafeEqual(Buffer.from(s, 'hex'), expected))) throw new PortalError('Invalid Stripe webhook signature');
+  const signed = `${t}.${rawBody.toString('utf8')}`;
+  const expected = secret.split(',').map((k) => k.trim()).filter(Boolean).map((k) => crypto.createHmac('sha256', k).update(signed, 'utf8').digest());
+  if (!sigs.some((s) => /^[0-9a-f]{64}$/i.test(s) && expected.some((e) => crypto.timingSafeEqual(Buffer.from(s, 'hex'), e)))) throw new PortalError('Invalid Stripe webhook signature');
 }
 
 /** A friend's first purchase pays the customer who invited them, once. */

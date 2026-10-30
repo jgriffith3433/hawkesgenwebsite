@@ -5,6 +5,10 @@
 //   node cloud/setup-secrets.mjs --project hawkes-prod --resend C:/Projects/resend.txt --replace   Resend's sending key from a file
 //   node cloud/setup-secrets.mjs --project hawkes-staging --only PORTAL_PLATFORM_KEY   just the platform token's signing key
 //   (staging gets RESEND_API_KEY "unset": it sends no mail)
+//   node cloud/setup-secrets.mjs --project hawkes-prod --stripe C:/Projects/stripe.txt
+//     Stripe's keys from a file of KEY=value lines (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET; only the Stripe secrets are
+//     touched). A webhook secret is added beside the ones already there (the portal accepts any of them: one per
+//     endpoint while the portal moves to hawkesgames.com); --drop-old keeps only the file's.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -43,11 +47,20 @@ async function genKeyFor(prefix) {
 }
 
 const box = arg('from-box') ? readBox() : {};
+const stripeFile = arg('stripe') ? Object.fromEntries(fs.readFileSync(String(arg('stripe')), 'utf8').split(/\r?\n/)
+  .map((l) => /^\s*([A-Z_]+)\s*[=:]\s*(\S+)\s*$/.exec(l)).filter(Boolean).map((m) => [m[1], m[2].replace(/^['"]|['"]$/g, '')])) : null;
+const current = (name) => { const r = run(['secrets', 'versions', 'access', 'latest', '--secret', name, '--project', project]); return r.status === 0 ? r.stdout.trim() : ''; };
+const stripeOnly = stripeFile ? new Set(['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'].filter((k) => stripeFile[k])) : null;
+if (stripeFile && !stripeOnly.size) throw new Error('the --stripe file has no STRIPE_SECRET_KEY= or STRIPE_WEBHOOK_SECRET= line');
 const exists = (name) => run(['secrets', 'describe', name, '--project', project, '--format=value(name)']).status === 0;
 const values = {
   HAWKESGEN_KEY: async () => box.HAWKESGEN_KEY ?? genKeyFor('ustg_'),
-  STRIPE_SECRET_KEY: async () => box.STRIPE_SECRET_KEY ?? 'unset',
-  STRIPE_WEBHOOK_SECRET: async () => box.STRIPE_WEBHOOK_SECRET ?? 'unset',
+  STRIPE_SECRET_KEY: async () => stripeFile?.STRIPE_SECRET_KEY ?? box.STRIPE_SECRET_KEY ?? 'unset',
+  STRIPE_WEBHOOK_SECRET: async () => {
+    if (!stripeFile?.STRIPE_WEBHOOK_SECRET) return box.STRIPE_WEBHOOK_SECRET ?? 'unset';
+    const old = arg('drop-old') ? [] : current('STRIPE_WEBHOOK_SECRET').split(',').map((k) => k.trim()).filter((k) => k.startsWith('whsec_'));
+    return [...new Set([...old, ...stripeFile.STRIPE_WEBHOOK_SECRET.split(',').map((k) => k.trim())])].join(',');
+  },
   GOOGLE_CLIENT_SECRET: async () => box.GOOGLE_CLIENT_SECRET ?? readBox().GOOGLE_CLIENT_SECRET,
   PORTAL_SIGNING_KEY: async () => crypto.randomBytes(32).toString('base64url'),
   // The platform token's Ed25519 key (functions/src/platform-token.ts), PKCS#8 PEM. To rotate: --replace with a new key
@@ -56,9 +69,16 @@ const values = {
   RESEND_API_KEY: async () => (arg('resend') ? fs.readFileSync(String(arg('resend')), 'utf8').trim().replace(/^[A-Za-z_ ]*[=:]\s*/, '') : 'unset'),
 };
 for (const [name, get] of Object.entries(values)) {
+  if (stripeOnly && !stripeOnly.has(name)) continue;
   const has = exists(name);
   // --replace with --resend only replaces the Resend key; --only NAME touches that one secret alone.
   if (arg('only') && name !== arg('only')) continue;
+  if (stripeOnly) {
+    const v = await get();
+    const r = has ? run(['secrets', 'versions', 'add', name, '--data-file=-', '--project', project], v) : run(['secrets', 'create', name, '--data-file=-', '--replication-policy=automatic', '--project', project], v);
+    console.log(`${name}: ${r.status === 0 ? (has ? 'new version' : 'made') : 'FAILED ' + (r.stderr || '').trim().split('\n').pop()}${name === 'STRIPE_WEBHOOK_SECRET' && r.status === 0 ? ` (${v.split(',').length} endpoint secret(s))` : ''}`);
+    continue;
+  }
   if (has && (!replace || (arg('resend') && name !== 'RESEND_API_KEY'))) { console.log(`${name}: kept`); continue; }
   const v = await get();
   const r = has ? run(['secrets', 'versions', 'add', name, '--data-file=-', '--project', project], v) : run(['secrets', 'create', name, '--data-file=-', '--replication-policy=automatic', '--project', project], v);
