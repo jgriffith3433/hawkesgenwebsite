@@ -68,7 +68,7 @@ for (const name of L.names) {
   const edge = firebase.find((r) => r.type === 'AAAA' && r.content === '100::' && r.proxied);
   for (const r of firebase.filter((x) => x !== edge)) {
     console.log(`Cloudflare: delete ${r.type} ${r.name} -> ${String(r.content).slice(0, 60)}${apply ? '' : ' (dry run)'}`);
-    if (apply) cf('dns', 'records', 'delete', '-z', ZONE, r.id);
+    if (apply) cf('dns', 'records', 'delete', '-z', ZONE, r.id, '--force');
   }
   if (edge) console.log(`Cloudflare: AAAA ${name} 100:: (proxied) already there`);
   else {
