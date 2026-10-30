@@ -38,11 +38,11 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const LANES = {
   live: {
     mode: 'live', project: 'hawkes-prod', secret: 'STRIPE_SECRET_KEY', publishable: 'STRIPE_PUBLISHABLE_KEY', hook: '_WEBHOOK_SECRET',
-    gen: [client.genUrl ?? 'https://gen.hawkesgen.ai', client.genKey], studio: [client.studioUrl ?? 'https://studio.hawkesgen.ai', client.studioKey],
+    gen: [client.genUrl ?? 'https://hawkesgen.ai', client.genKey], studio: [client.studioUrl ?? 'https://studio.hawkesgen.ai', client.studioKey],
   },
   beta: {
     mode: 'test', project: 'hawkes-staging', secret: 'STRIPE_TEST_SECRET_KEY', publishable: 'STRIPE_TEST_PUBLISHABLE_KEY', hook: '_BETA_WEBHOOK_SECRET',
-    gen: [client.genBetaUrl ?? 'https://gen-beta.hawkesgen.ai', client.genBetaKey], studio: [client.studioBetaUrl ?? 'https://studio-beta.hawkesgen.ai', client.studioBetaKey],
+    gen: [client.genBetaUrl ?? 'https://beta.hawkesgen.ai', client.genBetaKey], studio: [client.studioBetaUrl ?? 'https://studio-beta.hawkesgen.ai', client.studioBetaKey],
   },
 };
 

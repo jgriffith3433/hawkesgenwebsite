@@ -24,7 +24,7 @@ const prefix = fs.readFileSync(envFile, 'utf8').match(/^PORTAL_PROJECT_PREFIX=(.
 const client = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.hawkes', 'client.json'), 'utf8'));
 const live = project === 'hawkes-prod';
 // The lane's Gen: its public name (the Worker), not the run.app address client.json may hold for beta.
-const genUrl = String(arg('gen-url', live ? 'https://gen.hawkesgen.ai' : 'https://gen-beta.hawkesgen.ai')).replace(/\/+$/, '');
+const genUrl = String(arg('gen-url', live ? 'https://hawkesgen.ai' : 'https://beta.hawkesgen.ai')).replace(/\/+$/, '');
 const ownerKey = String((live ? client.genKey : client.genBetaKey) ?? '').trim();
 const host = new URL(genUrl).host;
 if (!/\.run\.app$|hawkesgen\.ai$/.test(host)) { console.error(`Unexpected Gen address ${genUrl}`); process.exit(1); }

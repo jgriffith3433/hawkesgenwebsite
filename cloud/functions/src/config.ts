@@ -17,7 +17,7 @@ export const SECRETS = {
 export const env = (k: string): string | undefined => process.env[k] || undefined;
 
 /** Hawkes Gen, the backend: every job runs there. */
-export const genUrl = () => (env('HAWKESGEN_URL') ?? 'https://gen.hawkesgen.ai').replace(/\/+$/, '');
+export const genUrl = () => (env('HAWKESGEN_URL') ?? 'https://hawkesgen.ai').replace(/\/+$/, '');
 export const genKey = () => SECRETS.genKey.value();
 /** Hawkes Studio's front door (studio.hawkesgen.ai; studio-beta on beta): Continue with Google there takes a customer to
  *  their own Studio, or to a short sign-up when they have none. An org's own Studio is `<this>/o/<its Studio id>/`. */

@@ -30,7 +30,7 @@ J, 2026-10-29: the portal follows Gen and Studio's lanes. `dev` deploys nothing;
 | | Beta (`hawkes-staging`) | Live (`hawkes-prod`) |
 |---|---|---|
 | Address (`PUBLIC_URL`) | https://beta.hawkesgames.com (and hawkes-staging.web.app; beta.hawkesgen.ai until the cutover) | https://hawkesgames.com (hawkesgen.ai until the cutover: `docs/domain-move.md`) |
-| Gen (`HAWKESGEN_URL`, secret `HAWKESGEN_KEY`) | https://gen-beta.hawkesgen.ai, key "portal (beta)" | https://gen.hawkesgen.ai, key "portal (live)" |
+| Gen (`HAWKESGEN_URL`, secret `HAWKESGEN_KEY`) | https://beta.hawkesgen.ai, key "portal (beta)" | https://hawkesgen.ai, key "portal (live)" |
 | Hawkes Net (`PORTAL_NET_URL`, `PORTAL_NET_DASHBOARD`) | https://hawkesnet.hawkesgen.ai, dashboard https://net-beta.hawkesgames.com | https://net.hawkesgen.ai, dashboard https://net.hawkesgames.com (the defaults) |
 | Hawkes Studio, "Open Studio" (`PORTAL_STUDIO_URL`) | https://studio-beta.hawkesgen.ai | https://studio.hawkesgen.ai (the default) |
 | Customers (`PORTAL_PROJECT_PREFIX`) | `ustg_` | `usr_` |
@@ -42,7 +42,7 @@ J, 2026-10-29: the portal follows Gen and Studio's lanes. `dev` deploys nothing;
 - `cloud/point-gen.mjs --project <id>` makes the lane's Gen key on that lane's Gen (it checks Gen's `/v1/health` `lane`)
   and stores it; `cloud/cloudflare/beta-domain.mjs` adds beta.hawkesgen.ai (Firebase custom domain, Cloudflare DNS,
   Firebase Auth's authorized domains) and prints the OAuth redirect URI to add by hand. Both are J's (dry run first).
-- Hawkes analytics stays one place (the SDK always posts to gen.hawkesgen.ai, as for every product) and files events
+- Hawkes analytics stays one place (the SDK always posts to hawkesgen.ai, as for every product) and files events
   from `*.hawkesgen.ai` as `beta`.
 
 ## Conventions (every area follows them)

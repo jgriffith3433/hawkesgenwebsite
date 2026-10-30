@@ -76,7 +76,7 @@ test('the nonce is new for every page load', async () => {
 
 test("a game script's fetch to an outside site is refused; what the engine needs is allowed", async () => {
   const d = parse(String((await fetch(`${base}/play/my-game`)).headers.get('content-security-policy')));
-  for (const url of ['https://example.com/', 'https://evil.example/steal?c=1', 'wss://example.com/', 'http://hawkesgen.ai/', 'https://gen.hawkesgen.ai.evil.example/']) {
+  for (const url of ['https://example.com/', 'https://evil.example/steal?c=1', 'wss://example.com/', 'http://hawkesgen.ai/', 'https://hawkesgen.ai.evil.example/']) {
     assert.equal(allows(d, 'connect-src', url), false, url);
     assert.equal(allows(d, 'img-src', url), false, `img ${url}`);
     assert.equal(allows(d, 'script-src', url), false, `script ${url}`);
@@ -88,7 +88,7 @@ test("a game script's fetch to an outside site is refused; what the engine needs
   assert.ok(allows(d, 'connect-src', 'https://hawkesgen.ai/vendor/havok@1.3.10/HavokPhysics.wasm'));
   assert.ok(allows(d, 'script-src', 'https://hawkesgen.ai/vendor/babylonjs@7.54.3/babylon.js'));
   for (const cdn of ['https://cdn.jsdelivr.net/npm/babylonjs@7.54.3/babylon.js', 'https://cdnjs.cloudflare.com/x.js', 'https://unpkg.com/x.js']) assert.equal(allows(d, 'script-src', cdn), false, cdn);
-  assert.ok(allows(d, 'script-src', 'https://gen.hawkesgen.ai/sdk/analytics@1.js'));
+  assert.ok(allows(d, 'script-src', 'https://hawkesgen.ai/sdk/analytics@1.js'));
   assert.ok(allows(d, 'img-src', 'blob:https://hawkesgen.ai/abc'));
   assert.ok(d['script-src'].includes("'unsafe-eval'") && d['script-src'].includes("'wasm-unsafe-eval'"));
   assert.deepEqual(d['worker-src'], ['blob:', "'self'"]);
@@ -96,7 +96,7 @@ test("a game script's fetch to an outside site is refused; what the engine needs
 
 test('every external host the game page and engine name is on the policy list', () => {
   // A host added to the engine must be added to PLAY_HOSTS (server.ts); this finds the ones that were not.
-  const listed = new Set(['https://gen.hawkesgen.ai', 'https://models.babylonjs.com', 'https://hawkesgames.com']); // the last: the badge, a link to this site
+  const listed = new Set(['https://hawkesgen.ai', 'https://models.babylonjs.com', 'https://hawkesgames.com']); // the last: the badge, a link to this site
   const files = ['public/play/play.html', 'public/play/engine.json', 'public/play/kinds.js', 'public/play/loader.js', 'public/play/runtime.js', 'public/play/net.js', 'public/play/modules/monitor/monitor.js'];
   for (const f of files) {
     for (const m of fs.readFileSync(path.join(ROOT, f), 'utf8').matchAll(/https:\/\/([a-z0-9.-]+)/g)) {

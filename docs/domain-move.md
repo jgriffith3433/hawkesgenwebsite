@@ -96,7 +96,7 @@ Push hawkesgen `dev` and hawkesstudio `dev` to `beta`. What changes:
      - `https://hawkesgames.com/v1/billing/webhook` (the portal): `checkout.session.completed`,
        `checkout.session.async_payment_succeeded`, `invoice.paid`, `customer.subscription.created`,
        `customer.subscription.updated`, `customer.subscription.deleted`.
-     - `https://gen.hawkesgen.ai/v1/billing/webhook` (Gen, which stays on gen.): `checkout.session.completed`,
+     - `https://hawkesgen.ai/v1/billing/webhook` (Gen; made after the live cutover, `stripe-setup.mjs --after-cutover`): `checkout.session.completed`,
        `invoice.paid`, `invoice.payment_failed`, `customer.subscription.updated`, `customer.subscription.deleted`.
      - `https://studio.hawkesgen.ai/api/billing/webhook` (Studio): the same five as Gen.
    - **Keys:** both lanes in `C:/Projects/stripe.txt` (the names are in `cloud/stripe-keys.mjs`'s header: live keys,
@@ -141,5 +141,9 @@ J, 2026-10-29: Gen's name is hawkesgen.ai (beta.hawkesgen.ai on beta); gen.hawke
 going away. They keep working (the same Worker) until nothing calls them, so the order is: cutover, then every repo's
 `gen.hawkesgen.ai` becomes `hawkesgen.ai` and `gen-beta.hawkesgen.ai` becomes `beta.hawkesgen.ai` (SDK defaults, the
 analytics tag on every site, Studio, Net, the portal's `HAWKESGEN_URL`, CI, `~/.hawkes/client.json`, Stripe's Gen
-webhooks), then the old routes come off the Worker. Stripe's Gen webhooks: `https://hawkesgen.ai/v1/billing/webhook` and
+webhooks), then the old routes come off the Worker.
+
+**Done 2026-10-29:** the cutover on both lanes; the sweep in hawkesgen, hawkesstudio, hawkesgenwebsite and hawkesnet (the
+portal's `HAWKESGEN_URL` is https://hawkesgen.ai / https://beta.hawkesgen.ai). Product sites and Unity projects follow;
+then gen.hawkesgen.ai and gen-beta.hawkesgen.ai come off the Worker (hawkesgen `server/gen-edge/wrangler.jsonc`). Stripe's Gen webhooks: `https://hawkesgen.ai/v1/billing/webhook` and
 `https://beta.hawkesgen.ai/v1/billing/webhook`.
