@@ -78,9 +78,8 @@ Push hawkesgen `dev` and hawkesstudio `dev` to `beta`. What changes:
 
 1. hawkesgen `server/gen-edge`: `npx wrangler deploy --env beta`. The new routes do nothing yet, because beta.hawkesgen.ai is
    still a DNS-only record pointing at Firebase.
-2. Remove beta.hawkesgen.ai from Firebase hawkes-staging's custom domains (console, Hosting). Then, in the Cloudflare zone
-   hawkesgen.ai, replace beta.hawkesgen.ai's A and TXT records with one **proxied** `AAAA beta.hawkesgen.ai 100::`. From
-   now on the Worker has it.
+2. `node cloud/cloudflare/cutover.mjs --lane beta` (then `--apply`): beta.hawkesgen.ai leaves Firebase hawkes-staging,
+   its records give way to a proxied `AAAA beta.hawkesgen.ai 100::`, and it waits until the name answers as Gen beta.
 3. Check:
    - `curl https://beta.hawkesgen.ai/v1/health` answers as Gen beta;
    - `curl -I -H "Accept: text/html" https://beta.hawkesgen.ai/connect` is a 301 to beta.hawkesgames.com;
@@ -135,3 +134,12 @@ domain to Firebase again (the Worker's routes go quiet by themselves once the re
   working through the Worker, but their next release should default to hawkesgames.com.
 - Product sites' copies of the Gen client and the analytics SDK use gen.hawkesgen.ai, which stays.
 - `src/` (the retired box server) and the stale worktree under `.claude/worktrees/` still say hawkesgen.ai. Neither runs.
+
+## After the cutover: gen.hawkesgen.ai goes away
+
+J, 2026-10-29: Gen's name is hawkesgen.ai (beta.hawkesgen.ai on beta); gen.hawkesgen.ai and gen-beta.hawkesgen.ai are
+going away. They keep working (the same Worker) until nothing calls them, so the order is: cutover, then every repo's
+`gen.hawkesgen.ai` becomes `hawkesgen.ai` and `gen-beta.hawkesgen.ai` becomes `beta.hawkesgen.ai` (SDK defaults, the
+analytics tag on every site, Studio, Net, the portal's `HAWKESGEN_URL`, CI, `~/.hawkes/client.json`, Stripe's Gen
+webhooks), then the old routes come off the Worker. Stripe's Gen webhooks: `https://hawkesgen.ai/v1/billing/webhook` and
+`https://beta.hawkesgen.ai/v1/billing/webhook`.
