@@ -50,7 +50,6 @@ async function load() {
   $('auth').hidden = true;
   $('home').hidden = false;
   $('who').hidden = false;
-  $('studioLink').hidden = false;
   $('credits').textContent = Number(me.credits).toLocaleString('en-US');
   $('profileAvatar').textContent = (me.name || me.email || '?')[0].toUpperCase();
 

@@ -81,7 +81,7 @@ test('the compressed copies are not served by name, and nothing leaves the folde
 });
 
 test('no page loads a script or stylesheet from jsdelivr, cdnjs or unpkg', () => {
-  const files = ['public/play/engine.json', 'public/play/play.html', 'public/editor.html', 'public/app.html', 'public/games.html', 'public/community.html', 'public/index.html', 'public/play/modules/monitor/monitor.js', 'public/play/loader.js'];
+  const files = ['public/play/engine.json', 'public/play/play.html', 'public/editor.html', 'public/games.html', 'public/community.html', 'public/index.html', 'public/play/modules/monitor/monitor.js', 'public/play/loader.js'];
   for (const f of files) assert.ok(!/jsdelivr|cdnjs|unpkg/.test(fs.readFileSync(path.join(ROOT, f), 'utf8')), `${f} names a CDN`);
   const core = JSON.parse(fs.readFileSync(path.join(ROOT, 'public', 'play', 'engine.json'), 'utf8'));
   for (const u of [...core.babylon, core.havok]) assert.ok(fs.existsSync(path.join(ROOT, 'public', u)), u);

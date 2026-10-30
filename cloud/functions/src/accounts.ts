@@ -277,7 +277,7 @@ export const adminDeps = {
   },
 };
 
-/** The admin making this request, or null. Bearer tokens (hg_ keys, hgo_ OAuth tokens) and stream links never are. */
+/** The admin making this request, or null. Bearer tokens (hg_ keys) and stream links never are. */
 export async function adminFrom(req: Request): Promise<User | null> {
   if (bearer(req)) return null;
   const c = cookies(req)[SESSION_COOKIE];

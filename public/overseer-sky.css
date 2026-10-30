@@ -1,4 +1,4 @@
-/* The landing page's sky (overseer-sky.js): the hero is the view from the ground of any Hawkes Gen world, dark like the
+/* The landing page's sky (overseer-sky.js): the hero is the view from the ground of any Hawkes Games world, dark like the
    game, and the page descends from it into the light. */
 
 .sky { position: relative; min-height: max(640px, 100svh); max-height: 980px; overflow: hidden; background: #03050c; color: #eaf3ff; isolation: isolate; }

@@ -2,7 +2,7 @@
 
 A thing has a function (its kind: a truck drives, a chair seats, a cow grazes) and a look (the model it wears). The
 looks chooser changes only the look: the camera turns round the thing, the player picks a look from the community
-library or the game's own models (shown on the thing at once), or has a new one made with Hawkes Gen. A truck wearing
+library or the game's own models (shown on the thing at once), or has a new one made with Hawkes Games. A truck wearing
 a teapot still drives like a truck. It opens only while building, or on the player's own island; never in a published
 game.
 

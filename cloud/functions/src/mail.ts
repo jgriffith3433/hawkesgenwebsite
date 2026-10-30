@@ -3,7 +3,7 @@
 // emails are the old box's, unchanged (src/mail.ts); password resets are gone with passwords.
 import { env, publicUrl, SECRETS } from './config.ts';
 
-const FROM = 'Hawkes Gen <support@hawkesgen.ai>';
+const FROM = 'Hawkes Games <support@hawkesgen.ai>';
 export const mailOn = () => env('PORTAL_MAIL') === 'resend';
 
 export async function sendEmail(to: string, subject: string, text: string, html: string) {
@@ -54,14 +54,14 @@ ${plain}
 
 ${ask}
 
-Hawkes Gen
+Hawkes Games
 ${site}
 
 You're getting this because you made an account at ${new URL(site).host}.`;
   const p = (t: string, extra = '') => `<p style="margin:0 0 16px;font-size:15px;line-height:1.65${extra}">${t}</p>`;
   const html = `<!doctype html><html><body style="margin:0;background:#f4f2ed;padding:32px 16px;font-family:'IBM Plex Sans',Helvetica,Arial,sans-serif;color:#1a1915">
 <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #d6d1c6;border-radius:3px;padding:32px">
-<div style="font:400 26px Georgia,'Times New Roman',serif;margin-bottom:24px">Hawkes Gen</div>
+<div style="font:400 26px Georgia,'Times New Roman',serif;margin-bottom:24px">Hawkes Games</div>
 ${p(esc(hi))}
 ${p(esc(who))}
 ${p(esc(island.text))}
@@ -72,7 +72,7 @@ ${p('If something did not come down as it should, or you have an idea, write to 
 </div>
 <p style="max-width:520px;margin:14px auto 0;font-size:12px;color:#8b867b;text-align:center">You're getting this because you made an account at ${new URL(site).host}.</p>
 </body></html>`;
-  return { subject: name ? `${name}, your island is waiting` : 'Welcome to Hawkes Gen', text, html };
+  return { subject: name ? `${name}, your island is waiting` : 'Welcome to Hawkes Games', text, html };
 }
 
 /** Sends the welcome email in the background; a failure is logged, never shown to the person signing up. */
@@ -89,34 +89,32 @@ export function giftEmail(name: string | null, credits: number, balance: number,
   const worth = `enough for about ${n(Math.floor(credits / 5))} images${credits >= 50 ? ` or ${n(Math.floor(credits / 50))} sprite sheet${credits >= 100 ? 's' : ''}` : ''}`;
   const text = `${hi}
 
-We've added ${n(credits)} credits to your Hawkes Gen account, a gift from us: ${worth}.
+We've added ${n(credits)} credits to your Hawkes Games account, a gift from us: ${worth}.
 ${message ? `
 "${message}"
 ` : ''}
 Your balance is now ${n(balance)} credits.
 
 Use them: ${site}/app
-Or from your editor: ${site}/connect
 
 Questions? Reply to this email. It comes straight to us.
 
-Hawkes Gen
+Hawkes Games
 ${site}`;
   const html = `<!doctype html><html><body style="margin:0;background:#f4f2ed;padding:32px 16px;font-family:'IBM Plex Sans',Helvetica,Arial,sans-serif;color:#1a1915">
 <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #d6d1c6;border-radius:3px;padding:32px">
-<div style="font:400 26px Georgia,'Times New Roman',serif;margin-bottom:24px">Hawkes Gen</div>
+<div style="font:400 26px Georgia,'Times New Roman',serif;margin-bottom:24px">Hawkes Games</div>
 <p style="margin:0 0 14px;font-size:15px;line-height:1.6">${esc(hi)}</p>
 <p style="margin:0 0 6px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#8b867b">A gift from us</p>
 <p style="margin:0 0 6px;font:400 44px/1.05 Georgia,'Times New Roman',serif">${n(credits)} credits</p>
 <p style="margin:0 0 22px;font-size:15px;line-height:1.6;color:#4b4840">${worth[0].toUpperCase() + worth.slice(1)}. Your balance is now <strong style="color:#1a1915">${n(balance)}</strong>.</p>
 ${message ? `<p style="margin:0 0 22px;padding:2px 0 2px 14px;border-left:2px solid #c8421d;font-size:15px;line-height:1.6">${esc(message).replace(/\n/g, '<br>')}</p>` : ''}
 <p style="margin:0 0 14px"><a href="${site}/app" style="display:inline-block;background:#1a1915;color:#f4f2ed;text-decoration:none;padding:11px 18px;border-radius:3px;font-size:15px;font-weight:600">Use them now →</a></p>
-<p style="margin:0 0 0;font-size:14px;line-height:1.6"><a href="${site}/connect" style="color:#1a1915">Or from Unity, Claude Code, Cursor or VS Code →</a></p>
 <p style="margin:22px 0 0;font-size:14px;line-height:1.6;color:#4b4840">Questions? Reply to this email. It comes straight to us.</p>
 </div>
 <p style="max-width:520px;margin:14px auto 0;font-size:12px;color:#8b867b;text-align:center">You're getting this because you have an account at ${new URL(site).host}.</p>
 </body></html>`;
-  return { subject: `A gift: ${n(credits)} Hawkes Gen credits`, text, html };
+  return { subject: `A gift: ${n(credits)} Hawkes Games credits`, text, html };
 }
 
 /** Sends the gift email in the background (a failure is logged). Returns whether mail is on at all. */
@@ -133,18 +131,18 @@ export function lowBalanceEmail(name: string | null, credits: number, firstBonus
   const bonus = firstBonus ? ` Your first pack comes with ${firstBonus}% more credits.` : '';
   const text = `${hi}
 
-You have ${credits} credit${credits === 1 ? '' : 's'} left on Hawkes Gen.${bonus}
+You have ${credits} credit${credits === 1 ? '' : 's'} left on Hawkes Games.${bonus}
 
 Top up: ${site}/credits
 Packs start at $10 for 1,000 credits: about 200 images, or 20 sprite sheets.
 
-Hawkes Gen
+Hawkes Games
 ${site}
 
 You get this once when your balance runs low.`;
   const html = `<!doctype html><html><body style="margin:0;background:#f4f2ed;padding:32px 16px;font-family:'IBM Plex Sans',Helvetica,Arial,sans-serif;color:#1a1915">
 <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #d6d1c6;border-radius:3px;padding:32px">
-<div style="font:400 26px Georgia,'Times New Roman',serif;margin-bottom:24px">Hawkes Gen</div>
+<div style="font:400 26px Georgia,'Times New Roman',serif;margin-bottom:24px">Hawkes Games</div>
 <p style="margin:0 0 14px;font-size:15px;line-height:1.6">${esc(hi)}</p>
 <p style="margin:0 0 6px;font:400 40px/1.1 Georgia,'Times New Roman',serif">${credits} credit${credits === 1 ? '' : 's'} left</p>
 <p style="margin:0 0 22px;font-size:15px;line-height:1.6;color:#4b4840">Packs start at $10 for 1,000 credits: about 200 images, or 20 sprite sheets.${firstBonus ? ` <strong style="color:#c8421d">Your first pack comes with ${firstBonus}% more.</strong>` : ''}</p>
@@ -152,7 +150,7 @@ You get this once when your balance runs low.`;
 </div>
 <p style="max-width:520px;margin:14px auto 0;font-size:12px;color:#8b867b;text-align:center">You get this once when your balance runs low.</p>
 </body></html>`;
-  return { subject: `You have ${credits} Hawkes Gen credit${credits === 1 ? '' : 's'} left`, text, html };
+  return { subject: `You have ${credits} Hawkes Games credit${credits === 1 ? '' : 's'} left`, text, html };
 }
 
 export async function sendLowBalance(email: string, name: string | null, credits: number, firstBonus: number) {

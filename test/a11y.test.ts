@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
-const PAGES = ['index.html', 'gallery.html', 'games.html', 'community.html', 'connect.html', 'reset.html', 'authorize.html', 'share.html'];
+const PAGES = ['index.html', 'gallery.html', 'games.html', 'community.html', 'reset.html', 'share.html'];
 
 const attr = (tag: string, name: string) => new RegExp(`\\s${name}(?:=("[^"]*"|'[^']*'|[^\\s>]+))?(?=[\\s/>])`, 'i').exec(tag);
 const stripScripts = (h: string) => h.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '');

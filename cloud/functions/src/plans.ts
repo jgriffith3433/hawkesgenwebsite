@@ -39,7 +39,7 @@ async function priceFor(plan: Plan) {
   const found = await stripe(`/v1/prices?active=true&lookup_keys[]=${lookup}`);
   let price = found?.data?.[0]?.id as string | undefined;
   if (!price) {
-    const product = await stripe('/v1/products', new URLSearchParams({ name: plan.legacy ? `Hawkes Gen ${plan.name}` : `Hawkes ${plan.name}`, description: `${plan.monthlyCredits.toLocaleString('en-US')} credits every month, up to ${plan.games} games` }));
+    const product = await stripe('/v1/products', new URLSearchParams({ name: plan.legacy ? `Hawkes Games ${plan.name}` : `Hawkes ${plan.name}`, description: `${plan.monthlyCredits.toLocaleString('en-US')} credits every month, up to ${plan.games} games` }));
     price = (await stripe('/v1/prices', new URLSearchParams({ product: product.id, currency: 'usd', unit_amount: String(plan.priceCents), 'recurring[interval]': 'month', lookup_key: lookup, 'metadata[plan]': plan.id }))).id as string;
   }
   priceIds.set(lookup, price);

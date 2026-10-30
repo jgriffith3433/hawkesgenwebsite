@@ -1,4 +1,4 @@
-// Orgs, members, invites, OAuth scopes and the platform token against the staging project's Firestore (no emulator on
+// Orgs, members, invites and the platform token against the staging project's Firestore (no emulator on
 // J's PC): throwaway accounts and orgs under test ids, deleted after. Skipped unless GOOGLE_CLOUD_PROJECT=hawkes-staging.
 //   GOOGLE_CLOUD_PROJECT=hawkes-staging node --test --disable-warning=ExperimentalWarning test/orgs.test.ts
 import { test, after } from 'node:test';
@@ -16,7 +16,7 @@ process.env.PORTAL_PLATFORM_KEY = PEM; // defineSecret reads the environment
 
 type U = import('../src/accounts.ts').User;
 const hex = () => `feed${crypto.randomBytes(6).toString('hex')}`;
-const made = { users: [] as string[], orgs: [] as string[], clients: [] as string[] };
+const made = { users: [] as string[], orgs: [] as string[] };
 const FRONT = 'https://studio-beta.hawkesgen.ai/';
 
 test("Open Studio: the lane's front door, or an org's own Studio at /o/<id>/ (no Firestore)", async () => {
@@ -41,8 +41,7 @@ test("Open Studio: the lane's front door, or an org's own Studio at /o/<id>/ (no
 test('orgs, members and the platform token on staging', { skip: !ON && 'set GOOGLE_CLOUD_PROJECT=hawkes-staging' }, async (t) => {
   const { db, users, ledgerOf } = await import('../src/store.ts');
   const O = await import('../src/orgs.ts');
-  const oauth = await import('../src/oauth.ts');
-  const { caller } = await import('../src/caller.ts');
+  const { mintApiKey } = await import('../src/accounts.ts');
   const { platformToken, jwks } = await import('../src/platform-token.ts');
 
   after(async () => {
@@ -53,11 +52,7 @@ test('orgs, members and the platform token on staging', { skip: !ON && 'set GOOG
     }
     for (const u of made.users) {
       refs.push(users().doc(u), ...(await ledgerOf(u).get()).docs.map((d) => d.ref));
-      for (const c of ['connections', 'oauthCodes']) refs.push(...(await db.collection(c).where('user_id', '==', u).get()).docs.map((d) => d.ref));
     }
-    for (const c of made.clients) refs.push(db.collection('oauthClients').doc(c));
-    const conns = refs.filter((r) => r.parent.id === 'connections').map((r) => r.id);
-    for (const id of conns) refs.push(...(await db.collection('oauthTokens').where('connection_id', '==', id).get()).docs.map((d) => d.ref));
     for (const r of refs) await r.delete().catch(() => {});
   });
 
@@ -151,68 +146,26 @@ test('orgs, members and the platform token on staging', { skip: !ON && 'set GOOG
     assert.equal(await O.studioFor(sub, null), 'https://studio-beta.hawkesgen.ai/o/solo-9c1d/');
   });
 
-  await t.test('OAuth: scopes cut to the org picked; the token carries the org', async () => {
-    const client = await oauth.registerClient({ client_name: 'Test editor', redirect_uris: ['http://127.0.0.1:7777/cb'], scope: 'generate agents' });
-    made.clients.push(client.client_id);
-    assert.equal(client.scope, 'generate agents');
-    const verifier = crypto.randomBytes(32).toString('base64url');
-    const q = new URLSearchParams({ client_id: client.client_id, redirect_uri: 'http://127.0.0.1:7777/cb', response_type: 'code', code_challenge_method: 'S256', code_challenge: crypto.createHash('sha256').update(verifier).digest('base64url'), scope: 'generate playtest agents build' });
-    const info = await oauth.consentInfo(bo, q);
-    assert.deepEqual(info.scopes.map((s) => s.id), ['generate', 'playtest', 'agents', 'build']);
-    assert.ok(info.scopes.every((s) => s.label.length > 10), 'plain words for each');
-    const personal = info.orgs.find((o) => o.personal)!;
-    const onTeam = info.orgs.find((o) => o.id === team)!;
-    assert.deepEqual(personal.granted, ['generate', 'playtest']);
-    assert.deepEqual(onTeam.granted, ['generate', 'playtest', 'agents'], "team: agents yes, cloud builds are Studio's");
-    assert.match(onTeam.missing.find((m) => m.id === 'build')!.why, /Studio/);
-    await assert.rejects(oauth.approve(bo, q, 100, 'org_ffffffffffffffff'), (e: any) => e.status === 404);
-    const redirect = new URL(await oauth.approve(bo, q, 100, team));
-    const tok = await oauth.token({ grant_type: 'authorization_code', code: redirect.searchParams.get('code')!, code_verifier: verifier, client_id: client.client_id, redirect_uri: 'http://127.0.0.1:7777/cb' });
-    assert.equal(tok.scope, 'generate playtest agents');
-    const c = await oauth.fromAccessToken(tok.access_token);
-    assert.equal(c?.via.org, team);
-    assert.deepEqual(c?.via.scopes, ['generate', 'playtest', 'agents']);
-    const refreshed = await oauth.token({ grant_type: 'refresh_token', refresh_token: tok.refresh_token });
-    assert.equal(refreshed.scope, tok.scope, 'a refresh keeps the scopes');
-
-    // The platform token for that connection: its org, its scopes, as the plan allows now.
-    const req = (token: string, body: object = {}) => ({ headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body } as any);
-    const p = await platformToken(req(refreshed.access_token));
+  await t.test('the platform token: the org asked for, its role and plan as they are now', async () => {
+    const { apiKey } = await mintApiKey(bo.id);
+    const req = (body: object = {}) => ({ headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' }, body } as any);
+    const p = await platformToken(req({ org: team }));
     const claims = verifyPlatformToken(p.token, jwks(), { iss: 'https://beta.hawkesgen.ai', aud: 'hawkesstudio' });
     assert.equal(claims.org, team);
     assert.equal(claims.user, bo.id);
     assert.equal(claims.role, 'member');
     assert.equal(claims.plan, 'team');
-    assert.deepEqual(claims.scopes, ['generate', 'playtest', 'agents']);
-    assert.equal(claims.via.kind, 'connection');
+    assert.equal(claims.via.kind, 'key');
     assert.equal(loadSigningKeys(PEM).kid, jwks().keys[0].kid);
-    await assert.rejects(platformToken(req(refreshed.access_token, { org: personalOrgId(bo.id) })), (e: any) => e.status === 403, 'a connection acts for its own org only');
     // Demoted to viewer: the next token says so, and loses what a viewer can't do.
     await O.setRole(ana, team, bo.id, 'viewer');
-    const later = verifyPlatformToken((await platformToken(req(refreshed.access_token))).token, jwks(), { iss: 'https://beta.hawkesgen.ai', aud: 'hawkesgen' });
+    const later = verifyPlatformToken((await platformToken(req({ org: team }))).token, jwks(), { iss: 'https://beta.hawkesgen.ai', aud: 'hawkesgen' });
     assert.equal(later.role, 'viewer');
     assert.deepEqual(later.scopes, []);
-    // Out of the org: no token at all.
+    // Out of the org: no token for it.
     await O.setRole(ana, team, bo.id, null);
-    await assert.rejects(platformToken(req(refreshed.access_token)), (e: any) => e.status === 403);
-
-    // A connection without `generate` is no caller for Gen work, but may still mint platform tokens.
-    await O.orgs().doc(team).update({ plan: 'studio' });
-    const q2 = new URLSearchParams(q);
-    q2.set('scope', 'build');
-    const code2 = new URL(await oauth.approve(ana, q2, null, team)).searchParams.get('code')!;
-    const tok2 = await oauth.token({ grant_type: 'authorization_code', code: code2, code_verifier: verifier });
-    assert.equal(tok2.scope, 'build');
-    assert.equal(await caller(req(tok2.access_token)), null);
-    assert.equal((await caller(req(tok2.access_token), { anyScope: true }))?.via.org, team);
-    const owner = verifyPlatformToken((await platformToken(req(tok2.access_token))).token, jwks(), { iss: 'https://beta.hawkesgen.ai', aud: 'hawkesgen' });
-    assert.deepEqual(owner.scopes, ['build']);
-    assert.deepEqual(owner.entitlements.studio.cloudBuilds, true);
-    // Old connections (no org, no scopes) read as the personal org with generate.
-    await db.collection('connections').doc(String(c?.via.id)).update({ org_id: null, scopes: null, revoked: null });
-    const old = await oauth.fromAccessToken(tok.access_token);
-    assert.equal(old?.via.org, personalOrgId(bo.id));
-    assert.deepEqual(old?.via.scopes, ['generate']);
+    await assert.rejects(platformToken(req({ org: team })), (e: any) => e.status === 403 || e.status === 404);
+    await db.collection('apiKeys').doc(crypto.createHash('sha256').update(apiKey).digest('hex')).delete().catch(() => {});
   });
 
   await t.test('invites and orgs go away with their org', async () => {

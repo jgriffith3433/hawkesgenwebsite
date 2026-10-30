@@ -144,7 +144,7 @@
   P.addFriend = async (who) => {
     const pr = typeof who === 'string' ? person(who.startsWith('p:') ? who : `p:${who}`) : who;
     const v = pr && pr.conn && verifiedOf(pr.conn);
-    if (!v) throw new Error('Only players signed in to Hawkes Gen can be friends');
+    if (!v) throw new Error('Only players signed in to Hawkes Games can be friends');
     if (!me.signedIn) throw new Error('Sign in to make friends');
     const r = await api('/v1/friends/request', { to: v.user });
     if (r.status === 'friends') { me.friends.add(v.user); v.friend = true; }

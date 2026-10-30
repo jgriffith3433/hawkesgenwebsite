@@ -150,7 +150,7 @@
   const api = async (method, url, body, o = {}) => {
     let r;
     try { r = await fetch(url, { method, headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(o.headers || {}) }, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin', keepalive: Boolean(o.keepalive) }); }
-    catch { const e = new Error("Couldn't reach Hawkes Gen. Check your connection and try again."); e.status = 0; throw e; }
+    catch { const e = new Error("Couldn't reach Hawkes Games. Check your connection and try again."); e.status = 0; throw e; }
     const d = await r.json().catch(() => ({}));
     if (!r.ok) {
       const e = new Error(d.error || `That did not work (${r.status})`); e.status = r.status;
@@ -406,7 +406,7 @@
     async function shareLink(url) {
       const text = 'Come and play on my island.';
       if (touch && navigator.share) {
-        try { await navigator.share({ title: 'Hawkes Gen island', text, url }); track('sandbox_invite_shared', { how: 'sheet' }); return; }
+        try { await navigator.share({ title: 'Hawkes Games island', text, url }); track('sandbox_invite_shared', { how: 'sheet' }); return; }
         catch (err) { if (err && err.name === 'AbortError') return; /* otherwise fall through to the copy */ }
       }
       let copied = false;

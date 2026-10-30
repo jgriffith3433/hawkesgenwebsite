@@ -303,7 +303,7 @@ body.pr-touch .pr-sw button{width:38px;height:38px}body.pr-touch .pr-ch button{m
       html += '</div>';
     }
     if (n <= 1) html += '<p class="pr-note">Just you here. "Play with friends" (bottom right) makes a room and copies its link.</p>';
-    if (!P.me.signedIn) html += '<p class="pr-note">Sign in to Hawkes Gen to keep your look in every game and add friends.</p>';
+    if (!P.me.signedIn) html += '<p class="pr-note">Sign in to Hawkes Games to keep your look in every game and add friends.</p>';
     panel.innerHTML = html;
     panel.onclick = (e) => {
       const nameEl = e.target.closest ? e.target.closest('.nm[data-go]') : null;

@@ -1,4 +1,4 @@
-// The landing page's sky: what every Hawkes Gen world looks like from the ground (docs/story.md). The Overseer, a pearl
+// The landing page's sky: what every Hawkes Games world looks like from the ground (docs/story.md). The Overseer, a pearl
 // sphere with seams and two turning rings of light, hangs over a curved planet; whatever appears is beamed down from it.
 // The wish box sends a real beam (and a card that assembles where it lands); it is a preview of the beam, not a build.
 // Plain canvas 2D, no dependencies. Draws only while the hero is on screen; with reduced motion it draws one still frame.

@@ -153,11 +153,11 @@ export function previewTags(r: Row, byName: string | null) {
   const caption = r.caption ? `“${r.caption}”` : '';
   const by = r.who || '';
   const desc = r.moment
-    ? [caption, `${by ? by + ', ' : ''}${(MOMENTS[r.moment] ?? 'a moment').toLowerCase()}${v.game ? ` in ${v.game.title}` : ''}. A game made with Hawkes Gen: play it in your browser.`].filter(Boolean).join(' ')
-    : v.game ? `${what} from ${v.game.title}, a game made with Hawkes Gen. Play it in your browser.` : `${what} from a game made with Hawkes Gen.`;
+    ? [caption, `${by ? by + ', ' : ''}${(MOMENTS[r.moment] ?? 'a moment').toLowerCase()}${v.game ? ` in ${v.game.title}` : ''}. A game made with Hawkes Games: play it in your browser.`].filter(Boolean).join(' ')
+    : v.game ? `${what} from ${v.game.title}, a game made with Hawkes Games. Play it in your browser.` : `${what} from a game made with Hawkes Games.`;
   const dims = v.width && v.height ? [['og:image:width', String(v.width)], ['og:image:height', String(v.height)]] : [];
   const tags: string[][] = [
-    ['og:type', clip ? 'video.other' : 'website'], ['og:site_name', 'Hawkes Gen'], ['og:title', v.title], ['og:description', desc], ['og:url', v.url],
+    ['og:type', clip ? 'video.other' : 'website'], ['og:site_name', 'Hawkes Games'], ['og:title', v.title], ['og:description', desc], ['og:url', v.url],
     ...(v.image ? [['og:image', v.image], ['og:image:alt', r.caption ? `${v.title}: ${r.caption}` : v.title], ...dims] : []),
     ...(clip ? [['og:video', v.media], ['og:video:url', v.media], ['og:video:secure_url', v.media], ['og:video:type', r.mime], ...(v.width && v.height ? [['og:video:width', String(v.width)], ['og:video:height', String(v.height)]] : [])] : []),
   ];
@@ -218,7 +218,7 @@ export async function sharePage(shareId: string, res: Response) {
         <a class="btn btn-ghost" href="/s/${esc(r.id)}/media" download>Download</a>
       </div>
     </div>
-    <p class="muted sh-made">Made with <a href="/">Hawkes Gen</a>: build a game with friends and AI, in your browser.</p>
+    <p class="muted sh-made">Made with <a href="/">Hawkes Games</a>: build a game with friends and AI, in your browser.</p>
   </main>
   <script>document.getElementById('copy').onclick=function(){var b=this;try{navigator.clipboard.writeText(b.dataset.url);b.textContent='Copied';setTimeout(function(){b.textContent='Copy link'},1800)}catch(e){prompt('Copy this link',b.dataset.url)}};</script>`;
   html(res, 200, page({ title: v.title, head, body }));
@@ -230,7 +230,7 @@ function page(o: { title: string; head: string; body: string }) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${esc(o.title)} · Hawkes Gen</title>
+  <title>${esc(o.title)} · Hawkes Games</title>
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/public.css">
   <link rel="stylesheet" href="/site.css">
@@ -261,8 +261,8 @@ function page(o: { title: string; head: string; body: string }) {
 </head>
 <body class="landing">
   <header class="bar">
-    <a class="hg-brand" href="/"><img src="/favicon.svg" alt=""><span>Hawkes Gen</span></a>
-    <nav class="hg-nav-links" data-site-nav><a href="/games">Games</a><a href="/community">Community library</a><a href="/entities">Engine codex</a><a href="/app/studio">Asset Studio</a><a href="/#pricing">Pricing</a><a href="/connect">For developers</a></nav>
+    <a class="hg-brand" href="/"><img src="/favicon.svg" alt=""><span>Hawkes Games</span></a>
+    <nav class="hg-nav-links" data-site-nav><a href="/games">Games</a><a href="/community">Community library</a><a href="/entities">Engine codex</a><a href="/avatars">Avatars</a><a href="/net">Hawkes Net</a><a href="/#pricing">Pricing</a></nav>
     <a class="btn btn-primary btn-sm" href="/app">Build a game</a>
   </header>
   ${o.body}
