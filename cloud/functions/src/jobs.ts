@@ -8,7 +8,7 @@ import { hold, attach, release, releaseIn, releaseOrphanHolds } from './billing.
 import { requireCaller, type Via } from './caller.ts';
 import type { User } from './accounts.ts';
 import { PortalError, route, send } from './http.ts';
-import { SECRETS } from './config.ts';
+import { SECRETS, siteName } from './config.ts';
 
 const TERMINAL = new Set(['done', 'failed', 'cancelled']);
 const SPEC_FIELDS = ['tool', 'preset', 'params', 'inputs', 'labels', 'key', 'reuse'];
@@ -38,7 +38,7 @@ export async function submit(user: User, specs: any[], via?: Via, opts: { minCre
     if (opts.minCredits && q.credits < opts.minCredits) q.credits = opts.minCredits;
     if (via?.cap != null) {
       const spent = await spentToday(via.id);
-      if (spent + q.credits > via.cap) throw new PortalError(`${via.name ?? 'This connection'} has a daily limit of ${via.cap} credits and has used ${spent} today; this needs ${q.credits}. Raise the limit at hawkesgen.ai/connect.`, { status: 402 });
+      if (spent + q.credits > via.cap) throw new PortalError(`${via.name ?? 'This connection'} has a daily limit of ${via.cap} credits and has used ${spent} today; this needs ${q.credits}. Raise the limit at ${siteName()}/connect.`, { status: 402 });
     }
     const holdId = await hold(user.id, q.credits, `${q.credits} credits for ${q.tool}`);
     let job: GenJob;

@@ -2,7 +2,7 @@
 // (https://net.hawkesgen.ai: tickets, rooms and the relay). The game pages are sandboxed and hold no keys, so they ask
 // here for a ticket and the portal asks the service with its Gen key (which the service checks with Gen). This module also
 // says whether an invitation's room is open, sends world edits into the rooms (for the games area), serves the Net
-// dashboard's account routes (with CORS for https://net.hawkesgen.ai and credentials) and its two redirects.
+// dashboard's account routes (with CORS for the dashboard, https://net.hawkesgames.com, and credentials) and its two redirects.
 //
 // Room names (one Hawkes Net project, "hawkesgenwebsite"):
 //   g/<gameId>/edit          the game's members in the editor (a signed edit token from /bundle)
@@ -33,7 +33,7 @@ const projectCalls = new Limiter(120, 60_000);
 /** The Hawkes Net service: tickets, room info and publish go here (not through Gen, which only checks the key). */
 export const netUrl = () => (env('PORTAL_NET_URL') ?? 'https://net.hawkesgen.ai').replace(/\/+$/, '');
 /** The Net dashboard (its own site): the one origin that may call the account routes below with the session. */
-export const netDashboard = () => (env('PORTAL_NET_DASHBOARD') ?? 'https://net.hawkesgen.ai').replace(/\/+$/, '');
+export const netDashboard = () => (env('PORTAL_NET_DASHBOARD') ?? 'https://net.hawkesgames.com').replace(/\/+$/, '');
 
 async function netFetch(path: string, o: GenCall = {}) {
   return fetch(`${netUrl()}${path}`, {
@@ -164,7 +164,7 @@ export async function customerTicket(user: User, body: any) {
   if (!(await paid(user))) throw new PortalError('Hawkes Net for your own games needs an account that has bought credits or a plan', { status: 402 });
   customerTickets.take(user.id, 'Too many tickets a minute for this account');
   const project = String(body?.project ?? '');
-  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(project)) throw new PortalError('project is your Hawkes Net project id (net.hawkesgen.ai)');
+  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(project)) throw new PortalError('project is your Hawkes Net project id (from the Net dashboard)');
   const room = String(body?.room ?? '');
   if (!/^[a-z0-9][a-z0-9/_.-]{0,63}$/i.test(room)) throw new PortalError('room is 1 to 64 of letters, digits and / _ . -');
   const transport = ['auto', 'p2p', 'relay'].includes(body?.transport) ? body.transport : 'relay';
@@ -173,7 +173,7 @@ export async function customerTicket(user: User, body: any) {
   return net('/v1/net/ticket', { as: user.project, body: { project, room, name: clean(body?.name) || null, sub: typeof body?.sub === 'string' ? body.sub.slice(0, 64) : undefined, transport, role, config, client: { sdk: String(body?.sdk ?? ''), protocols: [3] } } });
 }
 
-// ------------------------------------------------------------ Hawkes Net projects (the net.hawkesgen.ai dashboard)
+// ------------------------------------------------------------ Hawkes Net projects (the Net dashboard)
 
 // Admin on the Net dashboard is J's Google sign-in on this request (accounts.ts adminFrom), never a stored role: the
 // routes mark the account object they loaded for this one request (`developerOf`), and nothing else adds to the set.
@@ -276,7 +276,7 @@ export const publishEvent = (gameId: string, name: string, data: unknown) => qui
 
 // ------------------------------------------------------------ CORS for the Net dashboard
 
-// The Net dashboard (net.hawkesgen.ai) reads the signed-in developer's Net data and makes their key here, with the
+// The Net dashboard (net.hawkesgames.com: the same site as this portal, so the cookie goes) reads the signed-in developer's Net data and makes their key here, with the
 // session cookie. Only that origin, only these routes, credentials allowed (src/server.ts NET_DASHBOARD_ROUTES).
 export const NET_DASHBOARD_ROUTES = /^\/v1\/(net\/me|net\/projects(\/.*)?|users\/api-key|users\/(login|signup|forgot|logout))$/;
 /** Sets the dashboard's CORS headers when the request comes from it; true when it did. */
@@ -300,7 +300,7 @@ route('OPTIONS', NET_DASHBOARD_ROUTES, ({ req, res }) => {
 
 // Back to the Net dashboard after signing in here (Google's next= takes paths on this site only).
 route('GET', '/net/back', ({ res }) => redirect(res, netDashboard() + '/'));
-// The Hawkes Net docs live on net.hawkesgen.ai (J, 2026-10-26).
+// The Hawkes Net docs live on the Net dashboard (J, 2026-10-26).
 route('GET', '/net/docs', ({ res }) => redirect(res, netDashboard() + '/', 301));
 
 // Tickets for the engine's rooms. Open CORS: game pages are sandboxed (origin null) and send no cookies.

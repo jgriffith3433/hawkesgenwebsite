@@ -1,4 +1,4 @@
-// hawkesgen.ai's API on Google Cloud (docs/cloud.md). Firebase Hosting serves public/ and sends the dynamic paths here
+// The portal's API (hawkesgames.com; hawkesgen.ai before the move) on Google Cloud (docs/cloud.md). Firebase Hosting serves public/ and sends the dynamic paths here
 // (firebase.json). Each area module registers its routes when imported.
 import './options.ts';
 import { onRequest } from 'firebase-functions/https';

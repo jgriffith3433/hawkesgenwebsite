@@ -13,7 +13,7 @@
 //   oauthTokens/{sha256(token)}   access (an hour) and refresh (90 days) tokens of a connection
 import crypto from 'node:crypto';
 import { db } from './store.ts';
-import { publicUrl } from './config.ts';
+import { formerUrls, publicUrl } from './config.ts';
 import { getUser, requireUser, bearer, type User } from './accounts.ts';
 import { accessTokens, type Caller } from './caller.ts';
 import { spentToday } from './jobs.ts';
@@ -107,7 +107,9 @@ export async function authorizeRequest(q: URLSearchParams) {
   if (q.get('response_type') !== 'code') throw new PortalError('Only response_type=code is supported');
   if (q.get('code_challenge_method') !== 'S256' || !/^[A-Za-z0-9_-]{43,128}$/.test(q.get('code_challenge') ?? '')) throw new PortalError('PKCE (S256) is required');
   const resource = q.get('resource');
-  if (resource && resource.replace(/\/+$/, '') !== resourceUrl() && resource.replace(/\/+$/, '') !== publicUrl()) throw new PortalError('Unknown resource');
+  const asked = resource?.replace(/\/+$/, '');
+  const ours = [publicUrl(), ...formerUrls()].flatMap((u) => [u, `${u}/mcp`]);
+  if (asked && !ours.includes(asked)) throw new PortalError('Unknown resource');
   return { client: { id: client.id, name: client.name }, redirect, state: q.get('state'), challenge: q.get('code_challenge')!, host: new URL(redirect).host || new URL(redirect).protocol.replace(':', ''), scopes: parseScopes(q.get('scope')) };
 }
 

@@ -19,7 +19,7 @@ export function refs(h: string): string[] {
   for (const m of h.matchAll(/<meta\b[^>]*(?:og|twitter):image[^>]*\scontent="([^"]+)"/gi)) out.add(m[1]);
   return [...out].filter((u) => !u.startsWith('data:'));
 }
-const local = (u: string) => (u.startsWith('https://hawkesgen.ai/') ? u.slice('https://hawkesgen.ai'.length) : u);
+const local = (u: string) => (u.startsWith('https://hawkesgames.com/') ? u.slice('https://hawkesgames.com'.length) : u);
 
 test('every image and asset public/index.html references exists', () => {
   const all = refs(markup);

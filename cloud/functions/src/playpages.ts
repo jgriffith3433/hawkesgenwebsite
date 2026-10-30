@@ -27,7 +27,7 @@ export function netHosts(): string[] {
 }
 /** What a game page may load and call. ADD A HOST HERE only when the engine starts to use one. */
 const PLAY_HOSTS = {
-  gen: ['https://gen.hawkesgen.ai'],
+  gen: ['https://gen.hawkesgen.ai', 'https://hawkesgen.ai'],
   models: ['https://models.babylonjs.com'],
   get realtime(): string[] { return netHosts(); },
   get assets(): string[] { return cdnHosts(); },

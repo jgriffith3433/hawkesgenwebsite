@@ -48,7 +48,7 @@
           <h1 style="margin-top:18px">Ask your editor<br><em>for game assets.</em></h1>
           <p class="lede">Connect Hawkes Gen to Claude Code, Cursor, VS Code, Claude, Windsurf or ChatGPT. Then just ask: "make a run-cycle sprite sheet of this character and hook it up". It runs on our GPUs and servers, and the files land in your project. No Blender, ffmpeg, Python or GPU on your machine.</p>
           <div class="label" style="margin-bottom:8px">The server</div>
-          <div class="copy" style="max-width:520px"><code id="url">https://hawkesgen.ai/mcp</code><button type="button" data-copy="url">Copy</button></div>
+          <div class="copy" style="max-width:520px"><code id="url">https://hawkesgames.com/mcp</code><button type="button" data-copy="url">Copy</button></div>
           <div class="fine">Sign in once from your editor and approve it, with a daily spending limit. No keys to paste.</div>
           <div id="status" class="label" style="margin-top:22px;color:var(--ink-2)"></div>
         </div>
@@ -58,7 +58,7 @@
   art/hero.png and add it to the player
 
 <span class="c">● hawkesgen · upload_file</span>
-  curl -T art/hero.png https://hawkesgen.ai/up/…
+  curl -T art/hero.png https://hawkesgames.com/up/…
 <span class="c">● hawkesgen · make_sprite_sheet</span>
   Step 3/4 · Animating: running on GPU
   Done: hero-run-sheet.png, .json, preview.gif
@@ -70,7 +70,7 @@
 
     <section class="section">
       <div class="wrap">
-        <div class="section-head"><div class="label">01 — Add it</div><div><h2>One click, or one line.</h2><p>Every option uses the same address. Your editor opens a hawkesgen.ai sign-in the first time.</p></div></div>
+        <div class="section-head"><div class="label">01 — Add it</div><div><h2>One click, or one line.</h2><p>Every option uses the same address. Your editor opens a hawkesgames.com sign-in the first time.</p></div></div>
         <div class="clients">
           <div class="client" id="unity">
             <div class="label">Unity</div><h3>Unity Editor</h3>
@@ -79,17 +79,17 @@
           </div>
           <div class="client" id="net">
             <div class="label">Multiplayer</div><h3>Hawkes Net</h3>
-            <p>Multiplayer for your web game, on our relay, one SDK for the web, Babylon and Unity. Your hawkesgen.ai account opens <a href="https://net.hawkesgen.ai/">net.hawkesgen.ai</a>: make a project there, list your game's sites (or have your server ask for tickets with your API key), and watch its players, rooms and tickets live. Test on localhost free; your own sites and servers for accounts that have bought credits or a plan.</p>
+            <p>Multiplayer for your web game, on our relay, one SDK for the web, Babylon and Unity. Your hawkesgames.com account opens <a href="https://net.hawkesgames.com/">net.hawkesgames.com</a>: make a project there, list your game's sites (or have your server ask for tickets with your API key), and watch its players, rooms and tickets live. Test on localhost free; your own sites and servers for accounts that have bought credits or a plan.</p>
             <div class="copy"><code id="netJoin">import { lobby } from 'https://net.hawkesgen.ai/sdk/hawkes-net@1.mjs'; lobby({ project: 'my-game' }).join('lobby');</code><button type="button" data-copy="netJoin">Copy</button></div>
-            <div class="copy"><code id="netTicket">curl -X POST https://hawkesgen.ai/v1/net/rooms/ticket -H "Authorization: Bearer hg_..." -d '{"project":"my-game","room":"lobby","name":"Ada"}'</code><button type="button" data-copy="netTicket">Copy</button></div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-primary" href="https://net.hawkesgen.ai/">Open Hawkes Net</a><a class="btn btn-secondary" href="/net">See how it works</a></div>
+            <div class="copy"><code id="netTicket">curl -X POST https://hawkesgames.com/v1/net/rooms/ticket -H "Authorization: Bearer hg_..." -d '{"project":"my-game","room":"lobby","name":"Ada"}'</code><button type="button" data-copy="netTicket">Copy</button></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-primary" href="https://net.hawkesgames.com/">Open Hawkes Net</a><a class="btn btn-secondary" href="/net">See how it works</a></div>
           </div>
           <div class="client">
             <div class="label">Anthropic</div><h3>Claude</h3>
             <p>Copies the address and opens Connectors in the Claude desktop app (or on claude.ai in your browser); then Add, paste, Connect. Or use the Claude Code CLI.</p>
             <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-primary" data-add-claude data-client="claude" href="claude://claude.ai/customize/connectors">Add to Claude</a><a class="btn btn-secondary" data-add-claude href="https://claude.ai/customize/connectors" target="_blank" rel="noopener">claude.ai</a><button type="button" class="btn btn-secondary" id="cliBtn" aria-expanded="false" aria-controls="claudeCli">CLI</button></div>
             <div id="claudeCli" hidden style="display:grid;gap:6px;min-width:0">
-              <div class="copy"><code id="cc">claude mcp add --transport http hawkesgen https://hawkesgen.ai/mcp</code><button type="button" data-copy="cc">Copy</button></div>
+              <div class="copy"><code id="cc">claude mcp add --transport http hawkesgen https://hawkesgames.com/mcp</code><button type="button" data-copy="cc">Copy</button></div>
               <div class="fine" style="margin:0">Run it in a terminal, then run <code>/mcp</code> in Claude Code to sign in.</div>
             </div>
           </div>
@@ -109,31 +109,31 @@
                 <ol style="margin:0 0 8px;padding-left:20px;display:grid;gap:4px">
                   <li><strong>+ Add</strong> (top right) → <strong>Add custom connector</strong></li>
                   <li>Name it <strong>Hawkes Gen</strong>, paste the address (it's on your clipboard), click <strong>Add</strong></li>
-                  <li><strong>Connect</strong>, then approve on hawkesgen.ai</li>
+                  <li><strong>Connect</strong>, then approve on hawkesgames.com</li>
                 </ol>
-                <div class="copy"><code id="clUrl">https://hawkesgen.ai/mcp</code><button type="button" data-copy="clUrl">Copy</button></div>
+                <div class="copy"><code id="clUrl">https://hawkesgames.com/mcp</code><button type="button" data-copy="clUrl">Copy</button></div>
                 <p class="fine" style="margin:8px 0 0">No Claude app? Open <a href="https://claude.ai/customize/connectors" target="_blank" rel="noopener">claude.ai/customize/connectors</a> instead. In the app it's <strong>Customize → Connectors</strong>.</p>
               </div>
               <div>
                 <div class="label" style="margin-bottom:6px">In Claude Code (the Code tab)</div>
                 <p style="margin:0 0 8px">Paste this into a Claude Code session. It adds the server to your settings; then run <code>/mcp</code> and choose hawkesgen to sign in.</p>
-                <div class="copy"><code id="ccAsk">Add an MCP server named hawkesgen, HTTP transport, URL https://hawkesgen.ai/mcp, at user scope (claude mcp add --transport http --scope user hawkesgen https://hawkesgen.ai/mcp).</code><button type="button" data-copy="ccAsk">Copy</button></div>
+                <div class="copy"><code id="ccAsk">Add an MCP server named hawkesgen, HTTP transport, URL https://hawkesgames.com/mcp, at user scope (claude mcp add --transport http --scope user hawkesgen https://hawkesgames.com/mcp).</code><button type="button" data-copy="ccAsk">Copy</button></div>
               </div>
             </div>
           <div class="client">
             <div class="label">Codeium</div><h3>Windsurf</h3>
             <p>Add this to <code>~/.codeium/windsurf/mcp_config.json</code>, then refresh MCP servers.</p>
-            <div class="copy"><code id="ws">{"mcpServers":{"hawkesgen":{"serverUrl":"https://hawkesgen.ai/mcp"}}}</code><button type="button" data-copy="ws">Copy</button></div>
+            <div class="copy"><code id="ws">{"mcpServers":{"hawkesgen":{"serverUrl":"https://hawkesgames.com/mcp"}}}</code><button type="button" data-copy="ws">Copy</button></div>
           </div>
           <div class="client">
             <div class="label">OpenAI</div><h3>ChatGPT</h3>
             <p>With developer mode on: Settings → Apps &amp; Connectors → Create. Paste the address and choose OAuth.</p>
-            <div class="copy"><code id="gpt">https://hawkesgen.ai/mcp</code><button type="button" data-copy="gpt">Copy</button></div>
+            <div class="copy"><code id="gpt">https://hawkesgames.com/mcp</code><button type="button" data-copy="gpt">Copy</button></div>
           </div>
           <div class="client">
             <div class="label">Anything else</div><h3>With an API key</h3>
             <p>For tools without OAuth, and for CI: make a key in the studio and send it as a header.</p>
-            <div class="copy"><code id="key">{"mcpServers":{"hawkesgen":{"url":"https://hawkesgen.ai/mcp","headers":{"Authorization":"Bearer hg_…"}}}}</code><button type="button" data-copy="key">Copy</button></div>
+            <div class="copy"><code id="key">{"mcpServers":{"hawkesgen":{"url":"https://hawkesgames.com/mcp","headers":{"Authorization":"Bearer hg_…"}}}}</code><button type="button" data-copy="key">Copy</button></div>
           </div>
         </div>
       </div>
@@ -172,7 +172,7 @@
 
   <script type="module">
     const $ = (id) => document.getElementById(id);
-    const URL_ = 'https://hawkesgen.ai/mcp';
+    const URL_ = 'https://hawkesgames.com/mcp';
     const toast = (m) => { $('toast').textContent = m; $('toast').hidden = false; setTimeout(() => { $('toast').hidden = true; }, 2500); };
     document.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', async () => {
       try { await navigator.clipboard.writeText($(b.dataset.copy).textContent); toast('Copied'); } catch { toast('Select it and copy'); }

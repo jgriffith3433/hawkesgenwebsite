@@ -7,7 +7,7 @@ import crypto from 'node:crypto';
 import type { Request } from 'firebase-functions/https';
 import type { Response } from 'express';
 import { auth, db, users, ledgerOf, first } from './store.ts';
-import { env, publicUrl, PROJECT_PREFIX, SECRETS } from './config.ts';
+import { env, formerUrls, publicUrl, PROJECT_PREFIX, SECRETS } from './config.ts';
 import { PortalError, id, sha256, cookies, route, redirect, send, json, Limiter } from './http.ts';
 import { sendWelcome } from './mail.ts';
 
@@ -99,7 +99,7 @@ const googleClientId = () => env('GOOGLE_CLIENT_ID') ?? '';
 const redirectUri = () => `${publicUrl()}/auth/google/callback`;
 /** Only our own pages: a path, never another site. */
 const safeNext = (n: unknown) => (typeof n === 'string' && /^\/(?!\/)[^\s\\]*$/.test(n) ? n : '/app');
-const netDashboard = () => (env('PORTAL_NET_DASHBOARD') ?? 'https://net.hawkesgen.ai').replace(/\/+$/, '');
+const netDashboard = () => (env('PORTAL_NET_DASHBOARD') ?? 'https://net.hawkesgames.com').replace(/\/+$/, '');
 const problemPage = (next: unknown, q: string) => (safeNext(next) === '/net/back' ? `${netDashboard()}/?${q}` : `/?${q}`);
 
 /** Signed, short-lived state (HMAC with the portal's signing key). */
@@ -122,6 +122,10 @@ type Pending = { s: string; v: string; n: string; o: Origin };
 const loginsPerIp = new Limiter(20, 15 * 60_000);
 
 route('GET', '/auth/google', ({ req, res, url }) => {
+  // Started on a name this site had before (hawkesgen.ai, while Firebase still serves it: docs/domain-move.md): start
+  // again on this one, where Google comes back to and where the cookie below has to be.
+  const asked = String(req.headers['x-forwarded-host'] ?? '').split(',')[0].trim().toLowerCase();
+  if (asked && formerUrls().some((u) => new URL(u).host === asked)) return redirect(res, `${publicUrl()}/auth/google${url.search}`);
   const next = url.searchParams.get('next');
   if (!googleClientId()) return redirect(res, problemPage(next, `signin_error=${encodeURIComponent('Google sign-in is not available here.')}`));
   const state = crypto.randomBytes(16).toString('base64url');
@@ -365,7 +369,7 @@ void json;
 
 // ------------------------------------------------------------ stream links
 // Firebase Hosting holds a function's answer until it ends, so a server-sent stream (the editor's live feed, the job
-// feed) can't pass through hawkesgen.ai. The page asks here, on its own origin with its session, for a link to the
+// feed) can't pass through this site. The page asks here, on its own origin with its session, for a link to the
 // function's direct address that carries a signed token for that one path (ten minutes); the stream goes there.
 export const STREAMS = /^\/v1\/(games\/g_[0-9a-f]+\/live|events)$/;
 export const streamUrl = () => (env('PORTAL_STREAM_URL') ?? '').replace(/\/+$/, '');

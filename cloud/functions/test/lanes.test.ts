@@ -16,8 +16,8 @@ test('beta (hawkes-staging) uses gen-beta, beta Net and its own customers', () =
   const env = read('hawkes-staging');
   assert.equal(host(env, 'HAWKESGEN_URL', 'https://gen.hawkesgen.ai'), 'gen-beta.hawkesgen.ai');
   assert.equal(host(env, 'PORTAL_NET_URL', 'https://net.hawkesgen.ai'), 'hawkesnet.hawkesgen.ai');
-  assert.equal(host(env, 'PORTAL_NET_DASHBOARD', 'https://net.hawkesgen.ai'), 'hawkesnet.hawkesgen.ai');
-  assert.equal(host(env, 'PUBLIC_URL', 'https://hawkesgen.ai'), 'beta.hawkesgen.ai');
+  assert.equal(host(env, 'PORTAL_NET_DASHBOARD', 'https://net.hawkesgames.com'), 'net-beta.hawkesgames.com');
+  assert.equal(host(env, 'PUBLIC_URL', 'https://hawkesgames.com'), 'beta.hawkesgames.com');
   assert.equal(host(env, 'PORTAL_STUDIO_URL', 'https://studio.hawkesgen.ai'), 'studio-beta.hawkesgen.ai', 'Open Studio goes to studio-beta');
   assert.notEqual(env.PORTAL_PROJECT_PREFIX ?? 'usr_', 'usr_', 'beta customers are never usr_');
   assert.ok(!env.PORTAL_MAIL, 'beta sends no mail');
@@ -54,11 +54,11 @@ test('live (hawkes-prod) uses live Gen and live Net, never a beta one', () => {
   const env = read('hawkes-prod');
   assert.equal(host(env, 'HAWKESGEN_URL', 'https://gen.hawkesgen.ai'), 'gen.hawkesgen.ai');
   assert.equal(host(env, 'PORTAL_NET_URL', 'https://net.hawkesgen.ai'), 'net.hawkesgen.ai');
-  assert.equal(host(env, 'PORTAL_NET_DASHBOARD', 'https://net.hawkesgen.ai'), 'net.hawkesgen.ai');
+  assert.equal(host(env, 'PORTAL_NET_DASHBOARD', 'https://net.hawkesgames.com'), 'net.hawkesgames.com');
   // The platform plans (indie, team, studio) are offered on beta first; live keeps free, maker and pro until J sets the
   // prices (platform.ts offeredPlans).
   assert.notEqual(env.PORTAL_PLATFORM_PLANS, 'on', 'live does not offer the platform plans yet');
-  assert.equal(host(env, 'PUBLIC_URL', 'https://hawkesgen.ai'), 'hawkesgen.ai');
+  assert.equal(host(env, 'PUBLIC_URL', 'https://hawkesgames.com'), 'hawkesgames.com');
   assert.equal(host(env, 'PORTAL_STUDIO_URL', 'https://studio.hawkesgen.ai'), 'studio.hawkesgen.ai');
   assert.equal(env.PORTAL_PROJECT_PREFIX ?? 'usr_', 'usr_');
   for (const v of Object.values(env)) assert.doesNotMatch(v, /beta|staging/, `a live setting names beta: ${v}`);

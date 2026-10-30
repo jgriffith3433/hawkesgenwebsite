@@ -48,7 +48,7 @@ game.cinematic.slowmo(0.2, 1.5);   // e.g. where your script blows something up
 Players (when the world turns the keys on, `config.share.keys`): **P** photo mode (WASD, Q/E down and up, Shift faster, drag or mouse to look, wheel zooms, Z/X tilt, Space takes
 it, H hides the panel, Esc goes back; phones get a stick and up/down buttons; gamepads: sticks, triggers, A takes, B
 goes back). **F8** (or 🎬) clip that; right-click 🎬 turns the rolling clip off or on. Photos and clips are downloaded or
-shared from a small window on hawkesgen.ai: sharing needs an account (free), downloading doesn't.
+shared from a small window on hawkesgames.com: sharing needs an account (free), downloading doesn't.
 
 **Moments:** `game.on('moment', fn)` hears the chip's life: `{ state, kind, caption }` with `state` `chip` (shown), `tap`, `kept`
 (the clip or photo is ready), `link` (`url`, `id`), `shared` / `copied`, `window` (the sandboxed game's share window opened),

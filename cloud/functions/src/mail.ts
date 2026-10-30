@@ -8,7 +8,7 @@ export const mailOn = () => env('PORTAL_MAIL') === 'resend';
 
 export async function sendEmail(to: string, subject: string, text: string, html: string) {
   if (!mailOn()) return { skipped: true };
-  // hawkesgen.ai has no mailboxes but support@: anything else there is a test account.
+  // hawkesgen.ai (where support@ stays: docs/domain-move.md) has no mailboxes but support@: anything else there is a test account.
   if (/@hawkesgen\.ai$/i.test(to.trim()) && to.trim().toLowerCase() !== 'support@hawkesgen.ai') return { skipped: true };
   // The secret file may hold "RESEND_API_KEY=re_..." as it was saved; the key is what follows the name.
   const key = (SECRETS.resend.value() ?? '').trim().replace(/^[A-Za-z_ ]*[=:]\s*/, '');
@@ -57,7 +57,7 @@ ${ask}
 Hawkes Gen
 ${site}
 
-You're getting this because you made an account at hawkesgen.ai.`;
+You're getting this because you made an account at ${new URL(site).host}.`;
   const p = (t: string, extra = '') => `<p style="margin:0 0 16px;font-size:15px;line-height:1.65${extra}">${t}</p>`;
   const html = `<!doctype html><html><body style="margin:0;background:#f4f2ed;padding:32px 16px;font-family:'IBM Plex Sans',Helvetica,Arial,sans-serif;color:#1a1915">
 <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #d6d1c6;border-radius:3px;padding:32px">
@@ -70,7 +70,7 @@ ${p(esc(makes))}
 ${p(esc(plain), ';color:#4b4840;font-size:14px')}
 ${p('If something did not come down as it should, or you have an idea, write to <a href="mailto:support@hawkesgen.ai" style="color:#1a1915">support@hawkesgen.ai</a>. Replying to this email reaches the same place.', ';color:#4b4840;font-size:14px')}
 </div>
-<p style="max-width:520px;margin:14px auto 0;font-size:12px;color:#8b867b;text-align:center">You're getting this because you made an account at hawkesgen.ai.</p>
+<p style="max-width:520px;margin:14px auto 0;font-size:12px;color:#8b867b;text-align:center">You're getting this because you made an account at ${new URL(site).host}.</p>
 </body></html>`;
   return { subject: name ? `${name}, your island is waiting` : 'Welcome to Hawkes Gen', text, html };
 }
@@ -114,7 +114,7 @@ ${message ? `<p style="margin:0 0 22px;padding:2px 0 2px 14px;border-left:2px so
 <p style="margin:0 0 0;font-size:14px;line-height:1.6"><a href="${site}/connect" style="color:#1a1915">Or from Unity, Claude Code, Cursor or VS Code →</a></p>
 <p style="margin:22px 0 0;font-size:14px;line-height:1.6;color:#4b4840">Questions? Reply to this email. It comes straight to us.</p>
 </div>
-<p style="max-width:520px;margin:14px auto 0;font-size:12px;color:#8b867b;text-align:center">You're getting this because you have an account at hawkesgen.ai.</p>
+<p style="max-width:520px;margin:14px auto 0;font-size:12px;color:#8b867b;text-align:center">You're getting this because you have an account at ${new URL(site).host}.</p>
 </body></html>`;
   return { subject: `A gift: ${n(credits)} Hawkes Gen credits`, text, html };
 }
