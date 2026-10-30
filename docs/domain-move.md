@@ -1,7 +1,7 @@
 # Moving the portal to hawkesgames.com (and hawkesgen.ai to Gen)
 
-J, 2026-10-29: the portal moves from hawkesgen.ai to **hawkesgames.com**, and **hawkesgen.ai** becomes Hawkes Gen itself
-(today's gen.hawkesgen.ai). gen.hawkesgen.ai keeps working forever, so every SDK, Unity package, `~/.hawkes/client.json` and
+J, 2026-10-29: three products. **hawkesgames.com** is the portal (it was hawkesgen.ai), **HawkesGen.ai** is Hawkes Gen's own
+app (it was gen.hawkesgen.ai), and **Studio** stays at studio.hawkesgen.ai. gen.hawkesgen.ai keeps working forever, so every SDK, Unity package, `~/.hawkes/client.json` and
 customer setup that names it needs no change.
 
 | | Before | After |
@@ -19,19 +19,20 @@ customer setup that names it needs no change.
 **Why the Net dashboard moves:** it reads the portal with the portal's session cookie. A browser sends that only when both
 pages are on the same site, so it has to sit under hawkesgames.com.
 
-**What the old names do after the move** (hawkesgen `server/gen-edge/src/index.ts`, test `test/gen-edge.test.ts`):
-- Gen's own paths are Gen's: the dashboard at `/`, `/sdk/`, `/client/`, `/cdn/`.
-- An old portal page (a browser asking for HTML) gets a 301 to the same path on hawkesgames.com.
-- The portal's other paths are passed through to it: OAuth, `/up/` (`curl -T`), `/dl/`, `/play/` and the rest of its API.
-- `/v1/` and `/mcp`, which both services have, are sent by what the caller carries:
-  - a portal OAuth token (`hgo_`) or the portal's `__session` cookie goes to the portal;
-  - a platform token (a JWT) goes to Gen;
-  - anything else (an `hg_` key, which looks the same for both, or no key) goes to Gen first. If Gen answers 401 or 404,
-    the same request goes to the portal.
+**What hawkesgen.ai does after the move** (hawkesgen `server/gen-edge/src/index.ts`, test `test/gen-edge.test.ts`): it
+is Hawkes Gen's own app (the app at `/`, its sign-in, `/legal`, `/admin`, checkout and the API), and the Worker keeps the
+portal's old links working:
+- A portal OAuth token (`hgo_`) goes to the portal, and so does the portal's `__session` cookie on `/v1` and `/mcp`. A
+  platform token (a JWT) goes only to Gen.
+- Everything else goes to Gen first. What Gen doesn't have (404) is the portal's: an old page (a browser asking for HTML)
+  gets a 301 to the same path on hawkesgames.com; anything else (OAuth, `/up/` with `curl -T`, `/dl/`, the play API) is
+  passed on to it. On `/v1` and `/mcp`, a key Gen refuses (401: a portal key, which looks like Gen's `hg_`) is passed on
+  too.
+- Where both have a path, Gen wins: `/`, `/app`, `/play`, `/legal`, `/admin`, `/v1/billing/webhook`.
 
-  So customers' code, editor connections, the Unity package and Stripe's webhook to the old address keep working. MCP
-  clients that were set up with `https://hawkesgen.ai/mcp` can still sign in, because the portal accepts its former
-  addresses as the OAuth resource (`PORTAL_FORMER_URLS`).
+So customers' code, editor connections and the Unity package keep working. MCP clients set up with
+`https://hawkesgen.ai/mcp` can still sign in, because the portal accepts its former addresses as the OAuth resource
+(`PORTAL_FORMER_URLS`). The portal's Stripe webhook does not carry over (see step 5).
 
 ## The order
 
@@ -89,12 +90,23 @@ Push hawkesgen `dev` and hawkesstudio `dev` to `beta`. What changes:
 
 1. `node cloud/cloudflare/portal-domain.mjs --lane live` (then `--apply`). In the console, add the redirect URI
    `https://hawkesgames.com/auth/google/callback`.
-2. **Stripe** (dashboard, live mode):
-   - add a webhook endpoint `https://hawkesgames.com/v1/billing/webhook` with the same events as the hawkesgen.ai one;
-   - put its signing secret in hawkes-prod's `STRIPE_WEBHOOK_SECRET` (`cloud/setup-secrets.mjs`). Turn the old endpoint
-     off only after step 5.5;
-   - in Settings > Business, set the website to hawkesgames.com, and update the support and privacy links on receipts;
-   - Payment method domains: add hawkesgames.com if Apple Pay or Google Pay are on.
+2. **Stripe** (live mode). One account takes payments for the portal, Gen and Studio. Each has its own endpoint, gets
+   every event, and acts only on its own: `metadata[product]` is `portal`, `gen` or `studio`, and the portal's older,
+   untagged sessions count as the portal's.
+   - **Endpoints** (Developers > Webhooks), each with the same five or six events:
+     - `https://hawkesgames.com/v1/billing/webhook` (the portal): `checkout.session.completed`,
+       `checkout.session.async_payment_succeeded`, `invoice.paid`, `customer.subscription.created`,
+       `customer.subscription.updated`, `customer.subscription.deleted`.
+     - `https://gen.hawkesgen.ai/v1/billing/webhook` (Gen, which stays on gen.): `checkout.session.completed`,
+       `invoice.paid`, `invoice.payment_failed`, `customer.subscription.updated`, `customer.subscription.deleted`.
+     - `https://studio.hawkesgen.ai/api/billing/webhook` (Studio): the same five as Gen.
+   - **Keys:** put them in `C:/Projects/stripe.txt` as `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`,
+     `PORTAL_WEBHOOK_SECRET`, `GEN_WEBHOOK_SECRET` and `STUDIO_WEBHOOK_SECRET`, then run
+     `node cloud/stripe-keys.mjs C:/Projects/stripe.txt`. It sets the portal's secrets in hawkes-prod's Secret Manager
+     (the new webhook secret goes beside the hawkesgen.ai endpoint's: `STRIPE_WEBHOOK_SECRET` may list several), and Gen's
+     and Studio's through their owner-only config routes.
+   - **Settings > Business:** the website is hawkesgames.com; support, privacy and terms are `/legal` there. Payment
+     method domains: add hawkesgames.com if Apple Pay or Google Pay are on.
 3. Go live: hawkesgenwebsite (`DEPLOY hawkesgenwebsite`), then `node deploy/setup.mjs` in hawkesnet, then hawkesnet,
    hawkesgen and hawkesstudio (their go-live steps). That is steps 1 to 3 for live.
 4. Cutover, the same as step 4:
@@ -102,8 +114,11 @@ Push hawkesgen `dev` and hawkesstudio `dev` to `beta`. What changes:
    - remove hawkesgen.ai and www.hawkesgen.ai from Firebase hawkes-prod's custom domains;
    - in Cloudflare, replace their records with proxied `AAAA hawkesgen.ai 100::` and `AAAA www.hawkesgen.ai 100::`. Leave
      MX, SPF, DKIM and the Resend records alone: mail stays.
+   - delete the old portal endpoint `https://hawkesgen.ai/v1/billing/webhook` in Stripe now: that address is Gen's from
+     here on, and Gen refuses the portal's signature. The hawkesgames.com endpoint carries the portal's events.
 5. A day later, if all is well:
-   - turn off the old Stripe webhook;
+   - `node cloud/setup-secrets.mjs --project hawkes-prod --stripe C:/Projects/stripe.txt --drop-old` (with only the
+     portal's lines) keeps only the hawkesgames.com endpoint's webhook secret;
    - remove the hawkesgen.ai redirect URIs from the OAuth client;
    - update `~/.hawkes/client.json` `genUrl` to https://hawkesgen.ai if you like (the old one keeps working).
 
