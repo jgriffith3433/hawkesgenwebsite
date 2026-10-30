@@ -1,13 +1,13 @@
 // The platform token (hawkesstudio docs/platform-plan.md 4.2): Gen and Studio don't hold accounts; they take a short-lived
 // JWT the portal signs (EdDSA, Ed25519) and verify it with the public keys at /.well-known/jwks.json. Anyone the portal
 // knows mints one for an org they're in: a browser session or an hg_ key (any of their orgs, `org` in the body; none:
-// their personal org) or an OAuth connection (its own org only, its scopes only). The token carries the org, the user, the
+// their personal org). The token carries the org, the user, the
 // role, the plan, the entitlements and the scopes as they are now: a lapsed plan or a lost membership shows within
 // PLATFORM_TTL. The private key is the secret PORTAL_PLATFORM_KEY (cloud/setup-secrets.mjs).
 import { SECRETS, publicUrl } from './config.ts';
 import { caller } from './caller.ts';
 import { orgContext } from './orgs.ts';
-import { corsRoute } from './oauth.ts';
+import { corsRoute } from './cors.ts';
 import { PortalError, Limiter, route, send, json } from './http.ts';
 import {
   loadSigningKeys, mintPlatformToken, grantScopes, parseScopes, SCOPES, PLATFORM_AUDIENCES, type SigningKeys, type Scope,
@@ -31,27 +31,15 @@ export const jwks = () => signingKeys()?.jwks ?? { keys: [] };
 const mints = new Limiter(120, 60_000);
 
 export async function platformToken(req: Parameters<typeof caller>[0]) {
-  const c = await caller(req, { anyScope: true });
+  const c = await caller(req);
   if (!c) throw new PortalError('Sign in first', { status: 401 });
   const keys = signingKeys();
   if (!keys) throw new PortalError('Platform tokens are not set up here yet', { status: 503, code: 'no_platform_key' });
   mints.take(c.user.id, 'Too many tokens a minute; reuse one until it expires');
   const b = json(req);
   const askedOrg = typeof b.org === 'string' && b.org ? b.org : null;
-  let orgId: string | null = askedOrg;
-  let asked: Scope[];
-  if (c.via.kind === 'connection') {
-    // An app acts for the org it was approved for, with what it was approved for.
-    if (askedOrg && askedOrg !== c.via.org) throw new PortalError('This connection was approved for another org', { status: 403 });
-    orgId = c.via.org ?? null;
-    asked = (c.via.scopes ?? ['generate']) as Scope[];
-  } else {
-    asked = typeof b.scope === 'string' ? parseScopes(b.scope) : [...SCOPES];
-  }
-  const ctx = await orgContext(c.user, orgId).catch((e) => {
-    if (e?.status === 404 && c.via.kind === 'connection') throw new PortalError('You are no longer in the org this connection is for', { status: 403 });
-    throw e;
-  });
+  const asked: Scope[] = typeof b.scope === 'string' ? parseScopes(b.scope) : [...SCOPES];
+  const ctx = await orgContext(c.user, askedOrg);
   const scopes = grantScopes(asked, ctx.entitlements, ctx.role);
   const aud = PLATFORM_AUDIENCES.includes(b.aud) ? b.aud : [...PLATFORM_AUDIENCES];
   const t = mintPlatformToken({

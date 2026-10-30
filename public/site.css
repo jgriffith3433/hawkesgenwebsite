@@ -1,5 +1,5 @@
 /* The website's light look, everywhere but inside a game (the editor and /play stay dark): extends public.css's
-   body.landing tokens. Also the Asset studio (/app/studio, app.html + app.js) and the walk into a game. */
+   body.landing tokens. Also the walk into a game. */
 
 body.landing {
   /* Names the Asset studio's markup uses */

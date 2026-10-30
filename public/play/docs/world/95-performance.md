@@ -4,7 +4,7 @@ Most players are on phones: a world must start in a couple of seconds and never 
 a page that takes too much). The engine does most of it by itself; build worlds that let it.
 
 **What the engine does for you**
-- **Textures by level of detail.** Every image Hawkes Gen makes or keeps (textures, sprites, skies) has smaller copies
+- **Textures by level of detail.** Every image Hawkes Games makes or keeps (textures, sprites, skies) has smaller copies
   (128, 256, 512, 1024, 2048 px, WebP), made by Gen with the image. A world loads each texture once at about the size it
   will have on screen (a sky: the screen's width) and sharpens only what's near, big on screen and in view, within the
   device's texture budget; far or unseen ones go back down when memory is tight. Use any texture size: the engine picks.

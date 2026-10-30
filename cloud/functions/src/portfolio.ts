@@ -1,4 +1,4 @@
-// "Built with Hawkes Gen": our live games and what Gen made for them (src/portfolio.ts). Only what we can show.
+// "Built with Hawkes Games": our live games and what Gen made for them (src/portfolio.ts). Only what we can show.
 import { route } from './http.ts';
 
 export type PortfolioItem = { project: string; title: string; genre: string; url: string; description: string; tools: string[] };
@@ -9,6 +9,6 @@ const ITEMS: PortfolioItem[] = [
   { project: 'sickofit', title: 'Sick Of It', genre: 'Arcade climber', url: 'https://sickofitgame.com', description: 'Enemy art, character voices and sound effects, generated from the build tools and the Unity editor.', tools: ['image.paint', 'audio.voice', 'audio.sfx'] },
 ];
 
-export const getPortfolio = () => ({ title: 'Built with Hawkes Gen', items: ITEMS });
+export const getPortfolio = () => ({ title: 'Built with Hawkes Games', items: ITEMS });
 
 route('GET', '/v1/portfolio', () => getPortfolio());

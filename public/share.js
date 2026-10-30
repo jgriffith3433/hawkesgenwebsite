@@ -36,7 +36,7 @@
     $('saveCard').hidden = false;
     const clip = item.kind === 'clip';
     $('heading').textContent = clip ? 'Your clip' : 'Your photo';
-    document.title = `${clip ? 'Your clip' : 'Your photo'} · Hawkes Gen`;
+    document.title = `${clip ? 'Your clip' : 'Your photo'} · Hawkes Games`;
     document.querySelectorAll('[data-kind]').forEach((s) => { s.textContent = clip ? 'clip' : 'photo'; });
     objectUrl = URL.createObjectURL(item.blob);
     const media = document.createElement(clip ? 'video' : 'img');

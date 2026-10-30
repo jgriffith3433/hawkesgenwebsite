@@ -163,7 +163,7 @@ function start() {
     HawkesPlay.hooks.autoLock = false;
     HawkesPlay.hooks.codex = true; // modules: no on-screen controls of your own on this page (it shows things, not the game)
     HawkesPlay.run({ title: 'Entity codex', files: world(current, current.spec), assets: SAMPLES }, { mode: 'build' });
-    document.title = 'Entity codex · Hawkes Gen';
+    document.title = 'Entity codex · Hawkes Games';
     running = true;
   } catch (e) {
     running = false;

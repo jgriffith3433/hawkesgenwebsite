@@ -280,7 +280,7 @@
       <div class="lk-tabs">${tabs.map(([k, label]) => `<button class="lk-tab${s.tab === k ? ' on' : ''}" data-tab="${k}">${label}</button>`).join('')}</div>
       <input class="lk-search" placeholder="Search the library (anything: a dragon, a teapot…)" value="${esc(s.q)}" aria-label="Search the library">
       <div class="lk-body">${grid}
-        <div class="lk-new"><h4>✦ Make a new one</h4><p>Hawkes Gen makes a model just for this (${NEW_MODEL_CREDITS} credits, a few minutes). It takes its place by itself when it's ready.</p>
+        <div class="lk-new"><h4>✦ Make a new one</h4><p>Hawkes Games makes a model just for this (${NEW_MODEL_CREDITS} credits, a few minutes). It takes its place by itself when it's ready.</p>
           <textarea class="lk-prompt" maxlength="300" aria-label="What it should look like">${esc(prompt)}</textarea>
           <div style="margin-top:8px"><button class="lk-btn gold" data-a="make" ${s.busy ? 'disabled' : ''}>Make it</button></div></div>
       </div>

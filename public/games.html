@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Your games · Hawkes Gen</title>
+  <title>Your games · Hawkes Games</title>
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/public.css">
   <link rel="stylesheet" href="/site.css">
@@ -15,9 +15,8 @@
 </head>
 <body class="landing">
   <header class="bar">
-    <a class="hg-brand" href="/"><img src="/favicon.svg" alt=""><span>Hawkes Gen</span></a>
-    <nav class="hg-nav-links" data-site-nav><a href="/games">Games</a><a href="/community">Community library</a><a href="/entities">Engine codex</a><a href="/app/studio">Asset Studio</a><a href="/#pricing">Pricing</a><a href="/connect">For developers</a></nav>
-    <a class="btn btn-ghost btn-sm" href="/app/studio" id="studioLink" hidden>Asset studio</a>
+    <a class="hg-brand" href="/"><img src="/favicon.svg" alt=""><span>Hawkes Games</span></a>
+    <nav class="hg-nav-links" data-site-nav><a href="/games">Games</a><a href="/community">Community library</a><a href="/entities">Engine codex</a><a href="/#pricing">Pricing</a></nav>
     <span id="who" hidden style="display:flex;gap:8px;align-items:center">
       <span class="plan-chip" id="planChip">Free</span>
       <a class="pill" href="/credits" title="Credits"><span class="num" id="credits">0</span><span class="k">credits</span></a>
@@ -32,9 +31,7 @@
       <div class="profile-sep"></div>
       <div class="profile-friends-mini" id="profileFriendsMini"></div>
       <div class="profile-sep"></div>
-      <a class="profile-link" href="/app/studio">Asset Studio</a>
       <a class="profile-link" href="/games">Public Games</a>
-      <a class="profile-link" href="/connect">For Developers</a>
       <div class="profile-sep"></div>
       <button class="profile-link" id="logout">Sign out</button>
     </div>
@@ -43,7 +40,7 @@
   <!-- Signed out -->
   <main id="auth" hidden>
     <div class="auth-box">
-      <span class="label" id="authKicker">Hawkes Gen</span>
+      <span class="label" id="authKicker">Hawkes Games</span>
       <h1 id="authTitle">Build games with friends and AI.</h1>
       <p class="muted" style="margin:0" id="authLede">Sign in to start a game, or open the invite a friend sent you.</p>
       <a class="btn btn-secondary btn-lg" id="google" href="/auth/google?next=/app" style="width:100%">Continue with Google</a>

@@ -153,7 +153,7 @@ export async function checkout(user: User, body: { packId?: unknown; successUrl?
     'metadata[product]': PRODUCT, 'metadata[user_id]': user.id, 'metadata[pack_id]': pack.id, 'metadata[credits]': String(pack.credits),
     'line_items[0][quantity]': '1', 'line_items[0][price_data][currency]': 'usd', 'line_items[0][price_data][unit_amount]': String(pack.priceCents),
     'line_items[0][price_data][product_data][name]': pack.label,
-    'line_items[0][price_data][product_data][description]': `${pack.credits.toLocaleString('en-US')} Hawkes Gen generation credits`,
+    'line_items[0][price_data][product_data][description]': `${pack.credits.toLocaleString('en-US')} Hawkes Games generation credits`,
     'custom_text[submit][message]': termsLine(),
   });
   if (user.stripe_customer_id) { form.delete('customer_email'); form.set('customer', user.stripe_customer_id); }

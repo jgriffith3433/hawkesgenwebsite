@@ -61,7 +61,7 @@ const speechSettings = (() => { try { const m = JSON.parse(localStorage.getItem(
     unsaved = game.updated > ((releases[0] && releases[0].created) || 0) + 1000;
     renderSave();
     $('gameTitle').value = game.title;
-    document.title = `${game.title} · Hawkes Gen`;
+    document.title = `${game.title} · Hawkes Games`;
     $('chatCost').textContent = `${aiCredits} credits`;
     render();
     connect();
@@ -331,7 +331,7 @@ async function fromGame(m) {
       } catch (err) { toStage({ type: 'spawn-community', req: m.req, ok: false, error: err.message }); }
       return;
     }
-    // Looks (play/modules/looks): a new model for a thing, made with Hawkes Gen from their credits; the game puts it on
+    // Looks (play/modules/looks): a new model for a thing, made with Hawkes Games from their credits; the game puts it on
     // the thing when the generation is done (the gen feed below reaches the game too).
     case 'looks-generate': {
       try {
@@ -1281,7 +1281,7 @@ async function loadLibrary() {
   $('libNote').textContent = libKind === 'basics' ? "Click one to put it where you're looking. Then double-click it to change it, or tell the assistant what it should do."
     : libKind === 'community' ? 'Things other builders shared, and the Hawkes starter pack. Free to use in your game. Textures go on what you point at.'
     : libKind === 'game' ? 'Each word and the assets it uses (a herd of cows, the trees). The first is the default; Mix spreads them all.'
-    : 'Everything you make with Hawkes Gen is yours, here and in the Asset studio. ⇪ shares one with the community.';
+    : 'Everything you make with Hawkes Games is yours. ⇪ shares one with the community.';
   if (libKind === 'community') return loadCommunity(grid);
   if (libKind === 'game') { grid.innerHTML = '<div class="st-lib-empty">Loading…</div>'; toStage({ type: 'words?' }); return; }
   if (libKind === 'basics') {
@@ -1306,7 +1306,7 @@ async function loadLibrary() {
     grid.innerHTML = '<div class="st-lib-empty">Your library isn\'t reachable right now. Try again in a moment.</div>';
     return;
   }
-  if (!libItems.length) { grid.innerHTML = '<div class="st-lib-empty">Nothing here yet. Ask the assistant to make something, or open the Asset studio.</div>'; return; }
+  if (!libItems.length) { grid.innerHTML = '<div class="st-lib-empty">Nothing here yet. Ask the assistant to make something.</div>'; return; }
   grid.innerHTML = '';
   for (const a of libItems) {
     const b = document.createElement('button');
