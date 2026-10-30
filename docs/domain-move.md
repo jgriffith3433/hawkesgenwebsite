@@ -100,8 +100,9 @@ Push hawkesgen `dev` and hawkesstudio `dev` to `beta`. What changes:
      - `https://gen.hawkesgen.ai/v1/billing/webhook` (Gen, which stays on gen.): `checkout.session.completed`,
        `invoice.paid`, `invoice.payment_failed`, `customer.subscription.updated`, `customer.subscription.deleted`.
      - `https://studio.hawkesgen.ai/api/billing/webhook` (Studio): the same five as Gen.
-   - **Keys:** put them in `C:/Projects/stripe.txt` as `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`,
-     `PORTAL_WEBHOOK_SECRET`, `GEN_WEBHOOK_SECRET` and `STUDIO_WEBHOOK_SECRET`, then run
+   - **Keys:** both lanes in `C:/Projects/stripe.txt` (the names are in `cloud/stripe-keys.mjs`'s header: live keys,
+     test keys, and one webhook secret per product and lane; beta's three endpoints are the sandbox's, on
+     beta.hawkesgames.com, gen-beta.hawkesgen.ai and studio-beta.hawkesgen.ai), then run
      `node cloud/stripe-keys.mjs C:/Projects/stripe.txt`. It sets the portal's secrets in hawkes-prod's Secret Manager
      (the new webhook secret goes beside the hawkesgen.ai endpoint's: `STRIPE_WEBHOOK_SECRET` may list several), and Gen's
      and Studio's through their owner-only config routes.

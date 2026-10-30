@@ -1,19 +1,24 @@
 #!/usr/bin/env node
-// Stripe's live keys for everything that takes payments on the one Stripe account (from J's PC; docs/domain-move.md,
-// "Stripe"): the portal (hawkes-prod's Secret Manager, through setup-secrets.mjs), Hawkes Gen (POST /v1/billing/config,
-// owner key) and Hawkes Studio (POST /api/billing/config, owner key). Each product has its own webhook endpoint and acts
-// only on its own events (metadata[product]). Nothing is printed but what was set.
-//   node cloud/stripe-keys.mjs C:/Projects/stripe.txt                    live: Stripe's live mode
-//   node cloud/stripe-keys.mjs C:/Projects/stripe-beta.txt --lane beta   beta: the sandbox (test mode), to hawkes-staging,
-//     gen-beta and studio-beta; its endpoints are beta.hawkesgames.com, gen-beta.hawkesgen.ai and studio-beta.hawkesgen.ai
-// The file, KEY=value lines (any may be left out; what's missing stays as it is):
-//   STRIPE_SECRET_KEY=sk_live_...           all three
-//   STRIPE_PUBLISHABLE_KEY=pk_live_...      Gen and Studio (the portal doesn't use it)
-//   PORTAL_WEBHOOK_SECRET=whsec_...         https://hawkesgames.com/v1/billing/webhook (added beside the hawkesgen.ai one)
-//   GEN_WEBHOOK_SECRET=whsec_...            https://gen.hawkesgen.ai/v1/billing/webhook
-//   STUDIO_WEBHOOK_SECRET=whsec_...         https://studio.hawkesgen.ai/api/billing/webhook
-// Gen and Studio are reached through ~/.hawkes/client.json (genUrl/genKey, studioUrl/studioKey; on beta genBetaUrl/genBetaKey,
-// studioBetaUrl/studioBetaKey). Live takes only live keys and beta only test keys.
+// Stripe's keys for the three products on the one Stripe account, both lanes, from one file (J's PC; docs/domain-move.md,
+// "Stripe"). Live is Stripe's live mode, beta its sandbox (test mode). Six webhook endpoints, one per product and lane; each
+// acts only on its own product's events (metadata[product]: portal, gen, studio).
+//   portal: Secret Manager of hawkes-prod / hawkes-staging (through setup-secrets.mjs; the portal applies them on its next deploy)
+//   Gen:    POST /v1/billing/config with the owner key (gen / gen-beta)
+//   Studio: POST /api/billing/config with the owner key (studio / studio-beta)
+// Gen and Studio are reached through ~/.hawkes/client.json (genUrl/genKey, studioUrl/studioKey, and the ...Beta... pairs).
+//   node cloud/stripe-keys.mjs C:/Projects/stripe.txt                 both lanes
+//   node cloud/stripe-keys.mjs C:/Projects/stripe.txt --lane beta     one lane (live | beta)
+// The file, KEY=value lines; any may be left out (what's missing stays as it is). Nothing is printed but what was set.
+//   STRIPE_SECRET_KEY=sk_live_...              live: all three
+//   STRIPE_PUBLISHABLE_KEY=pk_live_...         live: Gen and Studio
+//   STRIPE_TEST_SECRET_KEY=sk_test_...         beta: all three
+//   STRIPE_TEST_PUBLISHABLE_KEY=pk_test_...    beta: Gen and Studio
+//   PORTAL_WEBHOOK_SECRET=whsec_...            https://hawkesgames.com/v1/billing/webhook (added beside the hawkesgen.ai one)
+//   PORTAL_BETA_WEBHOOK_SECRET=whsec_...       https://beta.hawkesgames.com/v1/billing/webhook
+//   GEN_WEBHOOK_SECRET=whsec_...               https://gen.hawkesgen.ai/v1/billing/webhook
+//   GEN_BETA_WEBHOOK_SECRET=whsec_...          https://gen-beta.hawkesgen.ai/v1/billing/webhook
+//   STUDIO_WEBHOOK_SECRET=whsec_...            https://studio.hawkesgen.ai/api/billing/webhook
+//   STUDIO_BETA_WEBHOOK_SECRET=whsec_...       https://studio-beta.hawkesgen.ai/api/billing/webhook
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -22,35 +27,57 @@ import { fileURLToPath } from 'node:url';
 
 const file = process.argv[2];
 if (!file || file.startsWith('--')) { console.error('usage: node cloud/stripe-keys.mjs <file of KEY=value lines> [--lane live|beta]'); process.exit(1); }
-const beta = process.argv.includes('--lane') && process.argv[process.argv.indexOf('--lane') + 1] === 'beta';
-const MODE = beta ? 'test' : 'live';
+const only = process.argv.includes('--lane') ? process.argv[process.argv.indexOf('--lane') + 1] : null;
+if (only && only !== 'live' && only !== 'beta') { console.error('--lane live | beta'); process.exit(1); }
 const keys = Object.fromEntries(fs.readFileSync(file, 'utf8').split(/\r?\n/)
   .map((l) => /^\s*([A-Z_]+)\s*[=:]\s*(\S+)\s*$/.exec(l)).filter(Boolean).map((m) => [m[1], m[2].replace(/^['"]|['"]$/g, '')]));
-const shape = { STRIPE_SECRET_KEY: new RegExp(`^(sk|rk)_${MODE}_`), STRIPE_PUBLISHABLE_KEY: new RegExp(`^pk_${MODE}_`), PORTAL_WEBHOOK_SECRET: /^whsec_/, GEN_WEBHOOK_SECRET: /^whsec_/, STUDIO_WEBHOOK_SECRET: /^whsec_/ };
-for (const [k, re] of Object.entries(shape)) if (keys[k] && !re.test(keys[k])) throw new Error(`${k} doesn't look like a ${MODE}-mode Stripe value (${re})`);
 const client = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.hawkes', 'client.json'), 'utf8'));
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-// The portal: a scratch file in the form setup-secrets.mjs --stripe reads, removed after.
-if (keys.STRIPE_SECRET_KEY || keys.PORTAL_WEBHOOK_SECRET) {
-  const tmp = path.join(os.tmpdir(), `portal-stripe-${process.pid}.txt`);
-  fs.writeFileSync(tmp, [keys.STRIPE_SECRET_KEY && `STRIPE_SECRET_KEY=${keys.STRIPE_SECRET_KEY}`, keys.PORTAL_WEBHOOK_SECRET && `STRIPE_WEBHOOK_SECRET=${keys.PORTAL_WEBHOOK_SECRET}`].filter(Boolean).join('\n'), { mode: 0o600 });
-  try {
-    const r = spawnSync(process.execPath, [path.join(here, 'setup-secrets.mjs'), '--project', beta ? 'hawkes-staging' : 'hawkes-prod', '--stripe', tmp], { encoding: 'utf8', windowsHide: true });
-    console.log(`portal (${beta ? 'hawkes-staging' : 'hawkes-prod'}): ${(r.stdout || r.stderr).trim().split('\n').filter((l) => /STRIPE_/.test(l)).join('; ') || `failed (${r.status})`}`);
-  } finally { fs.rmSync(tmp, { force: true }); }
+const LANES = {
+  live: {
+    mode: 'live', project: 'hawkes-prod', secret: 'STRIPE_SECRET_KEY', publishable: 'STRIPE_PUBLISHABLE_KEY', hook: '_WEBHOOK_SECRET',
+    gen: [client.genUrl ?? 'https://gen.hawkesgen.ai', client.genKey], studio: [client.studioUrl ?? 'https://studio.hawkesgen.ai', client.studioKey],
+  },
+  beta: {
+    mode: 'test', project: 'hawkes-staging', secret: 'STRIPE_TEST_SECRET_KEY', publishable: 'STRIPE_TEST_PUBLISHABLE_KEY', hook: '_BETA_WEBHOOK_SECRET',
+    gen: [client.genBetaUrl ?? 'https://gen-beta.hawkesgen.ai', client.genBetaKey], studio: [client.studioBetaUrl ?? 'https://studio-beta.hawkesgen.ai', client.studioBetaKey],
+  },
+};
+
+// Every value has the shape its name says, before anything is sent anywhere.
+for (const L of Object.values(LANES)) {
+  const check = (name, re) => { if (keys[name] && !re.test(keys[name])) throw new Error(`${name} doesn't look right (expected ${re})`); };
+  check(L.secret, new RegExp(`^(sk|rk)_${L.mode}_`));
+  check(L.publishable, new RegExp(`^pk_${L.mode}_`));
+  for (const p of ['PORTAL', 'GEN', 'STUDIO']) check(`${p}${L.hook}`, /^whsec_/);
 }
 
-async function post(name, url, key, body) {
+async function post(name, [url, key], route, body) {
   if (!Object.values(body).some(Boolean)) return;
-  if (!url || !key) return console.log(`${name}: skipped (no address or key in ~/.hawkes/client.json)`);
-  const r = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${String(key).trim()}`, 'Content-Type': 'application/json' }, body: JSON.stringify(Object.fromEntries(Object.entries(body).filter(([, v]) => v))) });
+  if (!url || !key) return console.log(`  ${name}: skipped (no address or key in ~/.hawkes/client.json)`);
+  const r = await fetch(`${String(url).replace(/\/+$/, '')}${route}`, { method: 'POST', headers: { Authorization: `Bearer ${String(key).trim()}`, 'Content-Type': 'application/json' }, body: JSON.stringify(Object.fromEntries(Object.entries(body).filter(([, v]) => v))) });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) return console.log(`${name}: FAILED ${r.status} ${j.error ?? ''}`);
-  console.log(`${name}: set (${Object.keys(body).filter((k) => body[k]).join(', ')})${j.mode ? `, mode ${j.mode}` : ''}${'configured' in j ? `, configured ${j.configured}` : ''}`);
+  if (!r.ok) return console.log(`  ${name}: FAILED ${r.status} ${j.error ?? ''}`);
+  console.log(`  ${name}: set (${Object.keys(body).filter((k) => body[k]).join(', ')})${j.mode ? `, mode ${j.mode}` : ''}${'configured' in j ? `, configured ${j.configured}` : ''}`);
 }
-await post(beta ? 'Gen beta' : 'Gen', `${String((beta ? client.genBetaUrl : client.genUrl) ?? (beta ? 'https://gen-beta.hawkesgen.ai' : 'https://gen.hawkesgen.ai')).replace(/\/+$/, '')}/v1/billing/config`, beta ? client.genBetaKey : client.genKey,
-  { secretKey: keys.STRIPE_SECRET_KEY, publishableKey: keys.STRIPE_PUBLISHABLE_KEY, webhookSecret: keys.GEN_WEBHOOK_SECRET });
-await post(beta ? 'Studio beta' : 'Studio', `${String((beta ? client.studioBetaUrl : client.studioUrl) ?? (beta ? 'https://studio-beta.hawkesgen.ai' : 'https://studio.hawkesgen.ai')).replace(/\/+$/, '')}/api/billing/config`, beta ? client.studioBetaKey : client.studioKey,
-  { secretKey: keys.STRIPE_SECRET_KEY, publishableKey: keys.STRIPE_PUBLISHABLE_KEY, webhookSecret: keys.STUDIO_WEBHOOK_SECRET });
-console.log(`\nThe portal reads its secrets when it is deployed: the new ones apply from its next ${beta ? 'beta' : 'live'} deploy.`);
+
+for (const [lane, L] of Object.entries(LANES)) {
+  if (only && only !== lane) continue;
+  const sk = keys[L.secret], pk = keys[L.publishable];
+  const hook = (p) => keys[`${p}${L.hook}`];
+  if (!sk && !pk && !hook('PORTAL') && !hook('GEN') && !hook('STUDIO')) { console.log(`${lane}: nothing in the file`); continue; }
+  console.log(`${lane} (Stripe ${L.mode} mode):`);
+  // The portal: a scratch file in the form setup-secrets.mjs --stripe reads, removed after.
+  if (sk || hook('PORTAL')) {
+    const tmp = path.join(os.tmpdir(), `portal-stripe-${process.pid}.txt`);
+    fs.writeFileSync(tmp, [sk && `STRIPE_SECRET_KEY=${sk}`, hook('PORTAL') && `STRIPE_WEBHOOK_SECRET=${hook('PORTAL')}`].filter(Boolean).join('\n'), { mode: 0o600 });
+    try {
+      const r = spawnSync(process.execPath, [path.join(here, 'setup-secrets.mjs'), '--project', L.project, '--stripe', tmp], { encoding: 'utf8', windowsHide: true });
+      console.log(`  portal (${L.project}): ${(r.stdout || r.stderr).trim().split('\n').filter((l) => /STRIPE_/.test(l)).join('; ') || `failed (${r.status})`}`);
+    } finally { fs.rmSync(tmp, { force: true }); }
+  }
+  await post('Gen', L.gen, '/v1/billing/config', { secretKey: sk, publishableKey: pk, webhookSecret: hook('GEN') });
+  await post('Studio', L.studio, '/api/billing/config', { secretKey: sk, publishableKey: pk, webhookSecret: hook('STUDIO') });
+}
+console.log('\nThe portal reads its secrets when it is deployed: the new ones apply from its next deploy on that lane.');
