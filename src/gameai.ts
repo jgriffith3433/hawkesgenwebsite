@@ -75,12 +75,13 @@ export const KINDS: Record<string, { title: string; credits: string; build: (pro
   voice: {
     title: 'Voice line', credits: '~10',
     build: async (p, o) => {
-      const r: any = await gen('/v1/providers/elevenlabs/voices', { as: o.project }).catch(() => ({ voices: [] }));
+      // Gen's house voices (hv_..., spoken by Gen's own voice model): matched by name or by what they are ("villain", "kid").
+      const r: any = await gen('/v1/editor/voices', { as: o.project }).catch(() => ({ voices: [] }));
       const voices = r.voices ?? [];
       const want = String(o.voice ?? '').toLowerCase();
-      const v = (want && voices.find((x: any) => String(x.name).toLowerCase().includes(want))) || voices[0];
+      const v = (want && (voices.find((x: any) => String(x.name).toLowerCase() === want) ?? voices.find((x: any) => `${x.name} ${x.about}`.toLowerCase().includes(want)))) || voices[0];
       if (!v) throw new PortalError('No voices are available right now');
-      return [{ tool: 'audio.voice', title: 'Speaking', params: { text: p, voice: v.voice_id ?? v.id, count: 1 } }];
+      return [{ tool: 'audio.voice', title: 'Speaking', params: { text: p, voice: v.id, count: 1 } }];
     },
   },
 };
