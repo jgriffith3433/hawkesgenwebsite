@@ -8,6 +8,7 @@
 // Gen and Studio are reached through ~/.hawkes/client.json (genUrl/genKey, studioUrl/studioKey, and the ...Beta... pairs).
 //   node cloud/stripe-keys.mjs C:/Projects/stripe.txt                 both lanes
 //   node cloud/stripe-keys.mjs C:/Projects/stripe.txt --lane beta     one lane (live | beta)
+//   ... --drop-old    the portal keeps only these webhook secrets (after stripe-clear.mjs; stripe-setup.mjs passes it)
 // The file, KEY=value lines; any may be left out (what's missing stays as it is). Nothing is printed but what was set.
 //   STRIPE_SECRET_KEY=sk_live_...              live: all three
 //   STRIPE_PUBLISHABLE_KEY=pk_live_...         live: Gen and Studio
@@ -73,7 +74,7 @@ for (const [lane, L] of Object.entries(LANES)) {
     const tmp = path.join(os.tmpdir(), `portal-stripe-${process.pid}.txt`);
     fs.writeFileSync(tmp, [sk && `STRIPE_SECRET_KEY=${sk}`, hook('PORTAL') && `STRIPE_WEBHOOK_SECRET=${hook('PORTAL')}`].filter(Boolean).join('\n'), { mode: 0o600 });
     try {
-      const r = spawnSync(process.execPath, [path.join(here, 'setup-secrets.mjs'), '--project', L.project, '--stripe', tmp], { encoding: 'utf8', windowsHide: true });
+      const r = spawnSync(process.execPath, [path.join(here, 'setup-secrets.mjs'), '--project', L.project, '--stripe', tmp, ...(process.argv.includes('--drop-old') ? ['--drop-old'] : [])], { encoding: 'utf8', windowsHide: true });
       console.log(`  portal (${L.project}): ${(r.stdout || r.stderr).trim().split('\n').filter((l) => /STRIPE_/.test(l)).join('; ') || `failed (${r.status})`}`);
     } finally { fs.rmSync(tmp, { force: true }); }
   }

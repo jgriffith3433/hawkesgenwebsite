@@ -11,8 +11,12 @@
 //   node cloud/stripe-setup.mjs C:/Projects/stripe.txt                  what it would do (reads Stripe only)
 //   node cloud/stripe-setup.mjs C:/Projects/stripe.txt --apply
 //   ... --lane beta | live      one lane
-//   ... --after-cutover         live Gen's endpoint (https://hawkesgen.ai/v1/billing/webhook) too: until the live cutover
-//                               that address is the portal's, and its old endpoint there is deleted instead of reused
+//   ... --after-cutover         live Gen's endpoint at https://hawkesgen.ai/v1/billing/webhook. Until the live cutover that
+//                               address is the live portal's, so without this flag it is kept (or made) as a portal endpoint
+//                               (the portal's events, its secret beside hawkesgames.com's); with it, that one is deleted
+//                               and Gen's is made
+// Safe to run again: endpoints already there are kept (their events fixed), only missing ones are made. After
+// stripe-clear.mjs every endpoint is new, and the portal keeps only the new secrets (--drop-old).
 // The file: STRIPE_SECRET_KEY=sk_live_..., STRIPE_TEST_SECRET_KEY=sk_test_... (and optionally the publishable keys).
 import fs from 'node:fs';
 import os from 'node:os';
@@ -61,6 +65,8 @@ const eventsForm = (events, extra = {}) => { const f = new URLSearchParams(extra
 const same = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
 
 const out = {}; // KEY=value lines for stripe-keys.mjs: the keys, and each new endpoint's secret
+const add = (k, v) => { out[k] = out[k] ? `${out[k]},${v}` : v; };
+let portalKept = false; // a portal endpoint was kept (its secret not known here): the portal's old secrets must stay
 for (const [lane, L] of Object.entries(LANES)) {
   if (only && only !== lane) continue;
   const sk = keys[L.sk];
@@ -71,13 +77,10 @@ for (const [lane, L] of Object.entries(LANES)) {
   if (keys[`${prefix}PUBLISHABLE_KEY`]) out[`${prefix}PUBLISHABLE_KEY`] = keys[`${prefix}PUBLISHABLE_KEY`];
   console.log(`${lane} (Stripe ${L.mode} mode):`);
   const have = (await stripe(sk, 'GET', '/v1/webhook_endpoints?limit=100')).data ?? [];
-  for (const E of L.endpoints) {
+  for (let E of L.endpoints) {
+    if (E.cutover && !afterCutover) E = { ...E, product: 'PORTAL', events: PORTAL_EVENTS, name: 'hawkesgen.ai (the live portal until the cutover)', cutover: false };
     const name = `${E.product}${L.hook}`;
     const there = have.filter((w) => w.url === E.url);
-    if (E.cutover && !afterCutover) {
-      console.log(`  ${E.name}: waits for the live cutover (${E.url} is still the portal's; then --after-cutover)`);
-      continue;
-    }
     // The portal's old live endpoint lives at Gen's address: at the cutover it goes, and Gen's is made fresh there.
     const stale = E.cutover ? there.filter((w) => w.enabled_events?.includes('checkout.session.async_payment_succeeded')) : [];
     const keep = there.filter((w) => !stale.includes(w) && !recreate);
@@ -91,14 +94,15 @@ for (const [lane, L] of Object.entries(LANES)) {
         console.log(`  ${E.name}: fix events${w.status !== 'enabled' ? ' and enable' : ''} on ${w.id}${apply ? '' : ' (dry run)'}`);
         if (apply) await stripe(sk, 'POST', `/v1/webhook_endpoints/${w.id}`, eventsForm(E.events, { disabled: 'false' }));
       } else console.log(`  ${E.name}: ${w.id} already right`);
-      if (keys[name]) out[name] = keys[name];
+      if (keys[name]) add(name, keys[name]);
+      else if (E.product === 'PORTAL') { portalKept = true; console.log(`  ${E.name}: kept; the portal keeps the secrets it has for it`); }
       else console.log(`  ${E.name}: Stripe shows its signing secret only when it is made: put it in the file as ${name}, or --recreate`);
       continue;
     }
     console.log(`  ${E.name}: make ${E.url} with ${E.events.length} events${apply ? '' : ' (dry run)'}`);
     if (apply) {
       const w = await stripe(sk, 'POST', '/v1/webhook_endpoints', eventsForm(E.events, { url: E.url, description: `${E.name} (stripe-setup.mjs)` }));
-      out[name] = w.secret;
+      add(name, w.secret);
     }
   }
   const domains = (await stripe(sk, 'GET', '/v1/payment_method_domains?limit=100')).data ?? [];
@@ -115,6 +119,6 @@ const tmp = path.join(os.tmpdir(), `stripe-setup-${process.pid}.txt`);
 fs.writeFileSync(tmp, Object.entries(out).map(([k, v]) => `${k}=${v}`).join('\n'), { mode: 0o600 });
 try {
   const here = path.dirname(fileURLToPath(import.meta.url));
-  const r = spawnSync(process.execPath, [path.join(here, 'stripe-keys.mjs'), tmp, ...(only ? ['--lane', only] : [])], { encoding: 'utf8', windowsHide: true });
+  const r = spawnSync(process.execPath, [path.join(here, 'stripe-keys.mjs'), tmp, ...(only ? ['--lane', only] : []), ...(portalKept ? [] : ['--drop-old'])], { encoding: 'utf8', windowsHide: true });
   console.log(`\n${(r.stdout || r.stderr).trim()}`);
 } finally { fs.rmSync(tmp, { force: true }); }
