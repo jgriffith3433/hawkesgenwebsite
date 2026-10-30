@@ -25,7 +25,13 @@ export const studioUrl = () => (env('PORTAL_STUDIO_URL')?.trim() || 'https://stu
 /** A page of Studio: its address and a path joined with exactly one slash, whatever either side ends or starts with. */
 export const studioPage = (path = '/', base = studioUrl()) => `${base.trim().replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
 /** This site's own address (links in mail, Stripe's return pages, Google's redirect). */
-export const publicUrl = () => (env('PUBLIC_URL') ?? 'https://hawkesgen.ai').replace(/\/+$/, '');
+export const publicUrl = () => (env('PUBLIC_URL') ?? 'https://hawkesgames.com').replace(/\/+$/, '');
+/** The addresses this site had before (PORTAL_FORMER_URLS, comma-separated: https://hawkesgen.ai before the move to
+ *  hawkesgames.com, docs/domain-move.md). Hawkes Gen's Worker there passes the portal's requests on, so an MCP client set up
+ *  with the old address still names it as the resource it signs in for. */
+export const formerUrls = () => (env('PORTAL_FORMER_URLS') ?? '').split(',').map((u) => u.trim().replace(/\/+$/, '')).filter((u) => /^https:\/\/[a-z0-9.-]+$/.test(u));
+/** This site's name as people read it (hawkesgames.com), for sentences in answers and mail. */
+export const siteName = () => new URL(publicUrl()).host;
 /** Customers' Gen projects are this prefix plus 16 hex digits (usr_ on live; staging has its own). */
 export const PROJECT_PREFIX = (() => {
   const p = env('PORTAL_PROJECT_PREFIX') ?? 'usr_';

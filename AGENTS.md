@@ -1,4 +1,8 @@
-# hawkesgen.ai — the Hawkes Gen customer portal
+# hawkesgames.com — the Hawkes Gen customer portal
+
+> **Moving from hawkesgen.ai to hawkesgames.com** (J, 2026-10-29): `docs/domain-move.md` is the runbook and the map of
+> names. `PUBLIC_URL` in `cloud/functions/.env.<project>` is the portal's address; `PORTAL_FORMER_URLS` the old ones it
+> still accepts. hawkesgen.ai becomes Hawkes Gen itself; below, "hawkesgen.ai" as the portal means hawkesgames.com.
 
 **Lanes, local dev and deploys:** `LANES.md` (branches dev -> beta -> main; `dev.bat`, `deploy-beta.bat`, `deploy-prod.bat`, `status.bat`, `links.bat`, `sync.bat`; beta and live links).
 

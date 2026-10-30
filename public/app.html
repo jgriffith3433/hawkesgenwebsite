@@ -309,20 +309,20 @@
       <div style="display:flex;flex-direction:column;gap:12px;">
         <div>
           <div style="font-size:0.8rem;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">cURL Example</div>
-          <pre class="code-snippet" id="snippetCurl">curl -X POST https://hawkesgen.ai/v1/jobs \
+          <pre class="code-snippet" id="snippetCurl">curl -X POST https://hawkesgames.com/v1/jobs \
   -H "Authorization: Bearer hg_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{"tool":"image.generate","params":{"prompt":"A glowing obsidian crystal"}}'</pre>
         </div>
         <div>
           <div style="font-size:0.8rem;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">JavaScript SDK (<code>/client/hawkesgen.mjs</code>)</div>
-          <pre class="code-snippet" id="snippetJs">import { HawkesGen } from 'https://hawkesgen.ai/client/hawkesgen.mjs';
-const gen = new HawkesGen({ url: 'https://hawkesgen.ai', key: 'hg_YOUR_KEY' });
+          <pre class="code-snippet" id="snippetJs">import { HawkesGen } from 'https://hawkesgames.com/client/hawkesgen.mjs';
+const gen = new HawkesGen({ url: 'https://hawkesgames.com', key: 'hg_YOUR_KEY' });
 const job = await gen.run('image.generate', { prompt: 'Seamless sci-fi hull plating', seamless: true });</pre>
         </div>
         <div>
           <div style="font-size:0.8rem;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">Unity Editor (<code>com.hawkes.gen</code>)</div>
-          <pre class="code-snippet" id="snippetUnity">// Unity Editor: Window > Hawkes Gen -> Server: https://hawkesgen.ai | API Key: hg_YOUR_KEY</pre>
+          <pre class="code-snippet" id="snippetUnity">// Unity Editor: Window > Hawkes Gen -> Server: https://hawkesgames.com | API Key: hg_YOUR_KEY</pre>
         </div>
       </div>
     </div>

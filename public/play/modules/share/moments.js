@@ -105,7 +105,7 @@
     g.fill();
     g.fillStyle = '#fff'; g.fillText(label, u * 2, tagY - u * 0.2);
     g.font = `600 ${Math.round(u * 0.9)}px Rajdhani, Inter, sans-serif`; g.textAlign = 'right'; g.fillStyle = 'rgba(255,255,255,.7)';
-    g.fillText('hawkesgen.ai', W - u * 1.2, Hh - u * 0.7);
+    g.fillText('hawkesgames.com', W - u * 1.2, Hh - u * 0.7);
     return c;
   }
 

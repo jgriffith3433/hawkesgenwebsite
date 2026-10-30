@@ -19,7 +19,7 @@ import { id, PortalError, route, send, json } from './http.ts';
  *  just under it. A file fetched from an https address is read by the function itself and may be bigger. */
 export const UPLOAD_LIMIT = 30 * 1024 * 1024;
 export const FETCH_LIMIT = 64 * 1024 * 1024;
-const TOO_BIG = 'Files up to 30 MB through an upload link (a limit of where hawkesgen.ai runs). For a bigger file, put it at a public https address and pass the URL instead (up to 64 MB).';
+const TOO_BIG = 'Files up to 30 MB through an upload link (a limit of where this site runs). For a bigger file, put it at a public https address and pass the URL instead (up to 64 MB).';
 
 // ------------------------------------------------------------ signed tokens (src/sign.ts)
 

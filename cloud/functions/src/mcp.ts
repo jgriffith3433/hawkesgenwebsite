@@ -1,4 +1,4 @@
-// The Hawkes Gen MCP server (https://hawkesgen.ai/mcp, Streamable HTTP, stateless). Game-dev tools an agent can use the
+// The Hawkes Gen MCP server (<PUBLIC_URL>/mcp: https://hawkesgames.com/mcp, Streamable HTTP, stateless). Game-dev tools an agent can use the
 // way a developer would: give it a file (an asset ref, a URL, inline bytes, or a one-time `curl -T` upload link), ask for
 // a sprite sheet / 3D model / sound, and get back previews it can see and download links it can save into the project.
 // Each tool is a task (tasks.ts): one or more Gen jobs, paid per job within the connection's daily limit. Long tasks
@@ -652,7 +652,7 @@ corsRoute('/mcp', async ({ req, res, method }) => {
   }
   if (!c) {
     res.setHeader('WWW-Authenticate', `Bearer resource_metadata="${publicUrl()}/.well-known/oauth-protected-resource/mcp"${bearer(req) ? ', error="invalid_token"' : ''}`);
-    return send(res, 401, { error: 'Sign in: connect at https://hawkesgen.ai/connect, or send an API key (Authorization: Bearer hg_...)' });
+    return send(res, 401, { error: `Sign in: connect at ${publicUrl()}/connect, or send an API key (Authorization: Bearer hg_...)` });
   }
   return handleMcp(c, req, res);
 });
