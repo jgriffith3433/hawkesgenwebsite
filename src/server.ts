@@ -50,7 +50,7 @@ import { relayAnalytics, playIds, playIdsScript } from './analytics.ts';
 import type { Duplex } from 'node:stream';
 
 const PUBLIC = path.join(ROOT, 'public');
-const PAGES: Record<string, string> = { '/': 'index.html', '/home': 'index.html', '/app': 'games.html', '/app/studio': 'app.html', '/games': 'gallery.html', '/admin': 'admin.html', '/credits': 'credits.html', '/reset': 'reset.html', '/auth/popup': 'auth-popup.html', '/legal': 'legal.html', '/terms': 'legal.html', '/privacy': 'legal.html', '/refunds': 'legal.html', '/connect': 'connect.html', '/net': 'net.html', '/thanks': 'thanks.html', '/examples': 'examples.html', '/entities': 'entities.html', '/avatars': 'avatars.html', '/community': 'community.html','/oauth/authorize': 'authorize.html', '/client/hawkesgen.mjs': 'hawkesgen.mjs' };
+const PAGES: Record<string, string> = { '/': 'index.html', '/home': 'index.html', '/app': 'games.html', '/games': 'gallery.html', '/admin': 'admin.html', '/credits': 'credits.html', '/reset': 'reset.html', '/auth/popup': 'auth-popup.html', '/legal': 'legal.html', '/terms': 'legal.html', '/privacy': 'legal.html', '/refunds': 'legal.html', '/net': 'net.html', '/thanks': 'thanks.html', '/entities': 'entities.html', '/avatars': 'avatars.html', '/community': 'community.html','/client/hawkesgen.mjs': 'hawkesgen.mjs' };
 const TYPES: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json', '.webp': 'image/webp', '.gif': 'image/gif', '.mp3': 'audio/mpeg', '.jpg': 'image/jpeg', '.unitypackage': 'application/octet-stream', '.pdf': 'application/pdf', '.md': 'text/markdown; charset=utf-8', '.glb': 'model/gltf-binary', '.json': 'application/json; charset=utf-8', '.woff2': 'font/woff2' };
 
 // Gen routes a signed-in customer may use as they are (Gen scopes them to the customer's project).
@@ -153,7 +153,7 @@ const PLAY_SANDBOX = 'sandbox allow-scripts allow-pointer-lock allow-popups';
  *  Gen's analytics origin moving with Gen) and only then; a game's own fetch to anywhere else is meant to fail. */
 const PLAY_HOSTS = {
   /** Hawkes Gen: the analytics SDK (play.html) and its relay. */
-  gen: ['https://gen.hawkesgen.ai'],
+  gen: ['https://hawkesgen.ai'],
   /** The stand-in boombox model (kinds.js). */
   models: ['https://models.babylonjs.com'],
   /** Realtime (play/net.js): Hawkes Net's nodes (hnet.ts netHosts: the one inside Gen, and PORTAL_NET_HOSTS). */
@@ -293,7 +293,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       const c = users.bearer(req) ? caller(req) : null;
       if (!c) {
         res.setHeader('WWW-Authenticate', `Bearer resource_metadata="${publicUrl()}/.well-known/oauth-protected-resource/mcp"${users.bearer(req) ? ', error="invalid_token"' : ''}`);
-        return send(res, 401, { error: 'Sign in: connect at https://hawkesgen.ai/connect, or send an API key (Authorization: Bearer hg_...)' });
+        return send(res, 401, { error: 'Sign in: connect at https://hawkesgen.ai/mcp, or send an API key (Authorization: Bearer hg_...)' });
       }
       return await handleMcp(c, req, res);
     }

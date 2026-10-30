@@ -40,7 +40,7 @@ test('health answers within a few seconds of starting', async () => {
 test('50 parallel loads of every main page and its assets: no reset, no blank page', async () => {
   const s = await start();
   try {
-    const paths = ['/', '/connect', '/play/sandbox', '/community', '/fonts/fonts.css', '/fonts/inter.woff2', '/fonts/jetbrains-mono.woff2', '/v1/health', '/v1/community?limit=5', '/v1/community/categories'];
+    const paths = ['/', '/games', '/play/sandbox', '/community', '/fonts/fonts.css', '/fonts/inter.woff2', '/fonts/jetbrains-mono.woff2', '/v1/health', '/v1/community?limit=5', '/v1/community/categories'];
     const agent = new http.Agent({ keepAlive: true, maxSockets: 100 });
     const get = (p: string) => new Promise<{ status: number; bytes: number }>((resolve, reject) => {
       http.get({ host: '127.0.0.1', port: s.port, path: p, agent }, (r) => { let n = 0; r.on('data', (c) => (n += c.length)); r.on('end', () => resolve({ status: r.statusCode!, bytes: n })); r.on('error', reject); }).on('error', (e) => reject(new Error(`${p}: ${e.message}`)));
@@ -51,7 +51,7 @@ test('50 parallel loads of every main page and its assets: no reset, no blank pa
         assert.ok(r.status < 500, `${r.p} answered ${r.status}`);
         if (r.status === 200) assert.ok(r.bytes > 0, `${r.p} came back blank`);
       }
-      for (const p of ['/', '/connect', '/play/sandbox', '/community']) assert.ok(all.filter((r) => r.p === p).every((r) => r.status === 200), `${p} is not 200`);
+      for (const p of ['/', '/games', '/play/sandbox', '/community']) assert.ok(all.filter((r) => r.p === p).every((r) => r.status === 200), `${p} is not 200`);
     }
     agent.destroy();
   } finally { stop(s.child); }

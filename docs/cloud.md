@@ -92,12 +92,9 @@ are pure functions in `platform.ts` (`test/platform.test.ts`); Firestore is `org
   free, maker and pro are offered as before. Maker and pro subscribers keep their plan either way (`legacy`). Hawkes
   Net's live rooms are the `net` entitlement now (`hnet.ts`), not "any purchase": a paid plan, or a `grants.net` on the
   personal org that the migration gives accounts that ever paid and every credit pack sets (`grantNetLive`).
-- **OAuth scopes** (`oauth.ts`): `generate`, `playtest`, `backlog`, `build`, `agents`, in plain words on the consent page
-  with an org picker for people in more than one org. A token gets what was asked, cut to what the picked org's plan
-  and the person's role allow; no scope asked means `generate` (as before). The connection keeps its `org_id` and
-  `scopes`; old connections read as the personal org with `generate`. A connection without `generate` can't run Gen
-  work here (`caller.ts`; `/mcp` answers 403 insufficient_scope) but can mint platform tokens.
-- **The platform token**: `POST /v1/platform/token` (a session, an `hg_` key, or an `hgo_` token; body `org`, `scope`,
+- **OAuth** for editors is gone (2026-10-30: the MCP server, `oauth.ts`, `hgo_` tokens and connections were removed;
+  editors use Hawkes Gen's MCP at hawkesgen.ai/mcp).
+- **The platform token**: `POST /v1/platform/token` (a session or an `hg_` key; body `org`, `scope`,
   `aud` optional) returns a JWT (EdDSA, Ed25519, 10 minutes): `iss` (this lane's `PUBLIC_URL`), `aud` (`hawkesgen`,
   `hawkesstudio`, `hawkesnet`), `sub`/`user`, `org`, `project` (the Gen project), `role`, `plan`, `entitlements`,
   `scopes`, `via`. A connection gets its own org and scopes only. Gen and Studio verify it with
@@ -128,7 +125,7 @@ Open: Studio's control plane could tell the portal an org's Studio id when it ma
 Admin is never a stored role. `accounts.ts adminFrom(req)` decides it on every request: the `__session` cookie verified
 by Firebase (revocation checked), signed in with `google.com`, its email verified by Google and on **`PORTAL_ADMIN_EMAILS`**
 (comma-separated; unset means `piercehawkes3@gmail.com`; set but empty means nobody), and the same email as the portal
-account it maps to. A bearer token (an `hg_` key, an `hgo_` OAuth token) and a stream link are never an admin. Everything
+account it maps to. A bearer token (an `hg_` key) and a stream link are never an admin. Everything
 admin goes through it: `/admin` and `/v1/admin/*` (403 to anyone else), `/v1/health/details`, `POST /v1/orgs/<id>/plan`,
 taking back someone else's community thing or kit, and Hawkes Net's dashboard admin (`hnet.ts developerOf`). The
 `role` field on accounts stays in Firestore but grants nothing; `/v1/users/me` shows `role: "admin"` only on J's own
@@ -199,7 +196,7 @@ admin route against nobody, a customer, a customer with `role: "admin"` set by h
 | Credits, packs, Stripe Checkout and webhook, holds | `billing.ts` | ported |
 | Jobs: quote, submit, settle (scheduled sweep), Gen pass-through, uploads | `jobs.ts`, `gen.ts` | ported |
 | Plans and subscriptions | `plans.ts` | ported |
-| OAuth server, MCP, tasks, files and signed links, connections | `oauth.ts`, `mcp.ts`, `tasks.ts`, `files.ts` | ported |
+| Files and signed links (the OAuth server, MCP, tasks and connections were ported, then removed 2026-10-30) | `files.ts` | ported |
 | Games, the assistant, scene, releases, members, invites, play pages, play assets, live feed | `games.ts`, `gameai.ts`, … | ported |
 | Community, kits, shares, LODs, templates, gallery, portfolio, demo, prices, analytics relay | `community.ts`, … | ported |
 | Admin, presence, friends, Hawkes Net tickets, health | `admin.ts`, `presence.ts`, `friends.ts`, `hnet.ts` | ported |
