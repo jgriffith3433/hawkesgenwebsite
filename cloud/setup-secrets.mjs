@@ -39,7 +39,7 @@ async function genKeyFor(prefix) {
   // does the same and also sets HAWKESGEN_URL).
   if (project === 'hawkes-prod') throw new Error('live takes its Gen key from the box (--from-box) or cloud/point-gen.mjs');
   const c = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.hawkes', 'client.json'), 'utf8'));
-  const gen = 'https://gen-beta.hawkesgen.ai';
+  const gen = 'https://beta.hawkesgen.ai';
   if (!c.genBetaKey) throw new Error('~/.hawkes/client.json has no genBetaKey');
   const r = await fetch(`${gen}/v1/clients`, { method: 'POST', headers: { Authorization: `Bearer ${String(c.genBetaKey).trim()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'portal (beta)', role: 'user', projects: [`${prefix}*`] }) });
   if (!r.ok) throw new Error(`Gen would not make the key: ${r.status} ${(await r.text()).slice(0, 200)}`);
