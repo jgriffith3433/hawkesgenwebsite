@@ -365,23 +365,24 @@ For example a left-facing copy: [{"op":"flip"}]; a 64 px pixel-art icon: [{"op":
     inputSchema: { type: 'object', properties: {} },
     annotations: read,
     async build(_a, { caller }) {
-      const r: any = await gen('/v1/providers/elevenlabs/voices', { as: caller.user.project });
-      return { direct: { voices: (r.voices ?? []).slice(0, 60).map((v: any) => ({ id: v.voice_id ?? v.id, name: v.name, description: v.description ?? v.labels ?? undefined })) } };
+      const r: any = await gen('/v1/editor/voices', { as: caller.user.project });
+      return { direct: { voices: (r.voices ?? []).map((v: any) => ({ id: v.id, name: v.name, description: v.about })) } };
     },
   },
   {
     name: 'voice_line',
     title: 'Voice line',
-    description: 'Speaks a line of dialogue in a voice (id or name from list_voices). Delivery tags work: [whispers], [laughs], [shouting]. ~10 credits.',
+    description: 'Speaks a line of dialogue in a voice (id or name from list_voices). Say how to deliver it in the text, e.g. [whispers] or [laughs]. ~10 credits.',
     inputSchema: { type: 'object', properties: { text: { type: 'string' }, voice: { type: 'string', description: 'A voice id or name from list_voices.' }, variations: { type: 'integer', minimum: 1, maximum: 4, default: 1 } }, required: ['text', 'voice'] },
     annotations: gpu,
     async build(a, { caller }) {
       let voice = String(a.voice);
-      if (!/^[A-Za-z0-9]{16,}$/.test(voice)) {
-        const r: any = await gen('/v1/providers/elevenlabs/voices', { as: caller.user.project });
-        const v = (r.voices ?? []).find((x: any) => String(x.name).toLowerCase() === voice.toLowerCase()) ?? (r.voices ?? []).find((x: any) => String(x.name).toLowerCase().includes(voice.toLowerCase()));
+      if (!/^(hv|gv)_[a-z0-9_]+$/.test(voice)) {
+        const r: any = await gen('/v1/editor/voices', { as: caller.user.project });
+        const want = voice.toLowerCase();
+        const v = (r.voices ?? []).find((x: any) => String(x.name).toLowerCase() === want) ?? (r.voices ?? []).find((x: any) => `${x.name} ${x.about}`.toLowerCase().includes(want));
         if (!v) throw new PortalError(`No voice named "${voice}"; call list_voices`);
-        voice = v.voice_id ?? v.id;
+        voice = v.id;
       }
       return { name: String(a.text).slice(0, 60), steps: [{ tool: 'audio.voice', title: 'Speaking', params: { text: String(a.text), voice, count: clamp(a.variations, 1, 4, 1) } }] };
     },
