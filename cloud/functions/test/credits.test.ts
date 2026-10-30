@@ -3,18 +3,21 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 
-if (process.env.GOOGLE_CLOUD_PROJECT !== 'hawkes-staging') throw new Error('run with GOOGLE_CLOUD_PROJECT=hawkes-staging');
-const { db, users, ledgerOf, changeCredits, happened } = await import('../src/store.ts');
+// Anywhere else (npm test on a PC with no staging credentials) it is skipped, not failed.
+const staging = process.env.GOOGLE_CLOUD_PROJECT === 'hawkes-staging';
+const skip = staging ? false : 'needs GOOGLE_CLOUD_PROJECT=hawkes-staging (it uses the staging Firestore)';
+const { db, users, ledgerOf, changeCredits, happened } = staging ? await import('../src/store.ts') : ({} as typeof import('../src/store.ts'));
 
 const uid = `ustg_test${Date.now().toString(16)}`;
 const onceKeys: string[] = [];
 after(async () => {
+  if (!staging) return;
   for (const d of (await ledgerOf(uid).get()).docs) await d.ref.delete();
   await users().doc(uid).delete();
   for (const k of onceKeys) await db.collection('once').doc(k).delete();
 });
 
-test('credits change with a ledger row, once per key, never below zero', async () => {
+test('credits change with a ledger row, once per key, never below zero', { skip }, async () => {
   await users().doc(uid).create({ email: `${uid}@example.com`, credits: 10, project: uid, role: 'customer', created: Date.now(), last_login: null });
   const a = await changeCredits(uid, 25, { kind: 'test_add', detail: 'add' });
   assert.equal(a?.balance_after, 35);

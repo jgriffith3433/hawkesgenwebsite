@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 process.env.PORTAL_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'portal-csp-'));
@@ -17,7 +17,7 @@ process.env.PORTAL_DEV_OPEN_PLAY = '0';
 process.env.PUBLIC_URL = 'https://hawkesgen.ai';
 
 const { handle } = await import('../src/server.ts');
-const { safeHref } = await import(path.join(ROOT, 'public', 'editor-bridge.js'));
+const { safeHref } = await import(pathToFileURL(path.join(ROOT, 'public', 'editor-bridge.js')).href);
 const portal = http.createServer((req, res) => void handle(req, res));
 await new Promise<void>((r) => portal.listen(0, '127.0.0.1', () => r()));
 const base = `http://127.0.0.1:${(portal.address() as any).port}`;
@@ -96,7 +96,7 @@ test("a game script's fetch to an outside site is refused; what the engine needs
 
 test('every external host the game page and engine name is on the policy list', () => {
   // A host added to the engine must be added to PLAY_HOSTS (server.ts); this finds the ones that were not.
-  const listed = new Set(['https://gen.hawkesgen.ai', 'https://models.babylonjs.com', 'https://hawkesgen.ai']);
+  const listed = new Set(['https://gen.hawkesgen.ai', 'https://models.babylonjs.com', 'https://hawkesgames.com']); // the last: the badge, a link to this site
   const files = ['public/play/play.html', 'public/play/engine.json', 'public/play/kinds.js', 'public/play/loader.js', 'public/play/runtime.js', 'public/play/net.js', 'public/play/modules/monitor/monitor.js'];
   for (const f of files) {
     for (const m of fs.readFileSync(path.join(ROOT, f), 'utf8').matchAll(/https:\/\/([a-z0-9.-]+)/g)) {
