@@ -29,12 +29,13 @@ J, 2026-10-29: the portal follows Gen and Studio's lanes. `dev` deploys nothing;
 
 | | Beta (`hawkes-staging`) | Live (`hawkes-prod`) |
 |---|---|---|
-| Address (`PUBLIC_URL`) | https://beta.hawkesgen.ai (and hawkes-staging.web.app) | https://hawkesgen.ai |
+| Address (`PUBLIC_URL`) | https://beta.hawkesgames.com (and hawkes-staging.web.app; beta.hawkesgen.ai until the cutover) | https://hawkesgames.com (hawkesgen.ai until the cutover: `docs/domain-move.md`) |
 | Gen (`HAWKESGEN_URL`, secret `HAWKESGEN_KEY`) | https://gen-beta.hawkesgen.ai, key "portal (beta)" | https://gen.hawkesgen.ai, key "portal (live)" |
-| Hawkes Net (`PORTAL_NET_URL`, `PORTAL_NET_DASHBOARD`) | https://hawkesnet.hawkesgen.ai | https://net.hawkesgen.ai (the default) |
+| Hawkes Net (`PORTAL_NET_URL`, `PORTAL_NET_DASHBOARD`) | https://hawkesnet.hawkesgen.ai, dashboard https://net-beta.hawkesgames.com | https://net.hawkesgen.ai, dashboard https://net.hawkesgames.com (the defaults) |
 | Hawkes Studio, "Open Studio" (`PORTAL_STUDIO_URL`) | https://studio-beta.hawkesgen.ai | https://studio.hawkesgen.ai (the default) |
 | Customers (`PORTAL_PROJECT_PREFIX`) | `ustg_` | `usr_` |
 | Stripe | test mode (`sk_test_…` and its webhook secret in Secret Manager; a live key is refused) | live |
+| Stripe webhook secrets | `STRIPE_WEBHOOK_SECRET` may list one per endpoint (`cloud/stripe-keys.mjs` sets every product's, both lanes) | the same |
 | Mail | none (`unset`) | on |
 
 - `cloud/functions/test/lanes.test.ts` checks both `.env` files (`node --test test/lanes.test.ts`, no keys needed).
