@@ -15,8 +15,8 @@
 //   STRIPE_TEST_PUBLISHABLE_KEY=pk_test_...    beta: Gen and Studio
 //   PORTAL_WEBHOOK_SECRET=whsec_...            https://hawkesgames.com/v1/billing/webhook (added beside the hawkesgen.ai one)
 //   PORTAL_BETA_WEBHOOK_SECRET=whsec_...       https://beta.hawkesgames.com/v1/billing/webhook
-//   GEN_WEBHOOK_SECRET=whsec_...               https://gen.hawkesgen.ai/v1/billing/webhook
-//   GEN_BETA_WEBHOOK_SECRET=whsec_...          https://gen-beta.hawkesgen.ai/v1/billing/webhook
+//   GEN_WEBHOOK_SECRET=whsec_...               https://hawkesgen.ai/v1/billing/webhook (Gen from the cutover on)
+//   GEN_BETA_WEBHOOK_SECRET=whsec_...          https://beta.hawkesgen.ai/v1/billing/webhook (Gen beta from the beta cutover on)
 //   STUDIO_WEBHOOK_SECRET=whsec_...            https://studio.hawkesgen.ai/api/billing/webhook
 //   STUDIO_BETA_WEBHOOK_SECRET=whsec_...       https://studio-beta.hawkesgen.ai/api/billing/webhook
 import fs from 'node:fs';
