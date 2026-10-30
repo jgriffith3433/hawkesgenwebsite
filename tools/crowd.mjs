@@ -100,7 +100,7 @@ const workers = await Promise.all(Array.from({ length: shards }, (_, shard) => n
 const ask = (cmd, extra = {}) => Promise.all(workers.map((w) => new Promise((res) => { w.once('message', res); w.postMessage({ cmd, shards, ...extra }); })));
 
 // ---------------------------------------------------------------- pages, sign-ins, editor streams
-const PAGES = ['/', '/play/sandbox', '/community', '/games', '/play/modules.js', '/play/runtime.js', '/play/WORLD.md', '/v1/portfolio', '/v1/health', '/connect'];
+const PAGES = ['/', '/play/sandbox', '/community', '/games', '/play/modules.js', '/play/runtime.js', '/play/WORLD.md', '/v1/portfolio', '/v1/health'];
 async function pageLoads(until, out) {
   let n = 0;
   while (performance.now() < until) {

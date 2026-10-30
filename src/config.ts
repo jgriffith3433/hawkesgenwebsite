@@ -20,7 +20,7 @@ export const env = (k: string): string | undefined => process.env[k] || fileEnv[
 export const DATA_DIR = env('PORTAL_DATA_DIR') ?? path.join(ROOT, '.data');
 export const PORT = Number(env('PORT') ?? 8800);
 /** Hawkes Gen, the backend: where every job runs. The portal is one of its customers, with one key. */
-export const genUrl = () => (env('HAWKESGEN_URL') ?? 'https://gen.hawkesgen.ai').replace(/\/+$/, '');
+export const genUrl = () => (env('HAWKESGEN_URL') ?? 'https://hawkesgen.ai').replace(/\/+$/, '');
 export const genKey = () => env('HAWKESGEN_KEY') ?? '';
 /** This site's own address (Stripe's return links). */
 /** Where Gen hands out public asset links (its CDN, settings.storage.cdn). A game page's CSP names exactly these hosts

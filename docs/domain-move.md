@@ -1,5 +1,9 @@
 # Moving the portal to hawkesgames.com (and hawkesgen.ai to Gen)
 
+> **Done and partly superseded** (2026-10-30): the move is complete; gen.hawkesgen.ai and gen-beta.hawkesgen.ai are
+> retired (DNS deleted), not kept "forever"; the portal's MCP, OAuth and `hgo_` tokens and `/connect` are gone
+> (hawkesgames.com is Hawkes Games; editors use Gen's MCP at hawkesgen.ai/mcp). Read what follows as history.
+
 J, 2026-10-29: three products. **hawkesgames.com** is the portal (it was hawkesgen.ai), **HawkesGen.ai** is Hawkes Gen's own
 app (it was gen.hawkesgen.ai), and **Studio** stays at studio.hawkesgen.ai. gen.hawkesgen.ai keeps working forever, so every SDK, Unity package, `~/.hawkes/client.json` and
 customer setup that names it needs no change.
