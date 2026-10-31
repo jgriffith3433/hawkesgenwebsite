@@ -9,3 +9,9 @@ cloud/functions/node_modules/
 .firebase/
 cloud/functions/assets/
 cloud/.portal-final.db
+
+# keys never belong in git
+*.pem
+*.key
+.env.*
+!.env.example
