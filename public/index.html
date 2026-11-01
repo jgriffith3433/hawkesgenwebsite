@@ -25,9 +25,9 @@
   <meta name="twitter:title" content="Hawkes Games — You were just given free will">
   <meta name="twitter:description" content="Decide what you are, then do with it what you will. A free game on a giant planet, in your browser.">
   <meta name="twitter:image" content="https://hawkesgames.com/brand/og.png">
-  <link rel="stylesheet" href="/public.css">
-  <link rel="stylesheet" href="/site.css">
-  <link rel="stylesheet" href="/overseer-sky.css">
+  <link rel="stylesheet" href="/public.css?v=play2">
+  <link rel="stylesheet" href="/site.css?v=play2">
+  <link rel="stylesheet" href="/overseer-sky.css?v=play2">
   <script>document.documentElement.classList.add("js")</script>
   <script src="https://hawkesgen.ai/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
   <script src="/site-analytics.js"></script>
@@ -45,7 +45,7 @@
       <nav class="hg-nav-links" data-site-nav><a href="/games">Games</a><a href="/community">Community library</a><a href="/entities">Engine codex</a><a href="/#pricing">Pricing</a></nav>
       <div class="hg-nav-actions">
         <button type="button" class="btn btn-ghost" data-open-auth="login">Sign in</button>
-        <button type="button" class="btn btn-primary" data-open-auth="signup">Create account</button>
+        <a class="btn btn-primary" href="/play/sandbox">Play</a>
       </div>
     </div>
   </header>
@@ -82,10 +82,10 @@
           </div>
         </div>
         <div class="steps beam-in">
-          <div class="step"><b>Decide what you are</b><span>An animal, a robot, a toaster, a shoe. Pick a look and a name at the mirror. The Overseer is delighted either way, and everyone sees you as what you chose.</span></div>
-          <div class="step"><b>Drive, fish, blow things up</b><span>Take the 4x4 down to the dock, cast off the end of the pier, then meet the fuel barrels. Pip introduces each one by name before it goes.</span></div>
-          <div class="step"><b>Ask the sky</b><span>Ask the Overseer for anything. It comes down in a beam of light, and you keep it.</span></div>
-          <div class="step"><b>Go up</b><span>Fly the helicopter until the island is a speck. Then finish Rolo's rocket and keep climbing until you can see the whole planet, and something lit up above it.</span></div>
+          <div class="step"><h3>Decide what you are</h3><p>An animal, a robot, a toaster, a shoe. Pick a look and a name at the mirror. The Overseer is delighted either way, and everyone sees you as what you chose.</p></div>
+          <div class="step"><h3>Drive, fish, blow things up</h3><p>Take the 4x4 down to the dock, cast off the end of the pier, then meet the fuel barrels. Pip introduces each one by name before it goes.</p></div>
+          <div class="step"><h3>Ask the sky</h3><p>Ask the Overseer for anything. It comes down in a beam of light, and you keep it.</p></div>
+          <div class="step"><h3>Go up</h3><p>Fly the helicopter until the island is a speck. Then finish Rolo's rocket and keep climbing until you can see the whole planet, and something lit up above it.</p></div>
         </div>
         <p class="play-note beam-in">Come back tomorrow and the Overseer will have one small wish of you. Levels bring gifts for your wardrobe and new tools for your belt. Nothing on the island is for sale.</p>
       </div>
@@ -101,12 +101,12 @@
           </div>
         </div>
         <div class="cast beam-in">
-          <div class="cast-one"><b>Pip</b><em>A person, and your guide</em><span>Wants to try everything, with company. Has never once checked the wind before a boom.</span></div>
-          <div class="cast-one"><b>Admiral Bobbin</b><em>A rubber duck, harbourmaster</em><span>Commands a harbour with one boat. Very small, very proud. Takes any wave personally.</span></div>
-          <div class="cast-one"><b>Mrs Ember</b><em>A toaster, runs the post and the weather</em><span>Every forecast she gives is right, and she apologises for it each time.</span></div>
-          <div class="cast-one"><b>Rolo</b><em>A roll-bot, the only fixer</em><span>Will not ask for help, ever. Built a rocket and cannot say why.</span></div>
-          <div class="cast-one"><b>Dolores</b><em>A cactus on the hill</em><span>Is not lonely. Remembers every detail of your day anyway.</span></div>
-          <div class="cast-one"><b>Channel</b><em>A TV robot, the island's reporter</em><span>Reports everything as breaking news, naps included. Ratings: record.</span></div>
+          <div class="cast-one"><h3>Pip</h3><p class="role">A person, and your guide</p><p>Wants to try everything, with company. Has never once checked the wind before a boom.</p></div>
+          <div class="cast-one"><h3>Admiral Bobbin</h3><p class="role">A rubber duck, harbourmaster</p><p>Commands a harbour with one boat. Very small, very proud. Takes any wave personally.</p></div>
+          <div class="cast-one"><h3>Mrs Ember</h3><p class="role">A toaster, runs the post and the weather</p><p>Every forecast she gives is right, and she apologises for it each time.</p></div>
+          <div class="cast-one"><h3>Rolo</h3><p class="role">A roll-bot, the only fixer</p><p>Will not ask for help, ever. Built a rocket and cannot say why.</p></div>
+          <div class="cast-one"><h3>Dolores</h3><p class="role">A cactus on the hill</p><p>Is not lonely. Remembers every detail of your day anyway.</p></div>
+          <div class="cast-one"><h3>Channel</h3><p class="role">A TV robot, the island's reporter</p><p>Reports everything as breaking news, naps included. Ratings: record.</p></div>
         </div>
         <p class="play-note beam-in">Keep an eye out for things left lying around: a logbook with pages missing, planks cut for a bigger hand. Your journal keeps what you find.</p>
       </div>
@@ -168,12 +168,12 @@
           </div>
         </div>
         <div class="play-cards beam-in">
-          <a class="play-card" href="/play/t/fps-arena"><b>Bot Arena</b><span>A first-person arena on a far planet at dusk: robots beamed in by the Overseer, a shotgun, a rocket launcher on the tower, barrels that blow. Clear 25, three lives.</span><em data-live-of="fps-arena">Play</em></a>
-          <a class="play-card" href="/play/t/sky-racer"><b>Sky Racer</b><span>Race a starship down a sunset valley through 24 glowing gates. Each gate buys time. Boost with space and beat your best.</span><em data-live-of="sky-racer">Play</em></a>
-          <a class="play-card" href="/play/t/platform-run"><b>Leap</b><span>A third-person climb from a village to the Overseer's rocket before the sun sets: moving platforms, spikes, coins, gems and checkpoints.</span><em data-live-of="platform-run">Play</em></a>
+          <a class="play-card" href="/play/t/fps-arena"><h3>Bot Arena</h3><p>A first-person arena on a far planet at dusk: robots beamed in by the Overseer, a shotgun, a rocket launcher on the tower, barrels that blow. Clear 25, three lives.</p><span class="go" data-live-of="fps-arena">Play</span></a>
+          <a class="play-card" href="/play/t/sky-racer"><h3>Sky Racer</h3><p>Race a starship down a sunset valley through 24 glowing gates. Each gate buys time. Boost with space and beat your best.</p><span class="go" data-live-of="sky-racer">Play</span></a>
+          <a class="play-card" href="/play/t/platform-run"><h3>Leap</h3><p>A third-person climb from a village to the Overseer's rocket before the sun sets: moving platforms, spikes, coins, gems and checkpoints.</p><span class="go" data-live-of="platform-run">Play</span></a>
         </div>
         <p class="play-live" data-live hidden><b data-live-n></b> <span data-live-t></span></p>
-        <div class="actions" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:24px">
+        <div class="actions games-actions">
           <a class="btn btn-primary btn-lg" href="/play/sandbox">Start on the island</a>
           <a class="btn btn-secondary btn-lg" href="/games">See what players made</a>
         </div>
@@ -362,7 +362,7 @@
         // The Overseer's games: who is in each one now, on its card.
         for (const f of d.featured || []) {
           const el = document.querySelector('[data-live-of="' + f.id + '"]');
-          if (el && (f.playing || f.building)) el.textContent = [f.playing && f.playing + ' playing', f.building && f.building + ' building'].filter(Boolean).join(' · ');
+          if (el && (f.playing || f.building)) el.textContent = 'Play · ' + [f.playing && f.playing + ' playing', f.building && f.building + ' building'].filter(Boolean).join(' · ');
         }
         const box = document.querySelector('[data-live]'), n = document.querySelector('[data-live-n]'), t = document.querySelector('[data-live-t]');
         if (!box || !n || !(playing || building)) return;
