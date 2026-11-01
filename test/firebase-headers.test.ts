@@ -18,3 +18,7 @@ test('the home page and every page behind a rewrite is never cached without reva
 test('the API, the engine and the pinned libraries keep their own caching', () => {
   for (const p of ['/v1/health', '/play/runtime.js', '/vendor/babylonjs@7/babylon.js', '/s/abc']) assert.equal(matches(p), false, p);
 });
+
+test("the site's own stylesheets are revalidated on each visit, so a new page never shows with an old stylesheet", () => {
+  assert.ok(noCache.some((h: any) => h.source === '/*.css'));
+});

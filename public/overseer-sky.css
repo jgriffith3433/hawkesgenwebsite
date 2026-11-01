@@ -57,8 +57,8 @@ body.landing.at-sky .site-menu-btn { color: #fff; border-color: rgba(255,255,255
 .descent .steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; counter-reset: s; }
 .descent .step { position: relative; padding: 22px 20px 20px; border: 1px solid var(--border); border-radius: var(--r-lg); background: #fff; box-shadow: var(--shadow); }
 .descent .step::before { counter-increment: s; content: counter(s); position: absolute; top: -14px; left: 18px; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font: 600 13px var(--mono); color: #05101f; background: linear-gradient(135deg, #fff, #8fd8ff); box-shadow: 0 0 0 4px var(--bg), 0 0 18px rgba(143,216,255,.8); }
-.descent .step b { display: block; font: 600 16px/1.3 var(--sans); color: var(--heading); margin-bottom: 6px; }
-.descent .step span { font-size: 14px; color: var(--fg-2); }
+.descent .step h3 { font: 600 16px/1.3 var(--sans); color: var(--heading); margin: 4px 0 8px; letter-spacing: -.01em; }
+.descent .step p { font-size: 14px; line-height: 1.55; color: var(--fg-2); }
 @media (max-width: 900px) { .descent .steps { grid-template-columns: 1fr 1fr; row-gap: 26px; } }
 @media (max-width: 560px) { .descent .steps { grid-template-columns: 1fr; } }
 
@@ -141,24 +141,51 @@ body.landing.at-sky .hg-navbar a:focus-visible, body.landing.at-sky .hg-navbar b
   .sky-say.on { opacity: .95; }
 }
 
-/* the landing page, play first (2026-11-01): the hero's buttons come before the wish box; the sections are the game */
+/* the landing page, play first (2026-11-01): the hero's buttons come before the wish box; the sections are the game.
+   The cards use headings and paragraphs, so the text still breaks into lines before this file has loaded. */
 .sky .lede + .actions { margin-top: 0; }
 .sky .actions + .sky-wish { margin-top: 18px; }
-.play-note { margin: 28px 0 0; max-width: 62ch; font-size: 15px; line-height: 1.55; color: var(--fg-2); }
+body.landing .section-head { grid-template-columns: 150px minmax(0, 1fr); column-gap: 32px; }
+body.landing .section-head h2 { text-wrap: balance; }
+body.landing .section-head p { line-height: 1.6; }
+.play-note { margin: 28px 0 0; max-width: 64ch; font-size: 15px; line-height: 1.6; color: var(--fg-2); padding-left: 14px; border-left: 2px solid rgba(74,158,255,.35); }
 .cast { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-.cast-one { padding: 20px; border: 1px solid var(--border); border-radius: var(--r-lg); background: #fff; box-shadow: var(--shadow); display: grid; gap: 4px; align-content: start; }
-.cast-one b { font: 600 17px/1.25 var(--sans); color: var(--heading); }
-.cast-one em { font: 500 12px/1.4 var(--mono); font-style: normal; color: var(--accent); letter-spacing: .02em; }
-.cast-one span { font-size: 14px; line-height: 1.5; color: var(--fg-2); margin-top: 6px; }
+.cast-one { padding: 20px 20px 22px; border: 1px solid var(--border); border-radius: var(--r-lg); background: #fff; box-shadow: var(--shadow); }
+.cast-one h3 { font: 600 17px/1.25 var(--sans); color: var(--heading); letter-spacing: -.01em; }
+.cast-one .role { margin-top: 4px; font: 500 12px/1.4 var(--mono); color: var(--accent); letter-spacing: .02em; }
+.cast-one p:last-child { margin-top: 10px; font-size: 14px; line-height: 1.55; color: var(--fg-2); }
 .play-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-.play-card { display: grid; grid-template-rows: auto 1fr auto; gap: 8px; padding: 22px 20px 18px; border-radius: var(--r-lg); color: #eaf3ff; text-decoration: none; background: radial-gradient(120% 90% at 85% 0%, #1c4575 0%, #0f2447 45%, #070d1c 100%); border: 1px solid rgba(143,216,255,.25); box-shadow: var(--shadow); transition: transform .15s, box-shadow .15s; }
-.play-card:hover { transform: translateY(-2px); box-shadow: 0 14px 36px rgba(15,36,71,.35); }
-.play-card b { font: 700 22px/1.15 var(--sans); color: #fff; letter-spacing: -.01em; }
-.play-card span { font-size: 14px; line-height: 1.5; color: #cfe0f3; }
-.play-card em { justify-self: start; font: 600 13px/1 var(--sans); font-style: normal; color: #05101f; background: #fff; border-radius: 999px; padding: 9px 16px; margin-top: 6px; }
+.play-card { display: flex; flex-direction: column; gap: 8px; padding: 22px 20px 20px; border-radius: var(--r-lg); color: #eaf3ff; text-decoration: none; background: radial-gradient(120% 90% at 85% 0%, #1c4575 0%, #0f2447 45%, #070d1c 100%); border: 1px solid rgba(143,216,255,.25); box-shadow: var(--shadow); transition: transform .15s, box-shadow .15s; }
+.play-card:hover { color: #eaf3ff; transform: translateY(-2px); box-shadow: 0 14px 36px rgba(15,36,71,.35); }
+.play-card h3 { font: 700 22px/1.15 var(--sans); color: #fff; letter-spacing: -.01em; }
+.play-card p { font-size: 14px; line-height: 1.55; color: #cfe0f3; flex: 1; }
+.play-card .go { align-self: flex-start; margin-top: 8px; font: 600 13px/1 var(--sans); color: #05101f; background: #fff; border-radius: 999px; padding: 10px 18px; }
+.play-card:hover .go { background: #bfe9ff; }
 .play-card:focus-visible { outline: 3px solid #0b66d6; outline-offset: 3px; }
+.games-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 24px; }
 .play-live { margin: 18px 0 0; font-size: 15px; color: var(--fg-2); }
 .play-live b { color: var(--heading); }
 @media (max-width: 900px) { .cast, .play-cards { grid-template-columns: 1fr 1fr; } }
-@media (max-width: 560px) { .cast, .play-cards { grid-template-columns: 1fr; } }
+@media (max-width: 768px) {
+  body.landing .section-head { grid-template-columns: 1fr; row-gap: 10px; margin-bottom: 28px; }
+}
+@media (max-width: 560px) {
+  body.landing .section { padding: 56px 0; }
+  body.landing .wrap { padding: 0 18px; }
+  body.landing .section-head h2 { font-size: 26px; line-height: 1.15; }
+  body.landing .section-head p { font-size: 15px; }
+  .cast, .play-cards { grid-template-columns: 1fr; gap: 12px; }
+  .cast-one { padding: 18px; }
+  .play-card { padding: 20px 18px 18px; }
+  .play-note { margin-top: 22px; font-size: 14.5px; }
+  .descent .steps { row-gap: 22px; }
+  .descent .step { padding: 22px 18px 18px; }
+  .games-actions .btn { flex: 1 1 100%; }
+  body.landing .features { gap: 12px; }
+  body.landing .feature > div:first-child { min-height: 0; padding: 20px; }
+  body.landing .packs { gap: 12px; }
+  body.landing .pack { padding: 22px; }
+  body.landing .pricing-notes { gap: 6px 16px; }
+  body.landing .footer .wrap { flex-direction: column; gap: 10px; padding: 0 18px; line-height: 1.7; }
+}
 @media (prefers-reduced-motion: reduce) { .play-card { transition: none; } .play-card:hover { transform: none; } }
