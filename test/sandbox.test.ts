@@ -119,13 +119,17 @@ test('a guest\'s changed island becomes their first game: the template, then the
   assert.equal((await call('/v1/games', { body: { title: 'x', template: 'sandbox' } })).status, 401);
 });
 
-test('the landing page sends visitors to play first, and keeps "Start building" second', async () => {
+test('the landing page is about playing: Play now first, then the games, and no sign-up button in the hero', async () => {
   const html = await (await fetch(`${base}/`)).text();
-  const hero = html.slice(html.indexOf('class="sky"'), html.indexOf('id="how-it-works"'));
+  const hero = html.slice(html.indexOf('class="sky"'), html.indexOf('id="island"'));
   const play = hero.indexOf('href="/play/sandbox"');
-  const build = hero.indexOf('Start building');
-  assert.ok(play > 0 && build > play, 'Play now comes first, Start building second');
+  const games = hero.indexOf('href="/games"');
+  assert.ok(play > 0 && games > play, 'Play now comes first, the games people made second');
   assert.match(hero, /Play now/);
+  assert.doesNotMatch(hero, /data-open-auth/, 'signing up is not the hero\'s ask');
+  // Sign-in, plans and credits stay reachable: the header's buttons and #pricing.
+  assert.match(html, /class="hg-nav-actions"[\s\S]*data-open-auth="login"/);
+  assert.match(html, /id="pricing"[\s\S]*data-open-auth="signup"/);
 });
 
 test('what a message to the Overseer costs is quoted before sending, charges nothing, and needs the account', async () => {
