@@ -140,3 +140,25 @@ body.landing.at-sky .hg-navbar a:focus-visible, body.landing.at-sky .hg-navbar b
   .sky-thing i { display: none; }
   .sky-say.on { opacity: .95; }
 }
+
+/* the landing page, play first (2026-11-01): the hero's buttons come before the wish box; the sections are the game */
+.sky .lede + .actions { margin-top: 0; }
+.sky .actions + .sky-wish { margin-top: 18px; }
+.play-note { margin: 28px 0 0; max-width: 62ch; font-size: 15px; line-height: 1.55; color: var(--fg-2); }
+.cast { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.cast-one { padding: 20px; border: 1px solid var(--border); border-radius: var(--r-lg); background: #fff; box-shadow: var(--shadow); display: grid; gap: 4px; align-content: start; }
+.cast-one b { font: 600 17px/1.25 var(--sans); color: var(--heading); }
+.cast-one em { font: 500 12px/1.4 var(--mono); font-style: normal; color: var(--accent); letter-spacing: .02em; }
+.cast-one span { font-size: 14px; line-height: 1.5; color: var(--fg-2); margin-top: 6px; }
+.play-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.play-card { display: grid; grid-template-rows: auto 1fr auto; gap: 8px; padding: 22px 20px 18px; border-radius: var(--r-lg); color: #eaf3ff; text-decoration: none; background: radial-gradient(120% 90% at 85% 0%, #1c4575 0%, #0f2447 45%, #070d1c 100%); border: 1px solid rgba(143,216,255,.25); box-shadow: var(--shadow); transition: transform .15s, box-shadow .15s; }
+.play-card:hover { transform: translateY(-2px); box-shadow: 0 14px 36px rgba(15,36,71,.35); }
+.play-card b { font: 700 22px/1.15 var(--sans); color: #fff; letter-spacing: -.01em; }
+.play-card span { font-size: 14px; line-height: 1.5; color: #cfe0f3; }
+.play-card em { justify-self: start; font: 600 13px/1 var(--sans); font-style: normal; color: #05101f; background: #fff; border-radius: 999px; padding: 9px 16px; margin-top: 6px; }
+.play-card:focus-visible { outline: 3px solid #0b66d6; outline-offset: 3px; }
+.play-live { margin: 18px 0 0; font-size: 15px; color: var(--fg-2); }
+.play-live b { color: var(--heading); }
+@media (max-width: 900px) { .cast, .play-cards { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .cast, .play-cards { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .play-card { transition: none; } .play-card:hover { transform: none; } }
