@@ -9,12 +9,12 @@
 // Checks it makes itself (a failing one is a problem, and any horizontal scroll ends the run as an error): see "The
 // landing page checklist" in AGENTS.md. Screenshots and the review judge the rest (contrast, overlaps, how it looks).
 export const SITE_LAYOUT = {
-  id: 'site-layout', title: 'The landing page at 390x844, 768x1024 and 1440x900: the sky, a wish and its card, then the steps, pricing and API sections, with a screenshot at each stage and a check for horizontal scroll', seconds: 150, tags: ['full'],
-  description: 'no sign-up, no game. For each size: the hero (scene "Site WxH: hero"), a wish typed with real key events and sent (the card: "Site WxH: wish card"), then scrolling to #how-it-works ("steps") and #pricing, a scene each. The checklist (AGENTS.md "The landing page checklist") is measured: headline readable, the Overseer not covered, the wish box usable, the header legible, no horizontal scroll (any, at any size, ends the run as an error). options: sizes (default ["390x844","768x1024","1440x900"]), wish (text), frames (false: play in the browser\'s own window instead of an iframe per size)',
+  id: 'site-layout', title: 'The landing page at 390x844, 768x1024 and 1440x900: the sky, a wish and its card, then the island, games and pricing sections, with a screenshot at each stage and a check for horizontal scroll', seconds: 150, tags: ['full'],
+  description: 'no sign-up, no game. For each size: the hero (scene "Site WxH: hero"), a wish typed with real key events and sent (the card: "Site WxH: wish card"), then scrolling to #island ("island"), #games ("games") and #pricing, a scene each. The checklist (AGENTS.md "The landing page checklist") is measured: headline readable, the Overseer not covered, the wish box usable, the header legible, no horizontal scroll (any, at any size, ends the run as an error). options: sizes (default ["390x844","768x1024","1440x900"]), wish (text), frames (false: play in the browser\'s own window instead of an iframe per size)',
 };
 
 const SIZES = ['390x844', '768x1024', '1440x900'];
-const SECTIONS = [['steps', '#how-it-works'], ['pricing', '#pricing']];
+const SECTIONS = [['island', '#island'], ['games', '#games'], ['pricing', '#pricing']];
 
 export async function runSiteLayout(t, options = {}) {
   const sizes = (Array.isArray(options.sizes) && options.sizes.length ? options.sizes : SIZES).map(String);
