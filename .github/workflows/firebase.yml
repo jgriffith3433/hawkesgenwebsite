@@ -45,3 +45,23 @@ jobs:
           url=${{ github.ref_name == 'main' && 'https://hawkesgames.com' || 'https://hawkes-staging.web.app' }}
           for i in $(seq 1 12); do curl -sf "$url/v1/health" | grep -q '"cloud":"gcp"' && { echo ok; exit 0; }; sleep 10; done
           echo "health check failed at $url"; exit 1
+      # Studio's "firebase" build (tool actions, artifact "firebase") learns of each deploy: a small record of what went
+      # out, then the hook with {kind:"build"} (hawkesstudio docs/builds.md). The site itself stays on Firebase.
+      - name: Build record for Studio
+        run: |
+          url=${{ github.ref_name == 'main' && 'https://hawkesgames.com' || 'https://beta.hawkesgames.com' }}
+          mkdir -p studio-build
+          printf '{"project":"%s","ref":"%s","commit":"%s","url":"%s","run":"%s"}\n' "$PROJECT" "${{ github.ref_name }}" "${{ github.sha }}" "$url" "${{ github.run_id }}" > studio-build/build.json
+          printf '<!doctype html><meta charset="utf-8"><title>Hawkes Games</title><meta http-equiv="refresh" content="0;url=%s"><a href="%s">Hawkes Games (%s)</a>\n' "$url" "$url" "${{ github.ref_name }}" > studio-build/index.html
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firebase
+          path: studio-build
+          retention-days: 7
+      - name: Tell Hawkes Studio
+        continue-on-error: true
+        run: |
+          studio=https://studio.hawkesgen.ai/o/j-studio-4f12
+          token=$(curl -sSf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$studio" | jq -r .value)
+          curl -sS --fail-with-body --retry 3 --retry-delay 10 --retry-all-errors -X POST "$studio/api/hooks/github" \
+            -H "Authorization: Bearer $token" -H "Content-Type: application/json" -d '{"kind":"build","build":"firebase","artifact":"firebase"}'
