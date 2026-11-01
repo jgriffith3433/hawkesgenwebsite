@@ -4,6 +4,7 @@
 (() => {
   const LINKS = [
     ['/games', 'Games', 'Play what people built'],
+    ['/play/sickofit', 'Sick of It', 'Play Sick of It: 1,000 floors of Hell, one rewind button'],
     ['/community', 'Community library', 'Every shared model, texture, sky, sprite and sound, free to use in your game'],
     ['/entities', 'Engine codex', 'Every kind of thing the game engine builds, live'],
     ['/avatars', 'Avatars', 'Every body a player can be, live'],
