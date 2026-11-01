@@ -204,7 +204,8 @@
 
       pickBuild().then(start).catch(function (e) {
         console.error('[Game] failed to start', e);
-        banner('Sick of It could not load. Check your connection and try again.', 'error');
+        window.HAWKES_GAME_ERROR = String((e && e.message) || e);
+        banner('Sick of It could not load (' + window.HAWKES_GAME_ERROR.slice(0, 160) + '). Check your connection and try again.', 'error');
       });
 
       window.addEventListener('unhandledrejection', function (e) {
