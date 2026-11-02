@@ -52,7 +52,7 @@ test("admin is J's address on both lanes (accounts.ts adminEmails: unset means p
 
 test('live (hawkes-prod) uses live Gen and live Net, never a beta one', () => {
   const env = read('hawkes-prod');
-  assert.equal(host(env, 'HAWKESGEN_URL', 'https://hawkesgen.ai'), 'hawkesgen.ai');
+  assert.equal(host(env, 'HAWKESGEN_URL', 'https://hawkesgen.ai'), 'gen-f6ruen5wfa-uk.a.run.app', 'live Gen direct, not through the Cloudflare Worker');
   assert.equal(host(env, 'PORTAL_NET_URL', 'https://net.hawkesgen.ai'), 'net.hawkesgen.ai');
   assert.equal(host(env, 'PORTAL_NET_DASHBOARD', 'https://net.hawkesgames.com'), 'net.hawkesgames.com');
   // The platform plans (indie, team, studio) are offered on beta first; live keeps free, maker and pro until J sets the
