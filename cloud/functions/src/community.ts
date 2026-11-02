@@ -20,11 +20,11 @@ import { db, FieldValue, users } from './store.ts';
 import { gen, genFetch } from './gen.ts';
 import { requireUser, requireAdmin, adminFrom, type User } from './accounts.ts';
 import { PortalError, route } from './http.ts';
-import { SECRETS } from './config.ts';
+import { PROJECT_PREFIX, SECRETS } from './config.ts';
 import { known, levelUrls, rememberAsset, rememberMany, type GenLods } from './lods.ts';
 
 /** The Gen project Hawkes' own starter pack lives in (the same for every copy of the portal). */
-export const STARTER_PROJECT = 'usr_00000000000000c0';
+export const STARTER_PROJECT = `${PROJECT_PREFIX}00000000000000c0`;
 export const COMMUNITY_KINDS = ['model', 'texture', 'image', 'sprite', 'sky', 'music', 'ambience', 'sfx', 'voice', 'video'] as const;
 const SEARCH_CAP = 3000;
 
