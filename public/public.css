@@ -149,7 +149,7 @@ textarea.form-input { resize: vertical; }
 /* The site nav (sitenav.js): on narrow screens the links fold into a Menu button and open as a sheet under the header. */
 .site-menu-btn { display: none; margin-left: auto; font: 500 13.5px/1 var(--sans); color: var(--heading); background: transparent; border: 1px solid var(--border); border-radius: var(--r); padding: 8px 12px; cursor: pointer; }
 .bar .hg-nav-links { margin-left: 12px; margin-right: auto; }
-@media (max-width: 1120px) {
+@media (max-width: 1680px) {
   .hg-navbar-inner, .bar { position: relative; }
   .site-menu-btn { display: inline-flex; gap: 6px; align-items: center; }
   .hg-nav-links { display: none; }

@@ -3,8 +3,13 @@
 // fold into a Menu button. The links inside each nav in the HTML are the same list, for a page read without scripts.
 (() => {
   const LINKS = [
-    ['/games', 'Games', 'Play what people built'],
+    ['/games', 'Worlds', 'Play what people built'],
     ['/play/sickofit', 'Sick of It', 'Play Sick of It: 1,000 floors of Hell, one rewind button'],
+    // Studio game sites: a full address opens in a new tab. Add a title with one line here.
+    ['https://yoobalandgame.com', 'Yooba Land', 'Yooba Land, a Hawkes game'],
+    ['https://doseofdestruction.com', 'Dose of Destruction', 'Dose of Destruction, a Hawkes game'],
+    ['https://phorigins.com', 'PH Origins', 'PH Origins, a Hawkes game'],
+    ['https://theplacedepartment.com', 'The Place Department', 'The Place Department, a Hawkes game'],
     ['/community', 'Community library', 'Every shared model, texture, sky, sprite and sound, free to use in your game'],
     ['/entities', 'Engine codex', 'Every kind of thing the game engine builds, live'],
     ['/avatars', 'Avatars', 'Every body a player can be, live'],
@@ -19,8 +24,10 @@
       a.href = href;
       a.textContent = label;
       a.title = title;
+      const external = /^https?:\/\//.test(href);
+      if (external) { a.target = '_blank'; a.rel = 'noopener'; }
       const path = href.split('#')[0];
-      if (path !== '/' && (here === path || here.startsWith(`${path}/`))) a.setAttribute('aria-current', 'page');
+      if (!external && path !== '/' && (here === path || here.startsWith(`${path}/`))) a.setAttribute('aria-current', 'page');
       nav.append(a);
     }
     // Phones: one Menu button that opens the links as a sheet under the header.
