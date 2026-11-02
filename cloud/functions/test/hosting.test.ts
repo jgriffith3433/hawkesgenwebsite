@@ -12,7 +12,7 @@ const hosting = JSON.parse(fs.readFileSync(path.join(root, 'firebase.json'), 'ut
 // Firebase's ignore globs, enough of them for ours: `**` any depth, `*` within a name.
 const globRe = (g: string) => new RegExp('^' + g.replace(/[.+^${}()|[\]\\]/g, '\\$&')
   .replace(/\*\*\//g, '@DEEP@').replace(/\*\*/g, '@ANY@').replace(/\*/g, '[^/]*').replace(/@DEEP@/g, '(?:.*/)?').replace(/@ANY@/g, '.*') + '$');
-const ignored = hosting.ignore.map(globRe);
+const ignored: RegExp[] = (hosting.ignore as string[]).map(globRe);
 const walk = (dir: string): string[] => fs.readdirSync(dir, { withFileTypes: true })
   .flatMap((e) => e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]);
 const deployed = new Set(walk(path.join(root, hosting.public)).map((f) => path.relative(path.join(root, hosting.public), f).split(path.sep).join('/'))
