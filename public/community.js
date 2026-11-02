@@ -323,3 +323,14 @@ if (want) {
   const it = shown.find((x) => x.id === want) ?? (await api(`/v1/community?limit=120`).catch(() => ({ items: [] }))).items.find((x) => x.id === want);
   if (it) open(it);
 }
+
+// A picture that fails to load (the file is not there, or Gen would not give it) becomes a quiet tile, never a broken-image icon.
+document.addEventListener('error', (e) => {
+  const img = e.target;
+  if (!(img instanceof HTMLImageElement) || img.dataset.failed) return;
+  img.dataset.failed = '1';
+  const tile = document.createElement('span');
+  tile.className = 'glyph';
+  tile.textContent = img.alt || '';
+  img.replaceWith(tile);
+}, true);
