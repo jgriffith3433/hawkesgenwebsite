@@ -414,6 +414,8 @@
     return n ? { name: n, ...assets[n] } : null;
   }
   const hasAsset = (ref) => Boolean(assetEntry(ref));
+  /** A community id the bundle's template lists but the library no longer has (the server says so: `gone`). */
+  const assetGone = (id) => Boolean(bundle && Array.isArray(bundle.gone) && bundle.gone.includes(id));
   function assetUrl(ref, hint) {
     if (/^https:\/\//.test(String(ref))) return ref;
     const a = assetEntry(ref);
@@ -2296,7 +2298,7 @@
       mouse.dx = 0; mouse.dy = 0; mouse.wheel = 0;
     },
     /** The engine's building blocks, for modules that make kinds of things (kinds.js uses them). */
-    lib: { Entity, shape, place, material, size3, hex, vec, clone, assetUrl, hasAsset, assetEntry, setFrame, showBubble, roundRect, posOf, attachBehaviors, runBehaviorHit, applyPlayerSettings, useController, effectiveConfig, STEP, RAD, get clockOffset() { return clockOffset; } },
+    lib: { Entity, shape, place, material, size3, hex, vec, clone, assetUrl, hasAsset, assetGone, assetEntry, setFrame, showBubble, roundRect, posOf, attachBehaviors, runBehaviorHit, applyPlayerSettings, useController, effectiveConfig, STEP, RAD, get clockOffset() { return clockOffset; } },
   };
   window.addEventListener('error', (e) => report(e.error || e.message, null, true));
   window.addEventListener('unhandledrejection', (e) => report(e.reason, null, true));

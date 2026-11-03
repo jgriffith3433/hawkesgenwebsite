@@ -836,6 +836,7 @@ void main(void) {
   function voiceUrl(name) {
     try { if (H.lib.hasAsset(name)) return H.lib.assetUrl(name); } catch { /* not this game's */ }
     const id = VOICES[name];
+    if (id && H.lib.assetGone && H.lib.assetGone(id)) return null; // the library no longer has it: no request, no voice
     return id ? `/v1/community/${id}/file` : null;
   }
   /** An Audio for a line, through the game's sound (H.audio), not yet playing; null when there's no voice for it.

@@ -12,7 +12,7 @@ import { genFetch } from './gen.ts';
 import { authenticate } from './accounts.ts';
 import { PortalError, route, send, Limiter } from './http.ts';
 import { closedHtml, engineDoc, loaderScript, playHtml, templates } from './engine.ts';
-import { cdnHosts, digest, gallery, gameBySlug, isClosed, netUrl, playBundle, reportGame, resolvePlayAsset, templateAssets } from './games.ts';
+import { cdnHosts, digest, gallery, gameBySlug, isClosed, netUrl, playBundle, reportGame, resolvePlayAsset, templateAssets, templateGone } from './games.ts';
 import { liveCounts, markHere } from './live.ts';
 
 // A game runs in a sandbox: its own opaque origin, so its scripts can't read this site's cookies or call its API as the
@@ -132,7 +132,8 @@ route('GET', /^\/v1\/play-template\/([a-z0-9-]+)$/, async ({ req, res, params })
   if (!b) return send(res, 404, { error: 'No such game' });
   res.setHeader('Access-Control-Allow-Origin', '*');
   // A revisit within a minute is the browser's own copy; after that it revalidates (304).
-  const text = JSON.stringify({ ...b, assets: await templateAssets(b.template) });
+  const [assets, gone] = await Promise.all([templateAssets(b.template), templateGone(b.template)]);
+  const text = JSON.stringify({ ...b, assets, ...(gone.length ? { gone } : {}) });
   const etag = `"${crypto.createHash('sha1').update(text).digest('base64url').slice(0, 22)}"`;
   const headers = { ETag: etag, 'Cache-Control': 'public, max-age=60, must-revalidate', 'Access-Control-Expose-Headers': 'ETag' };
   if (String(req.headers['if-none-match'] ?? '').split(',').some((t) => t.trim().replace(/^W\//, '') === etag)) return void res.status(304).set(headers).end();
