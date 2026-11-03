@@ -664,6 +664,13 @@ export async function templateAssets(tid: string | null | undefined) {
   const t = (await templates()).TEMPLATES.find((x) => x.id === tid);
   return t ? assetMap(await templateAssetRows(t), (a) => `/v1/community/${a.asset}/file`, { pub: true }) : {};
 }
+/** The community ids a template lists that the library no longer has (the engine then asks for none of them). */
+export async function templateGone(tid: string | null | undefined): Promise<string[]> {
+  const t = (await templates()).TEMPLATES.find((x) => x.id === tid);
+  if (!t) return [];
+  const have = new Set((await templateAssetRows(t)).map((a) => a.asset));
+  return [...new Set(Object.values(t.assets ?? {}).filter((a) => ASSET_ID.test(a) && !have.has(a)))];
+}
 
 const filesMap = async (gameId: string) => Object.fromEntries((await filesOf(gameId).get()).docs.map((d) => [d.get('path') as string, d.get('content') as string]));
 
