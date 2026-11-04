@@ -1,4 +1,7 @@
 {
-  "version": 272,
-  "base": "https://sites.hawkesgen.ai/builds/sickofit/v272/"
+  "version": 14,
+  "base": "https://sites.hawkesgen.ai/builds/o/j-studio-4f12/sick-of-it-unity/b/web/14/",
+  "build": "web",
+  "sha": "bc65eaf",
+  "at": "2026-11-04T02:31:45.110Z"
 }
