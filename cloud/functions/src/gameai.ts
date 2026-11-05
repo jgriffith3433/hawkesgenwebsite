@@ -447,17 +447,36 @@ async function lock(key: string, ttl: number) {
     const ref = locks().doc(key);
     const s = await t.get(ref);
     if (s.exists && Number(s.get('until')) > Date.now()) return false;
-    t.set(ref, { until: Date.now() + ttl, expires: new Date(Date.now() + ttl + 3600_000) });
+    t.set(ref, { at: Date.now(), until: Date.now() + ttl, expires: new Date(Date.now() + ttl + 3600_000) });
     return true;
   });
 }
 const locked = async (key: string) => { const s = await locks().doc(key).get(); return s.exists && Number(s.get('until')) > Date.now(); };
 const unlock = (key: string) => locks().doc(key).delete().catch(() => {});
 
+/** One line per step of a message to the Overseer, so Cloud Logging shows where it stopped (filter on `[gameAssistant]`). */
+const aiLog = (step: string, gameId: string, runId?: string | null, extra?: unknown) =>
+  console.log(`[gameAssistant] game=${gameId} run=${runId ?? '-'} step=${step}${extra === undefined ? '' : ` ${typeof extra === 'string' ? extra : JSON.stringify(extra)}`}`);
+
+/** A failure from Gen (or the network) as the player may read it; the raw error goes to the log only.
+ *  Our own "not enough credits" (402) is already plain and passes through. */
+function friendlyError(e: any, gameId: string, runId?: string): PortalError {
+  console.error(`[gameAssistant] game=${gameId} run=${runId ?? '-'} step=gen-error status=${e?.status ?? '-'} raw=${String(e?.message ?? e).slice(0, 300)}`);
+  if (e instanceof PortalError && e.status === 402) return e;
+  const st = Number(e?.status) || 0;
+  const raw = String(e?.message ?? '').toLowerCase();
+  if (st === 401 || st === 403) return new PortalError("I can't reach my AI service right now. That's on our side, not yours. Nothing was charged; try again in a little while.", { status: 503 });
+  if (st === 429 || /overload|busy|capacity|rate/.test(raw)) return new PortalError('The AI is very busy right now. Nothing was charged; try again in a minute.', { status: 503 });
+  if (st === 408 || st === 504 || /timeout|timed out|abort|not answering/.test(raw)) return new PortalError("I couldn't get an answer in time. Nothing was charged; try again.", { status: 503 });
+  return new PortalError("I couldn't hear you just now. Nothing was charged; try again in a moment.", { status: 503 });
+}
+
 /** What to tell the players when the assistant's job didn't finish: plain, and always that nothing broke. */
 function whyNot(job: { status: string; error?: string | null }) {
   const err = String(job.error ?? '').toLowerCase();
   const after = ' Nothing in your game changed, and the credits are back in your account.';
+  if (err === 'empty') return `I came back with nothing I could use.${after} Try again; rewording can help.`;
+  if (err === 'stalled') return `I lost my place while working on that, so I stopped it.${after} Try again.`;
   if (err === 'timeout') return `That was taking too long, so I stopped it.${after} Try again, or ask for a smaller piece first.`;
   if (err === 'unreachable') return `I lost my connection to the AI service.${after} Give it a moment and try again.`;
   if (job.status === 'cancelled') return `That request was cancelled before I finished.${after}`;
@@ -535,7 +554,12 @@ export async function askAssistant(user: User, gameId: string, body: { message?:
   const codes = role === 'editor' || role === 'owner';
   const message = String(body.message ?? '').trim().slice(0, 4000);
   if (!message) throw new PortalError('Ask for something');
-  if (await locked(thinkingFor(game.id))) throw new PortalError('The Overseer is still working on the last message', { status: 429 });
+  aiLog('ask:received', game.id, null, { by: user.id });
+  // A run that died (or never started) must not keep the game "busy" until the lock runs out: fail it here, refund, and go on.
+  if (await locked(thinkingFor(game.id))) {
+    await reclaimStale(game.id);
+    if (await locked(thinkingFor(game.id))) { aiLog('ask:busy', game.id); throw new PortalError('The Overseer is still working on the last message', { status: 429 }); }
+  }
   const fresh = (await getUser(user.id))!;
   if (fresh.credits < AI_CREDITS()) throw new PortalError(`Each message to the Overseer costs ${AI_CREDITS()} credits; you have ${fresh.credits}.`, { status: 402 });
   const asked = await chatMessage(game.id, user.id, 'user', message, { toAi: true });
@@ -546,6 +570,7 @@ export async function askAssistant(user: User, gameId: string, body: { message?:
   const prompt = buildPrompt({ title: game.title, description: game.description, assets: ctx.assets, world: ctx.world, files: ctx.files, chat: ctx.chat, errors, community: shared.length ? communityLines(shared) : '', view, name: user.name ?? 'Someone', message });
   // (Taken after the cheap checks above and before anything is charged: whoever gets it first asks, the other waits.)
   if (!(await lock(thinkingFor(game.id), THINK_TTL()))) throw new PortalError('The Overseer is still working on the last message', { status: 429 });
+  aiLog('ask:locked', game.id);
   await tell(game.id, 'thinking', { on: true, by: user.name });
   const show = (data: Record<string, unknown>) => tell(game.id, 'overseer', { ...data, asked: asked.id });
   const lookAt = resolveFocus({ where: 'look' }, body.context);
@@ -557,26 +582,99 @@ export async function askAssistant(user: User, gameId: string, body: { message?:
     await unlock(thinkingFor(game.id));
     await tell(game.id, 'thinking', { on: false });
     await show({ k: 'end', ok: false });
-    throw e;
+    throw friendlyError(e, game.id);
   }
   const runId = id('air_', 8);
+  aiLog('ask:submitted', game.id, runId, { job: job.id });
   try {
     await runsCol().doc(runId).create({
       id: runId, game_id: game.id, user_id: user.id, codes, message, asked: asked.id, mention: JSON.stringify(body.mention ?? null), context: JSON.stringify(body.context ?? null),
       job: JSON.stringify(job), director: directorPrompt(message, view, ctx.world), deadline: Date.now() + Number(env('GAME_AI_TIMEOUT_MS') ?? 5 * 60_000),
-      started: false, created: Date.now(), expires: new Date(Date.now() + 24 * 3600_000),
+      started: false, done: false, created: Date.now(), expires: new Date(Date.now() + 24 * 3600_000),
     });
   } catch (e) {
+    console.error(`[gameAssistant] game=${game.id} run=${runId} step=queue-failed raw=${String((e as any)?.message ?? e).slice(0, 300)}`);
     // The answer can't be followed: stop the job (it is given back when it ends) and say so.
     await gen(`/v1/jobs/${job.id}/cancel`, { as: fresh.project, method: 'POST' }).catch(() => null);
     await settle({ id: job.id, status: 'cancelled' }).catch(() => {});
     await unlock(thinkingFor(game.id));
     await tell(game.id, 'thinking', { on: false });
     await show({ k: 'end', ok: false });
-    throw e;
+    throw friendlyError(e, game.id, runId);
   }
+  aiLog('ask:queued', game.id, runId);
   return { ok: true, message: asked, credits: AI_CREDITS() };
 }
+
+// ------------------------------------------------------------------ the watchdog
+// A run the function never finished (it was killed at its time limit, lost its instance, or the trigger never came) must not
+// leave the game "busy" with the credits held. `failRun` ends it once (the `done` flag is claimed in a transaction), gives
+// the credits back, lets the lock go and tells the players. The schedule below and the next ask both use it.
+const START_GRACE_MS = 90_000; // a run still not started this long after it was made: the trigger was lost
+const END_GRACE_MS = 120_000; // past its own deadline by this much: the function is gone
+const staleRun = (r: any, now = Date.now()) => !r.done && (r.started ? now > Number(r.deadline) + END_GRACE_MS : now > Number(r.created) + START_GRACE_MS);
+
+/** Ends a run that did not end by itself: refund, unlock, a plain message with Retry. False if it had already ended. */
+export async function failRun(run: any, reason: string): Promise<boolean> {
+  const ref = runsCol().doc(String(run.id));
+  const claimed = await db.runTransaction(async (t) => {
+    const s = await t.get(ref);
+    if (!s.exists || s.get('done')) return false;
+    t.update(ref, { done: true, failed: reason, doneAt: Date.now() });
+    return true;
+  });
+  if (!claimed) return false;
+  const gameId = String(run.game_id);
+  aiLog('watchdog:fail', gameId, run.id, reason);
+  try {
+    const user = await getUser(run.user_id);
+    let job: any = null;
+    try { job = JSON.parse(run.job); } catch { /* no job to settle */ }
+    let charged = false;
+    if (job?.id) {
+      const cur = user ? await gen(`/v1/jobs/${job.id}/cancel`, { as: user.project, method: 'POST' }).catch(() => null) : null;
+      if (cur?.status === 'done') { charged = true; await settle(cur).catch(() => {}); } // it had finished: the credits were spent
+      else await settle({ id: job.id, status: 'cancelled' }).catch((e) => console.error('[gameAssistant] refund failed:', e));
+    }
+    const text = charged
+      ? 'I finished, but I lost my place before I could show it. The credits for this message were used. Ask me again.'
+      : whyNot({ status: 'failed', error: reason });
+    await chatMessage(gameId, null, 'ai', text, { error: true, retry: String(run.message), mention: JSON.parse(run.mention ?? 'null'), replyTo: run.asked }).catch((e) => console.error('[gameAssistant] chat:', e));
+    await tell(gameId, 'overseer', { k: 'end', ok: false, asked: run.asked }).catch(() => {});
+  } finally {
+    await unlock(thinkingFor(gameId));
+    await tell(gameId, 'thinking', { on: false }).catch(() => {});
+  }
+  return true;
+}
+
+/** A game's open runs that are past saving; and a lock with no run behind it. */
+async function reclaimStale(gameId: string) {
+  const open = await runsCol().where('game_id', '==', gameId).where('done', '==', false).limit(10).get();
+  let alive = 0;
+  for (const d of open.docs) {
+    const r = d.data();
+    if (staleRun(r)) await failRun(r, r.started ? 'stalled' : 'timeout').catch((e) => console.error('[gameAssistant] reclaim:', e));
+    else alive++;
+  }
+  if (alive) return;
+  // No run is open, yet the lock stands: a request that died between taking it and starting its run.
+  const l = await locks().doc(thinkingFor(gameId)).get();
+  if (l.exists && Date.now() - Number(l.get('at') ?? 0) > START_GRACE_MS) {
+    aiLog('lock:released-orphan', gameId);
+    await unlock(thinkingFor(gameId));
+    await tell(gameId, 'thinking', { on: false }).catch(() => {});
+  }
+}
+
+/** Every minute: runs past saving are failed, refunded and unlocked (see `failRun`). */
+export const watchAssistant = onSchedule({ schedule: 'every 1 minutes', secrets: [SECRETS.genKey], timeoutSeconds: 120 }, async () => {
+  const open = await runsCol().where('done', '==', false).limit(50).get();
+  for (const d of open.docs) {
+    const r = d.data();
+    if (staleRun(r)) await failRun(r, r.started ? 'stalled' : 'timeout').catch((e) => console.error('[gameAssistant] watchdog:', e));
+  }
+});
 
 /** The answer, as it is written: each line applied to the world at once, paced into beats (the trigger below runs it). */
 async function runAssistant(run: any) {
@@ -702,6 +800,9 @@ async function runAssistant(run: any) {
         const rest = joiner.flush();
         if (rest) await apply(rest);
       }
+      aiLog('run:job-ended', gameId, run.id, { status: job.status, lines, error: job.error ?? null });
+      // An answer with nothing in it is not paid for.
+      if (job.status === 'done' && !lines && !reply) job = { ...job, status: 'failed', error: 'empty' };
       await settle(job);
       state.ended = true;
       if (job.status !== 'done') {
@@ -719,16 +820,22 @@ async function runAssistant(run: any) {
       await chatMessage(gameId, null, 'ai', problems.length ? `${text}\n\n(Notes: ${problems.join('; ')})` : text, { changed, deleted, world, assets: suggested, replyTo: run.asked, job: job.id, project: await projectOf(gameId) });
       await show({ k: 'end', ok: true, ops: world.length, files: changed.length });
     } catch (e: any) {
-      console.error('[portal] assistant:', e);
+      console.error(`[gameAssistant] game=${gameId} run=${run.id} step=run-error raw=`, e);
       state.ended = true;
-      await chatMessage(gameId, null, 'ai', "Something went wrong on my side before I could finish. You weren't charged for this one.", { error: true, retry: message, mention: mention ?? null, replyTo: run.asked }).catch(() => {});
-      if (job && !TERMINAL.has(job.status)) await settle({ ...job, status: 'failed', error: String(e?.message ?? e) }).catch(() => {});
+      // Say only what is true: an answer Gen had already finished was paid for; anything else is given back.
+      let charged = job?.status === 'done';
+      if (job && !TERMINAL.has(job.status)) await settle({ ...job, status: 'failed', error: String(e?.message ?? e) }).catch(() => { charged = true; });
+      await chatMessage(gameId, null, 'ai', charged
+        ? 'Something went wrong on my side before I could finish applying that. The credits for this message were used. Try again, or say it a different way.'
+        : "Something went wrong on my side before I could finish. The credits are back in your account. Try again in a moment.", { error: true, retry: message, mention: mention ?? null, replyTo: run.asked }).catch(() => {});
       await show({ k: 'end', ok: false, ops: world.length }).catch(() => {});
     }
     await director;
   } finally {
+    await runsCol().doc(String(run.id)).update({ done: true, doneAt: Date.now() }).catch(() => {});
     await unlock(thinkingFor(gameId));
     await tell(gameId, 'thinking', { on: false });
+    aiLog('run:end', gameId, run.id);
   }
 }
 
@@ -738,11 +845,11 @@ export const gameAssistant = onDocumentCreated({ document: 'aiRuns/{runId}', tim
   if (!ref) return;
   const run = await db.runTransaction(async (t) => {
     const s = await t.get(ref);
-    if (!s.exists || s.get('started')) return null;
+    if (!s.exists || s.get('started') || s.get('done')) return null;
     t.update(ref, { started: true, startedAt: Date.now() });
     return s.data();
   });
-  if (run) await runAssistant(run);
+  if (run) { aiLog('run:start', String(run.game_id), run.id); await runAssistant(run); }
 });
 
 /** Community things that could be this suggestion: the assistant's pick first, then the best matches of that kind. */

@@ -812,7 +812,10 @@
       seen.add(m.id);
       if (!firstTime) return;
       if (m.role === 'ai') {
-        H.chat.line({ kind: 'overseer', text: m.text, keep: 30 });
+        clearAskWatch();
+        // A failed answer is a plain message with Retry (the server refunded it), never silence.
+        const failed = m.data && m.data.error && m.data.retry;
+        H.chat.line({ kind: 'overseer', text: m.text, keep: failed ? 120 : 30, ...(failed ? { action: { label: 'Retry', onclick: (btn) => { if (btn) { btn.disabled = true; btn.textContent = 'Asking…'; } ask(id, String(m.data.retry)).catch((x) => H.chat.line({ kind: 'sys', text: x.message })); } } } : {}) });
         // A whole game built over several answers (project.json): the next step is one tap.
         const pj = m.data && m.data.project;
         if (pj && pj.left) H.chat.line({ kind: 'sys', text: `${pj.title}: next, ${String(pj.next).slice(0, 70)} (${pj.total - pj.left} of ${pj.total} done).`, keep: 120, action: { label: 'Keep building', onclick: () => ask(id, `Keep building the project: ${pj.next}`) } });
@@ -824,7 +827,7 @@
       } else if (m.role === 'system') H.chat.line({ kind: 'sys', text: m.text });
       else H.chat.line({ kind: m.user_id && m.user_id === user.id ? 'me' : 'player', who: m.name || 'Someone', text: m.text });
     });
-    on('thinking', (e) => { let d = {}; try { d = JSON.parse(e.data); } catch { /* fine */ } if (H.chat) H.chat.status(d.on ? 'The Overseer is thinking…' : null); });
+    on('thinking', (e) => { let d = {}; try { d = JSON.parse(e.data); } catch { /* fine */ } if (!d.on) clearAskWatch(); if (H.chat) H.chat.status(d.on ? 'The Overseer is thinking…' : null); });
     // The Overseer at work (src/overseer-lines.ts): where, the beats, its words, things arriving, the end.
     on('overseer', (e) => { let d; try { d = JSON.parse(e.data); } catch { return; } if (H.work) H.work.handle(d); });
     on('gen', (e) => {
@@ -855,6 +858,21 @@
     on('deleted', () => { gone = true; clearTimeout(timer); es && es.close(); if (H.chat) { H.chat.detach(); H.chat.line({ kind: 'sys', text: 'This island was deleted.' }); } island = null; kept.clear(); });
     open();
   }
+  /** One timer per ask (no polling): when neither an answer nor the end arrives (the feed died), the island stops waiting, says so
+   *  and offers Retry. The server's own watchdog fails a stuck run and gives the credits back. */
+  let askWatch = null;
+  const ASK_WATCH_MS = 6.5 * 60_000;
+  function clearAskWatch() { clearTimeout(askWatch); askWatch = null; }
+  /** A failed ask: the work indicator ends, and the chat says so plainly with a Retry button. */
+  function askFailed(id, text, why) {
+    const H = session.H;
+    try { if (H.work) H.work.end({ ok: false, why: 'Stopped.' }); } catch { /* fine */ }
+    if (H.chat) {
+      H.chat.status(null);
+      H.chat.line({ kind: 'overseer', priority: 'important', keep: 120, text: why, action: { label: 'Retry', onclick: (btn) => { if (btn) { btn.disabled = true; btn.textContent = 'Asking…'; } ask(id, text).catch((x) => H.chat.line({ kind: 'sys', text: x.message })); } } });
+    }
+    track('assistant_failed', { where: 'sandbox' });
+  }
   /** A message to the Overseer, with what the player sees (the editor sends the same: build.js context()). */
   async function ask(id, text) {
     const H = session.H;
@@ -873,14 +891,17 @@
     if (work) work.begin({ text });
     try {
       await api('POST', `/v1/games/${id}/ai`, { message: text, context: worldContext(H) || undefined });
+      clearAskWatch();
+      askWatch = setTimeout(() => { askWatch = null; askFailed(id, text, "I haven't heard back from my side for a while, so I've stopped waiting. If you were charged, the credits come back on their own. Retry?"); }, ASK_WATCH_MS);
       track('assistant_ask', { chars: text.length, where: 'sandbox' });
       me().then((u) => { if (u) session.credits = Number(u.credits) || 0; });
       try { H.game.emit('asked', { chars: text.length }); } catch { /* fine */ }
     } catch (x) {
       if (work) work.end({ ok: false, why: x.status === 402 ? 'Out of credits.' : x.status === 429 ? 'Still working on the last one.' : "I couldn't hear you." });
       if (x.status === 402) return outOfCredits(x.message);
-      if (x.status === 429) throw new Error("I'm still working on the last request. Ask again when it's done.");
-      if (!x.status || x.status >= 500) throw new Error("I couldn't hear you just now. Nothing was charged; try again in a moment.");
+      // Everything else is a plain line with Retry (the server's own words when it has them; Gen's raw errors never reach here).
+      if (x.status === 429) return askFailed(id, text, "I'm still working on the last request. Retry in a moment; I'll be free as soon as I'm done or have given up.");
+      if (!x.status || x.status >= 500 || x.status === 401 || x.status === 403) return askFailed(id, text, x.status === 503 && x.message ? x.message : "I couldn't hear you just now. Any credits held for it come back on their own. Retry in a moment.");
       throw x;
     }
   }

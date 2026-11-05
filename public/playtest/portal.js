@@ -26,15 +26,20 @@ import { WORLD_REPORT, runWorldReport } from './world-report.js';
 import { SERVER_LIMITS, runServerLimits } from './server-limits.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'progress', 'models', 'wish', 'toeditor', 'editor'];
+const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'answer', 'progress', 'models', 'wish', 'toeditor', 'editor'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'gen-models-all': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-daily-wish': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wish'], 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'editor-bridge': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'toeditor', 'editor'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
+const ORDERS = { 'overseer-ask': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'answer'], 'gen-models-all': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-daily-wish': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wish'], 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'editor-bridge': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'toeditor', 'editor'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
 const SCENARIOS = [
   SITE_LAYOUT, // the landing page at three sizes (site-layout.js)
   AVATAR_ANIMATIONS, // clips as data on /avatars (avatar-animations.js)
   WORLD_REPORT, // report a world from its pause menu; a closed world loads nothing (world-report.js)
   SERVER_LIMITS, // sign-ins off the event loop, one play per reloads, the connection cap (server-limits.js)
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
+  {
+    id: 'overseer-ask', title: 'Ask the Overseer: an answer shows in the chat; a failed ask is a plain message with Retry and no spinner; the next ask works at once', seconds: 420, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the account sheet (a browser already signed in to Google: the sheet is Google only), then a question typed in the chat (answer-shown, work-ended), one ask answered 503 by a named shortcut (failure-plain-message, retry-shown, no-spinner) and a real click on Retry (next-ask-immediate, retry-answered). Options: watch (seconds of intro to watch), name, what',
+  },
   {
     id: 'sandbox-first-minutes', title: 'Play /play/sandbox as a new player: veil, intro, mirror, sign-up, drive to the dock, fish', seconds: 210, tags: ['full'],
     starts: ['sandbox'],
@@ -475,6 +480,77 @@ async function stageAsks(t) {
   if (calls.length) t.problem('error', 'a request to the Overseer was made with an empty balance');
   else t.event('no-failed-request', 'nothing was sent to the Overseer');
   t.progress(1);
+}
+
+/** The Overseer answers, and a failed ask is a plain message with Retry (never an endless spinner), after which the next ask works at once.
+ *  Needs a signed-in browser (the sheet is Google only: stageSheet ends the run `done` with a warning otherwise). */
+async function stageAnswer(t) {
+  const lines = () => [...document.querySelectorAll('.hc-log p.overseer')].map((p) => p.textContent.replace(/\s+/g, ' ').trim());
+  const retryBtn = () => [...document.querySelectorAll('.hc-card .act')].find((b) => /^retry$/i.test(b.textContent.trim()));
+  const status = () => { const s = document.querySelector('.hc-status'); return s && !s.hidden ? s.textContent.trim() : ''; };
+  const working = () => Boolean(HP().work && HP().work.active);
+  // Every ask the page sends, with the status it got (the second part checks the next ask is not "still working").
+  const seen = [];
+  const realFetch = window.fetch;
+  let failNext = false;
+  window.fetch = function (u, o) {
+    if (/\/v1\/games\/[^/]+\/ai$/.test(String(u)) && o && o.method === 'POST') {
+      if (failNext) { failNext = false; seen.push(503); return Promise.resolve(new Response(JSON.stringify({ error: 'Gen is down' }), { status: 503, headers: { 'Content-Type': 'application/json' } })); }
+      return realFetch.apply(this, arguments).then((r) => { seen.push(r.status); return r; });
+    }
+    return realFetch.apply(this, arguments);
+  };
+  const ask = async (text) => {
+    const input = await t.until(() => document.querySelector('.hc-form input'), 30000, 'the chat input');
+    keyEv('keydown', 'Enter'); await t.wait(200);
+    input.value = text;
+    input.form && input.form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    t.event('asked', text);
+  };
+  try {
+    await t.until(() => W() && W().player && G() && HP().chat, 60000, 'the island and its chat');
+    await t.wait(3000);
+    // 1. A real question gets an answer in the chat.
+    const before = new Set(lines());
+    await ask('What can you build for me here?');
+    await t.until(() => status() || working(), 20000, 'the Overseer to start working').catch(() => t.problem('warning', 'no work indicator or status appeared after the ask'));
+    t.scene('Asked: the Overseer works');
+    await t.until(() => lines().some((x) => !before.has(x)) || retryBtn(), 240000, 'an answer or a plain failure in the chat');
+    if (retryBtn() && !lines().some((x) => !before.has(x) && !/couldn.t|lost|stopped|wrong|busy|taking too long/i.test(x))) t.problem('error', 'the first ask failed: ' + lines().filter((x) => !before.has(x)).join(' | ').slice(0, 200));
+    else t.event('answer-shown', lines().filter((x) => !before.has(x)).join(' | ').slice(0, 160));
+    t.scene('The Overseer answered');
+    await t.until(() => !working(), 90000, 'the work indicator to end after the answer');
+    t.event('work-ended', 'the work indicator is gone');
+    t.progress(0.5);
+    // 2. A failed ask: a plain message and Retry, nothing spinning. (Named setup shortcut: this one request is answered 503.)
+    await t.wait(2000);
+    const before2 = new Set(lines());
+    t.event('setup-shortcut', 'the next ask is answered 503 by the page itself (Gen failing)');
+    failNext = true;
+    await ask('Add a small lantern near me.');
+    const retry = await t.until(retryBtn, 20000, 'a Retry button after the failed ask');
+    const msg = lines().filter((x) => !before2.has(x)).join(' | ');
+    if (!msg) t.problem('error', 'the failed ask said nothing');
+    else if (/503|Gen is down|undefined|\[object/.test(msg)) t.problem('error', `the failure shows a raw error: ${msg.slice(0, 160)}`);
+    else t.event('failure-plain-message', msg.slice(0, 160));
+    t.event('retry-shown', retry.textContent.trim());
+    t.scene('A failed ask: a plain message and Retry');
+    await t.wait(1500);
+    if (working() || status()) t.problem('error', 'the work indicator or status is still spinning after the failure');
+    else t.event('no-spinner', 'the work indicator and status ended');
+    // 3. Retry with a real click: it goes through at once (not "still working"), and is answered.
+    const n = seen.length;
+    const before3 = new Set(lines());
+    retry.click();
+    t.event('retry-clicked', 'a real click');
+    await t.until(() => seen.length > n, 20000, 'the retried ask to reach the server');
+    if (seen[n] !== 200) t.problem('error', `the ask after a failure answered ${seen[n]} (expected 200: no "still working")`);
+    else t.event('next-ask-immediate', 'the ask after the failure was accepted at once');
+    await t.until(() => lines().some((x) => !before3.has(x)), 240000, 'an answer to the retried ask');
+    t.event('retry-answered', lines().filter((x) => !before3.has(x)).join(' | ').slice(0, 160));
+    t.scene('Retried: answered');
+    t.progress(1);
+  } finally { window.fetch = realFetch; }
 }
 
 /** Build: a new game of the signed-up account, and the editor opens on it (the run crosses the page in sessionStorage). */
@@ -2250,7 +2326,7 @@ async function stageBlast(t, ctx) {
 const RUN = {
   models: stageModels,
   hats: stageHats,
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, toeditor: stageToEditor, editor: stageEditor, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, wish: stageWish, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, answer: stageAnswer, toeditor: stageToEditor, editor: stageEditor, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, wish: stageWish, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
 };
 // Island invitations (island-invite): after the sheet, the inviter's stage, then the friend's page on a closed island.
 STAGES.push('invite', 'gone', 'own');
@@ -2307,7 +2383,7 @@ RUN.moment = stageMoment;
 /** The stages a page that follows a leg change carries on with (the first-minutes ones are already done). */
 const legSeq = (id, prior) => (id === 'editor-bridge' && prior && prior.leg === 'editor' ? ['editor'] : id === 'island-invite' && prior && (prior.leg === 'gone' || prior.leg === 'own') ? [prior.leg] : null);
 
-const ENDS = { 'island-invite-friend': 'farrive', 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'editor-bridge': 'editor', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models', 'gen-hats': 'hats' };
+const ENDS = { 'island-invite-friend': 'farrive', 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'overseer-ask': 'answer', 'editor-bridge': 'editor', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models', 'gen-hats': 'hats' };
 
 
 // ---------------------------------------------------------------------------------------------- share-moment
