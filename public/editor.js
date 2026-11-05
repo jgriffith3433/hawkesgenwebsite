@@ -424,6 +424,7 @@ function listen(u) {
     const i = chatHistory.findIndex((x) => x.id === msg.id);
     if (i >= 0) chatHistory[i] = msg; else chatHistory.push(msg);
     renderChat(i < 0 ? msg : null);
+    if (i < 0 && msg.role === 'ai') clearAskWatch(); // an answer, or the plain failure: no waiting any more
     if (i < 0 && msg.role === 'ai' && msg.text) speak(msg.text);
     if (i < 0 && msg.role === 'ai' && msg.data && msg.data.error) { $('thinkingIndicator').hidden = true; toStage({ type: 'toast', text: 'The assistant hit a problem (see chat)' }); }
     // An answer to my request: how long it took, and whether it worked.
@@ -439,7 +440,7 @@ function listen(u) {
   });
   // The Overseer at work (src/overseer-lines.ts): where, the beats, its words, things arriving, the end: into the game.
   sse.addEventListener('overseer', (e) => { let d; try { d = JSON.parse(e.data); } catch { return; } toStage({ ...d, type: 'overseer-work' }); });
-  sse.addEventListener('thinking', (e) => { const d = JSON.parse(e.data); $('thinkingIndicator').hidden = !d.on; if (d.on) $('thinkingIndicator').textContent = `${d.by && d.by !== me?.name ? `${d.by}'s request: ` : ''}working…`; });
+  sse.addEventListener('thinking', (e) => { const d = JSON.parse(e.data); if (!d.on) clearAskWatch(); $('thinkingIndicator').hidden = !d.on; if (d.on) $('thinkingIndicator').textContent = `${d.by && d.by !== me?.name ? `${d.by}'s request: ` : ''}working…`; });
   sse.addEventListener('gen', (e) => onGen(JSON.parse(e.data)));
   sse.addEventListener('game', (e) => { const d = JSON.parse(e.data); game = { ...game, ...d }; members = d.members || members; if (document.activeElement !== $('gameTitle')) $('gameTitle').value = game.title; loadSettings(); });
   sse.addEventListener('release', (e) => { const d = JSON.parse(e.data); releases = d.releases || releases; renderReleases(); markSaved(); });
@@ -509,7 +510,7 @@ function renderChat(fresh) {
       again.className = 'sugg';
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.textContent = 'Try again';
+      btn.textContent = 'Retry';
       btn.onclick = () => { btn.disabled = true; btn.textContent = 'Asking…'; const said = String(d.retry); const tag = d.mention ? `@${d.mention.name || d.mention.id} ` : ''; sendChat(tag && said.startsWith(tag) ? said.slice(tag.length) : said, d.mention || null); };
       again.appendChild(btn);
       toCard(`${msg.id}:retry`, again, "That didn't work out.");
@@ -635,6 +636,19 @@ $('chatInput').addEventListener('keydown', (e) => {
 /** Done typing: back into the game (Enter sends, Esc just goes back). */
 function backToGame() { $('chatInput').blur(); stage.focus(); }
 
+/** One timer per ask (no polling): if neither an answer nor the end arrives, the page stops waiting, says so and offers Retry.
+ *  The server's own watchdog fails a stuck run and gives the credits back; this covers a feed that died. */
+let askWatch = null;
+const ASK_WATCH_MS = 6.5 * 60_000;
+function clearAskWatch() { clearTimeout(askWatch); askWatch = null; }
+/** A failed ask as a line in the chat with a Retry button (renderChat draws it for a message whose data has error + retry). */
+function askFailed(text, message, target) {
+  $('thinkingIndicator').hidden = true;
+  toStage({ type: 'overseer-work', k: 'end', ok: false, why: 'Stopped.' });
+  chatHistory.push({ id: `local_${Date.now()}`, role: 'ai', text, local: true, at: Date.now(), data: { error: true, retry: target ? `@${target.name || target.id} ${message}` : message, mention: target || null } });
+  renderChat();
+}
+
 async function sendChat(text, about, ctx) {
   builderDid('assistant');
   tourDone('ask');
@@ -652,6 +666,8 @@ async function sendChat(text, about, ctx) {
     await post(`${API}/games/${gameId}/ai`, { message: target ? `@${target.name || target.id} ${message}` : message, mention: target || undefined, context: context || undefined, file: openPath, errors: errText || undefined });
     setMention(null);
     askedAt = Date.now();
+    clearAskWatch();
+    askWatch = setTimeout(() => { askWatch = null; askFailed("I haven't heard back from my side for a while, so I've stopped waiting. If you were charged, the credits come back on their own. Try again.", message, target); }, ASK_WATCH_MS);
     hga()?.track('assistant_ask', { chars: message.length, mention: Boolean(target), errors: errors.length });
     // The game hears it too (game.on('asked'): the island's tour has a step for it).
     toStage({ type: 'event', name: 'asked', data: { chars: message.length, text: String(message).slice(0, 200) } });
@@ -661,9 +677,11 @@ async function sendChat(text, about, ctx) {
     else if (err.status !== 402) frustrated('assistant_unreachable', { status: err.status || 0 });
     toStage({ type: 'overseer-work', k: 'end', ok: false, why: err.status === 402 ? 'Out of credits.' : err.status === 429 ? 'Still working on the last one.' : "I couldn't hear you." });
     if (err.status === 402) { noCredits(err.message); if (text === undefined) input.value = message; return; }
-    addSystem(err.status === 429 ? "I'm still working on the last request. Ask again when it's done."
-      : err.status >= 500 || !err.status ? "I couldn't hear you just now. Nothing was charged; try again in a moment." : err.message);
-    if (text === undefined) input.value = message;
+    // Always a plain line with Retry, never a silent spinner (the server's own words when it has them; Gen's raw errors never reach here).
+    const plain = err.status === 429 ? "I'm still working on the last request. Retry in a moment; it will be free as soon as I'm done or have given up."
+      : err.status && err.status < 500 && err.status !== 401 && err.status !== 403 && err.message ? err.message
+      : "I couldn't hear you just now. Any credits held for it come back on their own. Retry in a moment.";
+    askFailed(plain, message, target);
   }
 }
 

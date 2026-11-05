@@ -36,7 +36,7 @@ import './use-community.ts';
 import { community as assistantLibrary } from './gameai.ts';
 import { search as librarySearch } from './community.ts';
 assistantLibrary.search = librarySearch as typeof assistantLibrary.search;
-export { gameAssistant, advanceGameGens } from './gameai.ts';
+export { gameAssistant, watchAssistant, advanceGameGens } from './gameai.ts';
 
 route('GET', '/v1/health', () => ({ ok: true, service: 'hawkesgen-portal', cloud: 'gcp', gen: Boolean(genKey()), google: Boolean(process.env.GOOGLE_CLIENT_ID) }));
 
