@@ -21,7 +21,14 @@ route('POST', /^\/v1\/games\/(g_[0-9a-f]+)\/community$/, async ({ req, params: [
   let row: any = found.empty ? null : found.docs[0].data();
   if (!row || body.name) {
     const want = String(body.name ?? '').trim() || r.title;
-    row = await addAsset(user, gameId, { asset: r.id, name: await freeName(gameId, want, r.mime) }, { project: r.project, words, title: r.title });
+    try { row = await addAsset(user, gameId, { asset: r.id, name: await freeName(gameId, want, r.mime) }, { project: r.project, words, title: r.title }); }
+    catch (e: any) {
+      // The row is listed but its file isn't in Gen (the beta's library lacks the live starter pack's things). The player
+      // is never told "not in your library": the engine gets `missing` and puts a base stand-in; we log it for devs.
+      if (e?.status !== 404) throw e;
+      console.warn(`[portal] community ${r.id} ("${r.title}", ${r.kind}) is listed but not in Gen (project ${r.project}): placing a stand-in`);
+      return { missing: true, asset: null, item: await viewOne(r), word, mode, assets: {} };
+    }
     // A model's low copy comes as its levels of detail; an old row without them still brings its separate low copy.
     if (r.low && String(row.name).endsWith('.glb') && !(await lodsOf([r.id]))[r.id]?.levels?.some((l: any) => l.role === 'low')) {
       await addAsset(user, gameId, { asset: r.low, name: String(row.name).replace(/\.glb$/, '_low.glb') }, { project: r.project, words, title: r.title }).catch(() => null);

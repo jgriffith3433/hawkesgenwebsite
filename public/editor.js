@@ -325,6 +325,7 @@ async function fromGame(m) {
       builderDid('library_use');
       try {
         const r = await post(`${API}/games/${gameId}/community`, { id: m.id, mode: m.mode === 'replace' ? 'replace' : 'variant', word: m.word || undefined });
+        if (r.missing || !r.asset) { toStage({ type: 'spawn-community', req: m.req, ok: false, missing: true, word: r.word }); return; }
         assets[r.asset.name] = r.asset;
         await sendAssets();
         toStage({ type: 'spawn-community', req: m.req, ok: true, asset: { name: r.asset.name }, word: r.word });
