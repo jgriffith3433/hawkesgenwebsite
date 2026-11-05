@@ -115,6 +115,19 @@ test('the community library: shelves join the categories, things load by id, and
       assert.equal(wall.material.texture, 'cobblestone.png');
       assert.deepEqual(wall.shape.size, [4, 3, 0.3], 'a wall, not a floor tile');
     } finally { S.useLibrary = was2; H.setAssets({}); }
+    // A thing listed but missing from Gen (or no answer): a stand-in of its kind, never an error for the player.
+    for (const answer of [{ ok: false, missing: true, word: 'cobblestone' }, { ok: false, error: 'That asset is not in your library' }]) {
+      S.useLibrary = async () => answer;
+      try {
+        const r = await S.spawn(found[0]);
+        assert.ok(r.ok, 'placed, not refused');
+        const wall = H.world.graph.entities[r.ids[0]];
+        assert.equal(wall.data.standIn, true);
+        assert.ok(!JSON.stringify(wall).includes('library'));
+      } finally { S.useLibrary = was2; }
+    }
+    assert.ok(S.standInFor({ kind: 'sky', title: 'x' }).config.sky);
+    for (const k of ['model', 'texture', 'sfx', 'music', 'sprite', 'video']) assert.ok(S.standInFor({ kind: k, title: 'x' }).spec.data.standIn, k);
     // Playing: library things are left out (they come in through the editor while building).
     H.setMode('play');
     assert.ok(!S.items('nature', 'rocks').some((i: any) => i.source === 'library'));
