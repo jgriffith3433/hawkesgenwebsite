@@ -1085,6 +1085,7 @@
     async useLibrary(item) {
       try {
         const r = await api('POST', `/v1/games/${island.id}/community`, { id: item.id, mode: 'variant' });
+        if (r.missing || !r.asset) return { ok: false, missing: true, error: 'Not available right now' };
         const b = await api('GET', `/v1/games/${island.id}/bundle`);
         if (b.assets) session.H.setAssets(b.assets);
         return { ok: true, asset: r.asset };
