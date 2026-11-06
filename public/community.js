@@ -70,17 +70,25 @@ function renderShelves() {
 const SHELF = { scifi: 'Sci-fi', ui: 'UI' };
 const shelfName = (c) => SHELF[c] ?? c.split('-').map((w, i) => (i ? w : w[0].toUpperCase() + w.slice(1))).join(' ');
 
+const ICON = { model: '\u{1F9CA}', texture: '\u{1F9F1}', sky: '\u{1F305}', sprite: '\u2728', image: '\u{1F5BC}', music: '\u{1F3B5}', ambience: '\u{1F32C}', sfx: '\u{1F4A5}', voice: '\u{1F5E3}', video: '\u{1F3AC}' };
 function thumbOf(it) {
   if (it.thumb) return `<img src="${esc(it.thumb)}" alt="" loading="lazy">`;
-  return `<span class="glyph">${esc(KIND[it.kind]?.[1] ?? it.kind)}</span>`;
+  return `<span class="glyph"><i aria-hidden="true">${ICON[it.kind] ?? '\u25C7'}</i>${esc(KIND[it.kind]?.[1] ?? it.kind)}</span>`;
 }
+const usesText = (n) => `${n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : n} ${n === 1 ? 'use' : 'uses'}`;
+/** Loading: the shape of the cards that are coming, never a blank page. */
+const skeletons = (n) => Array.from({ length: n }, () => '<div class="card skel" aria-hidden="true"><div class="sk-thumb"></div><div class="meta"><span class="sk-bar" style="width:70%"></span><span class="sk-bar" style="width:45%"></span><span class="sk-bar" style="width:55%"></span></div></div>').join('');
+function setGrid(stateName, html) { const g = $('grid'); g.dataset.state = stateName; g.setAttribute('aria-busy', stateName === 'loading' ? 'true' : 'false'); g.innerHTML = html; }
 
 function card(it) {
   const tile = ['texture', 'sky'].includes(it.kind);
   const sub = [KIND[it.kind]?.[1] ?? it.kind, it.category && shelfName(it.category)].filter(Boolean).join(' · ');
+  const by = it.by || 'Hawkes';
   return `<button type="button" class="card" data-id="${esc(it.id)}">
     <div class="thumb${tile ? ' tile' : ''}">${thumbOf(it)}<span class="badge">${esc(KIND[it.kind]?.[1] ?? it.kind)}</span>${AUDIO.has(it.kind) ? `<span class="play" data-play="${esc(it.id)}" role="button" aria-label="Play ${esc(it.title)}">▶</span>` : ''}</div>
-    <div class="meta"><span class="title">${esc(it.title)}</span><span class="sub">${esc(sub)}${it.by && it.by !== 'Hawkes' ? ` · by ${esc(it.by)}` : ''}</span></div>
+    <div class="meta"><span class="title">${esc(it.title)}</span><span class="sub">${esc(sub)}</span>
+      <span class="by"><span class="av" aria-hidden="true">${esc([...by][0].toUpperCase())}</span><span class="nm">by <b>${esc(by)}</b></span></span>
+      <span class="stat"><span class="u">${esc(usesText(it.uses ?? 0))}</span>${it.likes ? `<span>${it.likes} ${it.likes === 1 ? 'pick' : 'picks'}</span>` : ''}</span></div>
   </button>`;
 }
 
@@ -101,27 +109,44 @@ async function load(append = false) {
   if (state.kind) { qs.set('kind', state.kind); qs.set('exact', '1'); }
   if (state.category) qs.set('category', state.category);
   if (state.q) qs.set('q', state.q);
+  if (!append) setGrid('loading', skeletons(8));
+  else $('more').disabled = true;
   let r;
   try {
     r = await api(`/v1/community?${qs}`);
   } catch (e) {
-    $('grid').innerHTML = `<div class="empty"><h3>The archive didn't open</h3><p>The library didn't load (${esc(e.message)}). Try again in a moment.</p></div>`;
+    $('more').disabled = false;
+    if (append) return;
+    setGrid('error', `<div class="empty"><span class="ico" aria-hidden="true">\u{1F4E1}</span><h3>The archive didn't open</h3><p>The library didn't load (${esc(e.message)}). Nothing is lost: try again.</p><button type="button" class="btn btn-secondary" id="retry">Try again</button></div>`);
+    $('retry').addEventListener('click', () => void load());
     return;
   }
+  $('more').disabled = false;
   shown = shown.concat(r.items);
   state.offset += r.items.length;
   renderShelfHead();
   $('where').textContent = where(r.total);
   if (!shown.length) {
-    $('grid').innerHTML = shelves.total
-      ? `<div class="empty"><h3>The Overseer finds nothing for that.</h3><p>Nothing in the library matches. Try other words, or another shelf.</p></div>`
-      : `<div class="empty"><h3>The shelves are still being filled.</h3><p>The library is empty for now. Hawkes is making the starter pack: five of each kind of thing in every category. They show up here as they're finished. You can share your own from the editor (Create &gt; Yours, ⇪).</p></div>`;
+    setGrid('empty', shelves.total
+      ? `<div class="empty"><span class="ico" aria-hidden="true">\u{1F52D}</span><h3>The Overseer finds nothing for that.</h3><p>Nothing in the library matches${state.q ? ` "${esc(state.q)}"` : ''}. Try other words, or another shelf.</p><button type="button" class="btn btn-secondary" id="clear">Show everything</button></div>`
+      : `<div class="empty"><span class="ico" aria-hidden="true">\u{1F4DA}</span><h3>The shelves are still being filled.</h3><p>The library is empty for now. Hawkes is making the starter pack: five of each kind of thing in every category. They show up here as they're finished. You can share your own from the editor (Create &gt; Yours, ⇪).</p></div>`);
+    $('clear')?.addEventListener('click', () => { state.kind = ''; state.category = ''; state.q = ''; $('q').value = ''; renderShelves(); void load(); });
   } else {
-    $('grid').innerHTML = shown.map(card).join('');
+    setGrid('ready', shown.map(card).join(''));
   }
+  renderFeatured();
   $('more').hidden = state.offset >= r.total;
   keepUrl();
 }
+
+// The featured row: the most picked things, fetched once when the page opens (no refresh loop), shown on the unfiltered view.
+let featured = [];
+function renderFeatured() {
+  const on = featured.length > 0 && !state.q && !state.category && !state.kind;
+  $('featured').hidden = !on;
+  if (on) $('featRow').innerHTML = featured.map(card).join('');
+}
+const itemById = (id) => shown.find((x) => x.id === id) ?? featured.find((x) => x.id === id);
 
 // ------------------------------------------------------------------ the panel
 
@@ -284,15 +309,15 @@ $('shelves').addEventListener('click', (e) => {
   renderShelves();
   void load();
 });
-let typing;
-$('q').addEventListener('input', () => { clearTimeout(typing); typing = setTimeout(() => { state.q = $('q').value.trim(); void load(); }, 250); });
+// Search runs when the person asks (Enter or the button): nothing fires on a timer.
+$('search').addEventListener('submit', (e) => { e.preventDefault(); state.q = $('q').value.trim(); void load(); });
 $('sort').addEventListener('change', () => { state.sort = $('sort').value; void load(); });
 $('more').addEventListener('click', () => void load(true));
-$('grid').addEventListener('click', (e) => {
+for (const root of [$('grid'), $('featRow')]) root.addEventListener('click', (e) => {
   const play = e.target.closest('[data-play]');
   if (play) {
     e.stopPropagation();
-    const it = shown.find((x) => x.id === play.dataset.play);
+    const it = itemById(play.dataset.play);
     if (player && player.dataset.id === it.id && !player.paused) { player.pause(); play.textContent = '▶'; return; }
     player?.pause();
     document.querySelectorAll('[data-play]').forEach((p) => { p.textContent = '▶'; });
@@ -304,7 +329,7 @@ $('grid').addEventListener('click', (e) => {
     return;
   }
   const c = e.target.closest('.card');
-  if (c) { player?.pause(); open(shown.find((x) => x.id === c.dataset.id)); }
+  if (c) { player?.pause(); open(itemById(c.dataset.id)); }
 });
 $('sheet').addEventListener('click', (e) => { if (e.target === $('sheet')) close(); });
 $('pClose').addEventListener('click', close);
@@ -317,7 +342,11 @@ try {
 } catch { /* the grid says so */ }
 renderStats();
 renderShelves();
-await load();
+// Featured and the first page ask together, once, when the page opens.
+const featuredAsk = api('/v1/community?limit=6&sort=liked').then((r) => { featured = r.items.filter((x) => x.uses || x.likes || x.thumb).slice(0, 6); }).catch(() => {});
+await Promise.all([load(), featuredAsk]);
+renderFeatured();
+window.hgCommunityReady = true;
 const want = url.searchParams.get('open');
 if (want) {
   const it = shown.find((x) => x.id === want) ?? (await api(`/v1/community?limit=120`).catch(() => ({ items: [] }))).items.find((x) => x.id === want);
