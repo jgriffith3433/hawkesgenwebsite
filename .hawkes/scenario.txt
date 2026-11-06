@@ -1,0 +1,2 @@
+island-invite
+{"friend":"browser"}
