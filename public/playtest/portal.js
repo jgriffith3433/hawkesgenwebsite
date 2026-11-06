@@ -2557,6 +2557,7 @@ async function stageInvite(t, ctx) {
   await t.until(() => W() && W().player && $('.gs-acts [data-intent="invite"]'), 40000, 'the Invite button');
   const btn = $('.gs-acts [data-intent="invite"]');
   t.event('invite-button', `"${btn.textContent}" among the buttons top right`);
+  if (!/Copy invite link/.test(btn.textContent)) t.problem('error', 'the button does not say Copy invite link');
   t.scene('Island: the Invite button');
   const joined = [];
   G().on('joined', (d) => { joined.push(d); });
@@ -2615,6 +2616,8 @@ async function stageInvite(t, ctx) {
   const who = real ? ((joined[0] && joined[0].name) || '') : 'Visitor';
   await t.until(() => (who ? document.body.innerText.includes(`${who} is here.`) : /\S+ is here\./.test(document.body.innerText)), 15000, 'the Overseer to name the friend').then(
     () => t.event('friend-named', `${who || 'the friend'}, in the chat and over the newcomer`), (e) => t.problem('error', e.message));
+  await t.until(() => { const w = $('[data-invite="welcome"]'); return w && /joined your island/.test(w.textContent); }, 10000, 'the welcome card for the newcomer').then(
+    () => t.event('welcome-moment', `a card on screen: "${$('[data-invite="welcome"] b').textContent}"`), (e) => t.problem('error', e.message));
   await t.wait(1500);
   t.scene('Island: the friend beside the inviter');
   clearInterval(beat);
