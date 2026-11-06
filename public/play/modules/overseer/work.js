@@ -405,6 +405,8 @@
     const p = s.pill;
     if (p) {
       const sec = Math.floor(s.wall);
+      // While it thinks (no beat to show yet) the headline changes every few seconds: it is a character at work, not a spinner.
+      if (!s.ended && H.reactions && sec !== p.shownSec && (sec === 0 || (sec % 4 === 0 && !s.beats.length))) p.t.textContent = `${H.reactions.think()}…`;
       if (sec !== p.shownSec) { p.shownSec = sec; p.sec.textContent = `${sec}s`; }
       const cam = w && w.scene && w.scene.activeCamera;
       if (cam) {
@@ -457,7 +459,7 @@
     /** True while the Overseer is working on a request (the ground reshapes in steps then: terrain.js). */
     get active() { return Boolean(S && !S.ended); },
     /** A sample for tests and the playtest: where, how big, beams, the pill's text, beats, things arrived. */
-    state() { return S ? { at: S.at.slice(), radius: S.radius, area: S.area, beams: S.beams.length, beat: S.beat, beats: S.beats.slice(), plan: S.plan, ops: S.ops, ended: S.ended, pill: S.pill ? S.pill.b.textContent : null } : null; },
+    state() { return S ? { at: S.at.slice(), radius: S.radius, area: S.area, beams: S.beams.length, beat: S.beat, beats: S.beats.slice(), plan: S.plan, ops: S.ops, ended: S.ended, pill: S.pill ? S.pill.b.textContent : null, headline: S.pill ? S.pill.t.textContent : null } : null; },
     /** A pulse from elsewhere (the terrain's steps). */
     pulse(k = 1) { if (!S) return; S.sel.burst = Math.max(S.sel.burst, k); for (const b of S.beams) if (b && b.pulse) b.pulse(k); if (H.overseer && H.overseer.flare) H.overseer.flare(0.4 * k); },
   };
