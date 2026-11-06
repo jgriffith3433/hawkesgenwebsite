@@ -145,3 +145,12 @@ The ship reacts, with the same meshes (no draw calls added): while the speech de
 game.overseer.presence();   // { speaking, flare, idle, quiet, attending, turn, halo: {alpha, scale}, rings: {speed}, seams: {glow}, night, hum: {level, playing, altitude, distance}, beams }
 HawkesPlay.overseer.attend(seconds);   // face the player, as a question does
 ```
+
+## Reactions (`H.reactions`, modules/overseer/reactions.js)
+
+The Overseer answers what it just did, every time, in its own voice. `build` (a request came down), `fail` (it did not) and
+`idle` (the player has been quiet 75 s, at most one per 120 s) each have twelve or more lines; `think` is the work pill's
+headline while it works (it changes every 4 s until the first beat). Each kind is a shuffled deck: every line is used
+before any repeats and never the same twice in a row. `H.reactions.say(kind)`, `pick(kind)`, `history()`, `reset()`,
+`IDLE_AFTER` / `IDLE_GAP` (settable); `game.on('reaction')` gives `{ kind, text }`. Spoken through the speech desk when
+`H.lines.blocked()` is clear, dropped after 25 s. Tests `test/engine/reactions.test.ts`; playtest `overseer-personality`.

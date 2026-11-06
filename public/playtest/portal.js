@@ -28,9 +28,9 @@ import { WORLD_REPORT, runWorldReport } from './world-report.js';
 import { SERVER_LIMITS, runServerLimits } from './server-limits.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'firstvisit', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'answer', 'progress', 'models', 'wish', 'toeditor', 'editor'];
+const STAGES = ['landing', 'veil', 'intro', 'firstvisit', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'answer', 'progress', 'models', 'wish', 'toeditor', 'editor', 'react'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'overseer-first-visit': ['landing', 'veil', 'firstvisit'], 'overseer-ask': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'answer'], 'gen-models-all': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-daily-wish': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wish'], 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'editor-bridge': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'toeditor', 'editor'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
+const ORDERS = { 'overseer-personality': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'react'], 'overseer-first-visit': ['landing', 'veil', 'firstvisit'], 'overseer-ask': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'answer'], 'gen-models-all': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-daily-wish': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wish'], 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'editor-bridge': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'toeditor', 'editor'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
 const SCENARIOS = [
   SITE_LAYOUT, // the landing page at three sizes (site-layout.js)
   AVATAR_ANIMATIONS, // clips as data on /avatars (avatar-animations.js)
@@ -141,6 +141,11 @@ const SCENARIOS = [
     id: 'sandbox-return', title: 'A second visit: no intro and no mirror, beamed in and welcomed back by name, the tour where it stopped', seconds: 330, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first visit as a new player (veil, intro, mirror, account sheet with a throwaway sign-up, then driving to the dock: the tour is on its second step), in that order; then the page is opened again as a returning player would (the same browser storage). It checks that the intro and the mirror do not play, that the player is beamed in and the Overseer says "Welcome back, <name>", and that Pip\'s tour is on the step it was left on (not the first). Never on live (no sign-up there). options as sandbox-first-minutes',
+  },
+  {
+    id: 'overseer-personality', title: 'The Overseer\'s personality while you build: a thinking line that changes while it works, then varied in-character lines for what it built, what failed and a quiet moment, never the same twice in a row', seconds: 240, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the account sheet, then the Overseer\'s reactions (modules/overseer/reactions.js): the line pools are counted (reaction-variants: build, fail and idle each ten or more); a request is started the way asking does (a named setup shortcut, since asking spends credits and sign-in is Google only) and the work pill\'s headline is watched for several seconds (thinking-shown: it changes, never the same twice in a row); the request ends well three times and fails three times (reaction-build, reaction-fail, each spoken in the chat); the idle wait is shortened by a named shortcut and two idle lines are heard. no-repeat checks that no line of a kind equals the one before it. options as sandbox-first-minutes',
   },
   {
     id: 'overseer-alive', title: 'The Overseer is alive: halo and rings answer its voice, the emitter flares before a beam, the bay turns to a question, the hum rises as the player climbs, and the frame cost is unchanged', seconds: 240, tags: ['full'],
@@ -852,6 +857,68 @@ async function stagePresence(t) {
 /** The Overseer is alive (overseer.js presence): its halo and rings answer a spoken line, a typed message turns its bay, a beam
  *  is preceded by a flare, and a hum rises as the player climbs (silent on the ground). Draw calls and frame time are compared
  *  quiet and active. Named setup shortcuts: a line is asked of the Overseer, a beam is sent, the player is held at each height. */
+async function stageReact(t) {
+  const R = () => HP().reactions;
+  const heard = [];
+  releaseAll();
+  await t.until(() => W() && W().player && W().player.alive && R() && HP().work, 60000, 'the Overseer\'s reactions');
+  if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
+  G().on('reaction', (d) => { heard.push(d); t.event(`reaction-${d.kind}`, d.text); t.event('overseer-said', d.text); });
+  const n = (k) => R().POOLS[k].length;
+  t.event('reaction-variants', `build ${n('build')}, fail ${n('fail')}, idle ${n('idle')}, thinking ${n('think')}`);
+  for (const k of ['build', 'fail', 'idle']) if (n(k) < 10) t.problem('error', `only ${n(k)} ${k} variants`);
+  await t.wait(5000);
+  // 1. Thinking: a request begins as asking does; the pill's headline is watched.
+  t.event('setup-shortcut', 'a request started as asking does (H.work.begin): asking spends credits, and sign-in is Google only');
+  HP().work.begin({ text: 'a lighthouse on the point' });
+  const heads = [];
+  const t0 = Date.now();
+  while (Date.now() - t0 < 14000) {
+    const st = HP().work.state();
+    const h = st && st.headline;
+    if (h && heads[heads.length - 1] !== h) heads.push(h);
+    if (heads.length === 2) t.scene('Overseer: thinking');
+    await t.wait(300);
+  }
+  t.event('thinking-shown', `${heads.length} headlines while it worked: ${heads.join(' | ')}`);
+  if (heads.length < 3) t.problem('error', `the thinking line changed only ${heads.length} times in 14 s`);
+  const dup = heads.some((h, i) => i && h === heads[i - 1]);
+  if (dup) t.problem('error', 'the same thinking line twice in a row');
+  // 2. Built, failed, built...: each ends the request the way the server's events do.
+  const finish = async (ok, kind) => {
+    const before = heard.length;
+    HP().work.begin({ text: 'another try' });
+    await t.wait(1200);
+    t.event('setup-shortcut', `the request ends ${ok ? 'well' : 'badly'} (the server\'s end event)`);
+    HP().work.handle(ok ? { k: 'beat', title: 'Raising it', n: 1 } : { k: 'plan', beats: [] });
+    if (ok) HP().work.handle({ k: 'op' });
+    HP().work.handle({ k: 'end', ok, why: ok ? undefined : 'It would not come down.' });
+    await t.until(() => heard.length > before && heard[heard.length - 1].kind === kind, 60000, `the Overseer\'s ${kind} line`);
+    if (kind === 'build') t.scene('Overseer: built');
+    if (kind === 'fail') t.scene('Overseer: failed');
+    await t.wait(2500);
+  };
+  HP().work.handle({ k: 'end', ok: true });
+  await t.wait(2500);
+  for (let i = 0; i < 3; i++) { await finish(true, 'build'); await finish(false, 'fail'); }
+  // 3. Idle: the quiet wait shortened.
+  t.event('setup-shortcut', 'the idle wait shortened to 8 s (it is 75 s)');
+  R().IDLE_AFTER = 8; R().IDLE_GAP = 8;
+  await t.until(() => heard.filter((x) => x.kind === 'idle').length >= 2, 90000, 'two idle lines');
+  t.scene('Overseer: idle');
+  R().IDLE_AFTER = 75; R().IDLE_GAP = 120;
+  // 4. Never the same line twice in a row.
+  const bad = [];
+  for (const k of ['build', 'fail', 'idle']) {
+    const l = heard.filter((x) => x.kind === k);
+    t.event('reaction-count', `${k}: ${l.length} lines, ${new Set(l.map((x) => x.text)).size} different`);
+    l.forEach((x, i) => { if (i && x.text === l[i - 1].text) bad.push(x.text); });
+  }
+  if (heard.some((x, i) => i && x.text === heard[i - 1].text)) bad.push('(two in a row)');
+  if (bad.length) t.problem('error', `a line repeated: ${bad.join(' | ')}`);
+  else t.event('no-repeat', `${heard.length} reactions, none the same as the one before`);
+}
+
 async function stageAlive(t) {
   const O = () => G().overseer.presence();
   const mon = () => { try { return HP().monitor && HP().monitor.sample ? HP().monitor.sample() : null; } catch { return null; } };
@@ -2393,7 +2460,7 @@ async function stageBlast(t, ctx) {
 const RUN = {
   models: stageModels,
   hats: stageHats,
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, firstvisit: stageFirstVisit, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, answer: stageAnswer, toeditor: stageToEditor, editor: stageEditor, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, wish: stageWish, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, firstvisit: stageFirstVisit, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, answer: stageAnswer, toeditor: stageToEditor, editor: stageEditor, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, wish: stageWish, react: stageReact, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
 };
 // Island invitations (island-invite): after the sheet, the inviter's stage, then the friend's page on a closed island.
 STAGES.push('invite', 'gone', 'own');
@@ -2450,7 +2517,7 @@ RUN.moment = stageMoment;
 /** The stages a page that follows a leg change carries on with (the first-minutes ones are already done). */
 const legSeq = (id, prior) => (id === 'editor-bridge' && prior && prior.leg === 'editor' ? ['editor'] : id === 'island-invite' && prior && (prior.leg === 'gone' || prior.leg === 'own') ? [prior.leg] : null);
 
-const ENDS = { 'overseer-first-visit': 'firstvisit', 'island-invite-friend': 'farrive', 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'overseer-ask': 'answer', 'editor-bridge': 'editor', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models', 'gen-hats': 'hats' };
+const ENDS = { 'overseer-personality': 'react', 'overseer-first-visit': 'firstvisit', 'island-invite-friend': 'farrive', 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'overseer-ask': 'answer', 'editor-bridge': 'editor', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models', 'gen-hats': 'hats' };
 
 
 // ---------------------------------------------------------------------------------------------- share-moment

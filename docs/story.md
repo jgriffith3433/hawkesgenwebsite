@@ -367,6 +367,15 @@ first place that is the Overseer's own rather than a landing place, and it is ke
 on the character's anchors (a made hat) comes with the Gen-model bodies (`presence-models.js`). The cracked
 mirror of Chapter Three is not here: it is in the hangar, facing the wall, and this room does not mention it.
 
+### Reactions while you build (built: `modules/overseer/reactions.js`)
+
+A character that responds. Each time a request finishes the Overseer says something about it, a different thing each time:
+what it noticed when the thing came down (**build**), what the world did when it would not (**fail**: "It did not want to
+come down. Ask again."; never what a system did) and, when the player has been quiet for a while, an invitation (**idle**:
+"Take your time. The sky is not going anywhere."). While it works the pill's headline is a thinking line ("Gathering light",
+"Asking the sea") that changes. Twelve or more of each, in the voice rules above (calm, no exclamation marks, never "done"),
+and never the same line twice in a row. It is amused by plans, never by a failure, and thanks the player for trying.
+
 ### The "seems good" ledger
 
 A list of what the Overseer has been seen to do, for the content to draw on. Only deeds, never reasons.
