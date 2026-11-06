@@ -38,7 +38,7 @@ const SCENARIOS = [
   {
     id: 'overseer-ask', title: 'Ask the Overseer: an answer shows in the chat; a failed ask is a plain message with Retry and no spinner; the next ask works at once', seconds: 420, tags: ['full'],
     starts: ['sandbox'],
-    description: 'the first-minutes path to the account sheet (a browser already signed in to Google: the sheet is Google only), then a question typed in the chat (answer-shown, work-ended), one ask answered 503 by a named shortcut (failure-plain-message, retry-shown, no-spinner) and a real click on Retry (next-ask-immediate, retry-answered). Options: watch (seconds of intro to watch), name, what',
+    description: 'the first-minutes path to the account sheet (a browser already signed in to Google: the sheet is Google only), then a question typed in the chat (answer-shown, work-ended), one ask answered 503 by a named shortcut (failure-plain-message, retry-shown, no-spinner) and a real click on Retry (next-ask-immediate, retry-answered). First, a build request ("add a red cube") must add a new thing to the world (world-changed), not only a chat message. Options: watch (seconds of intro to watch), name, what',
   },
   {
     id: 'sandbox-first-minutes', title: 'Play /play/sandbox as a new player: veil, intro, mirror, sign-up, drive to the dock, fish', seconds: 210, tags: ['full'],
@@ -521,6 +521,23 @@ async function stageAnswer(t) {
     t.scene('The Overseer answered');
     await t.until(() => !working(), 90000, 'the work indicator to end after the answer');
     t.event('work-ended', 'the work indicator is gone');
+    t.progress(0.4);
+    // 1b. A build request really changes the game (J, 2026-11-06: every build ended "I couldn't finish that"): a red cube
+    // must be a new thing in the world, not just a message in the chat.
+    const ids = () => new Set(Object.keys((W() && W().graph && W().graph.entities) || {}).concat([...W().entities].map((e) => e.id).filter(Boolean)));
+    const thingsBefore = ids();
+    const beforeB = new Set(lines());
+    await ask('Add a red cube right in front of me.');
+    t.scene('Asked: add a red cube');
+    await t.until(() => lines().some((x) => !beforeB.has(x)) || retryBtn(), 240000, 'an answer to the build request');
+    const said = lines().filter((x) => !beforeB.has(x)).join(' | ');
+    if (retryBtn()) t.problem('error', `the build request failed instead of building: ${said.slice(0, 200)}`);
+    await t.until(() => !working(), 90000, 'the work indicator to end after the build');
+    await t.wait(1500);
+    const added = [...ids()].filter((x) => !thingsBefore.has(x));
+    if (!added.length) t.problem('error', `the build request was answered ("${said.slice(0, 120)}") but the game has no new thing`);
+    else t.event('world-changed', `new things: ${added.slice(0, 5).join(', ')}`);
+    t.scene('The red cube is in the world');
     t.progress(0.5);
     // 2. A failed ask: a plain message and Retry, nothing spinning. (Named setup shortcut: this one request is answered 503.)
     await t.wait(2000);
