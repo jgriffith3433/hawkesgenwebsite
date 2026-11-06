@@ -19,8 +19,10 @@
   const OV = H.overseer;
   const { smooth } = H.sky._;
   const KEY = 'hg_overseer_intro';
-  const LINES = ['I have given you the power of free will.', 'Do with it what you will.'];
-  const SECONDS = 10.5;
+  // Greeting, the gift, the gift's second half, then the invitation that starts building (canon line 4, "Ask, and I will send it down").
+  const LINES = ['You found your way. Good.', 'I have given you the power of free will.', 'Do with it what you will.', 'Ask, and I will send it down.'];
+  const PROMPT = { text: 'Tell the Overseer what to make first: a lighthouse, a tune, a hat.', label: 'Ask for your first thing' };
+  const SECONDS = 15.5;
 
   let playing = null;
   let playedThisPage = false;
@@ -185,6 +187,16 @@
     });
   }
 
+  /** The intro's last beat: a card in the chat that starts world building (it opens the chat to talk to the Overseer). */
+  function invite() {
+    const g = G();
+    if (!g || !H.chat) return;
+    try {
+      H.chat.line({ kind: 'sys', text: PROMPT.text, keep: 90, action: { label: PROMPT.label, onclick: () => { try { H.chat.open(); } catch { /* fine */ } try { G().emit('intro', { state: 'prompt-used' }); } catch { /* fine */ } } } });
+      g.emit('intro', { state: 'prompt' });
+    } catch (err) { H.report(err, 'intro'); }
+  }
+
   /** Plays the intro now (resolves { skipped } when it ends). */
   async function play() {
     const w = W(), g = G();
@@ -237,11 +249,15 @@
       const fadeIn = () => { if (!playing || !p.alive) return; const k = smooth(0.25, 1.1, (performance.now() - s0) / 1000); p.node.visibility = k; if (k < 1) requestAnimationFrame(fadeIn); };
       fadeIn();
     });
-    if (short) later(1.4, () => OV.say(LINES[1], 2.8, { owner: 'intro', priority: 'important', external: true }));
+    const say = (line, secs) => OV.say(line, secs, { owner: 'intro', priority: 'important', external: true });
+    if (short) later(1.4, () => say(LINES[2], 2.8));
     else {
-      later(2.7, () => { audio = voice(); if (audio) audio.play().catch(() => {}); });
-      later(3.0, () => OV.say(LINES[0], 3.1, { owner: 'intro', priority: 'important', external: true }));
-      later(6.2, () => OV.say(LINES[1], 3.6, { owner: 'intro', priority: 'important', external: true }));
+      // The voice clip is the two free-will lines, so it starts with them.
+      later(5.8, () => { audio = voice(); if (audio) audio.play().catch(() => {}); });
+      later(3.0, () => say(LINES[0], 2.6));
+      later(6.0, () => say(LINES[1], 3.0));
+      later(9.2, () => say(LINES[2], 2.6));
+      later(12.1, () => say(LINES[3], 3.0));
     }
     let r = { skipped: true };
     try {
@@ -261,6 +277,7 @@
     }
     remember();
     if (G()) G().emit('intro', { state: 'end', skipped: Boolean(r.skipped) });
+    if (!short) invite();
     return { skipped: Boolean(r.skipped) };
   }
 
