@@ -24,6 +24,7 @@ import {
 } from './games.ts';
 import { describeScene, parseScene } from './scene.ts';
 import { engineDoc } from './engine.ts';
+import { classify, plainReason, rawError, wasRejected, type RawError } from './gameai-errors.ts';
 import { tell, streamTicks } from './live.ts';
 import { AREAS, DIRECTOR_SCHEMA, DIRECTOR_SYSTEM, PACE, directorPrompt, lineJoiner, pace, parseLine, readLines, resolveFocus } from './overseer-lines.ts';
 
@@ -461,28 +462,24 @@ const aiLog = (step: string, gameId: string, runId?: string | null, extra?: unkn
 /** A failure from Gen (or the network) as the player may read it; the raw error goes to the log only.
  *  Our own "not enough credits" (402) is already plain and passes through. */
 function friendlyError(e: any, gameId: string, runId?: string): PortalError {
-  console.error(`[gameAssistant] game=${gameId} run=${runId ?? '-'} step=gen-error status=${e?.status ?? '-'} raw=${String(e?.message ?? e).slice(0, 300)}`);
+  const raw = rawError('submit', e?.status, e?.message ?? e);
+  aiLog('gen-error', gameId, runId, raw);
   if (e instanceof PortalError && e.status === 402) return e;
-  const st = Number(e?.status) || 0;
-  const raw = String(e?.message ?? '').toLowerCase();
-  if (st === 401 || st === 403) return new PortalError("I can't reach my AI service right now. That's on our side, not yours. Nothing was charged; try again in a little while.", { status: 503 });
-  if (st === 429 || /overload|busy|capacity|rate/.test(raw)) return new PortalError('The AI is very busy right now. Nothing was charged; try again in a minute.', { status: 503 });
-  if (st === 408 || st === 504 || /timeout|timed out|abort|not answering/.test(raw)) return new PortalError("I couldn't get an answer in time. Nothing was charged; try again.", { status: 503 });
+  if (raw.kind === 'auth') return new PortalError("I can't reach my AI service right now. That's on our side, not yours. Nothing was charged; try again in a little while.", { status: 503 });
+  if (raw.kind === 'busy') return new PortalError('The AI is very busy right now. Nothing was charged; try again in a minute.', { status: 503 });
+  if (raw.kind === 'timeout') return new PortalError("I couldn't get an answer in time. Nothing was charged; try again.", { status: 503 });
   return new PortalError("I couldn't hear you just now. Nothing was charged; try again in a moment.", { status: 503 });
 }
 
 /** What to tell the players when the assistant's job didn't finish: plain, and always that nothing broke. */
 function whyNot(job: { status: string; error?: string | null }) {
-  const err = String(job.error ?? '').toLowerCase();
-  const after = ' Nothing in your game changed, and the credits are back in your account.';
-  if (err === 'empty') return `I came back with nothing I could use.${after} Try again; rewording can help.`;
-  if (err === 'stalled') return `I lost my place while working on that, so I stopped it.${after} Try again.`;
-  if (err === 'timeout') return `That was taking too long, so I stopped it.${after} Try again, or ask for a smaller piece first.`;
-  if (err === 'unreachable') return `I lost my connection to the AI service.${after} Give it a moment and try again.`;
-  if (job.status === 'cancelled') return `That request was cancelled before I finished.${after}`;
-  if (/overload|rate|busy|capacity|429|529/.test(err)) return `The AI is very busy right now.${after} Try again in a minute.`;
-  if (/json|schema|parse/.test(err)) return `My answer came back garbled, so I didn't use it.${after} Try again; rewording can help.`;
-  return `I couldn't finish that.${after} Try again, or say it a different way.`;
+  return plainReason(job.status === 'cancelled' && !job.error ? 'cancelled' : classify(null, job.error));
+}
+
+/** Keeps the real reason on the run (readable in Firestore: aiRuns/<id>.rawError) and in the log. */
+async function keepRaw(run: any, raw: RawError) {
+  aiLog('raw-error', String(run.game_id), run.id, raw);
+  await runsCol().doc(String(run.id)).update({ rawError: raw }).catch(() => {});
 }
 
 // The Overseer's two calls (overseer-lines.ts): the full answer, written as lines and applied as they come, and the
@@ -620,7 +617,7 @@ export async function failRun(run: any, reason: string): Promise<boolean> {
   const claimed = await db.runTransaction(async (t) => {
     const s = await t.get(ref);
     if (!s.exists || s.get('done')) return false;
-    t.update(ref, { done: true, failed: reason, doneAt: Date.now() });
+    t.update(ref, { done: true, failed: reason, doneAt: Date.now(), rawError: rawError('watchdog', null, reason) });
     return true;
   });
   if (!claimed) return false;
@@ -677,7 +674,7 @@ export const watchAssistant = onSchedule({ schedule: 'every 1 minutes', secrets:
 });
 
 /** The answer, as it is written: each line applied to the world at once, paced into beats (the trigger below runs it). */
-async function runAssistant(run: any) {
+export async function runAssistant(run: any) {
   const user = await getUser(run.user_id);
   const game = (await db.collection('games').doc(run.game_id).get()).data() as any;
   const gameId = run.game_id as string;
@@ -726,6 +723,8 @@ async function runAssistant(run: any) {
     let next = 0;
     let paceLeft = PACE.budget;
     let lines = 0;
+    let ops = 0;
+    let fileTries = 0;
     const note = (p: string) => { if (problems.length < 8) problems.push(p); };
     const apply = async (raw: string) => {
       const l = parseLine(raw);
@@ -742,6 +741,7 @@ async function runAssistant(run: any) {
         case 'say': state.said = true; await show({ k: 'say', text: l.text, who: l.who }); break;
         case 'beat': await show({ k: 'beat', title: l.title, n: ++state.beats }); break;
         case 'op': {
+          ops++;
           try {
             const r = await sceneOps(null, gameId, [lineOp(l)], { by: 'Assistant' });
             if (r.applied.length) {
@@ -756,6 +756,7 @@ async function runAssistant(run: any) {
           break;
         }
         case 'file': {
+          fileTries++;
           if (!codes) { note(`${l.path}: only editors can change scripts (ask the owner)`); break; }
           try {
             if (l.path === 'scene.json') throw new PortalError('the world changes as op lines, not as a file');
@@ -801,13 +802,16 @@ async function runAssistant(run: any) {
         if (rest) await apply(rest);
       }
       aiLog('run:job-ended', gameId, run.id, { status: job.status, lines, error: job.error ?? null });
-      // An answer with nothing in it is not paid for.
+      // An answer with nothing in it is not paid for; nor is one whose every change the game refused.
       if (job.status === 'done' && !lines && !reply) job = { ...job, status: 'failed', error: 'empty' };
+      else if (job.status === 'done' && wasRejected({ ops, applied: world.length, files: fileTries, filesDone: changed.length })) job = { ...job, status: 'failed', error: 'rejected' };
       await settle(job);
       state.ended = true;
       if (job.status !== 'done') {
+        await keepRaw(run, job.error === 'rejected' ? { ...rawError('apply', null, `game update rejected: ${problems.join('; ')}`), kind: 'rejected' } : rawError('gen-job', null, job.error ?? job.status));
+        if (job.error === 'rejected') aiLog('rejected', gameId, run.id, problems);
         const builtSome = world.length > 0 || changed.length > 0;
-        const why = builtSome ? whyNot(job).replace(' Nothing in your game changed, and the credits are back in your account.', ' What I had already built stays, and the credits are back in your account.') : whyNot(job);
+        const why = plainReason(job.status === 'cancelled' && !job.error ? 'cancelled' : classify(null, job.error), !builtSome);
         await chatMessage(gameId, null, 'ai', why, { error: true, retry: message, mention: mention ?? null, replyTo: run.asked, changed, world });
         await show({ k: 'end', ok: false, ops: world.length });
         return;
@@ -820,7 +824,7 @@ async function runAssistant(run: any) {
       await chatMessage(gameId, null, 'ai', problems.length ? `${text}\n\n(Notes: ${problems.join('; ')})` : text, { changed, deleted, world, assets: suggested, replyTo: run.asked, job: job.id, project: await projectOf(gameId) });
       await show({ k: 'end', ok: true, ops: world.length, files: changed.length });
     } catch (e: any) {
-      console.error(`[gameAssistant] game=${gameId} run=${run.id} step=run-error raw=`, e);
+      await keepRaw(run, rawError('run', e?.status, e?.message ?? e));
       state.ended = true;
       // Say only what is true: an answer Gen had already finished was paid for; anything else is given back.
       let charged = job?.status === 'done';
