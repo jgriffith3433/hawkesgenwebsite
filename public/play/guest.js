@@ -266,7 +266,7 @@
     const touring = () => { try { return H.game.events.quests.state('tour') === 'active'; } catch { return false; } };
 
     // The buttons that open the account side.
-    const acts = el(`<button type="button" class="primary" data-intent="save">Save this world</button><button type="button" class="opt" data-intent="build">Build your own</button><button type="button" class="opt" data-intent="invite">Invite a friend</button>`, 'gs-acts');
+    const acts = el(`<button type="button" class="primary" data-intent="save">Save this world</button><button type="button" class="opt" data-intent="build">Build your own</button><button type="button" class="opt" data-intent="invite" title="Make a link to your island and copy it">Copy invite link</button>`, 'gs-acts');
     acts.querySelectorAll('[data-intent]').forEach((b) => { b.onclick = () => { acts.classList.remove('open'); want(b.dataset.intent, 'button'); }; });
     session.acts = acts;
 
@@ -394,6 +394,12 @@
           // normal line queued behind a chatty island went stale or was dropped, and the second one never showed).
           say('Someone is coming.', 'important');
           say(`${d && d.name ? d.name : 'A friend'} is here.`, 'important');
+          // The welcome moment, seen as well as read: a card with their name, for a few seconds (once per arrival).
+          const who = d && d.name ? d.name : 'A friend';
+          const w = el(`<span>👋</span><b>${esc(who)} joined your island</b><span>They are beside you now.</span><button type="button" data-x aria-label="Close">✕</button>`, 'gs-glass gs-toast');
+          w.dataset.invite = 'welcome';
+          w.querySelector('[data-x]').onclick = () => w.remove();
+          setTimeout(() => w.remove(), 8000);
         });
       }
       shareLink(invited.link);
