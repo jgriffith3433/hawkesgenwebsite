@@ -1,1 +1,0 @@
-- lesson: "build failed" can be Studio credits — the beta failure said "out of credits", not a compile error; run `cd cloud/functions && npx tsc -p .` first, and if it passes, report that billing is the cause instead of changing code.
