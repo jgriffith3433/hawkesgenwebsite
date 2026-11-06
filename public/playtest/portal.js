@@ -22,6 +22,7 @@
 import { installPlaytest } from './hawkes-playtest.js';
 import { SITE_LAYOUT, runSiteLayout } from './site-layout.js';
 import { AVATAR_ANIMATIONS, runAvatarAnimations } from './avatar-animations.js';
+import { COMMUNITY_LIBRARY, runCommunityLibrary } from './community-library.js';
 import { WORLD_REPORT, runWorldReport } from './world-report.js';
 import { SERVER_LIMITS, runServerLimits } from './server-limits.js';
 
@@ -32,6 +33,7 @@ const ORDERS = { 'overseer-first-visit': ['landing', 'veil', 'firstvisit'], 'ove
 const SCENARIOS = [
   SITE_LAYOUT, // the landing page at three sizes (site-layout.js)
   AVATAR_ANIMATIONS, // clips as data on /avatars (avatar-animations.js)
+  COMMUNITY_LIBRARY, // the library: cards, loading, empty, 390px, no timer fetch (community-library.js)
   WORLD_REPORT, // report a world from its pause menu; a closed world loads nothing (world-report.js)
   SERVER_LIMITS, // sign-ins off the event loop, one play per reloads, the connection cap (server-limits.js)
   {
@@ -2666,6 +2668,7 @@ export function install() {
     async start(id, options, t) {
       if (id === SITE_LAYOUT.id) return runSiteLayout(t, options);
       if (id === AVATAR_ANIMATIONS.id) return runAvatarAnimations(t, options);
+      if (id === COMMUNITY_LIBRARY.id) return runCommunityLibrary(t, options);
       if (id === WORLD_REPORT.id) return runWorldReport(t, options);
       if (id === SERVER_LIMITS.id) return runServerLimits(t, options);
       if (id === 'observatory-wardrobe' && options.touch) options = { at: 'sandbox', ...options }; // (touch: straight to the island with the phone controls)
