@@ -123,9 +123,13 @@
       var about = document.getElementById('about');
       var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
       var isMobile = isIOS || /Android/i.test(navigator.userAgent) || ('ontouchstart' in window);
+      // Which guide to show is a question of the main pointer, not of whether touch events exist: a desktop browser (or a
+      // test browser with touch emulation) has 'ontouchstart' and must still read "A D or arrows", not "Drag to move".
+      var coarse = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
+      var wantTouch = /[?&]touch=1/.test(location.search) || (!/[?&]touch=0/.test(location.search) && (isIOS || /Android/i.test(navigator.userAgent) || coarse));
 
       var pre = document.getElementById('pre');
-      if (isMobile || /[?&]touch=1/.test(location.search) || (window.matchMedia && matchMedia('(pointer: coarse)').matches)) document.body.classList.add('touch');
+      if (wantTouch) document.body.classList.add('touch');
       function hidePre() { pre.classList.add('gone'); }
       // Capture phase: the Tap to play prompt stops Enter and Space before they bubble, and a script click has no pointerdown.
       ['pointerdown', 'click', 'touchend', 'keydown'].forEach(function (n) { window.addEventListener(n, hidePre, { once: true, capture: true }); });
@@ -232,6 +236,8 @@
       pickBuild().then(start).catch(function (e) {
         console.error('[Game] failed to start', e);
         window.HAWKES_GAME_ERROR = String((e && e.message) || e);
+        document.body.classList.add('no-prompt');
+        pre.classList.add('gone');
         banner('Sick of It could not load (' + window.HAWKES_GAME_ERROR.slice(0, 160) + '). Check your connection and try again.', 'error');
       });
 
