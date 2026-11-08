@@ -38,6 +38,8 @@
       box.material = m;
       box.parent = root;
       box.metadata = { entity: e };
+      // Only a builder sees the stand-in (it carries the "Make it with AI" card); a player never sees a wireframe box.
+      if (H.mode !== 'build') { box.isVisible = false; box.isPickable = false; }
       e._loaded = true;
       e.measure();
       return e;
@@ -216,7 +218,8 @@
     const at = opts.position ? vec(opts.position) : [Number(opts.x) || 0, Number(opts.y) || 0, Number(opts.z) || 0];
     try { t = new B.Texture(assetUrl(name, { at, size: height }), W.scene, false, true, W.pixelated || opts.pixel ? B.Texture.NEAREST_SAMPLINGMODE : B.Texture.TRILINEAR_SAMPLINGMODE); } catch (err) { if (!opts.lenient) throw err; e._waiting = name; }
     if (t) { t.hasAlpha = true; m.diffuseTexture = t; m.useAlphaFromDiffuseTexture = true; }
-    else { m.wireframe = true; }
+    else if (H.mode === 'build') { m.wireframe = true; }
+    else { plane.isVisible = false; } // not made yet: nothing to see while playing
     m.emissiveColor = new B.Color3(1, 1, 1);
     m.disableLighting = true;
     m.backFaceCulling = true; // the plane is two-sided already; both drawn at once, its mirrored back fights the front
@@ -372,7 +375,7 @@
     const e = new Entity(plane, o, 'video');
     e._mat = mat;
     let url = null;
-    try { url = assetUrl(sh.asset || ''); } catch { e._waiting = sh.asset || null; mat.wireframe = true; }
+    try { url = assetUrl(sh.asset || ''); } catch { e._waiting = sh.asset || null; if (H.mode === 'build') mat.wireframe = true; else plane.isVisible = false; }
     if (url) {
       const vt = new B.VideoTexture('video', url, W.scene, true, false, B.Texture.TRILINEAR_SAMPLINGMODE, { autoPlay: true, loop: sh.loop !== false, muted: true, autoUpdateTexture: true });
       mat.diffuseTexture = vt;
