@@ -86,6 +86,28 @@ async function oneSize(t, w, h, label) {
   if (requests === before) t.event('no-timer-fetch', `no request in 4 s of idleness at ${label}`);
   else bad.push(`${label}: ${requests - before} requests with nobody asking`);
 
+  // Every visible kind and shelf has a count above 0, and choosing it shows at least one card (3D models: real models or no tab).
+  const kindBtns = [...doc.querySelectorAll('#shelves button')];
+  const zero = kindBtns.filter((b) => Number((b.querySelector('.n') || {}).textContent) < 1).map((b) => b.textContent);
+  const zeroStats = [...doc.querySelectorAll('#stats div')].filter((d) => Number((d.querySelector('b') || {}).textContent) < 1).map((d) => d.textContent);
+  if (zero.length || zeroStats.length) bad.push(`${label}: counts of 0 are shown (${[...zero, ...zeroStats].join(', ')})`);
+  else t.event('no-zero-counts', `${kindBtns.length} shelf buttons and the stats all above 0 at ${label}`);
+  const hasModels = kindBtns.some((b) => b.dataset.kind === 'model' && !b.dataset.category);
+  t.event('models-kind', hasModels ? `3D models listed at ${label}` : `3D models kind hidden (no models) at ${label}`);
+  for (const b of kindBtns.filter((x) => x.classList.contains('kind') && x.dataset.kind)) {
+    b.click();
+    await t.until(() => $('#grid').dataset.state !== 'loading' && $('#grid').dataset.state, 15000, `kind ${b.dataset.kind}`);
+    const n = doc.querySelectorAll('#grid .card:not(.skel)').length;
+    if (n < 1) bad.push(`${label}: choosing ${b.dataset.kind} shows no item`);
+    else if (b.dataset.kind === 'model') {
+      const thumbs = doc.querySelectorAll('#grid .card .thumb img').length;
+      t.event('model-cards', `${n} models, ${thumbs} with thumbnails at ${label}`);
+      t.scene(`Library ${label}: 3D models`);
+    } else t.event('kind-has-items', `${b.dataset.kind}: ${n} cards at ${label}`);
+  }
+  [...doc.querySelectorAll('#shelves button')][0]?.click();
+  await t.until(() => $('#grid').dataset.state === 'ready', 15000, 'everything again');
+
   // Typing alone sends nothing; Enter sends one search and the empty state shows.
   const input = $('#q');
   input.focus();
