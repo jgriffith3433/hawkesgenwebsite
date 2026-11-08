@@ -153,7 +153,7 @@ textarea.form-input { resize: vertical; }
   .hg-navbar-inner, .bar { position: relative; }
   .site-menu-btn { display: inline-flex; gap: 6px; align-items: center; }
   .hg-nav-links { display: none; }
-  .hg-nav-links.open { display: flex; flex-direction: column; gap: 2px; position: absolute; top: 100%; left: 0; right: 0; padding: 8px 16px 12px; background: var(--surface); border-bottom: 1px solid var(--border); box-shadow: 0 12px 24px rgba(0,0,0,.12); z-index: 200; margin: 0; }
+  .hg-nav-links.open { display: flex; flex-direction: column; gap: 2px; position: absolute; top: 100%; left: 0; right: 0; padding: 8px 16px 12px; background: var(--surface); border-bottom: 1px solid var(--border); box-shadow: 0 12px 24px rgba(0,0,0,.12); z-index: 200; margin: 0; max-height: calc(100svh - 72px); overflow-y: auto; overscroll-behavior: contain; }
   .hg-nav-links.open a { padding: 12px; font-size: 15px; }
   .bar .grow { display: none; }
 }

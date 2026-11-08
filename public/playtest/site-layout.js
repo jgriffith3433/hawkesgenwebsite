@@ -9,11 +9,11 @@
 // Checks it makes itself (a failing one is a problem, and any horizontal scroll ends the run as an error): see "The
 // landing page checklist" in AGENTS.md. Screenshots and the review judge the rest (contrast, overlaps, how it looks).
 export const SITE_LAYOUT = {
-  id: 'site-layout', title: 'The landing page at 390x844, 768x1024 and 1440x900: the sky, a wish and its card, then the island, games and pricing sections, with a screenshot at each stage and a check for horizontal scroll', seconds: 150, tags: ['full'],
-  description: 'no sign-up, no game. For each size: the hero (scene "Site WxH: hero"), a wish typed with real key events and sent (the card: "Site WxH: wish card"), then scrolling to #island ("island"), #games ("games") and #pricing, a scene each. The checklist (AGENTS.md "The landing page checklist") is measured: headline readable, the Overseer not covered, the wish box usable, the header legible, no horizontal scroll (any, at any size, ends the run as an error). options: sizes (default ["390x844","768x1024","1440x900"]), wish (text), pages (false: skip Games, Library and Profile), frames (false: play in the browser\'s own window instead of an iframe per size)',
+  id: 'site-layout', title: 'The landing page at 390x844, 844x390 (a phone held sideways), 768x1024 and 1440x900: the sky, a wish and its card, then the island, games and pricing sections, with a screenshot at each stage and a check for horizontal scroll', seconds: 150, tags: ['full'],
+  description: 'no sign-up, no game. For each size: the hero (scene "Site WxH: hero"), a wish typed with real key events and sent (the card: "Site WxH: wish card"), then scrolling to #island ("island"), #games ("games") and #pricing, a scene each. The checklist (AGENTS.md "The landing page checklist") is measured: headline readable, the Overseer not covered, the wish box usable, the header legible, no horizontal scroll (any, at any size, ends the run as an error). options: sizes (default ["390x844","844x390","768x1024","1440x900"]), wish (text), pages (false: skip Games, Library and Profile), frames (false: play in the browser\'s own window instead of an iframe per size)',
 };
 
-const SIZES = ['390x844', '768x1024', '1440x900'];
+const SIZES = ['390x844', '844x390', '768x1024', '1440x900'];
 const SECTIONS = [['island', '#island'], ['games', '#games'], ['pricing', '#pricing']];
 
 export async function runSiteLayout(t, options = {}) {
@@ -144,6 +144,7 @@ async function oneSize(t, { w, h, label, wish, framed }) {
   t.scene(tag('hero'));
   t.event('hero-shown', `${label}, ${size().w}x${size().h}`);
   checkHero(win, doc, problem, t);
+  await tapChecks(t, win, doc, problem, label);
   const sideways = [];
   const sideways0 = overflowX(win, doc); if (sideways0) sideways.push(`hero ${sideways0}`);
 
@@ -191,6 +192,38 @@ async function oneSize(t, { w, h, label, wish, framed }) {
   const end = overflowX(win, doc); if (end) sideways.push(`top again ${end}`);
   if (stage) stage.remove();
   return sideways.concat(hard);
+}
+
+/** Touch: Play and the Menu are big enough, nothing covers them, and a touch tap on the Menu opens it (a real pointer sequence, then the click a browser makes). */
+async function tapChecks(t, win, doc, problem, label) {
+  const touch = (e, type) => { const r = e.getBoundingClientRect(), o = { bubbles: true, cancelable: true, pointerType: 'touch', pointerId: 7, isPrimary: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }; e.dispatchEvent(new win.PointerEvent(type, o)); };
+  const vw = doc.documentElement.clientWidth, vh = win.innerHeight;
+  const play = doc.querySelector('[data-play-now]');
+  if (!play) problem('bug', 'no Play button in the hero', true);
+  else {
+    const r = play.getBoundingClientRect(), top = doc.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    if (r.height < 44 || r.width < 44) problem('bug', `Play is ${Math.round(r.width)}x${Math.round(r.height)}: too small to tap`, true);
+    if (r.bottom > vh + 1 || r.right > vw + 1) problem('bug', `Play is off the first screen (${Math.round(r.bottom)} of ${vh})`, true);
+    else if (top && top !== play && !play.contains(top)) problem('bug', `something covers Play (${top.tagName.toLowerCase()})`, true);
+    else t.event('tap-play-reachable', `Play ${Math.round(r.width)}x${Math.round(r.height)} at ${label}, nothing over it`);
+  }
+  const menu = doc.querySelector('.site-menu-btn');
+  if (menu && menu.getBoundingClientRect().width > 0) {
+    const links = doc.querySelector('.hg-nav-links');
+    touch(menu, 'pointerdown'); touch(menu, 'pointerup'); menu.click();
+    await t.wait(300);
+    if (!links || !links.classList.contains('open')) problem('bug', 'a tap on Menu did not open it', true);
+    else {
+      t.event('tap-menu', `the Menu opened on a tap at ${label}`);
+      t.scene(`Site ${label}: menu open`);
+      for (const a of links.querySelectorAll('a')) {
+        const r = a.getBoundingClientRect();
+        if (r.height < 40) problem('bug', `menu link "${(a.textContent || '').trim()}" is ${Math.round(r.height)}px tall`, true);
+        if (r.bottom > vh + 1) { problem('warning', `the open menu runs past the screen's bottom at ${label} (${Math.round(r.bottom)} of ${vh}); it scrolls`); break; }
+      }
+      menu.click(); await t.wait(250);
+    }
+  }
 }
 
 /** Scrolls in steps (so the page's scroll-triggered reveals fire as they do for a person) until `el` is under the header. */

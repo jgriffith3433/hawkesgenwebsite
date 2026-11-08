@@ -74,6 +74,21 @@ body.landing.at-sky .site-menu-btn { color: #fff; border-color: rgba(255,255,255
   .sky h1 { max-width: 9em; }
   .sky-wish button { padding: 0 14px; }
 }
+/* a phone held sideways (844x390): the hero is one screen, text on the left, the Overseer on the right, cards under it */
+@media (max-height: 500px) and (orientation: landscape) {
+  .sky { min-height: 100svh; max-height: none; }
+  .sky-inner { min-height: 100svh; max-height: none; justify-content: flex-start; padding: 68px max(20px, env(safe-area-inset-right)) 20px max(20px, env(safe-area-inset-left)); }
+  .sky-eyebrow, .sky .lede { display: none; }
+  .sky h1 { font-size: 34px; max-width: 12em; margin-bottom: 14px; }
+  .sky .actions { margin-top: 0; gap: 10px; flex-wrap: nowrap; max-width: 440px; }
+  .sky .actions .btn-lg { padding: 10px 16px; flex: 1 1 0; min-width: 0; }
+  .sky .actions + .sky-wish { margin-top: 12px; max-width: 440px; }
+  .sky .fine { font-size: 12px; line-height: 1.4; margin-top: 10px; max-width: 440px; }
+  .sky-say { width: 240px; font-size: 14px; }
+  .sky-games .sky-inner { min-height: 0; padding-bottom: 40px; }
+  .sky-games h1 { font-size: 34px; }
+  .planets { max-width: none; }
+}
 /* a phone's first screen holds all of it: the Overseer, the headline, the wish box, its card and both buttons */
 @media (max-width: 560px) {
   .sky-inner { padding-left: 16px; padding-right: 16px; padding-bottom: 24px; }
