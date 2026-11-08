@@ -62,6 +62,18 @@
     #about .quote { font-style: italic; color: #ffb13d; }
     #about .meta { font-size: 12px; color: rgba(228,228,236,.55); }
     #about button { margin-top: 6px; font: 600 14px 'Inter', system-ui, sans-serif; color: #000; background: #ffb13d; border: 0; border-radius: 8px; padding: 9px 16px; cursor: pointer; }
+    /* Before the game starts: the premise and a controls guide, a compact strip pinned to the bottom. It never takes taps
+       (pointer-events none), so Tap to play underneath works; it leaves once the player first taps or presses a key. */
+    #pre { position: fixed; left: 0; right: 0; bottom: max(10px, env(safe-area-inset-bottom)); z-index: 1400; display: flex; flex-direction: column; align-items: center; gap: 6px;
+      padding: 0 12px; text-align: center; pointer-events: none; transition: opacity .4s ease; }
+    #pre.gone { opacity: 0; visibility: hidden; }
+    #pre .premise { font-size: 13px; line-height: 1.35; color: rgba(255,255,255,.88); max-width: 36ch; }
+    #pre .keys { font-size: 11px; line-height: 1.35; color: rgba(255,255,255,.6); max-width: 40ch; }
+    #pre .keys b { color: #ffb13d; font-weight: 600; }
+    #pre .touch { display: none; }
+    body.touch #pre .kbd { display: none; }
+    body.touch #pre .touch { display: block; }
+    @media (max-height: 420px) { #pre .premise { display: none; } }
   </style>
 </head>
 <body>
@@ -89,6 +101,11 @@
       <button type="button" id="aboutClose">Back to Hell</button>
     </div>
   </div>
+  <div id="pre" aria-label="How to play">
+    <p class="premise">Nobody asked me to chase the Overlord up 1,000 floors of Hell. Rewinding time is the only part that's fun.</p>
+    <p class="keys kbd"><b>A D</b> or arrows to move &middot; hold <b>R</b> to rewind</p>
+    <p class="keys touch">Drag to move &middot; hold to rewind</p>
+  </div>
   <noscript><p style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;background:#000">Sick of It needs JavaScript to play.</p></noscript>
   <script>
     (function () {
@@ -103,6 +120,12 @@
       var about = document.getElementById('about');
       var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
       var isMobile = isIOS || /Android/i.test(navigator.userAgent) || ('ontouchstart' in window);
+
+      var pre = document.getElementById('pre');
+      if (isMobile || /[?&]touch=1/.test(location.search) || (window.matchMedia && matchMedia('(pointer: coarse)').matches)) document.body.classList.add('touch');
+      function hidePre() { pre.classList.add('gone'); }
+      window.addEventListener('pointerdown', hidePre, { once: true });
+      window.addEventListener('keydown', hidePre, { once: true });
 
       function banner(msg, type) {
         var box = document.getElementById('unity-warning');
