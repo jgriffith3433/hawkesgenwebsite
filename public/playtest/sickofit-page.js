@@ -4,6 +4,7 @@ export const SICKOFIT_PAGE = {
   id: 'sickofit-page', title: 'Sick of It page: premise and controls guide before the game; nothing over the canvas or Tap to play at 390px; Tap to play starts it', seconds: 90, tags: ['full'],
   description: '/play/sickofit in a frame at 390x844 (touch) and 1440x900: the premise line and move/rewind guide (premise-shown, controls-shown), the strip clear of Tap to play (no-overlap), the loader, strip and prompt clear of each other (no-overlap, guide-on-top, tap-reachable), then a tap on Tap to play (tap-to-play-works). options: sizes',
 };
+const SHOT_MS = 2500;
 const rect = (e) => e.getBoundingClientRect();
 const hit = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 export async function runSickofitPage(t, options = {}) {
@@ -43,6 +44,10 @@ export async function runSickofitPage(t, options = {}) {
     if (onTop) t.event('guide-on-top', `${label}: premise and guide are drawn above the prompt (${fs(prem)}px / ${fs(ctl)}px text)`); else bad.push(`${label}: premise or guide hidden under another layer`);
     if (w < 500 && (fs(prem) < 14 || fs(ctl) < 14)) bad.push(`${label}: text under 14px (${fs(prem)} / ${fs(ctl)})`);
     t.scene(`Sick of It ${label}: before play`);
+    // The runner's screenshot for a scene is taken a moment after the event, not at it: hold still until it has been taken,
+    // or the picture shows what comes next (the tap's loading bar at 390; at 1440 the page behind this frame) and the
+    // premise, the guide and the prompt never appear in it.
+    await t.wait(SHOT_MS);
     // Every visible piece of the page against every other: the strip, the prompt's logo, button and caption, and what the
     // loader still draws (its bar and, only if the prompt failed, its title), the canvas being a full-screen backdrop that
     // only the prompt and this strip sit on. Nothing may overlap, and everything stays inside the window.
@@ -77,6 +82,7 @@ export async function runSickofitPage(t, options = {}) {
     const strip = d.getElementById('pre');
     if (strip && win.getComputedStyle(strip).display === 'none') t.event('guide-gone', `${label}: the premise and controls strip is display:none once the game starts`); else bad.push(`${label}: the premise/controls strip is still in the page after the game started`);
     t.scene(`Sick of It ${label}: after tap`);
+    await t.wait(SHOT_MS); // the frame stays up until the picture of the running game is taken
   }
   document.getElementById('pt-so-stage')?.remove();
   if (bad.length) { t.event('sickofit-failed', bad.join(' | ')); throw new Error(`sickofit: ${bad.join(' | ')}`); }

@@ -140,6 +140,14 @@
       // Capture phase: the Tap to play prompt stops Enter and Space before they bubble, and a script click has no pointerdown.
       ['pointerdown', 'click', 'touchend', 'keydown'].forEach(function (n) { window.addEventListener(n, hidePre, { once: true, capture: true }); });
 
+      // Until the game runs, no link on the page takes a tap anywhere: if hawkes-sound.js's prompt has a logo or wordmark that
+      // is a link, a tap on it only starts the game (the prompt's own handler still runs; we only cancel the navigation).
+      window.addEventListener('click', function (e) {
+        if (window.unityInstance || document.body.classList.contains('no-prompt')) return;
+        var a = e.target && e.target.closest && e.target.closest('a[href]');
+        if (a) e.preventDefault();
+      }, true);
+
       function banner(msg, type) {
         var box = document.getElementById('unity-warning');
         var div = document.createElement('div');
