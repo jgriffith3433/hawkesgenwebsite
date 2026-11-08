@@ -254,10 +254,12 @@
     else {
       // The voice clip is the two free-will lines, so it starts with them.
       later(5.8, () => { audio = voice(); if (audio) audio.play().catch(() => {}); });
-      later(3.0, () => say(LINES[0], 2.6));
+      // The greeting and the invitation have clips of their own (quality rule 6: no unvoiced story line): the desk plays them.
+      const spoken = (line, secs, clip) => OV.say(line, secs, { owner: 'intro', priority: 'important', voice: clip });
+      later(3.0, () => spoken(LINES[0], 2.6, 'overseer-found-your-way.mp3'));
       later(6.0, () => say(LINES[1], 3.0));
       later(9.2, () => say(LINES[2], 2.6));
-      later(12.1, () => say(LINES[3], 3.0));
+      later(12.3, () => spoken(LINES[3], 3.0, 'overseer-ask.mp3'));
     }
     let r = { skipped: true };
     try {

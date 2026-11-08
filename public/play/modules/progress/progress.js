@@ -133,6 +133,13 @@
     pr.s = Math.max(pr.s, m.level);
     keep();
     const o = H.overseer;
+    // The level happens in the world too (quality rule 6): a beam of light on the player, a fanfare, sparks.
+    try {
+      const p = G.player;
+      if (p && p.alive && o && o.beam) o.beam(p, { radius: 1.3, seconds: 1.6 });
+      if (G.hasAsset && G.hasAsset('level-up.mp3')) G.sound('level-up.mp3', { volume: 0.5 });
+      if (p && p.alive && G.burst) G.burst([p.x, p.y + 1.6, p.z], { color: '#ffd84a', count: 40, speed: 5, size: 0.22 });
+    } catch { /* the words still say it */ }
     if (o && o.speak) o.speak(m.text, null, 7, { priority: 'normal' });
     else if (H.chat && H.chat.line) H.chat.line({ kind: 'overseer', text: m.text });
     emit({ state: 'moment', level: m.level, text: m.text });

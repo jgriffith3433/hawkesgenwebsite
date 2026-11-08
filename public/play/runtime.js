@@ -789,9 +789,74 @@
     return plane;
   }
   function roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  /** Breaks a line into lines of about `max` characters at spaces (a speech bubble stays a bubble, not a 10 m banner). */
+  function wrapWords(str, max = 30) {
+    const out = [];
+    for (const para of String(str).split('\n')) {
+      let cur = '';
+      for (const word of para.split(/\s+/).filter(Boolean)) {
+        if (cur && cur.length + 1 + word.length > max) { out.push(cur); cur = word; } else cur = cur ? `${cur} ${word}` : word;
+      }
+      out.push(cur);
+    }
+    return out.join('\n');
+  }
+  /** A speaker's voice with no recording (quality rule 6: no silent character lines): a short babble, one blip per
+   *  syllable, its pitch and timbre this speaker's own (e.voice { pitch, wave, rate }, else picked from its name),
+   *  through the game's sound. Quiet when sound isn't running, the entity is `quiet`, or the player turned voices off. */
+  const VOICE_WAVES = ['triangle', 'sine', 'square', 'sawtooth'];
+  function babble(e, str) {
+    try {
+      if (!e || e.quiet || !audio || audio.state !== 'running') return 0;
+      const vol = H.speech && H.speech.settings ? Number(H.speech.settings.voice) : 1;
+      if (!(vol > 0)) return 0;
+      // Heard from where it is: full within 6 m of the view, gone past 36 m.
+      let near = 1;
+      const cam = W && W.scene && W.scene.activeCamera;
+      if (cam && e.node && e.node.getAbsolutePosition) near = Math.max(0, Math.min(1, 1 - (B.Vector3.Distance(cam.globalPosition || cam.position, e.node.getAbsolutePosition()) - 6) / 30));
+      if (!(near > 0)) return 0;
+      const out = audioApi.master;
+      if (!out) return 0;
+      let h = 0;
+      for (const ch of String(e.name || e.type || 'x')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+      const v = e.voice || {};
+      const pitch = Number(v.pitch) || 180 + (h % 9) * 35; // 180..460 Hz
+      const wave = VOICE_WAVES.includes(v.wave) ? v.wave : VOICE_WAVES[(h >> 4) % 2]; // soft by default
+      const rate = Number(v.rate) || 1;
+      const syl = Math.max(1, Math.min(14, (String(str).match(/[aeiouy]+/gi) || []).length));
+      const step = 0.085 / rate;
+      const t0 = audio.currentTime + 0.02;
+      const g = audio.createGain();
+      const f = audio.createBiquadFilter();
+      f.type = 'lowpass'; f.frequency.value = 2200;
+      g.gain.value = 0.07 * Math.min(1, vol) * near;
+      f.connect(g); g.connect(out);
+      let seed = h || 1;
+      const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+      const asks = /\?\s*$/.test(str);
+      for (let i = 0; i < syl; i++) {
+        const o = audio.createOscillator();
+        const env = audio.createGain();
+        o.type = wave;
+        const s = t0 + i * step;
+        const p = pitch * (0.85 + rnd() * 0.3) * (asks && i === syl - 1 ? 1.25 : 1);
+        o.frequency.setValueAtTime(p, s);
+        o.frequency.linearRampToValueAtTime(p * (0.9 + rnd() * 0.15), s + step * 0.8);
+        env.gain.setValueAtTime(0, s);
+        env.gain.linearRampToValueAtTime(1, s + 0.012);
+        env.gain.linearRampToValueAtTime(0, s + step * 0.8);
+        o.connect(env); env.connect(f);
+        o.start(s); o.stop(s + step);
+      }
+      setTimeout(() => { try { g.disconnect(); } catch { /* gone */ } }, (syl * step + 0.3) * 1000);
+      if (game && game.emit) game.emit('voiced', { who: e.name || null, kind: 'babble', syllables: syl });
+      return syl;
+    } catch { return 0; }
+  }
   function showBubble(e, str, seconds) {
     if (e._bubble) e._bubble.dispose();
-    const b = textPlane(str, { size: 0.32 });
+    babble(e, str);
+    const b = textPlane(wrapWords(str), { size: 0.32 });
     b.isPickable = false;
     b.metadata = { decor: true };
     b.parent = e.node;
