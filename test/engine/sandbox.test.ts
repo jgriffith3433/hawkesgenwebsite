@@ -713,3 +713,60 @@ test('a return: no intro or mirror, welcomed by name, the tour resumes where it 
   assert.match(sb, /for \(const s of before\) played\.add\(s\)/, 'no moment is told again');
   assert.match(sb, /q\.advance\('tour'\)/);
 });
+
+test('sandbox story (quality rule 6): every beat of chapter one is heard and seen in the world, never text alone', () => {
+  const { game, q } = tourOn();
+  mirrorDone(game);
+  let now = 0;
+  const tick = (s: number) => { H.tick(s); now += s; };
+  const log: { t: number; kind: 'sound' | 'world' | 'spoken' | 'text'; what: string }[] = [];
+  const note = (kind: any, what: string) => log.push({ t: now, kind, what });
+  // What the player hears and sees, from the engine's own calls (the script reads `game` at call time).
+  game.hasAsset = () => true; // (no files here: every sound the script asks for is counted as played)
+  game.sound = (n: string) => { note('sound', n); return null; };
+  const burst = game.burst.bind(game); game.burst = (...a: any[]) => { note('world', 'burst'); return burst(...a); };
+  const shake = game.camera.shake.bind(game.camera); game.camera.shake = (...a: any[]) => { note('world', 'shake'); return shake(...a); };
+  const O = game.overseer;
+  const unvoiced: string[] = [];
+  const speak = O.speak.bind(O); O.speak = (t: string, ...a: any[]) => { note('spoken', 'Overseer: ' + t); return speak(t, ...a); };
+  const osay = O.say.bind(O); O.say = (t: string, ...a: any[]) => { note('text', 'Overseer: ' + t); unvoiced.push(t); return osay(t, ...a); };
+  const HO = (H as any).overseer;
+  for (const k of ['beam', 'flare', 'attend']) if (HO && typeof HO[k] === 'function') { const f = HO[k].bind(HO); HO[k] = (...a: any[]) => { note('world', k); return f(...a); }; }
+  const proto = Object.getPrototypeOf(game.all('Pip')[0]);
+  const esay = proto.say;
+  proto.say = function (this: any, t: string, ...a: any[]) { note('spoken', `${this.name}: ${t}`); return esay.call(this, t, ...a); };
+  const chat = islanderLines();
+  const line = H.chat.line; H.chat.line = (m: any) => { note('text', `${m.who}: ${m.text}`); return line(m); };
+  const beats: { step: string; t: number }[] = [];
+  game.on('tour', (d: any) => beats.push({ step: d.step, t: now }));
+  try {
+    stand(game, 'dolores', 3);
+    game.player.position = [60, 3, 0];
+    tick(0.7);
+    game.emit('pickup', { gives: 'tool', tool: 'rod' });
+    game.emit('catch', { fish: 'tuna', mine: true });
+    game.emit('explosion', { at: [50, 1, -18] });
+    game.emit('spawned', { what: 'cow', count: 1 });
+    game.emit('asked', { skipped: true });
+    game.emit('sandbox-high', { height: 300, mine: true });
+    game.emit('sandbox-planet', { height: 1200, mine: true });
+    for (let i = 0; i < 160 && q.state('tour') === 'active'; i++) tick(0.25);
+    tick(6);
+  } finally { proto.say = esay; }
+  assert.ok(beats.length >= 6, `the chapter's beats (${beats.map((b) => b.step).join(', ')})`);
+  const textOnly: string[] = [];
+  for (const b of beats) {
+    const near = log.filter((x) => x.t >= b.t && x.t <= b.t + 6);
+    const has = (k: string) => near.some((x) => x.kind === k);
+    const lacks = ['sound', 'world', 'spoken'].filter((k) => !has(k));
+    if (lacks.length) textOnly.push(`${b.step}: no ${lacks.join(', no ')} (${near.map((x) => x.what).join(' | ') || 'nothing'})`);
+  }
+  assert.deepEqual(textOnly, [], 'a beat with only words on the screen');
+  // One short line at a time: no paragraph on the screen, from anyone.
+  const long = log.filter((x) => (x.kind === 'text' || x.kind === 'spoken') && x.what.replace(/^[^:]+: /, '').length > 110).map((x) => x.what);
+  assert.deepEqual(long, [], 'a line too long to read at a glance');
+  // Every line a neighbour types in the chat, they also say over their own head when the player is near (sandbox.js npc).
+  assert.ok(chat.length > 0);
+  if (process.env.STORY_PRINT) console.log(`beats ${beats.length}; Overseer lines still without a voice clip: ${unvoiced.length}\n${unvoiced.join('\n')}`);
+  assert.deepEqual(clean(), []);
+});

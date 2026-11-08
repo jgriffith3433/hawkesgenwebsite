@@ -58,15 +58,20 @@ const PLANET = { sphere: true, radius: 50000, biome: 'earth', seabed: -20 };
 // helipad and the barrels' beach cleared.
 const path_ = (from: number[], to: number[], step = 4) => { const out: number[] = []; const n = Math.ceil(Math.hypot(to[0] - from[0], to[1] - from[1]) / step); for (let i = 0; i <= n; i++) out.push(r2(from[0] + ((to[0] - from[0]) * i) / n), r2(from[1] + ((to[1] - from[1]) * i) / n)); return out; };
 const HELIPAD = [30, 30];
+// The Ridge Run's gates (the race, below): the scatter keeps its trees off them (painted ground gets none).
+const RIDGE: number[][] = [[46, 6], [52, 22], [34, 46], [0, 50], [-30, 42], [-52, 14], [-56, -14], [-40, -44], [-10, -52], [18, -46], [28, -26], [32, -6]];
+// Pip's hut stands on a level yard (its slope left it half buried uphill and floating downhill: quality rule 4).
+const HUT = [-20, 14];
 const TERRAIN = {
   shape: 'island', size: 260, height: 12, seed: 3, detail: 2,
   scatter: { trees: 26, rocks: 8, bushes: 6, seed: 3 },
-  add: [{ type: 'flat', at: HELIPAD, radius: 9, height: 6 }],
+  add: [{ type: 'flat', at: HELIPAD, radius: 9, height: 6 }, { type: 'flat', at: HUT, radius: 5.5, height: 5.75 }],
   edits: [
     ['paint', 2.4, 1, ...path_([2, 0], [24, -2]), ...path_([24, -2], [44, 2]), ...path_([44, 2], [60, 0])],
     ['paint', 2.2, 1, ...path_([14, -1], [28, 22])],
     ['paint', 6, 1, -20, 14],
     ['paint', 7, 1, ...HELIPAD],
+    ['paint', 5, 1, ...RIDGE.flat()],
   ],
 };
 let core: any = null;
@@ -122,7 +127,6 @@ const QUEST = {
 // the sea's level (water), so the pillars stand on it. Pip's `par` is the time to beat until you have your own.
 // (Lengths: Ridge Run ~330 m a lap in the 4x4 (top 32 m/s, bends and hills: ~21 s a lap); Harbour Run ~600 m a lap in the
 // speedboat (top 26 m/s: ~33 s a lap).)
-const RIDGE: number[][] = [[46, 6], [52, 22], [34, 46], [0, 50], [-30, 42], [-52, 14], [-56, -14], [-40, -44], [-10, -52], [18, -46], [28, -26], [32, -6]];
 const HARBOUR: number[][] = [[108, 0], [95, 46], [58, 80], [8, 92], [-42, 80], [-79, 46], [-92, 0], [-79, -46], [-42, -80], [8, -92], [58, -80], [95, -46]];
 const SEA_LEVEL = -1.5;
 export const RACES = {
@@ -185,7 +189,7 @@ export const SANDBOX = {
     add({ id: 'jeep', type: 'truck', name: '4x4', shape: { model: A.truck }, material: { color: '#3f7d3a' }, transform: { position: [4, r2(groundAt(4, 6.5) + 1.4), 6.5], rotation: [0, 90, 0] } });
     // Pip's hut and yard, up the slope behind the start.
     // (20 m from the start: its light copy shows there, the full one comes within 12 m, so the first view doesn't download it.)
-    add(model('hut', "Pip's hut", A.cottage, -20, 14, 6.5, { transform: yaw(125), shape: { lod: { distance: 12 } } }, -0.2));
+    add(model('hut', "Pip's hut", A.cottage, HUT[0], HUT[1], 6.5, { transform: yaw(125), shape: { lod: { distance: 12 } } }, -0.05));
     // (Small things show their light copy until you're close: lod.distance.)
     // (And cast no shadow: little things, a phone's shadow map has better things to draw.)
     const near = { lod: { distance: 7 } };
@@ -198,28 +202,33 @@ export const SANDBOX = {
     const pierY = 0.95;
     add(thing('dock', 'zone', 'Dock', [60, groundAt(60, 0) + 1, 0], { shape: { radius: 8, height: 4 } }));
     add(thing('pier', 'box', 'Pier', [73, pierY, 0], { shape: { size: [32, 0.3, 3.2] }, material: { color: '#efe2d0', texture: A.planks, tile: [10.7, 1] }, data: { surface: 'wood' } }));
-    [64, 68, 72, 76, 80, 84, 88].forEach((x) => [-1.5, 1.5].forEach((z, j) => add(thing(`post_${x}_${j}`, 'cylinder', 'Pier post', [x, pierY - 1.9, z], { shape: { radius: 0.16, height: 3.6 }, material: { color: '#8a6a4a', texture: A.oldWood, tile: [1, 2] }, instanced: true }))));
+    // Each post from under the deck down into the sand or the seabed under it (none floats over the seabed: quality rule 4).
+    [64, 68, 72, 76, 80, 84, 88].forEach((x) => [-1.5, 1.5].forEach((z, j) => {
+      const top = pierY - 0.15, bottom = Math.min(top - 0.5, groundAt(x, z) - 0.4), h = r2(top - bottom);
+      add(thing(`post_${x}_${j}`, 'cylinder', 'Pier post', [x, (top + bottom) / 2, z], { shape: { radius: 0.16, height: h }, material: { color: '#8a6a4a', texture: A.oldWood, tile: [1, Math.max(1, Math.round(h / 1.8))] }, instanced: true }));
+    }));
     add(model('lamp_a', 'Street lamp', A.lamp, 61, -2.4, 3.4, { transform: yaw(90) }));
     add(model('lamp_b', 'Street lamp', A.lamp, 61, 2.4, 3.4, { transform: yaw(90) }));
     add(thing('lantern', 'model', 'Lantern', [87.6, pierY + 0.45, 1.3], { shape: { asset: A.lantern, size: 0.6 }, body: { shape: 'box' }, shadow: false }));
     add(thing('sign_board', 'box', 'Sign', [58.5, groundAt(58.5, -3.6) + 1.5, -3.6], { shape: { size: [1.9, 0.75, 0.08] }, material: { color: '#d8b48a', texture: A.planks, tile: [1, 1] }, transform: yaw(-90) }));
-    add(thing('sign_post', 'cylinder', 'Sign post', [58.5, groundAt(58.5, -3.6) + 0.6, -3.66], { shape: { radius: 0.07, height: 1.25 }, material: { color: '#6b4a2f', texture: A.oldWood } }));
-    add(thing('sign_text', 'text', 'Sign words', [58.44, groundAt(58.5, -3.6) + 1.5, -3.6], { shape: { text: "PIP'S PIER\nfishing · boats", size: 0.2, billboard: false, color: '#3a2614' }, transform: yaw(90) }));
+    add(thing('sign_post', 'cylinder', 'Sign post', [58.62, groundAt(58.62, -3.6) + 0.75, -3.6], { shape: { radius: 0.07, height: 1.5 }, material: { color: '#6b4a2f', texture: A.oldWood } }));
+    add(thing('sign_text', 'text', 'Sign words', [58.44, groundAt(58.5, -3.6) + 1.5, -3.6], { shape: { text: "PIP'S PIER\nfishing · boats", size: 0.2, billboard: false, color: '#3a2614', background: false }, transform: yaw(90) }));
     // The catch board at Pip's pier: it lists your best catches (water's fishing.js), and E there opens the catch log.
     add(thing('catch_board', 'box', 'Catch board', [58.5, groundAt(58.5, 3.6) + 1.5, 3.6], { shape: { size: [1.9, 1.05, 0.08] }, material: { color: '#6b4a2f', texture: A.oldWood, tile: [1, 1] }, transform: yaw(-90), data: { catchBoard: true } }));
     // Chapter One's small things to notice (sandbox.js: E near them): the pier's hand-cut planks and the harbour desk's logbook.
-    add(thing('harbour_desk', 'box', "Harbour desk", [62.5, groundAt(62.5, 5.6) + 0.45, 5.6], { shape: { size: [1.3, 0.9, 0.75] }, material: { color: '#8a6a4a', texture: A.oldWood, tile: [1, 1] }, transform: yaw(90) }));
-    add(thing('logbook', 'box', 'Logbook', [62.5, groundAt(62.5, 5.6) + 0.95, 5.6], { shape: { size: [0.4, 0.07, 0.3] }, material: { color: '#3b2a1c' }, transform: yaw(90), shadow: false }));
+    add(thing('harbour_desk', 'box', "Harbour desk", [62.5, groundAt(62.5, 5.6) + 0.37, 5.6], { shape: { size: [1.3, 0.9, 0.75] }, material: { color: '#8a6a4a', texture: A.oldWood, tile: [1, 1] }, transform: yaw(90) }));
+    add(thing('logbook', 'box', 'Logbook', [62.5, groundAt(62.5, 5.6) + 0.855, 5.6], { shape: { size: [0.4, 0.07, 0.3] }, material: { color: '#3b2a1c' }, transform: yaw(90), shadow: false }));
     // The lore to find (journal.js: E near each; docs/story.md section 7): small objects, a few lines each, in the voice of whoever left them.
-    add(thing('lore_rock', 'box', 'Scratched rock', [40.5, groundAt(40.5, 28) + 0.3, 28], { shape: { size: [0.9, 0.6, 0.7] }, material: { color: '#8b8f96' }, transform: yaw(30), shadow: false }));
-    add(thing('lore_slip', 'box', 'Repair slip', [-38, groundAt(-38, -22) + 0.02, -22], { shape: { size: [0.3, 0.02, 0.42] }, material: { color: '#f1ead7' }, transform: yaw(20), shadow: false }));
-    add(thing('lore_chair', 'box', 'Beach chair', [53, groundAt(53, -5) + 0.3, -5], { shape: { size: [0.7, 0.12, 0.7] }, material: { color: '#e8c15a' }, transform: yaw(90), shadow: false }));
-    add(thing('lore_chair_back', 'box', 'Beach chair back', [53.3, groundAt(53, -5) + 0.7, -5], { shape: { size: [0.1, 0.8, 0.7] }, material: { color: '#e8c15a' }, transform: yaw(90), shadow: false }));
-    add(thing('lore_drawing', 'box', 'Faded drawing', [48.4, groundAt(48.4, -15.4) + 0.45, -15.4], { shape: { size: [0.06, 0.8, 0.6] }, material: { color: '#d8c9a3' }, transform: yaw(-20), shadow: false }));
-    add(thing('catch_board_post', 'cylinder', 'Board post', [58.5, groundAt(58.5, 3.6) + 0.5, 3.66], { shape: { radius: 0.07, height: 1.1 }, material: { color: '#6b4a2f', texture: A.oldWood } }));
+    add(thing('lore_rock', 'box', 'Scratched rock', [40.5, groundAt(40.5, 28) + 0.2, 28], { shape: { size: [0.9, 1, 0.7] }, material: { color: '#8b8f96' }, transform: yaw(30), shadow: false }));
+    add(thing('lore_slip', 'box', 'Repair slip', [-38, groundAt(-38, -22) + 0.05, -22], { shape: { size: [0.3, 0.02, 0.42] }, material: { color: '#f1ead7' }, transform: yaw(20), shadow: false }));
+        // A low lounger on the sand, its back on the sea side (it faces the land), the back resting on the seat.
+    add(thing('lore_chair', 'box', 'Beach chair', [53, groundAt(53, -5) + 0.02, -5], { shape: { size: [0.7, 0.12, 0.7] }, material: { color: '#e8c15a' }, shadow: false }));
+    add(thing('lore_chair_back', 'box', 'Beach chair back', [53.3, groundAt(53, -5) + 0.48, -5], { shape: { size: [0.1, 0.8, 0.7] }, material: { color: '#e8c15a' }, shadow: false }));
+    add(thing('lore_drawing', 'box', 'Faded drawing', [48.4, groundAt(48.4, -15.4) + 0.4, -15.4], { shape: { size: [0.06, 0.8, 0.6] }, material: { color: '#d8c9a3' }, transform: yaw(-20), shadow: false }));
+    add(thing('catch_board_post', 'cylinder', 'Board post', [58.62, groundAt(58.62, 3.6) + 0.75, 3.6], { shape: { radius: 0.07, height: 1.5 }, material: { color: '#6b4a2f', texture: A.oldWood } }));
     // The race board: the best times of the Ridge Run and Harbour Run on this device (modules/race: E reads it, the sign shows the top).
     add(thing('race_board', 'box', 'Race board', [58.5, groundAt(58.5, 7.6) + 1.5, 7.6], { shape: { size: [1.9, 1.05, 0.08] }, material: { color: '#6b4a2f', texture: A.oldWood, tile: [1, 1] }, transform: yaw(-90), data: { raceBoard: 'ridge' } }));
-    add(thing('race_board_post', 'cylinder', 'Board post', [58.5, groundAt(58.5, 7.6) + 0.5, 7.66], { shape: { radius: 0.07, height: 1.1 }, material: { color: '#6b4a2f', texture: A.oldWood } }));
+    add(thing('race_board_post', 'cylinder', 'Board post', [58.62, groundAt(58.62, 7.6) + 0.75, 7.6], { shape: { radius: 0.07, height: 1.5 }, material: { color: '#6b4a2f', texture: A.oldWood } }));
     add({ id: 'rod', type: 'tool-pickup', name: 'Fishing rod', shape: { tool: 'rod', respawn: 5 }, transform: { position: [86.5, pierY + 0.2, -0.4] } });
     add({ id: 'boat', type: 'boat', name: 'Speedboat', shape: { model: A.speedboat }, material: { color: '#e5e7eb' }, transform: { position: [73, -1.2, 4.4], rotation: [0, 90, 0] } });
     add(thing('duck', 'model', 'Rubber duck', [77, -1.35, -4], { shape: { asset: A.duck, size: 0.45 }, physics: 'dynamic', data: { density: 0.3 } }));
@@ -229,7 +238,7 @@ export const SANDBOX = {
     // The helipad on the hill, with the helicopter on it.
     const padY = groundAt(HELIPAD[0], HELIPAD[1]);
     add(thing('helipad', 'cylinder', 'Helipad', [HELIPAD[0], padY + 0.08, HELIPAD[1]], { shape: { radius: 5, height: 0.16 }, material: { color: '#9aa3ad', texture: A.plate, tile: [3, 3] }, data: { surface: 'metal' } }));
-    add(thing('helipad_h', 'text', 'Helipad mark', [HELIPAD[0], padY + 0.17, HELIPAD[1]], { shape: { text: 'H', size: 2.2, billboard: false, color: '#f4c430' }, transform: { rotation: [90, 90, 0] } }));
+    add(thing('helipad_h', 'text', 'Helipad mark', [HELIPAD[0], padY + 0.2, HELIPAD[1]], { shape: { text: 'H', size: 2.2, billboard: false, color: '#f4c430', background: false, zOffset: -2 }, transform: { rotation: [90, 90, 0] } }));
     add({ id: 'heli', type: 'helicopter', name: 'Helicopter', shape: { model: A.heli, modelLength: 10 }, material: { color: '#2b5fd9' }, transform: { position: [HELIPAD[0], r2(padY + 1.55), HELIPAD[1]], rotation: [0, 200, 0] } });
     // The rocket on its pad across the island (a toy for later: it reaches the Overseer).
     const rx = -38, rz = -30, ry = groundAt(rx, rz);
