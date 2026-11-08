@@ -521,6 +521,8 @@ void main(void) {
     const color = L.hex(opts.color || (O ? O.cfg.glow : DEFAULTS.glow), '#8fd8ff');
     const radius = clamp(num(opts.radius, 1.1), 0.3, 120);
     const seconds = Math.max(0.3, num(opts.seconds, 1.6));
+    // Heard as well as seen: a soft whoosh and hum where it lands (the site's own sound, runtime.js siteSound), if it has it.
+    if (opts.sound !== false) { try { if (H.lib && H.lib.siteSound) H.lib.siteSound('beam-down', { volume: 0.35, at: at0 }); } catch { /* silent beam */ } }
     const near = beamMesh(scene, 'ov-beam'), nm = beamMaterial(scene, true);
     near.material = nm;
     let far = null, fm = null;
@@ -834,6 +836,7 @@ void main(void) {
   };
   /** Where a line's voice is (a game's own asset first, else the community library's), or null. */
   function voiceUrl(name) {
+    if (typeof name === 'string' && name.startsWith('/play/audio/voice/')) return name; // a recorded line (runtime.js recordedLine)
     try { if (H.lib.hasAsset(name)) return H.lib.assetUrl(name); } catch { /* not this game's */ }
     const id = VOICES[name];
     if (id && H.lib.assetGone && H.lib.assetGone(id)) return null; // the library no longer has it: no request, no voice

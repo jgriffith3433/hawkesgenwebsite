@@ -82,6 +82,8 @@
 
   function begin(item) {
     const t = desk.clock();
+    // No clip named: its words recorded in its voice, if they were (runtime.js recordedLine: the site's voice files).
+    if (!item.voice && !item.external && H.lib && H.lib.recordedLine) { try { item.voice = H.lib.recordedLine('overseer', item.text) || undefined; } catch { /* words only */ } }
     const url = item.voice && H.overseer && H.overseer.voiceUrl ? H.overseer.voiceUrl(item.voice) : null;
     item.url = url;
     const voiced = audible(item);
