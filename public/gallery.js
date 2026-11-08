@@ -59,9 +59,10 @@ function renderFeatured(list) {
       <div class="planet-name">${escapeHtml(t.name)}</div>
       <div class="planet-live">${live ? `<span class="live-now"><i></i>${live}</span>` : '<span class="planet-by">by the Overseer</span>'}</div>
       <div class="planet-blurb">${escapeHtml((t.blurb || '').slice(0, 90))}${(t.blurb || '').length > 90 ? '…' : ''}</div>
-      <div class="actions"><button type="button" class="btn btn-play btn-sm" data-a="play">Play</button><button type="button" class="btn btn-ghostlight btn-sm" data-a="remix" title="Make your own copy to change">Remix</button></div>`;
+      <div class="actions"><button type="button" class="btn btn-play btn-sm" data-a="play">Play</button>${t.remix === false ? '' : '<button type="button" class="btn btn-ghostlight btn-sm" data-a="remix" title="Make your own copy to change">Remix</button>'}</div>`;
     for (const b of el.querySelectorAll('[data-a="play"]')) b.onclick = () => enterGame(t.url);
-    el.querySelector('[data-a="remix"]').onclick = () => remixIt({ template: t.id, title: t.name });
+    const rb = el.querySelector('[data-a="remix"]');
+    if (rb) rb.onclick = () => remixIt({ template: t.id, title: t.name });
     grid.appendChild(el);
   });
   const playing = list.reduce((n, t) => n + (t.playing || 0), 0) + games.reduce((n, g) => n + (g.playing || 0), 0);
