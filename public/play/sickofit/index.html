@@ -37,12 +37,15 @@
     body { font-family: 'Inter', system-ui, -apple-system, sans-serif; color: #e4e4ec; }
     #unity-container { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; background: #000; }
     #unity-canvas { width: 100%; height: 100%; display: block; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
-    #loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; z-index: 1500; pointer-events: none;
-      background: radial-gradient(ellipse at 50% 70%, rgba(150,20,10,0.35), transparent 60%), #000; transition: opacity .5s ease; }
+    /* The loader is only a thin bar along the top edge, above the "Tap to play" prompt (hawkes-sound.js: fixed, opaque,
+       z-index 8000, its logo, button and caption centred). Nothing of ours is drawn in the middle, so the loader can never
+       sit over that prompt. The big title shows only if the prompt could not load (body.no-prompt). */
+    #loading { position: absolute; inset: 0; z-index: 9000; pointer-events: none; transition: opacity .5s ease; }
     #loading.done { opacity: 0; }
-    #loading h1 { font-size: clamp(34px, 8vw, 72px); letter-spacing: .08em; font-weight: 900; color: #fff; text-shadow: 0 0 24px rgba(255,60,30,.55); }
-    #loading p { font-size: 14px; color: rgba(255,255,255,.7); max-width: 34ch; text-align: center; line-height: 1.5; padding: 0 16px; }
-    #bar { width: min(300px, 70vw); height: 8px; border-radius: 4px; background: rgba(255,255,255,.15); overflow: hidden; }
+    #loading h1 { display: none; position: absolute; left: 0; right: 0; top: 40%; text-align: center; font-size: clamp(34px, 8vw, 72px); letter-spacing: .08em; font-weight: 900; color: #fff; text-shadow: 0 0 24px rgba(255,60,30,.55); }
+    body.no-prompt #loading { background: radial-gradient(ellipse at 50% 70%, rgba(150,20,10,0.35), transparent 60%), #000; }
+    body.no-prompt #loading h1 { display: block; }
+    #bar { position: absolute; top: env(safe-area-inset-top); left: 0; right: 0; height: 4px; background: rgba(255,255,255,.12); overflow: hidden; }
     #bar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ff6a3d, #ffb13d); transition: width .3s ease; }
     #unity-warning { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 3000; max-width: 80%; }
     #unity-warning > div { background: rgba(220,40,40,.92); color: #fff; padding: 10px 18px; border-radius: 6px; margin: 5px 0; font-size: 14px; }
@@ -62,9 +65,10 @@
     #about .quote { font-style: italic; color: #ffb13d; }
     #about .meta { font-size: 12px; color: rgba(228,228,236,.55); }
     #about button { margin-top: 6px; font: 600 14px 'Inter', system-ui, sans-serif; color: #000; background: #ffb13d; border: 0; border-radius: 8px; padding: 9px 16px; cursor: pointer; }
-    /* Before the game starts: the premise and a controls guide, a compact strip pinned to the bottom. It never takes taps
-       (pointer-events none), so Tap to play underneath works; it leaves once the player first taps or presses a key. */
-    #pre { position: fixed; left: 0; right: 0; bottom: max(10px, env(safe-area-inset-bottom)); z-index: 1400; display: flex; flex-direction: column; align-items: center; gap: 6px;
+    /* Before the game starts: the premise and a controls guide, a compact strip pinned to the bottom, above the Tap to play
+       prompt (z-index 8000, opaque) so it is seen, in the band under that prompt's centred logo, button and caption. It never
+       takes taps (pointer-events none), so Tap to play works; it leaves once the player first taps or presses a key. */
+    #pre { position: fixed; left: 0; right: 0; bottom: max(10px, env(safe-area-inset-bottom)); z-index: 9000; display: flex; flex-direction: column; align-items: center; gap: 6px;
       padding: 0 12px; text-align: center; pointer-events: none; transition: opacity .4s ease; }
     #pre.gone { opacity: 0; visibility: hidden; }
     #pre .premise { font-size: 13px; line-height: 1.35; color: rgba(255,255,255,.88); max-width: 36ch; }
@@ -82,7 +86,6 @@
     <div id="loading" aria-live="polite">
       <h1>SICK OF IT</h1>
       <div id="bar"><i></i></div>
-      <p>1,000 floors of Hell. Same bullets, same screaming, same Overlord. The hero is not impressed. Rewind it.</p>
     </div>
     <div id="unity-warning"></div>
   </div>
@@ -124,8 +127,8 @@
       var pre = document.getElementById('pre');
       if (isMobile || /[?&]touch=1/.test(location.search) || (window.matchMedia && matchMedia('(pointer: coarse)').matches)) document.body.classList.add('touch');
       function hidePre() { pre.classList.add('gone'); }
-      window.addEventListener('pointerdown', hidePre, { once: true });
-      window.addEventListener('keydown', hidePre, { once: true });
+      // Capture phase: the Tap to play prompt stops Enter and Space before they bubble, and a script click has no pointerdown.
+      ['pointerdown', 'click', 'touchend', 'keydown'].forEach(function (n) { window.addEventListener(n, hidePre, { once: true, capture: true }); });
 
       function banner(msg, type) {
         var box = document.getElementById('unity-warning');
@@ -213,7 +216,7 @@
           errorHandler: function (message, filename, lineno) { console.error('Unity Error:', message, filename || '', lineno || ''); return true; }
         };
         // The sound prompt ("Tap to play", audio unlock) must run before Unity's loader makes its AudioContext.
-        return loadScript(base + 'hawkes-sound.js').catch(function (e) { console.warn('[Game] sound prompt not loaded', e); })
+        return loadScript(base + 'hawkes-sound.js').catch(function (e) { console.warn('[Game] sound prompt not loaded', e); document.body.classList.add('no-prompt'); })
           .then(function () { return loadScript(buildUrl + '.loader.js?v=' + v); })
           .then(function () {
             return createUnityInstance(canvas, config, function (p) { barFill.style.width = Math.round(100 * p) + '%'; });
