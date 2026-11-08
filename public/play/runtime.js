@@ -605,7 +605,8 @@
       else if (len > 0.01) this.wake();
       return this;
     }
-    jump(speed = 7) { if (!this.grounded) return false; this.vy = speed; this.grounded = false; this.standing = null; this.wake(); return true; }
+    // (A character that left the ground a moment ago without jumping, off a crest or an edge, may still jump: 0.15 s.)
+    jump(speed = 7) { if (!this.grounded && !(this._cc && this._cc.airT > 0 && this._cc.airT < 0.15 && this.vy <= 0.5)) return false; this.vy = speed; this.grounded = false; this.standing = null; this.wake(); return true; }
     push(v) { const p = vec(v); this.vx += p[0]; this.vy += p[1]; this.vz += p[2]; this.grounded = false; this.wake(); return this; }
     lookAt(t) { const p = posOf(t); this.node.rotation.y = Math.atan2(p[0] - this.x, p[2] - this.z); return this; }
     distanceTo(t) { const p = posOf(t); return Math.hypot(p[0] - this.x, p[1] - this.y, p[2] - this.z); }

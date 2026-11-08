@@ -75,6 +75,58 @@ test('the player stands, walks up a slope and climbs a step', () => {
   assert.ok(top > 0.25, `climbed onto the step (bottom ${top.toFixed(2)} on it)`);
 });
 
+/** A ramp rising along +z from z = 0 at `deg` degrees, 30 m long and 8 wide, on a big floor. */
+const rampAt = (deg: number) => { const r = deg * Math.PI / 180, len = 30; return { type: 'box', shape: { size: [8, 0.4, len] }, transform: { position: [0, Math.sin(r) * len / 2 - 0.2 * Math.cos(r), Math.cos(r) * len / 2], rotation: [-deg, 0, 0] } }; };
+const bigFloor = { type: 'box', shape: { size: [200, 1, 200] }, transform: { position: [0, -0.5, 0] } };
+
+test('landing from a jump on a slope is landing: walking on up it, down it or onto it, the player is on the ground again at once', () => {
+  for (const deg of [10, 20, 30, 40]) {
+    for (const way of ['up', 'down', 'onto']) {
+      const r = deg * Math.PI / 180;
+      const start = way === 'onto' ? [0, 0.1, -3] : [0, Math.tan(r) * 12 + 0.5, 12];
+      world(H, sceneOf({ floor: bigFloor, ramp: rampAt(deg), start: { type: 'spawn', transform: { position: start } } }), { game: { player: { speed: 6 } } });
+      const p = H.game.player; p.controls = false; p.position = start;
+      H.tick(0.6);
+      const dir = { x: 0, z: way === 'down' ? -1 : 1 };
+      H.game.onUpdate(() => p.walk(dir, 6));
+      // airborne while there's ground right under the feet: the capsule's bottom within 10 cm of the ramp or the floor
+      const groundUnder = () => { const z = p.z, onRamp = z > 0 && z < 30 * Math.cos(r); return Math.max(0, onRamp ? Math.tan(r) * z : 0); };
+      let jumped = false, stuck = 0, worst = 0, landedAt = -1;
+      for (let i = 0; i < 150; i++) {
+        if (i === 6) jumped = p.jump(8.5);
+        H.tick(1 / 60);
+        const near = p.bottom - groundUnder() < 0.1 && p.vy <= 0.5 + Math.tan(r) * 6.5;
+        if (i > 12 && near && !p.grounded) { stuck += 1 / 60; worst = Math.max(worst, stuck); } else stuck = 0;
+        if (i > 12 && landedAt < 0 && p.grounded) landedAt = i;
+      }
+      assert.ok(jumped, `${deg}° ${way}: jumped`);
+      assert.ok(landedAt > 0, `${deg}° ${way}: landed`);
+      assert.ok(worst <= 0.3, `${deg}° ${way}: never "in the air" on the ground for more than 0.3 s (${worst.toFixed(2)} s)`);
+      assert.ok(p.grounded, `${deg}° ${way}: on the ground at the end`);
+    }
+  }
+});
+
+test('walking down a steep slope keeps the feet on it (no hops), and a jump just after walking off an edge still jumps', () => {
+  world(H, sceneOf({ floor: bigFloor, ramp: rampAt(40), start: { type: 'spawn', transform: { position: [0, Math.tan(40 * Math.PI / 180) * 20 + 0.5, 20] } } }), { game: { player: { speed: 6 } } });
+  const p = H.game.player; p.controls = false;
+  H.tick(0.6);
+  H.game.onUpdate(() => p.walk({ x: 0, z: -1 }, 6));
+  let air = 0;
+  for (let i = 0; i < 150; i++) { H.tick(1 / 60); if (p.z > 1 && !p.grounded) air += 1 / 60; }
+  assert.ok(air < 0.05, `down a 40° slope at 6 m/s: ${air.toFixed(2)} s off the ground`);
+  // a ledge: walk off it and press jump 0.08 s later
+  const ledge = { type: 'box', shape: { size: [6, 2, 6] }, transform: { position: [40, 1, 0] } };
+  world(H, sceneOf({ floor: bigFloor, ledge, start: { type: 'spawn', transform: { position: [40, 2.1, 0] } } }), { game: { player: { speed: 6 } } });
+  const q = H.game.player; q.controls = false;
+  H.tick(0.5);
+  H.game.onUpdate(() => q.walk({ x: 1, z: 0 }, 6));
+  let left = -1, jumped = false;
+  for (let i = 0; i < 90 && !jumped; i++) { H.tick(1 / 60); if (left < 0 && q.x > 43.2 && !q.grounded) left = i; if (left >= 0 && i === left + 5) jumped = q.jump(8.5); }
+  assert.ok(left >= 0, 'walked off the ledge');
+  assert.ok(jumped, 'a jump just after the edge still jumps');
+});
+
 test('the player rides a moving platform', () => {
   world(H, sceneOf({
     floor,

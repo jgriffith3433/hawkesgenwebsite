@@ -305,6 +305,30 @@ own GLB clips.
 - **Cost:** a bone is three quaternion products; ten walking characters are about 0.3 ms of animation a frame in Node, out of
   view nothing is sampled, and the data adds no draw calls or triangles (`test/engine/anim.test.ts`).
 
+### Landing and strides (feet that stay put)
+
+J, 2026-11-08: "when jumping and landing on slopes it never understands to go to the landed state and go back to walking", and
+walks into runs "look like they are sliding on the ground".
+- **On the ground, on a slope** (`public/play/physics.js` `stepCharacter`): the controller is supported when Havok says so and
+  the body's vertical speed is no more than the slope asks for at that horizontal speed (walking uphill rises by
+  `-(n.x vx + n.z vz) / n.y`, so it never reads as still in the air). Walking off a crest or down a steep slope, a short shape cast
+  (`snapDown`, 0.35 m) puts the body back on walkable ground the same step. A jump within 0.15 s of leaving the ground without
+  jumping still jumps (`runtime.js` `jump`, the coyote time).
+- **Landing is a moment** (`presence-anim.js`): the `land` one-shot (1.27 s in the Mixamo set) ends after `LAND_HOLD` (0.18 s)
+  once the body is walking or running (over `LAND_MOVING`, 0.6 m/s) or leaves the ground again; standing, it plays out.
+- **One gait layer** (`LOCO`): walk, trot and run play as one loop, the two gaits either side of the speed blended by weight, on
+  one cycle that runs at the speed the registry stride says (`gaitsOf`, `locoLoop`; each clip starts at its first left
+  footfall, `footfall`), so the feet of both gaits land together and the cycle never jumps. Rate clamped to `LOCO_MAX_RATE`.
+- **The procedural person** (`presence-person.js`, `presence-core.js` `strideHz`, `strideAngle`, `strideAmp`): the legs swing
+  about the vertical (the body's lean is taken off them) on their own clock. In the stance, sin(hip angle) falls in a straight
+  line, so the foot goes back under the body at exactly the ground speed; the cycle is as quick as that needs (`strideHz`), a
+  walk keeps a foot down half the time and a run 0.35. The leg's reach is measured along the stride (`legLength`), so a short,
+  tall, wide or tiny body strides by its own legs; a short leg may beat quicker (`strideMaxHz`, as 1 / sqrt(length)) and open
+  wider (`strideAmp`, up to `STRIDE.maxAmp`) before its foot would skate.
+- **Seen by:** `P.motion()` (what the body shows: airborne, landing, the clip role and gait, each sole and whether it is planted),
+  the engine tests (`runtime.test.ts` "landing from a jump on a slope", "walking down a steep slope"; `person.test.ts` "the
+  planted foot stays put" for every shape; `anim.test.ts` "a landing is a moment"), and the playtest `character-motion`.
+
 ### Never in the rest pose (the orb)
 
 A model is built the moment its GLB is in, but its class's file (`anim/<class>.json`) is a separate fetch. A body is never drawn between
