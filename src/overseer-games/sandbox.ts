@@ -95,7 +95,8 @@ const yaw = (deg: number) => ({ rotation: [0, deg, 0] });
 
 // ------------------------------------------------------------------ the quest line: Pip shows the island
 const QUEST = {
-  id: 'tour', title: 'The island', giver: 'Pip', auto: false,
+  // quiet: Pip, the arrow and the tracker tell it; no quest banner or step toast on top (quality rule 6).
+  id: 'tour', title: 'The island', giver: 'Pip', auto: false, quiet: true,
   text: "Hi, I'm Pip! The Overseer just beamed you onto the best island on the whole planet. Want the tour? It's mostly things that go fast and things that go boom.",
   lines: { accept: "Follow the arrow! I'll wait right here.", progress: 'Keep going, the arrow knows the way!', done: 'You saw everything. Now the planet is yours.', decline: 'Explore first, then come back to me!' },
   steps: [

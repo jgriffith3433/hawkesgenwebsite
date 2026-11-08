@@ -14,8 +14,20 @@ const overseer = (text, seconds = 5, voice = null) => {
   if (voice && game.overseer && game.overseer.speak) game.overseer.speak(text, voice, seconds);
   else if (game.overseer && game.overseer.say) game.overseer.say(text, seconds);
 };
-// A neighbour's line in the chat window (text only, like islanders.js), for a quest's beat.
-const npc = (who, color, text) => { if (H && H.chat && H.chat.line) H.chat.line({ kind: 'npc', who, text, color, keep: 14 }); game.emit('beat', { who, text }); };
+// A neighbour's line, for a quest's beat: in the chat window, and over the neighbour in their own voice when they are
+// near enough to be seen (quality rule 6: characters speak in the world, not only in a log).
+const neighbour = (who) => {
+  const C = window.__islanders && window.__islanders.CAST;
+  const id = C && Object.keys(C).find((k) => C[k].who === who);
+  const e = id && game.find ? game.find(id) : null;
+  return e && e.alive ? e : null;
+};
+const npc = (who, color, text) => {
+  if (H && H.chat && H.chat.line) H.chat.line({ kind: 'npc', who, text, color, keep: 14 });
+  const e = neighbour(who), p = game.player;
+  if (e && e.say && p && Math.hypot(e.x - p.x, e.z - p.z) < 30) { try { if (e.lookAt) e.lookAt(p); e.say(text, Math.min(8, 2.5 + text.length / 18)); } catch { /* the chat line stands */ } }
+  game.emit('beat', { who, text });
+};
 const confetti = () => {
   const p = game.player;
   if (!p) return;
@@ -171,16 +183,16 @@ game.onStart(() => {
 // The Overseer speaks each moment (the community library's Overseer voice, by name), and its words show as a caption.
 // "Do with it what you will" is the beginning's alone: said once, in the intro.
 const MOMENTS = {
-  drive: { sound: 'level-up.mp3', pip: 'You made it! That was Gravel Road, I named it just now. The rod is at the end of the pier. Hold click to cast, click when the bobber dips.', overseer: 'You found your way. Good.', voice: 'overseer-found-your-way.mp3' },
-  fish: { sound: 'power-up.mp3', npc: ['Admiral Bobbin', '#facc15', 'Fine cast. Eight out of ten. The two is for the wind, which I take personally.'], pip: 'A fish! Here, take the rocket launcher. See the barrels up the beach? Go on.', overseer: 'The sea gives. Remember that.', voice: 'overseer-the-sea-gives.mp3', give: ['rocket-launcher'] },
-  boom: { sound: 'level-up.mp3', npc: ['Channel', '#7dd3fc', 'Breaking: BOOM, live from the beach. Eyewitnesses: one. Ratings: record.'], pip: 'BOOM! Goodbye, Barrel! Goodbye, Other Barrel! Now ask the Overseer for something: hold Q and pick anything.', overseer: 'Destruction is a kind of freedom too.', voice: 'overseer-destruction.mp3' },
+  drive: { sound: 'level-up.mp3', pip: 'You made it! I just named that Gravel Road. The rod is at the end of the pier.', overseer: 'You found your way. Good.', voice: 'overseer-found-your-way.mp3' },
+  fish: { sound: 'power-up.mp3', npc: ['Admiral Bobbin', '#facc15', 'Fine cast. Eight out of ten. The two is for the wind, which I take personally.'], pip: 'A fish! Take the rocket launcher. Barrels, up the beach. Go on!', overseer: 'The sea gives. Remember that.', voice: 'overseer-the-sea-gives.mp3', give: ['rocket-launcher'] },
+  boom: { sound: 'level-up.mp3', npc: ['Channel', '#7dd3fc', 'Breaking: BOOM, live from the beach. Eyewitnesses: one. Ratings: record.'], pip: 'BOOM! Goodbye, Barrel! Now ask the Overseer for anything.', overseer: 'Destruction is a kind of freedom too.', voice: 'overseer-destruction.mp3' },
   // (The Overseer's "Ask, and I will send it down" is said when they first hold Q: below.)
-  spawn: { sound: 'teleport.mp3', pip: 'It came from the Overseer! It listens, too: tell it what you want in the chat. Anything!' },
+  spawn: { sound: 'teleport.mp3', pip: 'It came from the Overseer! Tell it what you want. Anything!' },
   // The Overseer in the chat: what you ask for, it makes (on the player's credits). Its answer is in the chat too.
-  ask: { sound: 'teleport.mp3', npc: ['Mrs Ember', '#fb923c', 'A letter came for the new one, dear. It says: mind the third plank, it sticks. That is all. Sorry.'], pip: 'It heard you! Now go up the hill. Dolores lives there. Say hello, she pretends she does not mind.', overseer: 'I heard you. Watch the sky.' },
+  ask: { sound: 'teleport.mp3', npc: ['Mrs Ember', '#fb923c', 'A letter came for the new one, dear. It says: mind the third plank, it sticks. That is all. Sorry.'], pip: 'It heard you! Now up the hill. Say hi to Dolores.', overseer: 'I heard you. Watch the sky.' },
   // Quest 6: the hill. Dolores was not waiting. The reward is the view and the pad (a beam on the helicopter).
-  hill: { sound: 'power-up.mp3', npc: ['Dolores', '#4ade80', 'I was not waiting. The pad is free. Use it. I will not watch.'], pip: 'Told you! She likes you. The helicopter is right there on the pad. Go up, way up.', seconds: 5, pad: true },
-  fly: { sound: 'victory.mp3', pip: 'Look down! That speck in the sea is our island. The spawn gun and the gravity gun are yours too.', overseer: 'That is your world. All of it.', voice: 'overseer-your-world.mp3', seconds: 6, give: ['spawn-gun', 'gravity-gun'] },
+  hill: { sound: 'power-up.mp3', npc: ['Dolores', '#4ade80', 'I was not waiting. The pad is free. Use it. I will not watch.'], pip: 'Told you she likes you. Take the helicopter. Way up!', seconds: 5, pad: true },
+  fly: { sound: 'victory.mp3', pip: 'Look down! That speck is our island. The spawn and gravity guns are yours.', overseer: 'That is your world. All of it.', voice: 'overseer-your-world.mp3', seconds: 6, give: ['spawn-gun', 'gravity-gun'] },
   // Quest 8: the launch pad. Rolo's rocket goes up; the planet is whole and the Overseer's bay is lit on its hull, far off and open.
   launch: { sound: 'victory.mp3', npc: ['Rolo', '#22d3ee', 'huh. it flew. that is fine. that is mostly fine.'], pip: "Huh. That's new.", overseer: 'It is yours, if you come.', seconds: 6, bay: true },
 };
@@ -201,6 +213,15 @@ game.on('tour', (d) => {
   if (m.bay) game.after(1, () => game.emit('bay-lit', { far: true }));
   if (m.overseer) game.after(m.bay ? 3.2 : 1.4, () => overseer(m.overseer, m.seconds || 5, m.voice));
   if (m.give && game.mayhem && game.mayhem.giveTool) game.after(1, () => { for (const t of m.give) game.mayhem.giveTool(t); });
+});
+
+// The bay lights up: the chapter's climax happens in the sky, not only in words. The ship turns its open bay toward the
+// player, its seams and halo flare twice, the beam's sound, and the ground hums under them (quality rule 6).
+game.on('bay-lit', () => {
+  const O = H && H.overseer;
+  try { if (O && O.attend) O.attend(25); if (O && O.flare) { O.flare(1.5); game.after(0.9, () => O.flare(1.2)); } } catch { /* the words still say it */ }
+  sfx('teleport.mp3', { volume: 0.6 });
+  game.camera.shake(0.05, 0.6);
 });
 
 // ------------------------------------------------------------------ a return: the tour picks up where it stopped
@@ -504,15 +525,15 @@ game.every(0.5, () => {
 
 // ------------------------------------------------------------------ Pip notices when you have stopped getting anywhere
 const NUDGES = {
-  drive: 'The path goes east, to the dock. The 4x4 is faster: press E at it.',
-  rod: 'The rod is at the very end of the pier. Walk right into it.',
-  fish: 'Hold click to cast the rod out into the sea. Wait for the bobber to dip.',
-  boom: 'The fuel barrels are up the beach. Switch to the rocket launcher and fire!',
-  spawn: 'Hold Q and pick anything. The Overseer will beam it down.',
-  ask: 'Type what you want in the chat. Anything at all!',
-  hill: 'Up the slope past my hut, to the helipad. Dolores is the cactus. She will say she was not waiting.',
-  launch: "Rolo's rocket is on the pad across the island. E to fill it, E to get in, hold SPACE.",
-  fly: 'The helicopter is on the hill. Get in and keep going up.',
+  drive: 'The dock is east. Follow the light!',
+  rod: 'The rod is at the very end of the pier!',
+  fish: 'Cast it out and wait for the dip.',
+  boom: 'Barrels! Up the beach, in the light.',
+  spawn: 'Ask the Overseer. It is listening.',
+  ask: 'Tell it what you want. Anything at all!',
+  hill: 'Up past my hut. Dolores is waiting. She will deny it.',
+  launch: "Rolo's rocket! Across the island, on the pad.",
+  fly: 'The helicopter is on the hill. Up, up!',
 };
 const NUDGE_AFTER = 30; // seconds on one step
 const nudged = (window.__islandNudged = window.__islandNudged || new Set());
@@ -522,7 +543,11 @@ game.every(1, () => {
   if (step !== nudgeStep) { nudgeStep = step; nudgeSince = game.time; return; }
   if (!step || nudged.has(step) || game.time - nudgeSince < NUDGE_AFTER || !NUDGES[step]) return;
   nudged.add(step);
-  say(`${NUDGES[step]} Stuck? ${H && H.touchUi ? 'Tap Stuck?' : 'Press R'} and I'll get you back.`, 7);
+  // Shown, not told (quality rule 6): the Overseer's light points at the place, and Pip says one short line (the
+  // tracker keeps the controls; R or Stuck? is on it).
+  const goal = NAMES[step] && game.all(NAMES[step]).find((e) => e.alive);
+  try { if (goal && H && H.overseer && H.overseer.beam) H.overseer.beam(goal, { radius: 2, seconds: 2.5 }); } catch { /* the words still say it */ }
+  say(NUDGES[step], 5);
   game.emit('nudge', { step });
 });
 
