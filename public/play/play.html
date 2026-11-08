@@ -552,6 +552,24 @@
           if (now - last < 700) { last = 0; pause(); } else last = now;
         }, true);
       })();
+      // Studio's world-quality playtest (public/playtest/world-quality.js) asks this page for the world audit (public/play/
+      // world-audit.js: words the right way round, no faces fighting, nothing inside out, nothing floating or sunk), the same
+      // one the repo's tests run. Like the report bridge above: only a browser under automation, only to its parent, read only.
+      if (navigator.webdriver && window.parent !== window) window.addEventListener('message', function (e) {
+        var m = e.data;
+        if (e.source !== window.parent || !m || m.hawkesPlaytest !== 'audit') return;
+        var answer = function (r) { window.parent.postMessage({ hawkesPlaytest: 'audit-state', result: r }, '*'); };
+        var go = function () {
+          try { answer(window.HawkesPlay && window.HawkesPlay.world ? window.HawkesWorldAudit.audit(window.HawkesPlay, m.options || {}) : { error: 'no world yet' }); }
+          catch (err) { answer({ error: String((err && err.message) || err) }); }
+        };
+        if (window.HawkesWorldAudit) return go();
+        var s = document.createElement('script');
+        s.src = '/play/world-audit.js';
+        s.onload = go;
+        s.onerror = function () { answer({ error: 'the audit did not load' }); };
+        document.head.appendChild(s);
+      });
       // The game and the engine at once; the engine brings only the modules this game uses (the rest come after).
       var bundle = fetch(tpl ? '/v1/play-template/' + encodeURIComponent(tpl) : '/v1/play/' + encodeURIComponent(slug) + v).then(function (r) {
         return r.json().then(function (b) { if (!r.ok) throw new Error(b.error || 'Could not load this game'); return b; });

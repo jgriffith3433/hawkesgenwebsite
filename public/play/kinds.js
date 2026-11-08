@@ -209,7 +209,7 @@
 
   function sprite(name, opts = {}) {
     const height = Number(opts.size) || 1;
-    const plane = B.MeshBuilder.CreatePlane(`sprite:${name}`, { width: 1, height: 1, sideOrientation: B.Mesh.DOUBLESIDE }, W.scene);
+    const plane = B.MeshBuilder.CreatePlane(`sprite:${name}`, { width: 1, height: 1, sideOrientation: B.Mesh.DOUBLESIDE, frontUVs: new B.Vector4(0, 0, 1, 1), backUVs: new B.Vector4(1, 0, 0, 1) }, W.scene);
     const e = new Entity(plane, { physics: 'none', ...opts }, 'sprite');
     const m = new B.StandardMaterial('sprite', W.scene);
     let t = null;
@@ -219,7 +219,7 @@
     else { m.wireframe = true; }
     m.emissiveColor = new B.Color3(1, 1, 1);
     m.disableLighting = true;
-    m.backFaceCulling = false;
+    m.backFaceCulling = true; // the plane is two-sided already; both drawn at once, its mirrored back fights the front
     if (opts.color) m.emissiveColor = hex(opts.color);
     plane.material = e._mat = m;
     e._tex = t;
@@ -364,7 +364,7 @@
   /** A screen playing a video asset (muted until clicked: browsers only allow sound after a click). */
   function screen(sh, o) {
     const w = Number(sh.width) || 3.2, h = Number(sh.height) || w * 9 / 16;
-    const plane = B.MeshBuilder.CreatePlane('video', { width: w, height: h, sideOrientation: B.Mesh.DOUBLESIDE }, W.scene);
+    const plane = B.MeshBuilder.CreatePlane('video', { width: w, height: h, sideOrientation: B.Mesh.DOUBLESIDE, frontUVs: new B.Vector4(0, 0, 1, 1), backUVs: new B.Vector4(1, 0, 0, 1) }, W.scene);
     const mat = new B.StandardMaterial('video', W.scene);
     mat.disableLighting = true;
     mat.emissiveColor = new B.Color3(1, 1, 1);
@@ -429,7 +429,8 @@
       surface.computeWorldMatrix(true);
       const n = B.Vector3.TransformNormal(new B.Vector3(0, 0, -1), surface.getWorldMatrix()).normalize();
       tex.mirrorPlane = B.Plane.FromPositionAndNormal(surface.getAbsolutePosition(), n.scale(-1));
-      const all = W.scene.meshes.filter((x) => x !== surface && x.isEnabled() && x.isVisible);
+      // (Not the words: bubbles and names face the player's camera, so the glass would only show their backs, mirrored: quality rule 1.)
+      const all = W.scene.meshes.filter((x) => x !== surface && x.name !== 'text' && x.isEnabled() && x.isVisible);
       if (!e._mirrorFast) { tex.renderList = all; return; }
       const c = surface.getAbsolutePosition(), reach = phone ? 12 : 24;
       tex.renderList = all.filter((x) => { const bs = x.getBoundingInfo && x.getBoundingInfo().boundingSphere; return !bs || B.Vector3.Distance(bs.centerWorld, c) - bs.radiusWorld < reach; });
@@ -588,7 +589,7 @@
   H.kinds.register('text', {
     physics: 'none',
     maker: (str, o = {}) => text(str, o),
-    build: (sh, o, spec) => text(sh.text ?? (spec && spec.name) ?? 'Text', { ...o, size: Number(sh.size) || 0.5, color: spec ? spec.material && spec.material.color : o.color, billboard: sh.billboard, background: sh.background }),
+    build: (sh, o, spec) => text(sh.text ?? (spec && spec.name) ?? 'Text', { ...o, size: Number(sh.size) || 0.5, color: (spec && spec.material && spec.material.color) || sh.color || o.color, billboard: sh.billboard, background: sh.background, zOffset: sh.zOffset }),
     editor: { word: 'a sign', lift: () => 1.2, hotbar: [{ order: 80, icon: 'T', label: 'Sign', make: () => ({ type: 'text', name: 'Sign', shape: { text: 'Hello!', size: 0.5 } }) }] },
     codex: {
       group: 'World', what: 'A floating sign. Instructions, names, scores, jokes.',

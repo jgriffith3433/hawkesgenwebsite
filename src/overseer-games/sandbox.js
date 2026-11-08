@@ -852,7 +852,7 @@ function challenge(why) {
   if (raced.challenged || game.mode !== 'play' || !game.race) return;
   raced.challenged = true;
   const ridge = game.race.courses.find((c) => c.id === 'ridge');
-  say(`See the lights by the dock? Race me! Three laps round the hills in the 4x4${ridge && ridge.par ? `, and my time is ${nice(ridge.par)}` : ''}. The speedboat has its own!`, 8);
+  say(`Race me! Three laps in the 4x4 from the lights by the dock${ridge && ridge.par ? `. Beat ${nice(ridge.par)}` : ''}!`, 7);
   game.emit('race-challenge', { why });
 }
 // Near a start gate, or the tour done: Pip's challenge, once.

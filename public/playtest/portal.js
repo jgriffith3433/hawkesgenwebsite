@@ -28,6 +28,7 @@ import { SICKOFIT_PAGE, runSickofitPage } from './sickofit-page.js';
 import { WORLD_REPORT, runWorldReport } from './world-report.js';
 import { SERVER_LIMITS, runServerLimits } from './server-limits.js';
 import { CHARACTER_MOTION, runCharacterMotion } from './character-motion.js';
+import { WORLD_QUALITY, runWorldQuality } from './world-quality.js';
 
 const KEY = 'hg_playtest_run';
 const STAGES = ['landing', 'veil', 'intro', 'firstvisit', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'phoneperf', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'answer', 'progress', 'models', 'wish', 'toeditor', 'editor', 'react', 'motion'];
@@ -42,6 +43,7 @@ const SCENARIOS = [
   WORLD_REPORT, // report a world from its pause menu; a closed world loads nothing (world-report.js)
   SERVER_LIMITS, // sign-ins off the event loop, one play per reloads, the connection cap (server-limits.js)
   CHARACTER_MOTION, // jumps onto slopes and a walk to a run, traced frame by frame (character-motion.js)
+  WORLD_QUALITY, // quality rules 1 to 4 on a world: ground contact, backwards words, z-fighting, inside out (world-quality.js)
   {
     id: 'overseer-first-visit', title: 'The Overseer\'s first-visit introduction: at least three lines, then a prompt that starts building; a return skips it', seconds: 90, tags: ['full'], starts: ['sandbox'],
     description: 'landing, Play click, the click-to-enter veil, then the intro watched to its end with no key pressed: the Overseer\'s lines (overseer-said, greeting-lines needs three or more), then the card that starts building (build-prompt-shown) and a real click on it opens the chat to the Overseer (build-prompt-used); the intro\'s flag is kept and the intro is no longer wanted (return-skips-intro). Sign-in and credits are not touched. Never signs up.',
@@ -2862,6 +2864,7 @@ export function install() {
       if (id === PROFILE_PAGE.id) return runProfilePage(t, options);
       if (id === WORLD_REPORT.id) return runWorldReport(t, options);
       if (id === SERVER_LIMITS.id) return runServerLimits(t, options);
+      if (id === WORLD_QUALITY.id) return runWorldQuality(t, options);
       if (id === 'observatory-wardrobe' && options.touch) options = { at: 'sandbox', ...options }; // (touch: straight to the island with the phone controls)
       if ((id === 'vehicle-feel' || id === 'rocket-blast-feel') && options.touch) options = { at: 'sandbox', ...options };
       if (id === CHARACTER_MOTION.id) options = { at: 'sandbox', ...options }; // (straight to the island; touch: true adds the phone controls)

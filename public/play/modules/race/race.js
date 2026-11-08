@@ -133,9 +133,12 @@
         const col = first ? '#ffffff' : def.color;
         const mk = (id, make, o) => { const e = make.call(G, { ...o, physics: 'none', shadow: false, visible: false, name: 'Race gate', tag: 'race-gate', data: { race: def.id, gate: g.i } }); e.__gate = { gate: g, role: id }; return e; };
         const ph = first ? 18 : 14; // the start gate stands taller
+        // A post reaches DIG m below the gate's middle, so on a slope (the ground under each post is not the gate's) it
+        // stands in the ground instead of floating over it (quality rule 4).
+        const DIG = 4;
         const side = (sgn) => {
-          const p = [g.x + g.lx * g.half * sgn, g.y + ph / 2, g.z + g.lz * g.half * sgn];
-          return mk('post', G.cylinder, { position: toLocal(p), radius: 0.34, height: ph, color: col, emissive: col, opacity: 0.5 });
+          const p = [g.x + g.lx * g.half * sgn, g.y + (ph - DIG) / 2, g.z + g.lz * g.half * sgn];
+          return mk('post', G.cylinder, { position: toLocal(p), radius: 0.34, height: ph + DIG, color: col, emissive: col, opacity: 0.5 });
         };
         g.left = side(-1); g.right = side(1);
         g.bar = mk('bar', G.box, { position: toLocal([g.x, g.y + ph - 1.6, g.z]), rotation: [0, yaw, 0], size: [def.width, 2.4, 0.08], color: def.color, emissive: def.color, opacity: 0.25 });
