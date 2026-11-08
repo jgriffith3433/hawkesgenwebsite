@@ -731,6 +731,22 @@
     const cur = pp && pp.expr;
     return { mood: f || null, emote: rig.emote && rig.emote.def ? rig.emote.def.name : null, shows: f || em || (pp && pp.rest) || 'neutral', talking: Boolean(rig.mood && rig.mood.talking()), gaze: (rig.person && rig.person.gazeKind) || null, blinks: (rig.person && rig.person.blinks) || 0, open: cur ? cur.open : null };
   };
+  /** How a body moves now, for the playtest's trace and tools: { what, grounded, airborne, landing, speed, role, take, gait,
+   *  feet }. For the person, `feet` is each sole in the world and whether it is in its stance (planted) this frame. */
+  P.motion = (who) => {
+    const p = who || (W() && W().player), rig = p && rigs.get(p);
+    if (!rig) return null;
+    const pp = rig.person, A = rig.pm && rig.pm.anim;
+    const out = { what: rig.what, grounded: p.grounded !== false, speed: rig.speed || 0, airborne: null, landing: null, role: null, take: null, gait: null, feet: null };
+    if (A) { out.role = A.role || null; out.take = A.take ? A.take.name || A.take : null; if (A.gait) out.gait = { lo: A.gait.lo, hi: A.gait.hi, w: A.gait.w, cps: A.gait.cps }; }
+    if (pp && rig.hipL && rig.hipR && !rig.model) {
+      out.airborne = Boolean(pp.airborne); out.landing = pp.air ? pp.air.landT < 0.25 : null;
+      const down = typeof pp.soleY === 'number' ? pp.soleY : -0.52, duty = pp.duty || 0.5; // (the sole in the hip's own space: the hip's matrix scales it)
+      const sole = (hip, ph) => { hip.computeWorldMatrix(true); const v = B.Vector3.TransformCoordinates(new B.Vector3(0, down, 0), hip.getWorldMatrix()); return { x: v.x, y: v.y, z: v.z, down: Boolean(C.strideDown && C.strideDown(ph, duty)) && !pp.airborne }; };
+      out.feet = [sole(rig.hipL, pp.ph || 0), sole(rig.hipR, (pp.ph || 0) + Math.PI)];
+    }
+    return out;
+  };
   const nearestRigs = (pos, radius) => { const out = []; for (const [e, rig] of rigs) { const d = Math.hypot(e.x - pos[0], e.y - pos[1], e.z - pos[2]); if (d <= radius) out.push({ rig, dist: d }); } return out; };
   function wireFeelings() {
     const g = H.game;

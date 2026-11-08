@@ -55,6 +55,10 @@
   /** Which roles and emotes take which clips, first found wins. An emote is its own name. */
   /** Metres a clip's cycle covers when a row has no stride of its own for it: the walk and run are the registry's, a trot is between them. */
   const TROT_AT = 2.4, STRIDE_TROT = 2.2;
+  /** A landing shows for LAND_HOLD seconds before walking on (faster than LAND_MOVING m/s) or a new jump may end it. */
+  const LAND_HOLD = 0.18, LAND_MOVING = 0.6;
+  /** The quickest a gait clip plays (times its own speed): quicker still and the feet slide rather than blur. */
+  const LOCO_MAX_RATE = 3;
   const ROLE_CLIPS = { idle: ['idle'], walk: ['walk', 'run'], run: ['run', 'walk'], jump: ['jump', 'fall'], fall: ['fall', 'jump'], swim: ['swim'], drive: ['drive', 'sit'], sit: ['sit'] };
 
   // ------------------------------------------------------------------ quaternions [x, y, z, w] (Hamilton: a * b is b first)
@@ -271,13 +275,47 @@
   }
   function release(b) { if (b && b.last) { for (const name of b.last) rest(b.bones.get(name)); b.last = null; } }
 
+  // ------------------------------------------------------------------ the gaits: walk, trot and run on one clock
+  const LOCO = 'loco';
+  const GAITS = ['walk', 'trot', 'run'];
+  /** Gives the LOCO clip this frame's parts [{ c, u0, w }]: the bones they move and the events of the one that weighs most. */
+  function locoParts(L, parts) {
+    L.parts = parts;
+    L.bones = new Set(); for (const p of parts) for (const k of p.c.bones) L.bones.add(k);
+    const top = parts.reduce((a, p) => (p.w > a.w ? p : a), parts[0]);
+    L.events = top ? top.c.events.map((ev) => ({ ...ev, t: (((ev.t - top.u0) % 1) + 1) % 1 })) : [];
+  }
+  /** The LOCO pose at shared phase u: each gait at its own place in its cycle (u0 lines their footfalls up), blended by weight. */
+  function sampleLoco(L, u) {
+    const ps = L.parts.filter((p) => p.w > 1e-3);
+    if (!ps.length) return new Map();
+    const at = (p) => sampleClip(p.c, (((u + p.u0) % 1) + 1) % 1);
+    if (ps.length === 1) return at(ps[0]);
+    const a = at(ps[0]), b = at(ps[1]), k = ps[1].w / (ps[0].w + ps[1].w), out = new Map();
+    out.air = 0;
+    for (const bone of new Set([...a.keys(), ...b.keys()])) {
+      const x = a.get(bone) || { q: null, p: null, s: null }, y = b.get(bone) || { q: null, p: null, s: null };
+      out.set(bone, {
+        q: x.q || y.q ? qblend(x.q || QI, y.q || QI, k) : null,
+        p: x.p || y.p ? [0, 1, 2].map((i) => (x.p ? x.p[i] : 0) * (1 - k) + (y.p ? y.p[i] : 0) * k) : null,
+        s: x.s || y.s ? [0, 1, 2].map((i) => (x.s ? x.s[i] : 1) * (1 - k) + (y.s ? y.s[i] : 1) * k) : null,
+      });
+    }
+    return out;
+  }
+  /** Where in a gait clip the first foot comes down (its first footstep event, or the start): gaits are lined up by it. */
+  const footfall = (c) => { const ev = (c.events || []).filter((e) => e.name === 'footstep' || e.name === 'hop'); const f = ev.find((e) => e.foot === 'L' || e.foot === 'FL') || ev[0]; return f ? f.t : 0; };
+
   // ------------------------------------------------------------------ the player: layers, blends, one-shots, events
   class Player {
-    constructor(set) { this.set = set; this.loops = []; this.shots = []; this.lastShot = null; }
-    clip(name) { return this.set.clips[name] || null; }
+    constructor(set) { this.set = set; this.loops = []; this.shots = []; this.lastShot = null; this.loco = { name: 'loco', loop: true, seconds: 1, bones: new Set(), events: [], parts: [] }; }
+    clip(name) { return name === LOCO ? this.loco : this.set.clips[name] || null; }
     /** Moves time on by dt: `loop` { name, rate } is what the body is doing, `shot` { key, name } an emote or a take over it. Returns the events passed. */
     update(dt, loop, shot, emit) {
       const fire = (c, name, u0, u1) => { if (!c.events.length || !emit) return; for (const ev of c.events) if (u1 >= u0 ? ev.t > u0 && ev.t <= u1 : ev.t > u0 || ev.t <= u1) emit(ev, name); };
+      // the walk, trot and run are one layer (LOCO): the gaits blended by speed on one shared clock, so speeding up never
+      // cross-fades two clips that are out of step (two feet down at once, then both sliding)
+      if (loop && loop.name === LOCO) locoParts(this.loco, loop.parts);
       // the looping layer: a new name fades in over FADE while the old fades out
       if (loop && (!this.loops.length || this.loops[this.loops.length - 1].name !== loop.name)) {
         const c = this.clip(loop.name);
@@ -313,7 +351,7 @@
     pose() {
       const out = new Map(), sum = this.loops.reduce((n, L) => n + L.w, 0) || 1;
       out.air = this.loops.reduce((n, L) => n + (L.c.air ? L.w / sum : 0), 0);
-      const base = this.loops.map((L) => ({ w: L.w / sum, s: sampleClip(L.c, L.u) }));
+      const base = this.loops.map((L) => ({ w: L.w / sum, s: L.c.parts ? sampleLoco(L.c, L.u) : sampleClip(L.c, L.u) }));
       const bones = new Set();
       for (const L of this.loops) for (const k of L.c.bones) bones.add(k);
       for (const S of this.shots) for (const k of S.c.bones) bones.add(k);
@@ -392,6 +430,7 @@
       return finish(pm, b, pose);
     }
     const { role, em } = ctx;
+    A.role = role; // (P.motion reads it: the playtest's trace)
     if (pm.ent.keepGait && role !== 'idle' && OWN_GAIT.has(role)) { release(b); A.player.loops = []; A.player.shots = []; return null; }
     if (em) {
       if (set.clips[em.def.name]) { shot = { key: em, name: em.def.name }; emote = true; }
@@ -413,6 +452,10 @@
     // a take-off and a landing are one-shots when the set has them (jump_start, land) over the role's loop
     if (ctx.took && set.clips.jump_start) A.take = { key: {}, name: 'jump_start', t: 0 };
     if (ctx.landed && set.clips.land) A.take = { key: {}, name: 'land', t: 0 };
+    // A landing is a moment, not a stop: once it has shown (LAND_HOLD), going on walking or running ends it (the humanoid's
+    // landing is a 1.3 s recovery to standing that, played over a run, slid the body along the ground in a crouch). Leaving
+    // the ground again ends it too.
+    if (A.take && A.take.name === 'land' && A.take.t >= LAND_HOLD && ((ctx.speed > LAND_MOVING && (role === 'walk' || role === 'run')) || role === 'jump' || role === 'fall')) A.take = null;
     if (A.take) { A.take.t += ctx.dt; if (A.take.t >= set.clips[A.take.name].seconds) A.take = null; else if (!shot) shot = A.take; }
     let name = roleClip(set, role, ctx.glb);
     if (name === 'walk' && set.clips.trot && ctx.speed > TROT_AT) name = 'trot'; // (a quicker diagonal gait between the walk and the run)
@@ -420,13 +463,41 @@
     if (name === 'swim' && set.clips.swim_idle && ctx.speed < SWIM_STILL) name = 'swim_idle'; // (treading water when it is not going anywhere)
     if (name) {
       const walkish = name === 'walk' || name === 'trot' || name === 'run';
-      loop = { name, rate: walkish ? clamp(ctx.speed / (ctx.stride[name] || (name === 'trot' ? STRIDE_TROT : ctx.stride.walk)), 0.4, 2.5) : 1 };
+      loop = walkish ? locoLoop(A, set, ctx) : { name, rate: 1 };
     } else if (!shot) { release(b); A.player.loops = []; A.player.shots = []; return null; }
     if (!loop && shot && !A.player.loops.length) { const idle = roleClip(set, 'idle', false); if (idle) loop = { name: idle, rate: 1 }; }
     const ev = A.events; ev.length = 0;
     A.player.update(ctx.dt, loop, shot, (e, clipName) => ev.push({ ...e, clip: clipName }));
     if (ev.length) for (const e of ev) for (const f of listeners) { try { f(e.name, rig, e); } catch { /* a listener's error is its own */ } }
     return finish(pm, b, A.player.pose(), emote);
+  }
+  /** The gaits this set has, slowest first, each with the speed (m/s) its row says it is made for and where its first foot comes down. */
+  function gaitsOf(set, ctx) {
+    const out = [];
+    for (const g of GAITS) {
+      const c = set.clips[g];
+      if (!c) continue;
+      out.push({ name: g, c, speed: ctx.stride[g] || (g === 'trot' ? STRIDE_TROT : ctx.stride.walk), u0: footfall(c) });
+    }
+    return out.sort((x, y) => x.speed - y.speed);
+  }
+  /**
+   * The LOCO loop for this speed: the two gaits either side of it, weighted by where the speed falls between their own speeds,
+   * on one clock that turns at speed / (the blended cycle's length). Below the slowest gait it slows down; above the quickest
+   * it speeds up (to LOCO_MAX_RATE times).
+   */
+  function locoLoop(A, set, ctx) {
+    const gs = gaitsOf(set, ctx), sp = Math.max(0, ctx.speed || 0);
+    if (!gs.length) return null;
+    let i = 0;
+    while (i < gs.length - 1 && sp > gs[i + 1].speed) i++;
+    const lo = gs[i], hi = gs[Math.min(i + 1, gs.length - 1)];
+    // (linear: the cycle's length then grows in step with the speed, so the cadence only ever rises as it speeds up)
+    const w = hi === lo || sp <= lo.speed ? 0 : clamp((sp - lo.speed) / (hi.speed - lo.speed), 0, 1);
+    const cycle = (lo.speed * lo.c.seconds) * (1 - w) + (hi.speed * hi.c.seconds) * w; // meters per cycle
+    const cps = clamp(sp / Math.max(1e-3, cycle), 0.2 / lo.c.seconds, LOCO_MAX_RATE / hi.c.seconds);
+    A.gait = { lo: lo.name, hi: hi.name, w, cps, cycle };
+    return { name: LOCO, rate: cps, parts: hi === lo ? [{ c: lo.c, u0: lo.u0, w: 1 }] : [{ c: lo.c, u0: lo.u0, w: 1 - w }, { c: hi.c, u0: hi.u0, w }] };
   }
   /** How this model takes the toaster's clips: `hop` and `sway` multiply the clip's hop and lean (a row's `motion` sets them, else its proportions do). */
   function motionOf(pm) {
@@ -478,7 +549,7 @@
   }
 
   P.anim = {
-    CLASSES, ROLE_CLIPS, FADE, FORM_CLASS, classOf, motionOf, groundSnap, finish, norm, validate, compile, sampleClip, evalKeys, toDelta, setData, load, setOf, attach, drive, bind, apply, release, Player, hasClip, roleClip,
+    CLASSES, ROLE_CLIPS, FADE, FORM_CLASS, LOCO, GAITS, LAND_HOLD, LOCO_MAX_RATE, footfall, gaitsOf, locoLoop, sampleLoco, classOf, motionOf, groundSnap, finish, norm, validate, compile, sampleClip, evalKeys, toDelta, setData, load, setOf, attach, drive, bind, apply, release, Player, hasClip, roleClip,
     q: { mul: qmul, inv: qinv, euler: qeuler, rot: qrot, fromTo: qfromto, blend: qblend, angle: qangle },
     /** Whether a rig's model plays this clip from data now (for /avatars): the set is loaded, fits the model, and has the clip. */
     has: (rig, name) => { const A = rig && rig.pm && rig.pm.anim; const s = A && setOf(A.cls); return Boolean(s && s.clips[name] && A.state !== 'unfit' && !keepsGait(rig.pm.ent, name)); },
