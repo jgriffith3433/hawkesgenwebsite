@@ -119,6 +119,7 @@
     return { topic: 'base', text: c.base[st.last] };
   }
 
+  const SOUND_OF = { bobbin: 'duck-squeak', ember: 'toaster-pop', rolo: 'robot-chirp', dolores: 'cactus-rustle', channel: 'tv-blip' };
   const islander = (id) => { const e = game.find && game.find(id); return e && e.alive ? e : null; };
   function say(id, first) {
     const c = CAST[id], l = line(id, first);
@@ -130,6 +131,9 @@
     if (e && p && e.lookAt) { try { e.lookAt(p); } catch { /* it keeps looking where it was */ } }
     // Said over their head too, in their own voice (quality rule 6: a character speaks in the world, not only in a log).
     if (e && e.say) { try { e.say(l.text, Math.min(8, 2.5 + l.text.length / 18)); } catch { /* the chat line stands */ } }
+    // And a sound of what they are (the site's own: runtime.js siteSound): Bobbin's horn when the harbour first greets you.
+    const tag = id === 'bobbin' && first ? 'boat-horn' : SOUND_OF[id];
+    try { if (tag && H && H.lib && H.lib.siteSound) { H.lib.siteSound(tag, { volume: 0.45, at: e || undefined }); if (id === 'ember' && /letter/i.test(l.text)) { H.lib.siteSound('mailbox-clank', { volume: 0.5, at: e || undefined }); game.after(0.7, () => H.lib.siteSound('letter-rustle', { volume: 0.6 })); } } } catch { /* words only */ }
     game.emit('islander', { id, who: c.who, topic: l.topic, text: l.text });
     return entry;
   }

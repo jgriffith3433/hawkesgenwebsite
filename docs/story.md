@@ -190,7 +190,7 @@ anything. They are written in the voice of whoever left them.
 1. **Premise:** kept. "The island was lived in before you, and nobody remembers who." Hint 4's "others" stays vague.
 2. **The player's name:** "the Newly Free" stays, as a name people say fondly. It is never forced on the player.
 3. **Cast:** the six and their names stay: Pip, Admiral Bobbin, Mrs Ember, Rolo, Dolores, Channel.
-4. **Who may speak:** the neighbours speak as **text only** in the chat window for now. No voice lines are made; voice would be priced with `hawkesgen_estimate` and asked for later.
+4. **Who may speak:** every line is in the chat window and over the speaker's head. **Voices:** a line plays its own recording when there is one (runtime.js `recordedLine`: `public/play/audio/voice/<speaker>-<hash>.mp3`, listed in `index.json`; the speaker is the character's id, pip, bobbin, ember, rolo, dolores, channel, or overseer, and the hash is FNV-1a of the words, lower case), else the babble. Made in Hawkes Gen on ElevenLabs (Nov 2026): the Overseer in George (as its older clips), Pip in Jessica, Bobbin in Russell, Mrs Ember in Sarah, Rolo in River, Dolores in Matilda, Channel in Daniel. A line whose words change (a name, a time) has no recording and babbles.
 5. **Chapter One:** quests 6 (the hill visit) and 8 (the launch pad) are new work; the rest is the shipped tour. Docking stays out of Chapter One.
 6. **Cracked mirror:** kept, in Chapter Three.
 7. **Chapter Four:** "pick the next planet".
