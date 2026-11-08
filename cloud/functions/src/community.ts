@@ -28,7 +28,7 @@ export const STARTER_PROJECT = `${PROJECT_PREFIX}00000000000000c0`;
 export const COMMUNITY_KINDS = ['model', 'texture', 'image', 'sprite', 'sky', 'music', 'ambience', 'sfx', 'voice', 'video'] as const;
 const SEARCH_CAP = 3000;
 
-export type Row = { id: string; project: string; kind: string; mime: string | null; title: string; tags: string; category: string; item: string | null; low: string | null; thumb: string | null; by_user: string | null; source: string; uses: number; likes: number; created: number; hidden: number; words?: string[]; gone?: Record<string, number> };
+export type Row = { id: string; project: string; kind: string; mime: string | null; title: string; tags: string; category: string; item: string | null; low: string | null; thumb: string | null; by_user: string | null; source: string; uses: number; likes: number; created: number; hidden: number; words?: string[]; gone?: Record<string, number>; seen?: Record<string, number> };
 
 export const assets = () => db.collection('communityAssets');
 const uses = () => db.collection('communityUses');
@@ -82,6 +82,22 @@ function view(r: Row, c: Ctx) {
     low: Boolean(r.low) || Boolean(mine?.levels.some((l) => l.role === 'low')), by: r.by_user ? c.names.get(r.by_user) ?? 'A player' : 'Hawkes', source: r.source, uses: r.uses ?? 0, likes: r.likes ?? 0, created: r.created,
   };
 }
+/** Before a page of the library is listed: ask Gen once a day whether each thumbnail exists, so the page never requests one that is not there (a 404 is a console error). */
+const SEEN_FOR = 24 * 3600_000;
+async function probe(rows: Row[]) {
+  const todo = rows.filter((r) => { const id = thumbIdOf(r); return id && Date.now() - Number(r.gone?.[id] ?? 0) >= GONE_FOR && Date.now() - Number(r.seen?.[id] ?? 0) >= SEEN_FOR; });
+  for (let i = 0; i < todo.length; i += 12) {
+    await Promise.all(todo.slice(i, i + 12).map(async (r) => {
+      const id = thumbIdOf(r)!;
+      try {
+        const g = await genFetch(`/v1/assets/${id}`, { as: r.project, signal: AbortSignal.timeout(8000) });
+        await g.body?.cancel().catch(() => {});
+        if (g.status === 404) { r.gone = { ...r.gone, [id]: Date.now() }; await assets().doc(r.id).update({ [`gone.${id}`]: Date.now() }); }
+        else if (g.ok) { r.seen = { ...r.seen, [id]: Date.now() }; await assets().doc(r.id).update({ [`seen.${id}`]: Date.now() }); }
+      } catch { /* Gen unreachable: list as it is */ }
+    }));
+  }
+}
 export async function views(rows: Row[]) {
   const c = await context(rows);
   return rows.map((r) => view(r, c));
@@ -125,7 +141,9 @@ export async function search(o: { q?: unknown; kind?: unknown; tag?: unknown; ca
     })
     .filter((x) => !q.length || x.s >= 1)
     .sort((a, b) => Math.round(b.s) - Math.round(a.s) || (sort === 'new' ? b.r.created - a.r.created : sort === 'fresh' ? (a.r.likes ?? 0) - (b.r.likes ?? 0) || b.r.created - a.r.created : sort === 'name' ? a.r.title.localeCompare(b.r.title) : (b.r.likes ?? 0) - (a.r.likes ?? 0) || (b.r.uses ?? 0) - (a.r.uses ?? 0)) || b.s - a.s);
-  return { items: await views(scored.slice(offset, offset + limit).map((x) => x.r)), total: scored.length };
+  const page = scored.slice(offset, offset + limit).map((x) => x.r);
+  await probe(page);
+  return { items: await views(page), total: scored.length };
 }
 
 /** Listed rows' kind, category and tags only (shelves and tag counts read the whole list; select keeps it small). */
