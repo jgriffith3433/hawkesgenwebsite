@@ -1,8 +1,8 @@
 // The `sickofit-page` scenario: the Sick of It page before the game starts, at 390x844 and 1440x900 (an iframe each).
-// Loaded by portal.js. Safe on live (read only). Events: premise-shown, controls-shown, guide-on-top, no-overlap, tap-reachable, tap-to-play-works, canvas-visible, no-landing-in-frame, frame-on-top.
+// Loaded by portal.js. Safe on live (read only). Events: premise-shown, controls-shown, guide-on-top, no-overlap, tap-reachable, tap-to-play-works, game-running, stayed-on-page, guide-gone, canvas-visible, no-landing-in-frame, frame-on-top, setup-shortcut, hud-reached, hud-clear.
 export const SICKOFIT_PAGE = {
-  id: 'sickofit-page', title: 'Sick of It page: premise and controls guide before the game; nothing over the canvas or Tap to play at 390px; Tap to play starts it', seconds: 240, tags: ['full'],
-  description: '/play/sickofit in a frame at 390x844 (touch) and 1440x900: the premise line and move/rewind guide (premise-shown, controls-shown), the strip clear of Tap to play (no-overlap), the loader, strip and prompt clear of each other (no-overlap, guide-on-top, tap-reachable), then a tap on Tap to play (tap-to-play-works). options: sizes',
+  id: 'sickofit-page', title: 'Sick of It page: premise and controls guide before the game; nothing over the canvas or Tap to play at 390px; Tap to play starts it', seconds: 420, tags: ['full'],
+  description: '/play/sickofit in a frame at 390x844 (touch) and 1440x900: the premise line and move/rewind guide (premise-shown, controls-shown), the strip clear of Tap to play (no-overlap), the loader, strip and prompt clear of each other (no-overlap, guide-on-top, tap-reachable), then a tap on Tap to play (tap-to-play-works), the game running with the page still on /play/sickofit, and then the first level (played by the build itself through its menu, a named setup-shortcut), where no page text may sit over the HUD of the game (hud-reached, hud-clear). options: sizes, hud (false: stop at the main menu)',
 };
 const SHOT_MS = 2500;
 const rect = (e) => e.getBoundingClientRect();
@@ -10,6 +10,9 @@ const hit = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom &
 export async function runSickofitPage(t, options = {}) {
   const sizes = (Array.isArray(options.sizes) && options.sizes.length ? options.sizes : ['390x844', '1440x900']).map(String);
   const bad = [];
+  // A wait of minutes with nothing logged reads as a softlock to the contract (stallSeconds 120), which ends the run as stuck and
+  // lets the runner photograph whatever page is behind the frame. Progress ticks keep a long wait what it is: a wait.
+  const beat = setInterval(() => t.progress(0.5), 10000);
   let stageGuard = null; const stageLost = [];
   // The host page is the landing page the run started on. A picture of it is what a "the game navigated away" report is made of,
   // so nothing of it may show behind the frame, and a host that was reloaded mid-run (its sky was fresh in the pictures) is named.
@@ -111,12 +114,65 @@ export async function runSickofitPage(t, options = {}) {
     if (window.__ptSoHost === hostMark) t.event('host-stable', `${label}: the host page was not reloaded or replaced during the run`); else bad.push(`${label}: the host page was reloaded during the run`);
     t.scene(`Sick of It ${label}: after tap`);
     await t.wait(SHOT_MS * 2); // the frame stays up until the picture of the running game is taken
+    if (running && options.hud !== false) await hudStage(t, label, w, h, frame, d, win, bad);
   }
   // The frame is left up when the run ends (the next run's page load clears it): the runner's last picture is taken after
   // finish(), and with the frame gone it was the landing page behind it that got photographed, not the game.
   await t.wait(SHOT_MS); // the last picture is taken after the last scene event: finish only once it has been
   if (stageLost.length) t.problem('warning', `the page under test lost its frame at ${stageLost.join(', ')}; it was put back`);
   stageGuard?.disconnect();
+  clearInterval(beat);
   if (bad.length) { t.event('sickofit-failed', bad.join(' | ')); throw new Error(`sickofit: ${bad.join(' | ')}`); }
   t.finish('done');
+}
+
+// Criterion: once the game starts no page text overlaps the game's HUD (weapon label, rewind controls). The main menu has no HUD,
+// so the game is taken into its first level: the build's own playtest bot (window.hawkesPlaytest inside the frame, the Unity
+// package) plays `smoke` through the menu with the game's input, a named setup-shortcut. When the scene is a level, every piece
+// of the page that could hold text is asked whether it is on screen, and a grid of points across the window is asked what is on
+// top: only the canvas (and the game's container) may answer.
+async function hudStage(t, label, w, h, frame, d, win, bad) {
+  const api = () => { try { return win.hawkesPlaytest; } catch { return null; } };
+  try { await t.until(() => api() && typeof api().start === 'function', 20000, `the build's playtest hook at ${label}`); } catch {
+    t.problem('warning', `${label}: the Unity build has no window.hawkesPlaytest, so the first level (and its HUD) was not reached`);
+    return;
+  }
+  t.event('setup-shortcut', `${label}: the build's own smoke bot takes the game from its menu into the first level (window.hawkesPlaytest.start('smoke') in the frame); the page checks below are ours`);
+  api().start('smoke', { seed: 1 });
+  const seen = [];
+  const sceneOf = () => { try { const st = api().state(); return String((st && st.scene) || ''); } catch { return ''; } };
+  const isLevel = (sc) => /level|floor/i.test(sc) && !/menu|load|video|intro/i.test(sc);
+  let level = '';
+  try {
+    await t.until(() => {
+      const sc = sceneOf();
+      if (sc && sc !== seen[seen.length - 1]) { seen.push(sc); t.event('game-scene', `${label}: ${sc}`); }
+      if (isLevel(sc)) { level = sc; return true; }
+      return false;
+    }, 150000, `the first level at ${label}`);
+  } catch { /* reported below */ }
+  if (!level) { bad.push(`${label}: the game never reached a level (scenes: ${seen.join(' > ') || 'none'}), so the HUD was not checked`); return; }
+  await t.wait(4000); // the HUD builds itself; the site chips (their 4 s fade) have gone quiet by now
+  t.event('hud-reached', `${label}: ${level}`);
+  const over = [];
+  const isOurs = (e) => !e || e === d.documentElement || e === d.body || e.id === 'unity-container' || e.id === 'unity-canvas';
+  // 1) no element of the page other than the game shows (display, visibility, opacity, and a box) with text in it
+  for (const e of d.body.querySelectorAll('#pre, #hawkes-tap, #loading, #about, #hg, #unity-warning > div, #hawkes-sound-prompt')) {
+    const cs = win.getComputedStyle(e), r = rect(e);
+    if (cs.display !== 'none' && cs.visibility !== 'hidden' && parseFloat(cs.opacity) > 0.01 && r.width > 0 && r.height > 0 && (e.textContent || '').trim()) over.push(`#${e.id || e.className || e.tagName} shows "${e.textContent.trim().slice(0, 40)}"`);
+  }
+  // 2) what is on top across the window (elements that take no taps are let through for the probe, as in guide-on-top)
+  const pe = new Map();
+  for (const e of d.body.querySelectorAll('*')) if (!isOurs(e) && win.getComputedStyle(e).pointerEvents === 'none') { pe.set(e, e.style.pointerEvents); e.style.pointerEvents = 'auto'; }
+  const tops = new Set();
+  for (let i = 1; i < 12; i++) for (let j = 1; j < 12; j++) {
+    const e = d.elementFromPoint(Math.round(w * i / 12), Math.round(h * j / 12));
+    if (!isOurs(e) && !(e.closest && e.closest('#unity-warning:empty'))) tops.add(`${e.tagName.toLowerCase()}${e.id ? '#' + e.id : ''}`);
+  }
+  for (const [e, v] of pe) e.style.pointerEvents = v;
+  if (tops.size) over.push(`on top of the canvas: ${[...tops].join(', ')}`);
+  if (!over.length) t.event('hud-clear', `${label}: in ${level} nothing of the page is over the game (no strip, prompt, loader, dialog or chip; only the canvas answers at 121 points)`); else bad.push(`${label}: page elements over the in-level HUD (${over.join('; ')})`);
+  t.scene(`Sick of It ${label}: in the level (HUD)`);
+  await t.wait(SHOT_MS * 2);
+  try { api().stop(); } catch { /* the run ends with the page */ }
 }
