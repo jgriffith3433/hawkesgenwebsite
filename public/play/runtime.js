@@ -782,9 +782,12 @@
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     lines.forEach((l, i) => ctx.fillText(l, w / 2, px * 0.25 + px * 1.25 * (i + 0.5) + px * 0.1));
     tex.update();
-    const plane = B.MeshBuilder.CreatePlane('text', { width: (w / px) * size, height: (h / px) * size, sideOrientation: B.Mesh.DOUBLESIDE }, W.scene);
+    // The back carries the words mirrored back (backUVs), so a flat sign reads right from either side (quality rule 1).
+    const plane = B.MeshBuilder.CreatePlane('text', { width: (w / px) * size, height: (h / px) * size, sideOrientation: B.Mesh.DOUBLESIDE, frontUVs: new B.Vector4(0, 0, 1, 1), backUVs: new B.Vector4(1, 0, 0, 1) }, W.scene);
     const m = new B.StandardMaterial('text', W.scene);
-    m.diffuseTexture = tex; m.useAlphaFromDiffuseTexture = true; m.emissiveColor = new B.Color3(1, 1, 1); m.disableLighting = true; m.backFaceCulling = false;
+    m.diffuseTexture = tex; m.useAlphaFromDiffuseTexture = true; m.emissiveColor = new B.Color3(1, 1, 1); m.disableLighting = true;
+    m.backFaceCulling = true; // each side draws only its own triangles (with both, the mirrored back fights the front)
+    if (o.zOffset) m.zOffset = Number(o.zOffset) || 0; // laid on a surface: drawn just in front of it (quality rule 2)
     plane.material = m;
     if (o.billboard !== false) plane.billboardMode = B.Mesh.BILLBOARDMODE_ALL;
     return plane;
@@ -1030,7 +1033,7 @@
   function makeCamera() {
     const cam = new B.UniversalCamera('cam', new B.Vector3(0, 8, -14), W.scene);
     cam.setTarget(B.Vector3.Zero());
-    cam.minZ = 0.05;
+    cam.minZ = 0.1; // (set each frame by the height: state.update)
     cam.maxZ = 2000;
     cam.fov = 1.0;
     cam.inputs.clear();
@@ -1057,7 +1060,7 @@
       orbit(t, o = {}) {
         claim();
         const p = t && t.__entity ? t.position : vec(t);
-        if (!state.arc) { state.arc = new B.ArcRotateCamera('orbit', -Math.PI / 2, 1.1, o.distance || 12, new B.Vector3(p[0], p[1], p[2]), W.scene); state.arc.minZ = 0.05; state.arc.wheelPrecision = 20; state.arc.lowerRadiusLimit = 1; }
+        if (!state.arc) { state.arc = new B.ArcRotateCamera('orbit', -Math.PI / 2, 1.1, o.distance || 12, new B.Vector3(p[0], p[1], p[2]), W.scene); state.arc.minZ = 0.1; state.arc.wheelPrecision = 20; state.arc.lowerRadiusLimit = 1; }
         state.arc.radius = o.distance || state.arc.radius;
         state.arc.attachControl(canvas, true);
         W.scene.activeCamera = state.arc;
@@ -1137,6 +1140,20 @@
           cam.position.x += (w.pos[0] - cam.position.x) * k; cam.position.y += (w.pos[1] - cam.position.y) * k; cam.position.z += (w.pos[2] - cam.position.z) * k;
           cam.setTarget(new B.Vector3(...w.look));
         }
+      }
+      // The near plane follows the height (quality rule 2: depth precision is ~d²/near, so a near plane fit for walking
+      // left the shore, the pier and the pad flickering from the helicopter): 0.1 m on foot, up to 2 m high in the air,
+      // never more than a quarter of the way to what it follows.
+      if (W.scene.activeCamera === cam) {
+        let near = 0.1;
+        if (state.mode !== 'fps') {
+          let ground = 0;
+          try { const T = H.terrain; const g = T && T.active && T.heightAt ? T.heightAt(cam.position.x, cam.position.z) : null; if (Number.isFinite(g)) ground = g; } catch { /* flat world */ }
+          const t = state.target;
+          const gap = t && t.alive ? Math.hypot(cam.position.x - t.x, cam.position.y - t.y, cam.position.z - t.z) : 40;
+          near = Math.max(0.1, Math.min((cam.position.y - ground) * 0.004, 2, gap * 0.25));
+        }
+        cam.minZ = near;
       }
       if (state.shakeTime > 0) {
         state.shakeTime -= dt;

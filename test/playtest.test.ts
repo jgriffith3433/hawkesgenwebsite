@@ -11,7 +11,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
 test('the playtest files are valid modules', () => {
-  for (const f of ['portal.js', 'site-layout.js', 'avatar-animations.js', 'community-library.js', 'profile-page.js', 'server-limits.js', 'world-report.js', 'hawkes-playtest.js', 'hawkes-perf.js']) {
+  for (const f of ['portal.js', 'site-layout.js', 'avatar-animations.js', 'community-library.js', 'profile-page.js', 'server-limits.js', 'world-report.js', 'world-quality.js', 'hawkes-playtest.js', 'hawkes-perf.js']) {
     const r = spawnSync(process.execPath, ['--check', path.join(ROOT, 'public', 'playtest', f)], { encoding: 'utf8' });
     assert.equal(r.status, 0, `${f}: ${r.stderr}`);
   }
@@ -20,8 +20,8 @@ test('the playtest files are valid modules', () => {
 test('the scenarios are the ones AGENTS.md documents', () => {
   const src = read('public/playtest/portal.js');
   const agents = read('AGENTS.md');
-  for (const id of ['smoke', 'sandbox-first-minutes', 'sandbox-chapter-one', 'island-race', 'island-journal', 'sandbox-progress', 'site-layout']) {
-    assert.ok(src.includes(`id: '${id}'`) || (id === 'site-layout' && read('public/playtest/site-layout.js').includes(`id: '${id}'`)), `${id} is a scenario`);
+  for (const id of ['smoke', 'sandbox-first-minutes', 'sandbox-chapter-one', 'island-race', 'island-journal', 'sandbox-progress', 'site-layout', 'world-quality']) {
+    assert.ok(src.includes(`id: '${id}'`) || (id === 'site-layout' && read('public/playtest/site-layout.js').includes(`id: '${id}'`)) || (id === 'world-quality' && read('public/playtest/world-quality.js').includes(`id: '${id}'`)), `${id} is a scenario`);
     assert.ok(agents.includes(id), `${id} is in AGENTS.md`);
   }
   assert.ok(src.includes("product: 'hawkesgenwebsite'"));

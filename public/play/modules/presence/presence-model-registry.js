@@ -99,7 +99,7 @@ cow: { ...row('biped'), ...mdl('cow'), h: 1.5, head: 0.65, rig: 'mixamo', anchor
     beanie: hat('beanie', { width: 0.44, sink: 0.17, tint: true, plain: true }),
     tophat: hat('tophat', { width: 0.58, sink: 0.18 }),
     crown: hat('crown', { width: 0.44, flat: '#facc15' }),
-    cowboy: hat('cowboy', { width: 0.78, sink: 0.34 }),
+    cowboy: hat('cowboy', { width: 0.78, sink: 0.24 }), // (0.34 put the crown's front over the eyes: quality rule 2)
     party: hat('party', { width: 0.3, sink: 0.05, tint: true }),
     helmet: hat('helmet', { width: 0.5, sink: 0.24, tint: 'body', plain: true }),
     chef: hat('chef', { width: 0.46, sink: 0.06 }),
