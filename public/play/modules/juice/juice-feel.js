@@ -166,7 +166,7 @@
 
   // ------------------------------------------------------------------ the camera: FOV at speed, landing, bob, recoil
   const fov = { k: 0, punch: 0 };
-  const land = { dip: 0, v: 0, air: false, minVy: 0, wasGrounded: true, airT: 0 };
+  const land = { dip: 0, v: 0, air: false, minVy: 0, minV: null, wasGrounded: true, airT: 0 };
   const bob = { phase: 0, amt: 0 };
   const recoilK = { v: 0 };
   /** Kicks the view up (a gun going off): amount 0-1. */
@@ -177,9 +177,12 @@
     const p = W() && W().player;
     if (!p || !p.alive || dt <= 0) return;
     const g = Boolean(p.grounded);
-    if (!g) { land.airT += dt; land.minVy = Math.min(land.minVy, p.vy); }
+    if (!g) { land.airT += dt; if (p.vy < land.minVy) { land.minVy = p.vy; land.minV = [p.vx || 0, p.vy, p.vz || 0]; } }
     if (g && !land.wasGrounded && land.airT > 0.12 && !p._ragdoll) {
-      const hit = -land.minVy;
+      // How hard: the speed into the ground it lands on. Running down a steep hill, the ground falls away under a jump, and
+      // landing on it is a glancing touch, not a fall from the jump's height (it used to throw the runner into a ragdoll).
+      const n = p.groundNormal, v0 = land.minV;
+      const hit = n && v0 ? Math.max(0, -(v0[0] * n[0] + v0[1] * n[1] + v0[2] * n[2])) : -land.minVy;
       if (hit > 4) {
         const k = clamp((hit - 4) / 16, 0, 1);
         if (J.allowed('landing')) land.v -= k * 2.2;
@@ -190,7 +193,7 @@
         emit('land', { speed: hit, surface, entity: p });
       }
     }
-    if (g) { land.airT = 0; land.minVy = 0; }
+    if (g) { land.airT = 0; land.minVy = 0; land.minV = null; }
     land.wasGrounded = g;
   }
   function runCamera(dt, render) {

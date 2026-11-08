@@ -401,3 +401,26 @@ test('on the codex (hooks.codex) nothing freezes, slows or flashes; the juice pa
   const f = H.features.get('juice');
   assert.ok(f.codex && f.codex.what && f.codex.value && f.codex.fields.length > 10);
 });
+
+test('a hard landing is judged by the speed into the ground: a jump down a steep hill lands on its feet, a long fall still goes limp', () => {
+  const deg = 40, r = deg * Math.PI / 180, len = 30;
+  const ramp = { type: 'box', name: 'Hill', shape: { size: [8, 0.4, len] }, transform: { position: [0, Math.sin(r) * len / 2 - 0.2 * Math.cos(r), Math.cos(r) * len / 2], rotation: [-deg, 0, 0] } };
+  const g = play({ ramp });
+  const p = g.player;
+  p.controls = false;
+  p.position = [0, Math.tan(r) * 12 + 1.45, 12];
+  H.tick(2);
+  // Running down the 40° hill at 6 m/s and jumping: it falls about 18 m/s, but the hill falls away under it as it goes.
+  let time = 0, jumped = false, limp = false;
+  g.onUpdate(() => { time += 1 / 60; if (time < 1.6) { p.walk({ x: 0, z: -1 }, 6); if (!jumped && time > 0.1) jumped = p.jump(8.5); } else p.walk({ x: 0, z: 0 }, 0); });
+  for (let i = 0; i < 150; i++) { H.tick(1 / 60); limp = limp || J.ragdoll.is(p); }
+  assert.ok(jumped, 'jumped');
+  assert.equal(limp, false, 'landed on its feet, not limp');
+  assert.ok(p.grounded, 'on the ground');
+  // Dropped 10 m onto the flat floor: about 22 m/s straight into it, a fall.
+  time = 99;
+  p.position = [0, 10.95, -20];
+  p.velocity = [0, 0, 0];
+  for (let i = 0; i < 90; i++) { H.tick(1 / 60); limp = limp || J.ragdoll.is(p); }
+  assert.ok(limp, 'a long fall onto flat ground still goes limp');
+});
