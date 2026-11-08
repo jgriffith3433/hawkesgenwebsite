@@ -857,9 +857,97 @@
       return syl;
     } catch { return 0; }
   }
+  // ------------------------------------------------------------------ recorded lines
+  // A character's line in its own recorded voice when there is one, else the babble. The clips are files of the site
+  // (public/play/audio/voice/<speaker>-<hash>.mp3, listed in index.json): the speaker is the character's id in the
+  // world (pip, bobbin, ember...; the Overseer's is overseer) and the hash is lineHash of the words, so the same words
+  // find the same clip wherever they're said. (Made in Hawkes Gen: docs/story.md "Voices".)
+  const VOICE_DIR = '/play/audio/voice/';
+  let voiceIndex = null;
+  let voiceIndexLoading = null;
+  /** FNV-1a (32 bits, hex) of the words, trimmed, in lower case, spaces collapsed. */
+  function lineHash(text) {
+    const s = String(text || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    let h = 0x811c9dc5;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return h.toString(16).padStart(8, '0');
+  }
+  /** Loads the list of clips once (only on a web page: tests and files have none). */
+  function loadVoiceIndex() {
+    if (voiceIndex || voiceIndexLoading) return voiceIndexLoading;
+    if (typeof fetch !== 'function' || typeof location === 'undefined' || !/^https?:$/.test(location.protocol)) return null;
+    voiceIndexLoading = fetch(VOICE_DIR + 'index.json')
+      .then((r) => (r.ok ? r.json() : {}))
+      .catch(() => ({}))
+      .then((j) => { voiceIndex = new Set(Array.isArray(j && j.clips) ? j.clips : []); return voiceIndex; });
+    return voiceIndexLoading;
+  }
+  /** The recording of these words by this speaker, or null. index: a list of keys to use instead of the site's (tests). */
+  function recordedLine(speaker, text, index) {
+    const set = index ? new Set(index) : voiceIndex;
+    if (!speaker || !set) return null;
+    const key = `${String(speaker).toLowerCase()}-${lineHash(text)}`;
+    return set.has(key) ? `${VOICE_DIR}${key}.mp3` : null;
+  }
+  loadVoiceIndex();
+  // The site's own sound effects (public/play/audio/sfx/<name>.mp3, listed in its index.json: duck-squeak, fish-bite...):
+  // siteSound(name) plays one if the site has it and says so (false: the caller makes its own sound instead).
+  const SFX_DIR = '/play/audio/sfx/';
+  let sfxIndex = null;
+  if (typeof fetch === 'function' && typeof location !== 'undefined' && /^https?:$/.test(location.protocol)) {
+    fetch(SFX_DIR + 'index.json').then((r) => (r.ok ? r.json() : {})).catch(() => ({})).then((j) => { sfxIndex = new Set(Array.isArray(j && j.sounds) ? j.sounds : []); });
+  }
+  const sfxBuffers = new Map();
+  /** o: { volume, at (a place: quieter far from the view), rate, index (a list of names instead of the site's: tests) }. */
+  function siteSound(name, o = {}) {
+    const set = o.index ? new Set(o.index) : sfxIndex;
+    if (!set || !set.has(String(name))) return false;
+    if (o.index) return true;
+    if (!audio || audio.state !== 'running') return true; // it would have played: no stand-in either
+    let vol = o.volume ?? 1;
+    const cam = W && W.scene && W.scene.activeCamera;
+    if (o.at && cam) { const p = posOf(o.at); const c = cam.globalPosition || cam.position; vol *= 1 / (1 + Math.hypot(c.x - p[0], c.y - p[1], c.z - p[2]) / 12); }
+    if (vol < 0.02) return true;
+    const url = `${SFX_DIR}${name}.mp3`;
+    let buf = sfxBuffers.get(url);
+    if (!buf) { buf = loadBuffer(url); sfxBuffers.set(url, buf); }
+    buf.then((b) => {
+      const src = audio.createBufferSource();
+      src.buffer = b;
+      if (o.rate) src.playbackRate.value = o.rate;
+      const gn = audio.createGain();
+      gn.gain.value = Math.max(0, Math.min(1, vol));
+      src.connect(gn).connect(audioApi.master || audio.destination);
+      src.start();
+    }).catch(() => { sfxBuffers.delete(url); });
+    return true;
+  }
+  /** Plays a character's recorded line from where it is (as loud as the babble would be there): true when it plays. */
+  function speakRecorded(e, str) {
+    try {
+      if (!e || e.quiet || !audio || audio.state !== 'running' || typeof Audio === 'undefined') return false;
+      const url = recordedLine((e.voice && e.voice.speaker) || e.sceneId, str);
+      if (!url) return false;
+      const vol = H.speech && H.speech.settings ? Number(H.speech.settings.voice) : 1;
+      if (!(vol > 0)) return true; // voices are off: no babble either
+      let near = 1;
+      const cam = W && W.scene && W.scene.activeCamera;
+      if (cam && e.node && e.node.getAbsolutePosition) near = Math.max(0, Math.min(1, 1 - (B.Vector3.Distance(cam.globalPosition || cam.position, e.node.getAbsolutePosition()) - 6) / 30));
+      if (!(near > 0)) return true;
+      if (e._voiceClip) { try { e._voiceClip.pause(); } catch { /* gone */ } }
+      const a = new Audio(url);
+      a.volume = Math.min(1, near);
+      audioApi.media(a, { voice: true });
+      e._voiceClip = a;
+      const pr = a.play();
+      if (pr && pr.catch) pr.catch(() => { if (e._voiceClip === a) { e._voiceClip = null; babble(e, str); } });
+      if (game && game.emit) game.emit('voiced', { who: e.name || null, kind: 'clip', url });
+      return true;
+    } catch { return false; }
+  }
   function showBubble(e, str, seconds) {
     if (e._bubble) e._bubble.dispose();
-    babble(e, str);
+    if (!speakRecorded(e, str)) babble(e, str);
     const b = textPlane(wrapWords(str), { size: 0.32 });
     b.isPickable = false;
     b.metadata = { decor: true };
@@ -2381,7 +2469,7 @@
       mouse.dx = 0; mouse.dy = 0; mouse.wheel = 0;
     },
     /** The engine's building blocks, for modules that make kinds of things (kinds.js uses them). */
-    lib: { Entity, shape, place, material, size3, hex, vec, clone, assetUrl, hasAsset, assetGone, assetEntry, setFrame, showBubble, roundRect, posOf, attachBehaviors, runBehaviorHit, applyPlayerSettings, useController, effectiveConfig, STEP, RAD, get clockOffset() { return clockOffset; } },
+    lib: { Entity, shape, place, material, size3, hex, vec, clone, assetUrl, hasAsset, assetGone, assetEntry, setFrame, showBubble, lineHash, recordedLine, loadVoiceIndex, siteSound, roundRect, posOf, attachBehaviors, runBehaviorHit, applyPlayerSettings, useController, effectiveConfig, STEP, RAD, get clockOffset() { return clockOffset; } },
   };
   window.addEventListener('error', (e) => report(e.error || e.message, null, true));
   window.addEventListener('unhandledrejection', (e) => report(e.reason, null, true));
