@@ -52,6 +52,8 @@ export function wordsField(r: { title: string; category?: string; tags?: string 
 const GONE_FOR = 6 * 3600_000;
 const IMAGE_KINDS = ['texture', 'image', 'sprite', 'sky'];
 type Ctx = { lods: Record<string, GenLods>; cdn: Record<string, string>; names: Map<string, string | null> };
+/** A thing whose own file Gen lately answered 404 for: it is not listed or counted (an empty card would read as broken). */
+const fileLost = (r: { id?: string; gone?: Record<string, number> }) => Boolean(r.id && Date.now() - Number(r.gone?.[r.id] ?? 0) < GONE_FOR);
 const thumbIdOf = (r: Row) => r.thumb ?? (IMAGE_KINDS.includes(r.kind) ? r.id : null);
 
 /** Everything the views of these rows need, read at once (levels, CDN links, sharers' names). */
@@ -127,7 +129,7 @@ export async function search(o: { q?: unknown; kind?: unknown; tag?: unknown; ca
   }
   const rows = (await query.limit(SEARCH_CAP).get()).docs.map(rowOf);
   const scored = rows
-    .filter((r) => (!kinds || kinds.includes(r.kind)) && (!category || r.category === category) && (!tag || r.category === tag || r.tags.split(' ').includes(tag)))
+    .filter((r) => !fileLost(r) && (!kinds || kinds.includes(r.kind)) && (!category || r.category === category) && (!tag || r.category === tag || r.tags.split(' ').includes(tag)))
     .map((r) => {
       const tags = [...r.tags.split(' '), ...(r.category ? [r.category] : [])];
       const title = words(r.title);
@@ -150,7 +152,7 @@ export async function search(o: { q?: unknown; kind?: unknown; tag?: unknown; ca
 const listedFields = async (kind?: string) => {
   let q: FirebaseFirestore.Query = assets().where('hidden', '==', 0);
   if (kind) q = q.where('kind', '==', kind);
-  return (await q.select('kind', 'category', 'tags').get()).docs.map((d) => d.data() as { kind: string; category?: string; tags?: string });
+  return (await q.select('kind', 'category', 'tags', 'gone').get()).docs.map((d) => ({ id: d.id, ...(d.data() as { kind: string; category?: string; tags?: string; gone?: Record<string, number> }) })).filter((r) => !fileLost(r));
 };
 
 /** The shelves: every kind with its categories and how many things each has. */
