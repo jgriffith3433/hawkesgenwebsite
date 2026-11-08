@@ -29,6 +29,7 @@
     if (shape.follow === false) r.follow = null;
     // A friend who stays (a guide at their post): never follows, comes, rides along or wanders off, whatever you say.
     r.friend.stays = shape.stays === true;
+    r.stays = r.friend.stays; // living.js: no wandering from the post
     // A name tag over the head.
     const tag = H.textPlane(name, { size: 0.2, color: '#ffffff' });
     tag.parent = e.node; tag.position.y = r.tall / 2 + 0.32; tag.isPickable = false; tag.metadata = { decor: true };
