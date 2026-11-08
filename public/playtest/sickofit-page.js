@@ -10,6 +10,10 @@ const hit = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom &
 export async function runSickofitPage(t, options = {}) {
   const sizes = (Array.isArray(options.sizes) && options.sizes.length ? options.sizes : ['390x844', '1440x900']).map(String);
   const bad = [];
+  // The host page is the landing page the run started on. A picture of it is what a "the game navigated away" report is made of,
+  // so nothing of it may show behind the frame, and a host that was reloaded mid-run (its sky was fresh in the pictures) is named.
+  const hostMark = (window.__ptSoHost = {});
+  const hideHost = () => { for (const el of document.body.children) if (el.id !== 'pt-so-stage' && !el.dataset.ptSoHid) { el.dataset.ptSoHid = el.style.visibility || '-'; el.style.visibility = 'hidden'; } };
   for (const label of sizes) {
     const [w, h] = label.split('x').map(Number);
     document.getElementById('pt-so-stage')?.remove();
@@ -20,6 +24,7 @@ export async function runSickofitPage(t, options = {}) {
     const scale = Math.min(1, innerWidth / w, (innerHeight - 24) / h);
     frame.style.cssText = `position:absolute;left:${Math.round((innerWidth - w * scale) / 2)}px;top:24px;width:${w}px;height:${h}px;border:0;transform:scale(${scale});transform-origin:0 0`;
     stage.appendChild(frame); document.body.appendChild(stage);
+    hideHost();
     frame.src = '/play/sickofit' + (w < 500 ? '?touch=1' : '');
     await t.until(() => { try { return frame.contentDocument.getElementById('pre'); } catch { return false; } }, 30000, `the page at ${label}`);
     const d = frame.contentDocument, win = frame.contentWindow;
@@ -91,11 +96,13 @@ export async function runSickofitPage(t, options = {}) {
     if (cv && cvr.width > 200 && cvr.height > 200 && win.getComputedStyle(cv).visibility !== 'hidden') t.event('canvas-visible', `${label}: the Unity canvas is ${Math.round(cvr.width)}x${Math.round(cvr.height)}px in the frame`); else bad.push(`${label}: the Unity canvas is not visible`);
     if (!hero) t.event('no-landing-in-frame', `${label}: no landing page hero in the game's frame`); else bad.push(`${label}: the frame holds the Hawkes landing page, not the game`);
     if (stageEl && frameTop === frame) t.event('frame-on-top', `${label}: the game's frame is the top layer of the page being shot`); else bad.push(`${label}: the game's frame is not on top of the page`);
+    if (window.__ptSoHost === hostMark) t.event('host-stable', `${label}: the host page was not reloaded or replaced during the run`); else bad.push(`${label}: the host page was reloaded during the run`);
     t.scene(`Sick of It ${label}: after tap`);
     await t.wait(SHOT_MS * 2); // the frame stays up until the picture of the running game is taken
   }
   // The frame is left up when the run ends (the next run's page load clears it): the runner's last picture is taken after
   // finish(), and with the frame gone it was the landing page behind it that got photographed, not the game.
+  await t.wait(SHOT_MS); // the last picture is taken after the last scene event: finish only once it has been
   if (bad.length) { t.event('sickofit-failed', bad.join(' | ')); throw new Error(`sickofit: ${bad.join(' | ')}`); }
   t.finish('done');
 }
