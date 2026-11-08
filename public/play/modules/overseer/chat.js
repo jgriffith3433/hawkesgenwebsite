@@ -56,7 +56,8 @@
 .hc-log .act{border:0;cursor:pointer;display:inline-block;margin-left:8px;font:700 11px var(--display,system-ui);letter-spacing:.08em;padding:5px 9px;background:linear-gradient(90deg,#f2b33d,#ff7a45);color:#16130a;text-decoration:none;text-shadow:none}
 .hc-cards{display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none}
 .hc-card{pointer-events:auto;display:flex;align-items:center;gap:10px;max-width:100%;padding:8px 8px 8px 14px;border-radius:12px;background:rgba(6,10,20,.82);border:1px solid rgba(242,179,61,.55);box-shadow:0 6px 18px rgba(0,0,0,.35);color:#f3f6ff;font:600 13.5px/1.3 var(--hud,system-ui,sans-serif);text-align:left;animation:hc-in .25s ease-out}
-.hc-card span{overflow-wrap:anywhere}
+.hc-card{flex-wrap:wrap}
+.hc-card span{overflow-wrap:break-word;word-break:normal;flex:1 1 11em;min-width:min(11em,100%)}
 .hc-card .act{flex:none;border:0;cursor:pointer;font:700 11px var(--display,system-ui);letter-spacing:.08em;padding:7px 11px;border-radius:8px;background:linear-gradient(90deg,#f2b33d,#ff7a45);color:#16130a;text-decoration:none}
 .hc-card .act:disabled{opacity:.6;cursor:default}
 .hc-card .x{flex:none;width:26px;height:26px;border:0;border-radius:50%;background:rgba(255,255,255,.08);color:#cfe8ff;font:700 15px/1 system-ui;cursor:pointer;padding:0}
