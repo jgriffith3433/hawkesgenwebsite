@@ -29,7 +29,7 @@ export async function runSickofitPage(t, options = {}) {
     const vis = (s) => { const e = d.querySelector(s); return e && win.getComputedStyle(e).display !== 'none' && rect(e).height > 0 ? e : null; };
     const prem = vis('#pre .premise');
     if (prem && prem.textContent.trim().length > 20) t.event('premise-shown', `${label}: "${prem.textContent.trim()}"`); else bad.push(`${label}: no premise`);
-    const ctl = vis(w < 500 && d.body.classList.contains('touch') ? '#pre .touch' : '#pre .kbd') || vis('#pre .keys');
+    const ctl = vis('#pre .touch') || vis('#pre .kbd');
     if (ctl && /move/i.test(ctl.textContent) && /rewind/i.test(ctl.textContent)) t.event('controls-shown', `${label}: ${ctl.textContent.trim()}`); else bad.push(`${label}: no move/rewind guide`);
     // The premise and guide must be what the player sees: on top of the prompt's opaque layer, not hidden under it.
     const topAt = (e) => { const r = rect(e); const hitEl = d.elementFromPoint(Math.round((r.left + r.right) / 2), Math.round((r.top + r.bottom) / 2)); return hitEl && hitEl.closest('#pre'); };
@@ -58,6 +58,9 @@ export async function runSickofitPage(t, options = {}) {
     tapBtn.click();
     await t.wait(4000);
     if (!d.getElementById('hawkes-tap') || d.getElementById('hawkes-tap').classList.contains('gone') || win.unityInstance) t.event('tap-to-play-works', `${label}: tapped, the prompt left${win.unityInstance ? ' and the game is running' : ''}`); else bad.push(`${label}: Tap to play did nothing`);
+    if (!/\/play\/sickofit/.test(win.location.pathname)) bad.push(`${label}: the page left /play/sickofit (now ${win.location.pathname})`);
+    const strip = d.getElementById('pre');
+    if (strip && win.getComputedStyle(strip).visibility === 'hidden') t.event('guide-gone', `${label}: the premise and controls line left with the first tap`); else bad.push(`${label}: the premise/controls line is still over the game after the tap`);
     t.scene(`Sick of It ${label}: after tap`);
   }
   document.getElementById('pt-so-stage')?.remove();
