@@ -437,8 +437,44 @@
     for (const k of Object.keys(expr)) o[k] = n[k] + (expr[k] - n[k]) * gain;
     return o;
   }
+  // ------------------------------------------------------------------ the stride: feet that stay where they are put
+  // A leg swung from the hip puts its foot L * sin(angle) ahead of the hip. For the foot not to slide, while it is on the
+  // ground (the stance, `duty` of each leg's cycle) it must go back under the body at exactly the ground speed: sin(angle)
+  // falls in a straight line from +sin(amp) to -sin(amp) over the stance, and the cycle is as quick as the speed asks for.
+  // The swing (the rest of the cycle) brings it forward through the air on a smooth curve. A walk keeps a foot down half
+  // of the time (duty 0.5); a run less (0.35), with a moment in the air between steps.
+  const TAU = Math.PI * 2;
+  // maxHz: the quickest cycle for a leg of `refLeg` m or longer; a shorter leg may go quicker, as a small animal scurries
+  // (a pendulum's beat goes as 1 / sqrt(length)). maxAmp: how wide a stride may open when the beat is at its quickest.
+  const STRIDE = { walkDuty: 0.5, runDuty: 0.35, maxHz: 4.5, refLeg: 0.5, maxAmp: 1.15 };
+  const strideDuty = (run01) => STRIDE.walkDuty + (STRIDE.runDuty - STRIDE.walkDuty) * Math.max(0, Math.min(1, run01));
+  /** The quickest stride cycle (Hz) for a leg this long (m). */
+  const strideMaxHz = (leg) => STRIDE.maxHz * Math.sqrt(Math.max(1, STRIDE.refLeg / Math.max(0.05, leg || STRIDE.refLeg)));
+  /** Cycles a second for this speed (m/s), leg length (m, hip to sole), swing amplitude (radians) and duty: what keeps the planted foot still. */
+  function strideHz(speed, leg, amp, duty = 0.5) {
+    const reach = 2 * leg * Math.sin(Math.min(1.4, Math.abs(amp))); // how far the foot goes back under the body during one stance
+    if (!(speed > 0) || !(reach > 1e-4)) return 0;
+    return Math.min(strideMaxHz(leg), (speed * duty) / reach);
+  }
+  /** The swing amplitude for this speed: `amp`, or wider (up to STRIDE.maxAmp) when the beat would have to go past its
+   *  quickest to keep up, so a short leg at a sprint still plants its foot instead of skating. */
+  function strideAmp(speed, leg, amp, duty = 0.5) {
+    if (!(speed > 0) || !(leg > 1e-3)) return amp;
+    const need = (speed * duty) / (2 * leg * strideMaxHz(leg)); // sin(amp) the quickest beat needs
+    return need > Math.sin(amp) ? Math.max(amp, Math.asin(Math.min(Math.sin(STRIDE.maxAmp), need))) : amp;
+  }
+  /** One leg's hip angle (radians; + is forward) at phase `ph` (radians, one cycle 2 pi): stance first, then the swing. */
+  function strideAngle(ph, amp, duty = 0.5) {
+    const sa = Math.sin(Math.min(1.4, Math.abs(amp))) * Math.sign(amp || 0);
+    let u = (ph / TAU) % 1; if (u < 0) u += 1;
+    const s = u < duty ? sa * (1 - (2 * u) / duty) : -sa * Math.cos((Math.PI * (u - duty)) / (1 - duty));
+    return Math.asin(Math.max(-1, Math.min(1, s)));
+  }
+  /** Whether the leg at this phase has its foot down (the stance). */
+  const strideDown = (ph, duty = 0.5) => { let u = (ph / TAU) % 1; if (u < 0) u += 1; return u < duty; };
+
   /** Whether a name is one of the six emotes everyone has on the wheel's face (the wheel's first six). */
   const CORE_EMOTES = ['wave', 'laugh', 'cheer', 'shrug', 'dance', 'point'];
 
-  P.core = { ACCESSORIES, ACCESSORY, palette, tones, hsl, hexOf, mixHex, EXPRESSIONS, EMOTE_FACE, feel, mood, talkOpen, restFace, gazeTarget, blinkStep, landTracker, FACE_SPEC, faceSpec, shape, CORE_EMOTES, POSE_FACE, LOOK, WHATS, WHAT, cleanName, NAME_MAX, nameProblem, filterName, marker, besideSpot, cleanLook, randomLook, seedOf, EMOTES, emote, TAGS, layoutTags, BUBBLES, bubbleSeconds, wrap, bubbles, CHAT, cleanLine, limiter };
+  P.core = { STRIDE, strideDuty, strideHz, strideMaxHz, strideAmp, strideAngle, strideDown, ACCESSORIES, ACCESSORY, palette, tones, hsl, hexOf, mixHex, EXPRESSIONS, EMOTE_FACE, feel, mood, talkOpen, restFace, gazeTarget, blinkStep, landTracker, FACE_SPEC, faceSpec, shape, CORE_EMOTES, POSE_FACE, LOOK, WHATS, WHAT, cleanName, NAME_MAX, nameProblem, filterName, marker, besideSpot, cleanLook, randomLook, seedOf, EMOTES, emote, TAGS, layoutTags, BUBBLES, bubbleSeconds, wrap, bubbles, CHAT, cleanLine, limiter };
 })();
