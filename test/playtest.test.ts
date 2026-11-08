@@ -56,3 +56,10 @@ test('avatar-animations: a frame per class, the bone checks, the fallbacks and t
   assert.match(read('public/playtest/portal.js'), /runAvatarAnimations\(t, options\)/);
   assert.match(read('AGENTS.md'), /avatar-animations/);
 });
+
+test('world-quality: the play page answers the audit on every world, the guest sandbox (/play/sandbox) included', () => {
+  const html = read('public/play/play.html');
+  const bridge = html.indexOf("m.hawkesPlaytest !== 'audit'"), sandbox = html.indexOf("if (slug === 'sandbox')"), draft = html.indexOf("if (slug === '_draft')");
+  assert.ok(bridge > 0 && sandbox > 0 && draft > 0);
+  assert.ok(bridge < sandbox && bridge < draft, 'the bridge is set up before the sandbox and the draft return early');
+});

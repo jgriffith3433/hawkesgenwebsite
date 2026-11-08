@@ -528,6 +528,7 @@
     // fast downhill): put the feet on it instead of starting a fall.
     if (!onGround && c.airT === 0 && v[1] <= 0.5 && g < 0 && !support.supportedState) onGround = snapDown(e, c, w);
     c.airT = onGround ? 0 : (c.airT || 0) + dt;
+    // The ground's slope under the feet (what a landing hits: juice-feel.js judges how hard by the speed into it).
     if (onGround) {
       if (!e._walked) { const k = Math.max(0, 1 - (e.friction ?? 0.6) * 10 * dt); v[0] *= k; v[2] *= k; }
       v[1] = 0;
@@ -549,15 +550,18 @@
     n.position.copyFrom(cc.getPosition());
     c.last.copyFrom(n.position);
     // What it stands on and what it pushed.
-    let standing = null, best = 0.5;
+    let standing = null, best = 0.5, under = null;
     for (const m of cc._manifold || []) {
       const o = m.bodyB && entityOfBody(m.bodyB.body);
       if (!o) continue;
-      if (m.normal.y > best) { best = m.normal.y; standing = o; }
+      if (m.normal.y > best) { best = m.normal.y; standing = o; under = m.normal; }
       if (o.physics === 'dynamic') { if (o.remote) for (const f of H.hooks.push) f(o, e); else if (o._pb) wakeBody(o._pb); }
     }
     e.grounded = onGround || (Boolean(standing) && v[1] <= 0.5);
     e.standing = e.grounded ? standing : null;
+    // The ground's slope under the feet (what a landing hits: juice-feel.js judges how hard by the speed into it).
+    const gn = supported && nrm.y > 0.05 ? nrm : under;
+    e.groundNormal = e.grounded ? (gn ? [gn.x, gn.y, gn.z] : [0, 1, 0]) : null;
     c.on = e.standing;
     if (c.on) { const op = whereIs(c.on.node); c.onAt = [op.x, op.y, op.z]; c.onYaw = c.on.node.rotation.y; }
   }
