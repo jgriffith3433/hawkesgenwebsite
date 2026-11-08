@@ -28,9 +28,9 @@ import { WORLD_REPORT, runWorldReport } from './world-report.js';
 import { SERVER_LIMITS, runServerLimits } from './server-limits.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'firstvisit', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'answer', 'progress', 'models', 'wish', 'toeditor', 'editor', 'react'];
+const STAGES = ['landing', 'veil', 'intro', 'firstvisit', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'phoneperf', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'answer', 'progress', 'models', 'wish', 'toeditor', 'editor', 'react'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'overseer-personality': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'react'], 'overseer-first-visit': ['landing', 'veil', 'firstvisit'], 'overseer-ask': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'answer'], 'gen-models-all': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-daily-wish': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wish'], 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'editor-bridge': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'toeditor', 'editor'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
+const ORDERS = { 'overseer-personality': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'react'], 'overseer-first-visit': ['landing', 'veil', 'firstvisit'], 'overseer-ask': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'answer'], 'gen-models-all': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-daily-wish': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wish'], 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'phone-performance': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'phoneperf'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'editor-bridge': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'toeditor', 'editor'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
 const SCENARIOS = [
   SITE_LAYOUT, // the landing page at three sizes (site-layout.js)
   AVATAR_ANIMATIONS, // clips as data on /avatars (avatar-animations.js)
@@ -67,6 +67,11 @@ const SCENARIOS = [
     id: 'rocket-blast-feel', title: 'Game feel of the rocket launcher: recoil and muzzle flash, a smoke trail, hit-stop, shake, a shockwave, debris and embers, and ten barrels that explode in a rolling chain (30 fps on the phone tier)', seconds: 300, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first-minutes path to the account sheet, then the rocket launcher fired with a real click at the fuel barrels on the beach (five more spawned beside them by one named shortcut, so ten), walking closer and firing again until they go; logs launcher-recoil, rocket-trail, blast-effects (hit-stop, shake, shockwave, debris, embers), chain-rolling (the gaps between the ten explosions: not all at once) and chain-fps (metric chainFps, chainWorstFrameMs). Options: touch (true: the phone controls, ?touch=1, and under 30 fps is a problem), signup (false: stop at the account sheet; always on live), watch',
+  },
+  {
+    id: 'phone-performance', title: 'Phone performance: driving and ten exploding barrels on the island hold 30 fps with touch controls, no long freeze, and the stick and buttons answer throughout', seconds: 300, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'opens /play/sandbox?touch=1, plays the first minutes to the account sheet, then with touch pointers only: the stick walks to the 4x4, B gets in, the stick steers and A brakes while frames are counted (driveFps, driveWorstFrameMs, driveFreezes; the 4x4 must move and turn: touch-steer-responds, touch-brake-responds); then the rocket launcher is put in hand and five more barrels spawned (one named setup-shortcut), the drag turns the camera to the barrels, the stick walks near, FIRE is tapped until the chain goes (touch-fire-responds) while frames are counted (blastFps, blastWorstFrameMs, blastFreezes). Under 30 fps average, or any frame over 500 ms, is an error. Run at 390x844 (and 844x390). Options: signup (false: stop at the account sheet; always on live)',
   },
   {
     id: 'touch-controls', title: 'Every tour action with touch alone (stick, look drag, jump, B, steer, brake, fish, tools, spawn wheel, helicopter and rocket flight, Stuck?, hide the HUD): no overlaps, buttons 48 px or more, inside the safe area', seconds: 420, tags: ['full'],
@@ -2457,10 +2462,118 @@ async function stageBlast(t, ctx) {
   t.progress(1);
 }
 
+// ---------------------------------------------------------------------------------------------- phone performance
+/** Counts frames from now: stop() gives the average fps, the worst frame and how many frames took over 500 ms (a freeze). */
+function frameMeter() {
+  let frames = 0, worst = 0, freezes = 0, running = true, last = performance.now();
+  const t0 = last;
+  const raf = (n) => { frames++; const d = n - last; worst = Math.max(worst, d); if (d > 500) freezes++; last = n; if (running) requestAnimationFrame(raf); };
+  requestAnimationFrame(raf);
+  return { stop() { running = false; return { fps: Math.round(frames / ((performance.now() - t0) / 1000)), worst: Math.round(worst), freezes }; } };
+}
+/** `phone-performance`: the phone controls only (pointer events of type touch). Driving, then the rocket launcher at ten barrels,
+ *  each with the frame rate, the worst frame and the freezes measured, and proof that the stick and buttons answered. */
+async function stagePhonePerf(t, ctx) {
+  await t.until(() => G() && G().vehicles && G().mayhem && W().byId.get('jeep') && W().byId.get('barrel_1') && HP().touchLayout, 90000, 'the island, its 4x4, barrels and touch layout');
+  if (!HP().touchUi) throw new Error('the phone controls are not on (open /play/sandbox?touch=1)');
+  await t.until(() => $('#touch .pad') && $('#touch .a') && $('#touch .b'), 15000, 'the stick and the buttons');
+  await t.wait(1500);
+  releaseAll();
+  const driving = () => G().player && G().player.controller === 'drive';
+  const P = () => W().player;
+  t.event('phone-ready', `${HP().device ? HP().device.tier : '?'} tier, ${innerWidth}x${innerHeight}, touch controls`);
+  // walk with the stick toward a thing, as a thumb does
+  const stickTo = async (id, near, ms, what) => {
+    const g = W().byId.get(id), t0 = performance.now(); let s = null;
+    try {
+      for (;;) {
+        const dx = g.x - P().x, dz = g.z - P().z, d = Math.hypot(dx, dz);
+        if (d <= near) return;
+        if (performance.now() - t0 > ms) throw new Error(`timed out walking to ${what} with the stick`);
+        const yaw = camYaw(), sn = Math.sin(yaw), c = Math.cos(yaw);
+        if (!s) s = stickHold();
+        s.set((dx * c - dz * sn) / d, (dx * sn + dz * c) / d);
+        await t.wait(80);
+      }
+    } finally { if (s) s.release(); }
+  };
+  // 1) driving
+  await stickTo('jeep', 3.2, 60000, 'the 4x4');
+  for (let i = 0; i < 4 && !driving(); i++) { await tapButton(t, $('#touch .b')); await t.wait(700); }
+  if (!driving()) throw new Error('timed out getting into the 4x4 with B');
+  await t.wait(1200);
+  t.scene('Phone: in the 4x4');
+  const jeep = W().byId.get('jeep');
+  const head = () => Math.atan2(jeep.vehicle.fwd.x, jeep.vehicle.fwd.z);
+  const m1 = frameMeter();
+  const st = stickHold();
+  const a0 = { x: jeep.x, z: jeep.z };
+  st.set(0, 1); await t.wait(3000);
+  const moved = Math.hypot(jeep.x - a0.x, jeep.z - a0.z);
+  t.scene('Phone: driving');
+  let turned = 0;
+  for (let i = 0; i < 5; i++) { const h = head(); st.set(i % 2 ? -1 : 1, 1); await t.wait(900); turned = Math.max(turned, Math.abs(wrap(head() - h))); if (i === 2) t.scene('Phone: steering'); }
+  const brake = press($('#touch .a')); st.set(0, 0);
+  const sp0 = jeep.vehicle.speed || 0; await t.wait(1500);
+  const sp1 = jeep.vehicle.speed || 0; brake(); st.release();
+  await t.wait(1500);
+  const d = m1.stop();
+  t.event('touch-steer-responds', `the stick drove the 4x4 ${moved.toFixed(1)} m and turned it up to ${turned.toFixed(2)} rad`);
+  if (moved < 3) t.problem('error', `the stick did not drive the 4x4 (${moved.toFixed(1)} m in 3 s)`);
+  if (turned < 0.15) t.problem('error', `the stick did not steer the 4x4 (${turned.toFixed(2)} rad)`);
+  t.event('touch-brake-responds', `A held: speed ${Number(sp0).toFixed(1)} to ${Number(sp1).toFixed(1)}`);
+  if (sp0 > 4 && sp1 > sp0 * 0.9) t.problem('error', 'the brake button did not slow the 4x4');
+  t.metric('driveFps', d.fps); t.metric('driveWorstFrameMs', d.worst); t.metric('driveFreezes', d.freezes);
+  t.event('drive-fps', `${d.fps} fps driving with touch (worst frame ${d.worst} ms, ${d.freezes} freezes over 500 ms)`);
+  if (d.fps < 30) t.problem('error', `the phone held ${d.fps} fps while driving (30 needed)`);
+  if (d.freezes) t.problem('error', `${d.freezes} freeze(s) over 500 ms while driving (worst ${d.worst} ms)`);
+  // 2) the barrels
+  await tapButton(t, $('#touch .b')); await t.wait(1200);
+  const barrels = () => [...W().entities].filter((e) => e.data && (e.data.barrel || e.data.explosive) && !e._exploded);
+  const b1 = W().byId.get('barrel_1');
+  G().mayhem.spawnMany('barrel', 5, { at: [b1.x + 2.6, b1.y, b1.z], pattern: 'line', spacing: 1.3 });
+  P().tool = 'rocket-launcher';
+  t.event('setup-shortcut', 'the rocket launcher put in hand and five more fuel barrels spawned beside the five on the beach, so ten in all');
+  await t.wait(1200);
+  const total = barrels().length;
+  await stickTo('barrel_1', 9, 60000, 'the fuel barrels');
+  const booms = [];
+  G().on('explosion', () => booms.push(performance.now()));
+  await t.until(() => $('.mh-fire:not([hidden])'), 8000, 'the FIRE button');
+  let result = null;
+  for (let tries = 0; tries < 4 && !result; tries++) {
+    // turn to the barrels with a thumb drag (the first drags learn which way it turns)
+    let sign = 1, last = null;
+    for (let k = 0; k < 30; k++) {
+      const p = W().byId.get('barrel_1'), err = wrap(Math.atan2(p.x - P().x, p.z - P().z) - camYaw());
+      if (Math.abs(err) < 0.3) break;
+      if (last !== null && Math.abs(err) > Math.abs(last) + 0.02) sign = -sign;
+      last = err;
+      await dragLook(t, Math.sign(err) * sign * Math.min(160, Math.abs(err) * 140 + 30)); await t.wait(100);
+    }
+    const m2 = frameMeter(), first = booms.length;
+    await tapButton(t, $('.mh-fire:not([hidden])'), 200);
+    t.event('touch-fire-tapped', `FIRE tapped, shot ${tries + 1}`);
+    await t.until(() => booms.length > first, 7000, 'the rocket to land').catch(() => {});
+    await t.wait(5500);
+    const r = m2.stop();
+    if (booms.length > first) result = { ...r, n: booms.length - first };
+    else { t.problem('warning', `shot ${tries + 1} did not land`); await stickTo('barrel_1', Math.max(3.5, 9 - (tries + 1) * 1.8), 20000, 'the fuel barrels'); }
+  }
+  if (!result) throw new Error('FIRE never sent a rocket that landed');
+  t.scene('Phone: the chain');
+  t.event('touch-fire-responds', `FIRE tapped with a thumb: ${result.n} explosions of ${total} barrels`);
+  t.metric('blastFps', result.fps); t.metric('blastWorstFrameMs', result.worst); t.metric('blastFreezes', result.freezes);
+  t.event('blast-fps', `${result.fps} fps through the shot and the chain with touch (worst frame ${result.worst} ms, ${result.freezes} freezes over 500 ms)`);
+  if (result.fps < 30) t.problem('error', `the phone held ${result.fps} fps through the explosions (30 needed)`);
+  if (result.freezes) t.problem('error', `${result.freezes} freeze(s) over 500 ms in the explosions (worst ${result.worst} ms)`);
+  releaseAll();
+}
+
 const RUN = {
   models: stageModels,
   hats: stageHats,
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, firstvisit: stageFirstVisit, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, answer: stageAnswer, toeditor: stageToEditor, editor: stageEditor, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, wish: stageWish, react: stageReact, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, firstvisit: stageFirstVisit, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, answer: stageAnswer, toeditor: stageToEditor, editor: stageEditor, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, wish: stageWish, react: stageReact, alive: stageAlive, touch: stageTouch, phoneperf: stagePhonePerf, leave: stageLeave, back: stageBack,
 };
 // Island invitations (island-invite): after the sheet, the inviter's stage, then the friend's page on a closed island.
 STAGES.push('invite', 'gone', 'own');
@@ -2517,7 +2630,7 @@ RUN.moment = stageMoment;
 /** The stages a page that follows a leg change carries on with (the first-minutes ones are already done). */
 const legSeq = (id, prior) => (id === 'editor-bridge' && prior && prior.leg === 'editor' ? ['editor'] : id === 'island-invite' && prior && (prior.leg === 'gone' || prior.leg === 'own') ? [prior.leg] : null);
 
-const ENDS = { 'overseer-personality': 'react', 'overseer-first-visit': 'firstvisit', 'island-invite-friend': 'farrive', 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'overseer-ask': 'answer', 'editor-bridge': 'editor', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models', 'gen-hats': 'hats' };
+const ENDS = { 'overseer-personality': 'react', 'overseer-first-visit': 'firstvisit', 'island-invite-friend': 'farrive', 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'overseer-ask': 'answer', 'editor-bridge': 'editor', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'phone-performance': 'phoneperf', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models', 'gen-hats': 'hats' };
 
 
 // ---------------------------------------------------------------------------------------------- share-moment
@@ -2746,7 +2859,7 @@ export function install() {
       if (id === SERVER_LIMITS.id) return runServerLimits(t, options);
       if (id === 'observatory-wardrobe' && options.touch) options = { at: 'sandbox', ...options }; // (touch: straight to the island with the phone controls)
       if ((id === 'vehicle-feel' || id === 'rocket-blast-feel') && options.touch) options = { at: 'sandbox', ...options };
-      if (id === 'touch-controls') options = { at: 'sandbox', touch: true, ...options }; // (the phone controls, straight to the island)
+      if (id === 'touch-controls' || id === 'phone-performance') options = { at: 'sandbox', touch: true, ...options }; // (the phone controls, straight to the island)
       const events = [];
       // Everything the run says is kept, so the page that follows can carry the whole report.
       const ev = t.event.bind(t);
