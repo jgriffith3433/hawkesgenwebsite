@@ -1,7 +1,7 @@
 // The `sickofit-page` scenario: the Sick of It page before the game starts, at 390x844 and 1440x900 (an iframe each).
 // Loaded by portal.js. Safe on live (read only). Events: premise-shown, controls-shown, guide-on-top, no-overlap, tap-reachable, tap-to-play-works, canvas-visible, no-landing-in-frame, frame-on-top.
 export const SICKOFIT_PAGE = {
-  id: 'sickofit-page', title: 'Sick of It page: premise and controls guide before the game; nothing over the canvas or Tap to play at 390px; Tap to play starts it', seconds: 90, tags: ['full'],
+  id: 'sickofit-page', title: 'Sick of It page: premise and controls guide before the game; nothing over the canvas or Tap to play at 390px; Tap to play starts it', seconds: 240, tags: ['full'],
   description: '/play/sickofit in a frame at 390x844 (touch) and 1440x900: the premise line and move/rewind guide (premise-shown, controls-shown), the strip clear of Tap to play (no-overlap), the loader, strip and prompt clear of each other (no-overlap, guide-on-top, tap-reachable), then a tap on Tap to play (tap-to-play-works). options: sizes',
 };
 const SHOT_MS = 2500;
@@ -10,6 +10,7 @@ const hit = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom &
 export async function runSickofitPage(t, options = {}) {
   const sizes = (Array.isArray(options.sizes) && options.sizes.length ? options.sizes : ['390x844', '1440x900']).map(String);
   const bad = [];
+  let stageGuard = null; const stageLost = [];
   // The host page is the landing page the run started on. A picture of it is what a "the game navigated away" report is made of,
   // so nothing of it may show behind the frame, and a host that was reloaded mid-run (its sky was fresh in the pictures) is named.
   const hostMark = (window.__ptSoHost = {});
@@ -25,6 +26,11 @@ export async function runSickofitPage(t, options = {}) {
     frame.style.cssText = `position:absolute;left:${Math.round((innerWidth - w * scale) / 2)}px;top:24px;width:${w}px;height:${h}px;border:0;transform:scale(${scale});transform-origin:0 0`;
     stage.appendChild(frame); document.body.appendChild(stage);
     hideHost();
+    // Whatever replaces or reloads the host page, the game's frame stays the top layer of what is photographed: if the stage is
+    // taken out of the page, it goes back in (a re-added frame reloads its page, which the warning names).
+    stageGuard?.disconnect();
+    stageGuard = new MutationObserver(() => { if (!stage.isConnected && document.body) { stageLost.push(label); document.body.appendChild(stage); hideHost(); } });
+    stageGuard.observe(document.body, { childList: true });
     frame.src = '/play/sickofit' + (w < 500 ? '?touch=1' : '');
     await t.until(() => { try { return frame.contentDocument.getElementById('pre'); } catch { return false; } }, 30000, `the page at ${label}`);
     const d = frame.contentDocument, win = frame.contentWindow;
@@ -80,10 +86,15 @@ export async function runSickofitPage(t, options = {}) {
     tapBtn.click();
     await t.wait(1000);
     if (!d.getElementById('hawkes-tap') || d.getElementById('hawkes-tap').classList.contains('gone') || win.unityInstance) t.event('tap-to-play-works', `${label}: tapped, the prompt left${win.unityInstance ? ' and the game is running' : ''}`); else bad.push(`${label}: Tap to play did nothing`);
-    // The picture is taken once Unity reports running (a slow build is a warning, not a pass).
-    try { await t.until(() => win.unityInstance, 60000, `the game running at ${label}`); t.event('game-running', `${label}: the Unity instance is up`); } catch { t.problem('warning', `${label}: the game was not running after 60 s`); }
+    // The picture is taken once Unity reports running: the build is 33 MB, so a slow connection gets 150 s. A game that is not
+    // running by then is an error, not a loader screenshot passed off as the game. Where the page is, is watched the whole wait.
+    const onPage = () => { try { return /^\/play\/sickofit\/?(index\.html)?$/.test(win.location.pathname); } catch { return false; } };
+    let left = '';
+    let running = false;
+    try { await t.until(() => { if (!onPage()) { left = left || (() => { try { return win.location.pathname; } catch { return '(another page)'; } })(); return true; } return !!win.unityInstance; }, 150000, `the game running at ${label}`); running = !!win.unityInstance; } catch { /* reported below */ }
+    if (running) t.event('game-running', `${label}: the Unity instance is up`); else if (!left) bad.push(`${label}: the game was not running 150 s after the tap`);
     await t.wait(5000);
-    if (/^\/play\/sickofit\/?(index\.html)?$/.test(win.location.pathname)) t.event('stayed-on-page', `${label}: still ${win.location.pathname} 5 s after the tap`); else bad.push(`${label}: the page left /play/sickofit (now ${win.location.pathname})`);
+    if (!left && onPage()) t.event('stayed-on-page', `${label}: still ${win.location.pathname} 5 s after the tap${running ? ' and the game running' : ''}`); else bad.push(`${label}: the page left /play/sickofit (now ${left || win.location.pathname})`);
     const strip = d.getElementById('pre');
     if (strip && win.getComputedStyle(strip).display === 'none') t.event('guide-gone', `${label}: the premise and controls strip is display:none once the game starts`); else bad.push(`${label}: the premise/controls strip is still in the page after the game started`);
     // What the picture will show must be the game: the Unity canvas on screen, the frame still the top layer of the host page,
@@ -95,6 +106,7 @@ export async function runSickofitPage(t, options = {}) {
     const hero = [...d.querySelectorAll('h1')].find((e) => /free will/i.test(e.textContent)) || d.querySelector('[data-play-now], .hg-nav-links');
     if (cv && cvr.width > 200 && cvr.height > 200 && win.getComputedStyle(cv).visibility !== 'hidden') t.event('canvas-visible', `${label}: the Unity canvas is ${Math.round(cvr.width)}x${Math.round(cvr.height)}px in the frame`); else bad.push(`${label}: the Unity canvas is not visible`);
     if (!hero) t.event('no-landing-in-frame', `${label}: no landing page hero in the game's frame`); else bad.push(`${label}: the frame holds the Hawkes landing page, not the game`);
+    if (running && win.getComputedStyle(d.getElementById('loading')).display === 'none') t.event('loader-gone', `${label}: the loader is gone, the game is what is on screen`); else if (running) bad.push(`${label}: the loader still covers the game`);
     if (stageEl && frameTop === frame) t.event('frame-on-top', `${label}: the game's frame is the top layer of the page being shot`); else bad.push(`${label}: the game's frame is not on top of the page`);
     if (window.__ptSoHost === hostMark) t.event('host-stable', `${label}: the host page was not reloaded or replaced during the run`); else bad.push(`${label}: the host page was reloaded during the run`);
     t.scene(`Sick of It ${label}: after tap`);
@@ -103,6 +115,8 @@ export async function runSickofitPage(t, options = {}) {
   // The frame is left up when the run ends (the next run's page load clears it): the runner's last picture is taken after
   // finish(), and with the frame gone it was the landing page behind it that got photographed, not the game.
   await t.wait(SHOT_MS); // the last picture is taken after the last scene event: finish only once it has been
+  if (stageLost.length) t.problem('warning', `the page under test lost its frame at ${stageLost.join(', ')}; it was put back`);
+  stageGuard?.disconnect();
   if (bad.length) { t.event('sickofit-failed', bad.join(' | ')); throw new Error(`sickofit: ${bad.join(' | ')}`); }
   t.finish('done');
 }
