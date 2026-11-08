@@ -261,7 +261,7 @@
     }
     let r = { skipped: true };
     try {
-      r = await g.cinematic.path(keys, { seconds: SEC, fade: { in: 0.9, out: 0.6 }, letterbox: true, skippable: true, ease: 'inOut' });
+      r = await g.cinematic.path(keys, { seconds: SEC, fade: { in: 0.9, out: 0.6 }, letterbox: window.innerWidth >= window.innerHeight, skippable: true, ease: 'inOut' });
     } catch (err) { H.report(err, 'intro'); }
     for (const t of timers) clearTimeout(t);
     window.removeEventListener('keydown', onKey, true);
