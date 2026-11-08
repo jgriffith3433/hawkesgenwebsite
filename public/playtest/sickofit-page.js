@@ -1,5 +1,5 @@
 // The `sickofit-page` scenario: the Sick of It page before the game starts, at 390x844 and 1440x900 (an iframe each).
-// Loaded by portal.js. Safe on live (read only). Events: premise-shown, controls-shown, guide-on-top, no-overlap, tap-reachable, tap-to-play-works.
+// Loaded by portal.js. Safe on live (read only). Events: premise-shown, controls-shown, guide-on-top, no-overlap, tap-reachable, tap-to-play-works, canvas-visible, no-landing-in-frame, frame-on-top.
 export const SICKOFIT_PAGE = {
   id: 'sickofit-page', title: 'Sick of It page: premise and controls guide before the game; nothing over the canvas or Tap to play at 390px; Tap to play starts it', seconds: 90, tags: ['full'],
   description: '/play/sickofit in a frame at 390x844 (touch) and 1440x900: the premise line and move/rewind guide (premise-shown, controls-shown), the strip clear of Tap to play (no-overlap), the loader, strip and prompt clear of each other (no-overlap, guide-on-top, tap-reachable), then a tap on Tap to play (tap-to-play-works). options: sizes',
@@ -81,10 +81,21 @@ export async function runSickofitPage(t, options = {}) {
     if (/^\/play\/sickofit\/?(index\.html)?$/.test(win.location.pathname)) t.event('stayed-on-page', `${label}: still ${win.location.pathname} 5 s after the tap`); else bad.push(`${label}: the page left /play/sickofit (now ${win.location.pathname})`);
     const strip = d.getElementById('pre');
     if (strip && win.getComputedStyle(strip).display === 'none') t.event('guide-gone', `${label}: the premise and controls strip is display:none once the game starts`); else bad.push(`${label}: the premise/controls strip is still in the page after the game started`);
+    // What the picture will show must be the game: the Unity canvas on screen, the frame still the top layer of the host page,
+    // and no landing page (its hero) anywhere in the frame. Checked at the moment of the scene, so a screenshot of the landing
+    // page cannot pass for the game, nor a game that was swapped for the landing page.
+    const cv = d.getElementById('unity-canvas'), cvr = cv && rect(cv);
+    const stageEl = document.getElementById('pt-so-stage'), fr = rect(frame);
+    const frameTop = document.elementFromPoint(Math.round(fr.left + fr.width / 2), Math.round(fr.top + fr.height / 2));
+    const hero = [...d.querySelectorAll('h1')].find((e) => /free will/i.test(e.textContent)) || d.querySelector('[data-play-now], .hg-nav-links');
+    if (cv && cvr.width > 200 && cvr.height > 200 && win.getComputedStyle(cv).visibility !== 'hidden') t.event('canvas-visible', `${label}: the Unity canvas is ${Math.round(cvr.width)}x${Math.round(cvr.height)}px in the frame`); else bad.push(`${label}: the Unity canvas is not visible`);
+    if (!hero) t.event('no-landing-in-frame', `${label}: no landing page hero in the game's frame`); else bad.push(`${label}: the frame holds the Hawkes landing page, not the game`);
+    if (stageEl && frameTop === frame) t.event('frame-on-top', `${label}: the game's frame is the top layer of the page being shot`); else bad.push(`${label}: the game's frame is not on top of the page`);
     t.scene(`Sick of It ${label}: after tap`);
-    await t.wait(SHOT_MS); // the frame stays up until the picture of the running game is taken
+    await t.wait(SHOT_MS * 2); // the frame stays up until the picture of the running game is taken
   }
-  document.getElementById('pt-so-stage')?.remove();
+  // The frame is left up when the run ends (the next run's page load clears it): the runner's last picture is taken after
+  // finish(), and with the frame gone it was the landing page behind it that got photographed, not the game.
   if (bad.length) { t.event('sickofit-failed', bad.join(' | ')); throw new Error(`sickofit: ${bad.join(' | ')}`); }
   t.finish('done');
 }
