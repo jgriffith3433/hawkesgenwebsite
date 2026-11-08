@@ -138,3 +138,54 @@ test('the other faces still build: visor (a glow over the eyes) and none', () =>
     P.showcase.dispose(rig); node.dispose();
   }
 });
+
+test('the planted foot stays put: at every speed from a stroll to a sprint, and speeding up from a walk into a run, whatever the body shape', () => {
+  for (const shape of C.LOOK.shapes) {
+  const { rig, node, e } = make({ shape });
+  // the sole of each leg in the world (the leg hangs from its hip: hip to sole is the person's leg, in the hip's own space)
+  const sole = (hip: any) => { hip.computeWorldMatrix(true); return B.Vector3.TransformCoordinates(new B.Vector3(0, rig.person.soleY ?? -0.52, 0), hip.getWorldMatrix()); };
+  /** Mean speed (m/s) of a foot that is down (in its stance) in this frame and the last, over `seconds`, walking along +x. */
+  const slipAt = (speedOf: (i: number) => number, seconds: number) => {
+    let prev: any = null, slip = 0, n = 0, moved = 0;
+    for (let i = 0; i < seconds * 60; i++) {
+      const sp = speedOf(i);
+      e.x += sp / 60; node.position.x = e.x; node.rotation.y = Math.PI / 2;
+      P.showcase.animate(rig, 1 / 60);
+      rig.root.computeWorldMatrix(true);
+      const pp = rig.person, duty = C.strideDuty(Math.max(0, Math.min(1, (rig.speed - 2.5) / 3.5)));
+      const now = { L: sole(rig.hipL), R: sole(rig.hipR), dl: C.strideDown(pp.ph, duty), dr: C.strideDown(pp.ph + Math.PI, duty) };
+      if (prev && i > 30) {
+        for (const k of ['L', 'R'] as const) {
+          const down = k === 'L' ? now.dl && prev.dl : now.dr && prev.dr;
+          if (down) { slip += Math.hypot(now[k].x - prev[k].x, now[k].z - prev[k].z) * 60; n++; moved += sp; }
+        }
+      }
+      prev = now;
+    }
+    return { slip: slip / Math.max(1, n), speed: moved / Math.max(1, n) };
+  };
+  for (const sp of [1, 2, 4, 6, 9.6]) {
+    const r = slipAt(() => sp, 3);
+    assert.ok(r.slip <= Math.max(0.12, sp * 0.12), `${shape}, ${sp} m/s: the planted foot slides ${r.slip.toFixed(2)} m/s`);
+  }
+  // 1.5 m/s to 9 m/s over 3 s
+  const r = slipAt((i) => 1.5 + Math.min(1, i / 180) * 7.5, 3.5);
+  assert.ok(r.slip <= r.speed * 0.15, `${shape}, speeding up: the planted foot slides ${r.slip.toFixed(2)} m/s at about ${r.speed.toFixed(1)} m/s`);
+  P.showcase.dispose(rig); node.dispose();
+  }
+});
+
+test('the stride: a foot in its stance goes back in a straight line (no slide), the cycle quickens with the speed and stays sane', () => {
+  for (const duty of [0.5, 0.35]) {
+    const amp = 0.8, leg = 0.5, speed = 4, hz = C.strideHz(speed, leg, amp, duty);
+    const n = 200, xs: number[] = [];
+    for (let i = 0; i <= n; i++) { const ph = (i / n) * duty * Math.PI * 2; xs.push(leg * Math.sin(C.strideAngle(ph, amp, duty))); }
+    // the foot's speed relative to the hip during the stance is the same throughout, and equals the ground speed
+    const per = (duty / hz) / n, v = xs.slice(1).map((x, i) => (xs[i] - x) / per);
+    for (const x of v) assert.ok(Math.abs(x - speed) < 0.05 * speed, `duty ${duty}: the foot goes back at ${x.toFixed(2)} m/s, not ${speed}`);
+    assert.ok(C.strideDown(0.1, duty) && !C.strideDown(Math.PI * 2 * (duty + 0.05), duty), 'down in the stance, up in the swing');
+  }
+  assert.equal(C.strideHz(0, 0.5, 0.8), 0, 'standing still: no stride');
+  assert.ok(C.strideHz(2, 0.5, 0.8) < C.strideHz(6, 0.5, 0.8), 'quicker with speed');
+  assert.ok(C.strideHz(100, 0.5, 0.8) <= C.STRIDE.maxHz, 'and never a blur');
+});

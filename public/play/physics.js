@@ -517,15 +517,26 @@
     const down = new B.Vector3(0, -1, 0);
     const support = cc.checkSupport(dt, down);
     const sv = B.Vector3.Zero(); // (riding is done above, from how the thing moved)
-    const onGround = support.supportedState === 2 && v[1] <= sv.y + 0.5 && g < 0;
+    // On the ground: supported, and not moving away from it. "Away" is measured against the ground's own slope: walking
+    // up a 20 degree slope at 6 m/s rises 2.2 m/s, which is not a jump (it used to be: landing from a jump onto an uphill
+    // slope left the character "in the air" for as long as it kept walking up, so it never played its landing).
+    const nrm = support.averageSurfaceNormal;
+    const supported = support.supportedState === 2 && g < 0;
+    const alongVy = supported && nrm.y > 0.05 ? -(nrm.x * v[0] + nrm.z * v[2]) / nrm.y : 0; // (the rise the ground gives this walk)
+    let onGround = supported && v[1] - Math.max(0, alongVy) <= sv.y + 0.5;
+    // Ground snap: grounded a moment ago, not jumping, and walkable ground just under the feet (over a crest, down a step,
+    // fast downhill): put the feet on it instead of starting a fall.
+    if (!onGround && c.airT === 0 && v[1] <= 0.5 && g < 0 && !support.supportedState) onGround = snapDown(e, c, w);
+    c.airT = onGround ? 0 : (c.airT || 0) + dt;
     if (onGround) {
       if (!e._walked) { const k = Math.max(0, 1 - (e.friction ?? 0.6) * 10 * dt); v[0] *= k; v[2] *= k; }
       v[1] = 0;
     } else v[1] = Math.max(-60, v[1] + g * dt);
-    // Standing still on a walkable slope: no push down into it (that pushed along the slope, a slide). Moving: a little
-    // push keeps it on the ground going downhill.
+    // Standing still on a walkable slope: no push down into it (that pushed along the slope, a slide). Moving: it follows
+    // the ground's slope down (a level push would leave the ground going downhill) with a little push into it.
     const still = onGround && Math.hypot(v[0], v[2]) < 0.05;
-    const want = new B.Vector3(v[0] + (onGround ? sv.x : 0), onGround ? sv.y - (still ? 0 : 1.5) : v[1], v[2] + (onGround ? sv.z : 0));
+    const glue = onGround && !still ? Math.min(0, alongVy) - 1.5 : 0;
+    const want = new B.Vector3(v[0] + (onGround ? sv.x : 0), onGround ? sv.y + glue : v[1], v[2] + (onGround ? sv.z : 0));
     cc.setVelocity(want);
     const before = cc.getPosition().clone();
     cc.integrate(dt, support, new B.Vector3(0, g, 0));
@@ -549,6 +560,20 @@
     e.standing = e.grounded ? standing : null;
     c.on = e.standing;
     if (c.on) { const op = whereIs(c.on.node); c.onAt = [op.x, op.y, op.z]; c.onYaw = c.on.node.rotation.y; }
+  }
+  /** A character that was on the ground and now has nothing under it: walkable ground within SNAP below? Moves it there. */
+  const SNAP = 0.35;
+  function snapDown(e, c, w) {
+    const plugin = w.havok.plugin, cc = c.cc;
+    const pos = cc.getPosition();
+    const inA = new B.ShapeCastResult(), hit = new B.ShapeCastResult();
+    const to = pos.add(new B.Vector3(0, -SNAP, 0));
+    plugin.shapeCast({ shape: cc._shape, rotation: B.Quaternion.Identity(), startPosition: pos, endPosition: to, shouldHitTriggers: false }, inA, hit);
+    if (!hit.hasHit || hit.hitNormal.y < cc.maxSlopeCosine) return false;
+    const o = entityOfBody(hit.body);
+    if (o === e) return false;
+    cc._position.copyFrom(B.Vector3.Lerp(pos, to, hit.hitFraction).add(new B.Vector3(0, 0.01, 0)));
+    return true;
   }
   /** Where a node is in the world now (its parent may have moved since its matrix was last worked out). */
   const whereIs = (node) => (node.parent ? (node.computeWorldMatrix(true), node.absolutePosition) : node.position);
