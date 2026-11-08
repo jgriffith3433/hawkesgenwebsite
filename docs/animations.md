@@ -312,7 +312,8 @@ walks into runs "look like they are sliding on the ground".
 - **On the ground, on a slope** (`public/play/physics.js` `stepCharacter`): the controller is supported when Havok says so and
   the body's vertical speed is no more than the slope asks for at that horizontal speed (walking uphill rises by
   `-(n.x vx + n.z vz) / n.y`, so it never reads as still in the air). Walking off a crest or down a steep slope, a short shape cast
-  (`snapDown`, 0.35 m) puts the body back on walkable ground the same step. A jump within 0.15 s of leaving the ground without
+  (`snapDown`, 0.35 m) finds walkable ground under the feet, so the body stays grounded and the step's downward glue takes it there
+  through the controller (never moved there directly, which would sink the feet below the controller's rest height). A jump within 0.15 s of leaving the ground without
   jumping still jumps (`runtime.js` `jump`, the coyote time).
 - **Landing is a moment** (`presence-anim.js`): the `land` one-shot (1.27 s in the Mixamo set) ends after `LAND_HOLD` (0.18 s)
   once the body is walking or running (over `LAND_MOVING`, 0.6 m/s) or leaves the ground again; standing, it plays out.

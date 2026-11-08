@@ -561,7 +561,10 @@
     c.on = e.standing;
     if (c.on) { const op = whereIs(c.on.node); c.onAt = [op.x, op.y, op.z]; c.onYaw = c.on.node.rotation.y; }
   }
-  /** A character that was on the ground and now has nothing under it: walkable ground within SNAP below? Moves it there. */
+  /** A character that was on the ground and now has nothing under it: walkable ground within SNAP below? Then it is still on
+   *  the ground, and the step's downward glue takes it there through the controller, which rests it at its own height over
+   *  the ground. (It is never moved there directly: a cast's contact is lower than where the controller rests, about 6 cm on
+   *  a round world after a rebase, and the feet would sink and stay sunk.) */
   const SNAP = 0.35;
   function snapDown(e, c, w) {
     const plugin = w.havok.plugin, cc = c.cc;
@@ -572,7 +575,6 @@
     if (!hit.hasHit || hit.hitNormal.y < cc.maxSlopeCosine) return false;
     const o = entityOfBody(hit.body);
     if (o === e) return false;
-    cc._position.copyFrom(B.Vector3.Lerp(pos, to, hit.hitFraction).add(new B.Vector3(0, 0.01, 0)));
     return true;
   }
   /** Where a node is in the world now (its parent may have moved since its matrix was last worked out). */
