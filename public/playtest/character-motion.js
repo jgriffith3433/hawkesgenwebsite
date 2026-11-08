@@ -18,7 +18,7 @@
 // game's own walk() and jump(), and the test ground is made with game.box(). Never on the live site.
 export const CHARACTER_MOTION = {
   id: 'character-motion', title: 'Character motion: jumps onto 10, 20, 30 and 40 degree slopes land and walk on; a walk speeding up to a run and back keeps the planted foot still',
-  description: 'no sign-up. The sandbox after the intro, then a test floor and ramps away from the island (game.box, local only). Logs slope-<deg>-<up|down|onto> (airborne-near-ground and shown-airborne-on-ground streaks; over 0.3 s is a problem), foot-walk, foot-speedup, foot-run, foot-slowdown (planted-foot speed against body speed; over max(0.12 m/s, 15%) is a problem) and trace lines. Run it at desktop size and phone size (touch: true). Options: angles ([10,20,30,40]), ways (["up","down","onto"]), touch. Refuses on the live site.',
+  description: 'no sign-up. The sandbox after the intro, then a test floor and ramps high over the player (game.box, local only). Logs slope-<deg>-<up|down|onto> (airborne-near-ground and shown-airborne-on-ground streaks; over 0.3 s is a problem), foot-walk, foot-speedup, foot-run, foot-slowdown (planted-foot speed against body speed; over max(0.12 m/s, 15%) is a problem) and trace lines. Run it at desktop size and phone size (touch: true). Options: angles ([10,20,30,40]), ways (["up","down","onto"]), touch. Refuses on the live site.',
   seconds: 240, tags: ['full'], starts: ['sandbox'],
 };
 
@@ -41,11 +41,12 @@ export async function runCharacterMotion(t, ctx) {
   t.event('motion-plan', `${angles.join(', ')} degrees, ${ways.join(' / ')}; then walk to run and back. ${innerWidth}x${innerHeight}${opts.touch ? ', touch controls' : ''}`);
   const first = PR().motion();
   t.event('motion-body', first ? `${first.what}${first.feet ? ', procedural person (feet traced)' : ', clip model (feet not traced)'}` : 'no body yet');
-  // the test ground: far from the island, above it
-  const O = [Math.round(p.x) + 400, Math.round(p.y) + 80, Math.round(p.z)];
+  // the test ground: high straight over the player, so "up" there is the player's up. (The sandbox is a round world: 400 m
+  // away the ground's up leans by the planet's curve, and a flat floor put there lets the player fall past it.)
+  const O = [Math.round(p.x), Math.round(p.y) + 80, Math.round(p.z)];
   const made = [];
   const box = (size, pos, rot) => { const e = g.box({ size, position: pos, rotation: rot || [0, 0, 0], physics: 'static', color: '#8a93a8' }); made.push(e); return e; };
-  box([200, 1, 200], [O[0], O[1] - 0.5, O[2]]);
+  box([90, 1, 90], [O[0], O[1] - 0.5, O[2]]);
   const controls0 = p.controls;
   p.controls = false;
   let drive = null; // per frame: (dt, time) => void, set by each part
@@ -107,7 +108,7 @@ export async function runCharacterMotion(t, ctx) {
     // ---- walk to run and back: the planted foot
     const dir = { x: 1, z: 0 };
     drive = null;
-    p.position = [O[0] - 80, O[1] + 0.95, O[2] - 40]; p.velocity = [0, 0, 0]; face(dir);
+    p.position = [O[0] - 34, O[1] + 0.95, O[2] - 25]; // (about 53 m of walk, speed-up, run and slow-down: still on the test floor) p.velocity = [0, 0, 0]; face(dir);
     await t.wait(800);
     const plan = [['walk', 2, () => 1.5], ['speedup', 3, (u) => 1.5 + 7.5 * u], ['run', 2, () => 9], ['slowdown', 3, (u) => 9 - 7.5 * u]];
     const parts = plan.map(([name]) => ({ name, slip: 0, speed: 0, n: 0, frames: [] }));
