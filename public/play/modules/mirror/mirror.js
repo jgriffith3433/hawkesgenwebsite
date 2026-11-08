@@ -174,8 +174,11 @@
     f.normalize();
     const right = new B.Vector3(f.z, 0, -f.x);
     const m = e.node.getAbsolutePosition();
-    const ground = m.y - (e._mirrorH || 3) / 2;
     const stand = m.add(f.scale(2.3));
+    // The ground where they stand, not under the glass (the mirror sits a little above it: they were put 0.13 m in the
+    // air: quality rule 4). The terrain's, when it is the floor here (within a meter of the glass's foot).
+    let ground = m.y - (e._mirrorH || 3) / 2;
+    try { const g = H.terrain && H.terrain.active && H.terrain.heightAt ? H.terrain.heightAt(stand.x, stand.z) : null; if (Number.isFinite(g) && Math.abs(g - ground) < 1) ground = g; } catch { /* the glass's foot */ }
     p.position = [stand.x, ground + 0.95, stand.z];
     p.velocity = [0, 0, 0];
     const yaw = Math.atan2(-f.x, -f.z); // facing the mirror

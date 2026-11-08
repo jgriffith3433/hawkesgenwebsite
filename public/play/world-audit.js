@@ -1,0 +1,293 @@
+// The world audit: what a player sees wrong in a built world, read from the engine's own scene (Studio's quality rules
+// 1 to 4: backwards text, z-fighting, inside-out models, things sunk into or floating over the ground). One file for both:
+// the repo's tests run it on a world in Node (test/engine/world-quality.test.ts), and Studio's playtest asks a live page
+// for it through play.html's automation bridge (public/playtest/world-quality.js). It reads, it never changes the world.
+//
+//   window.HawkesWorldAudit.audit(H, o) -> { problems: [{ rule, kind, id, detail }], counts: { ... } }
+//     H   the engine (window.HawkesPlay) with a world running
+//     o   { groundTolerance: 0.15 (m a thing may float), sinkTolerance: 0.6 (m, or half its height, a thing may sink),
+//           near: 300 (m: only things this close to the camera, where the planet's curve doesn't matter), skip: [ids] }
+//
+//   ground     every static thing of the world file (and what spawns at the start): the bottom of its drawn bounds, not its
+//              pivot, against the ground under its footprint, or the top of another thing it stands on. A gap of more than
+//              the tolerance with nothing under it is `floating`; a base deeper than the tolerance is `sunk`; a thing whose
+//              top is under the ground is `buried`. Things on the water (its surface under them) count as standing.
+//   text       every flat plane of words: from each side a viewer can see, does u (the words' left to right) run to the
+//              viewer's right? A side that reads mirrored is `backwards`. (Billboards turn to the camera and are skipped.)
+//   coplanar   axis-aligned boxes and planes whose same-facing faces lie in one plane and overlap (`zfight`), and flat
+//              planes laid exactly on the ground; a material's zOffset (drawn in front) clears it.
+//   normals    a closed mesh drawn one-sided whose triangles mostly wind inward (`inside-out`), measured against a box the
+//              audit builds itself, so it holds whatever the engine's winding convention is.
+(function () {
+  const B = () => window.BABYLON;
+
+  function worldVerts(mesh) {
+    const pos = mesh.getVerticesData && mesh.getVerticesData(B().VertexBuffer.PositionKind);
+    if (!pos) return null;
+    const m = mesh.computeWorldMatrix(true);
+    const out = [];
+    const v = new (B().Vector3)();
+    for (let i = 0; i < pos.length; i += 3) { B().Vector3.TransformCoordinatesFromFloatsToRef(pos[i], pos[i + 1], pos[i + 2], m, v); out.push([v.x, v.y, v.z]); }
+    return out;
+  }
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const len = (a) => Math.hypot(a[0], a[1], a[2]);
+  const r2 = (x) => Math.round(x * 100) / 100;
+
+  // A mesh that is part of the world as drawn (not a helper, a bubble, a gizmo or something hidden).
+  function drawn(mesh) {
+    if (!mesh || !mesh.isEnabled || !mesh.isEnabled() || !mesh.isVisible || mesh.visibility === 0) return false;
+    if (mesh.metadata && mesh.metadata.decor) return false;
+    if (mesh.material && mesh.material.wireframe) return false; // a stand-in while a model loads, not what the player will see
+    if (!mesh.getTotalVertices || mesh.getTotalVertices() < 3) return false;
+    return true;
+  }
+  function owner(mesh) {
+    for (let n = mesh; n; n = n.parent) if (n.metadata && n.metadata.entity) return n.metadata.entity;
+    return null;
+  }
+
+  // ------------------------------------------------------------------ rule 4: on the ground
+  function groundAudit(H, W, o, problems, counts) {
+    const T = H.terrain;
+    if (!T || !T.heightAt) { counts.groundSkipped = 'no terrain'; return; }
+    const water = (x, z) => { try { const s = H.water && H.water.surfaceAt ? H.water.surfaceAt(x, z) : null; return Number.isFinite(s) ? s : null; } catch { return null; } };
+    const cam = W.scene.activeCamera;
+    const things = [];
+    for (const e of W.entities) {
+      if (!e.alive || !e.sceneId || e.physics !== 'static' || !e.node || o.skip.includes(e.sceneId)) continue;
+      const spec = e.spec || {};
+      if ((spec.data && (spec.data.flies || spec.data.air || spec.data.hangs)) || spec.tag === 'sky') continue; // meant to be up there
+      const meshes = [e.node, ...(e.node.getChildMeshes ? e.node.getChildMeshes(false) : [])].filter((m) => m.getBoundingInfo && drawn(m));
+      if (!meshes.length) continue;
+      let min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+      for (const m of meshes) {
+        m.computeWorldMatrix(true);
+        const bb = m.getBoundingInfo().boundingBox;
+        for (let k = 0; k < 3; k++) { min[k] = Math.min(min[k], bb.minimumWorld.asArray()[k]); max[k] = Math.max(max[k], bb.maximumWorld.asArray()[k]); }
+      }
+      if (!isFinite(min[1])) continue;
+      if (cam && Math.hypot((min[0] + max[0]) / 2 - cam.position.x, (min[2] + max[2]) / 2 - cam.position.z) > o.near) continue;
+      things.push({ e, id: e.sceneId, min, max });
+    }
+    counts.groundChecked = things.length;
+    for (const t of things) {
+      const hx = (t.max[0] - t.min[0]) / 2, hz = (t.max[2] - t.min[2]) / 2, cx = t.min[0] + hx, cz = t.min[2] + hz;
+      // The ground under its footprint: the middle and four points in from the corners (a long thing on a slope).
+      const pts = [[cx, cz], ...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b]) => [cx + a * hx * 0.7, cz + b * hz * 0.7])];
+      const g = pts.map(([x, z]) => T.heightAt(x, z)).filter(Number.isFinite);
+      if (!g.length) continue;
+      const lo = Math.min(...g), hi = Math.max(...g), mid = g[0];
+      const sea = water(cx, cz);
+      const bottom = t.min[1], top = t.max[1], height = top - bottom;
+      // Held up by something: another thing under or through its base (a box it stands on, the post a board is fixed to),
+      // touching its footprint.
+      const on = things.find((u) => u !== t && u.min[1] < bottom + 0.05 && u.max[1] >= bottom - 0.1
+        && u.min[0] < t.max[0] + 0.1 && u.max[0] > t.min[0] - 0.1 && u.min[2] < t.max[2] + 0.1 && u.max[2] > t.min[2] - 0.1);
+      const wet = sea !== null && sea > mid; // standing in the sea: the water's surface is what it rests on or sinks into
+      const floor = wet ? Math.max(hi, sea) : hi;
+      const gap = bottom - floor;
+      if (gap > o.groundTolerance && !on && gap < o.airborne) {
+        problems.push({ rule: 4, kind: 'floating', id: t.id, detail: `its base is ${r2(gap)} m over the ${wet ? 'water' : 'ground'}` });
+      } else if (top < mid - 0.05 && !wet) {
+        problems.push({ rule: 4, kind: 'buried', id: t.id, detail: `all of it is under the ground (top ${r2(mid - top)} m down)` });
+      } else if (lo - bottom > Math.max(o.sinkTolerance, height * 0.5) && !on && !wet) {
+        problems.push({ rule: 4, kind: 'sunk', id: t.id, detail: `${r2(lo - bottom)} m of its ${r2(height)} m sinks into the ground` });
+      }
+    }
+  }
+
+  // ------------------------------------------------------------------ rule 1: words read the right way round
+  function textAudit(W, problems, counts) {
+    let checked = 0, billboards = 0;
+    for (const mesh of W.scene.meshes) {
+      const mat = mesh.material;
+      const tex = mat && mat.diffuseTexture;
+      if (!drawn(mesh) || !tex || (mesh.name !== 'text' && mesh.name !== 'video')) continue; // the engine's planes of words (textPlane), screens
+      if (mesh.billboardMode) { billboards++; continue; }
+      const verts = worldVerts(mesh);
+      const uv = mesh.getVerticesData(B().VertexBuffer.UVKind);
+      const idx = mesh.getIndices();
+      if (!verts || !uv || !idx) continue;
+      checked++;
+      // A mirrored thing (negative scale) is drawn with its faces turned round (the engine flips culling), so its front is
+      // the other side of its winding.
+      const flip = Math.sign(mesh.getWorldMatrix().determinant()) || 1;
+      // Culling off: every triangle is seen from both sides (a two-sided plane's back triangles show through its front).
+      const sides = mat.backFaceCulling === false ? [1, -1] : [1];
+      let wrong = 0;
+      for (let i = 0; i < idx.length; i += 3) {
+        const [a, b, c] = [idx[i], idx[i + 1], idx[i + 2]];
+        const e1 = sub(verts[b], verts[a]), e2 = sub(verts[c], verts[a]);
+        const n = cross(e1, e2);
+        if (len(n) < 1e-9) continue;
+        // Where the words' left-to-right (U) and bottom-to-top (V) run on this triangle, in the world.
+        const du1 = uv[b * 2] - uv[a * 2], dv1 = uv[b * 2 + 1] - uv[a * 2 + 1], du2 = uv[c * 2] - uv[a * 2], dv2 = uv[c * 2 + 1] - uv[a * 2 + 1];
+        const det = du1 * dv2 - du2 * dv1;
+        if (Math.abs(det) < 1e-12) continue;
+        const U = [0, 1, 2].map((k) => (dv2 * e1[k] - dv1 * e2[k]) / det), V = [0, 1, 2].map((k) => (du1 * e2[k] - du2 * e1[k]) / det);
+        const facing = n.map((x) => x * WINDING * flip); // out of its front (the winding, calibrated)
+        for (const sd of sides) {
+          const view = facing.map((x) => -x * sd); // the viewer looks against the side they see
+          // Read right: with V as up, U runs to the viewer's right (up x view, in this left-handed world).
+          if (dot(cross(V, view), U) < 0) wrong++;
+        }
+      }
+      if (wrong) problems.push({ rule: 1, kind: 'backwards', id: (owner(mesh) && owner(mesh).sceneId) || mesh.name, detail: `${wrong} triangle${wrong > 1 ? 's' : ''} of its words read mirrored` });
+    }
+    counts.textChecked = checked; counts.textBillboards = billboards;
+  }
+
+  // ------------------------------------------------------------------ rule 2: no two faces in one plane
+  function axisAligned(mesh) {
+    const q = new (B().Quaternion)(), sc = new (B().Vector3)(), tr = new (B().Vector3)();
+    mesh.computeWorldMatrix(true).decompose(sc, q, tr);
+    const e = q.toEulerAngles();
+    const quarter = (a) => Math.abs(a / (Math.PI / 2) - Math.round(a / (Math.PI / 2))) < 0.01;
+    return quarter(e.x) && quarter(e.y) && quarter(e.z);
+  }
+  function coplanarAudit(H, W, o, problems, counts) {
+    const boxes = [];
+    for (const mesh of W.scene.meshes) {
+      if (!drawn(mesh) || !mesh.material || mesh.material.zOffset || mesh.billboardMode) continue;
+      const nv = mesh.getTotalVertices();
+      if (nv !== 24 && nv !== 4 && nv !== 8) continue; // boxes and planes, the things agents stack
+      if (!axisAligned(mesh)) continue;
+      const own = owner(mesh);
+      if (own && (own.physics === 'dynamic' || !own.sceneId)) continue;
+      const bb = mesh.getBoundingInfo().boundingBox;
+      boxes.push({ mesh, id: (own && own.sceneId) || mesh.name, min: bb.minimumWorld.asArray(), max: bb.maximumWorld.asArray(), flat: nv !== 24 });
+    }
+    counts.coplanarChecked = boxes.length;
+    const eps = 0.002, seen = new Set();
+    for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i], b = boxes[j];
+      for (let k = 0; k < 3; k++) {
+        const u = (k + 1) % 3, v = (k + 2) % 3;
+        const ou = Math.min(a.max[u], b.max[u]) - Math.max(a.min[u], b.min[u]);
+        const ov = Math.min(a.max[v], b.max[v]) - Math.max(a.min[v], b.min[v]);
+        if (ou <= 0.01 || ov <= 0.01) continue;
+        // Same-facing faces in one plane: both tops, both bottoms, both fronts... (a face against a face is hidden, not a fight)
+        const same = (Math.abs(a.max[k] - b.max[k]) < eps && !(a.flat && b.flat && Math.abs(a.min[k] - b.min[k]) >= eps) ? 'max' : null)
+          || (Math.abs(a.min[k] - b.min[k]) < eps ? 'min' : null);
+        if (!same) continue;
+        // Planes have no thickness: they face whichever way; a box's face and a plane in its plane fight too.
+        const key = [a.id, b.id].sort().join('|');
+        if (seen.has(key)) continue;
+        seen.add(key);
+        problems.push({ rule: 2, kind: 'zfight', id: a.id, detail: `a face lies in the same plane as ${b.id}'s (${'xyz'[k]} ${r2(same === 'max' ? a.max[k] : a.min[k])}, ${r2(ou * ov)} m² overlap)` });
+      }
+    }
+    // Flat things laid exactly on the ground flicker with it.
+    if (H.terrain && H.terrain.heightAt) for (const t of boxes) {
+      if (t.max[1] - t.min[1] > 0.02) continue;
+      const cx = (t.min[0] + t.max[0]) / 2, cz = (t.min[2] + t.max[2]) / 2;
+      const g = H.terrain.heightAt(cx, cz);
+      if (Number.isFinite(g) && Math.abs(t.max[1] - g) < 0.004) problems.push({ rule: 2, kind: 'zfight', id: t.id, detail: 'a flat plane laid exactly on the ground' });
+    }
+  }
+
+  // ------------------------------------------------------------------ rule 3: drawn from the outside
+  let WINDING = 1; // +1 when a triangle's (b-a)x(c-a) points out of a front face, -1 when it points in (calibrated below)
+  function calibrate(scene) {
+    const box = B().MeshBuilder.CreateBox('audit-calibrate', { size: 1 }, scene);
+    box.setEnabled(false);
+    WINDING = Math.sign(inwardShare(box, true)) || 1;
+    box.dispose();
+  }
+  // The share of a mesh's triangle area whose winding normal points outward (from its middle), as +out/-in balance when raw.
+  function inwardShare(mesh, raw) {
+    const verts = worldVerts(mesh);
+    const idx = mesh.getIndices();
+    if (!verts || !idx || !idx.length) return 0;
+    const flip = raw ? 1 : Math.sign(mesh.getWorldMatrix().determinant()) || 1;
+    const c = verts.reduce((s, p) => [s[0] + p[0], s[1] + p[1], s[2] + p[2]], [0, 0, 0]).map((x) => x / verts.length);
+    let out = 0, inn = 0;
+    for (let i = 0; i < idx.length; i += 3) {
+      const a = verts[idx[i]], b = verts[idx[i + 1]], cc = verts[idx[i + 2]];
+      const n = cross(sub(b, a), sub(cc, a));
+      const area = len(n);
+      if (area < 1e-9) continue;
+      const mid = [(a[0] + b[0] + cc[0]) / 3 - c[0], (a[1] + b[1] + cc[1]) / 3 - c[1], (a[2] + b[2] + cc[2]) / 3 - c[2]];
+      const d = dot(n, mid) / (area * (len(mid) || 1));
+      if (Math.abs(d) < 0.2) continue; // edge-on to the middle (a flat part): says nothing
+      if (d * (raw ? 1 : WINDING * flip) > 0) out += area; else inn += area;
+    }
+    if (raw) return out - inn;
+    return out + inn > 0 ? inn / (out + inn) : 0;
+  }
+  // A closed mesh (every edge, with seams welded, shared by two triangles): only then is "inward" meaningful.
+  function closed(mesh) {
+    const pos = mesh.getVerticesData(B().VertexBuffer.PositionKind), idx = mesh.getIndices();
+    if (!pos || !idx || idx.length > 60000) return false;
+    const key = (i) => `${Math.round(pos[i * 3] * 1e4)},${Math.round(pos[i * 3 + 1] * 1e4)},${Math.round(pos[i * 3 + 2] * 1e4)}`;
+    const edges = new Map();
+    for (let i = 0; i < idx.length; i += 3) for (const [p, q] of [[idx[i], idx[i + 1]], [idx[i + 1], idx[i + 2]], [idx[i + 2], idx[i]]]) {
+      const a = key(p), b = key(q);
+      if (a === b) continue;
+      const k = a < b ? a + '|' + b : b + '|' + a;
+      edges.set(k, (edges.get(k) || 0) + 1);
+    }
+    let two = 0;
+    for (const n of edges.values()) if (n === 2) two++;
+    return edges.size > 0 && two / edges.size > 0.95;
+  }
+  // The share of triangles whose stored normals point against the face their winding draws (lit from behind: looks hollow).
+  function normalsAgainstWinding(mesh) {
+    const pos = mesh.getVerticesData(B().VertexBuffer.PositionKind), nor = mesh.getVerticesData(B().VertexBuffer.NormalKind), idx = mesh.getIndices();
+    if (!pos || !nor || !idx || !idx.length) return 0;
+    let against = 0, all = 0;
+    for (let i = 0; i < idx.length; i += 3) {
+      const P = (j) => [pos[idx[i + j] * 3], pos[idx[i + j] * 3 + 1], pos[idx[i + j] * 3 + 2]];
+      const n = cross(sub(P(1), P(0)), sub(P(2), P(0)));
+      if (len(n) < 1e-12) continue;
+      let sn = [0, 0, 0];
+      for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) sn[k] += nor[idx[i + j] * 3 + k];
+      all++;
+      if (dot(n, sn) * WINDING < 0) against++;
+    }
+    return all ? against / all : 0;
+  }
+  function normalsAudit(W, problems, counts) {
+    let checked = 0;
+    const seen = new Set();
+    for (const mesh of W.scene.meshes) {
+      if (!drawn(mesh) || !mesh.material || mesh.material.backFaceCulling === false || mesh.name === 'text') continue;
+      if (mesh.sideOrientation === B().Mesh.DOUBLESIDE) continue;
+      const bb = mesh.getBoundingInfo().boundingBox, ext = bb.extendSizeWorld;
+      if (Math.min(ext.x, ext.y, ext.z) < 0.01) continue; // flat: no inside to see
+      const geo = mesh.geometry || (mesh.sourceMesh && mesh.sourceMesh.geometry);
+      const key = geo ? geo.uniqueId + ':' + Math.sign(mesh.computeWorldMatrix(true).determinant()) : null;
+      if (key && seen.has(key)) continue; // one look per shape and handedness (instances share them)
+      if (key) seen.add(key);
+      checked++;
+      const flipped = normalsAgainstWinding(mesh);
+      const share = closed(mesh) ? inwardShare(mesh) : 0;
+      if (flipped > 0.6) {
+        const own = owner(mesh);
+        problems.push({ rule: 3, kind: 'inside-out', id: (own && own.sceneId) || mesh.name, detail: `${Math.round(flipped * 100)}% of its normals point against its faces (${mesh.name})` });
+      } else if (share > 0.6) {
+        const own = owner(mesh);
+        problems.push({ rule: 3, kind: 'inside-out', id: (own && own.sceneId) || mesh.name, detail: `${Math.round(share * 100)}% of its faces point inward (${mesh.name})` });
+      }
+    }
+    counts.normalsChecked = checked;
+  }
+
+  function audit(H, o = {}) {
+    const W = H.world;
+    if (!W || !W.scene) return { problems: [{ rule: 0, kind: 'no-world', id: '', detail: 'no world is running' }], counts: {} };
+    const opt = { groundTolerance: 0.15, sinkTolerance: 0.6, near: 300, airborne: 4, skip: [], ...o };
+    const problems = [], counts = {};
+    calibrate(W.scene);
+    groundAudit(H, W, opt, problems, counts);
+    textAudit(W, problems, counts);
+    coplanarAudit(H, W, opt, problems, counts);
+    normalsAudit(W, problems, counts);
+    return { problems, counts };
+  }
+
+  window.HawkesWorldAudit = { audit };
+})();

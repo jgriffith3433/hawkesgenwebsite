@@ -26,7 +26,9 @@
     const f0 = tri(-L2), f1 = tri(L2);
     const faces = [[f0[0], f0[2], f0[1]], [f1[0], f1[1], f1[2]], [f0[0], f0[1], f1[1]], [f0[0], f1[1], f1[0]], [f0[2], f1[2], f1[1]], [f0[2], f1[1], f0[1]]];
     const positions = [], indices = [];
-    for (const f of faces) for (const v of f) { indices.push(positions.length / 3); positions.push(...v); }
+    // Wound so every face points out (Babylon's front is the other order: written [0, 1, 2] the attic was inside out, its
+    // gable ends see-through from outside: quality rule 3).
+    for (const f of faces) for (const v of [f[0], f[2], f[1]]) { indices.push(positions.length / 3); positions.push(...v); }
     if (!alongX) for (let i = 0; i < indices.length; i += 3) { const t = indices[i + 1]; indices[i + 1] = indices[i + 2]; indices[i + 2] = t; }
     const normals = [];
     B.VertexData.ComputeNormals(positions, indices, normals);

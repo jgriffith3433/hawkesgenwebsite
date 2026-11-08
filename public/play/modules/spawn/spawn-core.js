@@ -467,14 +467,20 @@
     // Rows face the player: offsets turn with the view.
     const rx = v.dz, rz = -v.dx;
     const floats = Boolean(o.floats);
+    // What stays put never drops onto the ground, so it is set on its lowest corner, a little into it (a tree or a house
+    // on a slope stood on its middle, a gap under its downhill side: quality rule 4); what falls lands by itself.
+    const stays = !spec || !spec.physics || spec.physics === 'static';
+    const k = Math.min(half, 3) * 0.7;
     let onWater = false;
     const points = offs.map(([a, b]) => {
       const x = cx + rx * a + v.dx * b, z = cz + rz * a + v.dz * b;
-      const g = groundAt(x, z, Math.max(v.y + 30, 60));
+      const top = Math.max(v.y + 30, 60);
+      let g = groundAt(x, z, top);
+      if (stays && g !== null && k > 0.05) for (const [ox, oz] of [[k, k], [k, -k], [-k, k], [-k, -k]]) { const c = groundAt(x + ox, z + oz, top); if (c !== null && c < g) g = c; }
       const s = waterAt(x, z);
-      let base = g === null ? v.y : g;
-      if (s !== null && s > base + 0.3) { onWater = true; if (floats) base = s; }
-      return [r2(x), r2(base + lift + 0.05), r2(z)];
+      let base = g === null ? v.y : g, afloat = false;
+      if (s !== null && s > base + 0.3) { onWater = true; if (floats) { base = s; afloat = true; } }
+      return [r2(x), r2(base + lift + (stays && !afloat ? -0.02 : 0.05)), r2(z)];
     });
     // Degrees around y: `away` faces where the player looks (a car ready to drive off), `toward` faces the player.
     const away = Math.round(((Math.atan2(v.dx, v.dz) * 180 / Math.PI) + 360) % 360);

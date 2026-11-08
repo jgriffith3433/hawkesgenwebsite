@@ -200,7 +200,7 @@
       ring.position.set(x, 0.34, z); ring.parent = decor; ring.material = lightM; lights.push(ring);
       const pl = B.MeshBuilder.CreatePlane('ov-obs-plaque', { width: 3.6, height: 1.8 }, scene);
       pl.position.set(Math.sin(a) * (R.radius - 0.55), 6.2, Math.cos(a) * (R.radius - 0.55));
-      pl.rotation.y = a + Math.PI; // (facing the middle)
+      pl.rotation.y = a; // (a plane's front is its -Z: this faces the middle and reads left to right from there; a + PI faced the wall)
       pl.parent = decor;
       const pmat = mat(scene, 'ov-obs-plaque', { emissive: new B.Color3(1, 1, 1), unlit: true });
       pmat.emissiveTexture = plaque(scene, names[id][0], names[id][1], '#8fd8ff');
@@ -233,7 +233,7 @@
       body.parent = cab; body.position.y = 2.2; body.material = shell;
       for (const sd of [-1, 1]) {
         const door = B.MeshBuilder.CreateBox('ov-obs-wardrobe-door', { width: 1.5, height: 3.9, depth: 0.06 }, scene);
-        door.parent = cab; door.position.set(sd * 0.82, 2.25, -0.62); door.material = lightM; lights.push(door);
+        door.parent = cab; door.position.set(sd * 0.82, 2.25, 0.62); // (on the room's side: -0.62 hid them against the wall) door.material = lightM; lights.push(door);
         door.isPickable = false; door.metadata = { decor: true, overseer: true };
       }
       body.isPickable = false; body.metadata = { decor: true, overseer: true };
