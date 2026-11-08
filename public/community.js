@@ -280,11 +280,13 @@ function open(it) {
   $('pHow').innerHTML = `${esc(HOW[it.kind] ?? '')} Open your game and pick it under <code>Create › Community</code>, or tell the assistant "${esc(it.title.toLowerCase())}".`;
   const name = `${it.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'asset'}${k[2]}`;
   void setupUse(it);
-  $('pFile').href = it.file;
-  $('pFile').setAttribute('download', name);
+  const gone = !it.file;
+  $('pFile').hidden = gone;
+  if (!gone) { $('pFile').href = it.file; $('pFile').setAttribute('download', name); }
   // Shown first: the 3D view sizes its canvas from the open panel.
   $('sheet').hidden = false;
-  if (it.kind === 'model') void showModel(it);
+  if (gone) $('pView').innerHTML = `<div class="snd"><span class="kindname">${esc(k[1])}</span><p>The Overseer can't find this one's file right now. It will be back when it is kept again.</p></div>`;
+  else if (it.kind === 'model') void showModel(it);
   else if (AUDIO.has(it.kind)) showSound(it, k);
   else $('pView').innerHTML = `<img src="${esc(it.file)}" alt="${esc(it.title)}">`;
   keepUrl(it.id);
@@ -360,6 +362,7 @@ document.addEventListener('error', (e) => {
   img.dataset.failed = '1';
   const tile = document.createElement('span');
   tile.className = 'glyph';
-  tile.textContent = img.alt || '';
+  const kind = img.closest('.card')?.querySelector('.badge')?.textContent ?? '';
+  tile.innerHTML = `<i aria-hidden="true">\u25C7</i>${esc(kind || img.alt || 'File missing')}`;
   img.replaceWith(tile);
 }, true);
