@@ -3,6 +3,7 @@
 //   2. loading-state    the skeleton cards that are in the grid before the first answer (a page opened in a frame, watched from the first frame)
 //   3. empty-state      a search for nonsense (typed with key events, sent with Enter): the designed empty card, not a blank grid
 //   4. no-horizontal-scroll at 390 (and the cards, featured row and tools inside the window)
+//   6. no-console-errors  no console error, script error or failed request (a missing picture counts), the run fails otherwise
 //   5. no-timer-fetch   the page makes no request on its own: after it settles, 4 s of idleness adds none, and typing alone sends none
 export const COMMUNITY_LIBRARY = {
   id: 'community-library', title: 'The community library: cards with thumbnails, creator names and uses; the loading skeleton; the empty state; the featured row; no sideways scroll at 390px; no request without a person asking', seconds: 120, tags: ['full'],
@@ -38,6 +39,7 @@ async function oneSize(t, w, h, label) {
   const bad = [];
   // Watch the grid from the first frame so the skeleton is seen when it is there.
   let sawSkeleton = false, requests = 0;
+  const errors = []; // console errors, script errors and failed requests (a picture that 404s is one too)
   const watch = () => {
     try {
       const win = frame.contentWindow, doc = win && win.document;
@@ -45,7 +47,11 @@ async function oneSize(t, w, h, label) {
       if (win && win.performance && !win.__ptPatched && win.fetch) {
         win.__ptPatched = true;
         const f = win.fetch.bind(win);
-        win.fetch = (...a) => { requests++; return f(...a); };
+        win.fetch = (...a) => { requests++; return f(...a).then((r) => { if (!r.ok) errors.push(`HTTP ${r.status} ${String(r.url || a[0]).slice(0, 90)}`); return r; }, (e) => { errors.push(`fetch failed ${String(a[0]).slice(0, 90)}`); throw e; }); };
+        const ce = win.console.error.bind(win.console);
+        win.console.error = (...a) => { errors.push(`console.error ${a.map(String).join(' ').slice(0, 120)}`); ce(...a); };
+        win.addEventListener('error', (e) => { errors.push(e.target && e.target !== win ? `failed to load ${String(e.target.src || e.target.href || e.target.tagName).slice(0, 90)}` : `script error ${e.message}`); }, true);
+        win.addEventListener('unhandledrejection', (e) => errors.push(`unhandled rejection ${String(e.reason).slice(0, 100)}`));
       }
     } catch { /* not ready */ }
   };
@@ -103,6 +109,9 @@ async function oneSize(t, w, h, label) {
   t.scene(`Library ${label}: empty`);
   const side2 = sideways(win, doc); if (side2) bad.push(`${label}: empty state ${side2}`);
   t.event('no-horizontal-scroll', `none at ${label}`);
+  // A nonsense search is a 200 with nothing in it; every other error is a failure of the page.
+  if (errors.length) { t.event('console-errors', `${errors.length} at ${label}: ${errors.slice(0, 5).join(' | ')}`); bad.push(`${label}: ${errors.length} console errors or failed requests (${errors.slice(0, 3).join(' | ')})`); }
+  else t.event('no-console-errors', `0 console errors and no failed requests at ${label}`);
   stage.remove();
   return bad;
 }
