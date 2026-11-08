@@ -14,7 +14,7 @@
   const TAU = Math.PI * 2;
 
   let W = 0, H = 0, dpr = 1, vis = true, raf = 0, t0 = performance.now(), last = t0;
-  let px = 0, py = 0, tpx = 0, tpy = 0; // pointer parallax, -1..1
+  let short = false, px = 0, py = 0, tpx = 0, tpy = 0; // pointer parallax, -1..1
   let beams = []; // { x, y, born, life, soft }
   let stars = [];
   const O = { x: 0, y: 0, r: 0 };
@@ -24,14 +24,16 @@
 
   function resize() {
     const rect = hero.getBoundingClientRect();
-    W = Math.max(320, Math.round(rect.width)); H = Math.max(420, Math.round(rect.height));
+    // a phone held sideways: the window is short, so the hero is one screen with the Overseer to the right of the text
+    short = Boolean(window.matchMedia && matchMedia('(max-height: 500px) and (orientation: landscape)').matches);
+    W = Math.max(320, Math.round(rect.width)); H = Math.max(short ? 300 : 420, Math.round(rect.height));
     dpr = Math.min(window.devicePixelRatio || 1, W < 700 ? 1.5 : 2);
     cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
     cv.style.width = W + 'px'; cv.style.height = H + 'px';
-    const narrow = W < 820;
-    O.r = narrow ? Math.min(W * 0.15, 64) : Math.min(W * 0.13, H * 0.22);
-    O.x = narrow ? W * 0.5 : W * 0.76; // wide: right of the headline, whose longest line ends before the rings (1.7 r each side) begin
-    O.y = narrow ? 68 + O.r * 1.1 : H * 0.34;
+    const narrow = W < 820 && !short;
+    O.r = short ? Math.min(H * 0.17, W * 0.1, 64) : narrow ? Math.min(W * 0.15, 64) : Math.min(W * 0.13, H * 0.22);
+    O.x = narrow ? W * 0.5 : W * (short ? 0.8 : 0.76); // wide: right of the headline, whose longest line ends before the rings (1.7 r each side) begin
+    O.y = narrow ? 68 + O.r * 1.1 : short ? H * 0.34 : H * 0.34;
     // phone: the text starts below the Overseer and the line it speaks (the hero is as tall as the text needs)
     hero.dataset.overseer = [O.x, O.y, O.r].map(Math.round).join(','); // where the Overseer is (x, y, radius in px): the layout playtest checks nothing covers it
     hero.style.setProperty('--sky-top', narrow ? Math.round(O.y + O.r * 1.9 + 52) + 'px' : '120px');
@@ -187,7 +189,7 @@
     el.querySelector('span').textContent = text;
     if (cards) cards.appendChild(el);
     // the card stays inside the first screen: on a short window the ground is below the fold, so it sits at the bottom edge
-    const rec = { el, pos: () => ({ x: Math.min(Math.max(W * fx, 90), W - 90), y: Math.min(surfaceY(W * fx) - 4, window.innerHeight - 16 - hero.getBoundingClientRect().top) }) };
+    const rec = { el, pos: () => ({ x: Math.min(Math.max(W * fx, 90), W - 112), y: Math.min(surfaceY(W * fx) - 4, window.innerHeight - 16 - hero.getBoundingClientRect().top) }) };
     placed.push(rec); const p = rec.pos(); el.style.left = p.x + 'px'; el.style.top = p.y + 'px';
     while (placed.length > 3) { const old = placed.shift(); old.el.classList.add('gone'); setTimeout(() => old.el.remove(), 700); }
     if (reduce) el.classList.add('still'); else setTimeout(() => el.classList.add('still'), 1500);
@@ -199,7 +201,8 @@
   const input = form && form.querySelector('input');
   const reply = hero.querySelector('[data-sky-reply]');
   const hints = ['a lighthouse made of glass', 'a jump that feels floaty', 'a haunted vending machine', 'rain that smells of pennies', 'a very serious toaster', 'a boat that is also a piano'];
-  let hi = 0, fxs = [0.5, 0.36, 0.64, 0.28, 0.72], fi = 0;
+  let hi = 0, fi = 0;
+  const FXS = [0.5, 0.36, 0.64, 0.28, 0.72], FXS_SHORT = [0.84, 0.72, 0.92, 0.78, 0.88]; // sideways, the cards land under the Overseer, clear of the text
   if (input) {
     setInterval(() => { if (document.activeElement !== input && !input.value) { hi = (hi + 1) % hints.length; input.placeholder = hints[hi]; } }, 3200);
     input.placeholder = hints[0];
@@ -210,7 +213,7 @@
     e.preventDefault();
     const v = input.value.trim().slice(0, 48);
     if (!v) { input.focus(); return; }
-    materialize(v, fxs[fi++ % fxs.length]);
+    materialize(v, (short ? FXS_SHORT : FXS)[fi++ % FXS.length]);
     input.value = '';
     if (reply) { reply.hidden = false; reply.classList.remove('on'); void reply.offsetWidth; reply.querySelector('span').textContent = replies[ri++ % replies.length] + ' Taking you to the sandbox…'; reply.classList.add('on'); }
     if (window.hgAnalytics && window.hgAnalytics.track) window.hgAnalytics.track('sky_wish', { length: v.length });
