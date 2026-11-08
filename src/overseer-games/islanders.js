@@ -128,6 +128,8 @@
     if (H && H.chat && H.chat.line) H.chat.line({ kind: 'npc', who: c.who, text: l.text, color: c.color, keep: 14 });
     const e = islander(id), p = game.player;
     if (e && p && e.lookAt) { try { e.lookAt(p); } catch { /* it keeps looking where it was */ } }
+    // Said over their head too, in their own voice (quality rule 6: a character speaks in the world, not only in a log).
+    if (e && e.say) { try { e.say(l.text, Math.min(8, 2.5 + l.text.length / 18)); } catch { /* the chat line stands */ } }
     game.emit('islander', { id, who: c.who, topic: l.topic, text: l.text });
     return entry;
   }

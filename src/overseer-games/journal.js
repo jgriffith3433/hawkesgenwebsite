@@ -84,16 +84,42 @@
     KEEP.lore.add(id);
     const j = mem(); if (j) j.find(id);
     if (H && H.chat && H.chat.line) H.chat.line({ kind: 'npc', who: l.title, text: l.text.join(' '), color: '#e5d9b8', keep: 20 });
+    // Read out where it lies, a line at a time over the thing itself, in a voice (quality rule 6: no paragraph of story).
+    const thingOf = loreThing(id);
+    const holdFor = (line) => Math.min(7, 2.5 + line.length / 18);
+    let at = 0;
+    if (thingOf && thingOf.say) for (const line of l.text) { game.after(at, () => { if (thingOf.alive) thingOf.say(line, holdFor(line)); }); at += holdFor(line) + 0.3; }
     if (fresh) {
       funnel('sandbox_lore_found', { id, n: l.n, found: kept().lore.size });
       game.emit('lore-found', { id, n: l.n, title: l.title });
       if (game.hasAsset && game.hasAsset('confirm.mp3')) game.sound('confirm.mp3', { volume: 0.4 });
+      // The Overseer noticed: a thin beam on what was found.
+      try { if (thingOf && H && H.overseer && H.overseer.beam) H.overseer.beam(thingOf, { radius: 0.8, seconds: 1.4 }); } catch { /* fine */ }
       const p = game.player;
       if (p) game.burst([p.x, p.y + 1.5, p.z], { color: '#e5d9b8', count: 18, speed: 3, size: 0.16 });
       refresh();
     }
     return fresh;
   }
+  // The thing in the world each piece of lore is (sandbox.ts), so it can be seen and heard there.
+  const LORE_THING = { logbook: 'logbook', tally: 'lore_rock', receipt: 'lore_slip', chair: 'lore_chair', drawing: 'lore_drawing' };
+  function loreThing(id) {
+    const e = game.find ? game.find(LORE_THING[id] || `lore_${id}`) : null;
+    return e && e.alive ? e : null;
+  }
+  // What hasn't been found yet glints now and then, so it is found by looking, not by reading a list (quality rule 6).
+  game.every(2.5, () => {
+    if (game.mode !== 'play') return;
+    const p = game.player;
+    if (!p) return;
+    const k = kept().lore;
+    for (const l of LORE) {
+      if (!l.at || k.has(l.id)) continue;
+      const e = loreThing(l.id);
+      if (!e || Math.hypot(e.x - p.x, e.z - p.z) > 40) continue;
+      game.burst([e.x, e.y + 0.4, e.z], { color: '#fff2b0', count: 5, speed: 0.8, size: 0.09 });
+    }
+  });
   game.on('islander', (d) => { if (d && d.id) { meet(d.id); } });
   game.on('notice', (d) => { if (d && (d.id === 'planks' || d.id === 'logbook')) find(d.id); });
   game.every(1, () => {
