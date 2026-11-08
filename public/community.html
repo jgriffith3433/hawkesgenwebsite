@@ -28,6 +28,7 @@
     .stats span { font: 11px/1.3 var(--mono); color: var(--fg-3); text-transform: uppercase; letter-spacing: .06em; }
 
     .lib { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 32px; align-items: start; }
+    .lib > * { min-width: 0; }
     .shelves { position: sticky; top: 72px; border: 1px solid var(--border); border-radius: var(--r-lg); background: #fff; box-shadow: var(--shadow); padding: 8px 0; max-height: calc(100vh - 96px); overflow: auto; }
     .shelves button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 16px; border: 0; background: transparent; color: var(--fg-2); font: 13.5px/1.2 var(--sans); text-align: left; cursor: pointer; border-left: 2px solid transparent; }
     .shelves button .n { margin-left: auto; font: 11.5px var(--mono); color: var(--fg-3); }
@@ -131,9 +132,9 @@
     .empty .btn { margin-top: 16px; }
     @media (prefers-reduced-motion: reduce) { .sk, .sk-bar, .sk-thumb { animation: none; } .card { transition: none; } }
     @media (max-width: 900px) {
-      .lib-head { grid-template-columns: 1fr; }
+      .lib-head { grid-template-columns: minmax(0, 1fr); }
       .stats { justify-content: flex-start; }
-      .lib { grid-template-columns: 1fr; gap: 20px; }
+      .lib { grid-template-columns: minmax(0, 1fr); gap: 20px; }
       .shelves { position: static; max-height: none; display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; }
       .shelves button, .shelves .cat { width: auto; padding: 7px 12px; border-left: 0; border-radius: var(--r); }
       .shelves .cat { display: none; }
@@ -150,7 +151,7 @@
       .tools input[type=search] { min-width: 0; flex: 1 1 100%; }
       .tools .btn { flex: 1; min-height: 44px; justify-content: center; }
       .tools select { flex: 1; min-height: 44px; }
-      .featured { padding: 14px 12px; margin-inline: -4px; }
+      .featured { padding: 14px 12px; margin-inline: 0; }
       .feat-row { grid-auto-columns: minmax(150px, 62%); gap: 10px; }
       .stats div { flex: 1 1 40%; min-width: 0; }
       .shelves button { min-height: 40px; }

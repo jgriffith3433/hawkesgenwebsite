@@ -35,14 +35,17 @@
     .pf-empty p { margin: 0; color: var(--fg-2); font-size: 14px; max-width: 60ch; }
     .pf-friend { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--fg-2); padding: 4px 0; }
     .pf-friend .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
-    .pf-gate { max-width: 460px; margin: 80px auto; text-align: center; }
+    .pf-gate { max-width: 460px; margin: 80px auto; text-align: center; display: grid; gap: 16px; justify-items: center; }
+    .pf-gate[hidden] { display: none; }
+    .pf-gate h1, .pf-gate p { margin: 0; }
+    .bar > .btn { flex: none; white-space: nowrap; }
   </style>
 </head>
 <body class="landing">
   <header class="bar">
     <a class="hg-brand" href="/"><img src="/favicon.svg" alt=""><span>Hawkes Games</span></a>
     <nav class="hg-nav-links" data-site-nav><a href="/games">Worlds</a><a href="/play/sickofit">Sick of It</a><a href="https://yoobalandgame.com" target="_blank" rel="noopener">Yooba Land</a><a href="https://doseofdestruction.com" target="_blank" rel="noopener">Dose of Destruction</a><a href="https://phorigins.com" target="_blank" rel="noopener">PH Origins</a><a href="https://theplacedepartment.com" target="_blank" rel="noopener">The Place Department</a><a href="/community">Community library</a><a href="/entities">Engine codex</a><a href="/#pricing">Pricing</a></nav>
-    <a class="btn btn-ghost btn-sm" href="/app">Your games</a>
+    <a class="btn btn-secondary btn-sm" href="/app">Your games</a>
   </header>
 
   <main class="pf-main" id="pfMain" data-state="loading">

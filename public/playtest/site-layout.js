@@ -10,7 +10,7 @@
 // landing page checklist" in AGENTS.md. Screenshots and the review judge the rest (contrast, overlaps, how it looks).
 export const SITE_LAYOUT = {
   id: 'site-layout', title: 'The landing page at 390x844, 768x1024 and 1440x900: the sky, a wish and its card, then the island, games and pricing sections, with a screenshot at each stage and a check for horizontal scroll', seconds: 150, tags: ['full'],
-  description: 'no sign-up, no game. For each size: the hero (scene "Site WxH: hero"), a wish typed with real key events and sent (the card: "Site WxH: wish card"), then scrolling to #island ("island"), #games ("games") and #pricing, a scene each. The checklist (AGENTS.md "The landing page checklist") is measured: headline readable, the Overseer not covered, the wish box usable, the header legible, no horizontal scroll (any, at any size, ends the run as an error). options: sizes (default ["390x844","768x1024","1440x900"]), wish (text), frames (false: play in the browser\'s own window instead of an iframe per size)',
+  description: 'no sign-up, no game. For each size: the hero (scene "Site WxH: hero"), a wish typed with real key events and sent (the card: "Site WxH: wish card"), then scrolling to #island ("island"), #games ("games") and #pricing, a scene each. The checklist (AGENTS.md "The landing page checklist") is measured: headline readable, the Overseer not covered, the wish box usable, the header legible, no horizontal scroll (any, at any size, ends the run as an error). options: sizes (default ["390x844","768x1024","1440x900"]), wish (text), pages (false: skip Games, Library and Profile), frames (false: play in the browser\'s own window instead of an iframe per size)',
 };
 
 const SIZES = ['390x844', '768x1024', '1440x900'];
@@ -30,14 +30,79 @@ export async function runSiteLayout(t, options = {}) {
     if (horizontal.length) failed.push(`${sizes[i]}: ${horizontal.join('; ')}`);
     t.progress(0.05 + 0.95 * ((i + 1) / sizes.length));
   }
+  if (options.pages !== false) {
+    for (let i = 0; i < sizes.length; i++) {
+      const [w, h] = sizes[i].split('x').map(Number);
+      const bad = await pagesAtSize(t, { w, h, label: sizes[i], framed });
+      if (bad.length) failed.push(`${sizes[i]} pages: ${bad.join('; ')}`);
+    }
+  }
   document.getElementById('pt-site-stage')?.remove();
   if (failed.length) {
     t.event('layout-failed', failed.join(' | '));
     throw new Error(`layout: ${failed.join(' | ')}`);
   }
   t.event('no-horizontal-scroll', `none at ${sizes.join(', ')}`);
+  if (options.pages !== false) t.event('pages-ok', `Games, Library and Profile answer 200 and fit at ${sizes.join(', ')}`);
   t.event('layout-ok', `header whole, card on the first screen, the Overseer clear of the text at ${sizes.join(', ')}`);
   t.finish('done');
+}
+
+const PAGES = [['/games', 'Games'], ['/community', 'Library'], ['/profile', 'Profile']];
+
+/** The other pages every visitor meets: each answers 200 and, at this size, nothing scrolls sideways, the header's buttons are whole and apart, and nothing fixed sits over the content. */
+async function pagesAtSize(t, { w, h, label, framed }) {
+  const bad = [];
+  let stage = null, frame = null;
+  if (framed) {
+    document.getElementById('pt-site-stage')?.remove();
+    stage = document.createElement('div');
+    stage.id = 'pt-site-stage';
+    stage.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:#14151c;overflow:hidden';
+    frame = document.createElement('iframe');
+    const scale = Math.min(1, innerWidth / w, (innerHeight - 24) / h);
+    frame.style.cssText = `position:absolute;left:${Math.round((innerWidth - w * scale) / 2)}px;top:24px;width:${w}px;height:${h}px;border:0;background:#fff;transform:scale(${scale});transform-origin:0 0`;
+    stage.append(frame);
+    document.body.appendChild(stage);
+  }
+  for (const [path, name] of PAGES) {
+    const status = await fetch(path, { cache: 'no-store' }).then((r) => r.status, () => 0);
+    if (status !== 200) { bad.push(`${name} (${path}) answered ${status}`); t.problem('bug', `${label}: ${path} answered ${status}`); continue; }
+    t.event('page-status', `${path} 200 at ${label}`);
+    if (!frame) continue;
+    await new Promise((res, rej) => { frame.onload = res; frame.onerror = () => rej(new Error(`${path} did not load`)); frame.src = path; });
+    const win = frame.contentWindow, doc = win.document;
+    await t.until(() => doc.readyState === 'complete', 20000, `${name} at ${label}`);
+    if (doc.fonts && doc.fonts.ready) await Promise.race([doc.fonts.ready, t.wait(3000)]);
+    await t.wait(1800); // its data arrives
+    t.scene(`Page ${label}: ${name}`);
+    const sw = overflowX(win, doc);
+    if (sw) bad.push(`${name}: ${sw}`);
+    const vw = doc.documentElement.clientWidth;
+    const head = doc.querySelector('.hg-navbar, header.bar');
+    if (!head) bad.push(`${name}: no header`);
+    else {
+      const shown = [...head.querySelectorAll('a,button')].filter((e) => e.getBoundingClientRect().width > 0);
+      for (const e of shown) {
+        const q = e.getBoundingClientRect(), nm = (e.textContent || '').trim().slice(0, 20);
+        if (q.right > vw + 1 || q.left < -1) bad.push(`${name}: header "${nm}" cut off (${Math.round(q.left)}..${Math.round(q.right)} of ${vw})`);
+        if (e.scrollWidth > e.clientWidth + 1) bad.push(`${name}: header "${nm}" clipped`);
+      }
+      for (let a = 0; a < shown.length; a++) for (let b = a + 1; b < shown.length; b++) {
+        if (hits(shown[a].getBoundingClientRect(), shown[b].getBoundingClientRect())) bad.push(`${name}: header "${(shown[a].textContent || '').trim().slice(0, 16)}" and "${(shown[b].textContent || '').trim().slice(0, 16)}" overlap`);
+      }
+    }
+    // a fixed button (the engine's Controls pill) over the page's own text
+    for (const e of doc.body.querySelectorAll('button, a, div')) {
+      if (e.closest('header') || getComputedStyle(e).position !== 'fixed') continue;
+      const r = e.getBoundingClientRect();
+      if (r.width < 8 || r.height < 8 || getComputedStyle(e).display === 'none' || getComputedStyle(e).visibility === 'hidden') continue;
+      if (e.classList.contains('ct-btn')) bad.push(`${name}: the Controls pill is on the page`);
+    }
+    if (!sw) t.event('page-fits', `${name} at ${label}: no sideways scroll, header whole`);
+  }
+  stage?.remove();
+  return bad;
 }
 
 /** Returns what scrolled sideways (empty when nothing did). Every other finding is a problem on the report. */
