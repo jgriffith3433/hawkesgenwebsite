@@ -32,8 +32,16 @@ export async function runSickofitPage(t, options = {}) {
     const ctl = vis('#pre .touch') || vis('#pre .kbd');
     if (ctl && /move/i.test(ctl.textContent) && /rewind/i.test(ctl.textContent)) t.event('controls-shown', `${label}: ${ctl.textContent.trim()}`); else bad.push(`${label}: no move/rewind guide`);
     // The premise and guide must be what the player sees: on top of the prompt's opaque layer, not hidden under it.
+    // elementFromPoint skips pointer-events:none, which the strip has (so it never takes a tap): let it be hit for the
+    // probe only, so "shown" and "on top" are the same question asked of the same layers.
+    const strip0 = d.getElementById('pre'), pe = strip0.style.pointerEvents;
+    strip0.style.pointerEvents = 'auto';
     const topAt = (e) => { const r = rect(e); const hitEl = d.elementFromPoint(Math.round((r.left + r.right) / 2), Math.round((r.top + r.bottom) / 2)); return hitEl && hitEl.closest('#pre'); };
-    if (prem && ctl && topAt(prem) && topAt(ctl)) t.event('guide-on-top', `${label}: premise and guide are drawn above the prompt`); else bad.push(`${label}: premise or guide hidden under another layer`);
+    const onTop = prem && ctl && topAt(prem) && topAt(ctl);
+    const fs = (e) => parseFloat(win.getComputedStyle(e).fontSize);
+    strip0.style.pointerEvents = pe;
+    if (onTop) t.event('guide-on-top', `${label}: premise and guide are drawn above the prompt (${fs(prem)}px / ${fs(ctl)}px text)`); else bad.push(`${label}: premise or guide hidden under another layer`);
+    if (w < 500 && (fs(prem) < 14 || fs(ctl) < 14)) bad.push(`${label}: text under 14px (${fs(prem)} / ${fs(ctl)})`);
     t.scene(`Sick of It ${label}: before play`);
     // Every visible piece of the page against every other: the strip, the prompt's logo, button and caption, and what the
     // loader still draws (its bar and, only if the prompt failed, its title), the canvas being a full-screen backdrop that
@@ -55,12 +63,19 @@ export async function runSickofitPage(t, options = {}) {
     const tr = rect(tapBtn);
     const topEl = d.elementFromPoint(Math.round((tr.left + tr.right) / 2), Math.round((tr.top + tr.bottom) / 2));
     if (topEl && topEl.closest('#hawkes-tap')) t.event('tap-reachable', `${label}: Tap to play is the top layer at its centre, ${Math.round(tr.width)}x${Math.round(tr.height)}px`); else bad.push(`${label}: something is over Tap to play (${topEl && (topEl.tagName + '#' + topEl.id)})`);
+    // The site chip must not be reachable before the game runs: a stray tap on it would leave for the landing page.
+    const chip = d.querySelector('#hg a'), cr = chip && rect(chip);
+    const chipHit = chip && d.elementFromPoint(Math.round(cr.left + cr.width / 2), Math.round(cr.top + cr.height / 2));
+    if (!chipHit || !chipHit.closest('#hg a')) t.event('chip-out-of-reach', `${label}: the "Hawkes Games" link cannot be hit before the game runs`); else bad.push(`${label}: the Hawkes Games link is tappable before the game starts`);
     tapBtn.click();
-    await t.wait(4000);
+    await t.wait(1000);
     if (!d.getElementById('hawkes-tap') || d.getElementById('hawkes-tap').classList.contains('gone') || win.unityInstance) t.event('tap-to-play-works', `${label}: tapped, the prompt left${win.unityInstance ? ' and the game is running' : ''}`); else bad.push(`${label}: Tap to play did nothing`);
-    if (!/\/play\/sickofit/.test(win.location.pathname)) bad.push(`${label}: the page left /play/sickofit (now ${win.location.pathname})`);
+    // The picture is taken once Unity reports running (a slow build is a warning, not a pass).
+    try { await t.until(() => win.unityInstance, 60000, `the game running at ${label}`); t.event('game-running', `${label}: the Unity instance is up`); } catch { t.problem('warning', `${label}: the game was not running after 60 s`); }
+    await t.wait(5000);
+    if (/^\/play\/sickofit\/?(index\.html)?$/.test(win.location.pathname)) t.event('stayed-on-page', `${label}: still ${win.location.pathname} 5 s after the tap`); else bad.push(`${label}: the page left /play/sickofit (now ${win.location.pathname})`);
     const strip = d.getElementById('pre');
-    if (strip && win.getComputedStyle(strip).visibility === 'hidden') t.event('guide-gone', `${label}: the premise and controls line left with the first tap`); else bad.push(`${label}: the premise/controls line is still over the game after the tap`);
+    if (strip && win.getComputedStyle(strip).display === 'none') t.event('guide-gone', `${label}: the premise and controls strip is display:none once the game starts`); else bad.push(`${label}: the premise/controls strip is still in the page after the game started`);
     t.scene(`Sick of It ${label}: after tap`);
   }
   document.getElementById('pt-so-stage')?.remove();
