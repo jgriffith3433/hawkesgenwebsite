@@ -92,7 +92,7 @@
     if (fresh) {
       funnel('sandbox_lore_found', { id, n: l.n, found: kept().lore.size });
       game.emit('lore-found', { id, n: l.n, title: l.title });
-      if (game.hasAsset && game.hasAsset('confirm.mp3')) game.sound('confirm.mp3', { volume: 0.4 });
+      if (!(H && H.lib && H.lib.siteSound && H.lib.siteSound('lore-glint', { volume: 0.6 })) && game.hasAsset && game.hasAsset('confirm.mp3')) game.sound('confirm.mp3', { volume: 0.4 });
       // The Overseer noticed: a thin beam on what was found.
       try { if (thingOf && H && H.overseer && H.overseer.beam) H.overseer.beam(thingOf, { radius: 0.8, seconds: 1.4 }); } catch { /* fine */ }
       const p = game.player;
@@ -203,6 +203,7 @@
     el.hidden = false;
     wire(el);
     const b = game.ui.el('journal-btn'); if (b) b.classList.remove('new');
+    try { if (H && H.lib && H.lib.siteSound) H.lib.siteSound('page-turn', { volume: 0.5 }); } catch { /* quiet */ }
     if (!paused && !game.paused) { paused = true; try { game.pause(); } catch { paused = false; } }
     funnel('sandbox_journal_open', { from: from || 'button', quests: m.done, met: m.cast.filter((c) => c.met).length, lore: m.lore.filter((l) => l.found).length });
     game.emit('journal', { open: true, from: from || 'button' });

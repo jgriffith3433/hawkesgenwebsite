@@ -85,6 +85,15 @@ function startSound() {
   sounding = true;
   // The music first (it carries the first minute), then the sea and the birds.
   for (const s of [music, sea, birds]) fetchSound(s);
+  gulls();
+}
+// Now and then a gull over the shore, heard only near the sea (the site's own sound, runtime.js siteSound).
+function gulls() {
+  game.after(18 + Math.random() * 30, () => {
+    const p = game.player;
+    try { if (p && H && H.lib && H.lib.siteSound && seaDistance(p.x, p.z) < 25) H.lib.siteSound('seagull', { volume: 0.3 }); } catch { /* quiet */ }
+    gulls();
+  });
 }
 // The sea is heard by the shore: quiet, and fading out as you walk inland (silent ~70 m from the water) or go up; the
 // birds stay over the land. (A loop the browser held back starts as soon as sound is allowed: the first click or key.)
