@@ -92,7 +92,8 @@ async function probe(rows: Row[]) {
     await Promise.all(todo.slice(i, i + 12).map(async (r) => {
       const id = thumbIdOf(r)!;
       try {
-        const g = await genFetch(`/v1/assets/${id}`, { as: r.project, signal: AbortSignal.timeout(8000) });
+        // The file itself (one byte), not just the record: a record without its file is what the page would 404 on.
+        const g = await genFetch(`/v1/assets/${id}/file`, { as: r.project, headers: { Range: 'bytes=0-0' }, signal: AbortSignal.timeout(8000) });
         await g.body?.cancel().catch(() => {});
         if (g.status === 404) { r.gone = { ...r.gone, [id]: Date.now() }; await assets().doc(r.id).update({ [`gone.${id}`]: Date.now() }); }
         else if (g.ok) { r.seen = { ...r.seen, [id]: Date.now() }; await assets().doc(r.id).update({ [`seen.${id}`]: Date.now() }); }
