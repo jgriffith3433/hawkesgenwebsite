@@ -86,6 +86,13 @@ async function oneSize(t, w, h, label) {
   if (requests === before) t.event('no-timer-fetch', `no request in 4 s of idleness at ${label}`);
   else bad.push(`${label}: ${requests - before} requests with nobody asking`);
 
+  // The shelf tabs stay inside the screen: nothing runs past the right edge.
+  const shelf = $('#shelves'), edge = win.innerWidth;
+  const spill = [...doc.querySelectorAll('#shelves button')].filter((b) => b.getBoundingClientRect().right > edge + 1).map((b) => b.textContent.trim());
+  if (shelf && shelf.getBoundingClientRect().right > edge + 1) bad.push(`${label}: the shelves run past the right edge`);
+  else if (spill.length) bad.push(`${label}: tabs clipped at the right edge (${spill.join(', ')})`);
+  else t.event('shelves-fit', `shelf tabs inside the screen at ${label}`);
+
   // Every visible kind and shelf has a count above 0, and choosing it shows at least one card (3D models: real models or no tab).
   const kindBtns = [...doc.querySelectorAll('#shelves button')];
   const zero = kindBtns.filter((b) => Number((b.querySelector('.n') || {}).textContent) < 1).map((b) => b.textContent);
