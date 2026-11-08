@@ -28,7 +28,7 @@ export const STARTER_PROJECT = `${PROJECT_PREFIX}00000000000000c0`;
 export const COMMUNITY_KINDS = ['model', 'texture', 'image', 'sprite', 'sky', 'music', 'ambience', 'sfx', 'voice', 'video'] as const;
 const SEARCH_CAP = 3000;
 
-export type Row = { id: string; project: string; kind: string; mime: string | null; title: string; tags: string; category: string; item: string | null; low: string | null; thumb: string | null; by_user: string | null; source: string; uses: number; likes: number; created: number; hidden: number; words?: string[] };
+export type Row = { id: string; project: string; kind: string; mime: string | null; title: string; tags: string; category: string; item: string | null; low: string | null; thumb: string | null; by_user: string | null; source: string; uses: number; likes: number; created: number; hidden: number; words?: string[]; gone?: Record<string, number> };
 
 export const assets = () => db.collection('communityAssets');
 const uses = () => db.collection('communityUses');
@@ -48,6 +48,8 @@ export function wordsField(r: { title: string; category?: string; tags?: string 
   return [...all].slice(0, 200);
 }
 
+/** How long a file Gen said it lacks stays out of the listing (beta's Gen may get the starter pack later). */
+const GONE_FOR = 6 * 3600_000;
 const IMAGE_KINDS = ['texture', 'image', 'sprite', 'sky'];
 type Ctx = { lods: Record<string, GenLods>; cdn: Record<string, string>; names: Map<string, string | null> };
 const thumbIdOf = (r: Row) => r.thumb ?? (IMAGE_KINDS.includes(r.kind) ? r.id : null);
@@ -67,13 +69,16 @@ function view(r: Row, c: Ctx) {
   const thumbId = thumbIdOf(r);
   const mine = IMAGE_KINDS.includes(r.kind) || r.kind === 'model' ? c.lods[r.id] : undefined;
   const t = thumbId ? c.lods[thumbId] : null;
-  const file = (x: string | null) => (x ? c.cdn[x] ?? proxy(x) : null);
+  // A file Gen answered 404 for lately (`file()` notes it) is not offered again: the page shows a placeholder, no request.
+  const lost = (x: string | null) => Boolean(x && Date.now() - Number(r.gone?.[x] ?? 0) < GONE_FOR);
+  const file = (x: string | null) => (x && !lost(x) ? c.cdn[x] ?? proxy(x) : null);
   const small = t ? [...t.levels].reverse().find((l) => l.level <= 256) ?? t.levels[0] : null;
-  const thumb = small ? levelUrls({ ...t!, levels: [small] }, proxy(thumbId)!, { cdn: true }).levels[0].url : file(thumbId);
+  const thumb = lost(thumbId) ? null : small ? levelUrls({ ...t!, levels: [small] }, proxy(thumbId)!, { cdn: true }).levels[0].url : file(thumbId);
   return {
     id: r.id, kind: r.kind, mime: r.mime ?? null, title: r.title, category: r.category || null, tags: r.tags ? r.tags.split(' ') : [], file: file(r.id),
     thumb, thumbFull: file(thumbId),
     ...(mine ? { lods: levelUrls(mine, proxy(r.id)!, { cdn: true }) } : {}),
+    ...(lost(r.id) ? { gone: true } : {}),
     low: Boolean(r.low) || Boolean(mine?.levels.some((l) => l.role === 'low')), by: r.by_user ? c.names.get(r.by_user) ?? 'A player' : 'Hawkes', source: r.source, uses: r.uses ?? 0, likes: r.likes ?? 0, created: r.created,
   };
 }
@@ -239,20 +244,23 @@ export async function streamFrom(gr: globalThis.Response, res: Response, method:
 
 /** A community file (a listed thing, its thumb or low copy), from its owner's project; `lod` and `v` ask for a level. */
 export async function file(assetId: string, o: { lod?: number; v?: string | null; etag?: string } = {}) {
-  let r: { project: string } | null = null;
+  let r: { project: string; ref: FirebaseFirestore.DocumentReference } | null = null;
   const own = await assets().doc(assetId).get();
-  if (own.exists && !own.get('hidden')) r = { project: own.get('project') };
+  if (own.exists && !own.get('hidden')) r = { project: own.get('project'), ref: own.ref };
   if (!r) {
     for (const field of ['thumb', 'low']) {
       const s = await assets().where(field, '==', assetId).where('hidden', '==', 0).limit(1).get();
-      if (!s.empty) { r = { project: s.docs[0].get('project') }; break; }
+      if (!s.empty) { r = { project: s.docs[0].get('project'), ref: s.docs[0].ref }; break; }
     }
   }
   if (!r) throw new PortalError('No such file', { status: 404 });
   const q = new URLSearchParams();
   if (o.lod && o.lod > 0) q.set('lod', String(Math.round(o.lod)));
   if (o.v && /^[0-9a-f]{8,64}$/.test(o.v)) q.set('v', o.v);
-  return genFetch(`/v1/assets/${assetId}/file${q.size ? `?${q}` : ''}`, { as: r.project, headers: o.etag ? { 'If-None-Match': o.etag } : {}, signal: AbortSignal.timeout(120_000) });
+  const gr = await genFetch(`/v1/assets/${assetId}/file${q.size ? `?${q}` : ''}`, { as: r.project, headers: o.etag ? { 'If-None-Match': o.etag } : {}, signal: AbortSignal.timeout(120_000) });
+  // Listed but not in Gen (beta's Gen lacks the live starter pack): remember it, so the listing stops pointing at it.
+  if (gr.status === 404) await r.ref.update({ [`gone.${assetId}`]: Date.now() }).catch(() => {});
+  return gr;
 }
 
 // ------------------------------------------------------------ the starter pack
