@@ -74,7 +74,7 @@
       id, title: String(raw.title || id), giver: raw.giver ?? null, text: String(raw.text || raw.description || ''), lines: raw.lines || {},
       auto: raw.auto !== undefined ? Boolean(raw.auto) : raw.start === true || raw.giver === undefined || raw.giver === null, requires: arr(raw.requires ?? raw.after),
       steps, setup: arr(raw.setup), reward: raw.reward || null, fail: arr(raw.onFail ?? raw.failDo), seconds: num(raw.seconds ?? raw.timeLimit, 0),
-      repeatable: Boolean(raw.repeatable), marker: raw.marker !== false, raw,
+      repeatable: Boolean(raw.repeatable), marker: raw.marker !== false, quiet: Boolean(raw.quiet), raw,
     };
   }
 
@@ -230,7 +230,12 @@
   function effects(d) {
     if (!live()) return;
     const g = G();
-    if (d.state === 'start') { E.banner(`New quest: ${d.title}`, d.who && d.who !== E.myName() ? `${d.who} took it` : 'Open the quest log to see the steps', 2.6, 'quest'); E.tone([[784, 0, 0.18, 'triangle'], [1046, 0.14, 0.4, 'triangle']], { volume: 0.16 }); if (!Q.tracked) Q.tracked = d.id; }
+    // A quiet quest (def.quiet: its game tells it in the world, with a guide and its own tracker) keeps the tones and the
+    // finish, without the start banner and the step toasts on top of the game's own (quality rule 6: one line at a time).
+    const quiet = Boolean((Q.defs.get(d.id) || {}).quiet);
+    if (quiet && d.state === 'start') { E.tone([[784, 0, 0.18, 'triangle'], [1046, 0.14, 0.4, 'triangle']], { volume: 0.16 }); if (!Q.tracked) Q.tracked = d.id; }
+    else if (quiet && (d.state === 'step' || d.state === 'goal' || d.state === 'side')) E.tone([[988, 0, 0.12, 'triangle'], [1318, 0.1, 0.25, 'triangle']], { volume: 0.12 });
+    else if (d.state === 'start') { E.banner(`New quest: ${d.title}`, d.who && d.who !== E.myName() ? `${d.who} took it` : 'Open the quest log to see the steps', 2.6, 'quest'); E.tone([[784, 0, 0.18, 'triangle'], [1046, 0.14, 0.4, 'triangle']], { volume: 0.16 }); if (!Q.tracked) Q.tracked = d.id; }
     else if (d.state === 'step' || d.state === 'goal' || d.state === 'side') { E.toast(`✓ ${d.text}`, 2); E.tone([[988, 0, 0.12, 'triangle'], [1318, 0.1, 0.25, 'triangle']], { volume: 0.12 }); }
     else if (d.state === 'done') {
       E.banner('Quest complete!', `${d.title}${d.reward ? ` · ${d.reward}` : ''}`, 3.6, 'quest');
