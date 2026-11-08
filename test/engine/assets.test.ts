@@ -63,3 +63,13 @@ test('things spawned by word keep the id they got in their spec; a model named i
   const box = H.game.model('a_2', { x: 3, z: 3 });
   assert.ok(box && box.alive, 'a model by id');
 });
+
+test('a model whose asset is not here yet: the builder sees a wireframe stand-in, a player sees nothing', () => {
+  const thing = { type: 'model', name: 'Suitcase', transform: { position: [0, 0.5, 0] }, shape: { asset: 'not-made-yet.glb', size: 1 } };
+  const standIns = () => H.world.scene.meshes.filter((m: any) => m.name === 'waiting');
+  world(H, sceneOf({ floor, thing }), { mode: 'play' });
+  assert.ok(standIns().length >= 1, 'the stand-in is there (it keeps the place and the size)');
+  assert.ok(standIns().every((m: any) => !m.isVisible), 'not shown to players');
+  world(H, sceneOf({ floor, thing }), { mode: 'build' });
+  assert.ok(standIns().some((m: any) => m.isVisible && m.material && m.material.wireframe), 'shown in the editor');
+});
