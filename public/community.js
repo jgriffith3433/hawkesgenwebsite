@@ -58,13 +58,18 @@ function renderStats() {
   const n = (k) => shelves.kinds.find((x) => x.kind === k)?.count ?? 0;
   const sounds = n('music') + n('ambience') + n('sfx') + n('voice');
   $('stats').innerHTML = [[shelves.total, 'things'], [n('model'), '3D models'], [n('texture') + n('sky') + n('sprite') + n('image'), 'textures & art'], [sounds, 'sounds & music']]
+    .filter(([v]) => v > 0)
     .map(([v, l]) => `<div><b>${v}</b><span>${l}</span></div>`).join('');
 }
 
 function renderShelves() {
+  // A kind or shelf with nothing behind it is not shown, and a link to one falls back to everything.
+  const kindRow = shelves.kinds.find((k) => k.kind === state.kind);
+  if (state.kind && !kindRow) { state.kind = ''; state.category = ''; }
+  else if (state.category && !kindRow?.categories.some((c) => c.category === state.category)) state.category = '';
   const btn = (kind, category, label, count, cls) => `<button type="button" class="${cls}${state.kind === kind && state.category === category ? ' on' : ''}${cls === 'cat' && state.kind === kind ? ' show' : ''}" data-kind="${esc(kind)}" data-category="${esc(category)}">${esc(label)}<span class="n">${count}</span></button>`;
-  $('shelves').innerHTML = btn('', '', 'Everything', shelves.total, 'kind') + shelves.kinds.map((k) =>
-    btn(k.kind, '', KIND[k.kind]?.[0] ?? k.kind, k.count, 'kind') + k.categories.map((c) => btn(k.kind, c.category, shelfName(c.category), c.count, 'cat')).join('')).join('');
+  $('shelves').innerHTML = btn('', '', 'Everything', shelves.total, 'kind') + shelves.kinds.filter((k) => k.count > 0).map((k) =>
+    btn(k.kind, '', KIND[k.kind]?.[0] ?? k.kind, k.count, 'kind') + k.categories.filter((c) => c.count > 0).map((c) => btn(k.kind, c.category, shelfName(c.category), c.count, 'cat')).join('')).join('');
 }
 /** A category as people read it: "scifi" is Sci-fi, "ui" is UI. */
 const SHELF = { scifi: 'Sci-fi', ui: 'UI' };
