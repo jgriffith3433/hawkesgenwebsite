@@ -425,6 +425,9 @@
     if (r.energy < 0.12 && !sp.flies) { stop(r, 'sleep'); r.act = 'sleep'; return; }
     if (r.hunger > 0.65 && (sp.diet === 'grass' || sp.diet === 'seeds')) { stop(r, 'eat'); r.act = 'eat'; r.until = t + rand(4, 8); if (sp.flies) r.alt = 0; return; }
 
+    // A friend who stays at a post (friends.js `stays`) never wanders off it: it stands, whatever else it did before.
+    if (r.stays) { r.act = 'idle'; r.state = 'idle'; r.until = t + 2; return; }
+
     // 7. Wander (herds keep together: around the middle of whoever is near, pulled home if too far).
     if (Math.random() < (sp.group === 'herd' || sp.group === 'flock' ? 0.45 : 0.3)) { r.act = 'idle'; r.state = Math.random() < 0.3 && sp.diet === 'grass' ? 'eat' : 'idle'; r.until = t + rand(2, 6); return; }
     let cx = r.home[0], cz = r.home[1];
