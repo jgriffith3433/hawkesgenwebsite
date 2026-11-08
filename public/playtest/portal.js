@@ -334,6 +334,7 @@ async function stageVeil(t, ctx) {
   t.scene('Sandbox loading');
   await t.until(() => W() && W().player && W().player.alive, 90000, 'the island to load (world and player)');
   t.event('world-ready');
+  t.scene('Sandbox: world ready');
   t.progress(0.14);
   // Where sound is already allowed there is no veil: the intro just starts.
   const veil = await t.until(() => $('.hp-enter button') || (G() && G().overseer && G().overseer.introPlaying), 12000, 'the click-to-enter veil or the intro').then(() => $('.hp-enter button'), () => null);
@@ -376,10 +377,12 @@ async function stageIntro(t, ctx) {
   }
   t.scene('Intro');
   t.event('intro-start');
+  const heard = [];
+  const hear = () => { for (const p of document.querySelectorAll('.hc-log p.overseer')) { const l = p.textContent.replace(/\s+/g, ' ').trim(); if (l && !heard.includes(l)) { heard.push(l); t.event('overseer-said', l); } } };
   checkSelfHosted(t);
   t.progress(0.2);
   const watch = Number(ctx.options.watch ?? 8);
-  await t.until(() => !g().introPlaying, watch * 1000, 'the intro to run').then(() => t.event('intro-ended', 'watched to the end'), async () => {
+  await t.until(() => { hear(); return !g().introPlaying; }, watch * 1000, 'the intro to run').then(() => t.event('intro-ended', 'watched to the end'), async () => {
     t.event('intro-watched', `${watch} s`);
     await tap(t, 'Enter'); // any key skips (a moment after it starts)
     await t.until(() => !g().introPlaying, 6000, 'the intro to stop after a key');
@@ -2894,7 +2897,7 @@ export function install() {
       t.event('plan', `${id}: ${STAGES[from]} to ${STAGES[to]}${isLive() ? ' (live: no sign-up)' : ''}`);
       let named = '';
       try {
-        const seq = legSeq(id, prior) || (id === 'island-arrivals' && prior && prior.leg === 'return' ? ['back2'] : id === 'sandbox-return' && prior && prior.leg === 'return' ? ['back'] : id === 'sandbox-travel-board' && prior && prior.leg === 'game' ? ['game'] : id === 'sandbox-travel-board' && prior && prior.leg === 'back' ? ['board'] : ORDERS[id] ? ORDERS[id].slice(ORDERS[id].indexOf(STAGES[from])) : STAGES.slice(from, to + 1));
+        const seq = legSeq(id, prior) || (id === 'island-arrivals' && prior && prior.leg === 'return' ? ['back2'] : id === 'sandbox-return' && prior && prior.leg === 'return' ? ['back'] : id === 'sandbox-travel-board' && prior && prior.leg === 'game' ? ['game'] : id === 'sandbox-travel-board' && prior && prior.leg === 'back' ? ['board'] : ORDERS[id] ? ORDERS[id].slice(ORDERS[id].indexOf(STAGES[from])) : STAGES.slice(from, to + 1).filter((s) => s !== 'firstvisit')); // firstvisit is only for overseer-first-visit's own order: 'intro' already watched or skipped the intro
         for (const stage of seq) {
           named = stage;
           if ((await RUN[named](t, ctx)) === 'stop') return;
