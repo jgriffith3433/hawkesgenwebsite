@@ -66,14 +66,16 @@ export async function runCharacterMotion(t, ctx) {
       const ramp = box([8, 0.4, len], [O[0], O[1] + Math.sin(r) * len / 2 - 0.2 * Math.cos(r), O[2] + Math.cos(r) * len / 2], [-deg, 0, 0]);
       const under = (z) => { const lz = z - O[2]; return O[1] + (lz > 0 && lz < len * Math.cos(r) ? Math.tan(r) * lz : 0); };
       for (const way of ways) {
+       for (let attempt = 0; attempt < 2; attempt++) {
         const start = way === 'onto' ? [O[0], O[1] + 0.1, O[2] - 3] : [O[0], O[1] + Math.tan(r) * 12 + 0.5, O[2] + 12];
         const dir = { x: 0, z: way === 'down' ? -1 : 1 };
         drive = null;
         p.position = [start[0], start[1] + 0.95, start[2]]; p.velocity = [0, 0, 0]; face(dir);
         await t.wait(700);
-        const tr = { air: 0, shown: 0, worstAir: 0, worstShown: 0, jumped: false, landedAt: -1, shownAfter: 0, frames: [], time: 0 };
+        const tr = { lost: false, air: 0, shown: 0, worstAir: 0, worstShown: 0, jumped: false, landedAt: -1, shownAfter: 0, frames: [], time: 0 };
         drive = (dt) => {
           tr.time += dt;
+          if (p.bottom < Math.min(O[1], under(p.z)) - 3) tr.lost = true; // fell past the test ground
           p.walk(dir, 6); face(dir);
           if (!tr.jumped && tr.time > 0.1) tr.jumped = p.jump(8.5);
           const m = PR().motion();
@@ -91,6 +93,8 @@ export async function runCharacterMotion(t, ctx) {
         await t.wait(1400);
         drive = null;
         const name = `slope-${deg}-${way}`;
+        // the test ground was not there under the player (fell past it): put it back and play the case again, once
+        if (tr.lost && attempt === 0) { t.event('ground-lost', `${name}: the player fell ${(O[1] - p.bottom).toFixed(1)} m below the test floor; playing it again`); continue; }
         const landed = tr.landedAt >= 0 ? `landed at ${tr.landedAt.toFixed(2)} s` : 'never landed';
         const line = `${landed}; airborne near the ground ${tr.worstAir.toFixed(2)} s, drawn airborne on the ground ${tr.worstShown.toFixed(2)} s`;
         worstAir = Math.max(worstAir, tr.worstAir); worstShown = Math.max(worstShown, tr.worstShown); worstLate = Math.max(worstLate, tr.shownAfter);
@@ -101,6 +105,8 @@ export async function runCharacterMotion(t, ctx) {
         const at = tr.landedAt >= 0 ? tr.frames.findIndex((f) => f[0] >= tr.landedAt) : -1;
         t.event('trace', `${name}: ${JSON.stringify(tr.frames.slice(Math.max(0, at - 4), Math.max(0, at - 4) + 12))}`);
         t.progress(0.05 + 0.55 * (++n / (angles.length * ways.length)));
+        break;
+       }
       }
       ramp.destroy(); made.splice(made.indexOf(ramp), 1);
     }
