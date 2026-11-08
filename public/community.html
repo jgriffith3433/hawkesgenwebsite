@@ -136,7 +136,8 @@
       .stats { justify-content: flex-start; }
       .lib { grid-template-columns: minmax(0, 1fr); gap: 20px; }
       .shelves { position: static; max-height: none; display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; }
-      .shelves button, .shelves .cat { width: auto; padding: 7px 12px; border-left: 0; border-radius: var(--r); }
+      .shelves { min-width: 0; max-width: 100%; box-sizing: border-box; }
+      .shelves button, .shelves .cat { width: auto; max-width: 100%; min-width: 0; padding: 7px 12px; border-left: 0; border-radius: var(--r); text-align: left; white-space: normal; overflow-wrap: anywhere; }
       .shelves .cat { display: none; }
       .shelves .cat.show { display: flex; }
       .panel { grid-template-columns: 1fr; }
