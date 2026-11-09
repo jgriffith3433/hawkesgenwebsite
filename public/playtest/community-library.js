@@ -5,15 +5,18 @@
 //   4. no-horizontal-scroll at 390 (and the cards, featured row and tools inside the window)
 //   6. no-console-errors  no console error, script error or failed request (a missing picture counts), the run fails otherwise
 //   5. no-timer-fetch   the page makes no request on its own: after it settles, 4 s of idleness adds none, and typing alone sends none
+//   7. pack-complete    every thing of Hawkes' starter pack is in the library (GET /v1/community/health), per kind
+//   8. files-load       every listed thing's file answers (the first bytes of each, read and dropped): a card whose file is
+//                       gone fails the run (Gen lost the whole pack with the old AWS box, 2026-11, and nothing caught it)
 export const COMMUNITY_LIBRARY = {
-  id: 'community-library', title: 'The community library: cards with thumbnails, creator names and uses; the loading skeleton; the empty state; the featured row; no sideways scroll at 390px; no request without a person asking', seconds: 120, tags: ['full'],
-  description: 'no sign-up, no game. For 390x844 and 1440x900 (an iframe each): the skeleton while loading (loading-state), the cards (cards-shown, scene "Library WxH: cards"), the featured row (featured-shown), a nonsense search typed with key events and sent with Enter (empty-state), no horizontal scroll, and four idle seconds with no new request (no-timer-fetch). options: sizes (default ["390x844","1440x900"])',
+  id: 'community-library', title: 'The community library: cards with thumbnails, creator names and uses; the loading skeleton; the empty state; the featured row; no sideways scroll at 390px; no request without a person asking', seconds: 180, tags: ['full'],
+  description: 'no sign-up, no game. For 390x844 and 1440x900 (an iframe each): the skeleton while loading (loading-state), the cards (cards-shown, scene "Library WxH: cards"), the featured row (featured-shown), a nonsense search typed with key events and sent with Enter (empty-state), no horizontal scroll, and four idle seconds with no new request (no-timer-fetch). Once: every starter pack thing listed (pack-complete) and every listed file loading (files-load). options: sizes (default ["390x844","1440x900"]), files (false: skip files-load)',
 };
 
 export async function runCommunityLibrary(t, options = {}) {
   const sizes = (Array.isArray(options.sizes) && options.sizes.length ? options.sizes : ['390x844', '1440x900']).map(String);
   t.event('plan', `community-library: ${sizes.join(', ')}`);
-  const failed = [];
+  const failed = [...await packAndFiles(t, options)];
   for (let i = 0; i < sizes.length; i++) {
     const [w, h] = sizes[i].split('x').map(Number);
     if (!(w > 0 && h > 0)) throw new Error(`bad size "${sizes[i]}"`);
@@ -23,6 +26,42 @@ export async function runCommunityLibrary(t, options = {}) {
   document.getElementById('pt-lib-stage')?.remove();
   if (failed.length) { t.event('library-failed', failed.join(' | ')); throw new Error(`library: ${failed.join(' | ')}`); }
   t.finish('done');
+}
+
+// The library as a whole, once: the starter pack against what is listed, and every listed file answering.
+async function packAndFiles(t, options) {
+  const bad = [];
+  const h = await fetch('/v1/community/health', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))).catch((e) => ({ error: e.message }));
+  if (h.error) bad.push(`pack health: ${h.error}`);
+  else {
+    const kinds = Object.entries(h.byKind || {}).map(([k, v]) => `${k} ${v.listed}/${v.pack}`).join(', ');
+    if (h.missing) bad.push(`${h.missing} of ${h.pack} starter pack things are missing (${kinds}; e.g. ${(h.missingItems || []).slice(0, 4).join(', ')})`);
+    else t.event('pack-complete', `all ${h.pack} starter pack things listed (${kinds})`);
+  }
+  if (options.files === false) return bad;
+  // Every listed thing, a page at a time; each file asked for and dropped after its first chunk (a model is megabytes).
+  const ids = [];
+  for (let offset = 0; offset < 2000; offset += 100) {
+    const r = await fetch(`/v1/community?limit=100&offset=${offset}&sort=new`, { cache: 'no-store' }).then((x) => x.json()).catch(() => null);
+    if (!r || !Array.isArray(r.items)) { bad.push('the library list did not answer'); break; }
+    ids.push(...r.items.map((x) => [x.id, x.kind, x.title]));
+    if (offset + 100 >= Number(r.total ?? 0)) break;
+  }
+  const dead = [];
+  const one = async ([id, kind, title]) => {
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 20000);
+    try {
+      const r = await fetch(`/v1/community/${id}/file`, { signal: ac.signal, cache: 'no-store' });
+      if (!r.ok) dead.push(`${kind} "${title}" HTTP ${r.status}`);
+      else { const rd = r.body && r.body.getReader(); if (rd) { const c = await rd.read(); if (!c.value || !c.value.length) dead.push(`${kind} "${title}" empty`); await rd.cancel().catch(() => {}); } }
+    } catch (e) { dead.push(`${kind} "${title}" ${ac.signal.aborted ? 'timed out' : e.message}`); }
+    finally { clearTimeout(timer); ac.abort(); }
+  };
+  for (let i = 0; i < ids.length; i += 8) await Promise.all(ids.slice(i, i + 8).map(one));
+  if (dead.length) bad.push(`${dead.length} of ${ids.length} listed files do not load (${dead.slice(0, 4).join(' | ')})`);
+  else t.event('files-load', `all ${ids.length} listed files answer`);
+  return bad;
 }
 
 async function oneSize(t, w, h, label) {

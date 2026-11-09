@@ -1,0 +1,5 @@
+{
+  "about": "What the portal may remake of the starter pack (community/starter.mjs) when its things are missing from Gen, per lane. Each lane's scheduled starter sync queues the missing things of the listed kinds in that lane's own starter project, until the estimate of what it queued reaches budgetUsd; each thing is tried at most twice. Remaking spends money: only J's own yes puts a lane here, quoted in approved. Empty: nothing is remade.",
+  "live": null,
+  "beta": null
+}
