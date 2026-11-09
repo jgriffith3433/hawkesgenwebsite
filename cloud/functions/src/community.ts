@@ -476,15 +476,17 @@ export async function restoreStarter() {
   let spent = Number(state.spentUsd) || 0;
   // A thing queued in the last 6 hours is still being made (it lists when it finishes); after that a second try only
   // runs again if the first failed (same key, reuse: Gen hands back the finished or running job).
-  const todo = packItems().filter((it) => missing.has(it.item) && order.kinds.includes(it.kind) && (tries[it.item] ?? 0) < 2 && Date.now() - (queuedAt[it.item] ?? 0) > 6 * 3600_000).slice(0, 40);
+  // The cheap kinds first, 3D models (most of the cost) last.
+  const todo = packItems().filter((it) => missing.has(it.item) && order.kinds.includes(it.kind) && (tries[it.item] ?? 0) < 2 && Date.now() - (queuedAt[it.item] ?? 0) > 6 * 3600_000)
+    .sort((a, b) => Number(a.kind === 'model') - Number(b.kind === 'model')).slice(0, 40);
   if (!todo.length) return { order: true, queued: 0, spentUsd: spent, budgetUsd: order.budgetUsd };
-  // Priced per kind by Gen (idle tail included, so the number J approved is the most it costs), then queued in order
-  // while the running total stays within the budget.
+  // Priced per kind by Gen (each batch's own boots and model loads; the idle tail, once per server, is in the budget's
+  // margin), then queued in order while the running total stays within the budget.
   const price: Record<string, number> = {};
   for (const kind of new Set(todo.map((it) => it.kind))) {
     const of = todo.filter((it) => it.kind === kind);
     const est: any = await gen('/v1/estimate', { method: 'POST', as: STARTER_PROJECT, body: { project: STARTER_PROJECT, items: of.map((it) => ({ tool: 'asset.make', params: paramsFor(it.kind, it.what), count: 1, label: it.item })) } });
-    const total = Number(est?.cost?.withIdleTail ?? est?.cost?.total);
+    const total = Number(est?.cost?.total);
     if (!(total >= 0)) throw new PortalError(`Gen gave no price for ${kind}`, { status: 502 });
     price[kind] = total / of.length;
   }
