@@ -1280,6 +1280,8 @@ async function stageChapter(t, ctx) {
   const seen = [];
   G().on('tour', (d) => { seen.push(d.step); t.event('quest-done', d.step); });
   G().on('beat', (d) => t.event('islander-line', `${d.who}: ${d.text}`));
+  const voiced = { clip: 0, babble: 0 }; // each line a character spoke: a recorded clip (runtime.js speakRecorded) or the babble
+  G().on('voiced', (d) => { if (d && d.kind === 'clip') { voiced.clip++; t.event('voice-clip', `${d.who}: ${d.url}`); } else if (d && d.kind === 'babble') { voiced.babble++; t.event('voice-babble', `${d.who}`); } });
   G().on('bay-lit', () => t.event('bay-lit', 'the Overseer\'s bay is lit on the sphere'));
   const shortcut = async (until, why) => {
     for (let i = 0; i < 9 && step() && step() !== until; i++) { t.event('setup-shortcut', `${why}: passed "${step()}"`); q().advance('tour'); await t.wait(1500); }
@@ -1313,6 +1315,8 @@ async function stageChapter(t, ctx) {
   t.scene('Chapter One: the lit bay');
   await t.wait(7000); // Pip's "Huh. That's new." and the Overseer's closing line
   t.event('chapter-end', 'quests done: ' + seen.join(', '));
+  t.metric('linesRecorded', voiced.clip); t.metric('linesTextOnly', voiced.babble);
+  t.event('voices-recorded', `${voiced.clip} recorded clip(s), ${voiced.babble} babbled (text only) of ${voiced.clip + voiced.babble} spoken character lines`);
   t.progress(1);
 }
 
