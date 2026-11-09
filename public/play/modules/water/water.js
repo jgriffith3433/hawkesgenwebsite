@@ -642,7 +642,7 @@ void main(void) {
     const asset = assetNamed(name);
     if (asset && g) { g.sound(asset, { volume: clamp(vol, 0, 1), rate: o.rate }); return; }
     // The site's own recordings of the fishing sounds (runtime.js siteSound), before the synthesized ones.
-    const SITE = { cast: 'fishing-cast', bite: 'fish-bite', catch: 'fish-catch' };
+    const SITE = { cast: 'fishing-cast', bite: 'fish-bite', catch: 'fish-catch', reel: 'fishing-reel' };
     try { if (SITE[name] && H.lib && H.lib.siteSound && H.lib.siteSound(SITE[name], { volume: clamp(vol, 0, 1) })) return; } catch { /* the synth */ }
     const ctx = audioCtx();
     if (!ctx || ctx.state !== 'running') return;
