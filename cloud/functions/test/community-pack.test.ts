@@ -1,0 +1,33 @@
+// The community starter pack (community/starter.mjs) and what may be remade (community/restore.json), read from the repo:
+//   node --test --disable-warning=ExperimentalWarning test/community-pack.test.ts
+// Gen lost the whole pack with the old AWS box (2026-11); /v1/community/health counts the pack against the library and the
+// scheduled sync remakes what is missing only on a lane J ordered it for, within its budget.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+
+const pack = await import(new URL('../../../community/starter.mjs', import.meta.url).href);
+const KINDS = ['model', 'texture', 'image', 'sprite', 'sky', 'music', 'ambience', 'sfx', 'voice', 'video'];
+
+test('every pack thing has its own item and Gen key, in a known kind', () => {
+  const items = pack.packItems();
+  assert.ok(items.length >= 300, `${items.length} things`);
+  assert.equal(new Set(items.map((it: any) => it.item)).size, items.length, 'items are unique');
+  assert.equal(new Set(items.map((it: any) => pack.keyOf(it))).size, items.length, 'keys are unique');
+  for (const it of items) {
+    assert.ok(KINDS.includes(it.kind), it.item);
+    assert.equal(pack.labelsOf(it).item, it.item.slice(it.kind.length + 1), 'the label the sync matches is the item');
+    assert.ok(pack.paramsFor(it.kind, it.what)?.steps?.length, `${it.item} has a recipe`);
+  }
+});
+
+test('restore.json: a lane is only remade on an order with J’s yes, kinds and a capped budget', () => {
+  const r = JSON.parse(fs.readFileSync(new URL('../../../community/restore.json', import.meta.url), 'utf8'));
+  for (const lane of ['live', 'beta']) {
+    const o = r[lane];
+    if (o === null || o === undefined) continue;
+    assert.ok(typeof o.approved === 'string' && o.approved.trim().length > 10, `${lane}: quote J's yes and when`);
+    assert.ok(Array.isArray(o.kinds) && o.kinds.length && o.kinds.every((k: string) => KINDS.includes(k)), `${lane}: kinds`);
+    assert.ok(Number(o.budgetUsd) > 0 && Number(o.budgetUsd) <= 200, `${lane}: budget in dollars, at most 200`);
+  }
+});
