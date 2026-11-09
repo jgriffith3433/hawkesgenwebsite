@@ -20,7 +20,11 @@ import { db, FieldValue, users } from './store.ts';
 import { gen, genFetch } from './gen.ts';
 import { requireUser, requireAdmin, adminFrom, type User } from './accounts.ts';
 import { PortalError, route } from './http.ts';
-import { PROJECT_PREFIX, SECRETS } from './config.ts';
+import fs from 'node:fs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { PROJECT_PREFIX, SECRETS, isLive } from './config.ts';
+import { ASSETS } from './engine.ts';
 import { known, levelUrls, rememberAsset, rememberMany, type GenLods } from './lods.ts';
 
 /** The Gen project Hawkes' own starter pack lives in (the same for every copy of the portal). */
@@ -53,7 +57,7 @@ const GONE_FOR = 6 * 3600_000;
 const IMAGE_KINDS = ['texture', 'image', 'sprite', 'sky'];
 type Ctx = { lods: Record<string, GenLods>; cdn: Record<string, string>; names: Map<string, string | null> };
 /** A thing whose own file Gen lately answered 404 for: it is not listed or counted (an empty card would read as broken). */
-const fileLost = (r: { id?: string; gone?: Record<string, number> }) => Boolean(r.id && Date.now() - Number(r.gone?.[r.id] ?? 0) < GONE_FOR);
+export const fileLost = (r: { id?: string; gone?: Record<string, number> }) => Boolean(r.id && Date.now() - Number(r.gone?.[r.id] ?? 0) < GONE_FOR);
 const thumbIdOf = (r: Row) => r.thumb ?? (IMAGE_KINDS.includes(r.kind) ? r.id : null);
 
 /** Everything the views of these rows need, read at once (levels, CDN links, sharers' names). */
@@ -84,13 +88,17 @@ function view(r: Row, c: Ctx) {
     low: Boolean(r.low) || Boolean(mine?.levels.some((l) => l.role === 'low')), by: r.by_user ? c.names.get(r.by_user) ?? 'A player' : 'Hawkes', source: r.source, uses: r.uses ?? 0, likes: r.likes ?? 0, created: r.created,
   };
 }
-/** Before a page of the library is listed: ask Gen once a day whether each thumbnail exists, so the page never requests one that is not there (a 404 is a console error). */
+/**
+ * Before a page of the library is listed: ask Gen once a day whether each thing's own file and its thumbnail exist, so
+ * the page never offers one that is not there (a 404 is a console error, and a sound that won't play reads as broken).
+ * Thumbnails only, before 2026-11-09: the starter pack's sounds and voices stayed listed after Gen lost them.
+ */
 const SEEN_FOR = 24 * 3600_000;
+const filesToProbe = (r: Row) => [...new Set([r.id, thumbIdOf(r)].filter((x): x is string => Boolean(x)))];
 async function probe(rows: Row[]) {
-  const todo = rows.filter((r) => { const id = thumbIdOf(r); return id && Date.now() - Number(r.gone?.[id] ?? 0) >= GONE_FOR && Date.now() - Number(r.seen?.[id] ?? 0) >= SEEN_FOR; });
+  const todo = rows.flatMap((r) => filesToProbe(r).filter((id) => Date.now() - Number(r.gone?.[id] ?? 0) >= GONE_FOR && Date.now() - Number(r.seen?.[id] ?? 0) >= SEEN_FOR).map((id) => ({ r, id })));
   for (let i = 0; i < todo.length; i += 12) {
-    await Promise.all(todo.slice(i, i + 12).map(async (r) => {
-      const id = thumbIdOf(r)!;
+    await Promise.all(todo.slice(i, i + 12).map(async ({ r, id }) => {
       try {
         // The file itself (one byte), not just the record: a record without its file is what the page would 404 on.
         const g = await genFetch(`/v1/assets/${id}/file`, { as: r.project, headers: { Range: 'bytes=0-0' }, signal: AbortSignal.timeout(8000) });
@@ -146,7 +154,9 @@ export async function search(o: { q?: unknown; kind?: unknown; tag?: unknown; ca
     .sort((a, b) => Math.round(b.s) - Math.round(a.s) || (sort === 'new' ? b.r.created - a.r.created : sort === 'fresh' ? (a.r.likes ?? 0) - (b.r.likes ?? 0) || b.r.created - a.r.created : sort === 'name' ? a.r.title.localeCompare(b.r.title) : (b.r.likes ?? 0) - (a.r.likes ?? 0) || (b.r.uses ?? 0) - (a.r.uses ?? 0)) || b.s - a.s);
   const page = scored.slice(offset, offset + limit).map((x) => x.r);
   await probe(page);
-  return { items: await views(page), total: scored.length };
+  // A thing the probe just found gone is left out now, not shown as an empty card until the next listing.
+  const shown = page.filter((r) => !fileLost(r));
+  return { items: await views(shown), total: scored.length - (page.length - shown.length) };
 }
 
 /** Listed rows' kind, category and tags only (shelves and tag counts read the whole list; select keeps it small). */
@@ -235,6 +245,18 @@ export async function listedRow(assetId: string): Promise<Row | null> {
 export const viewOne = async (r: Row) => (await views([r]))[0];
 
 /**
+ * The row to use for a row someone names by id: itself while it is listed and its file is there; for a starter thing that
+ * was hidden or lost (Gen lost the pack with the AWS box, 2026-11), the listed row of the same thing (`item`) made since.
+ * Null: hidden with nothing in its place. (Templates, the sandbox's voice lines and older games name starter things by id.)
+ */
+export async function currentOf(r: Row): Promise<Row | null> {
+  if ((!r.hidden && !fileLost(r)) || !r.item || r.source !== 'starter') return r.hidden ? null : r;
+  const s = await assets().where('item', '==', r.item).where('hidden', '==', 0).limit(5).get();
+  const alt = s.docs.map(rowOf).find((x) => x.id !== r.id && x.source === 'starter' && !fileLost(x));
+  return alt ?? (r.hidden ? null : r);
+}
+
+/**
  * Someone put a community thing in a game: one more use, and a like when it is someone else's (once per account).
  * The games area calls this from POST /v1/games/:id/community (the part of src/community.ts useInGame that is the library's).
  */
@@ -267,7 +289,10 @@ export async function streamFrom(gr: globalThis.Response, res: Response, method:
 export async function file(assetId: string, o: { lod?: number; v?: string | null; etag?: string } = {}) {
   let r: { project: string; ref: FirebaseFirestore.DocumentReference } | null = null;
   const own = await assets().doc(assetId).get();
-  if (own.exists && !own.get('hidden')) r = { project: own.get('project'), ref: own.ref };
+  // A starter thing that was made again has a new id; games and engine code that name the old one get the new one's file.
+  const now = own.exists ? await currentOf(rowOf(own)) : null;
+  if (now && now.id !== assetId) assetId = now.id;
+  if (now) r = { project: now.project, ref: assets().doc(now.id) };
   if (!r) {
     for (const field of ['thumb', 'low']) {
       const s = await assets().where(field, '==', assetId).where('hidden', '==', 0).limit(1).get();
@@ -359,11 +384,16 @@ export async function syncStarterPack() {
   }
   // Retire: an older row of the same thing, and starter rows of a kind with a minimum recipe that aren't this round's.
   let withdrawn = 0;
+  let lost = 0;
+  const inGen = new Set(all.map((a) => String(a.id)));
   for (const was of existing.values()) {
     if (was.hidden || keepIds.has(was.id)) continue;
     const replaced = was.item && [...best.values()].some((r) => r.item === was.item);
     const belowRev = was.kind in MIN_REV;
-    if (replaced || belowRev) { writes.push([was.id, { hidden: 1 }, false]); if (belowRev) withdrawn++; }
+    if (replaced || belowRev) { writes.push([was.id, { hidden: 1 }, false]); if (belowRev) withdrawn++; continue; }
+    // Listed, but Gen no longer has it in the starter project at all (Gen lost the pack with the AWS box, 2026-11): not
+    // offered (fileLost) until it comes back or is made again; the probe would only find it one page at a time.
+    if (!inGen.has(was.id) && !fileLost(was)) { writes.push([was.id, { [`gone.${was.id}`]: Date.now() }, false]); lost++; }
   }
   for (let i = 0; i < writes.length; i += 450) {
     const batch = db.batch();
@@ -372,12 +402,111 @@ export async function syncStarterPack() {
   }
   // Each thing's levels of detail came with Gen's list: kept for the library and bundles.
   await rememberMany([...best.values()].flatMap((r) => [r.main, r.thumb, r.low].filter(Boolean).map((a: any) => ({ asset: a.id, lods: a.lods ?? null, cdn: a.cdn }))));
-  return { jobs: byJob.size, things: best.size, added, unusable, withdrawn, written: writes.length };
+  return { jobs: byJob.size, things: best.size, added, unusable, withdrawn, lost, written: writes.length };
 }
 
-/** Keeps the starter pack current; a Gen hiccup just waits for the next round. */
+// ------------------------------------------------------------ the pack as defined, what is missing, and remaking it
+
+type PackItem = { kind: string; tag: string; name: string; what: string; words: string; item: string };
+type PackModule = { packItems: () => PackItem[]; paramsFor: (kind: string, what: string) => any; keyOf: (it: PackItem) => string; labelsOf: (it: PackItem) => Record<string, unknown> };
+/** One lane's order to remake missing things (community/restore.json): J's yes, quoted; the kinds; a dollar cap. */
+export type RestoreOrder = { approved: string; kinds: string[]; budgetUsd: number };
+
+let packP: Promise<PackModule> | null = null;
+/** community/starter.mjs as the function has it (tools/prebuild.mjs copies it into assets/). */
+export function starterPack(): Promise<PackModule> {
+  packP ??= (async () => {
+    const file = path.join(ASSETS, 'community', 'starter.mjs');
+    if (!fs.existsSync(file)) throw new PortalError('The starter pack is not on this server yet (run cloud/functions/tools/prebuild.mjs before deploying)', { status: 503 });
+    return (await import(pathToFileURL(file).href)) as PackModule;
+  })();
+  packP.catch(() => { packP = null; });
+  return packP;
+}
+
+/** This lane's restore order, if J gave one (community/restore.json `live` / `beta`). */
+export function restoreOrder(): RestoreOrder | null {
+  try {
+    const all = JSON.parse(fs.readFileSync(path.join(ASSETS, 'community', 'restore.json'), 'utf8'));
+    const o = all?.[isLive() ? 'live' : 'beta'];
+    if (!o || typeof o.approved !== 'string' || !o.approved.trim() || !Array.isArray(o.kinds) || !(Number(o.budgetUsd) > 0)) return null;
+    return { approved: o.approved, kinds: o.kinds.map(String).filter((k: string) => COMMUNITY_KINDS.includes(k as any)), budgetUsd: Math.min(200, Number(o.budgetUsd)) };
+  } catch { return null; }
+}
+
+/**
+ * The pack against the library: how many things community/starter.mjs defines, how many are listed with their file in
+ * Gen, and which are missing, per kind (GET /v1/community/health; the community-library playtest fails on a missing one).
+ */
+export async function packHealth() {
+  const { packItems } = await starterPack();
+  const pack = packItems();
+  const listed = new Set((await assets().where('source', '==', 'starter').where('hidden', '==', 0).select('item', 'gone').get()).docs
+    .map((d) => ({ id: d.id, item: d.get('item') as string | null, gone: d.get('gone') as Record<string, number> | undefined }))
+    .filter((r) => r.item && !fileLost(r)).map((r) => r.item!));
+  const byKind: Record<string, { pack: number; listed: number }> = {};
+  const missing: string[] = [];
+  for (const it of pack) {
+    const k = (byKind[it.kind] ??= { pack: 0, listed: 0 });
+    k.pack++;
+    if (listed.has(it.item)) k.listed++;
+    else missing.push(it.item);
+  }
+  const r = restoreOrder();
+  return { pack: pack.length, listed: pack.length - missing.length, missing: missing.length, byKind, missingItems: missing, restore: r ? { approved: r.approved, kinds: r.kinds, budgetUsd: r.budgetUsd } : null };
+}
+
+const restores = () => db.collection('communityRestore');
+/**
+ * Remakes what the pack is missing, within this lane's restore order: the missing things of its kinds go to Gen as the
+ * same asset.make jobs tools/starter.mjs queues (same key and labels, in this lane's starter project), priced by Gen's
+ * estimate first, until what was queued under the order reaches its budget. A thing is tried at most twice (a failed job
+ * frees its key in Gen). The next syncs list each one as it finishes. Nothing happens without an order: it spends money.
+ */
+export async function restoreStarter() {
+  const order = restoreOrder();
+  if (!order) return { order: false };
+  const { packItems, paramsFor, keyOf, labelsOf } = await starterPack();
+  const health = await packHealth();
+  const missing = new Set(health.missingItems);
+  const ref = restores().doc(order.approved.replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 120) || 'order');
+  const state = (await ref.get()).data() ?? {};
+  const tries: Record<string, number> = state.tries ?? {};
+  const queuedAt: Record<string, number> = state.queuedAt ?? {};
+  let spent = Number(state.spentUsd) || 0;
+  // A thing queued in the last 6 hours is still being made (it lists when it finishes); after that a second try only
+  // runs again if the first failed (same key, reuse: Gen hands back the finished or running job).
+  const todo = packItems().filter((it) => missing.has(it.item) && order.kinds.includes(it.kind) && (tries[it.item] ?? 0) < 2 && Date.now() - (queuedAt[it.item] ?? 0) > 6 * 3600_000).slice(0, 40);
+  if (!todo.length) return { order: true, queued: 0, spentUsd: spent, budgetUsd: order.budgetUsd };
+  // Priced per kind by Gen (idle tail included, so the number J approved is the most it costs), then queued in order
+  // while the running total stays within the budget.
+  const price: Record<string, number> = {};
+  for (const kind of new Set(todo.map((it) => it.kind))) {
+    const of = todo.filter((it) => it.kind === kind);
+    const est: any = await gen('/v1/estimate', { method: 'POST', as: STARTER_PROJECT, body: { project: STARTER_PROJECT, items: of.map((it) => ({ tool: 'asset.make', params: paramsFor(it.kind, it.what), count: 1, label: it.item })) } });
+    const total = Number(est?.cost?.withIdleTail ?? est?.cost?.total);
+    if (!(total >= 0)) throw new PortalError(`Gen gave no price for ${kind}`, { status: 502 });
+    price[kind] = total / of.length;
+  }
+  let queued = 0;
+  for (const it of todo) {
+    if (spent + price[it.kind] > order.budgetUsd) break;
+    tries[it.item] = (tries[it.item] ?? 0) + 1;
+    queuedAt[it.item] = Date.now();
+    try {
+      await gen('/v1/jobs', { method: 'POST', as: STARTER_PROJECT, body: { tool: 'asset.make', project: STARTER_PROJECT, params: paramsFor(it.kind, it.what), labels: labelsOf(it), key: keyOf(it), reuse: true } });
+      spent += price[it.kind];
+      queued++;
+    } catch (e: any) { console.warn(`[portal] starter restore: ${it.item}: ${e.message}`); }
+  }
+  await ref.set({ approved: order.approved, kinds: order.kinds, budgetUsd: order.budgetUsd, spentUsd: Math.round(spent * 100) / 100, tries, queuedAt, updated: Date.now() }, { merge: true });
+  return { order: true, queued, spentUsd: Math.round(spent * 100) / 100, budgetUsd: order.budgetUsd };
+}
+
+/** Keeps the starter pack current (and remakes what is missing when J ordered it); a Gen hiccup waits for the next round. */
 export const syncStarter = onSchedule({ schedule: 'every 10 minutes', secrets: [SECRETS.genKey], timeoutSeconds: 300 }, async () => {
   try { console.log('[portal] starter pack:', JSON.stringify(await syncStarterPack())); } catch (e: any) { console.warn('[portal] starter pack:', e.message); }
+  try { const r = await restoreStarter(); if (r.order) console.log('[portal] starter restore:', JSON.stringify(r)); } catch (e: any) { console.warn('[portal] starter restore:', e.message); }
 });
 
 // ------------------------------------------------------------ routes
@@ -391,6 +520,8 @@ route('GET', '/v1/community', async ({ res, url }) => {
   return search({ q: p('q'), kind: p('kind'), tag: p('tag'), category: p('category'), limit: p('limit'), offset: p('offset'), sort: p('sort'), exact: p('exact') === '1' });
 });
 route('GET', '/v1/community/categories', async ({ res }) => { open(res); return categories(); });
+// How complete the starter pack is (the community-library playtest fails while any of it is missing).
+route('GET', '/v1/community/health', async ({ res }) => { open(res); res.set('Cache-Control', 'no-store'); return packHealth(); });
 route('GET', '/v1/community/tags', async ({ res, url }) => { open(res); return { tags: await tagCounts(url.searchParams.get('kind') ?? undefined) }; });
 route('GET', /^\/v1\/community\/(a_[0-9a-f]+)\/file$/, async ({ req, res, url, params, method }) => {
   open(res);
@@ -406,5 +537,6 @@ route('DELETE', /^\/v1\/community\/(a_[0-9a-f]+)$/, async ({ req, params }) => u
 // An admin runs the starter sync now (anyone else: 403, like every admin route).
 route('POST', '/v1/admin/community/sync', async ({ req }) => {
   await requireAdmin(req);
-  return syncStarterPack();
+  const sync = await syncStarterPack();
+  return { ...sync, restore: await restoreStarter() };
 });

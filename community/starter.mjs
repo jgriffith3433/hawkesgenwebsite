@@ -499,3 +499,15 @@ export function stepsFor(kind, what) {
 }
 
 export const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+/** Bump to remake the whole pack (a new look, a new recipe); the portal replaces each thing's row with its newest. */
+export const KEY_VERSION = 'v3';
+/** A kind remade on its own (models: v4, the fixed image-to-3D chain); keep cloud/functions/src/community.ts MIN_REV in step. */
+export const KIND_VERSION = { model: 'v4' };
+export const versionOf = (kind) => KIND_VERSION[kind] ?? KEY_VERSION;
+/** Every thing in the pack, one entry each: { kind, tag, name, what, words, item } (item: the library row's `kind/slug`). */
+export const packItems = () => STARTER.flatMap((g) => g.items.map(([name, what, words]) => ({ kind: g.kind, tag: g.tag, name, what, words, item: `${g.kind}/${slug(name)}` })));
+/** Gen's job key for a thing: the same key hands back the same job while it is made or under way (never paid twice). */
+export const keyOf = (it) => `starter/${it.kind}/${slug(it.name)}/${versionOf(it.kind)}`;
+/** The labels the portal's starter sync reads (cloud/functions/src/community.ts syncStarterPack). */
+export const labelsOf = (it) => ({ pack: 'starter', community: true, kind: it.kind, tag: it.tag, tags: [it.tag, ...it.words.split(/\s+/)].join(' '), name: it.name, item: slug(it.name), rev: versionOf(it.kind) });

@@ -6,6 +6,7 @@
 //   assets/pages/play.html, closed.html   the play page and the closed-world page
 //   assets/src/templates.ts, assets/src/overseer-games/*   the starter games as they are in src/ (pure: read at runtime)
 //   assets/public/play/modules/terrain/terrain-core.js   what overseer-games/sandbox.ts runs to lay the island on its ground
+//   assets/community/starter.mjs, restore.json   the starter pack (what /v1/community/health counts) and what may be remade
 // Run it by hand before trying the function locally: node cloud/functions/tools/prebuild.mjs
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -96,5 +97,9 @@ copy(path.join(ROOT, 'public', 'closed.html'), 'pages/closed.html');
 copy(path.join(ROOT, 'src', 'templates.ts'), 'src/templates.ts');
 for (const f of fs.readdirSync(path.join(ROOT, 'src', 'overseer-games'))) copy(path.join(ROOT, 'src', 'overseer-games', f), path.join('src', 'overseer-games', f));
 copy(path.join(MODULES, 'terrain', 'terrain-core.js'), 'public/play/modules/terrain/terrain-core.js');
+
+// ------------------------------------------------------------------ the community starter pack (pure) and its restore order
+copy(path.join(ROOT, 'community', 'starter.mjs'), 'community/starter.mjs');
+copy(path.join(ROOT, 'community', 'restore.json'), 'community/restore.json');
 
 console.log(`[prebuild] cloud/functions/assets: engine ${m.version} (${m.kinds.length} kinds, ${m.modules.length} modules), play pages, starter games`);
