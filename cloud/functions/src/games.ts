@@ -27,6 +27,7 @@ import { id, PortalError, route, send, json } from './http.ts';
 import { applyOps, parseScene, sceneText } from './scene.ts';
 import { wordsOf } from './words.ts';
 import { templates, type Template } from './engine.ts';
+import { currentOf, fileLost } from './community.ts';
 import { tell, kick, liveCounts, allLiveCounts, join, setPresence } from './live.ts';
 // Friends both ways, once, keyed friends/{user}:{friend} (friends.ts owns the key; areFriends reads it).
 import { addFriend } from './friends.ts';
@@ -651,12 +652,16 @@ export async function templateAssetRows(t: Template): Promise<AssetRow[]> {
   if (!entries.length) return [];
   const snaps = await db.getAll(...entries.map(([, a]) => db.collection('communityAssets').doc(a)));
   const out: AssetRow[] = [];
-  entries.forEach(([name, asset], i) => {
-    const r = snaps[i];
-    if (!r.exists || r.get('hidden')) return;
-    const tags = String(r.get('tags') ?? '');
-    out.push({ name, asset, project: r.get('project'), kind: r.get('kind'), mime: r.get('mime') ?? null, added_by: '', created: 0, title: r.get('title'), words: wordsOf(name, r.get('title'), r.get('category'), tags ? tags.split(' ') : []) });
-  });
+  for (const [i, [name]] of entries.entries()) {
+    const s = snaps[i];
+    if (!s.exists) continue;
+    // A starter thing made again since the template named it: the template gets the new one (community.ts currentOf).
+    const r = await currentOf({ id: s.id, ...(s.data() as any) });
+    // (Gen lost its file and nothing replaced it yet: left out, so the game plays on with its stand-in, no 404.)
+    if (!r || fileLost(r)) continue;
+    const tags = String(r.tags ?? '');
+    out.push({ name, asset: r.id, project: r.project, kind: r.kind, mime: r.mime ?? null, added_by: '', created: 0, title: r.title, words: wordsOf(name, r.title, r.category, tags ? tags.split(' ') : []) });
+  }
   return out;
 }
 /** /play/t/<id>'s assets: the template's community things, through the public community route, with their levels. */
@@ -668,8 +673,9 @@ export async function templateAssets(tid: string | null | undefined) {
 export async function templateGone(tid: string | null | undefined): Promise<string[]> {
   const t = (await templates()).TEMPLATES.find((x) => x.id === tid);
   if (!t) return [];
-  const have = new Set((await templateAssetRows(t)).map((a) => a.asset));
-  return [...new Set(Object.values(t.assets ?? {}).filter((a) => ASSET_ID.test(a) && !have.has(a)))];
+  // By name: a thing made again has a new id but still answers for the old one (community.ts currentOf).
+  const have = new Set((await templateAssetRows(t)).map((a) => a.name));
+  return [...new Set(Object.entries(t.assets ?? {}).filter(([name, a]) => ASSET_ID.test(a) && !have.has(name)).map(([, a]) => a))];
 }
 
 const filesMap = async (gameId: string) => Object.fromEntries((await filesOf(gameId).get()).docs.map((d) => [d.get('path') as string, d.get('content') as string]));
