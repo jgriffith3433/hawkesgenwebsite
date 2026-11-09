@@ -1,3 +1,20 @@
 {
-  "sounds": []
+  "sounds": [
+    "beam-down",
+    "boat-horn",
+    "cactus-rustle",
+    "duck-squeak",
+    "fish-bite",
+    "fish-catch",
+    "fishing-cast",
+    "fishing-reel",
+    "letter-rustle",
+    "lore-glint",
+    "mailbox-clank",
+    "page-turn",
+    "robot-chirp",
+    "seagull",
+    "toaster-pop",
+    "tv-blip"
+  ]
 }
