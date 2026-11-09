@@ -9,10 +9,10 @@
       "music",
       "ambience",
       "sfx",
-      "voice",
-      "model"
+      "voice"
     ],
-    "budgetUsd": 37
+    "budgetUsd": 37,
+    "held": "model: held back 2026-11-09 19:30 UTC. A test 3D model failed in Gen (asset.make, step 3 of 5, a library file not found on the instance), so each model would spend its image steps and fail. Add it back once Gen's 3D path works."
   },
   "beta": {
     "approved": "Jaycee, 2026-11-09 19:06 UTC, answered \"2\" (Everything: the whole starter pack incl. the 150 3D models, about $75 for beta and live together)",
@@ -23,9 +23,9 @@
       "music",
       "ambience",
       "sfx",
-      "voice",
-      "model"
+      "voice"
     ],
-    "budgetUsd": 37
+    "budgetUsd": 37,
+    "held": "model: held back 2026-11-09 19:30 UTC. A test 3D model failed in Gen (asset.make, step 3 of 5, a library file not found on the instance), so each model would spend its image steps and fail. Add it back once Gen's 3D path works."
   }
 }
