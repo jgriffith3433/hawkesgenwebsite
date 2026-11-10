@@ -967,7 +967,7 @@ export async function runAssistant(run: any) {
 }
 
 /** The fallback for an answer the api did not start itself (aiRuns/{id}); a run already claimed, or a second delivery, does nothing. */
-export const gameAssistant = onDocumentCreated({ document: 'aiRuns/{runId}', timeoutSeconds: 540, memory: '512MiB', secrets: [SECRETS.genKey], retry: false }, async (event) => {
+export const gameAssistant = onDocumentCreated({ document: 'aiRuns/{runId}', timeoutSeconds: 540, memory: '512MiB', maxInstances: 10, secrets: [SECRETS.genKey], retry: false }, async (event) => {
   const ref = event.data?.ref;
   if (!ref) return;
   const run = await claimRun(ref); // null when the api already runs it (startInApi)
