@@ -214,8 +214,9 @@
 .gs-toast{right:12px;top:62px;padding:12px 14px;display:flex;gap:12px;align-items:center;font:600 15px var(--hud);pointer-events:auto;max-width:calc(100vw - 24px)}
 .gs-toast button,.gs-toast a.primary{font:700 14px var(--hud);border-radius:9px;padding:8px 12px;cursor:pointer;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);color:#e8ecf6;min-height:44px;text-decoration:none;display:inline-flex;align-items:center;box-sizing:border-box}
 .gs-toast button.primary,.gs-toast a.primary{background:linear-gradient(90deg,#4a9eff,#a855f7);border-color:transparent;color:#fff}
-.gs-veil{inset:0;z-index:60;background:rgba(4,6,12,.66);display:grid;place-items:center;padding:16px;pointer-events:auto}
-.gs-sheet{width:min(420px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:22px 22px 18px;font-family:var(--sans)}
+.gs-veil{inset:0;z-index:60;background:rgba(4,6,12,.66);display:grid;place-items:center;padding:16px;pointer-events:auto;box-sizing:border-box}
+.gs-sheet{width:min(420px,calc(100vw - 32px));max-width:calc(100vw - 32px);box-sizing:border-box;max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow:auto;overflow-x:hidden;padding:22px 22px 18px;font-family:var(--sans)}
+.gs-sheet .go,.gs-sheet .google,.gs-sheet a.go{width:100%;max-width:100%;box-sizing:border-box}
 .gs-who{display:flex;align-items:center;gap:14px;margin:0 0 14px}
 .gs-who .face{flex:none;width:68px;height:68px;border-radius:50%;display:grid;place-items:center;font-size:36px;background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.35),transparent 55%),var(--c,#4a9eff);box-shadow:0 0 0 2px rgba(255,255,255,.2),0 0 22px var(--c,#4a9eff)}
 .gs-who .who{min-width:0}.gs-who b{display:block;font:700 17px var(--display);letter-spacing:.04em;color:#fff;overflow-wrap:anywhere}.gs-who small{color:#a5acc2;font:13px var(--sans)}
@@ -1125,20 +1126,21 @@
     el.querySelector('button').addEventListener('click', () => location.reload());
     document.body.appendChild(el);
   }
-  /** Signed in: Save shows it's kept (and saves now), Build and Invite open the editor, Ask opens the chat. */
+  /** Signed in: Save stays in the actions menu (phone fold counts on every intent), Build opens the editor. */
   function signedInButtons() {
     const acts = session.acts;
     if (!acts) return;
     const b = (k) => acts.querySelector(`[data-intent="${k}"]`);
-    if (b('save')) b('save').remove(); // (signed in, the island saves itself)
+    if (b('save')) { b('save').textContent = 'Save now'; b('save').dataset.tip = 'Your island saves itself; tap to save now.'; }
     if (b('build')) { b('build').textContent = 'Build'; b('build').classList.add('primary'); }
   }
   function flashSaved() {
     const s = session.acts && session.acts.querySelector('[data-intent="save"]');
-    if (!s) return; // (signed in there's no Save button: it saves itself)
+    if (!s) return;
+    const was = s.textContent;
     s.textContent = 'Saved ✓';
     s.classList.add('glow');
-    setTimeout(() => s.classList.remove('glow'), 1200);
+    setTimeout(() => { s.classList.remove('glow'); if (s.textContent === 'Saved ✓') s.textContent = was || 'Save now'; }, 1200);
   }
   function toast(text) { return el(`<span>${esc(text)}</span>`, 'gs-glass gs-toast'); }
 

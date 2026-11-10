@@ -7,9 +7,10 @@ closing puts them back with a transition. It reacts to a panel being added or re
 `resize`: no timers.
 
 On a phone (width under 760 px, or height under 500 px — the short-landscape cut used by the landing sky) the action
-row folds into one 44 px menu button (`.gs-acts .more`); tapping it opens the intents as a list. The mirror is a bottom
-sheet in portrait, or a narrow side sheet above the touch cluster in short landscape, so the quest button and the move
-stick stay free. `body.hl-compact` is set while that fold is on.
+row folds into one 44 px menu button (`.gs-acts .more`); tapping it opens the intents as a list. The Journal button
+(`.jr-btn`) is hidden on compact (Controls still has Journal). The mirror is a bottom sheet in portrait, or a narrow
+side sheet above the touch cluster in short landscape, so the quest button and the move stick stay free.
+`body.hl-compact` is set while that fold is on.
 
 ```js
 HawkesPlay.hudLayout.reserved();  // pixels kept free on the right now (0 with no panel, or a bottom sheet on a phone)
