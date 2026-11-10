@@ -48,3 +48,13 @@ test('a job Gen never starts (still queued) is cancelled as a timeout well befor
   assert.equal(out.error, 'timeout');
   assert.ok(Date.now() - t < 5_000);
 });
+
+test('a running job that writes nothing for silentMs is cancelled as a timeout; one that keeps writing is not', async () => {
+  const quiet = await followJob({ id: 'j_5', status: 'running' }, 'p', Date.now() + 60_000, undefined, undefined,
+    { pollMs: 5, silentMs: 100, read: async () => ({ id: 'j_5', status: 'running' }), cancel: async () => ({ id: 'j_5', status: 'cancelled' }) });
+  assert.equal(quiet.error, 'timeout');
+  let n = 0;
+  const talking = await followJob({ id: 'j_6', status: 'running' }, 'p', Date.now() + 60_000, undefined, undefined,
+    { pollMs: 20, silentMs: 100, read: async () => { n++; return n > 12 ? { id: 'j_6', status: 'done', result: { text: 'x'.repeat(n) } } : { id: 'j_6', status: 'running', result: { partial: 'x'.repeat(n) } }; } });
+  assert.equal(talking.status, 'done');
+});
