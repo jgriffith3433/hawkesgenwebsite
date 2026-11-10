@@ -117,7 +117,7 @@ export async function views(rows: Row[]) {
 const RELATED: Record<string, string[]> = { image: ['image', 'sprite', 'texture'], sprite: ['sprite', 'image'], sfx: ['sfx', 'ambience'], ambience: ['ambience', 'sfx'] };
 
 /** Searches the library: how well it matches (tags and title words), then 'liked' (default), 'new', 'fresh' or 'name'. */
-export async function search(o: { q?: unknown; kind?: unknown; tag?: unknown; category?: unknown; limit?: unknown; offset?: unknown; sort?: unknown; exact?: unknown } = {}) {
+export async function search(o: { q?: unknown; kind?: unknown; tag?: unknown; category?: unknown; limit?: unknown; offset?: unknown; sort?: unknown; exact?: unknown; probe?: boolean } = {}) {
   const sort = ['new', 'fresh', 'name'].includes(String(o.sort)) ? String(o.sort) : 'liked';
   const kind = String(o.kind ?? '');
   const kinds = kind ? (o.exact ? [kind] : RELATED[kind] ?? [kind]) : null;
@@ -153,7 +153,8 @@ export async function search(o: { q?: unknown; kind?: unknown; tag?: unknown; ca
     .filter((x) => !q.length || x.s >= 1)
     .sort((a, b) => Math.round(b.s) - Math.round(a.s) || (sort === 'new' ? b.r.created - a.r.created : sort === 'fresh' ? (a.r.likes ?? 0) - (b.r.likes ?? 0) || b.r.created - a.r.created : sort === 'name' ? a.r.title.localeCompare(b.r.title) : (b.r.likes ?? 0) - (a.r.likes ?? 0) || (b.r.uses ?? 0) - (a.r.uses ?? 0)) || b.s - a.s);
   const page = scored.slice(offset, offset + limit).map((x) => x.r);
-  await probe(page);
+  // (The Overseer passes probe: false: a player is waiting on its answer, and the listing pages probe for it.)
+  if (o.probe !== false) await probe(page);
   // A thing the probe just found gone is left out now, not shown as an empty card until the next listing.
   const shown = page.filter((r) => !fileLost(r));
   return { items: await views(shown), total: scored.length - (page.length - shown.length) };
