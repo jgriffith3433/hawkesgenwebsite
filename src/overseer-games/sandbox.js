@@ -207,6 +207,8 @@ function lightRodMark() {
     mat.disableLighting = true;
     mat.emissiveColor = new B.Color3(1, 0.82, 0.28);
     mat.alpha = 0.72;
+    mat.alphaMode = B.Engine.ALPHA_ADD;
+    try { mat.disableDepthWrite = true; } catch { /* fine */ }
     glow.material = mat;
     glow.position.set(pos[0], pos[1], pos[2]);
     glow.isPickable = false;
