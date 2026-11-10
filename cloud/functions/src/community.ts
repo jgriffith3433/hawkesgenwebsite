@@ -488,8 +488,9 @@ async function remakeJobs() {
 }
 
 const restores = () => db.collection('communityRestore');
-/** Gen's words for a job it turned away without making anything: too many at once, Claude busy or at its limit, or no GPU free. */
-export const wasTurnedAway = (text: string) => /a lot at once|wait \d+ seconds?, then try again|throttl|rate.?limit|\b429\b|overloaded|no gpu is available|nothing was charged/i.test(text);
+/** Gen's words for a job it turned away without making anything: too many at once, Claude busy or at its limit, no GPU free,
+ * or a GPU provider's account switched off (Modal's gateway: "modal-http: workspace ... is disabled", Gen #195). */
+export const wasTurnedAway = (text: string) => /a lot at once|wait \d+ seconds?, then try again|throttl|rate.?limit|\b429\b|overloaded|no gpu is available|nothing was charged|modal-http/i.test(text);
 /** A run Gen's RunPod worker stopped at its old 300 s graph limit (fixed in Gen #189), or one whose GLB was too big to hand
  * back (HTTP 413, fixed in Gen #190): Gen's fault, and the try kept nothing of its own. */
 export const stoppedAtGenLimit = (text: string) => /runpod: ran past this service's 300 s limit|runpod: HTTP Error 413/i.test(text);
@@ -532,7 +533,19 @@ export async function restoreStarter() {
   const failedKeys = new Set(failedJobs.map((j) => String(j.key ?? '')));
   // A try Gen turned away for coming too fast (or Claude being busy) made nothing: it doesn't count as one of the two.
   // So is a 3D try Gen stopped at RunPod's old 300 s graph limit (Gen #189, 2026-11-10): Gen's limit, not the model.
-  const turnedAway = new Set(failedJobs.filter((j) => wasTurnedAway(`${j.detail ?? ''} ${j.error ?? ''}`) || stoppedAtGenLimit(`${j.detail ?? ''} ${j.error ?? ''}`)).map((j) => String(j.key ?? '')));
+  const madeNothing = new Set(failedJobs.filter((j) => wasTurnedAway(`${j.detail ?? ''} ${j.error ?? ''}`)).map((j) => String(j.key ?? '')));
+  const turnedAway = new Set([...madeNothing, ...failedJobs.filter((j) => stoppedAtGenLimit(`${j.detail ?? ''} ${j.error ?? ''}`)).map((j) => String(j.key ?? ''))]);
+  // What a try was priced at when it was queued, and the tries already handed back: a try Gen turned away without running
+  // anything charged nothing, so its price goes back to the budget (once). A try that ran on a GPU keeps its price.
+  const paid: Record<string, number> = state.paid ?? {};
+  const refunded = new Set<string>(state.refunded ?? []);
+  const toRefund: { key: string; kind: string }[] = [];
+  for (const it of packItems()) {
+    for (let t = 1; t <= (tries[it.item] ?? 0); t++) {
+      const key = remakeKey(keyOf(it as any), ref.id, t);
+      if (madeNothing.has(key) && !refunded.has(key)) toRefund.push({ key, kind: it.kind });
+    }
+  }
   const allowed = (it: { item: string; kind: string; name: string }) => {
     let free = 0;
     for (let t = 1; t <= (tries[it.item] ?? 0); t++) if (turnedAway.has(remakeKey(keyOf(it as any), ref.id, t))) free++;
@@ -558,7 +571,21 @@ export async function restoreStarter() {
   }
   // A few at a time: Gen turns away a burst, and each round is 10 minutes apart anyway.
   todo = todo.slice(0, 20);
-  if (!todo.length) return { order: true, queued: 0, spentUsd: spent, budgetUsd: order.budgetUsd };
+  const save = () => ref.set({ scheme: REMAKE_SCHEME, approved: order.approved, kinds: order.kinds, budgetUsd: order.budgetUsd, spentUsd: Math.round(spent * 100) / 100, tries, queuedAt, paid, refunded: [...refunded], updated: Date.now() });
+  // Refunds priced when queued go back now; older tries (queued before prices were kept) take their kind's price today.
+  const refund = (price: Record<string, number>) => {
+    for (const r of toRefund) {
+      const amount = paid[r.key] ?? price[r.kind];
+      if (refunded.has(r.key) || !(amount >= 0)) continue;
+      spent = Math.max(0, spent - amount);
+      refunded.add(r.key);
+    }
+  };
+  refund({});
+  if (!todo.length) {
+    if (toRefund.length) await save();
+    return { order: true, queued: 0, spentUsd: Math.round(spent * 100) / 100, budgetUsd: order.budgetUsd };
+  }
   // Priced per kind by Gen (each batch's own boots and model loads; the idle tail, once per server, is in the budget's
   // margin), then queued in order while the running total stays within the budget.
   const price: Record<string, number> = {};
@@ -569,18 +596,20 @@ export async function restoreStarter() {
     if (!(total >= 0)) throw new PortalError(`Gen gave no price for ${kind}`, { status: 502 });
     price[kind] = total / of.length;
   }
+  refund(price);
   let queued = 0;
   for (const it of todo) {
     if (spent + price[it.kind] > order.budgetUsd) break;
     tries[it.item] = (tries[it.item] ?? 0) + 1;
     queuedAt[it.item] = Date.now();
+    paid[remakeKey(keyOf(it), ref.id, tries[it.item])] = price[it.kind];
     try {
       await gen('/v1/jobs', { method: 'POST', as: STARTER_PROJECT, body: { tool: 'asset.make', project: STARTER_PROJECT, params: paramsFor(it.kind, it.what), labels: labelsOf(it), key: remakeKey(keyOf(it), ref.id, tries[it.item]), reuse: true } });
       spent += price[it.kind];
       queued++;
     } catch (e: any) { console.warn(`[portal] starter restore: ${it.item}: ${e.message}`); }
   }
-  await ref.set({ scheme: REMAKE_SCHEME, approved: order.approved, kinds: order.kinds, budgetUsd: order.budgetUsd, spentUsd: Math.round(spent * 100) / 100, tries, queuedAt, updated: Date.now() });
+  await save();
   return { order: true, queued, spentUsd: Math.round(spent * 100) / 100, budgetUsd: order.budgetUsd };
 }
 
