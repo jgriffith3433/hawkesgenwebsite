@@ -1,1 +1,0 @@
-- canon: island soundscape — beach waves and gulls, inland wind and birds, pier creaks, crossfaded by position; footsteps vary by surface.
