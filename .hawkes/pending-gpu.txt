@@ -1,0 +1,4 @@
+step-sand-1..3: sand footstep variants; Gen jobs j_e7604ab469be (failed); tone/Juice fallback in use
+step-grass-1..3: grass footstep variants; j_ec1107ec4ace (failed); fallback in use
+step-stone-1..3: stone footstep variants; j_ac9b3e9ca396 (failed); fallback in use
+ui-place, ui-build, ui-panel, ui-quest, ui-send: interaction SFX; j_a52cb06840dd, j_8c2108843afc, j_5d4fd65cf326, j_2dbec1fc9a54, j_5ec2e040e1d9 (failed); tones stand in
