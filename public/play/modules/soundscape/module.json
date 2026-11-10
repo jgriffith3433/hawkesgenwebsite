@@ -2,5 +2,6 @@
   "title": "Soundscape: ambience beds by area, footsteps by surface, a sound on every interaction",
   "order": 91,
   "scripts": ["soundscape.js"],
-  "kinds": []
+  "kinds": [],
+  "optional": true
 }
