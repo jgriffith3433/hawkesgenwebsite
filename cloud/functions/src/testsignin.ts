@@ -65,7 +65,21 @@ export async function testAccount(): Promise<User> {
       if (have < TEST_FLOOR) await changeCredits(u.id, TEST_TOPUP_TO - have, { kind: 'test_topup', detail: 'Beta playtest account topped up' }, { t });
     });
   }
+  await clearOldGames({ ...u, test: true } as User);
   return { ...u, test: true } as User;
+}
+
+/** A playtest makes a new game each run and the free plan keeps 3, so the test account's games from earlier runs go
+ *  (older than a run lasts, so a playtest running beside this one keeps its game). Only ever the test account's own. */
+export const OLD_GAME_MS = 30 * 60_000;
+async function clearOldGames(u: User, now = Date.now()) {
+  if (u.email !== TEST_EMAIL || (u as any).test !== true) return;
+  const { deleteGame } = await import('./games.ts');
+  const mine = await db.collection('games').where('owner_id', '==', u.id).get();
+  for (const g of mine.docs) {
+    if (Number(g.get('created') ?? 0) > now - OLD_GAME_MS) continue;
+    await deleteGame(u, g.id).catch((e) => console.warn(`[test-signin] could not clear ${g.id}: ${e.message ?? e}`));
+  }
 }
 
 /** The test account behind a `t.` session cookie, where test sign-in is on; else null. */
