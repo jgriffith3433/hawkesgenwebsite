@@ -50,9 +50,9 @@ const SCENARIOS = [
   },
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
   {
-    id: 'overseer-ask', title: 'Ask the Overseer: an answer shows in the chat; a failed ask is a plain message with Retry and no spinner; the next ask works at once', seconds: 420, tags: ['full'],
+    id: 'overseer-ask', title: 'Ask the Overseer: an answer shows in the chat within 90 s; a failed or silent ask is a plain message with Retry and no spinner; the next ask works at once', seconds: 480, tags: ['full'],
     starts: ['sandbox'],
-    description: 'the first-minutes path to the account sheet (a browser already signed in to Google: the sheet is Google only), then a question typed in the chat (answer-shown, work-ended), one ask answered 503 by a named shortcut (failure-plain-message, retry-shown, no-spinner) and a real click on Retry (next-ask-immediate, retry-answered). First, a build request ("add a red cube") must add a new thing to the world (world-changed), not only a chat message. Options: watch (seconds of intro to watch), name, what',
+    description: 'the first-minutes path to the account sheet (a browser already signed in to Google: the sheet is Google only), then a question typed in the chat (answer-shown, work-ended), one ask answered 503 by a named shortcut (failure-plain-message, retry-shown, no-spinner), one ask the server never hears of (a named shortcut: the page is told 200 and nothing ever comes back) that must end in a plain message with Retry within 75 s, nothing spinning (silent-ask-ends; J 2026-11-10: "it just thinks forever"), and a real click on Retry (next-ask-immediate, retry-answered). Every answer must come within 90 s (answer-time), or the run fails. First, a build request ("add a red cube") must add a new thing to the world (world-changed), not only a chat message. Options: watch (seconds of intro to watch), name, what',
   },
   {
     id: 'sandbox-first-minutes', title: 'Play /play/sandbox as a new player: veil, intro, mirror, sign-up, drive to the dock, fish', seconds: 210, tags: ['full'],
@@ -651,9 +651,11 @@ async function stageAnswer(t) {
   // Every ask the page sends, with the status it got (the second part checks the next ask is not "still working").
   const seen = [];
   const realFetch = window.fetch;
-  let failNext = false;
+  let failNext = false, silentNext = false;
+  const ANSWER_MS = 90000;
   window.fetch = function (u, o) {
     if (/\/v1\/games\/[^/]+\/ai$/.test(String(u)) && o && o.method === 'POST') {
+      if (silentNext) { silentNext = false; seen.push(200); return Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'Content-Type': 'application/json' } })); }
       if (failNext) { failNext = false; seen.push(503); return Promise.resolve(new Response(JSON.stringify({ error: 'Gen is down' }), { status: 503, headers: { 'Content-Type': 'application/json' } })); }
       return realFetch.apply(this, arguments).then((r) => { seen.push(r.status); return r; });
     }
@@ -674,7 +676,10 @@ async function stageAnswer(t) {
     await ask('What can you build for me here?');
     await t.until(() => status() || working(), 20000, 'the Overseer to start working').catch(() => t.problem('warning', 'no work indicator or status appeared after the ask'));
     t.scene('Asked: the Overseer works');
-    await t.until(() => lines().some((x) => !before.has(x)) || retryBtn(), 240000, 'an answer or a plain failure in the chat');
+    const askedAt = Date.now();
+    await t.until(() => lines().some((x) => !before.has(x)) || retryBtn(), ANSWER_MS, 'an answer or a plain failure in the chat')
+      .catch(() => { throw new Error(`the Overseer did not answer within ${ANSWER_MS / 1000} s (it "thinks forever")`); });
+    t.event('answer-time', `${Math.round((Date.now() - askedAt) / 1000)} s to the first answer`);
     if (retryBtn() && !lines().some((x) => !before.has(x) && !/couldn.t|lost|stopped|wrong|busy|taking too long/i.test(x))) t.problem('error', 'the first ask failed: ' + lines().filter((x) => !before.has(x)).join(' | ').slice(0, 200));
     else t.event('answer-shown', lines().filter((x) => !before.has(x)).join(' | ').slice(0, 160));
     t.scene('The Overseer answered');
@@ -688,7 +693,8 @@ async function stageAnswer(t) {
     const beforeB = new Set(lines());
     await ask('Add a red cube right in front of me.');
     t.scene('Asked: add a red cube');
-    await t.until(() => lines().some((x) => !beforeB.has(x)) || retryBtn(), 240000, 'an answer to the build request');
+    await t.until(() => lines().some((x) => !beforeB.has(x)) || retryBtn(), ANSWER_MS, 'an answer to the build request')
+      .catch(() => { throw new Error(`the build request got no answer within ${ANSWER_MS / 1000} s (it "thinks forever")`); });
     const said = lines().filter((x) => !beforeB.has(x)).join(' | ');
     if (retryBtn()) t.problem('error', `the build request failed instead of building: ${said.slice(0, 200)}`);
     await t.until(() => !working(), 90000, 'the work indicator to end after the build');
@@ -714,6 +720,22 @@ async function stageAnswer(t) {
     await t.wait(1500);
     if (working() || status()) t.problem('error', 'the work indicator or status is still spinning after the failure');
     else t.event('no-spinner', 'the work indicator and status ended');
+    // 2b. A silent ask (J, 2026-11-10: "it just thinks forever"): the page is told 200 but the server never heard it, so
+    // nothing ever comes back (named setup shortcut). The island must stop waiting by itself: a plain message with Retry
+    // within 75 s, and nothing left spinning.
+    await t.wait(1500);
+    const beforeS = new Set(lines());
+    const retriesBefore = document.querySelectorAll('.hc-card .act').length;
+    t.event('setup-shortcut', 'the next ask is answered 200 by the page itself and never reaches the server');
+    silentNext = true;
+    const silentAt = Date.now();
+    await ask('Paint the sky purple.');
+    await t.until(() => lines().some((x) => !beforeS.has(x)) && document.querySelectorAll('.hc-card .act').length > retriesBefore, 75000, 'the silent ask to end in a plain message with Retry')
+      .catch(() => { throw new Error('a silent ask kept waiting past 75 s: the Overseer would "think forever"'); });
+    await t.wait(1500);
+    if (working() || status()) t.problem('error', 'the work indicator or status is still on after the silent ask ended');
+    t.event('silent-ask-ends', `${Math.round((Date.now() - silentAt) / 1000)} s: ${lines().filter((x) => !beforeS.has(x)).join(' | ').slice(0, 140)}`);
+    t.scene('A silent ask: it stopped waiting and said so');
     // 3. Retry with a real click: it goes through at once (not "still working"), and is answered.
     const n = seen.length;
     const before3 = new Set(lines());
@@ -722,7 +744,8 @@ async function stageAnswer(t) {
     await t.until(() => seen.length > n, 20000, 'the retried ask to reach the server');
     if (seen[n] !== 200) t.problem('error', `the ask after a failure answered ${seen[n]} (expected 200: no "still working")`);
     else t.event('next-ask-immediate', 'the ask after the failure was accepted at once');
-    await t.until(() => lines().some((x) => !before3.has(x)), 240000, 'an answer to the retried ask');
+    await t.until(() => lines().some((x) => !before3.has(x)), ANSWER_MS, 'an answer to the retried ask')
+      .catch(() => { throw new Error(`the retried ask got no answer within ${ANSWER_MS / 1000} s`); });
     t.event('retry-answered', lines().filter((x) => !before3.has(x)).join(' | ').slice(0, 160));
     t.scene('Retried: answered');
     t.progress(1);

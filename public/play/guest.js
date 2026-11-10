@@ -116,6 +116,29 @@
       return { icon: (w && w.icon) || '🧍', label: (w && w.label) || 'A person', name: (look && look.name) || '', color };
     },
     chunks(list, n) { const out = []; for (let i = 0; i < list.length; i += n) out.push(list.slice(i, i + n)); return out; },
+    /** One ask's watch (J, 2026-11-10: "it just thinks forever"): one timer at a time, no polling. start() when the ask
+     *  went out; alive() on every sign of life from the server (its work, its heartbeat every ~10 s, the thinking state);
+     *  stop() when the answer came. Quiet for quietMs, or past capMs in all, and onFail(reason: 'quiet' | 'cap') runs once:
+     *  the page stops waiting and says so plainly, with Retry. (o.setTimeout/clearTimeout/now: the tests' clock.) */
+    askWatch(o) {
+      const set = o.setTimeout || setTimeout, clear = o.clearTimeout || clearTimeout, now = o.now || Date.now;
+      const quietMs = o.quietMs || 60_000, capMs = o.capMs || 6.5 * 60_000;
+      let timer = null, started = 0, on = false;
+      const stop = () => { clear(timer); timer = null; on = false; };
+      const arm = (ms) => {
+        clear(timer);
+        const left = capMs - (now() - started);
+        const wait = Math.max(0, Math.min(ms || quietMs, left));
+        const why = left <= (ms || quietMs) ? 'cap' : 'quiet';
+        timer = set(() => { if (!on) return; stop(); o.onFail(why); }, wait);
+      };
+      return {
+        start() { started = now(); on = true; arm(); },
+        alive(ms) { if (on) arm(ms); },
+        stop,
+        get running() { return on; },
+      };
+    },
   };
   window.HawkesGuestCore = Core;
   if (typeof document === 'undefined') return;
@@ -149,8 +172,10 @@
   };
   const api = async (method, url, body, o = {}) => {
     let r;
-    try { r = await fetch(url, { method, headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(o.headers || {}) }, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin', keepalive: Boolean(o.keepalive) }); }
-    catch { const e = new Error("Couldn't reach Hawkes Games. Check your connection and try again."); e.status = 0; throw e; }
+    // (o.timeout: a request that may never come back, like a message to the Overseer, is given up after that long.)
+    const signal = o.timeout && typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(o.timeout) : undefined;
+    try { r = await fetch(url, { method, headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(o.headers || {}) }, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin', keepalive: Boolean(o.keepalive), signal }); }
+    catch (err) { const e = new Error(err && err.name === 'TimeoutError' ? 'Hawkes Games took too long to answer. Try again.' : "Couldn't reach Hawkes Games. Check your connection and try again."); e.status = 0; e.timedOut = Boolean(err && err.name === 'TimeoutError'); throw e; }
     const d = await r.json().catch(() => ({}));
     if (!r.ok) {
       const e = new Error(d.error || `That did not work (${r.status})`); e.status = r.status;
@@ -827,6 +852,10 @@
         clearAskWatch();
         // A failed answer is a plain message with Retry (the server refunded it), never silence.
         const failed = m.data && m.data.error && m.data.retry;
+        // The answer is here: nothing may keep "thinking" (the `thinking` and `end` events are state, not replayed after a
+        // stream came back, so the answer itself ends them).
+        H.chat.status(null);
+        try { if (H.work && H.work.active) H.work.end(failed ? { ok: false, why: 'Stopped.' } : { ok: true }); } catch { /* fine */ }
         H.chat.line({ kind: 'overseer', text: m.text, keep: failed ? 120 : 30, ...(failed ? { action: { label: 'Retry', onclick: (btn) => { if (btn) { btn.disabled = true; btn.textContent = 'Asking…'; } ask(id, String(m.data.retry)).catch((x) => H.chat.line({ kind: 'sys', text: x.message })); } } } : {}) });
         // A whole game built over several answers (project.json): the next step is one tap.
         const pj = m.data && m.data.project;
@@ -839,9 +868,14 @@
       } else if (m.role === 'system') H.chat.line({ kind: 'sys', text: m.text });
       else H.chat.line({ kind: m.user_id && m.user_id === user.id ? 'me' : 'player', who: m.name || 'Someone', text: m.text });
     });
-    on('thinking', (e) => { let d = {}; try { d = JSON.parse(e.data); } catch { /* fine */ } if (!d.on) clearAskWatch(); if (H.chat) H.chat.status(d.on ? 'The Overseer is thinking…' : null); });
-    // The Overseer at work (src/overseer-lines.ts): where, the beats, its words, things arriving, the end.
-    on('overseer', (e) => { let d; try { d = JSON.parse(e.data); } catch { return; } if (H.work) H.work.handle(d); });
+    // (The answer itself, a chat line, stops the watch: `thinking` off can come a moment before it.)
+    on('thinking', (e) => { let d = {}; try { d = JSON.parse(e.data); } catch { /* fine */ } if (d.on) askWatch.alive(); else askWatch.alive(ASK_AFTER_MS); if (H.chat) H.chat.status(d.on ? 'The Overseer is thinking…' : null); });
+    // A stream that (re)opened says whether the Overseer is working now: an answer that ended while the stream was away is
+    // replayed right after this (chat is history), so a short wait is enough before the page says it lost track.
+    on('hello', (e) => { let d = {}; try { d = JSON.parse(e.data); } catch { /* fine */ } if (d.thinking) askWatch.alive(); else { if (H.chat) H.chat.status(null); askWatch.alive(ASK_AFTER_MS); } });
+    // The Overseer at work (src/overseer-lines.ts): where, the beats, its words, things arriving, the end. Each one (and its
+    // heartbeat, `alive`, every ~10 s) is a sign of life for the ask's watch.
+    on('overseer', (e) => { let d; try { d = JSON.parse(e.data); } catch { return; } askWatch.alive(); if (d && d.k === 'alive') return; if (H.work) H.work.handle(d); });
     on('gen', (e) => {
       let r; try { r = JSON.parse(e.data); } catch { return; }
       if (r && H.looks) H.looks.onGen(r); // (a new look being made for a thing takes its place when done)
@@ -870,11 +904,26 @@
     on('deleted', () => { gone = true; clearTimeout(timer); es && es.close(); if (H.chat) { H.chat.detach(); H.chat.line({ kind: 'sys', text: 'This island was deleted.' }); } island = null; kept.clear(); });
     open();
   }
-  /** One timer per ask (no polling): when neither an answer nor the end arrives (the feed died), the island stops waiting, says so
-   *  and offers Retry. The server's own watchdog fails a stuck run and gives the credits back. */
-  let askWatch = null;
+  /** One ask's watch (Core.askWatch; no polling): when nothing comes from the server for ASK_QUIET_MS (the feed died, or the
+   *  run never started), or the whole ask passes ASK_WATCH_MS, the island stops waiting, says so and offers Retry. The
+   *  server's own watchdog fails a stuck run and gives the credits back. */
+  const ASK_QUIET_MS = 60_000;
+  const ASK_AFTER_MS = 15_000; // the Overseer is done (thinking off, or a stream came back with it not working): the answer is due
   const ASK_WATCH_MS = 6.5 * 60_000;
-  function clearAskWatch() { clearTimeout(askWatch); askWatch = null; }
+  const ASK_POST_MS = 45_000;
+  let asking = null; // { id, text } of the ask being watched
+  const askWatch = Core.askWatch({
+    quietMs: ASK_QUIET_MS, capMs: ASK_WATCH_MS,
+    onFail: (why) => {
+      const a = asking; asking = null;
+      if (!a) return;
+      track('assistant_hung', { why, where: 'sandbox' });
+      askFailed(a.id, a.text, why === 'cap'
+        ? "I haven't heard back from my side for a while, so I've stopped waiting. If you were charged, the credits come back on their own. Retry?"
+        : "I lost track of that one: nothing came back from my side for a minute. If you were charged, the credits come back on their own, and if the answer turns up after all it shows here. Retry?");
+    },
+  });
+  function clearAskWatch() { askWatch.stop(); asking = null; }
   /** A failed ask: the work indicator ends, and the chat says so plainly with a Retry button. */
   function askFailed(id, text, why) {
     const H = session.H;
@@ -902,9 +951,9 @@
     const work = H.work;
     if (work) work.begin({ text });
     try {
-      await api('POST', `/v1/games/${id}/ai`, { message: text, context: worldContext(H) || undefined });
-      clearAskWatch();
-      askWatch = setTimeout(() => { askWatch = null; askFailed(id, text, "I haven't heard back from my side for a while, so I've stopped waiting. If you were charged, the credits come back on their own. Retry?"); }, ASK_WATCH_MS);
+      await api('POST', `/v1/games/${id}/ai`, { message: text, context: worldContext(H) || undefined }, { timeout: ASK_POST_MS });
+      asking = { id, text };
+      askWatch.start();
       track('assistant_ask', { chars: text.length, where: 'sandbox' });
       me().then((u) => { if (u) session.credits = Number(u.credits) || 0; });
       try { H.game.emit('asked', { chars: text.length }); } catch { /* fine */ }

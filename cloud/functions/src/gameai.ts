@@ -28,14 +28,28 @@ import { classify, plainReason, rawError, wasRejected, type RawError } from './g
 import { tell, streamTicks } from './live.ts';
 import { AREAS, DIRECTOR_SCHEMA, DIRECTOR_SYSTEM, PACE, directorPrompt, lineJoiner, pace, parseLine, readLines, resolveFocus } from './overseer-lines.ts';
 
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
 export const AI_CREDITS = () => Math.max(1, Number(env('GAME_AI_CREDITS') ?? 8));
 
 /** The community library's search (community.ts sets it when it is ported: `community.search = search`). Until then the
  *  assistant sees no community matches and suggestions carry no community picks. */
-export const community: { search: (o: { q?: unknown; kind?: unknown; limit?: unknown }) => Promise<{ items: { id: string; kind: string; title: string; tags: string[]; thumb?: unknown; by?: unknown }[] }> | { items: { id: string; kind: string; title: string; tags: string[]; thumb?: unknown; by?: unknown }[] } } = {
+type CommunityQuery = { q?: unknown; kind?: unknown; limit?: unknown; probe?: boolean };
+type CommunityItems = { items: { id: string; kind: string; title: string; tags: string[]; thumb?: unknown; by?: unknown }[] };
+export const community: { search: (o: CommunityQuery) => Promise<CommunityItems> | CommunityItems } = {
   search: () => ({ items: [] }),
 };
-const searchCommunity = async (o: { q?: unknown; kind?: unknown; limit?: unknown }) => { try { return await community.search(o); } catch { return { items: [] }; } };
+/** The library as the Overseer sees it: never a file probe (a round trip to Gen per row, up to 8 s each) while a player
+ *  waits for an answer, and never longer than COMMUNITY_MS: without the library the answer still comes. */
+const COMMUNITY_MS = 4000;
+const searchCommunity = async (o: Omit<CommunityQuery, 'probe'>): Promise<CommunityItems> => {
+  try {
+    return await Promise.race([
+      Promise.resolve(community.search({ ...o, probe: false })),
+      sleep(COMMUNITY_MS).then(() => ({ items: [] })),
+    ]);
+  } catch { return { items: [] }; }
+};
 
 // ------------------------------------------------------------------ making assets for a game
 /** An input: an asset ref ("asset:a_..."), or the outputs of an earlier step (`pick`: which, by kind or position). */
@@ -488,7 +502,6 @@ const mainParams = (prompt: string) => ({ prompt, system: SYSTEM(), effort: env(
 const directorOn = () => env('GAME_AI_DIRECTOR') !== '0';
 const directorParams = (prompt: string) => ({ prompt, system: DIRECTOR_SYSTEM, schema: DIRECTOR_SCHEMA, model: env('GAME_AI_DIRECTOR_MODEL') || 'claude-haiku-5-5', effort: 'low', maxTokens: 1200 });
 const POLL_MS = () => Number(process.env.PORTAL_AI_POLL_MS ?? 300);
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** What a message to the Overseer costs now: Gen's quote for the call (never under AI_CREDITS) and the director's. */
 export async function askQuote(user: User, gameId: string) {
@@ -518,9 +531,16 @@ function lineOp(l: { op: string; id: string; json: any }) {
   return { op: 'config', patch: body };
 }
 
-/** Follows a Gen job until it ends (or the deadline: cancelled, refunded), calling `onText` with its text so far. */
-async function followJob(job: any, project: string, deadline: number, onText?: (text: string, ended: boolean) => Promise<void>) {
-  let unreachable = 0;
+/** Follows a Gen job until it ends (or the deadline: cancelled, refunded), calling `onText` with its text so far and `onTick`
+ *  every read (a heartbeat for the players). Gen not answering (or busy: 429) slows the reads down instead of hammering
+ *  it; a minute with no answer at all ends the job as unreachable, so a run can never wait on Gen forever. */
+export async function followJob(job: any, project: string, deadline: number, onText?: (text: string, ended: boolean) => Promise<void>, onTick?: (job: any) => Promise<void>, o: { read?: (id: string) => Promise<any>; cancel?: (id: string) => Promise<any>; pollMs?: number; quietMs?: number } = {}) {
+  const read = o.read ?? ((id: string) => gen(`/v1/jobs/${id}`, { as: project }));
+  const cancel = o.cancel ?? ((id: string) => gen(`/v1/jobs/${id}/cancel`, { as: project, method: 'POST' }));
+  const pollMs = o.pollMs ?? POLL_MS();
+  const quietMs = o.quietMs ?? UNREACHABLE_MS;
+  let lastHeard = Date.now();
+  let wait = pollMs;
   let seen = -1;
   for (;;) {
     const ended = ['done', 'failed', 'cancelled'].includes(job.status);
@@ -529,17 +549,28 @@ async function followJob(job: any, project: string, deadline: number, onText?: (
       if (text.length !== seen || ended) { seen = text.length; await onText(text, ended); }
     }
     if (ended) return job;
+    if (onTick) await onTick(job).catch(() => {});
     if (Date.now() > deadline) {
-      job = await gen(`/v1/jobs/${job.id}/cancel`, { as: project, method: 'POST' }).catch(() => ({ ...job, status: 'cancelled' }));
+      job = await cancel(job.id).catch(() => ({ ...job, status: 'cancelled' }));
       if (!['done', 'failed', 'cancelled'].includes(job.status)) job = { ...job, status: 'cancelled' };
       job.error = 'timeout';
       return job;
     }
-    await sleep(POLL_MS());
-    const next = await gen(`/v1/jobs/${job.id}`, { as: project }).catch(() => null);
-    if (next) { job = next; unreachable = 0; } else if (++unreachable > 200) return { ...job, status: 'failed', error: 'unreachable' };
+    await sleep(Math.min(wait, Math.max(0, deadline - Date.now()) + 50));
+    const next = await read(job.id).catch((e: any) => ({ __error: e }));
+    if (next && !next.__error) { job = next; lastHeard = Date.now(); wait = pollMs; continue; }
+    if (Date.now() - lastHeard > quietMs) {
+      await cancel(job.id).catch(() => null);
+      return { ...job, status: 'failed', error: 'unreachable' };
+    }
+    // Busy or down: wait longer between reads (up to 5 s), so a busy Gen is not asked again at once.
+    wait = Math.min(5000, Math.max(pollMs, wait * 2));
   }
 }
+/** How long a run may hear nothing from Gen before it gives up (it used to count 200 failed reads). */
+const UNREACHABLE_MS = 60_000;
+/** How often the players hear that the Overseer is still working while nothing else happens (a heartbeat on the feed). */
+export const HEARTBEAT_MS = 10_000;
 
 const runsCol = () => db.collection('aiRuns');
 const viaFor = (game: { id: string; title: string }): Via => ({ kind: 'session', id: `game:${game.id}`, name: game.title, cap: null });
@@ -607,7 +638,7 @@ export async function askAssistant(user: User, gameId: string, body: { message?:
 // A run the function never finished (it was killed at its time limit, lost its instance, or the trigger never came) must not
 // leave the game "busy" with the credits held. `failRun` ends it once (the `done` flag is claimed in a transaction), gives
 // the credits back, lets the lock go and tells the players. The schedule below and the next ask both use it.
-const START_GRACE_MS = 90_000; // a run still not started this long after it was made: the trigger was lost
+const START_GRACE_MS = 45_000; // a run still not started this long after it was made: the trigger was lost (a cold start takes ~10 s)
 const END_GRACE_MS = 120_000; // past its own deadline by this much: the function is gone
 const staleRun = (r: any, now = Date.now()) => !r.done && (r.started ? now > Number(r.deadline) + END_GRACE_MS : now > Number(r.created) + START_GRACE_MS);
 
@@ -788,11 +819,19 @@ export async function runAssistant(run: any) {
     };
     const joiner = lineJoiner();
     const take = async (raw: string) => { for (const line of joiner.push(raw)) await apply(line); };
+    // The heartbeat: while nothing else is shown, the players hear every HEARTBEAT_MS that the Overseer is still at it
+    // (the page's watch waits for a sign of life, not for a whole answer: guest.js / editor.js askWatch).
+    const began = Date.now();
+    let beat = Date.now();
     try {
       job = await followJob(job, user.project, deadline, async (text, ended) => {
         const r = readLines(text, Math.min(next, text.length), ended && job.status === 'done');
         next = r.next;
         for (const raw of r.lines) await take(raw);
+      }, async (j) => {
+        if (Date.now() - beat < HEARTBEAT_MS) return;
+        beat = Date.now();
+        await show({ k: 'alive', s: Math.round((Date.now() - began) / 1000), status: String(j.status ?? ''), chars: String(j.result?.partial ?? '').length });
       });
       // The last line, when the end came between two reads.
       if (job.status === 'done') {
