@@ -76,6 +76,7 @@ function installPage(anyId = false) {
   g.parent = g;
   g.postMessage = () => {};
   g.Worker = undefined;
+  g.MutationObserver = class { observe() {} disconnect() {} takeRecords() { return []; } }; // (hudlayout.js watches the HUD; the stand-in page never changes)
   return byId;
 }
 

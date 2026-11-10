@@ -83,7 +83,7 @@
       e.animations = groups;
       if (opts.animation && !e.play(opts.animation)) { if (groups[0]) groups[0].start(true); } else if (!opts.animation && opts.autoplay !== false && groups[0]) groups[0].start(true);
     };
-    const fail = (err) => { H.report(new Error(`Could not load ${name}: ${err.message || err}`)); return e; };
+    const fail = (err) => { e._broken = name; H.report(new Error(`Could not load ${name}: ${err.message || err}`)); return e; };
     if (!lowName) {
       e.ready = load(name, false).then((x) => { if (!x) return e; animate(x.groups); ready(); e.measure(); return e; }).catch(fail);
       return e;

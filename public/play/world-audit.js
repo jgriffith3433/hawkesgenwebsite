@@ -16,6 +16,9 @@
 //              viewer's right? A side that reads mirrored is `backwards`. (Billboards turn to the camera and are skipped.)
 //   coplanar   axis-aligned boxes and planes whose same-facing faces lie in one plane and overlap (`zfight`), and flat
 //              planes laid exactly on the ground; a material's zOffset (drawn in front) clears it.
+//   assets     every thing of the world whose model, texture or picture is missing: its reference names nothing the game
+//              has (`waiting`: a builder sees a wireframe, a player sees nothing), its file would not load (`broken`), or the
+//              server says the library no longer has it (`gone`). Rule 5 (Jaycee, 2026-11-10: no missing assets anywhere).
 //   normals    a closed mesh drawn one-sided whose triangles mostly wind inward (`inside-out`), measured against a box the
 //              audit builds itself, so it holds whatever the engine's winding convention is.
 (function () {
@@ -276,6 +279,21 @@
     counts.normalsChecked = checked;
   }
 
+  // ------------------------------------------------------------------ rule 5: nothing missing
+  function assetAudit(H, W, o, problems, counts) {
+    let checked = 0;
+    for (const e of W.entities) {
+      if (!e.alive || o.skip.includes(e.sceneId)) continue;
+      checked++;
+      const id = e.sceneId || e.name || e.kind || '';
+      if (e._waiting) problems.push({ rule: 5, kind: 'waiting', id, detail: `its asset "${e._waiting}" is not in the game (shown as a wireframe or not at all)` });
+      else if (e._broken) problems.push({ rule: 5, kind: 'broken', id, detail: `its file "${e._broken}" would not load` });
+    }
+    const gone = H.bundle && Array.isArray(H.bundle.gone) ? H.bundle.gone : [];
+    for (const g of gone) problems.push({ rule: 5, kind: 'gone', id: String(g), detail: 'the world names a library thing the library no longer has' });
+    counts.assetsChecked = checked;
+  }
+
   function audit(H, o = {}) {
     const W = H.world;
     if (!W || !W.scene) return { problems: [{ rule: 0, kind: 'no-world', id: '', detail: 'no world is running' }], counts: {} };
@@ -286,6 +304,7 @@
     textAudit(W, problems, counts);
     coplanarAudit(H, W, opt, problems, counts);
     normalsAudit(W, problems, counts);
+    assetAudit(H, W, opt, problems, counts);
     return { problems, counts };
   }
 
