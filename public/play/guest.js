@@ -207,7 +207,8 @@
 .gs-acts button.glow::after{content:attr(data-tip);position:absolute;right:0;top:calc(100% + 8px);width:max-content;max-width:260px;font:600 13px/1.35 var(--hud);letter-spacing:0;text-align:left;color:#16130a;background:#ffd84a;border-radius:10px;padding:8px 11px;box-shadow:0 6px 20px rgba(0,0,0,.4);pointer-events:none}
 @keyframes gsGlow{0%,100%{box-shadow:0 0 0 0 rgba(255,216,74,.0),0 0 12px rgba(255,216,74,.35)}50%{box-shadow:0 0 0 6px rgba(255,216,74,.18),0 0 26px rgba(255,216,74,.7)}}
 .gs-acts button.primary{background:linear-gradient(90deg,#4a9eff,#a855f7);border-color:transparent;color:#fff}
-.gs-acts .more{display:none}
+.gs-acts .more{display:none} /* shown by hudlayout on phone compact (body.hl-compact) */
+.gs-acts .more[aria-expanded=true]{border-color:#4a9eff}
 .gs-toast{right:12px;top:62px;padding:12px 14px;display:flex;gap:12px;align-items:center;font:600 15px var(--hud);pointer-events:auto;max-width:calc(100vw - 24px)}
 .gs-toast button{font:700 14px var(--hud);border-radius:9px;padding:8px 12px;cursor:pointer;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);color:#e8ecf6;min-height:44px}
 .gs-toast button.primary{background:linear-gradient(90deg,#4a9eff,#a855f7);border-color:transparent;color:#fff}
@@ -290,9 +291,12 @@
     // (While Pip's tour runs, the nudge waits for its end.)
     const touring = () => { try { return H.game.events.quests.state('tour') === 'active'; } catch { return false; } };
 
-    // The buttons that open the account side.
-    const acts = el(`<button type="button" class="primary" data-intent="save">Save this world</button><button type="button" class="opt" data-intent="build">Build your own</button><button type="button" class="opt" data-intent="invite" title="Make a link to your island and copy it">Copy invite link</button>`, 'gs-acts');
-    acts.querySelectorAll('[data-intent]').forEach((b) => { b.onclick = () => { acts.classList.remove('open'); want(b.dataset.intent, 'button'); }; });
+    // The buttons that open the account side. On a phone (hudlayout body.hl-compact) they fold behind one 44 px menu.
+    const acts = el(`<button type="button" class="more" data-menu aria-label="Actions" aria-expanded="false" title="Actions">☰</button><button type="button" class="primary" data-intent="save">Save this world</button><button type="button" class="opt" data-intent="build">Build your own</button><button type="button" class="opt" data-intent="invite" title="Make a link to your island and copy it">Copy invite link</button>`, 'gs-acts');
+    const menu = acts.querySelector('[data-menu]');
+    const setOpen = (on) => { acts.classList.toggle('open', on); if (menu) menu.setAttribute('aria-expanded', on ? 'true' : 'false'); };
+    if (menu) menu.onclick = (e) => { e.stopPropagation(); setOpen(!acts.classList.contains('open')); };
+    acts.querySelectorAll('[data-intent]').forEach((b) => { b.onclick = () => { setOpen(false); want(b.dataset.intent, 'button'); }; });
     session.acts = acts;
 
     // One gentle nudge, once: after two things tried, at the end of the tour, or after four minutes.
