@@ -511,7 +511,12 @@ export async function restoreStarter() {
   // The cheap kinds first, 3D models (most of the cost) last.
   // Things the worlds use (order.first) come before the rest of their kind.
   const rank = (it: { item: string; kind: string }) => Number(it.kind === 'model') * 2 + Number(!order.first.includes(it.item));
-  const due = (it: { item: string }) => (tries[it.item] ?? 0) < 2 && Date.now() - (queuedAt[it.item] ?? 0) > 2 * 3600_000;
+  // A try whose Gen job already failed is over: the second try needn't wait out the 2 hours.
+  const failedKeys = await gen<{ jobs: any[] }>(`/v1/jobs?project=${STARTER_PROJECT}&tool=asset.make&status=failed&limit=300`, { as: STARTER_PROJECT })
+    .then((r) => new Set((r.jobs ?? []).map((j) => String(j.key ?? ''))), () => new Set<string>());
+  const lastFailed = (it: { item: string; kind: string; name: string }) =>
+    (tries[it.item] ?? 0) > 0 && failedKeys.has(remakeKey(keyOf(it as any), ref.id, tries[it.item]));
+  const due = (it: { item: string; kind: string; name: string }) => (tries[it.item] ?? 0) < 2 && (lastFailed(it) || Date.now() - (queuedAt[it.item] ?? 0) > 2 * 3600_000);
   let todo = packItems().filter((it) => missing.has(it.item) && order.kinds.includes(it.kind) && due(it)).sort((a, b) => rank(a) - rank(b));
   // 3D models are most of the cost and the longest recipe: until one has listed in this lane, one at a time; and none at
   // all once one has failed both its tries with none listed (Gen's 3D path is broken: nothing more is spent on it).
