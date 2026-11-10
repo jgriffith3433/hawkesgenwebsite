@@ -410,7 +410,7 @@ export async function syncStarterPack() {
 type PackItem = { kind: string; tag: string; name: string; what: string; words: string; item: string };
 type PackModule = { packItems: () => PackItem[]; paramsFor: (kind: string, what: string) => any; keyOf: (it: PackItem) => string; labelsOf: (it: PackItem) => Record<string, unknown> };
 /** One lane's order to remake missing things (community/restore.json): J's yes, quoted; the kinds; a dollar cap. */
-export type RestoreOrder = { approved: string; kinds: string[]; budgetUsd: number };
+export type RestoreOrder = { approved: string; kinds: string[]; budgetUsd: number; first: string[] };
 
 let packP: Promise<PackModule> | null = null;
 /** community/starter.mjs as the function has it (tools/prebuild.mjs copies it into assets/). */
@@ -430,7 +430,7 @@ export function restoreOrder(): RestoreOrder | null {
     const all = JSON.parse(fs.readFileSync(path.join(ASSETS, 'community', 'restore.json'), 'utf8'));
     const o = all?.[isLive() ? 'live' : 'beta'];
     if (!o || typeof o.approved !== 'string' || !o.approved.trim() || !Array.isArray(o.kinds) || !(Number(o.budgetUsd) > 0)) return null;
-    return { approved: o.approved, kinds: o.kinds.map(String).filter((k: string) => COMMUNITY_KINDS.includes(k as any)), budgetUsd: Math.min(200, Number(o.budgetUsd)) };
+    return { approved: o.approved, kinds: o.kinds.map(String).filter((k: string) => COMMUNITY_KINDS.includes(k as any)), budgetUsd: Math.min(200, Number(o.budgetUsd)), first: Array.isArray(o.first) ? o.first.map(String) : [] };
   } catch { return null; }
 }
 
@@ -484,8 +484,20 @@ export async function restoreStarter() {
   // A thing queued in the last 2 hours is still being made (it lists when it finishes); after that a second try only
   // runs again if the first failed (same key, reuse: Gen hands back the finished or running job).
   // The cheap kinds first, 3D models (most of the cost) last.
-  const todo = packItems().filter((it) => missing.has(it.item) && order.kinds.includes(it.kind) && (tries[it.item] ?? 0) < 2 && Date.now() - (queuedAt[it.item] ?? 0) > 2 * 3600_000)
-    .sort((a, b) => Number(a.kind === 'model') - Number(b.kind === 'model')).slice(0, 40);
+  // Things the worlds use (order.first) come before the rest of their kind.
+  const rank = (it: { item: string; kind: string }) => Number(it.kind === 'model') * 2 + Number(!order.first.includes(it.item));
+  const due = (it: { item: string }) => (tries[it.item] ?? 0) < 2 && Date.now() - (queuedAt[it.item] ?? 0) > 2 * 3600_000;
+  let todo = packItems().filter((it) => missing.has(it.item) && order.kinds.includes(it.kind) && due(it)).sort((a, b) => rank(a) - rank(b));
+  // 3D models are most of the cost and the longest recipe: until one has listed in this lane, one at a time; and none at
+  // all once one has failed both its tries with none listed (Gen's 3D path is broken: nothing more is spent on it).
+  if (!(health.byKind.model?.listed > 0)) {
+    const models = packItems().filter((it) => it.kind === 'model' && missing.has(it.item));
+    const dead = models.some((it) => (tries[it.item] ?? 0) >= 2);
+    const making = models.some((it) => (tries[it.item] ?? 0) > 0 && !due(it));
+    let room = dead || making ? 0 : 1;
+    todo = todo.filter((it) => it.kind !== 'model' || room-- > 0);
+  }
+  todo = todo.slice(0, 40);
   if (!todo.length) return { order: true, queued: 0, spentUsd: spent, budgetUsd: order.budgetUsd };
   // Priced per kind by Gen (each batch's own boots and model loads; the idle tail, once per server, is in the budget's
   // margin), then queued in order while the running total stays within the budget.

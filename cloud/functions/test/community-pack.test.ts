@@ -29,5 +29,6 @@ test('restore.json: a lane is only remade on an order with J’s yes, kinds and 
     assert.ok(typeof o.approved === 'string' && o.approved.trim().length > 10, `${lane}: quote J's yes and when`);
     assert.ok(Array.isArray(o.kinds) && o.kinds.length && o.kinds.every((k: string) => KINDS.includes(k)), `${lane}: kinds`);
     assert.ok(Number(o.budgetUsd) > 0 && Number(o.budgetUsd) <= 200, `${lane}: budget in dollars, at most 200`);
+    for (const item of o.first ?? []) assert.ok(pack.packItems().some((it: any) => it.item === item), `${lane}: first names a pack thing (${item})`);
   }
 });
