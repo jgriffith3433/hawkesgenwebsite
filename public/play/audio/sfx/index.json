@@ -17,11 +17,25 @@
     "page-turn",
     "robot-chirp",
     "seagull",
+    "step-grass-1",
+    "step-grass-2",
+    "step-grass-3",
+    "step-sand-1",
+    "step-sand-2",
+    "step-sand-3",
+    "step-stone-1",
+    "step-stone-2",
+    "step-stone-3",
     "step-wood-1",
     "step-wood-2",
     "step-wood-3",
     "toaster-pop",
     "tv-blip",
-    "ui-pickup"
+    "ui-build",
+    "ui-panel",
+    "ui-pickup",
+    "ui-place",
+    "ui-quest",
+    "ui-send"
   ]
 }
