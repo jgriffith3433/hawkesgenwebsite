@@ -28,9 +28,12 @@ test('a side panel reserves its width and a gap at 1280x720 and 1440x900; closed
 test('hudlayout CSS docks .jr-btn beside .gs-acts, shifts .hc-chat left of the panel, transitions smoothly, and uses no timers', () => {
   const src = fs.readFileSync(new URL('../../public/play/modules/hudlayout/hudlayout.js', import.meta.url), 'utf8');
   assert.ok(src.includes('body:not(.tl):not(.hl-compact) .jr-btn'), '.jr-btn sits in the top-right action row on desktop');
-  assert.ok(src.includes('body:not(.tl):not(.hl-compact):has(.jr-btn:not([hidden])) .gs-acts{right:calc(max(12px,var(--hl-panel)) + 50px)'), '.gs-acts leaves room for .jr-btn on the right');
-  assert.ok(src.includes('body.hl-panel:not(.tl):not(.pr-touch) .hc-chat{left:calc(62px + (100vw - var(--hl-panel)) / 2)'), '.hc-chat (and .hc-card orange button) shifts left of the open mirror panel');
+  assert.ok(src.includes('body:not(.tl):not(.hl-compact):has(.jr-btn:not([hidden])) .gs-acts{right:calc(var(--hl-panel) + 62px)'), '.gs-acts leaves room for .jr-btn; right always tracks --hl-panel (glides when it changes)');
+  assert.ok(src.includes("syntax:'<length>'") || src.includes('syntax:"<length>"'), '--hl-panel is a registered length so it can interpolate');
+  assert.ok(!/right:[^;]*max\(\s*12px\s*,\s*var\(--hl-panel\)/.test(src), 'max(12px, var(--hl-panel)) in right blocks interpolation');
+  assert.ok(src.includes('left:calc(50vw - var(--hl-panel) / 2)'), '.hc-chat centres in the free band via --hl-panel (no class-gated snap)');
   assert.ok(src.includes('transition:left .3s ease,width .3s ease,max-width .3s ease'), '.hc-chat transitions smoothly on open/close');
+  assert.ok(src.includes('transition:right .3s ease,max-width .3s ease'), '.gs-acts transitions right when the panel closes');
   assert.ok(!/\bsetInterval\b|\bsetTimeout\b/.test(src), 'no timers or polling in hudlayout.js');
 });
 

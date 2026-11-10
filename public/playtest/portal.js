@@ -581,26 +581,28 @@ async function stageMirrorLayout(t) {
   for (const b of open.bad) t.problem('error', b);
   if (!open.bad.length) t.event('hud-clear-of-panel', 'nothing runs under the panel');
   const first = acts[0];
+  // Measure .gs-acts itself — not first.el.parentElement (.jr-btn's parent is #ui, full viewport = 1280→1280).
+  const actsRow = document.querySelector('.gs-acts');
   const chatEl = $('.hc-chat');
-  const openRight = first ? first.el.parentElement.getBoundingClientRect().right : 0;
+  const openRight = actsRow ? actsRow.getBoundingClientRect().right : (first ? first.r.right : 0);
   const openChatRight = chatEl && visible(chatEl) ? chatEl.getBoundingClientRect().right : 0;
-  const dur = first ? parseFloat(getComputedStyle(first.el.parentElement).transitionDuration) : 0;
+  const dur = actsRow ? parseFloat(getComputedStyle(actsRow).transitionDuration) : 0;
   const chatDur = chatEl ? parseFloat(getComputedStyle(chatEl).transitionDuration) : 0;
-  if (first && !(dur > 0)) t.problem('error', 'the action row has no transition: it would jump');
+  if (actsRow && !(dur > 0)) t.problem('error', 'the action row has no transition: it would jump');
   else if (chatEl && !(chatDur > 0)) t.problem('error', 'the banner/chat zone has no transition: it would jump');
   else t.event('transition-set', `actions ${dur}s, banner ${chatDur}s`);
   // Close the mirror and watch both the action row and the banner glide back.
   const x = $('.mr .mr-x');
   if (x) x.click(); // the panel's own Close
   await t.wait(110);
-  const mid = first ? first.el.parentElement.getBoundingClientRect().right : 0;
+  const mid = actsRow ? actsRow.getBoundingClientRect().right : 0;
   const midChat = chatEl && visible(chatEl) ? chatEl.getBoundingClientRect().right : 0;
   await t.until(() => !$('.mr'), 10000, 'the mirror to close');
   await t.wait(700);
-  const closed = first ? first.el.parentElement.getBoundingClientRect().right : 0;
+  const closed = actsRow ? actsRow.getBoundingClientRect().right : 0;
   const closedChat = chatEl && visible(chatEl) ? chatEl.getBoundingClientRect().right : 0;
   t.scene(`Mirror closed at ${vw}x${vh}`);
-  if (first) {
+  if (actsRow || first) {
     if (closed > openRight + 40) t.event('hud-back', `actions moved from ${Math.round(openRight)} to ${Math.round(closed)}, banner from ${Math.round(openChatRight)} to ${Math.round(closedChat)}`);
     else t.problem('error', `the action row did not move back (${Math.round(openRight)} -> ${Math.round(closed)})`);
     if (mid > openRight + 1 && mid < closed - 1) t.event('hud-glides', `actions mid-way at ${Math.round(mid)}, banner mid-way at ${Math.round(midChat)}`);
