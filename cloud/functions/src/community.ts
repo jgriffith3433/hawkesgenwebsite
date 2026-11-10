@@ -412,7 +412,7 @@ export async function syncStarterPack() {
 type PackItem = { kind: string; tag: string; name: string; what: string; words: string; item: string };
 type PackModule = { packItems: () => PackItem[]; paramsFor: (kind: string, what: string) => any; keyOf: (it: PackItem) => string; labelsOf: (it: PackItem) => Record<string, unknown> };
 /** One lane's order to remake missing things (community/restore.json): J's yes, quoted; the kinds; a dollar cap. */
-export type RestoreOrder = { approved: string; kinds: string[]; budgetUsd: number; first: string[] };
+export type RestoreOrder = { approved: string; kinds: string[]; budgetUsd: number; first: string[]; copyFrom: string | null };
 
 let packP: Promise<PackModule> | null = null;
 /** community/starter.mjs as the function has it (tools/prebuild.mjs copies it into assets/). */
@@ -432,7 +432,7 @@ export function restoreOrder(): RestoreOrder | null {
     const all = JSON.parse(fs.readFileSync(path.join(ASSETS, 'community', 'restore.json'), 'utf8'));
     const o = all?.[isLive() ? 'live' : 'beta'];
     if (!o || typeof o.approved !== 'string' || !o.approved.trim() || !Array.isArray(o.kinds) || !(Number(o.budgetUsd) > 0)) return null;
-    return { approved: o.approved, kinds: o.kinds.map(String).filter((k: string) => COMMUNITY_KINDS.includes(k as any)), budgetUsd: Math.min(200, Number(o.budgetUsd)), first: Array.isArray(o.first) ? o.first.map(String) : [] };
+    return { approved: o.approved, kinds: o.kinds.map(String).filter((k: string) => COMMUNITY_KINDS.includes(k as any)), budgetUsd: Math.min(200, Number(o.budgetUsd)), first: Array.isArray(o.first) ? o.first.map(String) : [], copyFrom: copySource(o.copyFrom) };
   } catch { return null; }
 }
 
@@ -462,7 +462,7 @@ export async function packHealth(o: { jobs?: boolean } = {}) {
   const tries: Record<string, number> = cur?.tries ?? {};
   const missingSet = new Set(missing);
   const progress = cur ? { spentUsd: Number(cur.spentUsd) || 0, queued: Object.keys(tries).length, stillMissingAfterTwoTries: Object.entries(tries).filter(([it, n]) => n >= 2 && missingSet.has(it)).map(([it]) => it) } : null;
-  return { pack: pack.length, listed: pack.length - missing.length, missing: missing.length, byKind, missingItems: missing, spentUsd, restore: r ? { approved: r.approved, kinds: r.kinds, budgetUsd: r.budgetUsd, ...progress, ...(o.jobs ? { jobs: await remakeJobs() } : {}) } : null };
+  return { pack: pack.length, listed: pack.length - missing.length, missing: missing.length, byKind, missingItems: missing, spentUsd, restore: r ? { approved: r.approved, kinds: r.kinds, budgetUsd: r.budgetUsd, ...(r.copyFrom ? { copyFrom: r.copyFrom } : {}), ...progress, ...(o.jobs ? { jobs: await remakeJobs() } : {}) } : null };
 }
 
 /** Where Gen stands on the remake jobs (?jobs=1 on the health check): counts by status, and the newest few failures. */
@@ -520,6 +520,58 @@ const REMAKE_SCHEME = 2;
 export const remakeKey = (packKey: string, order: string, tryNo: number) =>
   `${packKey}/remake/${crypto.createHash('sha256').update(order).digest('hex').slice(0, 10)}/${tryNo}`;
 /**
+ * Another lane's portal to copy finished starter things from instead of making them again (restore.json `copyFrom`, e.g.
+ * live copying beta): its own https origin, and only a hawkesgames.com one. Null: this lane makes its own.
+ */
+export function copySource(v: unknown): string | null {
+  try {
+    const u = new URL(String(v ?? ''));
+    return u.protocol === 'https:' && (u.hostname === 'hawkesgames.com' || u.hostname.endsWith('.hawkesgames.com')) && !u.username && !u.password ? u.origin : null;
+  } catch { return null; }
+}
+type SourceRow = { id: string; kind: string; title: string; thumb: string | null };
+/** The source lane's listed starter things of these kinds (its public library), by kind and name. */
+async function sourceRows(origin: string, kinds: string[]): Promise<Map<string, SourceRow>> {
+  const out = new Map<string, SourceRow>();
+  for (const kind of kinds) {
+    for (let offset = 0; offset < 2000; offset += 120) {
+      const r = await fetch(`${origin}/v1/community?kind=${encodeURIComponent(kind)}&limit=120&offset=${offset}&sort=new`, { signal: AbortSignal.timeout(30_000) });
+      if (!r.ok) throw new PortalError(`${origin} answered ${r.status} for its ${kind} list`, { status: 502 });
+      const page: any = await r.json();
+      for (const it of page.items ?? []) {
+        if (it.source !== 'starter' || it.gone || !/^a_[0-9a-f]+$/.test(String(it.id))) continue;
+        const thumb = String(it.thumbFull ?? '').match(/\/v1\/community\/(a_[0-9a-f]+)\/file/)?.[1] ?? null;
+        const k = sourceKey(it.kind, it.title);
+        if (!out.has(k)) out.set(k, { id: it.id, kind: it.kind, title: it.title, thumb });
+      }
+      if ((page.items ?? []).length < 120) break;
+    }
+  }
+  return out;
+}
+export const sourceKey = (kind: string, name: string) => `${kind}/${String(name).trim().toLowerCase()}`;
+const EXT_OF: Record<string, string> = { 'model/gltf-binary': '.glb', 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'audio/mpeg': '.mp3', 'audio/ogg': '.ogg', 'audio/wav': '.wav', 'audio/x-wav': '.wav', 'audio/webm': '.webm', 'audio/mp4': '.m4a' };
+/** One of the source lane's files, put into this lane's Gen as a blob: "blob:<sha>", named so Gen keeps its type. */
+async function copyBlob(origin: string, assetId: string, name: string): Promise<string> {
+  const r = await fetch(`${origin}/v1/community/${assetId}/file`, { signal: AbortSignal.timeout(120_000) });
+  if (!r.ok) throw new PortalError(`${origin} answered ${r.status} for ${assetId}`, { status: 502 });
+  const mime = String(r.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
+  const ext = EXT_OF[mime];
+  if (!ext) throw new PortalError(`${assetId} came back as ${mime || 'no type'}`, { status: 502 });
+  const body = Buffer.from(await r.arrayBuffer());
+  const up = await genFetch('/v1/blobs', { method: 'POST', as: STARTER_PROJECT, rawBody: body, headers: { 'Content-Type': 'application/octet-stream', 'X-Filename': `${name}${ext}` }, signal: AbortSignal.timeout(120_000) });
+  const data: any = await up.json().catch(() => ({}));
+  if (!up.ok || !String(data.blob ?? '').startsWith('blob:')) throw new PortalError(data?.error ?? `Gen answered ${up.status} for a blob`, { status: 502 });
+  return data.blob;
+}
+/** The asset.make steps that put a copied thing into this lane's library as the recipe's own outputs (no GPU, nothing paid). */
+export function copySteps(kind: string, main: string, thumb: string | null) {
+  const steps: any[] = [{ tool: 'file.import', inputs: { file: main }, params: { title: kind }, save: kind }];
+  if (kind === 'model' && thumb) steps.push({ tool: 'file.import', inputs: { file: thumb }, params: { title: 'cutout' }, save: 'cutout' });
+  return { steps };
+}
+
+/**
  * Remakes what the pack is missing, within this lane's restore order: the missing things of its kinds go to Gen as the
  * same asset.make jobs tools/starter.mjs queues (same key and labels, in this lane's starter project), priced by Gen's
  * estimate first, until what was queued under the order reaches its budget. A thing is tried at most twice (a failed job
@@ -576,6 +628,29 @@ export async function restoreStarter() {
     (tries[it.item] ?? 0) > 0 && failedKeys.has(remakeKey(keyOf(it as any), ref.id, tries[it.item]));
   const due = (it: { item: string; kind: string; name: string }) => (tries[it.item] ?? 0) < allowed(it) && (lastFailed(it) || Date.now() - (queuedAt[it.item] ?? 0) > 2 * 3600_000);
   let todo = packItems().filter((it) => missing.has(it.item) && order.kinds.includes(it.kind) && due(it)).sort((a, b) => rank(a) - rank(b));
+  // Copying from another lane (live from beta): what the source has listed is copied, free; what it hasn't made yet waits
+  // for it (each thing is made once, on the source, and the lanes don't pay twice).
+  if (order.copyFrom) {
+    const src = await sourceRows(order.copyFrom, [...new Set(todo.map((it) => it.kind))]);
+    let copied = 0;
+    const failed: string[] = [];
+    for (const it of todo.filter((x) => src.has(sourceKey(x.kind, x.name))).slice(0, 10)) {
+      const row = src.get(sourceKey(it.kind, it.name))!;
+      try {
+        const main = await copyBlob(order.copyFrom, row.id, it.kind);
+        const thumb = it.kind === 'model' && row.thumb ? await copyBlob(order.copyFrom, row.thumb, 'cutout') : null;
+        tries[it.item] = (tries[it.item] ?? 0) + 1;
+        queuedAt[it.item] = Date.now();
+        const key = remakeKey(keyOf(it), ref.id, tries[it.item]);
+        paid[key] = 0;
+        await gen('/v1/jobs', { method: 'POST', as: STARTER_PROJECT, body: { tool: 'asset.make', project: STARTER_PROJECT, params: copySteps(it.kind, main, thumb), labels: { ...labelsOf(it), copiedFrom: order.copyFrom }, key, reuse: true } });
+        copied++;
+      } catch (e: any) { failed.push(`${it.item}: ${String(e.message).slice(0, 160)}`); }
+    }
+    if (failed.length) console.warn(`[portal] starter restore: copies that failed: ${failed.join('; ')}`);
+    await ref.set({ scheme: REMAKE_SCHEME, approved: order.approved, kinds: order.kinds, budgetUsd: order.budgetUsd, spentUsd: Math.round(spent * 100) / 100, tries, queuedAt, paid, refunded: [...refunded], updated: Date.now() });
+    return { order: true, copyFrom: order.copyFrom, copied, waitingOnSource: todo.filter((x) => !src.has(sourceKey(x.kind, x.name))).length, spentUsd: Math.round(spent * 100) / 100, budgetUsd: order.budgetUsd };
+  }
   // 3D models are most of the cost and the longest recipe: until one has listed in this lane, one at a time; and none at
   // all once one has failed both its tries with none listed (Gen's 3D path is broken: nothing more is spent on it).
   if (!(health.byKind.model?.listed > 0)) {
