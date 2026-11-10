@@ -507,13 +507,26 @@ async function stageMirror(t, ctx) {
 /** The HUD beside the mirror panel (modules/hudlayout): measured with the panel open, then closed. */
 async function stageMirrorLayout(t) {
   await t.until(() => $('.mr .mr-q'), 40000, 'the mirror to open after the intro');
-  await t.wait(900); // the panel slides in (0.35 s)
+  await t.wait(900); // the panel slides in (0.35 s) and the 0.3 s HUD transition settles
   const vw = window.innerWidth, vh = window.innerHeight;
+  const visible = (el) => {
+    if (!el || el.closest('[hidden], .hp-enter')) return false;
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity) < 0.05) return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 1 && r.height > 1;
+  };
   const pieces = () => {
     const out = [];
-    const add = (name, el) => { if (el && el.offsetParent !== null) { const r = el.getBoundingClientRect(); if (r.width > 0) out.push({ name, r, el }); } };
-    document.querySelectorAll('.gs-acts button').forEach((b) => add('action: ' + b.textContent.trim().slice(0, 24), b));
-    document.querySelectorAll('.tour-track, .tour-stuck, .qs-btn, .qs-track').forEach((b) => add('quest: ' + (b.className || '').toString().split(' ')[0] + ' ' + b.textContent.trim().slice(0, 20), b));
+    const add = (name, el) => { if (visible(el)) out.push({ name, r: el.getBoundingClientRect(), el }); };
+    document.querySelectorAll('.gs-acts button:not(.more), .jr-btn').forEach((b) => {
+      const lbl = (b.getAttribute('aria-label') || b.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 24);
+      add('action: ' + lbl, b);
+    });
+    document.querySelectorAll('.hc-card, .hc-card .act, .tour-track, .tour-stuck, .qs-btn, .qs-track').forEach((b) => {
+      const cls = (b.className || '').toString().trim().split(/\s+/)[0] || b.tagName.toLowerCase();
+      add('quest: ' + cls + ' ' + (b.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 24), b);
+    });
     return out;
   };
   const check = (label) => {
@@ -523,7 +536,7 @@ async function stageMirrorLayout(t) {
     const bad = [];
     for (const { name, r, el } of list) {
       if (r.left < -1 || r.top < -1 || r.right > vw + 1 || r.bottom > vh + 1) bad.push(`${name} is off screen (${Math.round(r.left)}-${Math.round(r.right)})`);
-      if (pr && r.right > pr.left - 2 && r.left < pr.right && r.bottom > pr.top && r.top < pr.bottom) bad.push(`${name} runs under the panel`);
+      if (pr && r.right > pr.left - 2 && r.left < pr.right && r.bottom > pr.top && r.top < pr.bottom) bad.push(`${name} runs under the panel (${Math.round(r.right)} > ${Math.round(pr.left)})`);
       const mx = Math.min(Math.max(r.left + r.width / 2, 0), vw - 1), my = Math.min(Math.max(r.top + r.height / 2, 0), vh - 1);
       const top = document.elementFromPoint(mx, my);
       if (top && !(el === top || el.contains(top) || top.contains(el))) bad.push(`${name} is covered by ${top.className || top.tagName}`);
@@ -534,31 +547,61 @@ async function stageMirrorLayout(t) {
   t.scene(`Mirror open at ${vw}x${vh}`);
   t.event('hud-measured-open', `${vw}x${vh}: ${open.list.length} pieces, panel ${open.pr ? Math.round(open.pr.left) : '-'}..${open.pr ? Math.round(open.pr.right) : '-'}`);
   const acts = open.list.filter((p) => p.name.startsWith('action:'));
-  if (acts.length < 3) t.problem('error', `expected the top-right actions beside the panel, found ${acts.length}`);
+  const expectActs = (HP() && HP().hudLayout && HP().hudLayout.compact(vw, vh)) ? 1 : 4;
+  if (acts.length < expectActs) t.problem('error', `expected all ${expectActs} top-right actions beside the panel, found ${acts.length} (${acts.map((p) => p.name).join(', ')})`);
   else t.event('actions-whole', acts.map((p) => p.name.replace('action: ', '')).join(', '));
   const banner = open.list.filter((p) => p.name.startsWith('quest:'));
-  if (!banner.length) t.problem('warn', 'no quest banner on screen with the mirror open');
+  if (!banner.length) t.problem('error', 'no quest/prompt banner on screen with the mirror open');
   else t.event('banner-whole', banner.map((p) => p.name).join(' | '));
+  const orangeBtn = $('.hc-card .act');
+  if (orangeBtn && visible(orangeBtn)) {
+    const br = orangeBtn.getBoundingClientRect();
+    const cx = Math.round(br.left + br.width / 2), cy = Math.round(br.top + br.height / 2);
+    const hit = document.elementFromPoint(cx, cy);
+    if (hit && (hit === orangeBtn || orangeBtn.contains(hit)) && (!open.pr || br.right <= open.pr.left - 2)) {
+      t.event('quest-button-clickable', `"${orangeBtn.textContent.trim()}" at ${Math.round(br.left)}..${Math.round(br.right)} (panel starts at ${open.pr ? Math.round(open.pr.left) : '-'})`);
+    } else {
+      t.problem('error', `quest banner orange button is not clear and clickable (${Math.round(br.left)}..${Math.round(br.right)}, panel ${open.pr ? Math.round(open.pr.left) : '-'})`);
+    }
+  } else {
+    t.problem('error', 'the quest banner orange button (.hc-card .act) is not visible with the mirror open');
+  }
+  const hl = HP() && HP().hudLayout;
+  if (hl && hl.compute && hl.zones) {
+    const r1280 = hl.compute(1280, 1280 - 16 - 400, 400);
+    const r1440 = hl.compute(1440, 1440 - 16 - 400, 400);
+    if (r1280 === 428 && r1440 === 428 && hl.zones.quest && hl.zones.actions && hl.zones.panel && hl.zones.chat) {
+      t.event('layout-zones-and-sizes', `zones=${Object.keys(hl.zones).join(',')}; 1280x720 reserve=${r1280}px, 1440x900 reserve=${r1440}px`);
+    } else {
+      t.problem('error', `hudLayout zones/compute mismatch: 1280=${r1280}, 1440=${r1440}`);
+    }
+  }
   for (const b of open.bad) t.problem('error', b);
   if (!open.bad.length) t.event('hud-clear-of-panel', 'nothing runs under the panel');
   const first = acts[0];
-  const openRight = first ? first.r.right : 0;
+  const chatEl = $('.hc-chat');
+  const openRight = first ? first.el.parentElement.getBoundingClientRect().right : 0;
+  const openChatRight = chatEl && visible(chatEl) ? chatEl.getBoundingClientRect().right : 0;
   const dur = first ? parseFloat(getComputedStyle(first.el.parentElement).transitionDuration) : 0;
+  const chatDur = chatEl ? parseFloat(getComputedStyle(chatEl).transitionDuration) : 0;
   if (first && !(dur > 0)) t.problem('error', 'the action row has no transition: it would jump');
-  else t.event('transition-set', `${dur}s`);
-  // Close with Esc (the mirror's own key) and watch the row move back.
+  else if (chatEl && !(chatDur > 0)) t.problem('error', 'the banner/chat zone has no transition: it would jump');
+  else t.event('transition-set', `actions ${dur}s, banner ${chatDur}s`);
+  // Close the mirror and watch both the action row and the banner glide back.
   const x = $('.mr .mr-x');
   if (x) x.click(); // the panel's own Close
   await t.wait(110);
   const mid = first ? first.el.parentElement.getBoundingClientRect().right : 0;
+  const midChat = chatEl && visible(chatEl) ? chatEl.getBoundingClientRect().right : 0;
   await t.until(() => !$('.mr'), 10000, 'the mirror to close');
   await t.wait(700);
   const closed = first ? first.el.parentElement.getBoundingClientRect().right : 0;
+  const closedChat = chatEl && visible(chatEl) ? chatEl.getBoundingClientRect().right : 0;
   t.scene(`Mirror closed at ${vw}x${vh}`);
   if (first) {
-    if (closed > openRight + 40) t.event('hud-back', `actions moved from ${Math.round(openRight)} to ${Math.round(closed)}`);
+    if (closed > openRight + 40) t.event('hud-back', `actions moved from ${Math.round(openRight)} to ${Math.round(closed)}, banner from ${Math.round(openChatRight)} to ${Math.round(closedChat)}`);
     else t.problem('error', `the action row did not move back (${Math.round(openRight)} -> ${Math.round(closed)})`);
-    if (mid > openRight + 1 && mid < closed - 1) t.event('hud-glides', `mid-way at ${Math.round(mid)}`);
+    if (mid > openRight + 1 && mid < closed - 1) t.event('hud-glides', `actions mid-way at ${Math.round(mid)}, banner mid-way at ${Math.round(midChat)}`);
     else t.problem('warn', `no mid-way sample of the move back (${Math.round(openRight)} / ${Math.round(mid)} / ${Math.round(closed)})`);
   }
   const after = check('closed');
@@ -613,8 +656,10 @@ async function stageHudOverlap(t) {
     const panel = $('.mr, [data-hud-panel]');
     if (panel) {
       const pr = panel.getBoundingClientRect();
-      document.querySelectorAll('.tour-track, .tour-stuck, .qs-btn, .qs-track, .gs-acts').forEach((b) => {
-        if (b.offsetParent === null) return;
+      document.querySelectorAll('.tour-track, .tour-stuck, .qs-btn, .qs-track, .hc-card, .gs-acts, .jr-btn').forEach((b) => {
+        if (b.closest('[hidden], .hp-enter') || (b.offsetParent === null && getComputedStyle(b).position !== 'fixed')) return;
+        const cs = getComputedStyle(b);
+        if (cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity) === 0) return;
         const r = b.getBoundingClientRect();
         if (r.width > 0 && r.right > pr.left + 1 && r.left < pr.right - 1 && r.bottom > pr.top + 1 && r.top < pr.bottom - 1) overlap.push(`${label(b)} overlaps the panel ${label(panel)}`);
       });
