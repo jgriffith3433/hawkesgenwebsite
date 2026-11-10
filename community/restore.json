@@ -1,7 +1,8 @@
 {
-  "about": "What the portal may remake of the starter pack (community/starter.mjs) when its things are missing from Gen, per lane. Each lane's scheduled starter sync queues the missing things of the listed kinds in that lane's own starter project, until the estimate of what it queued reaches budgetUsd; each thing is tried at most twice. Remaking spends money: only J's own yes puts a lane here, quoted in approved. Empty: nothing is remade. `first` lists the things the worlds use (they go before the rest of their kind). Until a 3D model has listed in the lane, models are made one at a time, and none once one fails both tries.",
+  "about": "What the portal may remake of the starter pack (community/starter.mjs) when its things are missing from Gen, per lane. Each lane's scheduled starter sync queues the missing things of the listed kinds in that lane's own starter project, until the estimate of what it queued reaches budgetUsd; each thing is tried at most twice. Remaking spends money: only J's own yes puts a lane here, quoted in approved. Empty: nothing is remade. `first` lists the things the worlds use (they go before the rest of their kind). Until a 3D model has listed in the lane, models are made one at a time, and none once one fails both tries. `copyFrom` (another lane's https://*.hawkesgames.com portal): instead of making them again, this lane copies the starter things that lane has listed (free, no GPU), and waits for that lane to make the rest.",
   "live": {
     "approved": "Jaycee, 2026-11-10 21:21 UTC: \"Yes make the 3d models, do what it takes\" (to about $75 more for the remaining 3D models on beta and live, about $110 in all). Earlier: 2026-11-10 02:21 UTC \"Can you PLEASE generate all the missing assets everywhere in hawkes-games.\" and 2026-11-09 19:06 UTC \"2\" (the whole starter pack incl. the 150 3D models)",
+    "copyFrom": "https://beta.hawkesgames.com",
     "kinds": [
       "texture",
       "sky",
