@@ -478,6 +478,8 @@ async function remakeJobs() {
 }
 
 const restores = () => db.collection('communityRestore');
+/** Gen's words for a job it turned away without making anything: too many at once, or Claude busy or at its limit. */
+export const wasTurnedAway = (text: string) => /a lot at once|wait \d+ seconds?, then try again|throttl|rate.?limit|\b429\b|overloaded/i.test(text);
 const REMAKE_SCHEME = 2;
 /**
  * Gen's key for one try at remaking a pack thing. Never the pack's own key: Gen hands back the job that key first made
@@ -512,22 +514,32 @@ export async function restoreStarter() {
   // Things the worlds use (order.first) come before the rest of their kind.
   const rank = (it: { item: string; kind: string }) => Number(it.kind === 'model') * 2 + Number(!order.first.includes(it.item));
   // A try whose Gen job already failed is over: the second try needn't wait out the 2 hours.
-  const failedKeys = await gen<{ jobs: any[] }>(`/v1/jobs?project=${STARTER_PROJECT}&tool=asset.make&status=failed&limit=300`, { as: STARTER_PROJECT })
-    .then((r) => new Set((r.jobs ?? []).map((j) => String(j.key ?? ''))), () => new Set<string>());
+  const failedJobs = await gen<{ jobs: any[] }>(`/v1/jobs?project=${STARTER_PROJECT}&tool=asset.make&status=failed&limit=500`, { as: STARTER_PROJECT })
+    .then((r) => r.jobs ?? [], () => [] as any[]);
+  const failedKeys = new Set(failedJobs.map((j) => String(j.key ?? '')));
+  // A try Gen turned away for coming too fast (or Claude being busy) made nothing: it doesn't count as one of the two.
+  const turnedAway = new Set(failedJobs.filter((j) => wasTurnedAway(`${j.detail ?? ''} ${j.error ?? ''}`)).map((j) => String(j.key ?? '')));
+  const allowed = (it: { item: string; kind: string; name: string }) => {
+    let free = 0;
+    for (let t = 1; t <= (tries[it.item] ?? 0); t++) if (turnedAway.has(remakeKey(keyOf(it as any), ref.id, t))) free++;
+    return 2 + Math.min(free, 4);
+  };
   const lastFailed = (it: { item: string; kind: string; name: string }) =>
     (tries[it.item] ?? 0) > 0 && failedKeys.has(remakeKey(keyOf(it as any), ref.id, tries[it.item]));
-  const due = (it: { item: string; kind: string; name: string }) => (tries[it.item] ?? 0) < 2 && (lastFailed(it) || Date.now() - (queuedAt[it.item] ?? 0) > 2 * 3600_000);
+  const due = (it: { item: string; kind: string; name: string }) => (tries[it.item] ?? 0) < allowed(it) && (lastFailed(it) || Date.now() - (queuedAt[it.item] ?? 0) > 2 * 3600_000);
   let todo = packItems().filter((it) => missing.has(it.item) && order.kinds.includes(it.kind) && due(it)).sort((a, b) => rank(a) - rank(b));
   // 3D models are most of the cost and the longest recipe: until one has listed in this lane, one at a time; and none at
   // all once one has failed both its tries with none listed (Gen's 3D path is broken: nothing more is spent on it).
   if (!(health.byKind.model?.listed > 0)) {
     const models = packItems().filter((it) => it.kind === 'model' && missing.has(it.item));
-    const dead = models.some((it) => (tries[it.item] ?? 0) >= 2);
+    // Dead: a model whose tries are used up and whose last one failed (one still being made isn't).
+    const dead = models.some((it) => (tries[it.item] ?? 0) >= allowed(it) && lastFailed(it));
     const making = models.some((it) => (tries[it.item] ?? 0) > 0 && !due(it));
     let room = dead || making ? 0 : 1;
     todo = todo.filter((it) => it.kind !== 'model' || room-- > 0);
   }
-  todo = todo.slice(0, 40);
+  // A few at a time: Gen turns away a burst, and each round is 10 minutes apart anyway.
+  todo = todo.slice(0, 20);
   if (!todo.length) return { order: true, queued: 0, spentUsd: spent, budgetUsd: order.budgetUsd };
   // Priced per kind by Gen (each batch's own boots and model loads; the idle tail, once per server, is in the budget's
   // margin), then queued in order while the running total stays within the budget.
