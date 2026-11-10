@@ -17,6 +17,7 @@ import { gen } from './gen.ts';
 import { submit, settle, quote } from './jobs.ts';
 import { getUser, requireUser, type User } from './accounts.ts';
 import { id, PortalError, route, json } from './http.ts';
+import { sign, verify } from './sign.ts';
 import type { Via } from './caller.ts';
 import {
   memberGame, chatMessage, updateChatData, chatData, writeFile, deleteFile, listAssets, addAsset, freeName, sceneOps, LIMITS,
@@ -631,8 +632,81 @@ export async function askAssistant(user: User, gameId: string, body: { message?:
     throw friendlyError(e, game.id, runId);
   }
   aiLog('ask:queued', game.id, runId);
+  // The answer runs in the api service, which is already up (it is answering this request), not only in gameAssistant,
+  // which scales to zero: when the region's CPU quota is full (shared with Gen, Studio and Unity builds) that service
+  // can't start an instance, the trigger is never run and the player waits on nothing (J, 2026-11-10: "it just thinks
+  // forever"; beta deploys failed on that quota 4 times from Nov 8 to Nov 10). The trigger stays as the fallback, and
+  // whichever gets there first claims the run (claimRun), so it runs once.
+  await startInApi(game.id, runId);
   return { ok: true, message: asked, credits: AI_CREDITS() };
 }
+
+/** Marks a run started, once: the api's own call and the Firestore trigger both try; the second gets null. */
+async function claimRun(ref: FirebaseFirestore.DocumentReference) {
+  return db.runTransaction(async (t) => {
+    const s = await t.get(ref);
+    if (!s.exists || s.get('started') || s.get('done')) return null;
+    t.update(ref, { started: true, startedAt: Date.now() });
+    return s.data() as any;
+  });
+}
+
+// ------------------------------------------------------------------ the answer, run in the api service
+const RUN_PATH = (runId: string) => `/v1/internal/ai-runs/${runId}`;
+const inlineOn = () => env('GAME_AI_INLINE') !== '0';
+/** The api service's own address, straight to Cloud Run (service to service, never through Hosting or Cloudflare):
+ *  https://<service>-<project number>.<region>.run.app. PORTAL_SELF_URL overrides it. */
+export const runAppUrl = (service: string, projectNumber: string, region: string) => `https://${service}-${projectNumber}.${region}.run.app`;
+let selfUrl: Promise<string | null> | null = null;
+function ownUrl(): Promise<string | null> {
+  const set = env('PORTAL_SELF_URL');
+  if (set) return Promise.resolve(set.replace(/\/+$/, ''));
+  selfUrl ??= (async () => {
+    const service = process.env.K_SERVICE;
+    if (!service) return null; // not on Cloud Run (tests, the emulator)
+    const r = await fetch('http://metadata.google.internal/computeMetadata/v1/project/numeric-project-id', { headers: { 'Metadata-Flavor': 'Google' }, signal: AbortSignal.timeout(2000) });
+    if (!r.ok) throw new Error(`metadata ${r.status}`);
+    return runAppUrl(service, (await r.text()).trim(), process.env.FUNCTION_REGION || 'us-east4');
+  })().catch((e) => { selfUrl = null; console.warn(`[gameAssistant] own address: ${e.message}`); return null; });
+  return selfUrl;
+}
+
+/** Starts the run with a signed call to the api itself and returns once that call has begun (its headers came back):
+ *  the run goes on inside that request, which keeps its CPU while it is open. Any failure here only logs: the trigger
+ *  and the watchdog are still there. */
+async function startInApi(gameId: string, runId: string) {
+  if (!inlineOn()) return;
+  try {
+    const base = await ownUrl();
+    if (!base) { aiLog('inline:skipped', gameId, runId, 'no own address'); return; }
+    // (A timer only until the headers come: the body must stay open while the run goes on, so no signal on the whole call.)
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 15_000);
+    const r = await fetch(base + RUN_PATH(runId), { method: 'POST', headers: { 'x-hawkes-run': sign({ k: 'airun', run: runId }, 120) }, signal: ac.signal }).finally(() => clearTimeout(timer));
+    aiLog('inline:called', gameId, runId, { status: r.status });
+    if (r.status !== 202) await r.body?.cancel().catch(() => {}); // already started elsewhere, or refused: nothing to keep open
+  } catch (e: any) {
+    aiLog('inline:failed', gameId, runId, String(e?.message ?? e).slice(0, 200));
+  }
+}
+
+// The api's side of startInApi: answers 202 at once (so the caller can return), then runs the answer and ends the response
+// when it is done. Only our own signed token is taken.
+route('POST', /^\/v1\/internal\/ai-runs\/(air_[0-9a-f]+)$/, async ({ req, res, params }) => {
+  const token = verify<{ k: string; run: string }>(String(req.headers['x-hawkes-run'] ?? ''));
+  if (!token || token.k !== 'airun' || token.run !== params[0]) throw new PortalError('Not found', { status: 404 });
+  const run = await claimRun(runsCol().doc(params[0]));
+  if (!run) { res.status(200).set('Content-Type', 'text/plain').end('already started'); return; }
+  res.status(202).set({ 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' });
+  res.flushHeaders();
+  res.write('started\n');
+  aiLog('run:start', String(run.game_id), run.id, 'api');
+  // A byte now and then, so nothing between here and the caller takes the open call for a dead one.
+  const beat = setInterval(() => { try { res.write('.'); } catch { /* the caller is gone: the run still ends by itself */ } }, 30_000);
+  try { await runAssistant(run); } catch (e: any) { console.error(`[gameAssistant] game=${run.game_id} run=${run.id} step=inline-error raw=${String(e?.message ?? e).slice(0, 300)}`); }
+  finally { clearInterval(beat); }
+  res.end('done\n');
+});
 
 // ------------------------------------------------------------------ the watchdog
 // A run the function never finished (it was killed at its time limit, lost its instance, or the trigger never came) must not
@@ -882,17 +956,12 @@ export async function runAssistant(run: any) {
   }
 }
 
-/** Runs an answer the request started (aiRuns/{id}); a second delivery of the same event does nothing. */
+/** The fallback for an answer the api did not start itself (aiRuns/{id}); a run already claimed, or a second delivery, does nothing. */
 export const gameAssistant = onDocumentCreated({ document: 'aiRuns/{runId}', timeoutSeconds: 540, memory: '512MiB', secrets: [SECRETS.genKey], retry: false }, async (event) => {
   const ref = event.data?.ref;
   if (!ref) return;
-  const run = await db.runTransaction(async (t) => {
-    const s = await t.get(ref);
-    if (!s.exists || s.get('started') || s.get('done')) return null;
-    t.update(ref, { started: true, startedAt: Date.now() });
-    return s.data();
-  });
-  if (run) { aiLog('run:start', String(run.game_id), run.id); await runAssistant(run); }
+  const run = await claimRun(ref); // null when the api already runs it (startInApi)
+  if (run) { aiLog('run:start', String(run.game_id), run.id, 'trigger'); await runAssistant(run); }
 });
 
 /** Community things that could be this suggestion: the assistant's pick first, then the best matches of that kind. */
