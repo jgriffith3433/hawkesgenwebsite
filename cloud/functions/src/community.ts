@@ -476,7 +476,14 @@ async function remakeJobs() {
     // The 3D step on its own (the model chain's mesh.views3d jobs): why the newest few ended, with Gen's last log lines.
     const mesh = await gen<{ jobs: any[] }>(`/v1/jobs?project=${STARTER_PROJECT}&tool=mesh.views3d&limit=5`, { as: STARTER_PROJECT })
       .then((r) => (r.jobs ?? []).map((j) => ({ status: j.status, error: j.error ? String(j.error).slice(0, 300) : null, created: j.created, finished: j.finished ?? null, log: (Array.isArray(j.log) ? j.log : []).slice(-6).map((l: unknown) => String(l).slice(0, 400)) })), (e) => [{ error: String(e?.message ?? e) }]);
-    return { byStatus, failed: mine.filter((j) => j.status === 'failed').slice(0, 8).map(line), open: mine.filter((j) => j.status === 'queued' || j.status === 'running').slice(0, 8).map(line), mesh };
+    // Gen's GPU providers (the order, each one's cooldown and last error): why the 3D step finds no GPU.
+    // This page is public: no hosts, prices or balance, only each provider's state.
+    const gpu = await gen<any>('/v1/gpu/providers', { as: STARTER_PROJECT })
+      .then((g) => ({
+        order: g.order, familyOrder: g.familyOrder,
+        providers: (g.providers ?? []).map((p: any) => ({ id: p.id, families: p.families, enabled: p.enabled, ready: p.ready, problem: p.problem ? String(p.problem).slice(0, 200) : null, down: p.health?.down ?? null, reason: p.health?.reason ? String(p.health.reason).slice(0, 200) : null, lastError: p.health?.lastError ? String(typeof p.health.lastError === 'string' ? p.health.lastError : JSON.stringify(p.health.lastError)).slice(0, 200) : null })),
+      }), (e) => ({ error: String(e?.message ?? e).slice(0, 200) }));
+    return { byStatus, failed: mine.filter((j) => j.status === 'failed').slice(0, 8).map(line), open: mine.filter((j) => j.status === 'queued' || j.status === 'running').slice(0, 8).map(line), mesh, gpu };
   } catch (e: any) { return { error: e.message }; }
 }
 
