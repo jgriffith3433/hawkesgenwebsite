@@ -490,6 +490,8 @@ async function remakeJobs() {
 const restores = () => db.collection('communityRestore');
 /** Gen's words for a job it turned away without making anything: too many at once, Claude busy or at its limit, or no GPU free. */
 export const wasTurnedAway = (text: string) => /a lot at once|wait \d+ seconds?, then try again|throttl|rate.?limit|\b429\b|overloaded|no gpu is available|nothing was charged/i.test(text);
+/** A run Gen's RunPod worker stopped at its old 300 s graph limit (fixed in Gen #189): the try made nothing of its own. */
+export const stoppedAtGenLimit = (text: string) => /runpod: ran past this service's 300 s limit/i.test(text);
 const REMAKE_SCHEME = 2;
 /**
  * Gen's key for one try at remaking a pack thing. Never the pack's own key: Gen hands back the job that key first made
@@ -528,7 +530,8 @@ export async function restoreStarter() {
     .then((r) => r.jobs ?? [], () => [] as any[]);
   const failedKeys = new Set(failedJobs.map((j) => String(j.key ?? '')));
   // A try Gen turned away for coming too fast (or Claude being busy) made nothing: it doesn't count as one of the two.
-  const turnedAway = new Set(failedJobs.filter((j) => wasTurnedAway(`${j.detail ?? ''} ${j.error ?? ''}`)).map((j) => String(j.key ?? '')));
+  // So is a 3D try Gen stopped at RunPod's old 300 s graph limit (Gen #189, 2026-11-10): Gen's limit, not the model.
+  const turnedAway = new Set(failedJobs.filter((j) => wasTurnedAway(`${j.detail ?? ''} ${j.error ?? ''}`) || stoppedAtGenLimit(`${j.detail ?? ''} ${j.error ?? ''}`)).map((j) => String(j.key ?? '')));
   const allowed = (it: { item: string; kind: string; name: string }) => {
     let free = 0;
     for (let t = 1; t <= (tries[it.item] ?? 0); t++) if (turnedAway.has(remakeKey(keyOf(it as any), ref.id, t))) free++;
