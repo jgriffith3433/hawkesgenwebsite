@@ -1205,21 +1205,65 @@
         const t = state.target, o = state.opts;
         state.yaw += mouse.dx * o.sensitivity * RAD;
         state.pitch = Math.max(-0.4, Math.min(1.2, state.pitch + mouse.dy * o.sensitivity * RAD));
+        const nowMs = performance.now();
+        if (mouse.dx || mouse.dy || state.idleSince === undefined) state.idleSince = nowMs;
         if (t && t.alive) {
+          // After about 2 s without looking around, the camera swings back behind the player.
+          if (nowMs - state.idleSince > 2000 && t.node) {
+            const k = 1 - Math.exp(-dt * 2.5);
+            let dy = (t.node.rotation.y - state.yaw) % (Math.PI * 2);
+            if (dy > Math.PI) dy -= Math.PI * 2; else if (dy < -Math.PI) dy += Math.PI * 2;
+            state.yaw += dy * k; state.pitch += (0.32 - state.pitch) * k;
+          }
           // The head, with small bumps smoothed (a slope's steps, a landing); never trailing when falling or flying.
           state.headY = smoothBump(state.headY, t === W.player ? t.bottom + 1.5 : t.y + o.height, dt, 14, 0.3);
           const head = new B.Vector3(t.x, state.headY, t.z);
           const back = new B.Vector3(-Math.sin(state.yaw) * Math.cos(state.pitch), Math.sin(state.pitch), -Math.cos(state.yaw) * Math.cos(state.pitch));
-          // Walls between you and the camera pull it in, so it never looks through them.
-          let dist = o.distance;
-          const hit = W.scene.pickWithRay(new B.Ray(head, back, o.distance), (m) => { const en = entityOf(m); return Boolean(en && en !== t && en.solid && !(m.metadata && m.metadata.decor)); });
-          if (hit && hit.hit) dist = Math.max(0.8, hit.distance - 0.3);
-          // Fixed to the head at its distance (no trailing: fast falls and rides don't wobble); a wall pulls it in at
-          // once, and it eases back out.
-          state.dist = state.dist === undefined || dist < state.dist ? dist : state.dist + (dist - state.dist) * Math.min(1, dt * 5);
+          // A sphere cast (the centre ray and four round it, 0.3 m out) pulls the camera in before any wall or prop.
+          const RADIUS = 0.3;
+          const right = new B.Vector3(Math.cos(state.yaw), 0, -Math.sin(state.yaw));
+          const upv = B.Vector3.Cross(back, right).normalize();
+          const solid = (m) => { const en = entityOf(m); return Boolean(en && en !== t && en.solid && !(m.metadata && m.metadata.decor)); };
+          let hard = o.distance;
+          for (const [rx, ry] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            const origin = head.add(right.scale(rx * RADIUS)).add(upv.scale(ry * RADIUS));
+            const hit = W.scene.pickWithRay(new B.Ray(origin, back, o.distance + RADIUS), solid);
+            if (hit && hit.hit) hard = Math.min(hard, hit.distance - RADIUS);
+          }
+          // The terrain too: the camera stays above the ground.
+          try {
+            const T = H.terrain;
+            if (T && T.active && T.heightAt) {
+              for (let d = 0.5; d <= hard; d += 0.5) {
+                const g = T.heightAt(head.x + back.x * d, head.z + back.z * d);
+                if (Number.isFinite(g) && head.y + back.y * d < g + RADIUS) { hard = Math.max(0.5, d - 0.5); break; }
+              }
+            }
+          } catch { /* flat world */ }
+          hard = Math.max(0.5, hard);
+          // Damped both ways, but never past what is clear: it eases in and out, and never ends up inside something.
+          const rate = state.dist === undefined ? 1 : Math.min(1, dt * (hard < state.dist ? 16 : 4));
+          state.dist = state.dist === undefined ? hard : state.dist + (hard - state.dist) * rate;
+          state.dist = Math.min(state.dist, hard);
           cam.position.copyFrom(head.add(back.scale(state.dist)));
           if (cam.upVector.x || cam.upVector.z || cam.upVector.y !== 1) cam.upVector.set(0, 1, 0);
           cam.setTarget(head);
+          // FOV stays between 60 and 75 degrees.
+          cam.fov = Math.max(60 * RAD, Math.min(75 * RAD, cam.fov));
+          // Count the frames the camera is inside a solid mesh (a playtest fails on this number).
+          const stats = (window.hawkesCameraStats = window.hawkesCameraStats || { frames: 0, inGeometry: 0, last: null });
+          stats.frames++;
+          let inside = null;
+          for (const m of W.scene.meshes) {
+            if (!m.isEnabled() || !m.isVisible || m.isPickable === false || !solid(m)) continue;
+            const bs = m.getBoundingInfo().boundingSphere;
+            if (B.Vector3.DistanceSquared(bs.centerWorld, cam.position) > (bs.radiusWorld + 1) ** 2) continue;
+            if (m.getBoundingInfo().boundingBox.intersectsPoint(cam.position)) { inside = m; break; }
+          }
+          if (inside) {
+            stats.inGeometry++; stats.last = inside.name;
+            game.emit('camera-in-geometry', { mesh: inside.name, count: stats.inGeometry, frame: stats.frames });
+          }
         }
       } else if (state.mode === 'follow' || state.mode === 'top') {
         const w = want();
