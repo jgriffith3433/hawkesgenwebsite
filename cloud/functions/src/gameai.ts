@@ -535,7 +535,8 @@ function lineOp(l: { op: string; id: string; json: any }) {
 /** Follows a Gen job until it ends (or the deadline: cancelled, refunded), calling `onText` with its text so far and `onTick`
  *  every read (a heartbeat for the players). Gen not answering (or busy: 429) slows the reads down instead of hammering
  *  it; a minute with no answer at all ends the job as unreachable, so a run can never wait on Gen forever. */
-export async function followJob(job: any, project: string, deadline: number, onText?: (text: string, ended: boolean) => Promise<void>, onTick?: (job: any) => Promise<void>, o: { read?: (id: string) => Promise<any>; cancel?: (id: string) => Promise<any>; pollMs?: number; quietMs?: number } = {}) {
+export async function followJob(job: any, project: string, deadline: number, onText?: (text: string, ended: boolean) => Promise<void>, onTick?: (job: any) => Promise<void>, o: { read?: (id: string) => Promise<any>; cancel?: (id: string) => Promise<any>; pollMs?: number; quietMs?: number; queuedMs?: number } = {}) {
+  const began = Date.now();
   const read = o.read ?? ((id: string) => gen(`/v1/jobs/${id}`, { as: project }));
   const cancel = o.cancel ?? ((id: string) => gen(`/v1/jobs/${id}/cancel`, { as: project, method: 'POST' }));
   const pollMs = o.pollMs ?? POLL_MS();
@@ -551,7 +552,9 @@ export async function followJob(job: any, project: string, deadline: number, onT
     }
     if (ended) return job;
     if (onTick) await onTick(job).catch(() => {});
-    if (Date.now() > deadline) {
+    // A job Gen never starts (no worker free) must not keep the player waiting for the whole deadline.
+    const stuckQueued = o.queuedMs != null && job.status === 'queued' && Date.now() - began > o.queuedMs;
+    if (stuckQueued || Date.now() > deadline) {
       job = await cancel(job.id).catch(() => ({ ...job, status: 'cancelled' }));
       if (!['done', 'failed', 'cancelled'].includes(job.status)) job = { ...job, status: 'cancelled' };
       job.error = 'timeout';
@@ -906,7 +909,7 @@ export async function runAssistant(run: any) {
         if (Date.now() - beat < HEARTBEAT_MS) return;
         beat = Date.now();
         await show({ k: 'alive', s: Math.round((Date.now() - began) / 1000), status: String(j.status ?? ''), chars: String(j.result?.partial ?? '').length });
-      });
+      }, { queuedMs: Number(env('GAME_AI_QUEUED_MS') ?? 45_000) });
       // The last line, when the end came between two reads.
       if (job.status === 'done') {
         const text = String(job.result?.text ?? '');
