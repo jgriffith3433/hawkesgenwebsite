@@ -1,5 +1,6 @@
 {
   "sounds": [
+    "amb-inland",
     "beam-down",
     "boat-horn",
     "cactus-rustle",
@@ -14,6 +15,9 @@
     "page-turn",
     "robot-chirp",
     "seagull",
+    "step-wood-1",
+    "step-wood-2",
+    "step-wood-3",
     "toaster-pop",
     "tv-blip"
   ]
