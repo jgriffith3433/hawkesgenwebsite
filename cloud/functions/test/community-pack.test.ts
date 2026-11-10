@@ -37,6 +37,7 @@ test('a remake try Gen turned away (too many at once, Claude busy) is not one of
   const { wasTurnedAway } = await import('../src/community.ts');
   assert.ok(wasTurnedAway("That's a lot at once: wait 1 second, then try again."));
   assert.ok(wasTurnedAway('Claude is throttled (429)'));
+  assert.ok(wasTurnedAway("No GPU is available right now, so this couldn't start. Nothing was charged. Please try again later."));
   assert.ok(!wasTurnedAway('step 3/5 image.viewsheet: the views are not the same object'));
   assert.ok(!wasTurnedAway(''));
 });
