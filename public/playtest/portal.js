@@ -60,6 +60,11 @@ const SCENARIOS = [
     description: 'options: to (veil, intro, mirror, sheet, drive, fish), signup (false: never sign up; always off on live), fish ("strict": a fishing failure fails the run), watch (seconds of intro to watch), at ("sandbox")',
   },
   {
+    id: 'sandbox-pier-marker', title: 'Pip shows the pier: cinematic fly to the rod, glowing marker from the beach, pickup clears it', seconds: 180, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'veil, intro, mirror, then a named setup shortcut lifts the account gate (Google-only sign-up cannot finish a throwaway account); Pip\'s pier beat plays: one short line, the camera flies from Pip along Gravel Road and holds on the rod (pier-cinematic, scene Pier: cinematic hold), the glowing marker stays on (rod-marker on); from the beach the marker is visible (scene Pier: marker from beach, and with touch:1 the phone frame); walking out the pier and picking up the rod clears the marker with a sound and burst (rod-marker off, pier-show cleared). Options: touch (true: ?touch=1), watch',
+  },
+  {
     id: 'island-race', title: 'The Ridge Run: through the start gate, the countdown, every gate in order, the finish and best time, then the ghost of the best run', seconds: 330, tags: ['full'],
     starts: ['sandbox'],
     description: 'options: laps (default 1; the world has 3), touch (true: the phone controls, ?touch=1, and the frame rate is measured), ghost (false: one run only), signup (false: stop at the account sheet; always on live), watch (seconds of intro to watch), name, what',
@@ -304,8 +309,26 @@ const HOOKS = {
     t.event('setup-shortcut', `a ${species} counted as caught (water.fish.give: the engine's catch event)`);
     return f;
   },
+  /** Puts the player on the beach facing the pier end (for the rod marker screenshot). Uses the world's own settle path. */
+  atBeach(t) {
+    HOOKS.allowed('atBeach');
+    const p = W() && W().player, g = G();
+    if (!p || !g) throw new Error('hook atBeach: the island is not ready');
+    const rod = W().byId.get('rod');
+    const x = 58, z = -2;
+    const y = (g.terrain && g.terrain.heightAt ? g.terrain.heightAt(x, z) : 1) + 1;
+    const local = g.planet && g.planet.round && g.planet.toLocal ? g.planet.toLocal([x, y, z]) : [x, y, z];
+    const at = Array.isArray(local) ? local : [local.x, local.y, local.z];
+    p.position = at; p.velocity = [0, 0, 0];
+    if (rod) {
+      const yaw = Math.atan2(rod.x - p.x, rod.z - p.z);
+      try { if (p.node && p.node.rotation) p.node.rotation.y = yaw; } catch { /* fine */ }
+      try { if (g.camera && g.camera.yaw !== undefined) g.camera.yaw = yaw; } catch { /* fine */ }
+    }
+    t.event('setup-shortcut', 'the player put on the beach facing the pier end (marker screenshot)');
+  },
   allowed(name) { if (isLive()) throw new Error(`hook ${name}: playtest hooks are never available on the live site`); },
-  names: ['explode', 'enterVehicle', 'dock', 'catchFish'],
+  names: ['explode', 'enterVehicle', 'dock', 'catchFish', 'atBeach'],
 };
 if (!isLive()) { window.hawkesPlaytestHooks = HOOKS; if (window.hawkesPlaytest) window.hawkesPlaytest.hooks = HOOKS; }
 
@@ -839,12 +862,86 @@ async function stageEditor(t) {
   t.progress(1);
 }
 
+/** Pip's pier directions as an in-engine beat: cinematic to the rod, glowing marker from the beach, pickup clears it. */
+async function stagePier(t, ctx) {
+  await t.until(() => W() && W().player && G(), 60000, 'the island to be ready');
+  // Google-only sign-up: close the forced account sheet and let Pip's tour (and the pier show) begin.
+  await t.until(() => $('#gsGoogle') || (window.HawkesGuest && !window.HawkesGuest.accountFirst) || (G().events && G().events.quests && G().events.quests.state('tour') === 'active'), 25000, 'the account sheet or an already-open tour').catch(() => {});
+  if (window.HawkesGuest && typeof window.HawkesGuest.playtestContinue === 'function') {
+    window.HawkesGuest.playtestContinue();
+    t.event('setup-shortcut', 'account sheet closed and gate lifted so Pip\'s tour can begin (playtest cannot Google-sign-up)');
+  } else if (window.HawkesGuest) {
+    window.HawkesGuest.accountFirst = false;
+    t.event('setup-shortcut', 'account gate lifted so Pip\'s tour can begin (playtest cannot Google-sign-up)');
+  }
+  const q = () => G() && G().events && G().events.quests;
+  const step = () => (q() && q().state('tour') === 'active' ? q().step('tour') : null);
+  const markOn = () => Boolean(window.__islandRodMark && window.__islandRodMark.on);
+  const cin = () => G() && G().cinematic && G().cinematic.isPlaying;
+  // Wait for Pip to start the tour and the pier show (or force it if the tour is already on).
+  await t.until(() => step() === 'drive' || step() === 'rod' || window.__islandPierShown, 90000, 'Pip\'s tour or pier show to start');
+  t.event('tour-start', `step: ${step() || 'pending'}`);
+  if (!window.__islandPierShown && typeof window.__islandShowPier === 'function') {
+    t.event('setup-shortcut', 'pier show started by hand (tour began without the first-visit beat)');
+    window.__islandShowPier();
+  }
+  await t.until(() => window.__islandPierShown || cin() || markOn(), 20000, 'the pier cinematic or rod marker');
+  t.event('pier-show-start', 'Pip\'s pier directions began');
+  t.progress(0.35);
+  // During the fly-over: wait until the camera is holding on the rod (late in the shot) or the shot ends.
+  if (cin()) {
+    t.event('pier-cinematic', 'camera flying from Pip along Gravel Road to the rod');
+    await t.wait(7500); // into the hold on the rod (~8.4 s of a 10 s path)
+    if (cin()) t.scene('Pier: cinematic hold');
+    await t.until(() => !cin(), 15000, 'the pier cinematic to end');
+    t.event('pier-cinematic-done', 'camera returned after the rod hold');
+  } else {
+    t.event('pier-cinematic-skipped-or-done', window.__islandPierShown ? 'already shown' : 'no cinematic');
+    t.scene('Pier: after show');
+  }
+  await t.until(() => markOn(), 8000, 'the glowing rod marker to be on');
+  t.event('rod-marker-on', 'pulsing light and shimmer on the fishing rod');
+  t.progress(0.55);
+  // From the beach: the marker must lead the player without reading text.
+  HOOKS.atBeach(t);
+  await t.wait(800);
+  t.scene(ctx.options.touch || (window.innerWidth < 600) ? 'Pier: marker from beach (phone)' : 'Pier: marker from beach');
+  t.event('marker-from-beach', markOn() ? 'glowing marker visible from the beach' : 'marker missing');
+  if (!markOn()) throw new Error('the rod marker was not on when viewed from the beach');
+  t.progress(0.7);
+  // Walk the pier and pick up the rod: marker clears with sound and burst.
+  if (G().player && G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(700); }
+  await walkTo(t, 'rod', 0.7, 60000, 'the fishing rod at the end of the pier');
+  await t.until(() => !markOn() || (HP().tools && HP().tools.held && HP().tools.held.name === 'rod'), 10000, 'the rod to be picked up and the marker to clear');
+  if (markOn()) throw new Error('the rod marker stayed on after picking up the rod');
+  t.event('rod-marker-off', 'pickup cleared the marker with a chime and burst');
+  t.event('pier-show-cleared', 'acceptance: cinematic, beach marker, pickup clear');
+  t.scene('Pier: marker cleared');
+  t.progress(1);
+  await t.wait(1200);
+}
+
 async function stageDrive(t, ctx) {
   const q = () => G() && G().events && G().events.quests;
   const step = () => (q() && q().state('tour') === 'active' ? q().step('tour') : null);
   t.scene('Island: the tour begins');
   await t.until(() => step() === 'drive' || step() === 'rod', 90000, 'Pip\'s tour to start (the "drive" step)');
   t.event('tour-start', `step: ${step()}`);
+  // First visit: Pip's pier cinematic flies before the 4x4 drive; wait it out so keys do not fight the shot.
+  const cin = () => G() && G().cinematic && G().cinematic.isPlaying;
+  if (cin()) {
+    t.event('pier-cinematic-wait', 'waiting for Pip\'s pier fly-over to finish');
+    await t.until(() => !cin(), 20000, 'the pier cinematic to end');
+    t.event('pier-cinematic-done');
+  } else if (!window.__islandPierShown) {
+    // Tour just started: give the pier show a moment to begin, then wait it out if it does.
+    await t.wait(1500);
+    if (cin()) {
+      t.event('pier-cinematic-wait', 'waiting for Pip\'s pier fly-over to finish');
+      await t.until(() => !cin(), 20000, 'the pier cinematic to end');
+      t.event('pier-cinematic-done');
+    }
+  }
   t.progress(0.65);
   await t.wait(2500);
   const jeep = () => W().byId.get('jeep');
@@ -2653,8 +2750,10 @@ async function stagePhonePerf(t, ctx) {
 const RUN = {
   models: stageModels,
   hats: stageHats,
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, firstvisit: stageFirstVisit, mirror: stageMirror, mirrorlayout: stageMirrorLayout, sheet: stageSheet, asks: stageAsks, answer: stageAnswer, toeditor: stageToEditor, editor: stageEditor, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, wish: stageWish, react: stageReact, alive: stageAlive, touch: stageTouch, phoneperf: stagePhonePerf, motion: runCharacterMotion, leave: stageLeave, back: stageBack,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, firstvisit: stageFirstVisit, mirror: stageMirror, mirrorlayout: stageMirrorLayout, sheet: stageSheet, asks: stageAsks, answer: stageAnswer, toeditor: stageToEditor, editor: stageEditor, pier: stagePier, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, wish: stageWish, react: stageReact, alive: stageAlive, touch: stageTouch, phoneperf: stagePhonePerf, motion: runCharacterMotion, leave: stageLeave, back: stageBack,
 };
+STAGES.push('pier');
+ORDERS['sandbox-pier-marker'] = ['landing', 'veil', 'intro', 'mirror', 'pier'];
 // Island invitations (island-invite): after the sheet, the inviter's stage, then the friend's page on a closed island.
 STAGES.push('invite', 'gone', 'own');
 ORDERS['island-invite'] = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'invite', 'gone', 'own'];
@@ -2710,7 +2809,7 @@ RUN.moment = stageMoment;
 /** The stages a page that follows a leg change carries on with (the first-minutes ones are already done). */
 const legSeq = (id, prior) => (id === 'editor-bridge' && prior && prior.leg === 'editor' ? ['editor'] : id === 'island-invite' && prior && (prior.leg === 'gone' || prior.leg === 'own') ? [prior.leg] : null);
 
-const ENDS = { 'mirror-panel-layout': 'mirrorlayout', 'character-motion': 'motion', 'overseer-personality': 'react', 'overseer-first-visit': 'firstvisit', 'island-invite-friend': 'farrive', 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'overseer-ask': 'answer', 'editor-bridge': 'editor', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'phone-performance': 'phoneperf', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models', 'gen-hats': 'hats' };
+const ENDS = { 'mirror-panel-layout': 'mirrorlayout', 'character-motion': 'motion', 'overseer-personality': 'react', 'overseer-first-visit': 'firstvisit', 'island-invite-friend': 'farrive', 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-pier-marker': 'pier', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'overseer-ask': 'answer', 'editor-bridge': 'editor', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'phone-performance': 'phoneperf', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models', 'gen-hats': 'hats' };
 
 
 // ---------------------------------------------------------------------------------------------- share-moment
