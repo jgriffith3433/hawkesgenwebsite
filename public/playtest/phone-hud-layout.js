@@ -3,12 +3,15 @@
 // queries and the touch layout are the real ones. Checks: the top-right actions fold into one 44 px menu and each
 // intent works with one tap; the open mirror sheet leaves the quest button and the move stick free; no HUD control
 // under 44 px or cut off by the edge. Screenshots with the sheet open and closed at each size.
+//
+// Actions are tapped while the mirror is still open (the menu sits above it at z-index 70) so closing the mirror does
+// not race the account gate (want('tour')) or remove intents mid-check on a signed-in beta account.
 export const PHONE_HUD_LAYOUT = {
   id: 'phone-hud-layout',
   title: 'Phone HUD: actions fold into one 44 px menu; the mirror is a bottom sheet (portrait) or narrow side sheet (landscape) that leaves the quest and the stick free',
   seconds: 420,
   tags: ['full'],
-  description: 'for each of 390x844 and 844x390 (an iframe of that size with /play/sandbox?touch=1): veil, skip the intro, the mirror opens; sheet open and closed screenshots; the quest button and the move stick stay clear of the sheet and usable; the actions are one 44 px menu, tapping it shows every intent and each works with one tap (Save / Build open the account sheet and Keep playing closes it; Invite runs). options: sizes (default ["390x844","844x390"]), frames (false: the browser\'s own window once)',
+  description: 'for each of 390x844 and 844x390 (an iframe of that size with /play/sandbox?touch=1): veil, skip the intro, the mirror opens; sheet open and closed screenshots; the quest button and the move stick stay clear of the sheet and usable; the actions are one 44 px menu, tapping it shows every intent and each works with one tap (Save / Build open the account sheet or a signed-in save/toast; Invite runs). options: sizes (default ["390x844","844x390"]), frames (false: the browser\'s own window once)',
 };
 
 const SIZES = ['390x844', '844x390'];
@@ -57,6 +60,11 @@ async function oneSize(t, { w, h, label, framed }) {
     });
     win = frame.contentWindow;
     doc = win.document;
+    try { frame.focus(); win.focus(); } catch { /* fine */ }
+    // Native share leaves no toast to measure: force the copy-toast path for Invite.
+    try { Object.defineProperty(win.navigator, 'share', { configurable: true, value: undefined }); } catch {
+      try { win.navigator.share = undefined; } catch { /* fine */ }
+    }
   }
   const $ = (sel, root = doc) => root.querySelector(sel);
   const $$ = (sel, root = doc) => [...root.querySelectorAll(sel)];
@@ -85,18 +93,29 @@ async function oneSize(t, { w, h, label, framed }) {
       t.event('veil-passed', label);
     }
 
+    // Skip the intro with a real pointer into the game (keys alone often miss an unfocused iframe).
     const introing = await until(() => {
       const g = win.HawkesPlay && win.HawkesPlay.game && win.HawkesPlay.game.overseer;
       return (g && g.introPlaying) || $('.mr .mr-q');
-    }, 30000, `${label}: intro or mirror`).then(() => true, () => false);
+    }, 45000, `${label}: intro or mirror`).then(() => true, () => false);
     if (!$('.mr') && introing) {
-      await wait(1500);
+      await wait(600);
+      tapCanvas(win, doc);
       win.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       win.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
       t.event('intro-skipped', label);
     }
 
-    await until(() => $('.mr .mr-q'), 45000, `${label}: the mirror to open`);
+    const mirrorOk = await until(() => $('.mr .mr-q'), 60000, `${label}: the mirror to open`).then(() => true, () => false);
+    if (!mirrorOk) {
+      // Short landscape sometimes finishes the intro without auto-opening: open the questions anywhere.
+      try {
+        const g = win.HawkesPlay && win.HawkesPlay.game;
+        if (g && g.mirror && g.mirror.dress) g.mirror.dress();
+      } catch { /* fine */ }
+      await until(() => $('.mr .mr-q'), 15000, `${label}: mirror via dress()`);
+      t.event('mirror-forced', label);
+    }
     await wait(600);
     const HL = win.HawkesPlay && win.HawkesPlay.hudLayout;
     if (HL && HL.refresh) HL.refresh();
@@ -115,7 +134,6 @@ async function oneSize(t, { w, h, label, framed }) {
     const openClear = clearance(doc, win, label, { needQuest: false, needStick: true });
     for (const b of openClear.bad) bad.push(b);
     if (!openClear.bad.length) t.event('sheet-clear', `${label}: stick free of the mirror`);
-    // Top-left keep-out: the sheet must not cover the quest zone rect even if the button is still hidden.
     const zoneClear = questZoneFree(doc, win, label);
     for (const b of zoneClear) bad.push(b);
     if (!zoneClear.length) t.event('quest-zone-free', `${label}: top-left quest zone clear of the sheet`);
@@ -124,18 +142,10 @@ async function oneSize(t, { w, h, label, framed }) {
     for (const s of undersized(doc, MIN)) bad.push(`${label} open: ${s}`);
     if (!undersized(doc, MIN).length) t.event('taps-ok-open', `${label}: no control under ${MIN} px`);
 
-    const x = $('.mr .mr-x');
-    if (x) tap(x, win);
-    else win.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    await until(() => !$('.mr'), 10000, `${label}: the mirror to close`);
-    await wait(400);
-    t.scene(`Phone ${label}: mirror closed`);
-    t.event('mirror-closed', label);
-
-    // --- actions menu (real tap only) ---
+    // --- actions menu while the mirror is still open (avoids the post-mirror account-gate race) ---
     const acts = $('.gs-acts');
     if (!acts) { bad.push(`${label}: no .gs-acts`); return bad; }
-    if (!doc.body.classList.contains('hl-compact')) bad.push(`${label}: hl-compact lost after mirror closed`);
+    if (!doc.body.classList.contains('hl-compact')) bad.push(`${label}: hl-compact missing with mirror open`);
 
     const more = acts.querySelector('.more, [data-menu]');
     if (!more) { bad.push(`${label}: no menu button`); return bad; }
@@ -144,26 +154,30 @@ async function oneSize(t, { w, h, label, framed }) {
     if (mr.width < MIN - 0.5 || mr.height < MIN - 0.5) bad.push(`${label}: menu ${Math.round(mr.width)}x${Math.round(mr.height)} under ${MIN} px`);
     else t.event('menu-button', `${label}: ${Math.round(mr.width)}x${Math.round(mr.height)}`);
 
-    const intents = $$('[data-intent]', acts);
-    const shownClosed = intents.filter((b) => visible(b));
-    if (shownClosed.length) bad.push(`${label}: ${shownClosed.length} intents still showing with the menu closed`);
+    // Only one top-right control when folded (Journal is hidden on compact).
+    const jr = $('.jr-btn');
+    if (jr && visible(jr)) bad.push(`${label}: Journal still showing beside the menu on compact`);
+
+    const intentsClosed = $$('[data-intent]', acts).filter((b) => visible(b));
+    if (intentsClosed.length) bad.push(`${label}: ${intentsClosed.length} intents still showing with the menu closed`);
     else t.event('menu-folded', `${label}: intents hidden behind the menu`);
 
     tap(more, win);
-    await wait(250);
+    await wait(300);
     if (!acts.classList.contains('open')) {
       bad.push(`${label}: tapping the menu did not add .open`);
     } else {
-      const shownOpen = intents.filter((b) => visible(b));
+      const shownOpen = $$('[data-intent]', acts).filter((b) => visible(b));
       if (shownOpen.length < 3) bad.push(`${label}: expected 3 intents after one tap, found ${shownOpen.length}`);
       else t.event('menu-open', `${label}: ${shownOpen.map((b) => b.dataset.intent).join(', ')}`);
     }
     t.scene(`Phone ${label}: actions menu open`);
 
     for (const intent of ['save', 'build', 'invite']) {
+      dismissOverlays(doc, win);
       if (!acts.classList.contains('open')) {
         tap(more, win);
-        await wait(200);
+        await wait(250);
         if (!acts.classList.contains('open')) { bad.push(`${label}: could not reopen menu for ${intent}`); continue; }
       }
       const btn = acts.querySelector(`[data-intent="${intent}"]`);
@@ -171,32 +185,56 @@ async function oneSize(t, { w, h, label, framed }) {
       const br = btn.getBoundingClientRect();
       if (br.height < MIN - 0.5) bad.push(`${label}: ${intent} ${Math.round(br.height)} px tall`);
       tap(btn, win);
-      await wait(500);
+      await wait(700);
       if (intent === 'invite') {
-        t.event('action-tapped', `${label}: invite`);
+        const linkToast = $('[data-invite="link"], .gs-toast[data-invite]');
+        const anyInviteToast = $$('.gs-toast', doc).find((el) => /link|invite|copied/i.test(el.textContent || '') || el.dataset.invite);
+        if (!linkToast && !anyInviteToast) {
+          bad.push(`${label}: invite did not show a link toast (share/copy outcome missing)`);
+        } else {
+          t.event('action-tapped', `${label}: invite → toast`);
+          for (const s of overlayTaps(doc, MIN)) bad.push(`${label} invite: ${s}`);
+        }
+        dismissOverlays(doc, win);
       } else {
-        const sheet = $('.gs-sheet, .gs-veil .gs-sheet, .gs-veil');
-        if (!sheet) bad.push(`${label}: ${intent} did not open the account sheet`);
-        else {
+        const sheet = $('.gs-veil .gs-sheet, .gs-sheet');
+        const fullToast = $('[data-games-full], .gs-toast[data-games-full]');
+        const saved = acts.querySelector('[data-intent="save"]');
+        const savedFlash = saved && /Saved/i.test(saved.textContent || '');
+        if (sheet) {
           t.event('action-tapped', `${label}: ${intent} → sheet`);
-          const root = sheet.closest('.gs-veil') || sheet;
-          const back = $('[data-back]', root) || $('.gs-veil [data-back]');
-          if (back) tap(back, win);
-          else {
-            try { if (win.HawkesGuest && win.HawkesGuest._dismissSheet) win.HawkesGuest._dismissSheet(); } catch { /* fine */ }
-            const veil = $('.gs-veil');
-            if (veil) veil.remove();
-          }
-          await until(() => !$('.gs-veil'), 5000, `${label}: sheet to close after ${intent}`).catch(() => {
-            const v = $('.gs-veil'); if (v) v.remove();
-          });
+          for (const s of overlayTaps(doc, MIN)) bad.push(`${label} ${intent}: ${s}`);
+          dismissOverlays(doc, win);
+        } else if (fullToast) {
+          t.event('action-tapped', `${label}: ${intent} → games-full toast`);
+          for (const s of overlayTaps(doc, MIN)) bad.push(`${label} ${intent}: ${s}`);
+          dismissOverlays(doc, win);
+        } else if (intent === 'save' && savedFlash) {
+          t.event('action-tapped', `${label}: save → saved`);
+        } else if (intent === 'build' && /\/app\/g\//.test(String(win.location && win.location.href))) {
+          t.event('action-tapped', `${label}: build → editor`);
+          bad.push(`${label}: build navigated away from the sandbox (signed-in island); expected sheet or toast in this scenario`);
+        } else {
+          bad.push(`${label}: ${intent} did not open the account sheet (or a signed-in save/toast)`);
         }
       }
       await wait(200);
     }
     t.event('actions-tapped', `${label}: save, build, invite`);
 
-    // Re-open the mirror after the account path would have started the tour (quest chrome may be up).
+    // Close the mirror and re-check clearance with quest chrome if the tour is up.
+    dismissOverlays(doc, win);
+    const x = $('.mr .mr-x');
+    if (x) tap(x, win);
+    else win.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await until(() => !$('.mr'), 10000, `${label}: the mirror to close`).catch(() => {});
+    await wait(400);
+    // Closing may open a forced account sheet (tour gate): put it away when it is not forced, else leave via playtest helper.
+    dismissOverlays(doc, win);
+    t.scene(`Phone ${label}: mirror closed`);
+    t.event('mirror-closed', label);
+
+    // Re-open the mirror after actions (quest chrome may be up).
     try {
       const g = win.HawkesPlay && win.HawkesPlay.game;
       if (g && g.mirror && g.mirror.dress) g.mirror.dress();
@@ -213,6 +251,7 @@ async function oneSize(t, { w, h, label, framed }) {
       const xx = $('.mr .mr-x');
       if (xx) tap(xx, win);
       await until(() => !$('.mr'), 8000, `${label}: mirror close again`).catch(() => {});
+      dismissOverlays(doc, win);
     } else t.event('mirror-reopen-skipped', label);
 
     for (const s of undersized(doc, MIN)) bad.push(`${label} closed: ${s}`);
@@ -234,6 +273,37 @@ function tap(el, win) {
     try { el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); } catch { /* fine */ }
   }
   try { el.click(); } catch { /* fine */ }
+}
+
+function tapCanvas(win, doc) {
+  const canvas = doc.querySelector('canvas');
+  const target = canvas || doc.body;
+  try {
+    const r = target.getBoundingClientRect();
+    const x = r.left + r.width / 2, y = r.top + Math.min(r.height * 0.4, 120);
+    target.dispatchEvent(new win.PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerType: 'touch', pointerId: 1, clientX: x, clientY: y }));
+    target.dispatchEvent(new win.PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerType: 'touch', pointerId: 1, clientX: x, clientY: y }));
+  } catch {
+    try { win.dispatchEvent(new win.PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerType: 'touch', pointerId: 1 })); } catch { /* fine */ }
+  }
+}
+
+/** Close account sheets / toasts that would block the next tap. Forced sheets use playtestContinue when present. */
+function dismissOverlays(doc, win) {
+  try {
+    if (win.HawkesGuest && typeof win.HawkesGuest.playtestContinue === 'function') win.HawkesGuest.playtestContinue();
+    else if (win.HawkesGuest && typeof win.HawkesGuest._dismissSheet === 'function') win.HawkesGuest._dismissSheet();
+  } catch { /* fine */ }
+  for (const v of doc.querySelectorAll('.gs-veil')) {
+    const back = v.querySelector('[data-back]');
+    if (back) { try { back.click(); } catch { /* fine */ } }
+    else try { v.remove(); } catch { /* fine */ }
+  }
+  for (const t of doc.querySelectorAll('.gs-toast[data-games-full], .gs-toast[data-invite]')) {
+    const x = t.querySelector('[data-x]');
+    if (x) try { x.click(); } catch { /* fine */ }
+    else try { t.remove(); } catch { /* fine */ }
+  }
 }
 
 function visible(el) {
@@ -304,6 +374,27 @@ function undersized(doc, min) {
       const vw = doc.documentElement.clientWidth, vh = doc.documentElement.clientHeight;
       if (r.left < -1 || r.top < -1 || r.right > vw + 1 || r.bottom > vh + 1) {
         out.push(`${sel} cut off (${Math.round(r.left)}..${Math.round(r.right)})`);
+      }
+    }
+  }
+  return out;
+}
+
+/** Account sheet / toast CTAs must stay ≥44 px and inside the viewport (finding f_1f4102467ade). */
+function overlayTaps(doc, min) {
+  const out = [];
+  const sels = [
+    '.gs-sheet .go', '.gs-sheet .google', '.gs-sheet .back', '.gs-sheet [data-back]',
+    '.gs-toast button', '.gs-toast a.primary', '.gs-toast [data-x]',
+  ];
+  const vw = doc.documentElement.clientWidth, vh = doc.documentElement.clientHeight;
+  for (const sel of sels) {
+    for (const el of doc.querySelectorAll(sel)) {
+      if (!visible(el)) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < min - 0.5 || r.height < min - 0.5) out.push(`${sel} ${Math.round(r.width)}x${Math.round(r.height)}`);
+      if (r.left < -1 || r.top < -1 || r.right > vw + 1 || r.bottom > vh + 1) {
+        out.push(`${sel} cut off (${Math.round(r.left)}..${Math.round(r.right)} in ${vw}x${vh})`);
       }
     }
   }

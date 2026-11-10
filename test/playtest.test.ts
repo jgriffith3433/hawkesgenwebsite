@@ -53,10 +53,12 @@ test('site-layout: three sizes, the checklist in AGENTS.md, horizontal scroll, a
 test('phone-hud-layout: 390x844 and 844x390, menu fold, sheet clearance, 44 px taps; wired in portal and AGENTS.md', () => {
   const src = read('public/playtest/phone-hud-layout.js');
   for (const size of ['390x844', '844x390']) assert.ok(src.includes(size), size);
-  for (const k of ['menu-button', 'sheet-clear', 'action-tapped', 'hl-compact', 'phone-hud-ok']) assert.ok(src.includes(k), k);
+  for (const k of ['menu-button', 'sheet-clear', 'action-tapped', 'hl-compact', 'phone-hud-ok', 'menu-folded', 'quest-zone-free', 'dismissOverlays', 'overlayTaps', 'invite did not show a link toast']) assert.ok(src.includes(k), k);
+  assert.ok(src.includes('actions menu while the mirror is still open') || src.includes('while the mirror is still open'), 'actions tapped with mirror open (no account-gate race)');
   assert.match(read('public/playtest/portal.js'), /runPhoneHudLayout\(t, options\)/);
   assert.match(read('AGENTS.md'), /phone-hud-layout/);
   assert.match(read('public/play/modules/hudlayout/hudlayout.js'), /hl-compact/);
+  assert.match(read('public/play/modules/hudlayout/hudlayout.js'), /body\.hl-compact \.jr-btn\{display:none/);
 });
 
 test('avatar-animations: a frame per class, the bone checks, the fallbacks and ten characters; documented in AGENTS.md', () => {
