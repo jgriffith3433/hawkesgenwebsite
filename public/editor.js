@@ -87,10 +87,14 @@ async function get(url) {
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
   return res.json();
 }
-async function post(url, body, headers = {}) {
+async function post(url, body, headers = {}, o = {}) {
   const h = { 'Content-Type': 'application/json', ...headers };
   if (connId) h['X-Conn'] = connId;
-  const res = await fetch(url, { method: 'POST', headers: h, credentials: 'include', body: JSON.stringify(body ?? {}) });
+  // (o.timeout: a request that may never come back, like a message to the Overseer, is given up after that long.)
+  const signal = o.timeout && AbortSignal.timeout ? AbortSignal.timeout(o.timeout) : undefined;
+  let res;
+  try { res = await fetch(url, { method: 'POST', headers: h, credentials: 'include', body: JSON.stringify(body ?? {}), signal }); }
+  catch (err) { const e = new Error(err && err.name === 'TimeoutError' ? 'Hawkes Games took too long to answer.' : "Couldn't reach Hawkes Games."); e.status = 0; throw e; }
   const out = await res.json().catch(() => ({}));
   if (!res.ok) { const e = new Error(out.error || res.statusText); e.status = res.status; e.body = out; throw e; }
   return out;
@@ -394,7 +398,9 @@ function listen(u) {
   sse.addEventListener('open', () => { sseTries = 0; });
   sse.addEventListener('bye', () => { sse.close(); sseTries = 0; sseLater(); });
   for (const ev of ['file', 'file-deleted', 'file-renamed', 'asset', 'asset-removed', 'asset-renamed', 'chat', 'gen', 'game', 'release', 'role', 'removed', 'deleted']) sse.addEventListener(ev, (e) => { if (e.lastEventId) sseLast = e.lastEventId; });
-  sse.addEventListener('hello', (e) => { const d = JSON.parse(e.data); connId = d.conn; updatePresence(d.presence || []); $('thinkingIndicator').hidden = true; });
+  // (`thinking`: whether the Overseer is working now. A stream that came back after an answer ended learns it here; the
+  // answer itself is replayed right after, so the ask's watch only waits a little longer for it.)
+  sse.addEventListener('hello', (e) => { const d = JSON.parse(e.data); connId = d.conn; updatePresence(d.presence || []); $('thinkingIndicator').hidden = !d.thinking; askAlive(d.thinking ? 0 : ASK_AFTER_MS); });
   sse.addEventListener('file', (e) => {
     markUnsaved();
     const d = JSON.parse(e.data);
@@ -424,7 +430,9 @@ function listen(u) {
     const i = chatHistory.findIndex((x) => x.id === msg.id);
     if (i >= 0) chatHistory[i] = msg; else chatHistory.push(msg);
     renderChat(i < 0 ? msg : null);
-    if (i < 0 && msg.role === 'ai') clearAskWatch(); // an answer, or the plain failure: no waiting any more
+    // An answer, or the plain failure: no waiting any more, and nothing keeps "working" (thinking and end are state, not
+    // replayed after a stream came back; the answer is).
+    if (i < 0 && msg.role === 'ai') { clearAskWatch(); $('thinkingIndicator').hidden = true; toStage({ type: 'overseer-work', k: 'end', ok: !(msg.data && msg.data.error) }); }
     if (i < 0 && msg.role === 'ai' && msg.text) speak(msg.text);
     if (i < 0 && msg.role === 'ai' && msg.data && msg.data.error) { $('thinkingIndicator').hidden = true; toStage({ type: 'toast', text: 'The assistant hit a problem (see chat)' }); }
     // An answer to my request: how long it took, and whether it worked.
@@ -439,8 +447,9 @@ function listen(u) {
     }
   });
   // The Overseer at work (src/overseer-lines.ts): where, the beats, its words, things arriving, the end: into the game.
-  sse.addEventListener('overseer', (e) => { let d; try { d = JSON.parse(e.data); } catch { return; } toStage({ ...d, type: 'overseer-work' }); });
-  sse.addEventListener('thinking', (e) => { const d = JSON.parse(e.data); if (!d.on) clearAskWatch(); $('thinkingIndicator').hidden = !d.on; if (d.on) $('thinkingIndicator').textContent = `${d.by && d.by !== me?.name ? `${d.by}'s request: ` : ''}working…`; });
+  // Each of the Overseer's events (and its heartbeat, `alive`, every ~10 s) is a sign of life for the ask's watch.
+  sse.addEventListener('overseer', (e) => { let d; try { d = JSON.parse(e.data); } catch { return; } askAlive(); if (d && d.k === 'alive') return; toStage({ ...d, type: 'overseer-work' }); });
+  sse.addEventListener('thinking', (e) => { const d = JSON.parse(e.data); askAlive(d.on ? 0 : ASK_AFTER_MS); $('thinkingIndicator').hidden = !d.on; if (d.on) $('thinkingIndicator').textContent = `${d.by && d.by !== me?.name ? `${d.by}'s request: ` : ''}working…`; });
   sse.addEventListener('gen', (e) => onGen(JSON.parse(e.data)));
   sse.addEventListener('game', (e) => { const d = JSON.parse(e.data); game = { ...game, ...d }; members = d.members || members; if (document.activeElement !== $('gameTitle')) $('gameTitle').value = game.title; loadSettings(); });
   sse.addEventListener('release', (e) => { const d = JSON.parse(e.data); releases = d.releases || releases; renderReleases(); markSaved(); });
@@ -636,11 +645,33 @@ $('chatInput').addEventListener('keydown', (e) => {
 /** Done typing: back into the game (Enter sends, Esc just goes back). */
 function backToGame() { $('chatInput').blur(); stage.focus(); }
 
-/** One timer per ask (no polling): if neither an answer nor the end arrives, the page stops waiting, says so and offers Retry.
- *  The server's own watchdog fails a stuck run and gives the credits back; this covers a feed that died. */
+/** One timer per ask (no polling; J, 2026-11-10: "it just thinks forever"): when nothing comes from the server for
+ *  ASK_QUIET_MS (the feed died, or the run never started), or the whole ask passes ASK_WATCH_MS, the page stops waiting,
+ *  says so and offers Retry. The server's own watchdog fails a stuck run and gives the credits back. (guest.js has the same
+ *  watch as HawkesGuestCore.askWatch, tested in test/engine/overseer-watch.test.ts.) */
 let askWatch = null;
+let askStarted = 0;
+let askPending = null; // { message, target } of the ask being watched
+const ASK_QUIET_MS = 60_000;
+const ASK_AFTER_MS = 15_000; // the Overseer is done (thinking off, or a stream came back with it not working): the answer is due
 const ASK_WATCH_MS = 6.5 * 60_000;
-function clearAskWatch() { clearTimeout(askWatch); askWatch = null; }
+const ASK_POST_MS = 45_000;
+function clearAskWatch() { clearTimeout(askWatch); askWatch = null; askPending = null; }
+/** A sign of life: the watch waits ms (default ASK_QUIET_MS) more, never past ASK_WATCH_MS in all. */
+function askAlive(ms) {
+  if (!askPending) return;
+  clearTimeout(askWatch);
+  const left = ASK_WATCH_MS - (Date.now() - askStarted);
+  const cap = left <= (ms || ASK_QUIET_MS);
+  askWatch = setTimeout(() => {
+    const a = askPending;
+    clearAskWatch();
+    if (!a) return;
+    hga()?.track('assistant_hung', { why: cap ? 'cap' : 'quiet' });
+    askFailed(cap ? "I haven't heard back from my side for a while, so I've stopped waiting. If you were charged, the credits come back on their own. Try again."
+      : "I lost track of that one: nothing came back from my side for a minute. If you were charged, the credits come back on their own, and if the answer turns up after all it shows here. Try again.", a.message, a.target);
+  }, Math.max(0, Math.min(ms || ASK_QUIET_MS, left)));
+}
 /** A failed ask as a line in the chat with a Retry button (renderChat draws it for a message whose data has error + retry). */
 function askFailed(text, message, target) {
   $('thinkingIndicator').hidden = true;
@@ -663,11 +694,13 @@ async function sendChat(text, about, ctx) {
   const context = ctx ?? (await worldContext());
   const errText = errors.slice(-5).map((e) => `${e.file || 'script'}:${e.line ?? '?'}: ${e.text}`).join('\n');
   try {
-    await post(`${API}/games/${gameId}/ai`, { message: target ? `@${target.name || target.id} ${message}` : message, mention: target || undefined, context: context || undefined, file: openPath, errors: errText || undefined });
+    await post(`${API}/games/${gameId}/ai`, { message: target ? `@${target.name || target.id} ${message}` : message, mention: target || undefined, context: context || undefined, file: openPath, errors: errText || undefined }, {}, { timeout: ASK_POST_MS });
     setMention(null);
     askedAt = Date.now();
     clearAskWatch();
-    askWatch = setTimeout(() => { askWatch = null; askFailed("I haven't heard back from my side for a while, so I've stopped waiting. If you were charged, the credits come back on their own. Try again.", message, target); }, ASK_WATCH_MS);
+    askPending = { message, target };
+    askStarted = Date.now();
+    askAlive();
     hga()?.track('assistant_ask', { chars: message.length, mention: Boolean(target), errors: errors.length });
     // The game hears it too (game.on('asked'): the island's tour has a step for it).
     toStage({ type: 'event', name: 'asked', data: { chars: message.length, text: String(message).slice(0, 200) } });
