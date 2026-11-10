@@ -50,3 +50,15 @@ test("a 3D try stopped at RunPod's old 300 s limit (Gen's limit, not the model) 
   assert.ok(stoppedAtGenLimit('step 4 (mesh.views3d) failed: runpod: HTTP Error 413: Request Entity Too Large'));
   assert.ok(!stoppedAtGenLimit('step 3/5 image.viewsheet: the views are not the same object'));
 });
+
+test('stepCost sums a tool\'s finished jobs in GPU seconds', async () => {
+  const { stepCost } = await import('../src/community.ts');
+  const r = stepCost([
+    { status: 'done', started: 1000, finished: 11000, gpu_seconds: 8 },
+    { status: 'done', started: 1000, finished: 31000, gpu_seconds: 20 },
+    { status: 'done', started: 1000, finished: 21000, gpu_seconds: 12 },
+    { status: 'failed', started: 1000, finished: 2000, gpu_seconds: 1 },
+    { status: 'running', started: 1000, finished: null, gpu_seconds: 3 },
+  ]);
+  assert.deepEqual(r, { done: 3, failed: 1, gpuSecondsMedian: 12, gpuSecondsTotal: 40, wallSecondsMedian: 20 });
+});
