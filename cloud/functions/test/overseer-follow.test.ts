@@ -39,3 +39,12 @@ test('a job past its deadline is cancelled with error timeout', async () => {
   assert.equal(out.status, 'cancelled');
   assert.equal(out.error, 'timeout');
 });
+
+test('a job Gen never starts (still queued) is cancelled as a timeout well before the deadline', async () => {
+  const t = Date.now();
+  const out = await followJob({ id: 'j_4', status: 'queued' }, 'p', Date.now() + 60_000, undefined, undefined,
+    { pollMs: 5, queuedMs: 100, read: async () => ({ id: 'j_4', status: 'queued' }), cancel: async () => ({ id: 'j_4', status: 'cancelled' }) });
+  assert.equal(out.status, 'cancelled');
+  assert.equal(out.error, 'timeout');
+  assert.ok(Date.now() - t < 5_000);
+});
