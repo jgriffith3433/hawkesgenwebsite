@@ -62,3 +62,29 @@ test('stepCost sums a tool\'s finished jobs in GPU seconds', async () => {
   ]);
   assert.deepEqual(r, { done: 3, failed: 1, gpuSecondsMedian: 12, gpuSecondsTotal: 40, wallSecondsMedian: 20 });
 });
+
+test('a lane copies only from a hawkesgames.com https origin', async () => {
+  const { copySource } = await import('../src/community.ts');
+  assert.equal(copySource('https://beta.hawkesgames.com'), 'https://beta.hawkesgames.com');
+  assert.equal(copySource('https://beta.hawkesgames.com/anything?x=1'), 'https://beta.hawkesgames.com');
+  assert.equal(copySource('http://beta.hawkesgames.com'), null);
+  assert.equal(copySource('https://evilhawkesgames.com'), null);
+  assert.equal(copySource('https://hawkesgames.com.evil.example'), null);
+  assert.equal(copySource('https://user:pw@beta.hawkesgames.com'), null);
+  assert.equal(copySource(undefined), null);
+});
+
+test('a copied model keeps the recipe\'s own output names, so the sync lists it like a made one', async () => {
+  const { copySteps, sourceKey, starterRow } = await import('../src/community.ts');
+  const s = copySteps('model', 'blob:aa', 'blob:bb');
+  assert.deepEqual(s.steps.map((x: any) => [x.tool, x.save]), [['file.import', 'model'], ['file.import', 'cutout']]);
+  assert.deepEqual(copySteps('music', 'blob:cc', null).steps.map((x: any) => x.save), ['music']);
+  assert.equal(sourceKey('model', ' Wooden Crate '), 'model/wooden crate');
+  const labels = { pack: 'starter', kind: 'model', name: 'Wooden crate', item: 'wooden-crate', tag: 'props', rev: 'v4' };
+  const row = starterRow([
+    { id: 'a_1', title: 'model', mime: 'model/gltf-binary', bytes: 900, labels },
+    { id: 'a_2', title: 'cutout', mime: 'image/png', bytes: 50, labels },
+  ]);
+  assert.equal(row?.main.id, 'a_1');
+  assert.equal(row?.thumb?.id, 'a_2');
+});
