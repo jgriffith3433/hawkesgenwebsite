@@ -42,7 +42,7 @@ export { gameAssistant, watchAssistant, advanceGameGens } from './gameai.ts';
 route('GET', '/v1/health', () => ({ ok: true, service: 'hawkesgen-portal', cloud: 'gcp', gen: Boolean(genKey()), google: Boolean(process.env.GOOGLE_CLIENT_ID) }));
 
 export const api = onRequest(
-  { memory: '512MiB', cpu: 1, concurrency: 80, timeoutSeconds: 540, minInstances: 0, secrets: Object.values(SECRETS), invoker: 'public' },
+  { memory: '512MiB', cpu: 1, concurrency: 80, timeoutSeconds: 540, minInstances: 0, maxInstances: 10, secrets: Object.values(SECRETS), invoker: 'public' },
   (req, res) => {
     const path = new URL(req.originalUrl || req.url || '/', 'https://x').pathname;
     // The Net dashboard's CORS on every route it uses, including accounts.ts's (api-key, logout).
