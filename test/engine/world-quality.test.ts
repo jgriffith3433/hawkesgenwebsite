@@ -24,7 +24,8 @@ const show = (ps: any[]) => ps.map((p) => `rule ${p.rule} ${p.kind} ${p.id}: ${p
 test('world audit: the sandbox island has nothing floating, sunk, backwards, fighting or inside out', () => {
   run(H, { ...scene, config: { ...scene.config, look: false, shadows: false } }, { mode: 'play' });
   H.tick(0.2);
-  const { problems, counts } = Audit.audit(H);
+  // (Rule 5, missing assets, needs the server's files: here the bundle has none, so the live playtest checks it.)
+  const { problems, counts } = (({ problems, counts }) => ({ problems: problems.filter((p: any) => p.rule !== 5), counts }))(Audit.audit(H));
   if (process.env.AUDIT_PRINT) console.log(JSON.stringify(counts), '\n' + show(problems));
   assert.ok(counts.groundChecked > 20, `checked ${counts.groundChecked} things on the ground`);
   assert.ok(counts.textChecked >= 2, `checked ${counts.textChecked} signs`);
@@ -65,5 +66,6 @@ test('world audit: it sees each kind of mistake (a floating crate, a sunk one, a
   assert.ok(found('zfight', 't_wide') || found('zfight', 't_inner'), why);
   assert.ok(found('backwards', 't_words'), why);
   assert.ok(found('inside-out', 'hollow'), why);
+  assert.ok(found('waiting', 'barrel_5'), why); // a fuel barrel whose model the game doesn't have (no files offline)
   for (const ok of ['t_mirror_box', 't_shelf', 't_on_shelf']) assert.ok(!problems.some((p: any) => p.id === ok), `${ok} is fine:\n${why}`);
 });

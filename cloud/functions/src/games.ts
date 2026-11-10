@@ -27,7 +27,7 @@ import { id, PortalError, route, send, json } from './http.ts';
 import { applyOps, parseScene, sceneText } from './scene.ts';
 import { wordsOf } from './words.ts';
 import { templates, type Template } from './engine.ts';
-import { currentOf, fileLost } from './community.ts';
+import { currentOf, fileLost, STARTER_PROJECT } from './community.ts';
 import { tell, kick, liveCounts, allLiveCounts, join, setPresence } from './live.ts';
 // Friends both ways, once, keyed friends/{user}:{friend} (friends.ts owns the key; areFriends reads it).
 import { addFriend } from './friends.ts';
@@ -35,7 +35,10 @@ import { addFriend } from './friends.ts';
 export type Game = { id: string; slug: string; title: string; description: string; owner_id: string; visibility: 'public' | 'unlisted'; visitors?: 'play' | 'build'; live_version: number | null; cover: string | null; plays: number; created: number; updated: number; hidden?: number; hidden_reason?: string | null; hidden_at?: number | null; hidden_by?: string | null; files_count?: number; files_bytes?: number };
 export type Role = 'owner' | 'editor' | 'builder' | 'player';
 export type FileRow = { path: string; content: string; rev: number; updated: number; updated_by: string | null };
-export type AssetRow = { name: string; asset: string; project: string; kind: string | null; mime: string | null; added_by: string | null; created: number; words?: string[] | string | null; title?: string | null };
+export type AssetRow = { name: string; asset: string; project: string; kind: string | null; mime: string | null; added_by: string | null; created: number; words?: string[] | string | null; title?: string | null;
+  /** A remade starter thing (community.ts currentOf): the id whose file and levels serve this row, while `asset` keeps the
+   *  id the template's scene names. Never stored on a game's row (assetDoc): those resolve at serve time instead. */
+  file?: string };
 
 // Limits that keep one game a reasonable size for the browser and the database.
 export const LIMITS = { files: 150, fileBytes: 256 * 1024, totalBytes: 3 * 1024 * 1024, assets: 300 };
@@ -634,14 +637,15 @@ export const liveAssetUrl = (g: Game, name: string) => `/play-asset/${g.slug}/li
 /** The bundle's assets by name, each with its id, type, kind, title, words and levels of detail. A public bundle (live, a
  *  save, a template) points at Gen's CDN for what Gen has backed up; a draft's links are signed and never on the CDN. */
 async function assetMap(rows: AssetRow[], url: (a: AssetRow) => string, o: { pub: boolean }) {
+  const fileOf = (a: AssetRow) => a.file ?? a.asset;
   const [lods, cdn] = await Promise.all([
-    lodsOf(rows.filter((a) => typeOf(a.mime) === 'image' || typeOf(a.mime) === 'model').map((a) => a.asset)),
-    o.pub ? cdnOf(rows.map((a) => a.asset)) : Promise.resolve({} as Record<string, string>),
+    lodsOf(rows.filter((a) => typeOf(a.mime) === 'image' || typeOf(a.mime) === 'model').map(fileOf)),
+    o.pub ? cdnOf(rows.map(fileOf)) : Promise.resolve({} as Record<string, string>),
   ]);
   return Object.fromEntries(rows.map((a) => {
     const u = url(a);
-    const l = lods[a.asset];
-    return [a.name, { url: cdn[a.asset] ?? u, mime: a.mime, kind: a.kind, id: a.asset, type: typeOf(a.mime), title: a.title ?? null, words: wordList(a), ...(l ? { lods: levelUrls(l, u, { cdn: o.pub }) } : {}) }];
+    const l = lods[fileOf(a)];
+    return [a.name, { url: cdn[fileOf(a)] ?? u, mime: a.mime, kind: a.kind, id: a.asset, type: typeOf(a.mime), title: a.title ?? null, words: wordList(a), ...(l ? { lods: levelUrls(l, u, { cdn: o.pub }) } : {}) }];
   }));
 }
 
@@ -655,12 +659,13 @@ export async function templateAssetRows(t: Template): Promise<AssetRow[]> {
   for (const [i, [name]] of entries.entries()) {
     const s = snaps[i];
     if (!s.exists) continue;
-    // A starter thing made again since the template named it: the template gets the new one (community.ts currentOf).
+    // A starter thing made again since the template named it: the template gets the new one's file (community.ts
+    // currentOf) under the id its scene names, so a prop that names the old id (shape.asset, material.texture) finds it.
     const r = await currentOf({ id: s.id, ...(s.data() as any) });
     // (Gen lost its file and nothing replaced it yet: left out, so the game plays on with its stand-in, no 404.)
     if (!r || fileLost(r)) continue;
     const tags = String(r.tags ?? '');
-    out.push({ name, asset: r.id, project: r.project, kind: r.kind, mime: r.mime ?? null, added_by: '', created: 0, title: r.title, words: wordsOf(name, r.title, r.category, tags ? tags.split(' ') : []) });
+    out.push({ name, asset: s.id, ...(r.id !== s.id ? { file: r.id } : {}), project: r.project, kind: r.kind, mime: r.mime ?? null, added_by: '', created: 0, title: r.title, words: wordsOf(name, r.title, r.category, tags ? tags.split(' ') : []) });
   }
   return out;
 }
@@ -905,6 +910,20 @@ export async function playBundle(slug: string, version?: number | null, player: 
 
 /** Which Gen file an asset link means: a release's (public with the game) or a signed draft link. */
 export async function resolvePlayAsset(parts: { token?: string; slug?: string; version?: number | 'live'; name?: string }) {
+  return remadeStarter(await namedPlayAsset(parts));
+}
+
+/** A game's row names a starter thing by its first id (games made from a template before Gen lost the pack): the file of
+ *  the same thing made since (community.ts currentOf), so older games and saves get the remade file too. */
+async function remadeStarter(a: { asset: string; project: string; immutable: boolean }) {
+  if (a.project !== STARTER_PROJECT) return a;
+  const s = await db.collection('communityAssets').doc(a.asset).get();
+  if (!s.exists) return a;
+  const now = await currentOf({ id: s.id, ...(s.data() as any) });
+  return now && now.id !== a.asset ? { asset: now.id, project: now.project, immutable: false } : a;
+}
+
+async function namedPlayAsset(parts: { token?: string; slug?: string; version?: number | 'live'; name?: string }) {
   if (parts.token) {
     const t = verifyToken<{ g: string; a: string; p: string }>(parts.token);
     if (!t || !ASSET_ID.test(t.a)) throw new PortalError('This preview link has expired; reload the editor', { status: 410 });

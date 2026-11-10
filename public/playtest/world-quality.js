@@ -9,9 +9,10 @@
 //     backwards                  a sign whose words read mirrored from a side you can see
 //     zfight                     two faces in one plane (they flicker), or a flat plane laid exactly on the ground
 //     inside-out                 a closed model drawn from the inside
-//   metrics  quality-ground, quality-text, quality-coplanar, quality-normals (things checked), quality-problems
+//     waiting / broken / gone    a thing whose model, texture or picture is missing, won't load, or the library lost
+//   metrics  quality-ground, quality-text, quality-coplanar, quality-normals, quality-assets (things checked), quality-problems
 export const WORLD_QUALITY = {
-  id: 'world-quality', title: 'World quality: nothing floating or sunk, no backwards words, no faces fighting, nothing inside out', seconds: 90, tags: ['full'],
+  id: 'world-quality', title: 'World quality: nothing floating or sunk, no backwards words, no faces fighting, nothing inside out, nothing missing', seconds: 90, tags: ['full'],
   description: 'Each world page in a frame (options.worlds, default /play/sandbox); its own engine runs the world audit (public/play/world-audit.js) and every finding is a bug naming the thing and the rule. Read only.',
 };
 
@@ -50,7 +51,7 @@ function auditHere(options) {
   });
 }
 
-const RULE = { 1: 'backwards text', 2: 'z-fighting', 3: 'inside-out', 4: 'ground contact' };
+const RULE = { 1: 'backwards text', 2: 'z-fighting', 3: 'inside-out', 4: 'ground contact', 5: 'missing asset' };
 
 export async function runWorldQuality(t, options = {}) {
   const here = window.HawkesPlay && window.HawkesPlay.world && !(Array.isArray(options.worlds) && options.worlds.length);
@@ -69,14 +70,15 @@ export async function runWorldQuality(t, options = {}) {
     if (r.error === 'no world yet') { await t.wait(10000); r = await ask(); }
     if (r.error) throw new Error(`${url}: the audit could not run (${r.error})`);
     const c = r.counts || {};
-    t.event('audited', `${url}: ${c.groundChecked ?? 0} things on the ground, ${c.textChecked ?? 0} signs, ${c.coplanarChecked ?? 0} boxes and planes, ${c.normalsChecked ?? 0} shapes`);
+    t.event('audited', `${url}: ${c.groundChecked ?? 0} things on the ground, ${c.textChecked ?? 0} signs, ${c.coplanarChecked ?? 0} boxes and planes, ${c.normalsChecked ?? 0} shapes, ${c.assetsChecked ?? 0} things' assets`);
     t.metric('quality-ground', c.groundChecked ?? 0);
     t.metric('quality-text', c.textChecked ?? 0);
     t.metric('quality-coplanar', c.coplanarChecked ?? 0);
     t.metric('quality-normals', c.normalsChecked ?? 0);
+    t.metric('quality-assets', c.assetsChecked ?? 0);
     for (const p of r.problems || []) t.problem('bug', `${url}: ${RULE[p.rule] || 'quality'}: ${p.kind} ${p.id}: ${p.detail}`);
     total += (r.problems || []).length;
-    if (!(r.problems || []).length) t.event('clean', `${url}: nothing floating, sunk, backwards, fighting or inside out`);
+    if (!(r.problems || []).length) t.event('clean', `${url}: nothing floating, sunk, backwards, fighting, inside out or missing`);
     if (f) f.stage.remove();
     t.progress((i + 1) / worlds.length);
   }
