@@ -1,0 +1,41 @@
+# Read-only: the Overseer's step lines ([gameAssistant] and [test-signin]) from beta's (hawkes-staging) logs, for finding
+# why an ask stopped. Beta only; nothing is changed. As the beta deployer (keyless, like firebase.yml).
+#   gh workflow run ops-logs.yml --repo jgriffith3433/hawkesgenwebsite --ref beta -f minutes=60
+name: ops-logs
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: How far back to read (minutes, at most 360)
+        default: '60'
+      filter:
+        description: Text the lines must contain (default the Overseer's steps)
+        default: '[gameAssistant]'
+permissions:
+  id-token: write
+  contents: read
+concurrency:
+  group: ops-logs
+  cancel-in-progress: true
+jobs:
+  logs:
+    name: Beta's Overseer log lines
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/388576319982/locations/global/workloadIdentityPools/github/providers/github
+          service_account: deployer@hawkes-staging.iam.gserviceaccount.com
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Read
+        env:
+          MINUTES: ${{ inputs.minutes }}
+          FILTER: ${{ inputs.filter }}
+        run: |
+          m=$(( ${MINUTES:-60} > 360 ? 360 : ${MINUTES:-60} ))
+          since=$(date -u -d "-$m minutes" +%Y-%m-%dT%H:%M:%SZ)
+          f=$(printf '%s' "${FILTER:-[gameAssistant]}" | tr -d '"\\')
+          gcloud logging read "resource.type=\"cloud_run_revision\" AND timestamp>=\"$since\" AND (textPayload:\"$f\" OR severity>=ERROR)" \
+            --project hawkes-staging --order asc --limit 400 --format='value(timestamp,resource.labels.service_name,severity,textPayload)' \
+            | sed -E 's/(hg_|sk_live_|sk_test_|whsec_|re_|ghp_|github_pat_|tss_)[A-Za-z0-9_-]+/\1***/g; s/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}/<email>/g' | cut -c1-400
