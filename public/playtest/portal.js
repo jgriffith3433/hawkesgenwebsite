@@ -666,10 +666,31 @@ async function stageAnswer(t) {
     if (/\/v1\/games\/[^/]+\/ai$/.test(String(u)) && o && o.method === 'POST') {
       if (silentNext) { silentNext = false; seen.push(200); return Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'Content-Type': 'application/json' } })); }
       if (failNext) { failNext = false; seen.push(503); return Promise.resolve(new Response(JSON.stringify({ error: 'Gen is down' }), { status: 503, headers: { 'Content-Type': 'application/json' } })); }
+      const m = /\/v1\/games\/([^/]+)\/ai$/.exec(String(u)); if (m) gameId = m[1];
       return realFetch.apply(this, arguments).then((r) => { seen.push(r.status); return r; });
     }
     return realFetch.apply(this, arguments);
   };
+  // What the game's feed says while an ask runs (the Overseer's beats, its heartbeat with Gen's job status, thinking,
+  // chat), read on a stream of the playtest's own: when an ask hangs, the run says where it stood.
+  let gameId = null, feedLog = [], feedEs = null, feedT0 = Date.now();
+  const feedNote = (name, d) => { if (feedLog.length < 400) feedLog.push(`${Math.round((Date.now() - feedT0) / 1000)}s ${name}${d}`); };
+  const openFeed = async () => {
+    if (feedEs || !gameId || typeof EventSource === 'undefined') return;
+    const path = `/v1/games/${gameId}/live`;
+    const u = await realFetch(`/v1/stream-link?path=${encodeURIComponent(path)}`, { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null)).then((d) => (d && d.url) || path, () => path);
+    feedEs = new EventSource(u, { withCredentials: u.startsWith('/') });
+    feedEs.addEventListener('overseer', (e) => { let d = {}; try { d = JSON.parse(e.data); } catch { /* fine */ } feedNote('overseer', ` ${d.k}${d.k === 'alive' ? ` ${d.status} chars=${d.chars}` : d.k === 'op' ? ` ${d.op} ${d.id}` : d.k === 'end' ? ` ok=${d.ok} ops=${d.ops}` : ''}`); });
+    feedEs.addEventListener('thinking', (e) => feedNote('thinking', ` ${String(e.data).slice(0, 60)}`));
+    feedEs.addEventListener('chat', (e) => { let m = {}; try { m = JSON.parse(e.data); } catch { /* fine */ } feedNote('chat', ` ${m.role}: ${String(m.text || '').slice(0, 80)}`); });
+    feedEs.addEventListener('hello', (e) => feedNote('hello', ` ${String(e.data).slice(0, 60)}`));
+    feedEs.onerror = () => feedNote('stream', ' error');
+  };
+  const feedDump = (label) => {
+    const lines = feedLog.splice(0);
+    t.event('feed', `${label}: ${lines.length ? lines.join(' · ') : 'nothing on the feed'}`.slice(0, 1800));
+  };
+  const OFFER = /^Here is what I can do/;
   const ask = async (text) => {
     const input = await t.until(() => document.querySelector('.hc-form input'), 30000, 'the chat input');
     keyEv('keydown', 'Enter'); await t.wait(200);
@@ -700,13 +721,18 @@ async function stageAnswer(t) {
     const ids = () => new Set(Object.keys((W() && W().graph && W().graph.entities) || {}).concat([...W().entities].map((e) => e.id).filter(Boolean)));
     const thingsBefore = ids();
     const beforeB = new Set(lines());
+    await openFeed().catch((x) => feedNote('stream', ` not opened: ${x.message}`));
+    feedLog = []; feedT0 = Date.now();
     await ask('Add a red cube right in front of me.');
     t.scene('Asked: add a red cube');
-    await t.until(() => lines().some((x) => !beforeB.has(x)) || retryBtn(), ANSWER_MS, 'an answer to the build request')
-      .catch(() => { throw new Error(`the build request got no answer within ${ANSWER_MS / 1000} s (it "thinks forever")`); });
-    const said = lines().filter((x) => !beforeB.has(x)).join(' | ');
+    // (The example-asks offer is not an answer: only the Overseer's reply to this, or a failure, counts.)
+    const fresh = () => lines().filter((x) => !beforeB.has(x) && !OFFER.test(x));
+    await t.until(() => fresh().length || retryBtn(), ANSWER_MS, 'an answer to the build request')
+      .catch(() => { feedDump('build ask'); throw new Error(`the build request got no answer within ${ANSWER_MS / 1000} s (it "thinks forever")`); });
+    const said = fresh().join(' | ');
     if (retryBtn()) t.problem('error', `the build request failed instead of building: ${said.slice(0, 200)}`);
-    await t.until(() => !working(), 90000, 'the work indicator to end after the build');
+    await t.until(() => !working(), 90000, 'the work indicator to end after the build').catch((x) => { feedDump('build ask'); throw x; });
+    feedDump('build ask');
     await t.wait(1500);
     const added = [...ids()].filter((x) => !thingsBefore.has(x));
     if (!added.length) t.problem('error', `the build request was answered ("${said.slice(0, 120)}") but the game has no new thing`);
@@ -758,7 +784,7 @@ async function stageAnswer(t) {
     t.event('retry-answered', lines().filter((x) => !before3.has(x)).join(' | ').slice(0, 160));
     t.scene('Retried: answered');
     t.progress(1);
-  } finally { window.fetch = realFetch; }
+  } finally { window.fetch = realFetch; if (feedEs) feedEs.close(); }
 }
 
 /** Build: a new game of the signed-up account, and the editor opens on it (the run crosses the page in sessionStorage). */
