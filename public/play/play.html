@@ -52,6 +52,12 @@
     #loading .ld-words { font: 600 15px/1.35 var(--sans, system-ui, sans-serif); letter-spacing: .04em; color: #e8f3ff; max-width: 300px; }
     #loading .ld-bar { width: min(72vw, 280px); height: 3px; border-radius: 3px; background: rgba(160,210,255,.18); overflow: hidden; }
     #loading .ld-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #6cf0ff, #cdeaff); box-shadow: 0 0 10px rgba(108,240,255,.7); transition: width .35s ease; }
+    #loading.ld-fail .ld-bar { display: none; }
+    #loading .ld-acts { display: none; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 4px; }
+    #loading.ld-fail .ld-acts { display: flex; }
+    #loading .ld-acts a, #loading .ld-acts button { font: 600 14px/1 var(--sans, system-ui, sans-serif); letter-spacing: .02em; color: #e8f3ff; background: rgba(160,210,255,.12); border: 1px solid rgba(160,210,255,.35); padding: 12px 18px; border-radius: 10px; text-decoration: none; cursor: pointer; min-height: 44px; }
+    #loading .ld-acts a:hover, #loading .ld-acts button:hover, #loading .ld-acts a:focus-visible, #loading .ld-acts button:focus-visible { border-color: #6cf0ff; outline: none; }
+    #loading .ld-acts button.primary { background: linear-gradient(90deg, #4a9eff, #6cf0ff); color: #061018; border-color: transparent; }
     @media (prefers-reduced-motion: reduce) { #loading, #loading .ld-bar i { transition: none; } }
     .corner { position: fixed; right: 10px; bottom: 10px; display: flex; gap: 6px; z-index: 6; }
     .corner[hidden] { display: none; }
@@ -278,6 +284,10 @@
     <canvas id="ldPearl" width="440" height="440" aria-hidden="true"></canvas>
     <div class="ld-words" id="ldWords">The Overseer is preparing your world</div>
     <div class="ld-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="ldFill"></i></div>
+    <div class="ld-acts" id="ldActs" hidden>
+      <button type="button" class="primary" id="ldRetry">Try again</button>
+      <a id="ldBack" href="/">Back to Hawkes Games</a>
+    </div>
   </div>
   <script>
     // The loading screen: the Overseer's pearl with two turning rings (the idea of overseer-sky.js, canvas 2D), the words,
@@ -383,7 +393,23 @@
       var slug = parts[2];
       var loading = document.getElementById('loading');
       var words = document.getElementById('ldWords');
-      var failed = function (e) { loading.hidden = false; loading.classList.remove('fade'); words.textContent = (e && e.message) || 'The game engine did not load'; };
+      var acts = document.getElementById('ldActs');
+      var failed = function (e) {
+        var detail = (e && e.message) || 'The game engine did not load';
+        try { console.error(detail); } catch (err) { /* fine */ }
+        loading.hidden = false;
+        loading.classList.remove('fade');
+        loading.classList.add('ld-fail');
+        words.textContent = 'Something went wrong loading this world. Try again, or go back to the home page.';
+        if (acts) {
+          acts.hidden = false;
+          var retry = document.getElementById('ldRetry');
+          if (retry && !retry._wired) {
+            retry._wired = true;
+            retry.addEventListener('click', function () { location.reload(); });
+          }
+        }
+      };
       // Studio's world-quality playtest (public/playtest/world-quality.js) asks this page for the world audit (public/play/
       // world-audit.js: words the right way round, no faces fighting, nothing inside out, nothing floating or sunk), the same
       // one the repo's tests run. Set up before any branch below returns, so /play/sandbox (the guest island) answers too. Like the report bridge above: only a browser under automation, only to its parent, read only.
