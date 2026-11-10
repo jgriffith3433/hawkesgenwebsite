@@ -152,9 +152,155 @@ function begin() {
   game.after(3.4, () => {
     const q = game.events && game.events.quests;
     if (q && q.state('tour') === 'available') q.start('tour');
-    say(back ? (back === 'done' ? 'The island is all yours now.' : 'Right, where were we?') : 'Come on, I\'ll show you around. The 4x4 first!', 4);
+    if (back) {
+      say(back === 'done' ? 'The island is all yours now.' : 'Right, where were we?', 4);
+      return;
+    }
+    // First visit: Pip's pier directions are an in-engine beat (camera fly + glowing rod marker), not a long caption.
+    showPier().then(() => say("Come on — the 4x4 first!", 4)).catch(() => say("Come on — the 4x4 first!", 4));
   });
 }
+
+// ------------------------------------------------------------------ Pip shows the pier (tour start, first visit)
+// One short line while the cinematic camera flies from Pip down Gravel Road, over the ridge, along the pier and holds on
+// the fishing rod. A soft pulsing light and particle shimmer light the rod and stay until it is picked up (quality rule 6:
+// tell it through play, not a paragraph of text). Skippable like the intro; the marker still comes on if skipped.
+const PIER_LINE = 'The rod is at the very end of the pier!';
+const rodMark = (window.__islandRodMark = window.__islandRodMark || { on: false, light: null, glow: null, parts: null, pulse: null });
+function rodPos() {
+  const rod = game.find && game.find('rod');
+  if (rod && rod.alive) return [rod.x, rod.y + 0.9, rod.z];
+  const [x, y, z] = at(HOME.rod[0], HOME.rodY + 0.7, HOME.rod[1]);
+  return [x, y, z];
+}
+function clearRodMark(why) {
+  if (!rodMark.on && !rodMark.light && !rodMark.parts && !rodMark.glow) return;
+  const pos = rodPos();
+  if (rodMark.pulse) { try { rodMark.pulse(); } catch { /* gone */ } rodMark.pulse = null; }
+  if (rodMark.parts) { try { rodMark.parts.stop(); rodMark.parts.dispose(); } catch { /* gone */ } rodMark.parts = null; }
+  if (rodMark.glow) { try { rodMark.glow.dispose(); } catch { /* gone */ } rodMark.glow = null; }
+  if (rodMark.light) { try { rodMark.light.dispose(); } catch { /* gone */ } rodMark.light = null; }
+  rodMark.on = false;
+  if (why === 'pickup') {
+    try { game.burst(pos, { color: '#ffd84a', count: 28, speed: 4.5, size: 0.18 }); } catch { /* fine */ }
+    try { game.burst([pos[0], pos[1] + 0.3, pos[2]], { color: '#fff4c4', count: 16, speed: 3, size: 0.1 }); } catch { /* fine */ }
+    try { if (H && H.lib && H.lib.siteSound) H.lib.siteSound('lore-glint', { volume: 0.55, at: pos }); else sfx('teleport.mp3', { volume: 0.4 }); } catch { /* quiet */ }
+  }
+  game.emit('rod-marker', { state: 'off', why: why || 'clear' });
+  game.emit('pier-show', { state: 'cleared', why: why || 'clear' });
+}
+function lightRodMark() {
+  if (rodMark.on) return;
+  const B = window.BABYLON, sc = H && H.world && H.world.scene;
+  const pos = rodPos();
+  if (!B || !sc) { rodMark.on = true; game.emit('rod-marker', { state: 'on' }); return; }
+  try {
+    const light = new B.PointLight('rod-mark-light', new B.Vector3(pos[0], pos[1], pos[2]), sc);
+    light.diffuse = new B.Color3(1, 0.85, 0.35);
+    light.specular = new B.Color3(1, 0.9, 0.5);
+    light.intensity = 2.4;
+    light.range = 42;
+    rodMark.light = light;
+    // Soft glowing orb so the marker reads from the beach even when PointLights are few on a phone.
+    const glow = B.MeshBuilder.CreateSphere('rod-mark-glow', { diameter: 0.55, segments: 12 }, sc);
+    const mat = new B.StandardMaterial('rod-mark-glow', sc);
+    mat.disableLighting = true;
+    mat.emissiveColor = new B.Color3(1, 0.82, 0.28);
+    mat.alpha = 0.72;
+    mat.alphaMode = B.Engine.ALPHA_ADD;
+    try { mat.disableDepthWrite = true; } catch { /* fine */ }
+    glow.material = mat;
+    glow.position.set(pos[0], pos[1], pos[2]);
+    glow.isPickable = false;
+    glow.metadata = { decor: true };
+    rodMark.glow = glow;
+    const ps = new B.ParticleSystem('rod-mark-shimmer', H.touchUi ? 24 : 48, sc);
+    ps.particleTexture = H.world.dot;
+    ps.emitter = new B.Vector3(pos[0], pos[1], pos[2]);
+    ps.minEmitBox = new B.Vector3(-0.2, -0.1, -0.2);
+    ps.maxEmitBox = new B.Vector3(0.2, 0.35, 0.2);
+    ps.color1 = new B.Color4(1, 0.92, 0.45, 0.85);
+    ps.color2 = new B.Color4(1, 0.78, 0.25, 0.45);
+    ps.colorDead = new B.Color4(1, 0.85, 0.4, 0);
+    ps.minSize = 0.04; ps.maxSize = 0.12;
+    ps.minLifeTime = 0.6; ps.maxLifeTime = 1.4;
+    ps.emitRate = H.touchUi ? 10 : 22;
+    ps.blendMode = B.ParticleSystem.BLENDMODE_ADD;
+    ps.direction1 = new B.Vector3(-0.15, 0.4, -0.15);
+    ps.direction2 = new B.Vector3(0.15, 0.9, 0.15);
+    ps.minEmitPower = 0.15; ps.maxEmitPower = 0.45;
+    ps.gravity = new B.Vector3(0, 0.05, 0);
+    ps.start();
+    rodMark.parts = ps;
+    const t0 = performance.now();
+    // game.every returns a cancel function.
+    rodMark.pulse = game.every(0.05, () => {
+      if (!rodMark.on || !rodMark.light) return;
+      const t = (performance.now() - t0) / 1000;
+      const k = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(t * 2.6));
+      rodMark.light.intensity = 1.6 + 1.6 * k;
+      if (rodMark.glow && rodMark.glow.material) {
+        rodMark.glow.material.alpha = 0.45 + 0.4 * k;
+        const s = 0.85 + 0.35 * k;
+        rodMark.glow.scaling.set(s, s, s);
+      }
+      // Keep the marker over the rod if Stuck? moved it.
+      const p = rodPos();
+      rodMark.light.position.set(p[0], p[1], p[2]);
+      if (rodMark.glow) rodMark.glow.position.set(p[0], p[1], p[2]);
+      if (rodMark.parts && rodMark.parts.emitter) rodMark.parts.emitter.set(p[0], p[1], p[2]);
+    });
+    rodMark.on = true;
+    game.emit('rod-marker', { state: 'on' });
+  } catch (err) {
+    try { if (H && H.report) H.report(err, 'rod-marker'); } catch { /* fine */ }
+    rodMark.on = true;
+    game.emit('rod-marker', { state: 'on' });
+  }
+}
+/** Pip points east and the camera flies the path to the rod. Resolves when the shot ends (or is skipped). */
+async function showPier() {
+  if (window.__islandPierShown) { lightRodMark(); return { skipped: true, already: true }; }
+  window.__islandPierShown = true;
+  game.emit('pier-show', { state: 'start' });
+  // Pip faces down Gravel Road (east) while speaking.
+  const p = pip();
+  try { if (p && p.lookAt) p.lookAt(at(40, ground(40, 0) + 1, 0)); } catch { /* fine */ }
+  say(PIER_LINE, 5);
+  lightRodMark(); // (on before the hold, so the beach can see it even if the shot is skipped early)
+  const cin = game.cinematic;
+  if (!cin || !cin.path) {
+    game.emit('pier-show', { state: 'end', skipped: true, noCinematic: true });
+    return { skipped: true };
+  }
+  const rod = rodPos();
+  const pipAt = p && p.alive ? [p.x, p.y + 1.4, p.z] : at(-1, ground(-1, 2.2) + 1.4, 2.2);
+  const keys = [
+    { pos: [pipAt[0] - 2.5, pipAt[1] + 1.2, pipAt[2] + 4.5], look: [pipAt[0] + 6, pipAt[1] - 0.2, pipAt[2] - 1], at: 0 },
+    { pos: at(18, ground(18, -6) + 7, -6), look: at(34, ground(34, 0) + 2, 0), at: 2.2 },
+    { pos: at(42, ground(42, -10) + 9, -10), look: at(62, 2, 0), at: 4.4 },
+    { pos: at(68, 7.5, -11), look: [rod[0], rod[1], rod[2]], at: 6.6 },
+    { pos: at(80, 4.2, -5.5), look: [rod[0], rod[1] - 0.1, rod[2]], at: 8.4, hold: 1.6 },
+  ];
+  game.emit('pier-cinematic', { state: 'flying' });
+  let r = { skipped: true };
+  try {
+    r = await cin.path(keys, {
+      seconds: 10,
+      fade: { in: 0.45, out: 0.5 },
+      letterbox: typeof window !== 'undefined' ? window.innerWidth >= window.innerHeight : true,
+      skippable: true,
+      ease: 'inOut',
+    });
+  } catch (err) { try { if (H && H.report) H.report(err, 'pier-show'); } catch { /* fine */ } }
+  game.emit('pier-cinematic', { state: r && r.skipped ? 'skipped' : 'done', skipped: Boolean(r && r.skipped) });
+  game.emit('pier-show', { state: 'end', skipped: Boolean(r && r.skipped) });
+  return r || { skipped: true };
+}
+window.__islandShowPier = showPier; // (playtest / Stuck? never needs it; tests may call it)
+game.on('pickup', (d) => {
+  if (d && d.gives === 'tool' && d.tool === 'rod') clearRodMark('pickup');
+});
 // After the Overseer's intro (it plays every time here) and the mirror that follows it, or straight away when there
 // are neither. The mirror says when you're done (game.on('mirror')); while it's open (or about to open) Pip waits.
 const mirrorBusy = () => Boolean(game.mirror && game.mirror.pending);
@@ -192,7 +338,8 @@ game.onStart(() => {
 // The Overseer speaks each moment (the community library's Overseer voice, by name), and its words show as a caption.
 // "Do with it what you will" is the beginning's alone: said once, in the intro.
 const MOMENTS = {
-  drive: { sound: 'level-up.mp3', pip: 'You made it! I just named that Gravel Road. The rod is at the end of the pier.', overseer: 'You found your way. Good.', voice: 'overseer-found-your-way.mp3' },
+  // (Pier directions are the tour-start cinematic below: one short line + camera fly + rod marker. Here Pip only names the road.)
+  drive: { sound: 'level-up.mp3', pip: 'You made it! I just named that Gravel Road.', overseer: 'You found your way. Good.', voice: 'overseer-found-your-way.mp3' },
   fish: { sound: 'power-up.mp3', npc: ['Admiral Bobbin', '#facc15', 'Fine cast. Eight out of ten. The two is for the wind, which I take personally.'], pip: 'A fish! Take the rocket launcher. Barrels, up the beach. Go on!', overseer: 'The sea gives. Remember that.', voice: 'overseer-the-sea-gives.mp3', give: ['rocket-launcher'] },
   boom: { sound: 'level-up.mp3', npc: ['Channel', '#7dd3fc', 'Breaking: BOOM, live from the beach. Eyewitnesses: one. Ratings: record.'], pip: 'BOOM! Goodbye, Barrel! Now ask the Overseer for anything.', overseer: 'Destruction is a kind of freedom too.', voice: 'overseer-destruction.mp3' },
   // (The Overseer's "Ask, and I will send it down" is said when they first hold Q: below.)

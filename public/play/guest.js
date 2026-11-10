@@ -606,7 +606,13 @@
     });
     const unlock = lockGame(veil);
     const opener = document.activeElement;
-    const close = () => { unlock(); veil.remove(); try { opener && opener.focus && opener.isConnected && opener.focus(); } catch { /* fine */ } };
+    const close = () => {
+      unlock(); veil.remove();
+      try { if (window.HawkesGuest && window.HawkesGuest._dismissSheet === close) window.HawkesGuest._dismissSheet = null; } catch { /* fine */ }
+      try { opener && opener.focus && opener.isConnected && opener.focus(); } catch { /* fine */ }
+    };
+    // Playtests (Google-only sign-up) call HawkesGuest.playtestContinue() to close the forced sheet and let Pip's tour run.
+    try { if (window.HawkesGuest) window.HawkesGuest._dismissSheet = close; } catch { /* fine */ }
     // Keyboard: focus goes into the sheet and Tab turns round inside it (the page behind is frozen), so even the forced
     // sheet always has a next control, including "leave"; Escape closes it only when it is not forced.
     veil.addEventListener('keydown', (e) => {
@@ -1137,6 +1143,14 @@
     accountFirst: true,
     /** A return (public/play/guest.js): the tour step they left on (sandbox.js picks the tour up there), and the steps it fast-forwarded. */
     resume: null, resumed: null, skipped: null,
+    /**
+     * Playtest only: close the forced account sheet and let Pip's tour begin without Google sign-in.
+     * (Cloud portal is Google-only; throwaway email accounts are gone. Named setup-shortcut in portal.js.)
+     */
+    playtestContinue() {
+      window.HawkesGuest.accountFirst = false;
+      try { if (typeof window.HawkesGuest._dismissSheet === 'function') window.HawkesGuest._dismissSheet(); } catch { /* fine */ }
+    },
     async boot(o = {}) {
       const t0 = performance.now();
       const q = new URLSearchParams(location.search);
