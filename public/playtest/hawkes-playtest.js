@@ -74,7 +74,7 @@ export function installPlaytest(opts) {
         setTimeout(() => (r && r === run && !r.done ? resolve() : reject(new Error('playtest stopped'))), ms);
       });
     },
-    /** Resolves when test() is true (polled every 50 ms, so it works in hidden pages too), or rejects after timeoutMs. */
+    /** Resolves with what test() returned once it is truthy (polled every 50 ms, so it works in hidden pages too), or rejects after timeoutMs. */
     until(test, timeoutMs = 30000, what = 'condition') {
       const r = run;
       const t0 = performance.now();
@@ -83,7 +83,7 @@ export function installPlaytest(opts) {
           if (!r || r !== run || r.done) return reject(new Error('playtest stopped'));
           let ok = false;
           try { ok = test(); } catch {}
-          if (ok) return resolve();
+          if (ok) return resolve(ok);
           if (performance.now() - t0 > timeoutMs) return reject(new Error(`timed out waiting for ${what}`));
           setTimeout(tick, 50);
         };
