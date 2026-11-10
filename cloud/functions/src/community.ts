@@ -466,6 +466,16 @@ export async function packHealth(o: { jobs?: boolean } = {}) {
 }
 
 /** Where Gen stands on the remake jobs (?jobs=1 on the health check): counts by status, and the newest few failures. */
+/** The Gen tools a starter model is made of (community/starter.mjs stepsFor('model')). */
+export const STEP_TOOLS = ['image.generate', 'image.remove-background', 'image.viewsheet', 'image.edit', 'mesh.views3d', 'blender.character'];
+/** One tool's finished jobs as GPU seconds: how many, the median and the total, and how long they took start to end. */
+export function stepCost(jobs: any[]) {
+  const done = jobs.filter((j) => j.status === 'done' && j.started && j.finished);
+  const med = (xs: number[]) => { if (!xs.length) return null; const s = [...xs].sort((a, b) => a - b); return Math.round(s[Math.floor(s.length / 2)] * 10) / 10; };
+  const gpu = done.map((j) => Number(j.gpu_seconds) || 0);
+  return { done: done.length, failed: jobs.filter((j) => j.status === 'failed').length, gpuSecondsMedian: med(gpu), gpuSecondsTotal: Math.round(gpu.reduce((a, b) => a + b, 0)), wallSecondsMedian: med(done.map((j) => (j.finished - j.started) / 1000)) };
+}
+
 async function remakeJobs() {
   try {
     const { jobs } = await gen<{ jobs: any[] }>(`/v1/jobs?project=${STARTER_PROJECT}&tool=asset.make&limit=300`, { as: STARTER_PROJECT });
@@ -483,7 +493,14 @@ async function remakeJobs() {
         order: g.order, familyOrder: g.familyOrder,
         providers: (g.providers ?? []).map((p: any) => ({ id: p.id, families: p.families, enabled: p.enabled, ready: p.ready, problem: p.problem ? String(p.problem).slice(0, 200) : null, down: p.health?.down ?? null, reason: p.health?.reason ? String(p.health.reason).slice(0, 200) : null, lastError: p.health?.lastError ? String(typeof p.health.lastError === 'string' ? p.health.lastError : JSON.stringify(p.health.lastError)).slice(0, 200) : null })),
       }), (e) => ({ error: String(e?.message ?? e).slice(0, 200) }));
-    return { byStatus, failed: mine.filter((j) => j.status === 'failed').slice(0, 8).map(line), open: mine.filter((j) => j.status === 'queued' || j.status === 'running').slice(0, 8).map(line), mesh, gpu };
+    // What each step of a model costs in GPU time (Gen's own gpu_seconds), from the newest finished jobs of each tool: where
+    // a model's money goes. No prices here (the page is public), only seconds.
+    const steps: Record<string, unknown> = {};
+    await Promise.all(STEP_TOOLS.map(async (tool) => {
+      steps[tool] = await gen<{ jobs: any[] }>(`/v1/jobs?project=${STARTER_PROJECT}&tool=${encodeURIComponent(tool)}&limit=60`, { as: STARTER_PROJECT })
+        .then((r) => stepCost(r.jobs ?? []), (e) => ({ error: String(e?.message ?? e).slice(0, 200) }));
+    }));
+    return { byStatus, failed: mine.filter((j) => j.status === 'failed').slice(0, 8).map(line), open: mine.filter((j) => j.status === 'queued' || j.status === 'running').slice(0, 8).map(line), mesh, gpu, steps };
   } catch (e: any) { return { error: e.message }; }
 }
 
