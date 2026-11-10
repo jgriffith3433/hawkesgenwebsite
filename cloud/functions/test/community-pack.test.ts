@@ -46,5 +46,6 @@ test("a 3D try stopped at RunPod's old 300 s limit (Gen's limit, not the model) 
   const { stoppedAtGenLimit } = await import('../src/community.ts');
   assert.ok(stoppedAtGenLimit("step 4 (mesh.views3d) failed: runpod: ran past this service's 300 s limit"));
   assert.ok(!stoppedAtGenLimit("runpod: ran past this service's 1800 s limit"));
+  assert.ok(stoppedAtGenLimit('step 4 (mesh.views3d) failed: runpod: HTTP Error 413: Request Entity Too Large'));
   assert.ok(!stoppedAtGenLimit('step 3/5 image.viewsheet: the views are not the same object'));
 });

@@ -490,8 +490,9 @@ async function remakeJobs() {
 const restores = () => db.collection('communityRestore');
 /** Gen's words for a job it turned away without making anything: too many at once, Claude busy or at its limit, or no GPU free. */
 export const wasTurnedAway = (text: string) => /a lot at once|wait \d+ seconds?, then try again|throttl|rate.?limit|\b429\b|overloaded|no gpu is available|nothing was charged/i.test(text);
-/** A run Gen's RunPod worker stopped at its old 300 s graph limit (fixed in Gen #189): the try made nothing of its own. */
-export const stoppedAtGenLimit = (text: string) => /runpod: ran past this service's 300 s limit/i.test(text);
+/** A run Gen's RunPod worker stopped at its old 300 s graph limit (fixed in Gen #189), or one whose GLB was too big to hand
+ * back (HTTP 413, fixed in Gen #190): Gen's fault, and the try kept nothing of its own. */
+export const stoppedAtGenLimit = (text: string) => /runpod: ran past this service's 300 s limit|runpod: HTTP Error 413/i.test(text);
 const REMAKE_SCHEME = 2;
 /**
  * Gen's key for one try at remaking a pack thing. Never the pack's own key: Gen hands back the job that key first made
@@ -537,7 +538,8 @@ export async function restoreStarter() {
     for (let t = 1; t <= (tries[it.item] ?? 0); t++) if (turnedAway.has(remakeKey(keyOf(it as any), ref.id, t))) free++;
     // Up to 14 tries Gen turned away (no GPU, too fast) are free: the model gate stops after a broken 3D path. The crate
     // used 4 before Gen waited out a cold RunPod start (Gen #186) and 5 more before Gen let a 3D run outlast RunPod's
-    // 300 s cap instead of sending it to the AWS fleet that is gone (Gen #188, 2026-11-10).
+    // 300 s cap instead of sending it to the AWS fleet that is gone (Gen #188, 2026-11-10), and 1 more on a GLB too big to
+    // hand back (Gen #190).
     return 2 + Math.min(free, 14);
   };
   const lastFailed = (it: { item: string; kind: string; name: string }) =>
