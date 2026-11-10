@@ -89,23 +89,26 @@
     document.body.classList.toggle('hl-panel', reserved > 0);
   }
 
+  // Positions always track --hl-panel (0 when closed). Do not gate right/left/width on body.hl-panel:
+  // removing that class in the same frame as the variable change snaps instead of gliding. Prefer
+  // calc(var(--hl-panel) + 12px) over max() around the variable — that often refuses to interpolate.
   const CSS = `
+    @property --hl-panel{syntax:'<length>';inherits:true;initial-value:0px}
     :root{--hl-panel:0px;--hl-menu:44px}
     .gs-acts,.jr-btn,.gs-toast,.ev-hud,.ov-work{transition:right .3s ease,max-width .3s ease}
     #dl-stack,.tour-track,.qs-track{transition:width .3s ease,max-width .3s ease}
-    body:not(.tl):not(.pr-touch) .hc-chat{left:50vw;width:min(640px,calc(100vw - 32px));max-width:calc(100vw - 32px);transition:left .3s ease,width .3s ease,max-width .3s ease}
-    /* desktop top-right action row: the Journal button (.jr-btn) sits at the right end of the row beside .gs-acts */
-    body:not(.tl):not(.hl-compact) .jr-btn{top:max(12px,env(safe-area-inset-top));right:max(12px,var(--hl-panel),env(safe-area-inset-right))}
-    body:not(.tl):not(.hl-compact):has(.jr-btn:not([hidden])) .gs-acts{right:calc(max(12px,var(--hl-panel)) + 50px);max-width:calc(100vw - max(12px,var(--hl-panel)) - 62px - 312px)}
-    body.hl-panel .gs-acts{right:calc(var(--hl-panel) + 0px);max-width:calc(100vw - var(--hl-panel) - 24px - 312px)}
-    body.hl-panel:not(.tl) .jr-btn{right:max(12px,var(--hl-panel),env(safe-area-inset-right))}
-    body.hl-panel .gs-toast,body.hl-panel .ev-hud,body.hl-panel .ov-work{right:max(12px,var(--hl-panel))}
-    body.hl-panel:not(.tl) #dl-stack{max-width:min(300px,calc(100vw - var(--hl-panel) - 24px))}
-    body.hl-panel .tour-track{width:min(300px,calc(100vw - var(--hl-panel) - 24px))}
-    body.hl-panel .qs-track{max-width:min(300px,calc(100vw - var(--hl-panel) - 24px))}
-    body.hl-panel:not(.tl):not(.pr-touch) .hc-chat{left:calc(62px + (100vw - var(--hl-panel)) / 2);width:min(640px,calc(100vw - var(--hl-panel) - 136px));max-width:calc(100vw - var(--hl-panel) - 136px)}
-    body.hl-panel.pr-touch:not(.tl) .hc-chat{max-width:min(340px,calc(100vw - var(--hl-panel) - 24px))}
-    body.hl-panel.tl .gs-acts{max-width:none}
+    /* desktop top-right: Journal (.jr-btn) at the right end; .gs-acts sits 50px to its left */
+    body:not(.tl):not(.hl-compact) .jr-btn{top:max(12px,env(safe-area-inset-top));right:calc(var(--hl-panel) + max(12px,env(safe-area-inset-right)))}
+    body:not(.tl):not(.hl-compact) .gs-acts{right:calc(var(--hl-panel) + 12px);max-width:calc(100vw - var(--hl-panel) - 24px - 312px)}
+    body:not(.tl):not(.hl-compact):has(.jr-btn:not([hidden])) .gs-acts{right:calc(var(--hl-panel) + 62px);max-width:calc(100vw - var(--hl-panel) - 74px - 312px)}
+    .gs-toast,.ev-hud,.ov-work{right:calc(var(--hl-panel) + 12px)}
+    body:not(.tl) #dl-stack{max-width:min(300px,calc(100vw - var(--hl-panel) - 24px))}
+    .tour-track{width:min(300px,calc(100vw - var(--hl-panel) - 24px))}
+    .qs-track{max-width:min(300px,calc(100vw - var(--hl-panel) - 24px))}
+    /* chat: left is the centre (chat.css translateX -50%); 50vw - panel/2 centres in the free band */
+    body:not(.tl):not(.pr-touch) .hc-chat{left:calc(50vw - var(--hl-panel) / 2);width:min(640px,calc(100vw - var(--hl-panel) - 32px));max-width:calc(100vw - var(--hl-panel) - 32px);transition:left .3s ease,width .3s ease,max-width .3s ease}
+    body.pr-touch:not(.tl) .hc-chat{max-width:min(340px,calc(100vw - var(--hl-panel) - 24px))}
+    body.tl .gs-acts{max-width:none}
     /* phone: one 44 px menu; the intents sit in a list under it when .open. Journal (.jr-btn) is in Controls on touch. */
     body.hl-compact .jr-btn{display:none!important}
     body.hl-compact .gs-acts{flex-wrap:nowrap;align-items:flex-end;max-width:min(280px,calc(100vw - 24px));z-index:70}
