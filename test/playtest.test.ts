@@ -11,7 +11,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
 test('the playtest files are valid modules', () => {
-  for (const f of ['portal.js', 'site-layout.js', 'avatar-animations.js', 'community-library.js', 'profile-page.js', 'server-limits.js', 'world-report.js', 'world-quality.js', 'hawkes-playtest.js', 'hawkes-perf.js']) {
+  for (const f of ['portal.js', 'site-layout.js', 'phone-hud-layout.js', 'avatar-animations.js', 'community-library.js', 'profile-page.js', 'server-limits.js', 'world-report.js', 'world-quality.js', 'hawkes-playtest.js', 'hawkes-perf.js']) {
     const r = spawnSync(process.execPath, ['--check', path.join(ROOT, 'public', 'playtest', f)], { encoding: 'utf8' });
     assert.equal(r.status, 0, `${f}: ${r.stderr}`);
   }
@@ -20,8 +20,8 @@ test('the playtest files are valid modules', () => {
 test('the scenarios are the ones AGENTS.md documents', () => {
   const src = read('public/playtest/portal.js');
   const agents = read('AGENTS.md');
-  for (const id of ['smoke', 'sandbox-first-minutes', 'sandbox-chapter-one', 'island-race', 'island-journal', 'sandbox-progress', 'site-layout', 'world-quality']) {
-    assert.ok(src.includes(`id: '${id}'`) || (id === 'site-layout' && read('public/playtest/site-layout.js').includes(`id: '${id}'`)) || (id === 'world-quality' && read('public/playtest/world-quality.js').includes(`id: '${id}'`)), `${id} is a scenario`);
+  for (const id of ['smoke', 'sandbox-first-minutes', 'sandbox-chapter-one', 'island-race', 'island-journal', 'sandbox-progress', 'site-layout', 'world-quality', 'phone-hud-layout']) {
+    assert.ok(src.includes(`id: '${id}'`) || (id === 'site-layout' && read('public/playtest/site-layout.js').includes(`id: '${id}'`)) || (id === 'world-quality' && read('public/playtest/world-quality.js').includes(`id: '${id}'`)) || (id === 'phone-hud-layout' && read('public/playtest/phone-hud-layout.js').includes(`id: '${id}'`)), `${id} is a scenario`);
     assert.ok(agents.includes(id), `${id} is in AGENTS.md`);
   }
   assert.ok(src.includes("product: 'hawkesgenwebsite'"));
@@ -48,6 +48,15 @@ test('site-layout: three sizes, the checklist in AGENTS.md, horizontal scroll, a
   assert.match(read('public/playtest/portal.js'), /runSiteLayout\(t, options\)/);
   assert.match(read('AGENTS.md'), /The landing page checklist/);
   assert.match(read('public/overseer-sky.js'), /hero\.dataset\.overseer/);
+});
+
+test('phone-hud-layout: 390x844 and 844x390, menu fold, sheet clearance, 44 px taps; wired in portal and AGENTS.md', () => {
+  const src = read('public/playtest/phone-hud-layout.js');
+  for (const size of ['390x844', '844x390']) assert.ok(src.includes(size), size);
+  for (const k of ['menu-button', 'sheet-clear', 'action-tapped', 'hl-compact', 'phone-hud-ok']) assert.ok(src.includes(k), k);
+  assert.match(read('public/playtest/portal.js'), /runPhoneHudLayout\(t, options\)/);
+  assert.match(read('AGENTS.md'), /phone-hud-layout/);
+  assert.match(read('public/play/modules/hudlayout/hudlayout.js'), /hl-compact/);
 });
 
 test('avatar-animations: a frame per class, the bone checks, the fallbacks and ten characters; documented in AGENTS.md', () => {
