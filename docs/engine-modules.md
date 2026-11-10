@@ -296,6 +296,10 @@ too much). `docs/performance.md` has the measured numbers and how to measure.
   that uses yours checks it's there (`H.vehicles && ...`). `HawkesModules.ensure(name or kind)` loads one now (a spawn
   wheel offering a car before Vehicles came). Lazy today: vehicles, homes, events, share. Don't mark a module lazy if
   other modules use it while loading, or if it changes how the player or the world behaves from the first frame.
+- **Optional modules** (`module.json` `"optional": true`): still eager (loaded with the rest), but a missing or
+  failing script is logged and skipped — the world keeps loading. Use for ambience and similar polish that must not
+  leave the player stuck on the loading screen (Hosting can lag the Functions deploy of `/play/modules.js`). Code that
+  uses an optional module checks it is there (`H.soundscape && ...`). Optional today: soundscape.
 - **Caching**: engine scripts carry the manifest's content hash (`?v=`) and are served `immutable` for a year when it
   matches; Babylon and Havok come pinned from our own `/vendor/` (docs/performance.md; immutable too), and their big files start downloading the
   moment `/play/modules.js` runs (preload links), in parallel with the game's own fetch.

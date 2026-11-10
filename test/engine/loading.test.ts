@@ -3,6 +3,8 @@
 // (scale.js), draw distance, and the manifest's lazy modules (src/engine.ts, public/play/loader.js needs()).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import vm from 'node:vm';
 import { load, sceneOf } from './harness.ts';
 
@@ -185,6 +187,44 @@ test('the manifest: lazy modules are left out of what a page loads first; everyt
   }
   assert.ok(m.eager.some((s: string) => s.includes('/play/textures.js')), 'the core is');
   assert.ok(m.eager.some((s: string) => s.includes('/modules/living/')), 'eager modules are');
+});
+
+test('optional modules stay eager but are listed so a missing file never blocks the load', async () => {
+  const { manifest } = await import('../../src/engine.ts');
+  const m = manifest();
+  const opt = m.modules.filter((x: any) => x.optional).map((x: any) => x.name).sort();
+  assert.deepEqual(opt, ['soundscape'], 'ambience is optional polish');
+  assert.ok(m.optional.length && m.optional.every((s: string) => s.includes('/modules/soundscape/')), 'manifest.optional names the scripts');
+  assert.ok(m.optional.every((s: string) => m.eager.includes(s)), 'still loaded with the first wave');
+  assert.ok(fs.existsSync(path.join(process.cwd(), 'public/play/modules/soundscape/soundscape.js')), 'the file itself is in the repo (Hosting must ship it)');
+});
+
+/** Soft-fail path in loader.js: an optional URL that 404s resolves; a required one rejects with a plain path (no ?v=). */
+test('the loader: optional scripts soft-fail; required ones still reject', async () => {
+  const { loaderScript } = await import('../../src/engine.ts');
+  async function drive(failSrc: string | null) {
+    const created: { src: string; onload: null | (() => void); onerror: null | (() => void) }[] = [];
+    const win: any = {
+      requestIdleCallback: undefined,
+      setTimeout: () => 0, // later() schedules idle loads; we never run them here
+      clearTimeout() {},
+      document: { createElement: () => ({ src: '', async: false, onload: null, onerror: null }), head: { appendChild(s: any) { created.push(s); } } },
+      console: { warn() {}, error() {} },
+    };
+    win.window = win;
+    vm.runInNewContext(loaderScript(), win);
+    const M = win.HawkesModules;
+    const p = M.load('play', { bundle: Promise.resolve({ files: { 'scene.json': '{}' } }) });
+    // Scripts are appended synchronously when load starts; settle each one.
+    for (const s of created) {
+      if (failSrc && s.src.includes(failSrc)) s.onerror && s.onerror();
+      else if ((M.optional || []).includes(s.src)) s.onerror && s.onerror();
+      else s.onload && s.onload();
+    }
+    return p;
+  }
+  await drive(null); // every optional 404s; the world still loads
+  await assert.rejects(() => drive('/play/runtime.js'), /Could not load \/play\/runtime\.js$/);
 });
 
 /** loader.js's needs(), run on its own (no page): the manifest and the loader in a small sandbox. */
