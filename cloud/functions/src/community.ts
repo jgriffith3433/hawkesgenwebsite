@@ -453,7 +453,14 @@ export async function packHealth() {
     else missing.push(it.item);
   }
   const r = restoreOrder();
-  return { pack: pack.length, listed: pack.length - missing.length, missing: missing.length, byKind, missingItems: missing, restore: r ? { approved: r.approved, kinds: r.kinds, budgetUsd: r.budgetUsd } : null };
+  // What remaking has cost so far (every order on this lane, as estimated when queued) and where this order stands.
+  const orders = (await restores().get()).docs.map((d) => d.data());
+  const spentUsd = Math.round(orders.reduce((s, o) => s + (Number(o.spentUsd) || 0), 0) * 100) / 100;
+  const cur = r ? orders.find((o) => o.approved === r.approved) : undefined;
+  const tries: Record<string, number> = cur?.tries ?? {};
+  const missingSet = new Set(missing);
+  const progress = cur ? { spentUsd: Number(cur.spentUsd) || 0, queued: Object.keys(tries).length, stillMissingAfterTwoTries: Object.entries(tries).filter(([it, n]) => n >= 2 && missingSet.has(it)).map(([it]) => it) } : null;
+  return { pack: pack.length, listed: pack.length - missing.length, missing: missing.length, byKind, missingItems: missing, spentUsd, restore: r ? { approved: r.approved, kinds: r.kinds, budgetUsd: r.budgetUsd, ...progress } : null };
 }
 
 const restores = () => db.collection('communityRestore');
@@ -474,10 +481,10 @@ export async function restoreStarter() {
   const tries: Record<string, number> = state.tries ?? {};
   const queuedAt: Record<string, number> = state.queuedAt ?? {};
   let spent = Number(state.spentUsd) || 0;
-  // A thing queued in the last 6 hours is still being made (it lists when it finishes); after that a second try only
+  // A thing queued in the last 2 hours is still being made (it lists when it finishes); after that a second try only
   // runs again if the first failed (same key, reuse: Gen hands back the finished or running job).
   // The cheap kinds first, 3D models (most of the cost) last.
-  const todo = packItems().filter((it) => missing.has(it.item) && order.kinds.includes(it.kind) && (tries[it.item] ?? 0) < 2 && Date.now() - (queuedAt[it.item] ?? 0) > 6 * 3600_000)
+  const todo = packItems().filter((it) => missing.has(it.item) && order.kinds.includes(it.kind) && (tries[it.item] ?? 0) < 2 && Date.now() - (queuedAt[it.item] ?? 0) > 2 * 3600_000)
     .sort((a, b) => Number(a.kind === 'model') - Number(b.kind === 'model')).slice(0, 40);
   if (!todo.length) return { order: true, queued: 0, spentUsd: spent, budgetUsd: order.budgetUsd };
   // Priced per kind by Gen (each batch's own boots and model loads; the idle tail, once per server, is in the budget's
