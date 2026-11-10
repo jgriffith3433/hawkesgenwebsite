@@ -478,8 +478,8 @@ async function remakeJobs() {
 }
 
 const restores = () => db.collection('communityRestore');
-/** Gen's words for a job it turned away without making anything: too many at once, or Claude busy or at its limit. */
-export const wasTurnedAway = (text: string) => /a lot at once|wait \d+ seconds?, then try again|throttl|rate.?limit|\b429\b|overloaded/i.test(text);
+/** Gen's words for a job it turned away without making anything: too many at once, Claude busy or at its limit, or no GPU free. */
+export const wasTurnedAway = (text: string) => /a lot at once|wait \d+ seconds?, then try again|throttl|rate.?limit|\b429\b|overloaded|no gpu is available|nothing was charged/i.test(text);
 const REMAKE_SCHEME = 2;
 /**
  * Gen's key for one try at remaking a pack thing. Never the pack's own key: Gen hands back the job that key first made
