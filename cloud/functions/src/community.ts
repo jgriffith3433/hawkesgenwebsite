@@ -532,9 +532,10 @@ export async function restoreStarter() {
   const allowed = (it: { item: string; kind: string; name: string }) => {
     let free = 0;
     for (let t = 1; t <= (tries[it.item] ?? 0); t++) if (turnedAway.has(remakeKey(keyOf(it as any), ref.id, t))) free++;
-    // Up to 8 tries Gen turned away (no GPU, too fast) are free: the model gate stops after a broken 3D path, and the
-    // crate used 4 of them before Gen waited out a cold RunPod start (Gen #186, 2026-11-10).
-    return 2 + Math.min(free, 8);
+    // Up to 14 tries Gen turned away (no GPU, too fast) are free: the model gate stops after a broken 3D path. The crate
+    // used 4 before Gen waited out a cold RunPod start (Gen #186) and 5 more before Gen let a 3D run outlast RunPod's
+    // 300 s cap instead of sending it to the AWS fleet that is gone (Gen #188, 2026-11-10).
+    return 2 + Math.min(free, 14);
   };
   const lastFailed = (it: { item: string; kind: string; name: string }) =>
     (tries[it.item] ?? 0) > 0 && failedKeys.has(remakeKey(keyOf(it as any), ref.id, tries[it.item]));
