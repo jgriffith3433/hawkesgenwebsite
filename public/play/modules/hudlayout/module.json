@@ -1,0 +1,6 @@
+{
+  "title": "HUD layout: named zones, and a side panel that nothing runs under",
+  "order": 6,
+  "scripts": ["hudlayout.js"],
+  "kinds": []
+}

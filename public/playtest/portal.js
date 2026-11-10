@@ -31,9 +31,9 @@ import { CHARACTER_MOTION, runCharacterMotion } from './character-motion.js';
 import { WORLD_QUALITY, runWorldQuality } from './world-quality.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'firstvisit', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'phoneperf', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'answer', 'progress', 'models', 'wish', 'toeditor', 'editor', 'react', 'motion'];
+const STAGES = ['landing', 'veil', 'intro', 'firstvisit', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'phoneperf', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'answer', 'progress', 'models', 'wish', 'toeditor', 'editor', 'react', 'motion', 'mirrorlayout'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'character-motion': ['landing', 'veil', 'intro', 'motion'], 'overseer-personality': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'react'], 'overseer-first-visit': ['landing', 'veil', 'firstvisit'], 'overseer-ask': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'answer'], 'gen-models-all': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-daily-wish': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wish'], 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'phone-performance': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'phoneperf'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'editor-bridge': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'toeditor', 'editor'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
+const ORDERS = { 'character-motion': ['landing', 'veil', 'intro', 'motion'], 'overseer-personality': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'react'], 'overseer-first-visit': ['landing', 'veil', 'firstvisit'], 'overseer-ask': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'answer'], 'gen-models-all': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-daily-wish': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wish'], 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'phone-performance': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'phoneperf'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'editor-bridge': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'toeditor', 'editor'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'mirror-panel-layout': ['landing', 'veil', 'intro', 'mirrorlayout'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
 const SCENARIOS = [
   SICKOFIT_PAGE, // Sick of It's page before play (sickofit-page.js)
   SITE_LAYOUT, // the landing page at three sizes (site-layout.js)
@@ -93,6 +93,11 @@ const SCENARIOS = [
     id: 'ask-the-overseer', title: 'After the sign-up: the Overseer says the real balance, offers three priced asks to tap, and an empty balance gets Get credits', seconds: 200, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first-minutes path through the throwaway sign-up (never on live), then, in the chat with no reload: the Overseer\'s line carries the balance /v1/users/me reports; three example asks are offered, each with its price (the quote) and a Send; nothing is spent before a click; a real click sends one. The empty balance is a named setup shortcut (the game told the balance is 0): the Overseer says so with a Get credits link and no request is made. options as sandbox-first-minutes',
+  },
+  {
+    id: 'mirror-panel-layout', title: 'The HUD makes room for the mirror panel: the quest banner and the action row stay whole beside it, and glide back when it closes', seconds: 120, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the landing page, the veil and the intro (skipped), then the mirror opens by itself: with it open the quest banner, its buttons and the top-right actions (Save this world, Build your own, Copy invite link...) are measured whole, on screen, clear of the panel and not covered; a screenshot; the mirror is closed with Esc and they must be back where they were, moving there by a transition (a mid-way sample), not a jump. Screenshots at the window size (1280x720 and 1440x900 are the sizes to run). No timers in the page: the layout reacts to the panel and to resize only',
   },
   {
     id: 'sandbox-progress', title: 'Progress: points in the HUD for driving, a level with the Overseer\'s moment, the unlocks in the wardrobe and on the tool belt, kept after a return', seconds: 300, tags: ['full'],
@@ -467,6 +472,68 @@ async function stageMirror(t, ctx) {
   await t.until(() => !$('.mr'), 10000, 'the mirror to close after the last answer');
   t.event('mirror-done', `${chosen}, ${who}`);
   t.progress(0.45);
+}
+
+/** The HUD beside the mirror panel (modules/hudlayout): measured with the panel open, then closed. */
+async function stageMirrorLayout(t) {
+  await t.until(() => $('.mr .mr-q'), 40000, 'the mirror to open after the intro');
+  await t.wait(900); // the panel slides in (0.35 s)
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const pieces = () => {
+    const out = [];
+    const add = (name, el) => { if (el && el.offsetParent !== null) { const r = el.getBoundingClientRect(); if (r.width > 0) out.push({ name, r, el }); } };
+    document.querySelectorAll('.gs-acts button').forEach((b) => add('action: ' + b.textContent.trim().slice(0, 24), b));
+    document.querySelectorAll('.tour-track, .tour-stuck, .qs-btn, .qs-track').forEach((b) => add('quest: ' + (b.className || '').toString().split(' ')[0] + ' ' + b.textContent.trim().slice(0, 20), b));
+    return out;
+  };
+  const check = (label) => {
+    const panel = $('.mr');
+    const pr = panel ? panel.getBoundingClientRect() : null;
+    const list = pieces();
+    const bad = [];
+    for (const { name, r, el } of list) {
+      if (r.left < -1 || r.top < -1 || r.right > vw + 1 || r.bottom > vh + 1) bad.push(`${name} is off screen (${Math.round(r.left)}-${Math.round(r.right)})`);
+      if (pr && r.right > pr.left - 2 && r.left < pr.right && r.bottom > pr.top && r.top < pr.bottom) bad.push(`${name} runs under the panel`);
+      const mx = Math.min(Math.max(r.left + r.width / 2, 0), vw - 1), my = Math.min(Math.max(r.top + r.height / 2, 0), vh - 1);
+      const top = document.elementFromPoint(mx, my);
+      if (top && !(el === top || el.contains(top) || top.contains(el))) bad.push(`${name} is covered by ${top.className || top.tagName}`);
+    }
+    return { list, bad, pr };
+  };
+  const open = check('open');
+  t.scene(`Mirror open at ${vw}x${vh}`);
+  t.event('hud-measured-open', `${vw}x${vh}: ${open.list.length} pieces, panel ${open.pr ? Math.round(open.pr.left) : '-'}..${open.pr ? Math.round(open.pr.right) : '-'}`);
+  const acts = open.list.filter((p) => p.name.startsWith('action:'));
+  if (acts.length < 3) t.problem('error', `expected the top-right actions beside the panel, found ${acts.length}`);
+  else t.event('actions-whole', acts.map((p) => p.name.replace('action: ', '')).join(', '));
+  const banner = open.list.filter((p) => p.name.startsWith('quest:'));
+  if (!banner.length) t.problem('warn', 'no quest banner on screen with the mirror open');
+  else t.event('banner-whole', banner.map((p) => p.name).join(' | '));
+  for (const b of open.bad) t.problem('error', b);
+  if (!open.bad.length) t.event('hud-clear-of-panel', 'nothing runs under the panel');
+  const first = acts[0];
+  const openRight = first ? first.r.right : 0;
+  const dur = first ? parseFloat(getComputedStyle(first.el.parentElement).transitionDuration) : 0;
+  if (first && !(dur > 0)) t.problem('error', 'the action row has no transition: it would jump');
+  else t.event('transition-set', `${dur}s`);
+  // Close with Esc (the mirror's own key) and watch the row move back.
+  const x = $('.mr .mr-x');
+  if (x) x.click(); // the panel's own Close
+  await t.wait(110);
+  const mid = first ? first.el.parentElement.getBoundingClientRect().right : 0;
+  await t.until(() => !$('.mr'), 10000, 'the mirror to close');
+  await t.wait(700);
+  const closed = first ? first.el.parentElement.getBoundingClientRect().right : 0;
+  t.scene(`Mirror closed at ${vw}x${vh}`);
+  if (first) {
+    if (closed > openRight + 40) t.event('hud-back', `actions moved from ${Math.round(openRight)} to ${Math.round(closed)}`);
+    else t.problem('error', `the action row did not move back (${Math.round(openRight)} -> ${Math.round(closed)})`);
+    if (mid > openRight + 1 && mid < closed - 1) t.event('hud-glides', `mid-way at ${Math.round(mid)}`);
+    else t.problem('warn', `no mid-way sample of the move back (${Math.round(openRight)} / ${Math.round(mid)} / ${Math.round(closed)})`);
+  }
+  const after = check('closed');
+  for (const b of after.bad) t.problem('error', b);
+  t.progress(0.6);
 }
 
 async function stageSheet(t, ctx) {
@@ -2586,7 +2653,7 @@ async function stagePhonePerf(t, ctx) {
 const RUN = {
   models: stageModels,
   hats: stageHats,
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, firstvisit: stageFirstVisit, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, answer: stageAnswer, toeditor: stageToEditor, editor: stageEditor, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, wish: stageWish, react: stageReact, alive: stageAlive, touch: stageTouch, phoneperf: stagePhonePerf, motion: runCharacterMotion, leave: stageLeave, back: stageBack,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, firstvisit: stageFirstVisit, mirror: stageMirror, mirrorlayout: stageMirrorLayout, sheet: stageSheet, asks: stageAsks, answer: stageAnswer, toeditor: stageToEditor, editor: stageEditor, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, wish: stageWish, react: stageReact, alive: stageAlive, touch: stageTouch, phoneperf: stagePhonePerf, motion: runCharacterMotion, leave: stageLeave, back: stageBack,
 };
 // Island invitations (island-invite): after the sheet, the inviter's stage, then the friend's page on a closed island.
 STAGES.push('invite', 'gone', 'own');
@@ -2643,7 +2710,7 @@ RUN.moment = stageMoment;
 /** The stages a page that follows a leg change carries on with (the first-minutes ones are already done). */
 const legSeq = (id, prior) => (id === 'editor-bridge' && prior && prior.leg === 'editor' ? ['editor'] : id === 'island-invite' && prior && (prior.leg === 'gone' || prior.leg === 'own') ? [prior.leg] : null);
 
-const ENDS = { 'character-motion': 'motion', 'overseer-personality': 'react', 'overseer-first-visit': 'firstvisit', 'island-invite-friend': 'farrive', 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'overseer-ask': 'answer', 'editor-bridge': 'editor', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'phone-performance': 'phoneperf', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models', 'gen-hats': 'hats' };
+const ENDS = { 'mirror-panel-layout': 'mirrorlayout', 'character-motion': 'motion', 'overseer-personality': 'react', 'overseer-first-visit': 'firstvisit', 'island-invite-friend': 'farrive', 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'overseer-ask': 'answer', 'editor-bridge': 'editor', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'phone-performance': 'phoneperf', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models', 'gen-hats': 'hats' };
 
 
 // ---------------------------------------------------------------------------------------------- share-moment
