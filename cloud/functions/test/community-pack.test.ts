@@ -32,3 +32,11 @@ test('restore.json: a lane is only remade on an order with J’s yes, kinds and 
     for (const item of o.first ?? []) assert.ok(pack.packItems().some((it: any) => it.item === item), `${lane}: first names a pack thing (${item})`);
   }
 });
+
+test('a remake try Gen turned away (too many at once, Claude busy) is not one of the two tries', async () => {
+  const { wasTurnedAway } = await import('../src/community.ts');
+  assert.ok(wasTurnedAway("That's a lot at once: wait 1 second, then try again."));
+  assert.ok(wasTurnedAway('Claude is throttled (429)'));
+  assert.ok(!wasTurnedAway('step 3/5 image.viewsheet: the views are not the same object'));
+  assert.ok(!wasTurnedAway(''));
+});
