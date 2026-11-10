@@ -69,15 +69,14 @@ export async function testAccount(): Promise<User> {
   return { ...u, test: true } as User;
 }
 
-/** A playtest makes a new game each run and the free plan keeps 3, so the test account's games from earlier runs go
- *  (older than a run lasts, so a playtest running beside this one keeps its game). Only ever the test account's own. */
-export const OLD_GAME_MS = 30 * 60_000;
-async function clearOldGames(u: User, now = Date.now()) {
+/** A playtest makes a new game each run and the free plan keeps 3, so at each sign-in the test account keeps only its
+ *  newest game (a playtest running beside this one may still be using it) and the rest go. Only ever its own. */
+async function clearOldGames(u: User) {
   if (u.email !== TEST_EMAIL || (u as any).test !== true) return;
   const { deleteGame } = await import('./games.ts');
-  const mine = await db.collection('games').where('owner_id', '==', u.id).get();
-  for (const g of mine.docs) {
-    if (Number(g.get('created') ?? 0) > now - OLD_GAME_MS) continue;
+  const mine = (await db.collection('games').where('owner_id', '==', u.id).get()).docs
+    .sort((a, b) => Number(b.get('created') ?? 0) - Number(a.get('created') ?? 0));
+  for (const g of mine.slice(1)) {
     await deleteGame(u, g.id).catch((e) => console.warn(`[test-signin] could not clear ${g.id}: ${e.message ?? e}`));
   }
 }
