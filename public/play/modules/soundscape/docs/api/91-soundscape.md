@@ -1,0 +1,5 @@
+## Soundscape
+`H.soundscape`: ambience beds (inland, beach, pier) crossfaded by player x on the frame hook, footsteps by surface from
+`step-<sand|grass|wood|stone>-1..3` (never the same twice in a row, pitch varied), and `ui(name)` sounds (`pickup`, `place`,
+`build`, `panel`, `quest`, `send`) played on game events. Files: `public/play/audio/sfx/` and its `index.json`.
+Ambience uses `H.audio.background`; everything else the master, so mute and volume apply. A hidden page suspends the context.
