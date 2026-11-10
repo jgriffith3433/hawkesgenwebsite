@@ -48,3 +48,10 @@ test('phone compact folds under 760 wide or under 500 tall; sheet is bottom or s
   // Short landscape still reserves on the right when the panel is a side sheet (width >= 760).
   assert.equal(H.hudLayout.compute(844, 844 - 10 - 280, 280), 844 - (844 - 10 - 280) + 12);
 });
+
+test('phone compact CSS hides Journal beside the menu and clears the stick under the sheet', () => {
+  const src = fs.readFileSync(new URL('../../public/play/modules/hudlayout/hudlayout.js', import.meta.url), 'utf8');
+  assert.ok(src.includes('body.hl-compact .jr-btn{display:none!important}'), 'Journal is folded away on compact (Controls has it)');
+  assert.ok(src.includes('max-width:min(260px,calc(100vw - 120px))'), 'short-landscape sheet leaves the left quest band free');
+  assert.ok(src.includes('overflow:hidden!important'), 'phone sheets clip instead of spilling past the edge');
+});

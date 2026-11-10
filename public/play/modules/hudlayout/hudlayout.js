@@ -106,7 +106,8 @@
     body.hl-panel:not(.tl):not(.pr-touch) .hc-chat{left:calc(62px + (100vw - var(--hl-panel)) / 2);width:min(640px,calc(100vw - var(--hl-panel) - 136px));max-width:calc(100vw - var(--hl-panel) - 136px)}
     body.hl-panel.pr-touch:not(.tl) .hc-chat{max-width:min(340px,calc(100vw - var(--hl-panel) - 24px))}
     body.hl-panel.tl .gs-acts{max-width:none}
-    /* phone: one 44 px menu; the intents sit in a list under it when .open */
+    /* phone: one 44 px menu; the intents sit in a list under it when .open. Journal (.jr-btn) is in Controls on touch. */
+    body.hl-compact .jr-btn{display:none!important}
     body.hl-compact .gs-acts{flex-wrap:nowrap;align-items:flex-end;max-width:min(280px,calc(100vw - 24px));z-index:70}
     body.hl-compact .gs-acts:not(.open)>[data-intent]{display:none!important}
     body.hl-compact .gs-acts .more{display:inline-flex!important;align-items:center;justify-content:center;width:var(--hl-menu);height:var(--hl-menu);min-width:var(--hl-menu);min-height:var(--hl-menu);padding:0;font:700 18px/1 var(--hud,'Rajdhani',system-ui,sans-serif);letter-spacing:0;flex:none}
@@ -122,12 +123,12 @@
     body.tl.hl-panel.hl-compact #tl-tr{width:max(48px,calc(var(--tl-tr-w) - var(--hl-panel)))!important}
     /* portrait phone: bottom sheet above the stick, under the quest band */
     @media (max-width:759px){
-      .mr{top:auto!important;bottom:max(148px,calc(var(--tl-stick,124px) + env(safe-area-inset-bottom,0px) + 24px))!important;left:max(10px,env(safe-area-inset-left,0px))!important;right:max(10px,env(safe-area-inset-right,0px))!important;width:auto!important;max-height:min(42vh,calc(100dvh - 220px))!important;transform:none!important;animation:none!important;border-radius:16px}
+      .mr{top:auto!important;bottom:max(148px,calc(var(--tl-stick,124px) + env(safe-area-inset-bottom,0px) + 24px))!important;left:max(10px,env(safe-area-inset-left,0px))!important;right:max(10px,env(safe-area-inset-right,0px))!important;width:auto!important;max-width:calc(100vw - 20px)!important;max-height:min(38vh,calc(100dvh - 240px))!important;transform:none!important;animation:none!important;border-radius:16px;box-sizing:border-box!important;overflow:hidden!important}
       .mr-grid{grid-template-columns:repeat(4,1fr)}.mr-q{font-size:21px}
     }
-    /* short landscape (844x390): narrow side sheet above the touch cluster, clear of the quest (top left) */
+    /* short landscape (844x390): narrow side sheet above the touch cluster, clear of the quest (top left) and stick */
     @media (max-height:499px){
-      .mr{top:max(10px,env(safe-area-inset-top,0px))!important;bottom:max(148px,calc(var(--tl-btn,60px) * 4 + var(--tl-gap,8px) * 3 + env(safe-area-inset-bottom,0px) + 20px))!important;right:max(10px,env(safe-area-inset-right,0px))!important;left:auto!important;width:min(280px,36vw)!important;max-height:none!important;transform:none!important;animation:none!important;border-radius:14px}
+      .mr{top:max(8px,env(safe-area-inset-top,0px))!important;bottom:max(112px,calc(var(--tl-stick,100px) + env(safe-area-inset-bottom,0px) + 16px))!important;right:max(8px,env(safe-area-inset-right,0px))!important;left:auto!important;width:min(260px,34vw)!important;max-width:min(260px,calc(100vw - 120px))!important;max-height:none!important;transform:none!important;animation:none!important;border-radius:14px;box-sizing:border-box!important;overflow:hidden!important}
       .mr-grid{grid-template-columns:repeat(3,1fr)}.mr-q{font-size:18px}
     }
     @media (prefers-reduced-motion:reduce){.gs-acts,.jr-btn,.gs-toast,.ev-hud,.ov-work,#dl-stack,.tour-track,.qs-track,.hc-chat{transition:none!important}}`;
