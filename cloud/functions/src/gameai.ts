@@ -535,8 +535,9 @@ function lineOp(l: { op: string; id: string; json: any }) {
 /** Follows a Gen job until it ends (or the deadline: cancelled, refunded), calling `onText` with its text so far and `onTick`
  *  every read (a heartbeat for the players). Gen not answering (or busy: 429) slows the reads down instead of hammering
  *  it; a minute with no answer at all ends the job as unreachable, so a run can never wait on Gen forever. */
-export async function followJob(job: any, project: string, deadline: number, onText?: (text: string, ended: boolean) => Promise<void>, onTick?: (job: any) => Promise<void>, o: { read?: (id: string) => Promise<any>; cancel?: (id: string) => Promise<any>; pollMs?: number; quietMs?: number; queuedMs?: number } = {}) {
+export async function followJob(job: any, project: string, deadline: number, onText?: (text: string, ended: boolean) => Promise<void>, onTick?: (job: any) => Promise<void>, o: { read?: (id: string) => Promise<any>; cancel?: (id: string) => Promise<any>; pollMs?: number; quietMs?: number; queuedMs?: number; silentMs?: number } = {}) {
   const began = Date.now();
+  let grew = began; // the last time the job's text got longer
   const read = o.read ?? ((id: string) => gen(`/v1/jobs/${id}`, { as: project }));
   const cancel = o.cancel ?? ((id: string) => gen(`/v1/jobs/${id}/cancel`, { as: project, method: 'POST' }));
   const pollMs = o.pollMs ?? POLL_MS();
@@ -546,15 +547,17 @@ export async function followJob(job: any, project: string, deadline: number, onT
   let seen = -1;
   for (;;) {
     const ended = ['done', 'failed', 'cancelled'].includes(job.status);
-    if (onText) {
-      const text = String((job.status === 'done' ? job.result?.text : null) ?? job.result?.partial ?? '');
-      if (text.length !== seen || ended) { seen = text.length; await onText(text, ended); }
-    }
+    const text = String((job.status === 'done' ? job.result?.text : null) ?? job.result?.partial ?? '');
+    if (text.length > seen && seen >= 0) grew = Date.now();
+    if (onText && (text.length !== seen || ended)) { seen = text.length; await onText(text, ended); }
+    else seen = text.length;
     if (ended) return job;
     if (onTick) await onTick(job).catch(() => {});
     // A job Gen never starts (no worker free) must not keep the player waiting for the whole deadline.
     const stuckQueued = o.queuedMs != null && job.status === 'queued' && Date.now() - began > o.queuedMs;
-    if (stuckQueued || Date.now() > deadline) {
+    // Running, but not one word for silentMs (it started and went quiet): the heartbeat would otherwise keep the player waiting to the deadline.
+    const stuckSilent = o.silentMs != null && job.status !== 'queued' && Date.now() - grew > o.silentMs;
+    if (stuckQueued || stuckSilent || Date.now() > deadline) {
       job = await cancel(job.id).catch(() => ({ ...job, status: 'cancelled' }));
       if (!['done', 'failed', 'cancelled'].includes(job.status)) job = { ...job, status: 'cancelled' };
       job.error = 'timeout';
@@ -909,7 +912,7 @@ export async function runAssistant(run: any) {
         if (Date.now() - beat < HEARTBEAT_MS) return;
         beat = Date.now();
         await show({ k: 'alive', s: Math.round((Date.now() - began) / 1000), status: String(j.status ?? ''), chars: String(j.result?.partial ?? '').length });
-      }, { queuedMs: Number(env('GAME_AI_QUEUED_MS') ?? 45_000) });
+      }, { queuedMs: Number(env('GAME_AI_QUEUED_MS') ?? 45_000), silentMs: Number(env('GAME_AI_SILENT_MS') ?? 75_000) });
       // The last line, when the end came between two reads.
       if (job.status === 'done') {
         const text = String(job.result?.text ?? '');
