@@ -69,13 +69,14 @@ export async function testAccount(): Promise<User> {
   return { ...u, test: true } as User;
 }
 
-/** A playtest makes a new game each run and the free plan keeps 3, so at each sign-in the test account keeps only its
- *  newest game (a playtest running beside this one may still be using it) and the rest go. Only ever its own. */
+/** A playtest used to POST /v1/games after every mirror; the free plan only keeps 3. At each sign-in the test account
+ *  keeps only its newest game (a playtest running beside this one may still be using it; the sandbox now reuses it
+ *  instead of creating another) and the rest go, so it never sits at the cap. Only ever its own. */
 async function clearOldGames(u: User) {
   if (u.email !== TEST_EMAIL || (u as any).test !== true) return;
   const { deleteGame } = await import('./games.ts');
   const mine = (await db.collection('games').where('owner_id', '==', u.id).get()).docs
-    .sort((a, b) => Number(b.get('created') ?? 0) - Number(a.get('created') ?? 0));
+    .sort((a, b) => Number(b.get('updated') ?? b.get('created') ?? 0) - Number(a.get('updated') ?? a.get('created') ?? 0));
   for (const g of mine.slice(1)) {
     await deleteGame(u, g.id).catch((e) => console.warn(`[test-signin] could not clear ${g.id}: ${e.message ?? e}`));
   }
