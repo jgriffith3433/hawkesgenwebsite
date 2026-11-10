@@ -1,2 +1,0 @@
-Restored tip 63f83f2 (already branch HEAD): real amb-beach, amb-pier ambience beds and ui-pickup SFX, wired in modules/soundscape; island-soundscape playtest + test/engine/soundscape.test.ts (pass); tsc clean. No GPU spent this pass.
-Still pending (see .hawkes/pending-gpu.txt): step-sand/grass/stone variants and ui-place/build/panel/quest/send; tone/Juice fallbacks cover them. Criteria 2 and 3 need that art to fully pass.
