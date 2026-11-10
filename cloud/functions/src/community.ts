@@ -20,6 +20,7 @@ import { db, FieldValue, users } from './store.ts';
 import { gen, genFetch } from './gen.ts';
 import { requireUser, requireAdmin, adminFrom, type User } from './accounts.ts';
 import { PortalError, route } from './http.ts';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -465,6 +466,14 @@ export async function packHealth() {
 }
 
 const restores = () => db.collection('communityRestore');
+const REMAKE_SCHEME = 2;
+/**
+ * Gen's key for one try at remaking a pack thing. Never the pack's own key: Gen hands back the job that key first made
+ * (done, its files lost with the AWS box), so nothing would be made. One key per order and try: a repeat of the same
+ * try gets the same job back, a second try is new work.
+ */
+export const remakeKey = (packKey: string, order: string, tryNo: number) =>
+  `${packKey}/remake/${crypto.createHash('sha256').update(order).digest('hex').slice(0, 10)}/${tryNo}`;
 /**
  * Remakes what the pack is missing, within this lane's restore order: the missing things of its kinds go to Gen as the
  * same asset.make jobs tools/starter.mjs queues (same key and labels, in this lane's starter project), priced by Gen's
@@ -478,12 +487,15 @@ export async function restoreStarter() {
   const health = await packHealth();
   const missing = new Set(health.missingItems);
   const ref = restores().doc(order.approved.replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 120) || 'order');
-  const state = (await ref.get()).data() ?? {};
+  // Tries kept before remakes had keys of their own (scheme 2) never reached Gen as new work: the pack's own key handed
+  // back the original job, finished long ago with its files gone (beta, 2026-11-10). They count for nothing.
+  const kept = (await ref.get()).data() ?? {};
+  const state = kept.scheme === REMAKE_SCHEME ? kept : {};
   const tries: Record<string, number> = state.tries ?? {};
   const queuedAt: Record<string, number> = state.queuedAt ?? {};
   let spent = Number(state.spentUsd) || 0;
-  // A thing queued in the last 2 hours is still being made (it lists when it finishes); after that a second try only
-  // runs again if the first failed (same key, reuse: Gen hands back the finished or running job).
+  // A thing queued in the last 2 hours is still being made (it lists when it finishes); after that it gets a second try
+  // under a key of its own (each try's key hands back that try's job, so a repeat never pays twice).
   // The cheap kinds first, 3D models (most of the cost) last.
   // Things the worlds use (order.first) come before the rest of their kind.
   const rank = (it: { item: string; kind: string }) => Number(it.kind === 'model') * 2 + Number(!order.first.includes(it.item));
@@ -516,12 +528,12 @@ export async function restoreStarter() {
     tries[it.item] = (tries[it.item] ?? 0) + 1;
     queuedAt[it.item] = Date.now();
     try {
-      await gen('/v1/jobs', { method: 'POST', as: STARTER_PROJECT, body: { tool: 'asset.make', project: STARTER_PROJECT, params: paramsFor(it.kind, it.what), labels: labelsOf(it), key: keyOf(it), reuse: true } });
+      await gen('/v1/jobs', { method: 'POST', as: STARTER_PROJECT, body: { tool: 'asset.make', project: STARTER_PROJECT, params: paramsFor(it.kind, it.what), labels: labelsOf(it), key: remakeKey(keyOf(it), ref.id, tries[it.item]), reuse: true } });
       spent += price[it.kind];
       queued++;
     } catch (e: any) { console.warn(`[portal] starter restore: ${it.item}: ${e.message}`); }
   }
-  await ref.set({ approved: order.approved, kinds: order.kinds, budgetUsd: order.budgetUsd, spentUsd: Math.round(spent * 100) / 100, tries, queuedAt, updated: Date.now() }, { merge: true });
+  await ref.set({ scheme: REMAKE_SCHEME, approved: order.approved, kinds: order.kinds, budgetUsd: order.budgetUsd, spentUsd: Math.round(spent * 100) / 100, tries, queuedAt, updated: Date.now() });
   return { order: true, queued, spentUsd: Math.round(spent * 100) / 100, budgetUsd: order.budgetUsd };
 }
 
