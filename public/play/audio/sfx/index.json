@@ -1,6 +1,8 @@
 {
   "sounds": [
+    "amb-beach",
     "amb-inland",
+    "amb-pier",
     "beam-down",
     "boat-horn",
     "cactus-rustle",
@@ -19,6 +21,7 @@
     "step-wood-2",
     "step-wood-3",
     "toaster-pop",
-    "tv-blip"
+    "tv-blip",
+    "ui-pickup"
   ]
 }
