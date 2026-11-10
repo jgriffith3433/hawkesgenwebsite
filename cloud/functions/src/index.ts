@@ -30,6 +30,7 @@ import './analytics.ts';
 export { syncStarter } from './community.ts';
 export { refreshLods } from './lods.ts';
 import './games.ts';
+import './testsignin.ts';
 import './playpages.ts';
 import './use-community.ts';
 // The assistant searches the community library (gameai.ts's hook, set here so neither area imports the other).
