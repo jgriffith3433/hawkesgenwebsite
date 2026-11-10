@@ -8,10 +8,10 @@
 // sheet (portrait) or a narrow side sheet above the touch cluster (landscape) that never covers the quest button or
 // the move stick.
 //
-//   top-left   the quest banner      .tour-track .tour-stuck .qs-btn .qs-track   (max-width ends left of the panel)
-//   top-right  the action row        .gs-acts                                     (moves left of the panel; folds on phone)
+//   top-left   the quest banner      #dl-stack .tour-track .tour-stuck .qs-btn .qs-track .hc-card (ends left of the panel)
+//   top-right  the action row        .gs-acts .jr-btn                             (moves left of the panel; folds on phone)
 //   right      the side panel        .mr, or anything with [data-hud-panel]
-//   bottom     the chat               (touchlayout.js owns the phone's zones; a bottom sheet clears the stick)
+//   bottom     the chat              .hc-chat                                     (shifts left of the panel on desktop)
 //
 // No timers and no polling: the layout is recomputed when a panel is added or removed (a MutationObserver on the body),
 // when the panel itself changes size (ResizeObserver) and when the window is resized. It writes two things: the CSS
@@ -33,9 +33,10 @@
   const PHONE_W = 760; // under this: fold actions; portrait sheet is a bottom sheet
   const SHORT_H = 500; // under this (landscape phone): fold actions; sheet is a narrow side sheet
   const ZONES = {
-    quest: '.tour-track, .tour-stuck, .qs-btn, .qs-track',
-    actions: '.gs-acts',
+    quest: '#dl-stack, .tour-track, .tour-stuck, .qs-btn, .qs-track, .hc-card',
+    actions: '.gs-acts, .jr-btn',
     panel: '.mr, [data-hud-panel]',
+    chat: '.hc-chat',
   };
 
   /** Phone compact: widths under 760 or heights under 500 (short landscape). */
@@ -90,11 +91,20 @@
 
   const CSS = `
     :root{--hl-panel:0px;--hl-menu:44px}
-    .gs-acts{transition:right .3s ease,max-width .3s ease}
-    .tour-track,.qs-track{transition:width .3s ease,max-width .3s ease}
+    .gs-acts,.jr-btn,.gs-toast,.ev-hud,.ov-work{transition:right .3s ease,max-width .3s ease}
+    #dl-stack,.tour-track,.qs-track{transition:width .3s ease,max-width .3s ease}
+    body:not(.tl):not(.pr-touch) .hc-chat{left:50vw;width:min(640px,calc(100vw - 32px));max-width:calc(100vw - 32px);transition:left .3s ease,width .3s ease,max-width .3s ease}
+    /* desktop top-right action row: the Journal button (.jr-btn) sits at the right end of the row beside .gs-acts */
+    body:not(.tl):not(.hl-compact) .jr-btn{top:max(12px,env(safe-area-inset-top));right:max(12px,var(--hl-panel),env(safe-area-inset-right))}
+    body:not(.tl):not(.hl-compact):has(.jr-btn:not([hidden])) .gs-acts{right:calc(max(12px,var(--hl-panel)) + 50px);max-width:calc(100vw - max(12px,var(--hl-panel)) - 62px - 312px)}
     body.hl-panel .gs-acts{right:calc(var(--hl-panel) + 0px);max-width:calc(100vw - var(--hl-panel) - 24px - 312px)}
+    body.hl-panel:not(.tl) .jr-btn{right:max(12px,var(--hl-panel),env(safe-area-inset-right))}
+    body.hl-panel .gs-toast,body.hl-panel .ev-hud,body.hl-panel .ov-work{right:max(12px,var(--hl-panel))}
+    body.hl-panel:not(.tl) #dl-stack{max-width:min(300px,calc(100vw - var(--hl-panel) - 24px))}
     body.hl-panel .tour-track{width:min(300px,calc(100vw - var(--hl-panel) - 24px))}
     body.hl-panel .qs-track{max-width:min(300px,calc(100vw - var(--hl-panel) - 24px))}
+    body.hl-panel:not(.tl):not(.pr-touch) .hc-chat{left:calc(62px + (100vw - var(--hl-panel)) / 2);width:min(640px,calc(100vw - var(--hl-panel) - 136px));max-width:calc(100vw - var(--hl-panel) - 136px)}
+    body.hl-panel.pr-touch:not(.tl) .hc-chat{max-width:min(340px,calc(100vw - var(--hl-panel) - 24px))}
     body.hl-panel.tl .gs-acts{max-width:none}
     /* phone: one 44 px menu; the intents sit in a list under it when .open */
     body.hl-compact .gs-acts{flex-wrap:nowrap;align-items:flex-end;max-width:min(280px,calc(100vw - 24px));z-index:70}
@@ -120,7 +130,7 @@
       .mr{top:max(10px,env(safe-area-inset-top,0px))!important;bottom:max(148px,calc(var(--tl-btn,60px) * 4 + var(--tl-gap,8px) * 3 + env(safe-area-inset-bottom,0px) + 20px))!important;right:max(10px,env(safe-area-inset-right,0px))!important;left:auto!important;width:min(280px,36vw)!important;max-height:none!important;transform:none!important;animation:none!important;border-radius:14px}
       .mr-grid{grid-template-columns:repeat(3,1fr)}.mr-q{font-size:18px}
     }
-    @media (prefers-reduced-motion:reduce){.gs-acts,.tour-track,.qs-track{transition:none}}`;
+    @media (prefers-reduced-motion:reduce){.gs-acts,.jr-btn,.gs-toast,.ev-hud,.ov-work,#dl-stack,.tour-track,.qs-track,.hc-chat{transition:none!important}}`;
 
   function start() {
     if (typeof document === 'undefined' || !document.body || start.done) return;
