@@ -560,6 +560,14 @@ async function stageMirrorLayout(t) {
 }
 
 async function stageSheet(t, ctx) {
+  // A browser Studio signed in beforehand (its beta test sign-in, cloud/functions/src/testsignin.ts) never sees the sheet:
+  // the island just carries on, so there is nothing to wait for.
+  const signedIn = await fetch('/v1/users/me?soft=1', { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : {})).then((d) => d.user || null).catch(() => null);
+  if (signedIn) {
+    t.event('signed-in', 'this browser was signed in before the run: no account sheet');
+    t.progress(0.6);
+    return;
+  }
   await t.until(() => $('#gsEmail') || $('#gsGoogle'), 20000, 'the account sheet to open after the mirror');
   t.scene('Account sheet');
   t.event('sheet-shown', ($('#gsTitle') || {}).textContent || '');
@@ -642,7 +650,8 @@ async function stageAsks(t) {
 }
 
 /** The Overseer answers, and a failed ask is a plain message with Retry (never an endless spinner), after which the next ask works at once.
- *  Needs a signed-in browser (the sheet is Google only: stageSheet ends the run `done` with a warning otherwise). */
+ *  Needs a signed-in browser: on beta Studio signs one in first (testSignIn); elsewhere the sheet is Google only and
+ *  stageSheet ends the run `done` with a warning. */
 async function stageAnswer(t) {
   const lines = () => [...document.querySelectorAll('.hc-log p.overseer')].map((p) => p.textContent.replace(/\s+/g, ' ').trim());
   const retryBtn = () => [...document.querySelectorAll('.hc-card .act')].find((b) => /^retry$/i.test(b.textContent.trim()));
