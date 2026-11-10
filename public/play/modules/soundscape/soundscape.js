@@ -10,6 +10,8 @@
   if (!H || H.soundscape) return;
   const DIR = '/play/audio/sfx/';
   const BEDS = { inland: 'amb-inland', beach: 'amb-beach', pier: 'amb-pier' };
+  // Per-bed loudness so a quiet Gen take does not drop out when the player walks into that area.
+  const BED_GAIN = { inland: 0.78, beach: 0.95, pier: 0.72 };
   const STEPS = { sand: 'step-sand', grass: 'step-grass', dirt: 'step-grass', wood: 'step-wood', stone: 'step-stone' };
   const VARIANTS = 3;
   const bufs = new Map(), beds = {}, last = {};
@@ -58,16 +60,20 @@
   }
   const FALLBACK = { pickup: [660, 990, 0.12], place: [220, 140, 0.1], build: [440, 1320, 0.3], panel: [500, 700, 0.08], quest: [660, 1320, 0.35], send: [520, 880, 0.14] };
   /** One interaction sound by name (pickup, place, build, panel, quest, send): the file when the site has it, else a tone. */
+  const UI_VOL = { pickup: 0.8, place: 0.85, build: 0.8, panel: 0.9, quest: 0.85, send: 0.95 };
   function ui(name) {
-    if (has(`ui-${name}`)) play(`ui-${name}`, { volume: 0.7, rate: 0.97 + Math.random() * 0.06 });
+    if (has(`ui-${name}`)) play(`ui-${name}`, { volume: UI_VOL[name] ?? 0.8, rate: 0.97 + Math.random() * 0.06 });
     else if (FALLBACK[name]) tone(FALLBACK[name][0], FALLBACK[name][1], FALLBACK[name][2], 0.12);
   }
+  // Wood Gen takes are sustained/thumpy (high RMS); scale them so pier boards match sand/grass punch.
+  const STEP_VOL = { sand: 1, grass: 1, dirt: 1, wood: 0.35, stone: 0.9 };
   /** A footstep on a surface: true when this module plays it (its files exist), so Juice's synthesis stands down. */
   function step(surface, o = {}) {
     const base = STEPS[surface];
     const n = base ? variantsOf(base) : 0;
     if (!base || n < 1) return false;
-    play(`${base}-${pick(base, n)}`, { volume: Math.min(1, (o.loudness ?? 0.3) * 1.6), rate: (o.pitch || 1) * (0.94 + Math.random() * 0.12) });
+    const vol = Math.min(1, (o.loudness ?? 0.3) * 1.6 * (STEP_VOL[surface] ?? 1));
+    play(`${base}-${pick(base, n)}`, { volume: vol, rate: (o.pitch || 1) * (0.94 + Math.random() * 0.12) });
     return true;
   }
 
@@ -102,7 +108,7 @@
       if (ctx.state !== 'running' || !index) return;
       if (!started) startBeds();
       const wt = weights(p.x);
-      for (const k of Object.keys(beds)) if (beds[k].g) beds[k].g.gain.setTargetAtTime(wt[k] * 0.8, ctx.currentTime, 0.6);
+      for (const k of Object.keys(beds)) if (beds[k].g) beds[k].g.gain.setTargetAtTime(wt[k] * (BED_GAIN[k] ?? 0.8), ctx.currentTime, 0.6);
     } catch (err) { H.report(err, 'soundscape'); }
   });
   H.hooks.world.push({

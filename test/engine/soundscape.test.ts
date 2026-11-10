@@ -48,4 +48,18 @@ test('soundscape: module listens for real island events (mirror/spawn-wheel/work
   assert.ok(js.includes("g.on('mirror'"), 'mirror open → panel UI');
   assert.ok(js.includes("g.on('spawn-wheel'"), 'spawn wheel open → panel UI');
   assert.ok(js.includes("g.on('asked'"), 'Overseer chat send');
+  assert.ok(js.includes('BED_GAIN'), 'per-bed gain so a quiet take does not drop out');
+  assert.ok(js.includes('UI_VOL'), 'per-interaction play volumes');
+  assert.ok(js.includes('STEP_VOL'), 'per-surface footstep volumes (wood tamed)');
+});
+
+test('soundscape: ambience bed files are real loops (not tiny stand-ins)', () => {
+  const dir = path.join(process.cwd(), 'public/play/audio/sfx');
+  const size = (n: string) => fs.statSync(path.join(dir, `${n}.mp3`)).size;
+  assert.ok(size('amb-beach') > 100_000 && size('amb-pier') > 100_000 && size('amb-inland') > 100_000, 'beds are real loops, not tiny stand-ins');
+  assert.ok(size('ui-send') > 8_000 && size('ui-panel') > 6_000, 'interaction clips present');
+  // Wood / sand / grass step files all present and non-trivial (peak parity is a listen check on beta).
+  for (const s of ['step-wood-1', 'step-sand-1', 'step-grass-1']) {
+    assert.ok(size(s) > 4_000, `${s} present`);
+  }
 });
