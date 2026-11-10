@@ -502,6 +502,10 @@ async function keepRaw(run: any, raw: RawError) {
 const mainParams = (prompt: string) => ({ prompt, system: SYSTEM(), effort: env('GAME_AI_EFFORT') || 'low', maxTokens: 32000, ...(env('GAME_AI_MODEL') ? { model: env('GAME_AI_MODEL') } : {}) });
 const directorOn = () => env('GAME_AI_DIRECTOR') !== '0';
 const directorParams = (prompt: string) => ({ prompt, system: DIRECTOR_SYSTEM, schema: DIRECTOR_SCHEMA, model: env('GAME_AI_DIRECTOR_MODEL') || 'claude-haiku-5-5', effort: 'low', maxTokens: 1200 });
+/** The Overseer's Gen jobs have a player watching for them: Gen puts their Claude call ahead of its background work
+ *  (beta's starter remake held every Claude slot and "Add a red cube" got no word for 75 s), bounds the wait and fails
+ *  plainly instead of backing off for minutes. Gen that doesn't know the label ignores it. */
+export const WAITING = { waiting: 'player' } as const;
 const POLL_MS = () => Number(process.env.PORTAL_AI_POLL_MS ?? 300);
 
 /** What a message to the Overseer costs now: Gen's quote for the call (never under AI_CREDITS) and the director's. */
@@ -612,7 +616,7 @@ export async function askAssistant(user: User, gameId: string, body: { message?:
   await show({ k: 'begin', by: user.name ?? null, text: message.slice(0, 200), at: lookAt.at });
   let job: any;
   try {
-    [job] = await submit(fresh, [{ tool: 'llm.text', params: mainParams(prompt) }], viaFor(game), { minCredits: AI_CREDITS() });
+    [job] = await submit(fresh, [{ tool: 'llm.text', params: mainParams(prompt), labels: WAITING }], viaFor(game), { minCredits: AI_CREDITS() });
   } catch (e) {
     await unlock(thinkingFor(game.id));
     await tell(game.id, 'thinking', { on: false });
@@ -811,7 +815,7 @@ export async function runAssistant(run: any) {
       try {
         const now = await getUser(user.id);
         if (!now || now.credits <= 0) return;
-        const [d] = await submit(now, [{ tool: 'llm.json', params: directorParams(String(run.director)) }], via);
+        const [d] = await submit(now, [{ tool: 'llm.json', params: directorParams(String(run.director)), labels: WAITING }], via);
         const done = await followJob(d, user.project, Math.min(deadline, Date.now() + 25_000));
         await settle(done);
         const v = done.status === 'done' ? done.result?.value : null;
