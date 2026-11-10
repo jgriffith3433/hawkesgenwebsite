@@ -32,9 +32,9 @@ import { WORLD_QUALITY, runWorldQuality } from './world-quality.js';
 import { PHONE_HUD_LAYOUT, runPhoneHudLayout } from './phone-hud-layout.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'firstvisit', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'phoneperf', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'answer', 'progress', 'models', 'wish', 'toeditor', 'editor', 'react', 'motion', 'mirrorlayout'];
+const STAGES = ['landing', 'veil', 'intro', 'firstvisit', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'phoneperf', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'answer', 'progress', 'models', 'wish', 'toeditor', 'editor', 'react', 'motion', 'mirrorlayout', 'hudoverlap'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'character-motion': ['landing', 'veil', 'intro', 'motion'], 'overseer-personality': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'react'], 'overseer-first-visit': ['landing', 'veil', 'firstvisit'], 'overseer-ask': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'answer'], 'gen-models-all': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-daily-wish': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wish'], 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'phone-performance': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'phoneperf'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'editor-bridge': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'toeditor', 'editor'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'mirror-panel-layout': ['landing', 'veil', 'intro', 'mirrorlayout'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
+const ORDERS = { 'character-motion': ['landing', 'veil', 'intro', 'motion'], 'overseer-personality': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'react'], 'overseer-first-visit': ['landing', 'veil', 'firstvisit'], 'overseer-ask': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'answer'], 'gen-models-all': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-daily-wish': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wish'], 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'phone-performance': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'phoneperf'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'editor-bridge': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'toeditor', 'editor'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'mirror-panel-layout': ['landing', 'veil', 'intro', 'mirrorlayout'], 'hud-overlap': ['landing', 'veil', 'intro', 'hudoverlap'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
 const SCENARIOS = [
   SICKOFIT_PAGE, // Sick of It's page before play (sickofit-page.js)
   SITE_LAYOUT, // the landing page at three sizes (site-layout.js)
@@ -100,6 +100,11 @@ const SCENARIOS = [
     id: 'ask-the-overseer', title: 'After the sign-up: the Overseer says the real balance, offers three priced asks to tap, and an empty balance gets Get credits', seconds: 200, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first-minutes path through the throwaway sign-up (never on live), then, in the chat with no reload: the Overseer\'s line carries the balance /v1/users/me reports; three example asks are offered, each with its price (the quote) and a Send; nothing is spent before a click; a real click sends one. The empty balance is a named setup shortcut (the game told the balance is 0): the Overseer says so with a Get credits link and no request is made. options as sandbox-first-minutes',
+  },
+  {
+    id: 'hud-overlap', title: 'No HUD control overlaps another, leaves the screen or is too small to tap, with the mirror panel and the Overseer chat opened and closed', seconds: 120, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the intro is skipped, then at each step (mirror open, mirror closed, chat open, chat closed) every visible HUD control (buttons, links, inputs) is measured after the open/close transition ends (transitionend, no polling) and a screenshot is taken. Events hud-no-overlap, hud-in-viewport and hud-tap-targets pass or fail per step; a failure names the two controls (or the one). Run it at 1280x720, 390x844 and 844x390 (the window size is the runner\'s)',
   },
   {
     id: 'mirror-panel-layout', title: 'The HUD makes room for the mirror panel: the quest banner and the action row stay whole beside it, and glide back when it closes', seconds: 120, tags: ['full'],
@@ -558,6 +563,87 @@ async function stageMirrorLayout(t) {
   }
   const after = check('closed');
   for (const b of after.bad) t.problem('error', b);
+  t.progress(0.6);
+}
+
+/** hud-overlap: every visible HUD control measured at each step, after the transition (no timers: transitionend). */
+async function stageHudOverlap(t) {
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const size = `${vw}x${vh}`;
+  const settle = () => new Promise((res) => {
+    let done = false;
+    const end = () => { if (done) return; done = true; document.removeEventListener('transitionend', onEnd, true); res(); };
+    const onEnd = () => requestAnimationFrame(() => requestAnimationFrame(end));
+    document.addEventListener('transitionend', onEnd, true);
+    setTimeout(end, 900); // a layout with nothing moving never fires transitionend
+  });
+  const label = (el) => {
+    const txt = (el.getAttribute('aria-label') || el.textContent || el.placeholder || el.title || '').trim().replace(/\s+/g, ' ').slice(0, 24);
+    return `${el.tagName.toLowerCase()}${el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/)[0] : ''} "${txt}"`;
+  };
+  const controls = () => {
+    const out = [];
+    document.querySelectorAll('button, a[href], input, select, textarea, [role=button]').forEach((el) => {
+      if (el.closest('[hidden], .hp-enter') || el.offsetParent === null && getComputedStyle(el).position !== 'fixed') return;
+      const cs = getComputedStyle(el);
+      if (cs.visibility === 'hidden' || cs.display === 'none' || parseFloat(cs.opacity) === 0) return;
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) out.push({ name: label(el), el, r });
+    });
+    return out;
+  };
+  const measure = async (step, open) => {
+    await settle();
+    t.scene(`HUD ${step} at ${size}`);
+    const list = controls();
+    const off = [], small = [], overlap = [];
+    for (const c of list) {
+      const r = c.r;
+      if (r.left < -1 || r.top < -1 || r.right > vw + 1 || r.bottom > vh + 1) off.push(c.name);
+      if (r.width < 44 || r.height < 44) small.push(`${c.name} ${Math.round(r.width)}x${Math.round(r.height)}`);
+    }
+    for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+      const a = list[i], b = list[j];
+      if (a.el.contains(b.el) || b.el.contains(a.el)) continue;
+      const w = Math.min(a.r.right, b.r.right) - Math.max(a.r.left, b.r.left);
+      const h = Math.min(a.r.bottom, b.r.bottom) - Math.max(a.r.top, b.r.top);
+      if (w > 1 && h > 1) overlap.push(`${a.name} overlaps ${b.name}`);
+    }
+    // The panel and the quest banner are not controls themselves: the panel against the banner counts too.
+    const panel = $('.mr, [data-hud-panel]');
+    if (panel) {
+      const pr = panel.getBoundingClientRect();
+      document.querySelectorAll('.tour-track, .tour-stuck, .qs-btn, .qs-track, .gs-acts').forEach((b) => {
+        if (b.offsetParent === null) return;
+        const r = b.getBoundingClientRect();
+        if (r.width > 0 && r.right > pr.left + 1 && r.left < pr.right - 1 && r.bottom > pr.top + 1 && r.top < pr.bottom - 1) overlap.push(`${label(b)} overlaps the panel ${label(panel)}`);
+      });
+    }
+    const tag = `${step} ${size}`;
+    t.event('hud-measured', `${tag}: ${list.length} controls${open ? ' (' + open + ')' : ''}`);
+    if (overlap.length) for (const o of overlap) t.problem('error', `hud-no-overlap failed at ${tag}: ${o}`);
+    else t.event('hud-no-overlap', tag);
+    if (off.length) for (const o of off) t.problem('error', `hud-in-viewport failed at ${tag}: ${o} is outside the screen`);
+    else t.event('hud-in-viewport', tag);
+    if (small.length) for (const o of small) t.problem('error', `hud-tap-targets failed at ${tag}: ${o} is under 44px`);
+    else t.event('hud-tap-targets', tag);
+  };
+  await t.until(() => $('.mr .mr-q'), 40000, 'the mirror to open after the intro');
+  await measure('mirror open', 'panel');
+  const x = $('.mr .mr-x');
+  if (x) x.click();
+  await t.until(() => !$('.mr'), 10000, 'the mirror to close');
+  await measure('mirror closed');
+  const HP = window.HawkesPlay;
+  if (HP && HP.chat && HP.chat.open()) {
+    await t.until(() => $('.hc-chat form.on, .hc-chat .on'), 5000, 'the chat input to open');
+    await measure('chat open', 'chat');
+    const input = $('.hc-chat input');
+    if (input) input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await measure('chat closed');
+  } else {
+    t.problem('warn', 'the Overseer chat could not be opened: its steps were not measured');
+  }
   t.progress(0.6);
 }
 
@@ -2810,7 +2896,7 @@ async function stagePhonePerf(t, ctx) {
 const RUN = {
   models: stageModels,
   hats: stageHats,
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, firstvisit: stageFirstVisit, mirror: stageMirror, mirrorlayout: stageMirrorLayout, sheet: stageSheet, asks: stageAsks, answer: stageAnswer, toeditor: stageToEditor, editor: stageEditor, pier: stagePier, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, wish: stageWish, react: stageReact, alive: stageAlive, touch: stageTouch, phoneperf: stagePhonePerf, motion: runCharacterMotion, leave: stageLeave, back: stageBack,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, firstvisit: stageFirstVisit, mirror: stageMirror, mirrorlayout: stageMirrorLayout, hudoverlap: stageHudOverlap, sheet: stageSheet, asks: stageAsks, answer: stageAnswer, toeditor: stageToEditor, editor: stageEditor, pier: stagePier, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, wish: stageWish, react: stageReact, alive: stageAlive, touch: stageTouch, phoneperf: stagePhonePerf, motion: runCharacterMotion, leave: stageLeave, back: stageBack,
 };
 STAGES.push('pier');
 ORDERS['sandbox-pier-marker'] = ['landing', 'veil', 'intro', 'mirror', 'pier'];
@@ -2869,7 +2955,7 @@ RUN.moment = stageMoment;
 /** The stages a page that follows a leg change carries on with (the first-minutes ones are already done). */
 const legSeq = (id, prior) => (id === 'editor-bridge' && prior && prior.leg === 'editor' ? ['editor'] : id === 'island-invite' && prior && (prior.leg === 'gone' || prior.leg === 'own') ? [prior.leg] : null);
 
-const ENDS = { 'mirror-panel-layout': 'mirrorlayout', 'character-motion': 'motion', 'overseer-personality': 'react', 'overseer-first-visit': 'firstvisit', 'island-invite-friend': 'farrive', 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-pier-marker': 'pier', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'overseer-ask': 'answer', 'editor-bridge': 'editor', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'phone-performance': 'phoneperf', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models', 'gen-hats': 'hats' };
+const ENDS = { 'hud-overlap': 'hudoverlap', 'mirror-panel-layout': 'mirrorlayout', 'character-motion': 'motion', 'overseer-personality': 'react', 'overseer-first-visit': 'firstvisit', 'island-invite-friend': 'farrive', 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-pier-marker': 'pier', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'overseer-ask': 'answer', 'editor-bridge': 'editor', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'phone-performance': 'phoneperf', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models', 'gen-hats': 'hats' };
 
 
 // ---------------------------------------------------------------------------------------------- share-moment
