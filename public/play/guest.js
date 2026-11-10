@@ -4,15 +4,17 @@
 //
 // Who you are, then an account (J, 2026-10-24): the Overseer's intro and the mirror are a guest's; when the mirror's
 // questions are done (a name or none), the account sheet opens and can't be put away (sign up, sign in, or Google; an
-// email that already has an account is asked to sign in; "Forgot your password?" mails a link). Signed in, the island
-// becomes their game (claim 'tour') and Pip's tour carries on in the editor, where the Overseer is the chat and what it
-// makes is paid from their credits. Until then Pip waits (HawkesGuest.accountFirst: src/overseer-games/sandbox.js).
+// email that already has an account is asked to sign in; "Forgot your password?" mails a link). Until then Pip waits
+// (HawkesGuest.accountFirst: src/overseer-games/sandbox.js). Signed in already: the tour goes on here without creating
+// a game (POST /v1/games only when they choose Save / Build / Invite); if they already have an island it is reused so
+// the Overseer chat can talk, otherwise they play the guest sandbox until they keep it.
 //
 // When they want more ("Save this world", "Build your own", "Invite a friend"), the world as it is
 // now is snapshotted (HawkesGuestCore.snapshot: every thing from scene.json still there, where it is now, and the
 // things they spawned; terrain they dug) into localStorage, and the sign-up sheet opens (email, or Google, which comes
 // back to /play/sandbox?claim=<intent>). Signed in, the snapshot becomes their first game: POST /v1/games (template
-// 'sandbox') and the difference as scene ops (POST /v1/games/:id/scene), then the editor (/app/g/<id>).
+// 'sandbox') and the difference as scene ops (POST /v1/games/:id/scene), then the editor (/app/g/<id>). A plan that is
+// full answers 402 with a toast, never a sheet that covers the play view.
 //
 // Coming back (J, 2026-10-25): a second visit does not repeat the beginning. `hg_sandbox_return` (the `ret` record: the
 // character's name, the tour step they are on, who they were signed in as) is written when the mirror is done and as the
@@ -210,8 +212,8 @@
 .gs-acts .more{display:none} /* shown by hudlayout on phone compact (body.hl-compact) */
 .gs-acts .more[aria-expanded=true]{border-color:#4a9eff}
 .gs-toast{right:12px;top:62px;padding:12px 14px;display:flex;gap:12px;align-items:center;font:600 15px var(--hud);pointer-events:auto;max-width:calc(100vw - 24px)}
-.gs-toast button{font:700 14px var(--hud);border-radius:9px;padding:8px 12px;cursor:pointer;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);color:#e8ecf6;min-height:44px}
-.gs-toast button.primary{background:linear-gradient(90deg,#4a9eff,#a855f7);border-color:transparent;color:#fff}
+.gs-toast button,.gs-toast a.primary{font:700 14px var(--hud);border-radius:9px;padding:8px 12px;cursor:pointer;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);color:#e8ecf6;min-height:44px;text-decoration:none;display:inline-flex;align-items:center;box-sizing:border-box}
+.gs-toast button.primary,.gs-toast a.primary{background:linear-gradient(90deg,#4a9eff,#a855f7);border-color:transparent;color:#fff}
 .gs-veil{inset:0;z-index:60;background:rgba(4,6,12,.66);display:grid;place-items:center;padding:16px;pointer-events:auto}
 .gs-sheet{width:min(420px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:22px 22px 18px;font-family:var(--sans)}
 .gs-who{display:flex;align-items:center;gap:14px;margin:0 0 14px}
@@ -629,7 +631,9 @@
         track('sandbox_login', { intent, method: 'google' });
         track('sandbox_signup_ok', { mode: 'google', method: 'google', intent });
         close();
-        await signedIn(intent, u);
+        // The sheet is "Keep this island": they chose to keep it, so Save/create still runs (unlike the automatic
+        // post-mirror path for someone already signed in).
+        await signedIn(intent, u, { fromSheet: true });
       };
       addEventListener('message', onMsg);
     });
@@ -675,10 +679,9 @@
 
   // ------------------------------------------------------------------ signed in, without leaving: the island is kept here
   // (J, 2026-10-24: "I wanted sign in and registration to be seamless".) Signing in closes the sheet and the same world
-  // plays on: it becomes their game in the background (POST /v1/games + the changes so far as ops), joins that game's
-  // room (the Overseer's world changes arrive like any builder's, live) and its feed (the Overseer's answers, what it
-  // makes, new assets), the chat talks to the Overseer (H.chat, modules/overseer/chat.js), Pip's tour goes on, and what
-  // they do is saved every 20 s and on leaving. Building (the editor) is a page of its own, when they choose it.
+  // plays on. Saving (an explicit tap) makes it their game in the background (POST /v1/games + the changes so far as
+  // ops), joins that game's room and its feed, and the chat talks to the Overseer. After the mirror alone we never
+  // create a game: an existing island is reused, or they play on until they Save. Building is a page of its own.
   const RET = 'hg_sandbox_return';
   const ret = {
     get() { try { const v = JSON.parse(localStorage.getItem(RET) || 'null'); return v && v.v === 1 ? v : null; } catch { return null; } },
@@ -698,11 +701,58 @@
     clear() { try { localStorage.removeItem(KEPT); } catch { /* fine */ } },
   };
   let island = null; // { id, base, user }
-  /** After signing in: Build and Invite open the editor (a page of their own); the rest stays on the island. */
-  function signedIn(intent, user) {
+  /** After signing in: Build and Invite open the editor (a page of their own); the rest stays on the island.
+   *  o.fromSheet: they just finished the account sheet (Keep this island), so create/keep is OK; without it, a tour
+   *  intent only reuses an existing island or plays on (never POST /v1/games by itself after the mirror). */
+  function signedIn(intent, user, o = {}) {
     if (intent === 'share') return island ? afterKeep(intent) : keep(intent, user); // (the moment waits for this: afterKeep hands it on)
     if (intent === 'build' || intent === 'invite') return island ? toEditor() : claim(intent, user);
+    if (intent === 'tour' && !o.fromSheet) return continueTour(user);
     return keep(intent, user);
+  }
+  /** The look (and Overseer memory) from this visit into the account, without making a game. */
+  async function saveLook(user) {
+    const H = session.H;
+    if (!H) return;
+    let look = null;
+    try { look = H.presence && H.presence.look ? JSON.parse(JSON.stringify(H.presence.look)) : null; } catch { look = null; }
+    if (look) await api('POST', '/v1/users/me/avatar', { avatar: look }).catch((e) => console.warn('sandbox: look not saved', e));
+    try { if (H.memory) await H.memory.sync(); } catch { /* fine */ }
+    ret.patch({ user: user.id, name: lookName(H) || (ret.get() || {}).name || null });
+  }
+  /** An island this account already owns: the one kept on this device, else their newest owned game. */
+  async function findExistingIsland(user) {
+    const was = kept.get();
+    if (was && was.id && was.user === user.id) {
+      try { await api('GET', `/v1/games/${was.id}/bundle`); return was.id; }
+      catch (x) { if (x.status === 404 || x.status === 403) kept.clear(); }
+    }
+    try {
+      const list = await api('GET', '/v1/games');
+      const owned = (list.games || []).filter((g) => g && g.id && g.role === 'owner');
+      if (owned.length) return owned[0].id; // listGames sorts by updated desc
+    } catch { /* fine */ }
+    return null;
+  }
+  /** Mirror / return for someone already signed in: attach an existing island, or just let Pip's tour run. */
+  async function continueTour(user) {
+    if (island) { window.HawkesGuest.accountFirst = false; return afterKeep('tour'); }
+    const H = session.H;
+    if (!H || !H.world) { window.HawkesGuest.accountFirst = false; return; }
+    const id = await findExistingIsland(user);
+    if (id) {
+      await saveLook(user);
+      const snap = Core.snapshot(H, { edits: session.edits });
+      island = { id, base: snap, user: user.id };
+      store.clear();
+      kept.set({ id, user: user.id });
+      track('sandbox_claimed', { intent: 'tour', reused: true, user: 'yes', seamless: true });
+      await goLive(user, false);
+      return afterKeep('tour');
+    }
+    await saveLook(user);
+    window.HawkesGuest.accountFirst = false;
+    track('sandbox_tour_guest', { signedIn: true, kept: false });
   }
   async function keep(intent, user) {
     const H = session.H;
@@ -716,7 +766,7 @@
       try { look = H.presence && H.presence.look ? JSON.parse(JSON.stringify(H.presence.look)) : null; } catch { look = null; }
       let game;
       try { game = await api('POST', '/v1/games', { title: name ? `${name}'s island` : 'My island', template: 'sandbox' }); }
-      catch (x) { busy.remove(); if (x.status === 402) return gamesFull(el('', 'gs-veil'), x.message, intent); throw x; }
+      catch (x) { busy.remove(); if (x.status === 402) return gamesFull(x.message, intent); throw x; }
       // The look they made at the mirror is theirs now (it replaces what the account had: they just chose it).
       if (look) await api('POST', '/v1/users/me/avatar', { avatar: look }).catch((e) => console.warn('sandbox: look not saved', e));
       // What the Overseer remembered of them on this device goes into the account (the newer record wins).
@@ -734,8 +784,7 @@
       afterKeep(intent);
     } catch (x) {
       busy.remove();
-      const forced = intent === 'tour';
-      const sheet = el(`<div class="gs-glass gs-sheet"><h3>Your island wasn't kept yet</h3><p>${esc(x.message)}</p><button type="button" class="go" data-retry>Try again</button>${forced ? '<a class="back" href="/app">Go to my games</a>' : '<button type="button" class="back" data-back>Keep playing</button>'}</div>`, 'gs-veil');
+      const sheet = el(`<div class="gs-glass gs-sheet"><h3>Your island wasn't kept yet</h3><p>${esc(x.message)}</p><button type="button" class="go" data-retry>Try again</button><button type="button" class="back" data-back>Keep playing</button></div>`, 'gs-veil');
       sheet.querySelector('[data-retry]').onclick = () => { sheet.remove(); keep(intent, user); };
       const back = sheet.querySelector('[data-back]');
       if (back) back.onclick = () => sheet.remove();
@@ -1106,7 +1155,7 @@
       const name = saved && saved.look && saved.look.name ? String(saved.look.name).slice(0, 40) : '';
       let game;
       try { game = await api('POST', '/v1/games', { title: name ? `${name}'s island` : 'My island', template: 'sandbox' }); }
-      catch (x) { if (x.status === 402) return gamesFull(busy, x.message, intent); throw x; }
+      catch (x) { if (x.status === 402) { busy.remove(); return gamesFull(x.message, intent); } throw x; }
       // The look they made at the mirror is theirs now (it replaces what the account had: they just chose it).
       if (saved && saved.look) await api('POST', '/v1/users/me/avatar', { avatar: saved.look }).catch((e) => console.warn('sandbox: look not saved', e));
       const ops = saved ? Core.toOps(saved.base || { config: {}, entities: {} }, saved.scene) : [];
@@ -1131,15 +1180,15 @@
       if (back) back.onclick = () => { busy.remove(); if (!window.HawkesPlay || !window.HawkesPlay.world) location.replace('/play/sandbox'); };
     }
   }
-  /** Signed in, but their plan has no room for another game: their games, or the island as a guest (not kept). */
-  function gamesFull(busy, message, intent) {
+  /** Signed in, but their plan has no room for another game: a toast (never a sheet over the play view). */
+  function gamesFull(message, intent) {
     track('sandbox_games_full', { intent });
-    busy.innerHTML = `<div class="gs-glass gs-sheet"><h3>No room for another game</h3><p>${esc(message)}</p><a class="go" style="display:block;text-align:center;text-decoration:none" href="/app">Go to my games</a><button type="button" class="back" data-back>Play the island without keeping it</button></div>`;
-    busy.querySelector('[data-back]').onclick = () => {
-      busy.remove();
-      if (!window.HawkesPlay || !window.HawkesPlay.world) return location.replace('/play/sandbox');
-      window.HawkesGuest.accountFirst = false; // (Pip's tour, here)
-    };
+    window.HawkesGuest.accountFirst = false; // (Pip's tour, here)
+    const text = message || 'Your plan has no room for another game.';
+    const t = el(`<span><b>No room for another game.</b> ${esc(text)}</span><a class="primary" href="/app">My games</a><button type="button" data-x aria-label="Close">✕</button>`, 'gs-glass gs-toast');
+    t.dataset.gamesFull = '1';
+    t.querySelector('[data-x]').onclick = () => t.remove();
+    setTimeout(() => t.remove(), 12000);
   }
 
   /** An invitation that cannot be used (closed, full, expired, unreadable): the reason, in plain words, and their own island. */
