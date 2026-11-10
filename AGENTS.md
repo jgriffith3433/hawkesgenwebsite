@@ -242,3 +242,5 @@ received by SES, kept in `s3://hawkes-mail-028793236279/inbound/` and forwarded 
 
 None here any more (2026-10-30): engine plugins and editors use Hawkes Gen at hawkesgen.ai (its API and its MCP, which
 signs in with OAuth). The Unity package (`hawkesgen-unity`) still points at this site's removed MCP and OAuth.
+
+**HUD layout** (`public/play/modules/hudlayout/`, J, 2026-11-10, finding f_107b8302f4fd): the HUD's named zones (quest banner top left, action row `.gs-acts` top right, a right side panel `.mr` / `[data-hud-panel]`, chat bottom). A side panel makes the others move: `H.hudLayout`, the CSS variable `--hl-panel` and `body.hl-panel`, with a transition; no timers (a MutationObserver on the body, a ResizeObserver on the panel, `resize`). Playtest `mirror-panel-layout` (run at 1280x720 and 1440x900). Docs `modules/hudlayout/docs`; test `test/engine/hudlayout.test.ts`.
