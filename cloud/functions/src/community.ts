@@ -440,7 +440,7 @@ export function restoreOrder(): RestoreOrder | null {
  * The pack against the library: how many things community/starter.mjs defines, how many are listed with their file in
  * Gen, and which are missing, per kind (GET /v1/community/health; the community-library playtest fails on a missing one).
  */
-export async function packHealth() {
+export async function packHealth(o: { jobs?: boolean } = {}) {
   const { packItems } = await starterPack();
   const pack = packItems();
   const listed = new Set((await assets().where('source', '==', 'starter').where('hidden', '==', 0).select('item', 'gone').get()).docs
@@ -462,7 +462,19 @@ export async function packHealth() {
   const tries: Record<string, number> = cur?.tries ?? {};
   const missingSet = new Set(missing);
   const progress = cur ? { spentUsd: Number(cur.spentUsd) || 0, queued: Object.keys(tries).length, stillMissingAfterTwoTries: Object.entries(tries).filter(([it, n]) => n >= 2 && missingSet.has(it)).map(([it]) => it) } : null;
-  return { pack: pack.length, listed: pack.length - missing.length, missing: missing.length, byKind, missingItems: missing, spentUsd, restore: r ? { approved: r.approved, kinds: r.kinds, budgetUsd: r.budgetUsd, ...progress } : null };
+  return { pack: pack.length, listed: pack.length - missing.length, missing: missing.length, byKind, missingItems: missing, spentUsd, restore: r ? { approved: r.approved, kinds: r.kinds, budgetUsd: r.budgetUsd, ...progress, ...(o.jobs ? { jobs: await remakeJobs() } : {}) } : null };
+}
+
+/** Where Gen stands on the remake jobs (?jobs=1 on the health check): counts by status, and the newest few failures. */
+async function remakeJobs() {
+  try {
+    const { jobs } = await gen<{ jobs: any[] }>(`/v1/jobs?project=${STARTER_PROJECT}&tool=asset.make&limit=300`, { as: STARTER_PROJECT });
+    const mine = (jobs ?? []).filter((j) => typeof j.key === 'string' && j.key.includes('/remake/'));
+    const byStatus: Record<string, number> = {};
+    for (const j of mine) byStatus[j.status] = (byStatus[j.status] ?? 0) + 1;
+    const line = (j: any) => ({ item: `${j.labels?.kind}/${j.labels?.item}`, status: j.status, detail: String(j.detail ?? '').slice(0, 160), error: j.error ? String(j.error).slice(0, 300) : null, server: j.server ?? null, created: j.created, started: j.started ?? null, finished: j.finished ?? null });
+    return { byStatus, failed: mine.filter((j) => j.status === 'failed').slice(0, 8).map(line), open: mine.filter((j) => j.status === 'queued' || j.status === 'running').slice(0, 8).map(line) };
+  } catch (e: any) { return { error: e.message }; }
 }
 
 const restores = () => db.collection('communityRestore');
@@ -555,7 +567,7 @@ route('GET', '/v1/community', async ({ res, url }) => {
 });
 route('GET', '/v1/community/categories', async ({ res }) => { open(res); return categories(); });
 // How complete the starter pack is (the community-library playtest fails while any of it is missing).
-route('GET', '/v1/community/health', async ({ res }) => { open(res); res.set('Cache-Control', 'no-store'); return packHealth(); });
+route('GET', '/v1/community/health', async ({ res, url }) => { open(res); res.set('Cache-Control', 'no-store'); return packHealth({ jobs: url.searchParams.get('jobs') === '1' }); });
 route('GET', '/v1/community/tags', async ({ res, url }) => { open(res); return { tags: await tagCounts(url.searchParams.get('kind') ?? undefined) }; });
 route('GET', /^\/v1\/community\/(a_[0-9a-f]+)\/file$/, async ({ req, res, url, params, method }) => {
   open(res);
