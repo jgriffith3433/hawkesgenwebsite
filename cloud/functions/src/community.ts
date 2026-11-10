@@ -473,7 +473,10 @@ async function remakeJobs() {
     const byStatus: Record<string, number> = {};
     for (const j of mine) byStatus[j.status] = (byStatus[j.status] ?? 0) + 1;
     const line = (j: any) => ({ item: `${j.labels?.kind}/${j.labels?.item}`, status: j.status, detail: String(j.detail ?? '').slice(0, 160), error: j.error ? String(j.error).slice(0, 300) : null, server: j.server ?? null, created: j.created, started: j.started ?? null, finished: j.finished ?? null });
-    return { byStatus, failed: mine.filter((j) => j.status === 'failed').slice(0, 8).map(line), open: mine.filter((j) => j.status === 'queued' || j.status === 'running').slice(0, 8).map(line) };
+    // The 3D step on its own (the model chain's mesh.views3d jobs): why the newest few ended, with Gen's last log lines.
+    const mesh = await gen<{ jobs: any[] }>(`/v1/jobs?project=${STARTER_PROJECT}&tool=mesh.views3d&limit=5`, { as: STARTER_PROJECT })
+      .then((r) => (r.jobs ?? []).map((j) => ({ status: j.status, error: j.error ? String(j.error).slice(0, 300) : null, created: j.created, finished: j.finished ?? null, log: (Array.isArray(j.log) ? j.log : []).slice(-6).map((l: unknown) => String(l).slice(0, 400)) })), (e) => [{ error: String(e?.message ?? e) }]);
+    return { byStatus, failed: mine.filter((j) => j.status === 'failed').slice(0, 8).map(line), open: mine.filter((j) => j.status === 'queued' || j.status === 'running').slice(0, 8).map(line), mesh };
   } catch (e: any) { return { error: e.message }; }
 }
 
