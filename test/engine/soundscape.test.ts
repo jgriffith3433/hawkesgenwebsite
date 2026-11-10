@@ -29,8 +29,23 @@ test('soundscape: required audio files for beds and wood steps are in the repo',
   const dir = path.join(process.cwd(), 'public/play/audio/sfx');
   const index = JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8'));
   const sounds = new Set(index.sounds);
-  for (const name of ['amb-inland', 'amb-beach', 'amb-pier', 'step-wood-1', 'step-wood-2', 'step-wood-3', 'ui-pickup']) {
+  for (const name of [
+    'amb-inland', 'amb-beach', 'amb-pier',
+    'step-wood-1', 'step-wood-2', 'step-wood-3',
+    'step-sand-1', 'step-sand-2', 'step-sand-3',
+    'step-grass-1', 'step-grass-2', 'step-grass-3',
+    'step-stone-1', 'step-stone-2', 'step-stone-3',
+    'ui-pickup', 'ui-place', 'ui-build', 'ui-panel', 'ui-quest', 'ui-send',
+  ]) {
     assert.ok(sounds.has(name), `${name} listed in index.json`);
     assert.ok(fs.existsSync(path.join(dir, `${name}.mp3`)), `${name}.mp3 on disk`);
   }
+});
+
+test('soundscape: module listens for real island events (mirror/spawn-wheel/workStart), not only named build/panel', () => {
+  const js = fs.readFileSync(path.join(process.cwd(), 'public/play/modules/soundscape/soundscape.js'), 'utf8');
+  assert.ok(js.includes("g.on('workStart'"), 'workStart → build UI');
+  assert.ok(js.includes("g.on('mirror'"), 'mirror open → panel UI');
+  assert.ok(js.includes("g.on('spawn-wheel'"), 'spawn wheel open → panel UI');
+  assert.ok(js.includes("g.on('asked'"), 'Overseer chat send');
 });

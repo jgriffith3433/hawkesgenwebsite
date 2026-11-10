@@ -38,9 +38,15 @@
   /** A different variant from the last one for this key (1..n), never the same twice in a row. */
   function pick(key, n) {
     let v = 1 + Math.floor(Math.random() * n);
-    if (v === last[key]) v = (v % n) + 1;
+    if (n > 1 && v === last[key]) v = (v % n) + 1;
     last[key] = v;
     return v;
+  }
+  /** How many `base-1`..`base-N` files the index lists (at least 1 to play). */
+  function variantsOf(base) {
+    let n = 0;
+    while (has(`${base}-${n + 1}`)) n++;
+    return n;
   }
   function tone(f1, f2, dur, vol) {
     const ctx = H.audio.context;
@@ -59,8 +65,9 @@
   /** A footstep on a surface: true when this module plays it (its files exist), so Juice's synthesis stands down. */
   function step(surface, o = {}) {
     const base = STEPS[surface];
-    if (!base || !has(`${base}-1`)) return false;
-    play(`${base}-${pick(base, VARIANTS)}`, { volume: Math.min(1, (o.loudness ?? 0.3) * 1.6), rate: (o.pitch || 1) * (0.94 + Math.random() * 0.12) });
+    const n = base ? variantsOf(base) : 0;
+    if (!base || n < 1) return false;
+    play(`${base}-${pick(base, n)}`, { volume: Math.min(1, (o.loudness ?? 0.3) * 1.6), rate: (o.pitch || 1) * (0.94 + Math.random() * 0.12) });
     return true;
   }
 
@@ -105,8 +112,12 @@
       g.on('pickup', () => ui('pickup'));
       g.on('quest', (d) => { if (d && (d.state === 'stepdone' || d.state === 'done')) ui('quest'); });
       g.on('asked', () => ui('send'));
+      // Named build/panel events (playtest and future emitters) plus the island's real ones.
       g.on('build', () => ui('build'));
       g.on('panel', () => ui('panel'));
+      g.on('workStart', () => ui('build'));
+      g.on('mirror', (d) => { if (d && d.state === 'open') ui('panel'); });
+      g.on('spawn-wheel', (d) => { if (d && (d.state === 'open' || !d.state)) ui('panel'); });
     },
   });
   H.soundscape = { step, ui, weights, play, beds: () => Object.keys(beds).filter((k) => beds[k].g), _last: last };

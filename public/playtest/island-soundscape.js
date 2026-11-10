@@ -144,7 +144,7 @@ export async function runIslandSoundscape(t, helpers) {
   const grassA = listenSteps('grass');
   const grassB = listenSteps('grass');
   t.event('step-surface', `grass played=${grassA.played} variants=${grassA.variant},${grassB.variant}`);
-  if (!grassA.played) t.problem('warn', 'step-grass files missing: Juice synth stands in (see .hawkes/pending-gpu.txt)');
+  if (!grassA.played) t.problem('error', 'step-grass files missing');
   else if (grassA.variant === grassB.variant) t.problem('error', `grass footsteps repeated variant ${grassA.variant}`);
   else t.event('step-no-repeat', `grass variants ${grassA.variant} then ${grassB.variant}`);
 
@@ -157,13 +157,13 @@ export async function runIslandSoundscape(t, helpers) {
   const sandA = listenSteps('sand');
   const sandB = listenSteps('sand');
   t.event('step-surface', `sand played=${sandA.played} variants=${sandA.variant},${sandB.variant}`);
-  if (!sandA.played) t.problem('warn', 'step-sand files missing: Juice synth stands in (see .hawkes/pending-gpu.txt)');
+  if (!sandA.played) t.problem('error', 'step-sand files missing');
   else if (sandA.variant === sandB.variant) t.problem('error', `sand footsteps repeated variant ${sandA.variant}`);
   else t.event('step-no-repeat', `sand variants ${sandA.variant} then ${sandB.variant}`);
   const surfaces = new Set(heard.filter((h) => h.played).map((h) => h.surface));
-  if (surfaces.size >= 2) t.event('steps-differ', [...surfaces].join(','));
-  else if (surfaces.size === 1) t.event('steps-differ', `only ${[...surfaces][0]} file-backed so far (others pending-gpu)`);
-  else t.problem('warn', 'no file-backed footstep surfaces played');
+  if (surfaces.size >= 3) t.event('steps-differ', [...surfaces].join(','));
+  else if (surfaces.size >= 2) t.event('steps-differ', [...surfaces].join(','));
+  else t.problem('error', `expected sand/grass/wood file-backed steps, got ${[...surfaces].join(',') || 'none'}`);
   t.progress(0.7);
 
   // ---- 3. Interaction sounds (game events the module listens for) + one real pickup if the rod is near
@@ -174,6 +174,15 @@ export async function runIslandSoundscape(t, helpers) {
   }
   t.event('ui-sounds', `played ${fired.join(',')}`);
   if (fired.length < 6) t.problem('error', `only ${fired.length}/6 interaction sounds fired`);
+  // Real island event paths (not only S.ui): mirror/spawn-wheel → panel, workStart → build, asked → send.
+  if (g.emit) {
+    g.emit('mirror', { state: 'open' });
+    g.emit('spawn-wheel', { state: 'open' });
+    g.emit('workStart', { at: [0, 0, 0] });
+    g.emit('asked', { chars: 4 });
+    g.emit('quest', { id: 'tour', state: 'stepdone', step: 'drive' });
+    t.event('ui-events-wired', 'mirror/spawn-wheel/workStart/asked/quest emitted through H.soundscape');
+  }
   // Real pickup path when the rod is reachable.
   try {
     await walkTo(t, 'rod', 1.2, 25000, 'the fishing rod');
