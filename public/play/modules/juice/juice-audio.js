@@ -301,6 +301,7 @@
   function footstep(surface, o = {}) {
     const sf = STEP_VOICE[surface] ? surface : 'dirt';
     if (!J.allowed('sounds') || !J.allowed('footsteps')) return false;
+    if (o.mine && H.soundscape && H.soundscape.step(sf, o)) { J.sound.steps++; return true; }
     const a = live();
     const at = o.at || null;
     const d = o.mine ? 0 : distTo(at);
