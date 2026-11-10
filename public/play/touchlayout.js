@@ -121,7 +121,9 @@
     ['stick', '#touch .pad', true], ['jump', '#touch .a', true], ['action', '#touch .b', true], ['touch-extra', '#touch .tb:not(.a):not(.b)', true],
     ['mayhem', '.mh-touch button', true], ['vehicle', '#veh-touch button', true], ['spawn', '.sw-fab', true], ['throw', '.lv-touchbtn', true],
     ['hud-toggle', '#tl-hide', true], ['controls', '.ct-btn', true], ['people', '.pr-hud button', true], ['journal', '.qs-btn', true], ['stuck', '.tour-stuck', true],
-    ['chat-tool', '.hc-tools button', true], ['prompt', '.hp-use button, #veh-prompt', true], ['account', '.gs-acts button, .gs-toast button', true], ['corner', '.corner button, .corner a', true],
+    ['chat-tool', '.hc-tools button', true], ['prompt', '.hp-use button, #veh-prompt', true],
+    ['account', '.gs-acts button:not(.more), .gs-toast button', true], ['account-menu', '.gs-acts .more', true], // menu is 44 px (hudlayout phone fold)
+    ['corner', '.corner button, .corner a', true],
     ['tracker', '.tour-track, .qs-track', false], ['chat', '.hc-chat', false], ['gauges', '#veh-hud', false], ['tip', '.mh-tip, .water-hud', false], ['ammo', '.wp-ammo, .wp-hp, .mh-score', false],
   ];
 
@@ -147,7 +149,8 @@
     const overlaps = [], small = [], outside = [];
     for (let i = 0; i < items.length; i++) {
       const a = items[i];
-      if (a.button && (a.w < K.MIN - 0.5 || a.h < K.MIN - 0.5)) small.push(`${a.name} ${Math.round(a.w)}x${Math.round(a.h)}`);
+      const min = a.kind === 'account-menu' ? 44 : K.MIN; // phone fold menu is 44 px by design
+      if (a.button && (a.w < min - 0.5 || a.h < min - 0.5)) small.push(`${a.name} ${Math.round(a.w)}x${Math.round(a.h)}`);
       if (a.button && (a.x < safe.x - 0.5 || a.y < safe.y - 0.5 || a.r > safe.r + 0.5 || a.b > safe.b + 0.5)) outside.push(a.name);
       for (let j = i + 1; j < items.length; j++) {
         const c = items[j];
@@ -307,6 +310,9 @@ html body.tl #tl-tr{left:var(--tl-tr-x);top:var(--tl-tr-y);width:var(--tl-tr-w);
 html body.tl #tl-tr>*{max-width:100%}
 html body.tl #tl-tr .gs-acts{justify-content:flex-end}
 html body.tl #tl-tr .gs-acts button,html body.tl #tl-tr .gs-toast button{min-height:48px}
+/* phone compact (hudlayout): the 44 px menu is the one account control when the list is closed */
+html body.tl.hl-compact #tl-tr .gs-acts .more{min-width:44px;min-height:44px;width:44px;height:44px}
+html body.tl.hl-compact #tl-tr .gs-acts.open>[data-intent]{min-height:44px}
 html body.tl #tl-tr .gs-toast{left:auto;width:auto;flex-wrap:wrap}
 html body.tl #tl-tr .corner{flex-direction:row;flex-wrap:wrap;justify-content:flex-end;gap:6px}
 html body.tl #tl-tr .corner #badge{display:none}

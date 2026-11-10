@@ -29,6 +29,7 @@ import { WORLD_REPORT, runWorldReport } from './world-report.js';
 import { SERVER_LIMITS, runServerLimits } from './server-limits.js';
 import { CHARACTER_MOTION, runCharacterMotion } from './character-motion.js';
 import { WORLD_QUALITY, runWorldQuality } from './world-quality.js';
+import { PHONE_HUD_LAYOUT, runPhoneHudLayout } from './phone-hud-layout.js';
 
 const KEY = 'hg_playtest_run';
 const STAGES = ['landing', 'veil', 'intro', 'firstvisit', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'phoneperf', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'answer', 'progress', 'models', 'wish', 'toeditor', 'editor', 'react', 'motion', 'mirrorlayout'];
@@ -37,6 +38,7 @@ const ORDERS = { 'character-motion': ['landing', 'veil', 'intro', 'motion'], 'ov
 const SCENARIOS = [
   SICKOFIT_PAGE, // Sick of It's page before play (sickofit-page.js)
   SITE_LAYOUT, // the landing page at three sizes (site-layout.js)
+  PHONE_HUD_LAYOUT, // phone HUD fold + mirror sheet at 390x844 and 844x390 (phone-hud-layout.js)
   AVATAR_ANIMATIONS, // clips as data on /avatars (avatar-animations.js)
   COMMUNITY_LIBRARY, // the library: cards, loading, empty, 390px, no timer fetch (community-library.js)
   PROFILE_PAGE, // the profile page: avatar, worlds, plan, empty states (profile-page.js)
@@ -3089,6 +3091,7 @@ export function install() {
     isReady: () => (onEditor() ? document.readyState === 'complete' : onSandbox() || onGame() ? Boolean(W() && W().player) || document.readyState === 'complete' : document.readyState === 'complete'),
     async start(id, options, t) {
       if (id === SITE_LAYOUT.id) return runSiteLayout(t, options);
+      if (id === PHONE_HUD_LAYOUT.id) return runPhoneHudLayout(t, options);
       if (id === SICKOFIT_PAGE.id) return runSickofitPage(t, options);
       if (id === AVATAR_ANIMATIONS.id) return runAvatarAnimations(t, options);
       if (id === COMMUNITY_LIBRARY.id) return runCommunityLibrary(t, options);
