@@ -225,6 +225,8 @@ export async function fromSession(req: Request): Promise<User | null> {
   }
   const c = cookies(req)[SESSION_COOKIE];
   if (!c || c.startsWith('g.')) return null;
+  // A beta playtest's session (testsignin.ts): read only on beta, only for the test account.
+  if (c.startsWith('t.')) return (await import('./testsignin.ts')).fromTestCookie(c, getUser);
   try {
     const d = await auth.verifySessionCookie(c);
     const map = await db.collection('logins').doc(d.uid).get();
