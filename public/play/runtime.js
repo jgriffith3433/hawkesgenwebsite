@@ -2451,15 +2451,26 @@
 
   let looping = false;
   let worldDrawn = Promise.resolve();
-  /** Resolves when the scene is ready (shaders compiled, textures in) and three frames have been drawn after that; at
-   *  most 25 s (a slow device shows the world as it is by then). No screen (the engine tests): at once. */
+  /** Resolves when the scene is ready (shaders compiled, textures in) and two frames have been drawn after that, so the
+   *  loading cover lifts from the first frame that is really on screen. Never hangs: after 6 s of a slow device (software
+   *  GL compiling shaders) one drawn frame is enough, and at 12 s the cover lifts whatever is happening (the world as it is).
+   *  No screen (the engine tests): at once. */
   function whenDrawn(scene) {
     if (!scene || engine instanceof B.NullEngine) return Promise.resolve();
     return new Promise((res) => {
-      let seen = 0, obs = null;
+      const t0 = performance.now();
+      let after = 0, any = 0, ready = false, obs = null;
       const finish = () => { clearTimeout(cap); if (obs) scene.onAfterRenderObservable.remove(obs); res(); };
-      const cap = setTimeout(finish, 25000);
-      const frames = () => { if (scene.isDisposed()) return finish(); obs = scene.onAfterRenderObservable.add(() => { if (++seen >= 3) finish(); }); };
+      const cap = setTimeout(finish, 12000);
+      const frames = () => {
+        ready = true;
+        if (scene.isDisposed()) finish();
+      };
+      obs = scene.onAfterRenderObservable.add(() => {
+        any++;
+        if (ready) after++;
+        if (after >= 2 || (any >= 1 && performance.now() - t0 > 6000)) finish();
+      });
       try { scene.whenReadyAsync().then(frames, frames); } catch { frames(); }
     });
   }

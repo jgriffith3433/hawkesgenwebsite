@@ -224,12 +224,12 @@
     + '@media (orientation:portrait){.ov-skip{bottom:max(96px,calc(env(safe-area-inset-bottom) + 88px))}}'
     + 'body.ov-intro-on .hc-chat .hc-log{opacity:0!important}';
 
-  /** Resolves when the scene's shaders and textures are ready and five frames in a row came in under 50 ms (at most 12 s):
+  /** Resolves when the scene's shaders and textures are ready and five frames in a row came in under 50 ms (at most 7 s):
    *  the intro's camera work then starts on a smooth frame, not under the world's own compile stalls. */
   function settled(w) {
     const scene = w.scene;
     const ready = new Promise((res) => {
-      const t = setTimeout(res, 8000);
+      const t = setTimeout(res, 5000);
       try { scene.whenReadyAsync().then(() => { clearTimeout(t); res(); }, () => { clearTimeout(t); res(); }); } catch { clearTimeout(t); res(); }
     });
     const calm = new Promise((res) => {
@@ -241,7 +241,7 @@
       };
       requestAnimationFrame(step);
     });
-    return ready.then(() => Promise.race([calm, new Promise((res) => setTimeout(res, 4000))]));
+    return ready.then(() => Promise.race([calm, new Promise((res) => setTimeout(res, 2000))]));
   }
 
   /** Plays the intro now (resolves { skipped } when it ends). The player is in control from the moment the beam lands. */
@@ -254,11 +254,29 @@
     playedThisPage = true;
     const quiet = settled(w); // compiles behind the "Enter" veil
     await waitForSound();
-    await quiet;
-    // Nothing of the intro (bars, captions, Skip) shows over a world that has not been drawn yet: the loading screen is
-    // still up until it has (runtime.js whenDrawn).
-    try { await H.worldDrawn; } catch { /* the loading screen's own timeout */ }
-    if (W() !== w || !p.alive) return { skipped: true };
+    // Skip is there from the moment the player has entered, over the loading screen if it is still up (a pill at once, not
+    // a black wait): the camera work waits for the world to be drawn (runtime.js whenDrawn), but for at most 8 s from here,
+    // so the player has control by about 12 s on the slowest machine. A tap on Skip now ends the wait and the intro.
+    if (!document.getElementById('ov-cap-css')) { const st = document.createElement('style'); st.id = 'ov-cap-css'; st.textContent = CAP_CSS; document.head.appendChild(st); }
+    const skipEl = document.createElement('button');
+    skipEl.type = 'button';
+    skipEl.className = 'ov-skip';
+    skipEl.textContent = 'Skip ›';
+    skipEl.setAttribute('aria-label', 'Skip the introduction');
+    document.body.appendChild(skipEl);
+    let cancelled = false, cancel;
+    const cancelP = new Promise((r) => { cancel = r; });
+    skipEl.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); if (!playing) { cancelled = true; cancel(); } });
+    skipEl.addEventListener('pointerdown', (e) => e.stopPropagation());
+    let timer;
+    const drawn = Promise.all([quiet, H.worldDrawn]).catch(() => {}); // (the loading screen has its own timeout)
+    await Promise.race([drawn, cancelP, new Promise((r) => { timer = setTimeout(r, 8000); })]);
+    clearTimeout(timer);
+    if (cancelled || W() !== w || !p.alive) {
+      skipEl.remove();
+      if (cancelled && W() === w) { remember(); G().emit('intro', { state: 'end', skipped: true }); }
+      return { skipped: true };
+    }
     const short = isShort();
     const SEC = short ? 4.5 : SECONDS;
     const guest = Boolean(window.HawkesGuest) && !window.HawkesGuest.looks;
@@ -312,7 +330,6 @@
     } catch { /* a camera without them */ }
     const timers = [];
     const later = (s, fn) => timers.push(setTimeout(() => { if (playing && W() === w) fn(); }, s * 1000));
-    if (!document.getElementById('ov-cap-css')) { const st = document.createElement('style'); st.id = 'ov-cap-css'; st.textContent = CAP_CSS; document.head.appendChild(st); }
     const capEl = document.createElement('div');
     // A phone (portrait or touch) keeps the dark plate; a computer gets the letterbox bar.
     const letterbox = !portrait && !(H.touchUi || (window.matchMedia && window.matchMedia('(pointer:coarse)').matches));
@@ -328,12 +345,6 @@
     capEl.setAttribute('aria-live', 'polite');
     capEl.innerHTML = '<div class="in"><b></b><span></span></div>';
     document.body.appendChild(capEl);
-    const skipEl = document.createElement('button');
-    skipEl.type = 'button';
-    skipEl.className = 'ov-skip';
-    skipEl.textContent = 'Skip ›';
-    skipEl.setAttribute('aria-label', 'Skip the introduction');
-    document.body.appendChild(skipEl);
     document.body.classList.add('ov-intro-on');
     let capTimer = null;
     /** A line in the caption: the speaker's name and the words, held at least 2 s (a missing voice clip changes nothing). */
@@ -352,7 +363,6 @@
     /** One tap, click, Esc, Space or Enter, or the Skip pill: the rest is skipped and the camera blends behind the player. */
     const skip = () => { if (playing && !ended) end(true); };
     skipEl.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); skip(); });
-    skipEl.addEventListener('pointerdown', (e) => e.stopPropagation());
     const t0 = performance.now();
     const onKey = (e) => {
       if (performance.now() - t0 < 400 || e.repeat) return;
