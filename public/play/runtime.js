@@ -1248,8 +1248,9 @@
           cam.position.copyFrom(head.add(back.scale(state.dist)));
           if (cam.upVector.x || cam.upVector.z || cam.upVector.y !== 1) cam.upVector.set(0, 1, 0);
           cam.setTarget(head);
-          // FOV stays between 60 and 75 degrees.
-          cam.fov = Math.max(60 * RAD, Math.min(75 * RAD, cam.fov));
+          // FOV stays between 60 and 75 degrees, unless a shot sets opts.fov (the intro on portrait).
+          if (Number(o.fov) > 0) cam.fov = Math.max(50 * RAD, Math.min(90 * RAD, Number(o.fov)));
+          else cam.fov = Math.max(60 * RAD, Math.min(75 * RAD, cam.fov));
           // Count the frames the camera is inside a solid mesh (a playtest fails on this number).
           const stats = (window.hawkesCameraStats = window.hawkesCameraStats || { frames: 0, inGeometry: 0, last: null });
           stats.frames++;

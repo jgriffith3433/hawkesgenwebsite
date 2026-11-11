@@ -216,7 +216,9 @@ anything. They are written in the voice of whoever left them.
   **First-visit lines (J: "the Overseer is the game's face"):** four lines, about 14 s, in its voice: *"You found your way.
   Good."* as the player appears in the beam, *"I have given you the power of free will."*, *"Do with it what you will."*,
   and last *"Ask, and I will send it down."* Captions sit on a dark plate (no letterbox crop); a short look-up at the
-  Overseer (~5.5 s, with a push-in) then settles behind the player while the lines finish; control from the beam. A large
+  Overseer (~5.5 s, with a push-in) then settles behind the player while the lines finish; on a portrait phone the look
+  uses a milder pitch, more distance/height and a wider FOV so the body stays in the upper-middle (not pinned to an
+  edge), the nearby mirror is hidden for that sky look, and Skip sits clear of the feet. Control from the beam. A large
   Skip pill (or any key/click) ends it. The intro then leaves a card in the chat, *Ask for your first thing* ("a
   lighthouse, a tune, a hat"); one tap opens the chat to the Overseer, which is how building begins. The mirror still
   follows. A return (the intro's flag on the device) skips all of it. Only the free-will lines have a voice clip so far.
