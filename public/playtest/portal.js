@@ -484,7 +484,46 @@ async function stageIntro(t, ctx) {
 /** The Overseer's first-visit introduction, watched to the end with real input: at least three spoken lines, then the
  *  prompt that starts building (a chat card; a real click opens the chat to the Overseer), and the intro's flag kept so a
  *  return skips it (the second page load itself is `sandbox-return`'s). */
+/** One-shot samples (8, 15 and 25 s after the stage starts; no polling) of whether the canvas is presenting: the engine's
+ *  frame counter, the camera's position, the canvas's computed style and size, the GL context, the loading cover and the
+ *  Skip pill. They are metrics and a log line each, so a black screen in a run says where the picture stopped. */
+function sampleCanvas(t) {
+  const t0 = performance.now();
+  const take = (label) => {
+    try {
+      const H = HP(), w = H && H.world, scene = w && w.scene, eng = scene && scene.getEngine && scene.getEngine();
+      const cv = document.getElementById('stage');
+      const cs = cv ? getComputedStyle(cv) : null;
+      const r = cv ? cv.getBoundingClientRect() : null;
+      const cam = scene && scene.activeCamera;
+      const gl = eng && eng._gl;
+      const lost = gl && gl.isContextLost ? gl.isContextLost() : null;
+      const cover = document.getElementById('loading');
+      const info = {
+        at: `${((performance.now() - t0) / 1000).toFixed(1)}s`,
+        frameId: scene && Number.isFinite(scene.getFrameId && scene.getFrameId()) ? scene.getFrameId() : eng && eng.frameId,
+        ready: scene && scene.isReady ? scene.isReady() : null,
+        camera: cam && cam.position ? [cam.position.x, cam.position.y, cam.position.z].map((v) => Math.round(v * 10) / 10) : null,
+        canvas: cs ? { display: cs.display, opacity: cs.opacity, visibility: cs.visibility, w: Math.round(r.width), h: Math.round(r.height), attr: [cv.width, cv.height] } : null,
+        contextLost: lost,
+        cover: cover ? (cover.hidden ? 'hidden' : cover.classList.contains('fade') ? 'fading' : 'shown') : 'none',
+        skip: Boolean(document.querySelector('.ov-skip')),
+        bars: Boolean(document.querySelector('.ov-bars')),
+        introPlaying: Boolean(G() && G().overseer && G().overseer.introPlaying),
+      };
+      t.event('canvas-' + label, JSON.stringify(info));
+      if (t.metric) {
+        if (Number.isFinite(info.frameId)) t.metric('frameId' + label, info.frameId);
+        if (info.canvas) t.metric('canvasOpacity' + label, Number(info.canvas.opacity));
+        if (lost !== null) t.metric('contextLost' + label, lost ? 1 : 0);
+      }
+    } catch (e) { t.event('canvas-' + label, 'sample failed: ' + (e && e.message)); }
+  };
+  for (const s of [8, 15, 25]) setTimeout(() => take(s + 's'), s * 1000);
+}
+
 async function stageFirstVisit(t, ctx) {
+  sampleCanvas(t);
   const g = () => G() && G().overseer;
   const seen = [];
   const touch = Boolean(HP().touchUi) || Boolean(ctx.options.touch);
