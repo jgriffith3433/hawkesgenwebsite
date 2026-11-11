@@ -96,7 +96,7 @@
         const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
         skidFilter = ac.createBiquadFilter(); skidFilter.type = 'bandpass'; skidFilter.Q.value = 4;
         skidGain = ac.createGain(); skidGain.gain.value = 0;
-        src.connect(skidFilter).connect(skidGain).connect(H.audio.master);
+        src.connect(skidFilter).connect(skidGain).connect(H.audio.effects || H.audio.master);
         src.start();
       }
       const loose = /dirt|sand|snow|grass/.test(surface);

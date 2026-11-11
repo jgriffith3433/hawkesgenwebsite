@@ -643,7 +643,7 @@ void main(void) {
     try {
       const g = G();
       const id = H.assets && H.assets.pick ? H.assets.pick('beam', { kind: 'sound' }) : null;
-      if (id && g && g.sound) { g.sound(id); return; }
+      if (id && g && g.sound) { g.sound(id, { at }); return; }
       const ac = H.audio && H.audio.context;
       if (!ac || ac.state !== 'running') return;
       const cam = W() && W().scene.activeCamera;
@@ -652,7 +652,9 @@ void main(void) {
       if (vol < 0.004) return;
       const t0 = ac.currentTime;
       const out = ac.createGain(); out.gain.setValueAtTime(0.0001, t0); out.gain.exponentialRampToValueAtTime(vol, t0 + 0.08); out.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.4);
-      out.connect(H.audio.master);
+      // Heard from the beam (modules/mix: HRTF on a desktop, stereo on a phone).
+      const sp = H.audio.spatial ? H.audio.spatial(at, { who: 'beam', ref: 6, max: 160 }) : null;
+      out.connect(sp ? sp.input : (H.audio.effects || H.audio.master));
       for (const [f0, f1, type] of [[1320, 440, 'sine'], [990, 660, 'triangle']]) {
         const o = ac.createOscillator(); o.type = type;
         o.frequency.setValueAtTime(f0, t0); o.frequency.exponentialRampToValueAtTime(f1, t0 + 1.2);
@@ -867,8 +869,8 @@ void main(void) {
     if (!a || a.__ducks) return a;
     a.__ducks = true;
     let on = false;
-    const start = () => { if (on) return; on = true; speaking++; if (H.audio && H.audio.duck) H.audio.duck('overseer', 0.22); };
-    const stop = () => { if (!on) return; on = false; speaking = Math.max(0, speaking - 1); if (!speaking && H.audio && H.audio.duck) H.audio.duck('overseer', null); };
+    const start = () => { if (on) return; on = true; speaking++; if (H.audio && H.audio.voiceDuck) H.audio.voiceDuck('overseer', true); else if (H.audio && H.audio.duck) H.audio.duck('overseer', 0.22); };
+    const stop = () => { if (!on) return; on = false; speaking = Math.max(0, speaking - 1); if (!speaking && H.audio && H.audio.voiceDuck) H.audio.voiceDuck('overseer', false); else if (!speaking && H.audio && H.audio.duck) H.audio.duck('overseer', null); };
     a.addEventListener('playing', start);
     for (const ev of ['ended', 'pause', 'error', 'emptied']) a.addEventListener(ev, stop);
     return a;

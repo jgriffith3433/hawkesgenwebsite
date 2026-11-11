@@ -39,6 +39,11 @@
     const dest = bus();
     const g = a.createGain();
     g.gain.value = gain;
+    if (at && H.audio.spatial) {
+      // modules/mix: HRTF and a distance low-pass on a desktop, equal-power stereo on a phone; one listener.
+      const sp = H.audio.spatial(at, { ref: 3, max: 150, rolloff: 1.1, bus: dest, who: 'juice' });
+      if (sp) { g.connect(sp.input); return { g, p: sp }; }
+    }
     if (at) {
       const p = a.createPanner();
       p.panningModel = 'equalpower'; p.distanceModel = 'inverse'; p.refDistance = 3; p.maxDistance = 150; p.rolloffFactor = 1.1;
@@ -50,10 +55,12 @@
     return { g, p: null };
   }
   function setPos(p, at) {
+    if (p.set && p.input) { p.set(at); return; }
     if (p.positionX) { p.positionX.value = at[0]; p.positionY.value = at[1]; p.positionZ.value = at[2]; } else p.setPosition(at[0], at[1], at[2]);
   }
   // The listener is the camera (every frame).
   function listen() {
+    if (H.audio.listen) { H.audio.listen(); return; } // (the mix owns the listener: it mirrors x for Babylon's left hand)
     const a = live();
     const w = W();
     const c = w && w.scene && w.scene.activeCamera;

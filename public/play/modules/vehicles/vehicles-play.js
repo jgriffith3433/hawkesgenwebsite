@@ -598,7 +598,7 @@ body.veh-touching #veh-hud .hint{display:none}
       if (!ac) return;
       master = ac.createGain();
       master.gain.value = 0.32;
-      master.connect(H.audio.master);
+      master.connect(H.audio.effects || H.audio.master);
     } catch { ac = null; }
   }
   /** The game's sound for this vehicle (an asset id or name): shape.sounds.<what>, else its word ("car engine", then

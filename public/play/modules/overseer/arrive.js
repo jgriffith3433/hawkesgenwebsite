@@ -149,7 +149,7 @@
     if (v < 0.004) return null;
     const g = ac.createGain();
     g.gain.value = v;
-    g.connect(H.audio.master);
+    g.connect(H.audio.effects || H.audio.master);
     return g;
   }
   let noiseBuf = null;

@@ -615,7 +615,7 @@ void main(void) {
   // between the master and the speakers muffles everything (the engine's sounds, music and every module's).
   let noise = null, muffle = null;
   const audioCtx = () => H.audio.context;
-  const out = () => H.audio.master;
+  const out = () => H.audio.effects || H.audio.master;
   function setMuffle(on) {
     const ctx = audioCtx();
     if (!ctx) return;

@@ -462,7 +462,7 @@
     const t = a.currentTime;
     const voice = o.voice || 'piano';
     const g = a.createGain();
-    g.connect(H.audio.master);
+    g.connect(H.audio.effects || H.audio.master);
     const dur = o.dur || (voice === 'organ' ? 0.8 : voice === 'bell' ? 1.6 : 1.1);
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(vol, t + 0.012);
@@ -490,7 +490,7 @@
     const src = a.createBufferSource(); src.buffer = buf;
     const filt = a.createBiquadFilter(); filt.type = o.kind === 'click' ? 'highpass' : 'lowpass'; filt.frequency.value = o.kind === 'click' ? 2000 : 900;
     const g = a.createGain(); g.gain.value = vol;
-    src.connect(filt).connect(g).connect(H.audio.master);
+    src.connect(filt).connect(g).connect(H.audio.effects || H.audio.master);
     src.start();
   }
   /** A sound asset by name if the game has it, else the stand-in (a function that makes one). */
@@ -512,7 +512,7 @@
       l.el.play().catch(() => {});
     } else if (o.synth) {
       const a = actx();
-      if (a) { l.gain = a.createGain(); l.gain.gain.value = 0; l.gain.connect(H.audio.master); l.stopSynth = o.synth(a, l.gain, l); }
+      if (a) { l.gain = a.createGain(); l.gain.gain.value = 0; l.gain.connect(H.audio.effects || H.audio.master); l.stopSynth = o.synth(a, l.gain, l); }
     }
     l.stop = () => {
       l.on = false;
