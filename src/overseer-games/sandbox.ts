@@ -157,7 +157,7 @@ export const SANDBOX = {
     // (The start faces east, down the path to the dock: the Overseer hangs ahead of it, about 15 degrees wide.)
     overseer: { intro: 'always', position: [...OVERSEER_AT], cascade: ['pip', 'hut', 'jeep', 'boat', 'heli', 'rocket'] },
     terrain: TERRAIN,
-    water: { level: -1.5, waves: 0.15, color: '#1b86b8', fish: 'salt' },
+    water: { level: -1.5, waves: 0.3, color: '#1b86b8', fish: 'salt' },
     // Tools come with the tour: none at first (the rocket launcher at the barrels, the rest when it's done).
     player: { view: 'third', tools: [] },
     mayhem: { slowmo: true },
