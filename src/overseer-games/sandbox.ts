@@ -182,7 +182,7 @@ export const SANDBOX = {
     // their walks so they do not meet on the same path.
     const islander = (id: string, name: string, personality: string, what: string, body: string, accent: string, head: string, x: number, z: number, face: number, routine: { spots: { id: string; at: number[]; do: string; face?: number }[]; offset?: number }, lift = 0) => add({
       id, type: 'friend', name, physics: 'dynamic', transform: { position: [x, r2(groundAt(x, z) + 1 + lift), z], rotation: [0, face, 0] },
-      shape: { personality, species: 'person', follow: false, stays: true, talk: false, look: { what, name, body, accent, head }, routine },
+      shape: { personality, species: 'person', follow: false, stays: true, talk: false, look: { what, name, body, accent, head }, routine: { notice: 6, leave: 7.5, ...routine } },
     });
     islander('bobbin', 'Admiral Bobbin', 'a very small, very proud rubber duck, harbourmaster of a harbour with one boat', 'duck', '#facc15', '#f97316', '#111827', 66, -1, 180, {
       offset: 0,
