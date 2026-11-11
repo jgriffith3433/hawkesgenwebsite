@@ -167,18 +167,23 @@
     const tiltB = new B.TransformNode('ov-tilt-b', scene); tiltB.parent = turn; tiltB.rotation.set(-24 * RAD, 30 * RAD, -12 * RAD); ringB.parent = tiltB;
     const halo = B.MeshBuilder.CreatePlane('ov-halo', { size: r * 4.4 }, scene);
     halo.material = mats.halo; halo.billboardMode = B.Mesh.BILLBOARDMODE_ALL; halo.parent = turn;
-    // The bay's light, seen from afar (the hangar itself is dock.js's, close up).
+    // The bay's light, only when near (dock.js draws the hangar close up). From afar a flat emissive plane read as a
+    // beige placeholder quad in the middle of the rings, so it stays out of the far layer.
     const bayGlow = B.MeshBuilder.CreatePlane('ov-bay-glow', { width: bay.halfW * 2, height: bay.top - bay.floor }, scene);
-    bayGlow.material = mat(scene, 'ov-bay', { emissive: new B.Color3(1, 0.86, 0.62), unlit: true });
+    const bayMat = mat(scene, 'ov-bay', { emissive: new B.Color3(1, 0.86, 0.62), unlit: true, alpha: 0.55 });
+    bayMat.opacityTexture = glowTexture(scene);
+    bayMat.alphaMode = B.Engine.ALPHA_ADD;
+    bayMat.disableDepthWrite = true;
+    bayGlow.material = bayMat;
     bayGlow.parent = turn;
     const bayDist = Math.sqrt(Math.max(0, r * r - bay.halfW * bay.halfW)) * 0.985;
     bayGlow.position.set(Math.sin(bay.yaw) * bayDist, (bay.floor + bay.top) / 2, Math.cos(bay.yaw) * bayDist);
     bayGlow.rotation.y = bay.yaw + Math.PI;
-    // The far hull (no hole: the bay's light covers it).
+    // The far hull (no hole: the bay is only lit when near).
     const farHull = hull(scene, 'ov-hull-far', r, PHONE ? 36 : 48, null);
     farHull.material = mats.hull;
-    const decorMeshes = [seam, ringA, ringB, halo, bayGlow];
-    for (const m of [farHull, ...decorMeshes]) { m.isPickable = false; m.metadata = { decor: true, noGlow: true, overseer: true }; m.receiveShadows = false; m.alwaysSelectAsActiveMesh = true; }
+    const decorMeshes = [seam, ringA, ringB, halo]; // bayGlow is near-only (setLod)
+    for (const m of [farHull, bayGlow, ...decorMeshes]) { m.isPickable = false; m.metadata = { decor: true, noGlow: true, overseer: true }; m.receiveShadows = false; m.alwaysSelectAsActiveMesh = true; }
     return { cfg, scene, r, bay, mats, decor, turn, seam, ringA, ringB, halo, bayGlow, farHull, decorMeshes, lod: null, near: null, model: null, t: 0 };
   }
 
@@ -215,6 +220,8 @@
     if (bg) { if (far) bg.add(O.farHull, 2); else bg.remove(O.farHull); }
     O.farHull.setEnabled(Boolean(far) && !O.model);
     O.halo.setEnabled(Boolean(far));
+    // Near-only: a solid beige bay plane in the far rings looked like a missing-texture quad on the intro.
+    if (O.bayGlow) { if (bg) bg.remove(O.bayGlow); O.bayGlow.setEnabled(!far); }
     if (O.near) O.near.show(!far);
     if (O.model) { for (const m of O.model.meshes) { if (far) bg.add(m, 2); else if (bg) bg.remove(m); } }
     for (const f of lodListeners) try { f(lod); } catch (err) { H.report(err, 'overseer'); }

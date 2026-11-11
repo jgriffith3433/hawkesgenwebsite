@@ -1,9 +1,11 @@
 // The beginning (J's story): the first time a player enters a world, the camera looks up at the Overseer in the sky,
 // the Overseer beams the player down and says: "I have given you the power of free will. Do with it what you will."
-// About fourteen seconds. A short look-up (~5.5 s, gently pushing in) frames the player fully under the ship; captions sit
-// on a dark plate (no letterbox crop); the greeting plays as the beam lands; control from ~2 s. A large Skip pill, plus
-// any tap/click/Esc/Space/Enter, ends it and blends the camera behind the player. A guest's intro ends facing the mirror;
-// the "first thing" card is for a signed-in player.
+// About fourteen seconds. A short look-up (~5.5 s, gently pushing in) frames the player fully under the ship; on a
+// portrait phone the shot uses a milder look-up, more distance/height and a wider FOV so the body sits in the
+// upper-middle (not pinned to an edge), and the nearby mirror is hidden for that look so its grey slab cannot fill
+// the frame. Captions sit on a dark plate (no letterbox crop); the greeting plays as the beam lands; control from ~2 s.
+// A large Skip pill (kept clear of the feet on portrait), plus any tap/click/Esc/Space/Enter, ends it and blends the
+// camera behind the player. A guest's intro ends facing the mirror; the "first thing" card is for a signed-in player.
 //   - config.overseer.intro: "first" (the default: once per player, remembered on this device), "always", "short" (a friend answering an invitation: the beam and one line, about 4.5 s) or false.
 //   - The sound: a score made here (a hum, the beam's swell and whoosh, a chime, a tone under each line). The voice: a
 //     sound asset named "overseer-intro" in the game, else the Overseer's own line (overseer.js VOICES).
@@ -211,6 +213,8 @@
     + '.ov-cap.plate span{font-size:clamp(17px,4.6vw,22px)}'
     + '.ov-skip{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));z-index:34;appearance:none;border:0;cursor:pointer;color:#06091a;background:linear-gradient(#f4f7ff,#b9ccff);font:700 clamp(16px,2.4vw,20px)/1 system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;padding:.85em 1.6em;min-width:132px;min-height:48px;border-radius:999px;box-shadow:0 0 28px rgba(140,175,255,.7);pointer-events:auto;touch-action:manipulation}'
     + '.ov-skip:focus-visible{outline:3px solid #fff;outline-offset:4px}'
+    // Portrait: lift Skip off the feet (the look frames the body in the lower half; a bottom-corner pill sat on them).
+    + '@media (orientation:portrait){.ov-skip{bottom:max(96px,calc(env(safe-area-inset-bottom) + 88px))}}'
     + 'body.ov-intro-on .hc-chat .hc-log{opacity:0!important}';
 
   /** Resolves when the scene's shaders and textures are ready and five frames in a row came in under 50 ms (at most 12 s):
@@ -248,6 +252,7 @@
     const short = isShort();
     const SEC = short ? 4.5 : SECONDS;
     const guest = Boolean(window.HawkesGuest) && !window.HawkesGuest.looks;
+    const portrait = typeof window !== 'undefined' && window.innerHeight > window.innerWidth;
     const at = [p.x, p.bottom, p.z];
     let hx = c[0] - at[0], hz = c[2] - at[2];
     const hl = Math.hypot(hx, hz) || 1; hx /= hl; hz /= hl;
@@ -256,16 +261,44 @@
     p.node.visibility = 0;
     p.controls = false; // until the beam lands (about 2 s in)
     // Looking up at the Overseer over the player's shoulder: pull the third-person camera back so the body stays in frame.
+    // Portrait: milder pitch, more distance/height and a wider FOV so the body sits upper-middle, not cropped to an edge.
     const heading = Math.atan2(hx, hz);
     const camOpts = w.camera && w.camera.opts;
     const dist0 = camOpts && Number(camOpts.distance);
+    const height0 = camOpts && Number(camOpts.height);
+    const fov0 = camOpts && camOpts.fov;
+    const pitch0 = portrait ? -0.18 : -0.38;
+    const distLook = portrait ? Math.max(10.5, Number(dist0) || 5) : Math.max(7.5, Number(dist0) || 5);
     const LOOK = short ? 2.2 : LOOK_SEC;
+    // The mirror sits on the Overseer's side of the start: on a tall portrait frame it fills a third of the shot as a
+    // grey slab. Hide it for the whole intro look; bring it back in end() (a guest then faces it).
+    const hiddenMirrors = [];
+    const hideMirrors = (hide) => {
+      for (const e of w.entities) {
+        if (!e || !e.alive || e.kind !== 'mirror' || !e.node) continue;
+        if (hide) {
+          if (e.node.isEnabled && e.node.isEnabled() === false) continue;
+          try { e.node.setEnabled(false); hiddenMirrors.push(e); } catch { /* fine */ }
+        }
+      }
+      if (!hide) {
+        for (const e of hiddenMirrors) { try { if (e.node) e.node.setEnabled(true); } catch { /* fine */ } }
+        hiddenMirrors.length = 0;
+      }
+    };
     try {
       p.node.rotation.y = heading;
       w.camera.yaw = heading;
-      w.camera.pitch = -0.38;
+      w.camera.pitch = pitch0;
       w.camera.idleSince = performance.now();
-      if (w.camera.mode === 'third' && camOpts) camOpts.distance = Math.max(7.5, Number(dist0) || 5);
+      if (w.camera.mode === 'third' && camOpts) {
+        camOpts.distance = distLook;
+        if (portrait) {
+          camOpts.height = Math.max(2.2, Number(height0) || 1.4);
+          camOpts.fov = 82 * (Math.PI / 180); // runtime third-person honors opts.fov when set
+        }
+      }
+      hideMirrors(true);
     } catch { /* a camera without them */ }
     const timers = [];
     const later = (s, fn) => timers.push(setTimeout(() => { if (playing && W() === w) fn(); }, s * 1000));
@@ -329,13 +362,21 @@
     if (H.speech) H.speech.hold('intro');
     g.emit('intro', { state: 'start' });
 
-    const restoreDist = () => {
-      try { if (w.camera && w.camera.mode === 'third' && camOpts && Number.isFinite(dist0)) camOpts.distance = dist0; } catch { /* fine */ }
+    const restoreCam = () => {
+      try {
+        if (w.camera && w.camera.mode === 'third' && camOpts) {
+          if (Number.isFinite(dist0)) camOpts.distance = dist0;
+          if (Number.isFinite(height0)) camOpts.height = height0;
+          else if (portrait) delete camOpts.height;
+          if (fov0 !== undefined) camOpts.fov = fov0;
+          else delete camOpts.fov;
+        }
+      } catch { /* fine */ }
     };
-    /** Gives the camera back behind the player over ~0.4 s. */
+    /** Gives the camera back behind the player over ~0.4 s. Mirror stays hidden until end() (still ahead on the Overseer's side). */
     const blendBehind = () => {
       looking = false;
-      restoreDist();
+      restoreCam();
       const s0 = performance.now();
       const y0 = w.camera.yaw, q0 = w.camera.pitch;
       const dy = (() => { let d = (p.node.rotation.y - y0) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; })();
@@ -356,8 +397,8 @@
       const k = Math.min(1, t / LOOK);
       const e = k * k * (3 - 2 * k);
       try {
-        w.camera.pitch = -0.38 + 0.18 * e;
-        if (w.camera.mode === 'third' && camOpts) camOpts.distance = Math.max(7.5, Number(dist0) || 5) - 1.2 * e;
+        w.camera.pitch = pitch0 + (portrait ? 0.12 : 0.18) * e;
+        if (w.camera.mode === 'third' && camOpts) camOpts.distance = distLook - (portrait ? 1.6 : 1.2) * e;
         w.camera.idleSince = performance.now(); // hold the look; don't idle-recenter mid-shot
       } catch { /* fine */ }
       requestAnimationFrame(lookStep);
@@ -380,7 +421,8 @@
       skipEl.remove();
       setTimeout(() => capEl.remove(), 400);
       document.body.classList.remove('ov-intro-on');
-      restoreDist();
+      restoreCam();
+      hideMirrors(false);
       playing = null;
       if (W() === w && p.alive) {
         p.node.visibility = vis;
