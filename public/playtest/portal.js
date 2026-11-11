@@ -673,6 +673,7 @@ async function stageMirror(t, ctx) {
   name.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); // Enter in the field is "That's me"
   await t.until(() => !$('.mr'), 10000, 'the mirror to close after the last answer');
   t.event('mirror-done', `${chosen}, ${who}`);
+  startFirstMinutes(t, ctx);
   t.progress(0.45);
 }
 
@@ -1256,7 +1257,7 @@ async function stagePier(t, ctx) {
   // During the fly-over: wait until the camera is holding on the rod (late in the shot) or the shot ends.
   if (cin()) {
     t.event('pier-cinematic', 'camera flying from Pip along Gravel Road to the rod');
-    await t.wait(7500); // into the hold on the rod (~8.4 s of a 10 s path)
+    await t.wait(6000); // into the hold on the rod (~6.8 s of an 8 s path)
     if (cin()) t.scene('Pier: cinematic hold');
     await t.until(() => !cin(), 15000, 'the pier cinematic to end');
     t.event('pier-cinematic-done', 'camera returned after the rod hold');
@@ -1286,67 +1287,177 @@ async function stagePier(t, ctx) {
   await t.wait(1200);
 }
 
+
+// ---------------------------------------------------------------------------------------------- the first minute after the mirror
+/** The clock starts when the mirror closes: ms to the first move, to being in the 4x4 and to the first success (the pier
+ *  reached, or the first fish: the game's own 'celebration' event), each logged once with a metric. Also, the beacon on the 4x4. */
+function startFirstMinutes(t, ctx) {
+  if (ctx.fm) return;
+  const fm = (ctx.fm = { t0: performance.now(), x: null, z: null, move: null, in4x4: null, success: null, catchMs: null, celebrations: [], texts: 0 });
+  const ms = () => Math.round(performance.now() - fm.t0);
+  const note = (key, label, detail) => { if (fm[key] !== null) return; fm[key] = ms(); t.event(label, `${fm[key]} ms after the mirror closed${detail ? ' (' + detail + ')' : ''}`); t.metric && t.metric(label + 'Ms', fm[key]); };
+  const wire = () => {
+    if (!G() || !G().on) return setTimeout(wire, 300);
+    G().on('celebration', (d) => {
+      fm.celebrations.push(d);
+      const voiced = Boolean(window.__playtestVoiced);
+      t.event('celebration', `${d.step}: particles ${d.particles}, sounds ${d.sounds.join('+') || 'none'}, camera ${d.camera}`);
+      if (d.step === 'drive') note('success', 'first-success', 'the 4x4 reached the pier');
+      if (d.step === 'fish') { if (fm.catchMs === null) { fm.catchMs = ms(); t.metric && t.metric('firstCatchMs', fm.catchMs); } note('success', 'first-success', 'the first catch'); }
+      if (!d.particles) t.problem('error', `the ${d.step} celebration made no particles`);
+      if (!d.sounds.includes('ui-quest')) t.problem('error', `the ${d.step} celebration played no ui-quest sound`);
+      if (d.step === 'fish' && !d.sounds.includes('fish-catch')) t.problem('error', 'the first catch played no fish-catch sound');
+      void voiced;
+    });
+    G().on('overseer-speech', (d) => { if (d && d.state === 'start' && d.voiced) { window.__playtestVoiced = true; t.event('voiced-line', `${d.text || d.line || 'the Overseer'}`); } });
+  };
+  wire();
+  const tick = setInterval(() => {
+    const p = W() && W().player;
+    if (!p) return;
+    if (fm.x === null) { fm.x = p.x; fm.z = p.z; }
+    if (fm.move === null && Math.hypot(p.x - fm.x, p.z - fm.z) > 0.5 && p.controls !== false) note('move', 'first-move', 'real input');
+    if (fm.in4x4 === null && G() && G().player && G().player.controller === 'drive') note('in4x4', 'reached-4x4', 'in the seat');
+    if (fm.success !== null && fm.catchMs !== null) clearInterval(tick);
+  }, 100);
+  fm.stop = () => clearInterval(tick);
+}
+/** Is the world point on screen? (the scene's active camera, projected) */
+function onScreen(pos) {
+  try {
+    const B = window.BABYLON, sc = HP().world.scene, cam = sc.activeCamera, e = sc.getEngine();
+    const w = e.getRenderWidth(), h = e.getRenderHeight();
+    const v = B.Vector3.Project(new B.Vector3(pos[0], pos[1], pos[2]), B.Matrix.Identity(), sc.getTransformMatrix(), cam.viewport.toGlobal(w, h));
+    const cw = innerWidth / w, ch = innerHeight / h;
+    const x = v.x * cw, y = v.y * ch;
+    return { on: v.z > 0 && v.z < 1 && x > 0 && x < innerWidth && y > 0 && y < innerHeight, x: Math.round(x), y: Math.round(y) };
+  } catch { return null; }
+}
+const visibleTextLines = () => {
+  const out = [];
+  for (const el of document.querySelectorAll('.tour-track:not([hidden]), .ov-cap.on, .hc-cap, .ui-bubble, .say-bubble')) {
+    const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+    if (r.width > 4 && r.height > 4 && cs.display !== 'none' && cs.visibility !== 'hidden' && (el.textContent || '').trim()) out.push((el.textContent || '').replace(/\s+/g, ' ').trim());
+  }
+  return out;
+};
+/** Walk to a thing: the keys, or on a phone the stick (touch), as a player does. */
+async function goTo(t, ctx, id, near, ms, what) {
+  if (!(ctx.options.touch || HP().touchUi)) return walkTo(t, id, near, ms, what);
+  const t0 = performance.now(); let s = null;
+  try {
+    for (;;) {
+      const p = W().player, g = W().byId.get(id);
+      if (!p || !g) throw new Error(`timed out waiting for ${what} to exist`);
+      const dx = g.x - p.x, dz = g.z - p.z, d = Math.hypot(dx, dz);
+      if (d <= near) return;
+      if (performance.now() - t0 > ms) throw new Error(`timed out walking to ${what} with the stick (${Math.round(d)} m away)`);
+      const yaw = camYaw(), sn = Math.sin(yaw), c = Math.cos(yaw);
+      if (!s) s = stickHold();
+      s.set((dx * c - dz * sn) / d, (dx * sn + dz * c) / d);
+      await t.wait(80);
+    }
+  } finally { if (s) s.release(); }
+}
+
 async function stageDrive(t, ctx) {
   const q = () => G() && G().events && G().events.quests;
   const step = () => (q() && q().state('tour') === 'active' ? q().step('tour') : null);
+  const touch = Boolean(ctx.options.touch || HP().touchUi);
+  startFirstMinutes(t, ctx);
+  const fm = ctx.fm;
+  // The beacon: a soft light on the 4x4 as soon as the mirror is done, seen from where the player stands, with at most one line of text.
+  await t.until(() => window.__islandJeepMark && window.__islandJeepMark.on, 20000, 'the beacon on the 4x4').then(() => {
+    const j = W().byId.get('jeep');
+    const sp = j ? onScreen([j.x, j.y + 6, j.z]) : null;
+    t.scene(touch ? 'After the mirror: the beacon (phone)' : 'After the mirror: the beacon');
+    t.event('beacon-on', `a column of light on the 4x4; its top ${sp ? (sp.on ? `on screen at ${sp.x},${sp.y}` : `off screen (${sp.x},${sp.y})`) : 'not measured'} at ${innerWidth}x${innerHeight}`);
+    fm.beaconSeen = Boolean(sp && sp.on);
+    const lines = visibleTextLines();
+    t.event('text-lines', `${lines.length} on screen: ${JSON.stringify(lines)}`);
+    if (lines.length > 1) t.problem('error', `after the mirror ${lines.length} lines of text are on screen (one short line at most): ${JSON.stringify(lines)}`);
+  }, (e) => t.problem('error', e.message));
   t.scene('Island: the tour begins');
   await t.until(() => step() === 'drive' || step() === 'rod', 90000, 'Pip\'s tour to start (the "drive" step)');
   t.event('tour-start', `step: ${step()}`);
-  // First visit: Pip's pier cinematic flies before the 4x4 drive; wait it out so keys do not fight the shot.
+  // First visit: Pip's pier fly-over: a player may skip it with a key or a tap (as the intro), which a newcomer in a hurry does.
   const cin = () => G() && G().cinematic && G().cinematic.isPlaying;
+  const skipShot = async () => {
+    if (touch) { const c = canvas(), id = ++touchId, x = innerWidth * 0.5, y = innerHeight * 0.3; touchEv('pointerdown', c, x, y, id); touchEv('pointerup', c, x, y, id); }
+    else await tap(t, 'Enter');
+  };
+  if (!cin() && !window.__islandPierShown) await t.wait(1500);
   if (cin()) {
-    t.event('pier-cinematic-wait', 'waiting for Pip\'s pier fly-over to finish');
-    await t.until(() => !cin(), 20000, 'the pier cinematic to end');
-    t.event('pier-cinematic-done');
-  } else if (!window.__islandPierShown) {
-    // Tour just started: give the pier show a moment to begin, then wait it out if it does.
-    await t.wait(1500);
-    if (cin()) {
-      t.event('pier-cinematic-wait', 'waiting for Pip\'s pier fly-over to finish');
-      await t.until(() => !cin(), 20000, 'the pier cinematic to end');
-      t.event('pier-cinematic-done');
-    }
+    await t.wait(1500); t.scene('Island: the pier fly-over');
+    await skipShot();
+    t.event('pier-cinematic-skipped', `skipped with ${touch ? 'a tap' : 'a key'} after ${Math.round(performance.now() - fm.t0)} ms`);
+    await t.until(() => !cin(), 5000, 'the pier cinematic to end after the skip').catch(() => {});
   }
+  // The camera nudge toward the 4x4 (about 2 s): let it play out, or skip it.
+  await t.wait(400);
+  if (cin()) { await t.wait(900); const j = W().byId.get('jeep'); const sp = j ? onScreen([j.x, j.y + 6, j.z]) : null; if (sp && sp.on) fm.beaconSeen = true; t.scene('Island: the camera nudge to the 4x4'); t.event('camera-nudge', 'the camera turned toward the 4x4 and its light'); await t.until(() => !cin(), 4000, 'the nudge to end').catch(() => {}); }
+  if (!fm.beaconSeen) t.problem('error', `the beacon was never on screen at ${innerWidth}x${innerHeight} (at the start or in the camera nudge)`);
   t.progress(0.65);
-  await t.wait(2500);
   const jeep = () => W().byId.get('jeep');
   const driving = () => G().player && G().player.controller === 'drive';
   if (step() === 'drive') {
     if (!driving()) {
-      await walkTo(t, 'jeep', 3.2, 40000, 'the 4x4');
+      await goTo(t, ctx, 'jeep', 3.2, 40000, 'the 4x4');
       t.event('at-the-4x4');
-      for (let i = 0; i < 4 && !driving(); i++) { await tap(t, 'e'); await t.wait(700); }
+      for (let i = 0; i < 4 && !driving(); i++) { if (touch) await tapButton(t, $('#touch .b')); else await tap(t, 'e'); await t.wait(700); }
       if (!driving()) {
-    t.problem('warning', 'E did not get the player into the 4x4 (the jeep: ' + (jeep() ? Math.round(Math.hypot(jeep().x - W().player.x, jeep().z - W().player.z)) + ' m away' : 'missing') + '): the hook put them in');
-    await HOOKS.enterVehicle(t, 'jeep');
-  }
-  if (!driving()) throw new Error('timed out getting into the 4x4 (E and hooks.enterVehicle)');
+        t.problem('warning', 'E did not get the player into the 4x4 (the jeep: ' + (jeep() ? Math.round(Math.hypot(jeep().x - W().player.x, jeep().z - W().player.z)) + ' m away' : 'missing') + '): the hook put them in');
+        await HOOKS.enterVehicle(t, 'jeep');
+      }
+      if (!driving()) throw new Error('timed out getting into the 4x4 (E and hooks.enterVehicle)');
     }
     t.scene('Island: driving');
-    t.event('drive-start', 'in the 4x4, W held');
-    keyEv('keydown', 'w'); down.add('w');
-    // Steer to the dock by the 4x4's own heading. Which way D turns it is learned: if the error grows while steering, flip.
+    t.event('drive-start', touch ? 'in the 4x4, the stick pushed forward' : 'in the 4x4, W held');
+    let stick = null;
+    if (touch) stick = stickHold(); else { keyEv('keydown', 'w'); down.add('w'); }
+    // Steer to the dock by the 4x4's own heading. Which way D (or the stick's side) turns it is learned: if the error grows while steering, flip.
     let sign = 1, bad = 0, ref = null;
     const t0 = performance.now();
-    while (step() === 'drive') {
-      if (performance.now() - t0 > 70000) throw new Error('timed out driving to the dock (the "drive" step never passed)');
-      const v = jeep().vehicle, dock = W().byId.get('dock');
-      if (!v || !dock) throw new Error('timed out: the 4x4 or the dock is gone');
-      const tx = dock.x - jeep().x, tz = dock.z - jeep().z;
-      const err = Math.atan2(tx * v.right.x + tz * v.right.z, tx * v.fwd.x + tz * v.fwd.z); // + : the dock is to the right
-      if (ref && performance.now() - ref.at > 700) { if (Math.abs(err) > Math.abs(ref.err) + 0.08) { if (++bad >= 2) { sign = -sign; bad = 0; } } else bad = 0; ref = null; }
-      if (!ref && Math.abs(err) > 0.3) ref = { at: performance.now(), err };
-      const steer = Math.abs(err) > 0.1 ? Math.sign(err) * sign : 0;
-      for (const [k, on] of [['d', steer > 0], ['a', steer < 0]]) { if (on && !down.has(k)) { down.add(k); keyEv('keydown', k); } if (!on && down.has(k)) { down.delete(k); keyEv('keyup', k); } }
-      await t.wait(100);
-    }
+    try {
+      while (step() === 'drive') {
+        if (performance.now() - t0 > 70000) throw new Error('timed out driving to the dock (the "drive" step never passed)');
+        const v = jeep().vehicle, dock = W().byId.get('dock');
+        if (!v || !dock) throw new Error('timed out: the 4x4 or the dock is gone');
+        const tx = dock.x - jeep().x, tz = dock.z - jeep().z;
+        const err = Math.atan2(tx * v.right.x + tz * v.right.z, tx * v.fwd.x + tz * v.fwd.z); // + : the dock is to the right
+        if (ref && performance.now() - ref.at > 700) { if (Math.abs(err) > Math.abs(ref.err) + 0.08) { if (++bad >= 2) { sign = -sign; bad = 0; } } else bad = 0; ref = null; }
+        if (!ref && Math.abs(err) > 0.3) ref = { at: performance.now(), err };
+        const steer = Math.abs(err) > 0.1 ? Math.sign(err) * sign : 0;
+        if (stick) stick.set(steer, 1);
+        else for (const [k, on] of [['d', steer > 0], ['a', steer < 0]]) { if (on && !down.has(k)) { down.add(k); keyEv('keydown', k); } if (!on && down.has(k)) { down.delete(k); keyEv('keyup', k); } }
+        await t.wait(100);
+      }
+    } finally { if (stick) stick.release(); }
     releaseAll();
     t.event('dock-reached', 'the "drive" step passed');
     t.metric('driveSeconds', Math.round((performance.now() - t0) / 100) / 10);
   }
   t.scene('Island: at the dock');
+  // The celebration: particles, the sounds, the camera move and the voiced line; the touch controls stay uncovered.
+  await t.until(() => fm.celebrations.some((c) => c.step === 'drive'), 4000, 'the pier celebration').catch((e) => t.problem('error', e.message));
+  await t.wait(500);
+  t.scene(touch ? 'Pier reached: the celebration (phone)' : 'Pier reached: the celebration');
+  celebrationClear(t, touch);
+  if (fm.success === null) t.problem('error', 'no first success was logged after reaching the pier');
+  else if (fm.success > 60000) t.problem('error', `first-success came ${fm.success} ms after the mirror closed (60000 ms or less is needed)`);
+  else t.event('first-success-in-time', `${fm.success} ms (60000 or less)`);
   t.progress(0.75);
   await t.wait(2500); // Pip's line and the Overseer's
+}
+/** The celebration leaves the controls free: no overlay of ours sits over the stick, the buttons or the HUD zones. */
+function celebrationClear(t, touch) {
+  if (!touch) return;
+  const hit = (a, b) => !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom);
+  const over = [...document.querySelectorAll('.ov-cap.on .in, .ov-bars > *, .hc-cap, .tour-track:not([hidden])')].map((e) => e.getBoundingClientRect()).filter((r) => r.width > 4 && r.height > 4);
+  let bad = 0;
+  for (const c of document.querySelectorAll('#touch .pad, #touch .a, #touch .b, #touch button')) { const cr = c.getBoundingClientRect(); if (cr.width && over.some((r) => hit(r, cr))) bad++; }
+  t.event('celebration-controls-clear', bad ? `${bad} touch control(s) covered` : 'no touch control covered');
+  if (bad) t.problem('error', `the celebration covers ${bad} touch control(s)`);
 }
 
 /** Shared world: two players in the room. The second is a stand-in (presence.standIn: a named setup shortcut, since one
@@ -1635,39 +1746,51 @@ async function stageFish(t, ctx) {
   const q = () => G().events.quests;
   const step = () => (q().state('tour') === 'active' ? q().step('tour') : null);
   const strict = ctx.options.fish === 'strict';
+  const touch = Boolean(ctx.options.touch || HP().touchUi);
+  startFirstMinutes(t, ctx);
+  const fm = ctx.fm;
+  const press0 = () => (touch ? (() => { const c = canvas(), id = ++touchId; touchEv('pointerdown', c, innerWidth / 2, innerHeight * 0.4, id); return () => touchEv('pointerup', c, innerWidth / 2, innerHeight * 0.4, id); })() : (pointer('pointerdown', canvas()), () => pointer('pointerup', window)));
   try {
-    if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
+    if (G().player.controller === 'drive') { if (touch) await tapButton(t, $('#touch .b')); else await tap(t, 'e'); await t.wait(900); }
     t.scene('Island: the pier');
     await t.until(() => step() === 'rod' || step() === 'fish', 8000, 'the tour to ask for the rod');
     if (step() === 'rod') {
-      await walkTo(t, 'rod', 0.7, 45000, 'the fishing rod at the end of the pier');
+      await goTo(t, ctx, 'rod', 0.7, 45000, 'the fishing rod at the end of the pier');
       await t.until(() => step() !== 'rod', 8000, 'the rod to be picked up');
       t.event('rod-picked-up');
     }
     t.progress(0.85);
     await t.wait(1200);
     const heldRod = () => { try { const h = HP().tools.held; return h && h.name === 'rod'; } catch { return false; } };
-    for (const k of ['1', '2', '3', '4']) { if (heldRod()) break; await tap(t, k); await t.wait(250); }
+    if (touch) { for (let i = 0; i < 5 && !heldRod(); i++) { const b = $('.mh-touch button'); if (!b) break; await tapButton(t, b); await t.wait(300); } }
+    else for (const k of ['1', '2', '3', '4']) { if (heldRod()) break; await tap(t, k); await t.wait(250); }
     if (!heldRod()) throw new Error('timed out: the rod is not in hand after picking it up');
-    await lookAt(t, Math.PI / 2); // out to sea, east
+    if (touch) { await dragLook(t, -160); } else await lookAt(t, Math.PI / 2); // out to sea, east
     t.scene('Island: fishing');
     // The rod's documented hook (game.water.fish.assist, docs/api/60-water.md): every cast is a first cast, so the bite comes
     // in 2.5 to 4.5 s, as a new player's first does; the casting, hooking and reeling below are still real input.
     try { G().water.fish.assist(true); t.event('setup-shortcut', 'fishing assist on: a quick, common first bite'); } catch { /* the player's own first-catch help applies */ }
     const biting = () => { try { return G().water.fish.phase() === 'bite'; } catch { return false; } };
     for (let cast = 1; cast <= 4 && step() === 'fish'; cast++) {
-      await holdMouse(t, 900 + cast * 150);
+      { const up = press0(); await t.wait(900 + cast * 150); up(); }
       t.event('cast', `cast ${cast}`);
       const bitten = await t.until(() => biting() || step() !== 'fish', 22000, 'a bite').then(() => biting(), () => false);
       if (!bitten) { t.event('no-bite', `cast ${cast}`); continue; }
       t.event('bite');
-      pointer('pointerdown', canvas()); await t.wait(90); pointer('pointerup', window); // hook it
-      pointer('pointerdown', canvas()); // and reel while held
+      { const up = press0(); await t.wait(90); up(); } // hook it
+      const reel = press0(); // and reel while held
       await t.until(() => step() !== 'fish', 14000, 'the fish to be landed').then(() => 0, () => 0);
-      pointer('pointerup', window);
+      reel();
     }
     if (step() === 'fish') throw new Error('timed out: no fish was caught in four casts');
     t.event('fish-caught', 'the "fish" step passed');
+    await t.until(() => fm.celebrations.some((c) => c.step === 'fish'), 4000, 'the first-catch celebration').catch((e) => t.problem('error', e.message));
+    await t.wait(400);
+    t.scene(touch ? 'First catch: the celebration (phone)' : 'First catch: the celebration');
+    celebrationClear(t, touch);
+    const cel = fm.celebrations.find((c) => c.step === 'fish');
+    if (cel) t.event('first-catch-celebration', `particles ${cel.particles}, sounds ${cel.sounds.join('+')}, camera ${cel.camera}, voiced line ${window.__playtestVoiced ? 'yes' : 'NO'}`);
+    if (!window.__playtestVoiced) t.problem('error', 'no voiced Pip or Overseer line played in the first minutes');
     t.scene('Island: a fish caught');
     t.progress(1);
     await t.wait(2500);
@@ -1675,7 +1798,7 @@ async function stageFish(t, ctx) {
     if (strict) throw e;
     t.problem('warning', `fishing did not complete: ${e.message}`);
     t.event('fish-incomplete', e.message);
-  } finally { pointer('pointerup', window); }
+  } finally { pointer('pointerup', window); if (fm && fm.stop) fm.stop(); }
 }
 
 // ---------------------------------------------------------------------------------------------- the Ridge Run
@@ -3409,7 +3532,7 @@ export function install() {
       if (id === SERVER_LIMITS.id) return runServerLimits(t, options);
       if (id === WORLD_QUALITY.id) return runWorldQuality(t, options);
       if (id === 'observatory-wardrobe' && options.touch) options = { at: 'sandbox', ...options }; // (touch: straight to the island with the phone controls)
-      if ((id === 'vehicle-feel' || id === 'rocket-blast-feel') && options.touch) options = { at: 'sandbox', ...options };
+      if ((id === 'vehicle-feel' || id === 'rocket-blast-feel' || id === 'sandbox-first-minutes') && options.touch) options = { at: 'sandbox', ...options };
       if (id === CHARACTER_MOTION.id) options = { at: 'sandbox', ...options }; // (straight to the island; touch: true adds the phone controls)
       if (id === 'touch-controls' || id === 'phone-performance') options = { at: 'sandbox', touch: true, ...options }; // (the phone controls, straight to the island)
       const events = [];
