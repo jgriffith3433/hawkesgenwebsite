@@ -78,6 +78,16 @@ test('the sandbox page is the game page, served unsandboxed (our template only);
   // It's a new game's world: the round planet (an ocean round it), the Overseer's intro every time, Pip's tour.
   assert.equal(scene.config.planet.sphere, true);
   assert.equal(scene.config.overseer.intro, 'always');
+  // Mirror sits on the Overseer's side of the start (same heading as config.overseer.position), so the intro can hide it for the sky look and face it at the end.
+  {
+    const ov = scene.config.overseer.position as number[];
+    const start = scene.entities.start.transform.position as number[];
+    const mir = scene.entities.mirror.transform.position as number[];
+    const toOv = [ov[0] - start[0], ov[2] - start[2]];
+    const toMir = [mir[0] - start[0], mir[2] - start[2]];
+    const dot = toOv[0] * toMir[0] + toOv[1] * toMir[1];
+    assert.ok(dot > 0, `mirror toward the Overseer (dot ${dot.toFixed(1)})`);
+  }
   assert.ok(scene.config.quests.some((q: any) => q.id === 'tour' && q.giver === 'Pip'));
   // Its art and sound are community things, served with the template.
   assert.ok(Object.keys(t.body.assets).length === 0 || Object.values(t.body.assets).every((a: any) => /^\/v1\/community\/a_/.test(a.url)));

@@ -408,6 +408,44 @@ function checkSelfHosted(t) {
   t.metric('assetsViaSite', viaSite.length);
 }
 
+/** Where the player sits on the canvas during the intro look (Babylon project), or null. */
+function introPlayerScreen() {
+  const w = W(), p = w && w.player, sc = w && w.scene, cam = sc && sc.activeCamera, B = window.BABYLON;
+  if (!p || !sc || !cam || !B) return null;
+  try {
+    const eng = sc.getEngine();
+    const rw = eng.getRenderWidth(), rh = eng.getRenderHeight();
+    const v = B.Vector3.Project(new B.Vector3(p.x, p.bottom + 0.95, p.z), B.Matrix.Identity(), sc.getTransformMatrix(), cam.viewport.toGlobal(rw, rh));
+    return { x: v.x, y: v.y, w: rw, h: rh };
+  } catch { return null; }
+}
+
+/** On a tall phone: character not pinned to an edge, mirror slab hidden for the look, Skip clear of the feet. */
+function checkIntroPortraitFrame(t) {
+  if (typeof window === 'undefined' || window.innerHeight <= window.innerWidth) return;
+  const scr = introPlayerScreen();
+  if (scr && scr.w > 0 && scr.h > 0) {
+    const nx = scr.x / scr.w, ny = scr.y / scr.h;
+    t.event('intro-portrait-frame', `player at ${(nx * 100).toFixed(0)}% x, ${(ny * 100).toFixed(0)}% y`);
+    if (nx < 0.18 || nx > 0.82) t.problem('error', `quality.clipping: intro portrait pins the player to the ${nx < 0.5 ? 'left' : 'right'} edge (${(nx * 100).toFixed(0)}%)`);
+    if (ny < 0.12 || ny > 0.78) t.problem('error', `intro portrait places the player too near the ${ny < 0.5 ? 'top' : 'bottom'} (${(ny * 100).toFixed(0)}%); subject should sit in the upper-middle`);
+    else t.event('intro-subject-centred', `upper-middle at ${(ny * 100).toFixed(0)}% y`);
+  } else t.event('intro-portrait-frame', 'no screen projection yet');
+  const mir = W() && [...W().entities].find((e) => e && e.alive && e.kind === 'mirror' && e.node);
+  if (mir) {
+    const on = mir.node.isEnabled ? mir.node.isEnabled() : true;
+    if (on) t.problem('error', 'intro portrait still shows the mirror slab during the sky look');
+    else t.event('intro-mirror-hidden', 'mirror off for the look-up');
+  }
+  const skip = document.querySelector('.ov-skip');
+  if (skip && scr) {
+    const r = skip.getBoundingClientRect();
+    if (r.width && r.top < scr.y + 24) t.problem('error', 'Skip sits on the player during the intro look');
+    else if (r.width) t.event('intro-skip-clear', 'Skip clear of the subject');
+  }
+  t.scene('Intro: portrait framing');
+}
+
 async function stageIntro(t, ctx) {
   const g = () => G() && G().overseer;
   const started = await t.until(() => g() && g().introPlaying, 25000, 'the Overseer\'s intro to start').then(() => true, () => false);
@@ -417,6 +455,9 @@ async function stageIntro(t, ctx) {
   }
   t.scene('Intro');
   t.event('intro-start');
+  // A beat into the look-up: portrait framing (character centred, mirror hidden, Skip clear) before any skip.
+  await t.wait(1200);
+  if (g() && g().introPlaying) checkIntroPortraitFrame(t);
   const heard = [];
   const hear = () => { for (const p of document.querySelectorAll('.hc-log p.overseer')) { const l = p.textContent.replace(/\s+/g, ' ').trim(); if (l && !heard.includes(l)) { heard.push(l); t.event('overseer-said', l); } } };
   checkSelfHosted(t);
@@ -452,6 +493,9 @@ async function stageFirstVisit(t, ctx) {
   const sec = () => ((performance.now() - t0) / 1000).toFixed(1);
   const p = () => W() && W().player;
   const start = { x: p().x, z: p().z };
+  // Portrait framing while the sky look still holds (before the first move).
+  await t.wait(1100);
+  if (g() && g().introPlaying) checkIntroPortraitFrame(t);
 
   // 1. The first move: real input (the stick, or W), as soon as the player has control; it must show within 5 s of the intro's start.
   await t.until(() => p() && p().controls !== false, 8000, 'the player to be given control during the intro').catch((e) => t.problem('error', e.message));
