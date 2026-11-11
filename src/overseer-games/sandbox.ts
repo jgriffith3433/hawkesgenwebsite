@@ -146,6 +146,8 @@ export const SANDBOX = {
   config: {
     // Clock runs for islander routines (living.js); light stays fixed so the island keeps its afternoon look.
     background: '#74b9ea', ambient: 0.78, sun: 1, gravity: -24, time: { hour: 15.5, day: 120, light: false }, motes: '#fff3d6',
+    // The light stack (modules/lighting): a low golden sun, cascaded soft shadows, sky reflections, ACES, bloom and the grade of the hour.
+    lighting: { hour: 16.9 },
     fog: { color: '#a9d4f2', start: 260, end: 2200 },
     planet: PLANET,
     // (The start faces east, down the path to the dock: the Overseer hangs ahead of it, about 15 degrees wide.)
