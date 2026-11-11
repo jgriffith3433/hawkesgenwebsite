@@ -526,7 +526,7 @@ async function stageFirstVisit(t, ctx) {
       if (line && !caps.has(line)) {
         caps.add(line);
         const r = rect(el.querySelector('.in')), plate = el.classList.contains('plate');
-        const bars = document.querySelector('.sh-bars'), bar = bars && bars.lastElementChild ? rect(bars.lastElementChild) : null;
+        const bars = document.querySelector('.ov-bars'), bar = bars && bars.lastElementChild ? rect(bars.lastElementChild) : null;
         const inBar = !plate && bar && r.top >= bar.top - 1 && r.bottom <= bar.bottom + 1;
         const where = plate ? 'a dark plate' : inBar ? 'the letterbox bar' : 'OUTSIDE the letterbox bar';
         t.event('intro-caption', `${name}: "${line}" in ${where}`);

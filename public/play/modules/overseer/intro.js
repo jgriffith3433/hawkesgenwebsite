@@ -3,7 +3,7 @@
 // About fourteen seconds. A short look-up (~5.5 s, gently pushing in) frames the player fully under the ship; on a
 // portrait phone the shot uses a milder look-up, more distance/height and a wider FOV so the body sits in the
 // upper-middle (not pinned to an edge), and the nearby mirror is hidden for that look so its grey slab cannot fill
-// the frame. Captions sit on a dark plate (no letterbox crop); the greeting plays as the beam lands; control from ~2 s.
+// the frame. Captions sit in a letterbox bar on a computer and on a dark plate on a phone; the greeting plays as the beam lands; control from ~2 s.
 // A large Skip pill (kept clear of the feet on portrait), plus any tap/click/Esc/Space/Enter, ends it and blends the
 // camera behind the player. A guest's intro ends facing the mirror; the "first thing" card is for a signed-in player.
 //   - config.overseer.intro: "first" (the default: once per player, remembered on this device), "always", "short" (a friend answering an invitation: the beam and one line, about 4.5 s) or false.
@@ -211,6 +211,12 @@
     + '.ov-cap.plate{top:max(64px,calc(env(safe-area-inset-top) + 60px));z-index:28;padding:0 12px}'
     + '.ov-cap.plate .in{background:rgba(6,9,22,.86);border:1px solid rgba(160,190,255,.35);border-radius:12px;padding:10px 16px 12px;box-shadow:0 6px 24px rgba(0,0,0,.5)}'
     + '.ov-cap.plate span{font-size:clamp(17px,4.6vw,22px)}'
+    // Desktop: a letterbox. Two bars slide in over the top and bottom edges (the picture stays whole behind them); the
+    // caption sits bright inside the bottom bar, far from the player's model, which walks in the middle of the frame.
+    + '.ov-bars{position:fixed;inset:0;z-index:27;pointer-events:none}.ov-bars i{position:absolute;left:0;right:0;height:11vh;background:#04060f;transition:transform .5s ease}'
+    + '.ov-bars i:first-child{top:0;transform:translateY(-100%)}.ov-bars i:last-child{bottom:0;transform:translateY(100%)}.ov-bars.on i{transform:none}'
+    + '.ov-cap.bar{bottom:0;height:11vh;z-index:28;padding:0 16px}.ov-cap.bar .in{background:none;border:0;box-shadow:none;padding:0}'
+    + '.ov-cap.bar b{font-size:13px;color:#a9d6ff}.ov-cap.bar span{font-size:clamp(20px,2.4vw,30px);color:#fff}'
     + '.ov-skip{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));z-index:34;appearance:none;border:0;cursor:pointer;color:#06091a;background:linear-gradient(#f4f7ff,#b9ccff);font:700 clamp(16px,2.4vw,20px)/1 system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;padding:.85em 1.6em;min-width:132px;min-height:48px;border-radius:999px;box-shadow:0 0 28px rgba(140,175,255,.7);pointer-events:auto;touch-action:manipulation}'
     + '.ov-skip:focus-visible{outline:3px solid #fff;outline-offset:4px}'
     // Portrait: lift Skip off the feet (the look frames the body in the lower half; a bottom-corner pill sat on them).
@@ -304,7 +310,17 @@
     const later = (s, fn) => timers.push(setTimeout(() => { if (playing && W() === w) fn(); }, s * 1000));
     if (!document.getElementById('ov-cap-css')) { const st = document.createElement('style'); st.id = 'ov-cap-css'; st.textContent = CAP_CSS; document.head.appendChild(st); }
     const capEl = document.createElement('div');
-    capEl.className = 'ov-cap plate';
+    // A phone (portrait or touch) keeps the dark plate; a computer gets the letterbox bar.
+    const letterbox = !portrait && !(H.touchUi || (window.matchMedia && window.matchMedia('(pointer:coarse)').matches));
+    let barsEl = null;
+    if (letterbox) {
+      barsEl = document.createElement('div');
+      barsEl.className = 'ov-bars';
+      barsEl.innerHTML = '<i></i><i></i>';
+      document.body.appendChild(barsEl);
+      requestAnimationFrame(() => requestAnimationFrame(() => barsEl && barsEl.classList.add('on')));
+    }
+    capEl.className = letterbox ? 'ov-cap bar' : 'ov-cap plate';
     capEl.setAttribute('aria-live', 'polite');
     capEl.innerHTML = '<div class="in"><b></b><span></span></div>';
     document.body.appendChild(capEl);
@@ -419,6 +435,7 @@
       if (H.speech) { H.speech.hold('intro', false); if (skipped) H.speech.clear('intro'); }
       capEl.classList.remove('on');
       skipEl.remove();
+      if (barsEl) { barsEl.classList.remove('on'); const b = barsEl; setTimeout(() => b.remove(), 600); }
       setTimeout(() => capEl.remove(), 400);
       document.body.classList.remove('ov-intro-on');
       restoreCam();
