@@ -155,6 +155,25 @@
     go();
   }
 
+  /** The game's own lazy modules, once the world has been drawn (HawkesPlay.worldDrawn) and the page is idle; then the rest. */
+  function afterFirstFrame(want) {
+    const H = () => window.HawkesPlay;
+    // (worldDrawn is already resolved until run() has made the world, so wait for the world to start first.)
+    const drawn = () => new Promise((res) => {
+      let tries = 0;
+      const go = () => {
+        const w = H() && H().world;
+        if ((!w || !w.started) && tries++ < 480) return void setTimeout(go, 100);
+        Promise.resolve(H() && H().worldDrawn).then(res, res);
+      };
+      go();
+    });
+    Promise.all([want, drawn()]).then(([names]) => {
+      const idle = window.requestIdleCallback || ((f) => setTimeout(f, 1));
+      return new Promise((res) => idle(res, { timeout: 1500 })).then(() => bring(names)).then(() => later());
+    }).catch((err) => console.warn('Hawkes Play: a module did not load', err));
+  }
+
   M.load = function (which = 'play', o = {}) {
     if (which === 'editor') return M.load('play').then(() => all(M.editor)).then(() => window.HawkesPlay && window.HawkesPlay.ready);
     const babylon = window.BABYLON ? [] : M.babylon;
@@ -166,6 +185,12 @@
     const base = Promise.all([all([...babylon, ...havok, ...required]), all(optional, true)]);
     if ('bundle' in o && o.bundle !== undefined) { prog.total++; tick(); Promise.resolve(o.bundle).then(() => { prog.done++; tick(); }, () => {}); }
     const want = 'bundle' in o && o.bundle !== undefined ? Promise.resolve(o.bundle).then((b) => M.needs(b), () => mods().map((m) => m.name)) : Promise.resolve(mods().map((m) => m.name));
+    // With a bundle, the lazy modules the game uses (vehicles, homes, events, share...) come after the first frame, nearest
+    // need first (the ones this game uses, then the rest): the world is playable on the core alone, and a thing of a kind
+    // still waiting is a stand-in until its module joins (bring() rebuilds it). The editor and a load without a bundle
+    // keep them in front of the world.
+    const streamed = 'bundle' in o && o.bundle !== undefined;
+    if (streamed) return base.then(() => { afterFirstFrame(want); return window.HawkesPlay && window.HawkesPlay.ready; });
     return want.then((names) => Promise.all([base, bring(names)])).then(() => { later(); return window.HawkesPlay && window.HawkesPlay.ready; });
   };
 })();
