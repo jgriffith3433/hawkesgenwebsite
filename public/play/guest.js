@@ -144,6 +144,17 @@
   };
   window.HawkesGuestCore = Core;
   if (typeof document === 'undefined') return;
+  // Under automation only: the console is kept from the first line (the first-load playtest lists the WebGL ones; the playtest module, loaded below, would miss what came before it).
+  try {
+    if ((navigator.webdriver || /[?&]playtest=/.test(location.search) || sessionStorage.getItem('hg_playtest_run')) && !window.__hgConsole) {
+      var hgCap = window.__hgConsole = [];
+      ['log', 'info', 'warn', 'error', 'debug'].forEach(function (level) {
+        var orig = console[level];
+        console[level] = function () { try { hgCap.push([Math.round(performance.now()), level, [].map.call(arguments, function (a) { return (a && a.message) || (typeof a === 'object' ? JSON.stringify(a) : a); }).join(' ').slice(0, 400)]); } catch (e) { /* never breaks the game */ } return orig.apply(this, arguments); };
+      });
+      window.addEventListener('error', function (e) { hgCap.push([Math.round(performance.now()), 'pageerror', String(e.message).slice(0, 400)]); });
+    }
+  } catch { /* never breaks the game */ }
   // Studio's playtest (public/playtest/portal.js): only a browser under automation loads it.
   try { if (navigator.webdriver || /[?&]playtest=/.test(location.search) || sessionStorage.getItem('hg_playtest_run')) import('/playtest/portal.js').catch(function () {}); } catch { /* never breaks the game */ }
 
@@ -1338,7 +1349,7 @@
         if (comingBack && q.get('return') !== 'observatory') session.returning = { ...ret.get(), signedIn: false };
         window.HawkesPlay.run(b, { mode: 'play' });
         track('sandbox_world_built', {});
-        requestAnimationFrame(() => requestAnimationFrame(() => track('sandbox_first_frame', {})));
+        requestAnimationFrame(() => requestAnimationFrame(() => { try { performance.mark('hg-first-frame'); } catch { /* a mark is only for the first-load playtest */ } track('sandbox_first_frame', {}); }));
         startUi(window.HawkesPlay, base, t0);
       } catch (e) {
         if (o.failed) o.failed(e);

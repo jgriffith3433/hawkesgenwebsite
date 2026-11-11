@@ -53,6 +53,10 @@
   function clearErrors() { reported = 0; const box = $('error'); if (box) { box.innerHTML = ''; box.hidden = true; } }
 
   // (The engine tests run this file in Node with Babylon's NullEngine: window.HawkesEngineFactory makes it.)
+  // Babylon announces every engine on the console ("Babylon.js v7.x - WebGL2": a message level line, not a problem). The
+  // engine's log levels are the setting for that: warnings and errors still reach the console, so every real WebGL
+  // complaint stays visible and the first-load playtest's list of lines with WebGL, GL_ or WARNING means something.
+  try { if (B.Logger) B.Logger.LogLevels = B.Logger.WarningLogLevel | B.Logger.ErrorLogLevel; } catch { /* the engine's own default */ }
   const engine = window.HawkesEngineFactory ? window.HawkesEngineFactory(canvas) : new B.Engine(canvas, true, { preserveDrawingBuffer: false, stencil: true, disableWebGL2Support: false }, true);
   engine.enableOfflineSupport = false;
   window.addEventListener('resize', () => engine.resize());
