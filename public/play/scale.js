@@ -278,6 +278,9 @@
     for (const m of list) sig = (sig * 31 + m.uniqueId * 7 + m.getWorldMatrix().updateFlag) % 2147483647;
     const d = w.sun && w.sun.direction;
     if (d) sig = (sig * 31 + Math.round(d.x * 1e4) * 3 + Math.round(d.y * 1e4) * 5 + Math.round(d.z * 1e4) * 7) % 2147483647;
+    // Cascaded shadows (modules/lighting) are cut from the camera's view: a moving camera asks for them again (to half a meter, a few degrees).
+    const cam = w.shadows.numCascades ? w.scene.activeCamera : null;
+    if (cam) { const p = cam.globalPosition, f = cam.getForwardRay(1).direction; sig = (sig * 31 + Math.round(p.x * 2) * 3 + Math.round(p.y * 2) * 5 + Math.round(p.z * 2) * 7 + Math.round(f.x * 20) * 11 + Math.round(f.y * 20) * 13 + Math.round(f.z * 20) * 17) % 2147483647; }
     if (map.refreshRate !== 0) map.refreshRate = 0; // (drawn once, then again when asked)
     if (sig !== shadow.sig) { shadow.sig = sig; map.resetRefreshCounter(); map._hpRedraws = (map._hpRedraws || 0) + 1; }
   });
