@@ -262,6 +262,21 @@ engine paths checked for GL warnings and found sound: the loading pearl is canva
 texture's render list leaves out its own glass (no feedback loop), text and sky dynamic textures have sizes of at least 4 px.
 Textures and shadows are untouched by this change.
 
+## First load: start playing, stream the rest (2026-11-11)
+
+**Before** (the `first-load` playtest on live, as measured by k_4addbc635552; the figures are the runner's, not copied here
+because the run's report is not in this repo): the loading cover stayed up until the whole scene was ready
+(`scene.whenReadyAsync`: every shader and texture of the island, capped at 12 s), and every lazy module the island uses
+(vehicles, races, events, share) was fetched and run before the world could start.
+**After (code, not yet measured):** `runtime.js whenDrawn` lifts the cover once the first frames are on screen (the scene
+ready, or four drawn frames with 1.2 s behind them, then two more; cap 8 s instead of 12) and Babylon's parallel shader
+compile (on by default with `KHR_parallel_shader_compile`) finishes the rest frame by frame. `loader.js` with a bundle no
+longer waits for the lazy modules: `afterFirstFrame` brings the game's own after the world is drawn and the page is idle
+(`bring` rebuilds stand-ins of their kinds), then the rest (`later`). Babylon, Havok and its wasm were already preloaded as
+soon as `modules.js` runs, side by side with the page. The editor and a load without a bundle are unchanged. The after
+numbers (390x844 touch 4x CPU 4G, and 1280x720) come from the beta `first-load` run; targets: first frame 8 s / 4 s,
+first input 12 s / 6 s, no loading cover after the first frame, zero WebGL lines.
+
 ## What's left
 
 - **KTX2/Basis** (GPU-compressed textures: 4-8x less GPU memory than WebP's RGBA) isn't made yet. It needs an encoder on
