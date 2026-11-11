@@ -191,7 +191,19 @@
     // Each question has its own distance (ZOOM): the camera eases in as they get to the details, and to the face.
     const k = ZOOM[step || (session && session.steps[session.i])] || 1;
     if (session) session.geo = { f, right, stand, ground, m };
-    const cam = stand.add(f.scale((phone ? 3.9 : 3.3) * k)).add(right.scale(side * k));
+    // Never closer than the body as drawn needs, hat and accessories included (the name step's zoom put the camera
+    // inside a big top hat): the bounding box of the whole rig sets a floor under the step's distance.
+    let need = 0;
+    try {
+      const rig = PR() && PR()._internal && PR()._internal.rigs.get(p);
+      if (rig && rig.root) {
+        const bb = rig.root.getHierarchyBoundingVectors(true);
+        const h = bb.max.y - bb.min.y, deep = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z);
+        if (Number.isFinite(h) && Number.isFinite(deep)) need = 1.5 + Math.max(h * 1.05, deep * 1.2);
+      }
+    } catch { /* the step's own distance */ }
+    const back = Math.max((phone ? 3.9 : 3.3) * k, need);
+    const cam = stand.add(f.scale(back)).add(right.scale(side * k));
     // (On a phone the questions take the bottom: the camera looks down a little more, so the glass sits up top.)
     shot([cam.x, ground + (phone ? 2.6 : 2.25) * (0.55 + 0.45 * k), cam.z], [m.x + right.x * aim * k, ground + (phone ? -0.35 : 1.1) + (1 - k) * 0.7, m.z + right.z * aim * k], glide, glide === 'dolly' ? 900 : 1500);
   }
