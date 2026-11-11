@@ -42,10 +42,24 @@ export async function runSiteLayout(t, options = {}) {
     t.event('layout-failed', failed.join(' | '));
     throw new Error(`layout: ${failed.join(' | ')}`);
   }
+  if (options.pages !== false) await catalogueFiles(t);
   t.event('no-horizontal-scroll', `none at ${sizes.join(', ')}`);
   if (options.pages !== false) t.event('pages-ok', `Games, Library and Profile answer 200 and fit at ${sizes.join(', ')}`);
   t.event('layout-ok', `header whole, card on the first screen, the Overseer clear of the text at ${sizes.join(', ')}`);
   t.finish('done');
+}
+
+/** Every public/catalogue/ file the catalogue names answers 200: a 404 is a bug. */
+async function catalogueFiles(t) {
+  const list = await fetch('/v1/catalogue', { cache: 'no-store' }).then((r) => r.json(), () => null);
+  const games = (list && (list.games || list)) || [];
+  const urls = new Set();
+  const walk = (v) => { if (typeof v === 'string') { if (v.startsWith('/catalogue/')) urls.add(v); } else if (v && typeof v === 'object') Object.values(v).forEach(walk); };
+  walk(games);
+  const missing = [];
+  for (const u of urls) { const s = await fetch(u, { method: 'HEAD', cache: 'no-store' }).then((r) => r.status, () => 0); if (s !== 200) missing.push(`${u} ${s}`); }
+  for (const m of missing) t.problem('bug', `catalogue file 404: ${m}`);
+  t.event('catalogue-files', `${urls.size} files under /catalogue/, ${missing.length} not 200`);
 }
 
 const PAGES = [['/games', 'Games'], ['/community', 'Library'], ['/profile', 'Profile']];
