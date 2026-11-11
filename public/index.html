@@ -27,7 +27,7 @@
   <meta name="twitter:image" content="https://hawkesgames.com/brand/og.png">
   <link rel="stylesheet" href="/public.css?v=play2">
   <link rel="stylesheet" href="/site.css?v=play2">
-  <link rel="stylesheet" href="/overseer-sky.css?v=play2">
+  <link rel="stylesheet" href="/overseer-sky.css?v=play3">
   <script>document.documentElement.classList.add("js")</script>
   <script src="https://hawkesgen.ai/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
   <script src="/site-analytics.js"></script>
@@ -53,6 +53,7 @@
   <main id="main" tabindex="-1">
     <section class="sky" data-sky aria-label="The Overseer over a planet">
       <canvas aria-hidden="true"></canvas>
+      <div class="sky-clip" data-sky-clip aria-hidden="true"></div>
       <div class="sky-say" data-sky-say aria-live="polite"></div>
       <div class="sky-cards" data-sky-cards></div>
       <div class="sky-inner">
@@ -71,6 +72,8 @@
         <div class="fine">Free to play, nothing to download. You'll sign in with Google once you've decided what you are, so your island is kept. The box is a taste of the beam: on the island the Overseer really makes what you ask for.</div>
       </div>
     </section>
+
+    <section class="cover-row" data-cover-row aria-label="Hawkes games" hidden><div class="cover-row-track" data-cover-track></div></section>
 
     <section class="section descent" id="island">
       <div class="wrap">
@@ -355,6 +358,32 @@
         el.innerHTML = '<div class="label">Credit packs</div>' + d.packs.map((p) => '<div><b>$' + p.priceUsd + '</b> <span>' + p.credits.toLocaleString('en-US') + ' credits' + (p.bonusPercent ? ' · ' + p.bonusPercent + '% bonus' : '') + '</span></div>').join('')
           + (d.firstPurchaseBonus ? '<p class="fine">Your first purchase adds ' + d.firstPurchaseBonus + '% more.</p>' : '');
         el.hidden = false;
+      }).catch(() => {});
+
+      // The catalogue: the island's muted clip behind the hero line, and a row of game covers. Nothing is shown for a game
+      // whose media is not captured yet (the API leaves the urls out). Poster only when the browser asks to save data.
+      get('/v1/catalogue').then((d) => {
+        const games = d.games || [];
+        const isle = games.find((g) => g.id === 'island');
+        const clip = document.querySelector('[data-sky-clip]');
+        const save = navigator.connection && navigator.connection.saveData;
+        if (isle && isle.preview && clip) {
+          if (save) { clip.style.backgroundImage = 'url(' + isle.preview.poster + ')'; clip.classList.add('on'); }
+          else {
+            const v = document.createElement('video');
+            v.muted = true; v.loop = true; v.playsInline = true; v.autoplay = true; v.preload = 'auto'; v.poster = isle.preview.poster;
+            v.setAttribute('muted', ''); v.setAttribute('playsinline', '');
+            v.innerHTML = '<source src="' + isle.preview.webm + '" type="video/webm"><source src="' + isle.preview.mp4 + '" type="video/mp4">';
+            clip.appendChild(v); clip.classList.add('on');
+            v.play().catch(() => {});
+          }
+        }
+        const row = document.querySelector('[data-cover-row]'), track = document.querySelector('[data-cover-track]');
+        const shown = games.filter((g) => g.cover);
+        if (row && track && shown.length) {
+          track.innerHTML = shown.map((g) => '<a class="cover-card" href="' + esc(g.url) + '"' + (/^https?:/.test(g.url) ? ' target="_blank" rel="noopener"' : '') + '><img src="' + esc(g.cover) + '" alt="" loading="lazy" width="320" height="180"><span>' + esc(g.name) + '</span></a>').join('');
+          row.hidden = false;
+        }
       }).catch(() => {});
       get('/v1/gallery?limit=60').then((d) => {
         const all = [...(d.featured || []), ...(d.games || [])];
