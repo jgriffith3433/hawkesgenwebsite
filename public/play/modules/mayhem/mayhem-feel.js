@@ -154,7 +154,7 @@
 
   X.feel = {
     math: M, chain, note, embers, boomSound, muzzle, flush,
-    sample: () => ({ ...stats, live: live(), cap: cap(), pending: pending.length }),
-    reset: () => { Object.assign(stats, { chains: 0, rolled: 0, firstGap: 0, maxLive: 0, embers: 0, muzzle: 0, layers: 0, lastDelays: [] }); },
+    sample: () => ({ ...stats, live: live(), cap: cap(), pending: pending.length, vfx: X.vfx ? X.vfx.sample() : null }),
+    reset: () => { if (X.vfx) X.vfx.reset(); Object.assign(stats, { chains: 0, rolled: 0, firstGap: 0, maxLive: 0, embers: 0, muzzle: 0, layers: 0, lastDelays: [] }); },
   };
 })();

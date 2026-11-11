@@ -3228,7 +3228,26 @@ async function flyOver(t, ctx, { jeep, driving }) {
 // embers, and ten barrels go off one after another. Real input (walking, a click); the launcher in hand and five more
 // barrels beside the five on the beach are one named shortcut. touch: true is the phone: the frame rate through the chain
 // is measured and under 30 is a problem.
+/** The layers of the last blast (mayhem-vfx.js `sample()`), one event each, and the smoke column still there later. */
+function blastLayers(t, label) {
+  const V = G() && G().mayhem && G().mayhem.vfx, s = V && V.sample();
+  if (!s || !s.ready) { t.problem('error', 'the layered blast (mayhem-vfx.js) was not ready: the flipbooks were not drawn'); return; }
+  const L = (s.last && s.last.layers) || {};
+  t.event('blast-layer-fireball', `${label}: ${s.fire} flipbook fireball particles in all (the last blast ${L.fireball || 0}), ${s.sheet} px sheets, ${s.tier} tier`);
+  t.event('blast-layer-smoke', `${label}: ${s.smoke} column particles fed; ${s.smokeAlive} smoke particles still alive`);
+  t.event('blast-layer-shockwave', `${label}: ${s.shock} ground rings, ${s.dust} dust particles${L.dust ? ' (' + L.dust.surface + ')' : ''}`);
+  t.event('blast-layer-sparks', `${label}: ${s.sparks} sparks with trails`);
+  t.event('blast-layer-flash', `${label}: ${s.flash} flashes, the longest lit ${s.flashFrames} frames`);
+  t.event('blast-layer-scorch', `${label}: ${s.scorch} scorch marks put down, ${s.scorchLive} on the ground now (fading over 60 s)`);
+  t.event('blast-layer-ripple', `${label}: ${s.ripple} heat ripples${s.tier === 'desktop' ? '' : ' (none off desktop High, as designed)'}`);
+  if (!s.fire || !s.smoke || !s.sparks || !s.flash || !s.scorch) t.problem('error', `a blast layer was missing (${JSON.stringify({ fire: s.fire, smoke: s.smoke, sparks: s.sparks, flash: s.flash, scorch: s.scorch })})`);
+  if (s.flash && s.flashFrames < 3) t.problem('warning', `the flash lit only ${s.flashFrames} frame(s)`);
+  if (s.tier === 'phone' && s.ripple) t.problem('error', 'a heat ripple was drawn on the phone tier');
+  if (s.tier === 'phone' && s.sheet !== 512) t.problem('error', `the phone read ${s.sheet} px flipbooks (512 needed)`);
+}
+
 async function stageBlast(t, ctx) {
+  if (ctx.options.touch) return stagePhonePerf(t, ctx); // the phone: touch pointers only (the stick, a thumb drag, FIRE)
   await t.until(() => G() && G().mayhem && G().mayhem.feel && W().byId.get('barrel_1'), 90000, 'the island, its barrels and the game feel layer');
   await t.wait(1500);
   const P = () => W().player;
@@ -3277,6 +3296,10 @@ async function stageBlast(t, ctx) {
     await t.wait(1100);
     t.scene('Blast: embers and smoke');
     await t.wait(2600);
+    t.scene('Blast: the smoke column 5 s on');
+    const V = G().mayhem.vfx, alive = V ? V.sample().smokeAlive : 0;
+    t.event('smoke-5s', `${alive} smoke particles still in the sky about 5 s after the first blast`);
+    if (alive < 10) t.problem('error', `the smoke column is gone after 5 s (${alive} particles)`);
     running = false;
     const s = F().sample(), fps = Math.round(frames / ((performance.now() - t0) / 1000));
     const mine = booms.slice(first);
@@ -3286,6 +3309,7 @@ async function stageBlast(t, ctx) {
     t.event('chain-rolling', `${mine.length} explosions over ${Math.round((mine.length ? mine[mine.length - 1].t - at0 : 0))} ms; gaps ms: ${gaps.join(', ')}`);
     if (mine.length < Math.min(8, total)) t.problem('warning', `only ${mine.length} of ${total} barrels went off in the chain`);
     if (mine.length > 3 && mine[mine.length - 1].t - at0 < 700) t.problem('error', 'the barrels went off almost all at once (no visible chain)');
+    blastLayers(t, 'desktop');
     t.metric('chainFps', fps);
     t.metric('chainWorstFrameMs', Math.round(worst));
     t.event('chain-fps', `${fps} fps through the shot and the ${mine.length}-barrel chain (worst frame ${Math.round(worst)} ms)${ctx.options.touch ? ', phone controls' : ''}`);
@@ -3299,17 +3323,33 @@ async function stageBlast(t, ctx) {
   }
   releaseAll();
   if (tries >= 4 && !booms.length) throw new Error('the rockets never landed');
+  // Rolo's rocket: put in it (a named shortcut), a burn with Space: the exhaust flame, the pad dust, the trail up the climb
+  const rk = W().byId.get('rocket');
+  if (rk && G().mayhem.vfx) {
+    await HOOKS.enterVehicle(t, 'rocket').catch((e) => t.problem('warning', String(e && e.message || e)));
+    const v0 = G().mayhem.vfx.sample(), y0 = rk.y;
+    keyEv('keydown', ' ');
+    await t.wait(1200); t.scene('Rocket: the exhaust flame and the pad dust');
+    await t.wait(4500); t.scene('Rocket: the trail up the climb');
+    const v1 = G().mayhem.vfx.sample();
+    keyEv('keyup', ' ');
+    t.event('rocket-exhaust', `${v1.exhaust - v0.exhaust} exhaust flame particles`);
+    t.event('rocket-pad-dust', `${v1.padDust - v0.padDust} dust particles thrown from the pad`);
+    t.event('rocket-smoke-trail', `${v1.trail - v0.trail} trail particles over a climb of ${Math.round(rk.y - y0)} m`);
+    if (v1.exhaust - v0.exhaust < 5) t.problem('error', 'the rocket showed no exhaust flame');
+    if (v1.trail - v0.trail < 5) t.problem('error', 'the rocket left no smoke trail');
+  }
   t.progress(1);
 }
 
 // ---------------------------------------------------------------------------------------------- phone performance
 /** Counts frames from now: stop() gives the average fps, the worst frame and how many frames took over 500 ms (a freeze). */
 function frameMeter() {
-  let frames = 0, worst = 0, freezes = 0, running = true, last = performance.now();
+  let frames = 0, worst = 0, freezes = 0, hitches = 0, running = true, last = performance.now();
   const t0 = last;
-  const raf = (n) => { frames++; const d = n - last; worst = Math.max(worst, d); if (d > 500) freezes++; last = n; if (running) requestAnimationFrame(raf); };
+  const raf = (n) => { frames++; const d = n - last; worst = Math.max(worst, d); if (d > 500) freezes++; if (d > 100) hitches++; last = n; if (running) requestAnimationFrame(raf); };
   requestAnimationFrame(raf);
-  return { stop() { running = false; return { fps: Math.round(frames / ((performance.now() - t0) / 1000)), worst: Math.round(worst), freezes }; } };
+  return { stop() { running = false; return { fps: Math.round(frames / ((performance.now() - t0) / 1000)), worst: Math.round(worst), freezes, hitches }; } };
 }
 /** `phone-performance`: the phone controls only (pointer events of type touch). Driving, then the rocket launcher at ten barrels,
  *  each with the frame rate, the worst frame and the freezes measured, and proof that the stick and buttons answered. */
@@ -3405,6 +3445,9 @@ async function stagePhonePerf(t, ctx) {
   t.event('touch-fire-responds', `FIRE tapped with a thumb: ${result.n} explosions of ${total} barrels`);
   t.metric('blastFps', result.fps); t.metric('blastWorstFrameMs', result.worst); t.metric('blastFreezes', result.freezes);
   t.event('blast-fps', `${result.fps} fps through the shot and the chain with touch (worst frame ${result.worst} ms, ${result.freezes} freezes over 500 ms)`);
+  t.metric('blastHitchesOver100ms', result.hitches);
+  if (result.hitches) t.problem('error', `${result.hitches} frame(s) over 100 ms in the 5-barrel chain on the phone (worst ${result.worst} ms)`);
+  blastLayers(t, 'phone');
   if (result.fps < 30) t.problem('error', `the phone held ${result.fps} fps through the explosions (30 needed)`);
   if (result.freezes) t.problem('error', `${result.freezes} freeze(s) over 500 ms in the explosions (worst ${result.worst} ms)`);
   releaseAll();
