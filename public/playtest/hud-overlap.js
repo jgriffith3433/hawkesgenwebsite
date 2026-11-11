@@ -91,6 +91,8 @@ async function oneSize(t, w, h, label) {
       else t.event(ev, tag);
     };
     t.event('hud-measured', `${tag}: ${list.length} controls`);
+    const box = (s) => { const el = $(s); if (!el || !shown(el)) return 'none'; const r = el.getBoundingClientRect(); return `${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)}`; };
+    t.event('hud-boxes', `hud-overlap/${step.replace(/ /g, '-')}/${label}: quest banner ${box('.qs-btn')}; top-right actions ${box('.gs-acts')}; open panel ${box('.mr, [data-hud-panel]')}; chat ${box('.hc-chat')}`);
     verdict('hud-no-overlap', overlap, '');
     verdict('hud-in-viewport', off, ' is outside the screen');
     verdict('hud-tap-targets', small, ` is under ${MIN}px`);
