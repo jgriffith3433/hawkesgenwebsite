@@ -22,8 +22,8 @@
 // mirror (config as in the Observatory's return), is beamed in, is welcomed back by name, and the tour resumes on the step
 // they left (sandbox.js reads HawkesGuest.resume and fast-forwards Pip's quest silently). L or "Change my look" opens the
 // mirror's questions anywhere. Storage cleared: no record, no intro flag, the full beginning.
-// Invitations (J, 2026-10-25; src/invites.ts, docs/story.md "Visitors"): "Invite a friend" (the button, and the pause menu on
-// Esc twice) needs no account. It asks POST /v1/island-invite for a link, puts this player in the island's room
+// Invitations (J, 2026-10-25; src/invites.ts, docs/story.md "Visitors"): "Invite a friend" (the button, and the game menu on
+// Esc) needs no account. It asks POST /v1/island-invite for a link, puts this player in the island's room
 // (play:t/sandbox:<code>, HawkesNet) and shares the link (the native share sheet on phones, else copied). A friend who opens
 // /play/sandbox?invite=<token> is checked first (GET /v1/island-invite/<token>: closed, full, expired and unreadable links get
 // a plain message and "Start my own island"), then gets the same loading screen, a short intro (config.overseer.intro
@@ -305,11 +305,17 @@
     // (While Pip's tour runs, the nudge waits for its end.)
     const touring = () => { try { return H.game.events.quests.state('tour') === 'active'; } catch { return false; } };
 
-    // The buttons that open the account side. On a phone (hudlayout body.hl-compact) they fold behind one 44 px menu.
-    const acts = el(`<button type="button" class="more" data-menu aria-label="Actions" aria-expanded="false" title="Actions">☰</button><button type="button" class="primary" data-intent="save">Save this world</button><button type="button" class="opt" data-intent="build">Build your own</button><button type="button" class="opt" data-intent="invite" title="Make a link to your island and copy it">Copy invite link</button>`, 'gs-acts');
+    // The buttons that open the account side. On a phone (hudlayout body.hl-compact) the ☰ opens the game menu.
+    // Phone compact: the ☰ opens the game menu (gamemenu.js). Save / Build / Invite stay as desktop intents and for
+    // signed-in flows; Invite is also a game-menu item.
+    const acts = el(`<button type="button" class="more" data-menu aria-label="Menu" aria-expanded="false" title="Menu">☰</button><button type="button" class="primary" data-intent="save">Save this world</button><button type="button" class="opt" data-intent="build">Build your own</button><button type="button" class="opt" data-intent="invite" title="Make a link to your island and copy it">Copy invite link</button>`, 'gs-acts');
     const menu = acts.querySelector('[data-menu]');
     const setOpen = (on) => { acts.classList.toggle('open', on); if (menu) menu.setAttribute('aria-expanded', on ? 'true' : 'false'); };
-    if (menu) menu.onclick = (e) => { e.stopPropagation(); setOpen(!acts.classList.contains('open')); };
+    if (menu) menu.onclick = (e) => {
+      e.stopPropagation();
+      if (H.gameMenu) { H.gameMenu.toggle(); setOpen(false); return; }
+      setOpen(!acts.classList.contains('open'));
+    };
     acts.querySelectorAll('[data-intent]').forEach((b) => { b.onclick = () => { setOpen(false); want(b.dataset.intent, 'button'); }; });
     session.acts = acts;
 
@@ -469,15 +475,19 @@
       t.querySelector('[data-x]').onclick = () => t.remove();
       setTimeout(() => t.remove(), 60000);
     }
-    // The pause menu: Esc twice (like the Observatory's way back); the friend's invitation is in it.
-    let escAt = 0;
-    window.addEventListener('keydown', (e) => {
-      if (e.key !== 'Escape' || e.repeat || document.body.dataset.gsSheet) return;
-      const now = Date.now();
-      if (now - escAt > 700) { escAt = now; return; }
-      escAt = 0;
-      try { H.game.ui.menu('pause', { title: 'Paused', items: [{ label: 'Resume' }, { label: 'Invite a friend', onClick: () => invite('pause') }, { label: 'Change my look', onClick: look }] }); } catch { /* no menus in this build */ }
-    }, true);
+    // The game menu (modules/gamemenu): one Esc or the phone ☰. Invite and Change my look live there.
+    const bindMenu = () => {
+      if (!H.gameMenu || H.gameMenu._guestBound) return;
+      H.gameMenu._guestBound = true;
+      try {
+        window.HawkesGuest = window.HawkesGuest || {};
+        HawkesGuest.invite = (from) => invite(from || 'menu');
+        HawkesGuest.look = look;
+        if (session && session.user) HawkesGuest.user = session.user;
+      } catch { /* fine */ }
+    };
+    bindMenu();
+    try { H.hooks.world.push({ enter: bindMenu }); } catch { bindMenu(); }
 
     // A friend who opened an invitation: at the mirror's end (or, for a return, once beamed in) they join the inviter's room.
     const inv = session.friend;

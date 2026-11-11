@@ -1,0 +1,6 @@
+{
+  "title": "Game menu: one Esc or one tap opens Resume, Settings, Journal, Controls, Invite, Change look, Leave",
+  "order": 7,
+  "scripts": ["gamemenu.js"],
+  "kinds": []
+}

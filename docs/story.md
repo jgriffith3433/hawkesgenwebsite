@@ -350,7 +350,7 @@ first place that is the Overseer's own rather than a landing place, and it is ke
   **Sky Racer** and **Leap**, the Overseer's featured games. Each has a plate with its name, one line and how many are there
   now (*"● 2 playing"*). Standing under one and pressing E makes the Overseer say where (*"Leap. A village, a hill and a rocket
   at the top. Hold still."*), the room fades, and the player is beamed down into that game as the character they made, with
-  their name. Nothing in the games changes; the way back is always there: Esc twice opens a pause menu with **Return to the
+  their name. Nothing in the games changes; the way back is always there: Esc opens the game menu with **Return to the
   Observatory** (and a button in the corner), and a beam puts them down at the board with *"Name. You are back from Leap.
   The stars kept your place."* The sandbox stays home: the return skips the intro and the mirror.
 
@@ -537,7 +537,7 @@ line burnt in. Nothing on it says the Overseer is software; "Made with Hawkes Ge
 
 ### Visitors (built: `src/invites.ts`, `public/play/guest.js`)
 
-A player can bring a friend to their island. **Invite a friend** (the button top right, and the pause menu on Esc twice;
+A player can bring a friend to their island. **Invite a friend** (the button top right, and the game menu on Esc;
 on a phone the native share sheet) makes a link, `/play/sandbox?invite=<token>`, to the island's own room. It needs no account,
 for either of them. The link holds for a day. If the inviter has an account, their referral code rides in it
 (`&ref=<code>`), kept like the landing page's `?ref=`: a sign-up through it credits them as the site does today.

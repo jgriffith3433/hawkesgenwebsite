@@ -311,7 +311,7 @@ html body.tl #tl-tr>*{max-width:100%}
 html body.tl #tl-tr .gs-acts{justify-content:flex-end}
 html body.tl #tl-tr .gs-acts button,html body.tl #tl-tr .gs-toast button{min-height:48px}
 /* phone compact (hudlayout): the 44 px menu is the one account control when the list is closed */
-html body.tl.hl-compact #tl-tr .gs-acts .more{min-width:44px;min-height:44px;width:44px;height:44px}
+html body.tl.hl-compact #tl-tr .gs-acts .more{min-width:48px;min-height:48px;width:48px;height:48px}
 html body.tl.hl-compact #tl-tr .gs-acts.open>[data-intent]{min-height:44px}
 html body.tl #tl-tr .gs-toast{left:auto;width:auto;flex-wrap:wrap}
 html body.tl #tl-tr .corner{flex-direction:row;flex-wrap:wrap;justify-content:flex-end;gap:6px}

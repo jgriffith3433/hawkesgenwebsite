@@ -12,6 +12,7 @@
 //   top-right  the action row        .gs-acts .jr-btn                             (moves left of the panel; folds on phone)
 //   right      the side panel        .mr, or anything with [data-hud-panel]
 //   bottom     the chat              .hc-chat                                     (shifts left of the panel on desktop)
+//   menu       the game menu sheet   [data-game-menu]                             (full-screen; owns Esc / phone ☰)
 //
 // No timers and no polling: the layout is recomputed when a panel is added or removed (a MutationObserver on the body),
 // when the panel itself changes size (ResizeObserver) and when the window is resized. It writes two things: the CSS
@@ -37,6 +38,7 @@
     actions: '.gs-acts, .jr-btn',
     panel: '.mr, [data-hud-panel]',
     chat: '.hc-chat',
+    menu: '[data-game-menu]',
   };
 
   /** Phone compact: widths under 760 or heights under 500 (short landscape). */
@@ -94,7 +96,7 @@
   // calc(var(--hl-panel) + 12px) over max() around the variable — that often refuses to interpolate.
   const CSS = `
     @property --hl-panel{syntax:'<length>';inherits:true;initial-value:0px}
-    :root{--hl-panel:0px;--hl-menu:44px}
+    :root{--hl-panel:0px;--hl-menu:48px}
     .gs-acts,.jr-btn,.gs-toast,.ev-hud,.ov-work{transition:right .3s ease,max-width .3s ease}
     #dl-stack,.tour-track,.qs-track{transition:width .3s ease,max-width .3s ease}
     /* desktop top-right: Journal (.jr-btn) at the right end; .gs-acts sits 50px to its left */
