@@ -760,20 +760,21 @@
     if (!H || !H.world) return claim(intent, user);
     if (island) return afterKeep(intent);
     const busy = toast('Keeping your island…');
+    // A request that never comes back must not leave this toast up for good: the api calls below give up after 20 s and the catch says so.
     try {
       const snap = Core.snapshot(H, { edits: session.edits });
       const name = lookName(H);
       let look = null;
       try { look = H.presence && H.presence.look ? JSON.parse(JSON.stringify(H.presence.look)) : null; } catch { look = null; }
       let game;
-      try { game = await api('POST', '/v1/games', { title: name ? `${name}'s island` : 'My island', template: 'sandbox' }); }
+      try { game = await api('POST', '/v1/games', { title: name ? `${name}'s island` : 'My island', template: 'sandbox' }, { timeout: 20000 }); }
       catch (x) { busy.remove(); if (x.status === 402) return gamesFull(x.message, intent); throw x; }
       // The look they made at the mirror is theirs now (it replaces what the account had: they just chose it).
       if (look) await api('POST', '/v1/users/me/avatar', { avatar: look }).catch((e) => console.warn('sandbox: look not saved', e));
       // What the Overseer remembered of them on this device goes into the account (the newer record wins).
       try { if (H.memory) await H.memory.sync(); } catch { /* fine */ }
       const ops = Core.toOps(session.base || { config: {}, entities: {} }, snap);
-      for (const part of Core.chunks(ops, 200)) await api('POST', `/v1/games/${game.id}/scene`, { ops: part });
+      for (const part of Core.chunks(ops, 200)) await api('POST', `/v1/games/${game.id}/scene`, { ops: part }, { timeout: 20000 });
       // Their island: no Overseer's beginning or mirror again (they've seen them; the mirror is still there to use).
       await api('POST', `/v1/games/${game.id}/scene`, { ops: [{ op: 'config', patch: { overseer: { intro: false } } }, { op: 'update', id: 'mirror', patch: { shape: { character: { start: false } } } }] }).catch(() => {});
       island = { id: game.id, base: snap, user: user.id };
