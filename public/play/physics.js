@@ -526,7 +526,9 @@
     let onGround = supported && v[1] - Math.max(0, alongVy) <= sv.y + 0.5;
     // Ground snap: grounded a moment ago, not jumping, and walkable ground just under the feet (over a crest, down a step,
     // fast downhill): put the feet on it instead of starting a fall.
-    if (!onGround && c.airT === 0 && v[1] <= 0.5 && g < 0 && !support.supportedState) onGround = snapDown(e, c, w);
+    // (Not only with nothing under it: on a steep walkable downhill the support query can report "sliding" for a frame, as
+    // the ground falls away faster than the controller follows; that is still ground, not the start of a fall.)
+    if (!onGround && c.airT === 0 && v[1] <= 0.5 && g < 0 && support.supportedState !== 2) onGround = snapDown(e, c, w);
     c.airT = onGround ? 0 : (c.airT || 0) + dt;
     // The ground's slope under the feet (what a landing hits: juice-feel.js judges how hard by the speed into it).
     if (onGround) {
