@@ -603,7 +603,7 @@
       <p class="err" id="gsErr" role="alert" hidden></p>
       <p class="note" id="gsNote" hidden></p>
       <p class="fine" id="gsTerms">New here? The same button makes your account. By continuing you agree to the <a href="/legal#terms" target="_blank">terms</a> and <a href="/legal#privacy" target="_blank">privacy policy</a>.</p>
-      ${forced ? '<a class="back" href="/" data-leave>Leave the island</a>' : '<button type="button" class="back" data-back>Keep playing</button>'}
+      <button type="button" class="back" data-back>${forced ? 'Keep playing as a guest' : 'Keep playing'}</button>
     </div>`, 'gs-veil');
     const $ = (id) => veil.querySelector('#' + id);
     const note = (text) => { $('gsNote').textContent = text; $('gsNote').hidden = false; $('gsErr').hidden = true; };
@@ -647,8 +647,8 @@
     };
     // Playtests (Google-only sign-up) call HawkesGuest.playtestContinue() to close the forced sheet and let Pip's tour run.
     try { if (window.HawkesGuest) window.HawkesGuest._dismissSheet = close; } catch { /* fine */ }
-    // Keyboard: focus goes into the sheet and Tab turns round inside it (the page behind is frozen), so even the forced
-    // sheet always has a next control, including "leave"; Escape closes it only when it is not forced.
+    // Keyboard: focus goes into the sheet and Tab turns round inside it (the page behind is frozen), so the sheet
+    // always has a next control; Escape or "Keep playing" closes it.
     veil.addEventListener('keydown', (e) => {
       if (e.key !== 'Tab') return;
       const f = [...veil.querySelectorAll('a[href],button,input,select,textarea,[tabindex]:not([tabindex="-1"])')].filter((x) => !x.disabled && !x.closest('[hidden]') && x.getClientRects().length);
@@ -658,12 +658,16 @@
       else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
       else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
     });
-    // (Forced: it can't be put away: the way out is leaving the island.)
-    const dismiss = () => { close(); if (o.onCancel) o.onCancel(); };
-    if (!forced) veil.querySelector('[data-back]').onclick = dismiss;
-    else veil.querySelector('[data-leave]').onclick = () => track('sandbox_gate_leave', {});
-    veil.addEventListener('pointerdown', (e) => { e.stopPropagation(); if (!forced && e.target === veil) dismiss(); });
-    veil.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !forced) dismiss(); });
+    // (The first sheet, after the mirror, can be put away too: a guest plays on and Pip's tour begins. The account is
+    // asked for again when they save, build, invite, share or ask the Overseer.)
+    const dismiss = () => {
+      close();
+      if (forced) { track('sandbox_gate_guest', {}); try { window.HawkesGuest.accountFirst = false; } catch { /* fine */ } }
+      if (o.onCancel) o.onCancel();
+    };
+    veil.querySelector('[data-back]').onclick = dismiss;
+    veil.addEventListener('pointerdown', (e) => { e.stopPropagation(); if (e.target === veil) dismiss(); });
+    veil.addEventListener('keydown', (e) => { if (e.key === 'Escape') dismiss(); });
     setTimeout(() => { const t = $('gsGoogle'); if (t && !veil.contains(document.activeElement)) t.focus({ preventScroll: true }); }, 50);
   }
   /** /auth/google with where to go after, and where the visitor came from (the hg_ref / hg_src cookies the landing page
