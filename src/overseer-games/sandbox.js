@@ -111,18 +111,47 @@ function duck(owner, level, seconds) {
 }
 const sea = loop('ocean-waves.mp3', 0);
 const birds = loop('forest.mp3', 0.05);
-/** Asks for the file now; it plays and fades in when the browser says it can play through. */
+/** Asks for the file now; it plays and fades in once enough is buffered to start (not the whole loop). */
 function fetchSound(s) {
   if (!s || s.asked) return;
   s.asked = true;
   const ready = () => { if (s.ready) return; s.ready = true; logAudio('ready', s.name); playSound(s); };
-  s.el.addEventListener('canplaythrough', ready, { once: true });
+  // canplay / loadeddata: enough to begin. canplaythrough waits for the entire loop file and can sit past the
+  // playtest's post-tap window (island-music saw start only at ~4.2 s).
+  s.el.addEventListener('canplay', ready, { once: true });
+  s.el.addEventListener('loadeddata', ready, { once: true });
   s.el.preload = 'auto';
   logAudio('request', s.name);
   try { s.el.load(); } catch { /* it tries again on play */ }
+  // Disk / HTTP cache: readyState may already be high with no event.
+  if (s.el.readyState >= 2) ready();
 }
 function playSound(s) {
-  s.el.play().then(() => { if (!s.started) { s.started = true; s.fadeFrom = performance.now(); logAudio('start', s.name); } }).catch(() => {});
+  if (!s || !s.el) return;
+  try {
+    const ctx = H && H.audio && H.audio.context;
+    if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+  } catch { /* fine */ }
+  s.el.play().then(() => {
+    if (!s.ready) { s.ready = true; logAudio('ready', s.name); }
+    if (s.started) return;
+    s.started = true;
+    s.fadeFrom = performance.now();
+    logAudio('start', s.name);
+    // Clearing / area theme: the playtest and analytics look for this (and the start log line).
+    if (/^music-|^meadow/.test(s.name)) {
+      try { game.emit('music-start', { name: s.name, theme }); } catch { /* fine */ }
+    }
+  }).catch(() => {});
+}
+/** Resume the context and (re)try every asked loop: call from a user gesture so autoplay unlocks. */
+function kickPlay() {
+  startSound();
+  for (const s of sounds) {
+    if (!s || !s.el || !s.asked) continue;
+    if (s.el.readyState >= 2 && !s.ready) { s.ready = true; logAudio('ready', s.name); }
+    if (s.el.paused && (s.ready || s.el.readyState >= 2)) playSound(s);
+  }
 }
 let sounding = false;
 function startSound() {
@@ -132,6 +161,17 @@ function startSound() {
   for (const s of [trackFor('clearing'), sea, birds]) fetchSound(s);
   gulls();
 }
+// First tap / key / click after the page loads: unlock and start the clearing theme in that gesture (browser rule).
+(function armUnlock() {
+  const go = () => {
+    kickPlay();
+    const m = trackFor('clearing');
+    if (m && m.started) {
+      for (const t of ['pointerdown', 'touchstart', 'keydown']) window.removeEventListener(t, go, true);
+    }
+  };
+  for (const t of ['pointerdown', 'touchstart', 'keydown']) window.addEventListener(t, go, true);
+})();
 // Now and then a gull over the shore, heard only near the sea (the site's own sound, runtime.js siteSound).
 function gulls() {
   game.after(18 + Math.random() * 30, () => {
@@ -159,6 +199,8 @@ game.every(0.25, () => {
   if (!game.player) return;
   const now = performance.now();
   for (const s of sounds) {
+    // Enough buffered to start, even if canplay was missed (cache, late listener).
+    if (!s.ready && s.el && s.el.readyState >= 2) { s.ready = true; logAudio('ready', s.name); }
     if (!s.ready) continue;
     // A loop the browser held back starts as soon as sound is allowed: the first click or key.
     if (s.el.paused && H.audio.context && H.audio.context.state === 'running') playSound(s);
@@ -201,9 +243,10 @@ let began = false;
 function begin() {
   if (began || game.mode !== 'play') return;
   // The guest page (/play/sandbox): the account comes first, then the tour goes on in the editor (public/play/guest.js).
-  if (window.HawkesGuest && window.HawkesGuest.accountFirst) return void game.after(2, begin);
+  // Poll often: playtests clear accountFirst and expect music within a second of the next tap.
+  if (window.HawkesGuest && window.HawkesGuest.accountFirst) return void game.after(0.25, begin);
   began = true;
-  startSound();
+  kickPlay();
   // Pip walks over to meet you (and stays put after: the tour sends you places, Pip waves you on).
   const p = pip();
   const living = H && H.living;
@@ -381,14 +424,14 @@ function warmVoice() {
 }
 function soundAfterVoice() {
   if (sounding) return;
-  Promise.race([voiceWarm, new Promise((r) => setTimeout(r, 1500))]).then(() => startSound());
+  Promise.race([voiceWarm, new Promise((r) => setTimeout(r, 1500))]).then(() => kickPlay());
 }
 // The gateway's one gesture (Enter, a click or a tap) unlocks the sound: the music, the sea and the birds start right then.
-game.on('gateway', () => { warmVoice(); startSound(); });
+game.on('gateway', () => { warmVoice(); kickPlay(); });
 game.on('intro', (d) => {
   if (!d) return;
   if (d.state === 'start') soundAfterVoice();
-  if (d.state === 'end') { startSound(); game.after(1, afterMirror); } // (skipped or not, the island sounds)
+  if (d.state === 'end') { kickPlay(); game.after(1, afterMirror); } // (skipped or not, the island sounds)
 });
 game.onStart(() => {
   const intro = Boolean(H && H.overseer && H.overseer.introWanted && H.overseer.introWanted());

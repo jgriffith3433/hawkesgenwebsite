@@ -18,7 +18,7 @@ function page() {
   const timers: { at: number; fn: Function }[] = [];
   let now = 0;
   class FakeAudio {
-    listeners: Record<string, Function[]> = {}; _src = ''; _preload = 'auto'; volume = 1; loop = false; paused = true; crossOrigin = '';
+    listeners: Record<string, Function[]> = {}; _src = ''; _preload = 'auto'; volume = 1; loop = false; paused = true; crossOrigin = ''; readyState = 0;
     constructor(url?: string) { if (url) this.src = url; }
     set src(v: string) { this._src = v; if (this._preload !== 'none') requests.push(v); }
     get src() { return this._src; }
@@ -28,7 +28,8 @@ function page() {
     addEventListener(t: string, f: Function) { (this.listeners[t] ||= []).push(f); }
     play() { this.paused = false; return Promise.resolve(); }
     pause() { this.paused = true; }
-    loaded() { for (const f of this.listeners.canplaythrough || []) f(); }
+    // Enough buffered to start (sandbox.js listens for canplay / loadeddata; canplaythrough is too late for long loops).
+    loaded() { this.readyState = 4; for (const t of ['canplay', 'loadeddata', 'canplaythrough']) for (const f of this.listeners[t] || []) f(); }
   }
   const audios: FakeAudio[] = [];
   const Audio = function (url?: string) { const a = new FakeAudio(url); audios.push(a); return a; } as any;
@@ -43,7 +44,7 @@ function page() {
     every: () => {}, input: { onKey() {} }, all: () => [], terrain: { heightAt: () => -10 }, planet: { height: () => 0 },
   } as any, { get: (t, k) => (k in t ? t[k] : () => ({})) });
   const H = { audio: { media: () => {}, context: { state: 'running' } }, overseer: { introWanted: () => true } };
-  const win: any = { HawkesPlay: H, addEventListener() {} };
+  const win: any = { HawkesPlay: H, addEventListener() {}, removeEventListener() {} };
   const ctx: any = {
     window: win, game, Audio, performance: { now: () => now }, console: { log() {} },
     fetch: (u: string) => { requests.push(u); fetched.push(u); return Promise.resolve({ arrayBuffer: () => Promise.resolve(new ArrayBuffer(1)) }); },
