@@ -572,6 +572,18 @@ export function copySteps(kind: string, main: string, thumb: string | null) {
 }
 
 /**
+ * Whether a starter thing gets its next try: tries left, and its last try is over (failed, or no open Gen job and queued
+ * over 2 hours ago). A last try still queued or running in Gen is never repeated; when Gen's open jobs can't be read
+ * (lastOpen true), nothing is repeated that round.
+ */
+export function tryDue(t: { tries: number; allowed: number; lastFailed: boolean; lastOpen: boolean; queuedAt: number }, now = Date.now()) {
+  if (t.tries >= t.allowed) return false;
+  if (t.tries === 0) return true;
+  if (t.lastFailed) return true;
+  return !t.lastOpen && now - t.queuedAt > 2 * 3600_000;
+}
+
+/**
  * Remakes what the pack is missing, within this lane's restore order: the missing things of its kinds go to Gen as the
  * same asset.make jobs tools/starter.mjs queues (same key and labels, in this lane's starter project), priced by Gen's
  * estimate first, until what was queued under the order reaches its budget. A thing is tried at most twice (a failed job
@@ -626,7 +638,19 @@ export async function restoreStarter() {
   };
   const lastFailed = (it: { item: string; kind: string; name: string }) =>
     (tries[it.item] ?? 0) > 0 && failedKeys.has(remakeKey(keyOf(it as any), ref.id, tries[it.item]));
-  const due = (it: { item: string; kind: string; name: string }) => (tries[it.item] ?? 0) < allowed(it) && (lastFailed(it) || Date.now() - (queuedAt[it.item] ?? 0) > 2 * 3600_000);
+  // A try whose Gen job is still queued or running is still being made, however long the GPU line is: a second try then
+  // would pay for the same model twice and lengthen the line (beta 2026-11-10: the line passed 2 hours and 21 models got a
+  // second try while their first was still running). The 2 hours only covers a try Gen has no open job for.
+  const openJobs = await gen<{ jobs: any[] }>(`/v1/jobs?project=${STARTER_PROJECT}&tool=asset.make&status=queued,running&limit=500`, { as: STARTER_PROJECT })
+    .then((r) => r.jobs ?? [], () => null);
+  const openKeys = new Set((openJobs ?? []).map((j) => String(j.key ?? '')));
+  const due = (it: { item: string; kind: string; name: string }) => tryDue({
+    tries: tries[it.item] ?? 0,
+    allowed: allowed(it),
+    lastFailed: lastFailed(it),
+    lastOpen: openJobs === null || ((tries[it.item] ?? 0) > 0 && openKeys.has(remakeKey(keyOf(it as any), ref.id, tries[it.item]))),
+    queuedAt: queuedAt[it.item] ?? 0,
+  });
   let todo = packItems().filter((it) => missing.has(it.item) && order.kinds.includes(it.kind) && due(it)).sort((a, b) => rank(a) - rank(b));
   // Copying from another lane (live from beta): what the source has listed is copied, free; what it hasn't made yet waits
   // for it (each thing is made once, on the source, and the lanes don't pay twice).
