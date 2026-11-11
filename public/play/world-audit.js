@@ -21,8 +21,13 @@
 //              server says the library no longer has it (`gone`). Rule 5 (Jaycee, 2026-11-10: no missing assets anywhere).
 //   normals    a closed mesh drawn one-sided whose triangles mostly wind inward (`inside-out`), measured against a box the
 //              audit builds itself, so it holds whatever the engine's winding convention is.
+//   flicker    (browser) two consecutive frames at each of 10 fixed spots; any pixel that changes is a z-fight flicker.
+//   backfaces  (browser) eight camera angles around the island; a mesh whose facing triangles wind inward from that view
+//              is `inside-out` (rule 3).
+//   gaps       per-prop gap (m) of drawn base over (+) or under (−) the ground; the playtest fails any |gap| > 0.05.
 (function () {
   const B = () => window.BABYLON;
+  const FINISH = () => window.HawkesFinishMath;
 
   function worldVerts(mesh) {
     const pos = mesh.getVerticesData && mesh.getVerticesData(B().VertexBuffer.PositionKind);
@@ -76,6 +81,7 @@
       things.push({ e, id: e.sceneId, min, max });
     }
     counts.groundChecked = things.length;
+    const gaps = [];
     for (const t of things) {
       const hx = (t.max[0] - t.min[0]) / 2, hz = (t.max[2] - t.min[2]) / 2, cx = t.min[0] + hx, cz = t.min[2] + hz;
       // The ground under its footprint: the middle and four points in from the corners (a long thing on a slope).
@@ -92,6 +98,7 @@
       const wet = sea !== null && sea > mid; // standing in the sea: the water's surface is what it rests on or sinks into
       const floor = wet ? Math.max(hi, sea) : hi;
       const gap = bottom - floor;
+      gaps.push({ id: t.id, gap: r2(gap), on: Boolean(on), wet: Boolean(wet) });
       if (gap > o.groundTolerance && !on && gap < o.airborne) {
         problems.push({ rule: 4, kind: 'floating', id: t.id, detail: `its base is ${r2(gap)} m over the ${wet ? 'water' : 'ground'}` });
       } else if (top < mid - 0.05 && !wet) {
@@ -100,6 +107,8 @@
         problems.push({ rule: 4, kind: 'sunk', id: t.id, detail: `${r2(lo - bottom)} m of its ${r2(height)} m sinks into the ground` });
       }
     }
+    counts.gaps = gaps;
+    counts.gapWorst = gaps.reduce((w, g) => (!g.on && Math.abs(g.gap) > Math.abs(w) ? g.gap : w), 0);
   }
 
   // ------------------------------------------------------------------ rule 1: words read the right way round
@@ -294,19 +303,205 @@
     counts.assetsChecked = checked;
   }
 
+  // Ten fixed spots: road, pier deck, hangar floor, helipad / decals, and other coplanar surfaces on the island.
+  const FLICKER_SPOTS = [
+    { id: 'road', at: [34, 12, 2], look: [40, 6, 0] },
+    { id: 'pier-deck', at: [70, 4, 0], look: [78, 1.2, 0] },
+    { id: 'pier-foot', at: [58, 4, 0], look: [62, 1.5, 0] },
+    { id: 'helipad', at: [28, 12, 28], look: [30, 6.2, 30] },
+    { id: 'helipad-h', at: [30, 9, 34], look: [30, 6.3, 30] },
+    { id: 'sign', at: [56, 4, -6], look: [58.5, 2.2, -3.6] },
+    { id: 'hut-yard', at: [-18, 10, 12], look: [-20, 6, 14] },
+    { id: 'launch', at: [-34, 8, -26], look: [-38, 2, -30] },
+    { id: 'ridge', at: [20, 14, 0], look: [34, 7, 0] },
+    { id: 'hangar-floor', at: null, look: null }, // filled from the Overseer's hangar pad when present
+  ];
+
+  function canReadPixels(H) {
+    try {
+      const eng = H.world && H.world.scene && H.world.scene.getEngine && H.world.scene.getEngine();
+      if (!eng || eng instanceof B().NullEngine) return false;
+      const gl = eng._gl || (eng.getRenderingCanvas && eng.getRenderingCanvas() && eng.getRenderingCanvas().getContext('webgl2'));
+      return Boolean(gl && gl.readPixels);
+    } catch { return false; }
+  }
+
+  function readFrame(H, w, h) {
+    const eng = H.world.scene.getEngine();
+    const gl = eng._gl || eng.getRenderingCanvas().getContext('webgl2') || eng.getRenderingCanvas().getContext('webgl');
+    const buf = new Uint8Array(w * h * 4);
+    gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+    return buf;
+  }
+
+  function hangarSpot(H) {
+    try {
+      const O = H.overseer, d = O && O.near;
+      if (!d || !d.f || !d.c) return null;
+      // Hangar pad centre in world: the bay's local (0, floor+0.1, padZ) turned by yaw around the ship middle.
+      const yaw = d.f.yaw || 0, cos = Math.cos(yaw), sin = Math.sin(yaw);
+      const lx = 0, ly = d.f.floor + 0.15, lz = d.f.padZ;
+      const wx = d.c[0] + lx * cos + lz * sin, wy = d.c[1] + ly, wz = d.c[2] - lx * sin + lz * cos;
+      return { id: 'hangar-floor', at: [wx, wy + 8, wz + 12], look: [wx, wy, wz] };
+    } catch { return null; }
+  }
+
+  function resolveSpots(H, list) {
+    const out = [];
+    for (const s of list) {
+      if (s.id === 'hangar-floor' && (!s.at || !s.look)) {
+        const h = hangarSpot(H);
+        if (h) out.push(h);
+        continue;
+      }
+      if (s.at && s.look) out.push(s);
+    }
+    return out;
+  }
+
+  /** Freeze motion so only real z-fighting (A→B→A across three frames) counts, not water / particles / idle anim. */
+  function freezeScene(W) {
+    const scene = W.scene;
+    const was = { anim: scene.animationsEnabled, particles: [], timeScale: null, controls: undefined };
+    scene.animationsEnabled = false;
+    for (const ps of scene.particleSystems || []) { was.particles.push([ps, ps.isStarted && ps.isStarted()]); try { ps.stop(); } catch { /* fine */ } }
+    if (W.player) { was.controls = W.player.controls; W.player.controls = false; }
+    const hp = typeof window !== 'undefined' ? window.HawkesPlay : null;
+    if (hp && typeof hp.timeScale === 'number') { was.timeScale = hp.timeScale; hp.timeScale = 0; }
+    return () => {
+      scene.animationsEnabled = was.anim;
+      for (const [ps, on] of was.particles) { try { if (on) ps.start(); } catch { /* fine */ } }
+      if (W.player && was.controls !== undefined) W.player.controls = was.controls;
+      if (was.timeScale !== null && hp) hp.timeScale = was.timeScale;
+    };
+  }
+
+  /** Three-frame flicker: a pixel that returns to frame-1 after flipping in frame-2 is classic z-fighting. */
+  function flickerAudit(H, W, o, problems, counts) {
+    if (!canReadPixels(H)) { counts.flickerSkipped = 'no webgl readPixels'; return; }
+    const babylonCam = W.scene.activeCamera;
+    if (!babylonCam) { counts.flickerSkipped = 'no camera'; return; }
+    const spots = resolveSpots(H, Array.isArray(o.flickerSpots) && o.flickerSpots.length ? o.flickerSpots : FLICKER_SPOTS);
+    const canvas = W.scene.getEngine().getRenderingCanvas();
+    const w = Math.min(160, canvas.width || 160), h = Math.min(90, canvas.height || 90);
+    const saved = { pos: babylonCam.position.clone(), rot: babylonCam.rotation && babylonCam.rotation.clone() };
+    let pixels = 0, checked = 0;
+    const unfreeze = freezeScene(W);
+    try {
+      for (const s of spots) {
+        const [x, y, z] = s.at, [lx, ly, lz] = s.look;
+        babylonCam.position.set(x, y, z);
+        if (babylonCam.setTarget) babylonCam.setTarget(new (B().Vector3)(lx, ly, lz));
+        W.scene.render();
+        const a = readFrame(H, w, h);
+        W.scene.render();
+        const b = readFrame(H, w, h);
+        W.scene.render();
+        const c = readFrame(H, w, h);
+        let diff = 0;
+        for (let i = 0; i < a.length; i += 4) {
+          const dAB = Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
+          const dBC = Math.abs(b[i] - c[i]) + Math.abs(b[i + 1] - c[i + 1]) + Math.abs(b[i + 2] - c[i + 2]);
+          const dAC = Math.abs(a[i] - c[i]) + Math.abs(a[i + 1] - c[i + 1]) + Math.abs(a[i + 2] - c[i + 2]);
+          // Oscillates: A≠B, B≠C, A≈C — coplanar faces swapping which wins depth.
+          if (dAB > 24 && dBC > 24 && dAC <= 12) diff++;
+        }
+        checked++;
+        if (diff > 0) {
+          pixels += diff;
+          problems.push({ rule: 2, kind: 'flicker', id: s.id, detail: `${diff} pixels flickered (A-B-A) at ${s.id}` });
+        }
+      }
+    } finally {
+      babylonCam.position.copyFrom(saved.pos);
+      if (saved.rot && babylonCam.rotation) babylonCam.rotation.copyFrom(saved.rot);
+      unfreeze();
+    }
+    counts.flickerSpots = checked;
+    counts.flickerPixels = pixels;
+  }
+
+  /** Eight angles around a centre: any closed mesh whose facing triangles wind inward from that view is inside-out. */
+  function backfaceAudit(H, W, o, problems, counts) {
+    const cam = W.scene.activeCamera;
+    if (!cam) { counts.backfaceSkipped = 'no camera'; return; }
+    const centre = o.backfaceAt || (W.player ? [W.player.x, W.player.y + 1.5, W.player.z] : [0, 6, 0]);
+    const R = Number(o.backfaceRadius) || 18;
+    const angles = 8;
+    let checked = 0, bad = 0;
+    const saved = cam.position.clone();
+    const was = W.player && W.player.controls;
+    if (W.player) W.player.controls = false;
+    const seen = new Set();
+    try {
+      for (let i = 0; i < angles; i++) {
+        const a = (i / angles) * Math.PI * 2;
+        const px = centre[0] + Math.cos(a) * R, pz = centre[2] + Math.sin(a) * R, py = centre[1] + 4;
+        cam.position.set(px, py, pz);
+        if (cam.setTarget) cam.setTarget(new (B().Vector3)(centre[0], centre[1], centre[2]));
+        W.scene.render();
+        const view = [centre[0] - px, centre[1] - py, centre[2] - pz];
+        for (const mesh of W.scene.meshes) {
+          if (!drawn(mesh) || !mesh.material || mesh.material.backFaceCulling === false || mesh.sideOrientation === B().Mesh.DOUBLESIDE) continue;
+          const bb = mesh.getBoundingInfo().boundingBox, ext = bb.extendSizeWorld;
+          if (Math.min(ext.x, ext.y, ext.z) < 0.02) continue;
+          const own = owner(mesh);
+          const id = (own && own.sceneId) || mesh.name;
+          const key = id + ':' + i;
+          if (seen.has(key)) continue;
+          const share = closed(mesh) ? inwardShare(mesh) : 0;
+          const flipped = normalsAgainstWinding(mesh);
+          // From this angle: if the mesh is mostly inward and the camera is outside its bounds, the player would see the inside.
+          const outside = !bb.intersectsPoint(cam.position);
+          if (outside && (share > 0.6 || flipped > 0.6)) {
+            seen.add(key);
+            bad++;
+            problems.push({ rule: 3, kind: 'inside-out', id, detail: `back faces visible from angle ${i + 1}/8 (${Math.round(Math.max(share, flipped) * 100)}%)` });
+          }
+          checked++;
+        }
+      }
+    } finally {
+      cam.position.copyFrom(saved);
+      if (W.player) W.player.controls = was;
+    }
+    counts.backfaceAngles = angles;
+    counts.backfaceChecked = checked;
+    counts.backfaceBad = bad;
+  }
+
   function audit(H, o = {}) {
     const W = H.world;
     if (!W || !W.scene) return { problems: [{ rule: 0, kind: 'no-world', id: '', detail: 'no world is running' }], counts: {} };
-    const opt = { groundTolerance: 0.15, sinkTolerance: 0.6, near: 300, airborne: 4, skip: [], ...o };
+    // Strict (playtest): 5 cm float rule from finish-math. Offline Node tests keep the older 15 cm default unless asked.
+    const finish = FINISH();
+    const strictTol = finish ? finish.FLOAT_M : 0.05;
+    const opt = {
+      groundTolerance: o.strict ? strictTol : (o.groundTolerance ?? 0.15),
+      sinkTolerance: 0.6, near: 300, airborne: 4, skip: [], flicker: false, backfaces: false, ...o,
+    };
+    if (o.strict) opt.groundTolerance = strictTol;
     const problems = [], counts = {};
     calibrate(W.scene);
+    // Settle once before measuring when asked (playtest), so the audit sees what the player sees after finish.js runs.
+    // Offline detection tests leave a floating crate on purpose: they must not settle.
+    if (H.finish && H.finish.settle && o.settle === true) try { H.finish.settle(); } catch { /* fine */ }
     groundAudit(H, W, opt, problems, counts);
     textAudit(W, problems, counts);
     coplanarAudit(H, W, opt, problems, counts);
     normalsAudit(W, problems, counts);
     assetAudit(H, W, opt, problems, counts);
+    if (opt.flicker) flickerAudit(H, W, opt, problems, counts);
+    if (opt.backfaces) backfaceAudit(H, W, opt, problems, counts);
+    if (opt.contactShadows) {
+      const on = H.finish && H.finish.contactShadows && H.finish.contactShadows();
+      counts.contactShadows = on ? 1 : 0;
+      if (H.finish && H.finish.phone && H.finish.phone() && !on) {
+        problems.push({ rule: 4, kind: 'contact-shadow', id: 'phone', detail: 'phone tier is on but no contact shadows were drawn under props' });
+      }
+    }
     return { problems, counts };
   }
 
-  window.HawkesWorldAudit = { audit };
+  window.HawkesWorldAudit = { audit, FLICKER_SPOTS };
 })();

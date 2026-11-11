@@ -1,0 +1,6 @@
+{
+  "title": "Finish: ground every placed thing, contact shadows on phones, normals outward",
+  "order": 35,
+  "scripts": ["finish-math.js", "finish.js"],
+  "kinds": []
+}

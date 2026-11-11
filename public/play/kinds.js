@@ -73,7 +73,12 @@
       root.computeWorldMatrix(true);
       if (opts.color) for (const m of r.meshes) if (m.material && m.material.albedoColor) m.material.albedoColor = hex(opts.color);
       if (W.shadows && opts.shadow !== false) for (const m of r.meshes) if (m.getTotalVertices() > 0) { W.shadows.addShadowCaster(m); (e._casters ||= new Set()).add(m); m.receiveShadows = true; }
-      for (const m of r.meshes) m.metadata = { entity: e };
+      for (const m of r.meshes) {
+        m.metadata = { entity: e };
+        // Quality rule 3: one-sided, normals out. The finish module flips winding when a closed mesh is inside out.
+        if (m.material) m.material.backFaceCulling = true;
+        if (H.finish && H.finish.fixMesh) try { H.finish.fixMesh(m); } catch { /* keep the model */ }
+      }
       const groups = r.animationGroups || [];
       for (const a of groups) a.stop();
       return { holder, r, groups };

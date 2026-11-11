@@ -240,10 +240,12 @@ export const SANDBOX = {
     // The pier runs x 57 to 89: its landward end is buried in the beach (the sand passes its top at x ~59.7), so you walk up onto it.
     const pierY = 0.95;
     add(thing('dock', 'zone', 'Dock', [60, groundAt(60, 0) + 1, 0], { shape: { radius: 8, height: 4 } }));
-    add(thing('pier', 'box', 'Pier', [73, pierY, 0], { shape: { size: [32, 0.3, 3.2] }, material: { color: '#efe2d0', texture: A.planks, tile: [10.7, 1] }, data: { surface: 'wood' } }));
+    // Pier deck gets a zOffset so its underside never flickers against the post tops (quality rule 2).
+    add(thing('pier', 'box', 'Pier', [73, pierY, 0], { shape: { size: [32, 0.3, 3.2] }, material: { color: '#efe2d0', texture: A.planks, tile: [10.7, 1], zOffset: -1 }, data: { surface: 'wood' } }));
     // Each post from under the deck down into the sand or the seabed under it (none floats over the seabed: quality rule 4).
+    // Tops sit 2 cm under the deck's underside so the faces are not coplanar.
     [64, 68, 72, 76, 80, 84, 88].forEach((x) => [-1.5, 1.5].forEach((z, j) => {
-      const top = pierY - 0.15, bottom = Math.min(top - 0.5, groundAt(x, z) - 0.4), h = r2(top - bottom);
+      const top = pierY - 0.17, bottom = Math.min(top - 0.5, groundAt(x, z) - 0.4), h = r2(top - bottom);
       add(thing(`post_${x}_${j}`, 'cylinder', 'Pier post', [x, (top + bottom) / 2, z], { shape: { radius: 0.16, height: h }, material: { color: '#8a6a4a', texture: A.oldWood, tile: [1, Math.max(1, Math.round(h / 1.8))] }, instanced: true }));
     }));
     add(model('lamp_a', 'Street lamp', A.lamp, 61, -2.4, 3.4, { transform: yaw(90) }));
@@ -251,7 +253,7 @@ export const SANDBOX = {
     add(thing('lantern', 'model', 'Lantern', [87.6, pierY + 0.45, 1.3], { shape: { asset: A.lantern, size: 0.6 }, body: { shape: 'box' }, shadow: false }));
     add(thing('sign_board', 'box', 'Sign', [58.5, groundAt(58.5, -3.6) + 1.5, -3.6], { shape: { size: [1.9, 0.75, 0.08] }, material: { color: '#d8b48a', texture: A.planks, tile: [1, 1] }, transform: yaw(-90) }));
     add(thing('sign_post', 'cylinder', 'Sign post', [58.62, groundAt(58.62, -3.6) + 0.75, -3.6], { shape: { radius: 0.07, height: 1.5 }, material: { color: '#6b4a2f', texture: A.oldWood } }));
-    add(thing('sign_text', 'text', 'Sign words', [58.44, groundAt(58.5, -3.6) + 1.5, -3.6], { shape: { text: "PIP'S PIER\nfishing · boats", size: 0.2, billboard: false, color: '#3a2614', background: false }, transform: yaw(90) }));
+    add(thing('sign_text', 'text', 'Sign words', [58.44, groundAt(58.5, -3.6) + 1.5, -3.6], { shape: { text: "PIP'S PIER\nfishing · boats", size: 0.2, billboard: false, color: '#3a2614', background: false, zOffset: -2 }, transform: yaw(90) }));
     // The catch board at Pip's pier: it lists your best catches (water's fishing.js), and E there opens the catch log.
     add(thing('catch_board', 'box', 'Catch board', [58.5, groundAt(58.5, 3.6) + 1.5, 3.6], { shape: { size: [1.9, 1.05, 0.08] }, material: { color: '#6b4a2f', texture: A.oldWood, tile: [1, 1] }, transform: yaw(-90), data: { catchBoard: true } }));
     // Chapter One's small things to notice (sandbox.js: E near them): the pier's hand-cut planks and the harbour desk's logbook.
@@ -259,7 +261,7 @@ export const SANDBOX = {
     add(thing('logbook', 'box', 'Logbook', [62.5, groundAt(62.5, 5.6) + 0.855, 5.6], { shape: { size: [0.4, 0.07, 0.3] }, material: { color: '#3b2a1c' }, transform: yaw(90), shadow: false }));
     // The lore to find (journal.js: E near each; docs/story.md section 7): small objects, a few lines each, in the voice of whoever left them.
     add(thing('lore_rock', 'box', 'Scratched rock', [40.5, groundAt(40.5, 28) + 0.2, 28], { shape: { size: [0.9, 1, 0.7] }, material: { color: '#8b8f96' }, transform: yaw(30), shadow: false }));
-    add(thing('lore_slip', 'box', 'Repair slip', [-38, groundAt(-38, -22) + 0.05, -22], { shape: { size: [0.3, 0.02, 0.42] }, material: { color: '#f1ead7' }, transform: yaw(20), shadow: false }));
+    add(thing('lore_slip', 'box', 'Repair slip', [-38, groundAt(-38, -22) + 0.04, -22], { shape: { size: [0.3, 0.02, 0.42] }, material: { color: '#f1ead7', zOffset: -2 }, transform: yaw(20), shadow: false }));
         // A low lounger on the sand, its back on the sea side (it faces the land), the back resting on the seat.
     add(thing('lore_chair', 'box', 'Beach chair', [53, groundAt(53, -5) + 0.02, -5], { shape: { size: [0.7, 0.12, 0.7] }, material: { color: '#e8c15a' }, shadow: false }));
     add(thing('lore_chair_back', 'box', 'Beach chair back', [53.3, groundAt(53, -5) + 0.48, -5], { shape: { size: [0.1, 0.8, 0.7] }, material: { color: '#e8c15a' }, shadow: false }));
@@ -276,8 +278,8 @@ export const SANDBOX = {
     [[46.5, -21.5, 0], [47.6, -21.6, 20], [47.1, -21.4, 10]].forEach(([x, z, r], i) => add(model(`crate_${i + 1}`, 'Crate', A.crate, x, z, 1, { physics: 'dynamic', body: { shape: { type: 'box', size: [1, 1, 1] } }, transform: yaw(r), behaviors: [{ use: 'breakable', strength: 10, pieces: 8 }] }, i === 2 ? 1.02 : 0.02)));
     // The helipad on the hill, with the helicopter on it.
     const padY = groundAt(HELIPAD[0], HELIPAD[1]);
-    add(thing('helipad', 'cylinder', 'Helipad', [HELIPAD[0], padY + 0.08, HELIPAD[1]], { shape: { radius: 5, height: 0.16 }, material: { color: '#9aa3ad', texture: A.plate, tile: [3, 3] }, data: { surface: 'metal' } }));
-    add(thing('helipad_h', 'text', 'Helipad mark', [HELIPAD[0], padY + 0.2, HELIPAD[1]], { shape: { text: 'H', size: 2.2, billboard: false, color: '#f4c430', background: false, zOffset: -2 }, transform: { rotation: [90, 90, 0] } }));
+    add(thing('helipad', 'cylinder', 'Helipad', [HELIPAD[0], padY + 0.08, HELIPAD[1]], { shape: { radius: 5, height: 0.16 }, material: { color: '#9aa3ad', texture: A.plate, tile: [3, 3], zOffset: -1 }, data: { surface: 'metal' } }));
+    add(thing('helipad_h', 'text', 'Helipad mark', [HELIPAD[0], padY + 0.22, HELIPAD[1]], { shape: { text: 'H', size: 2.2, billboard: false, color: '#f4c430', background: false, zOffset: -3 }, transform: { rotation: [90, 90, 0] } }));
     add({ id: 'heli', type: 'helicopter', name: 'Helicopter', shape: { model: A.heli, modelLength: 10 }, material: { color: '#2b5fd9' }, transform: { position: [HELIPAD[0], r2(padY + 1.55), HELIPAD[1]], rotation: [0, 200, 0] } });
     // The rocket on its pad across the island (a toy for later: it reaches the Overseer).
     const rx = -38, rz = -30, ry = groundAt(rx, rz);
