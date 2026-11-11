@@ -116,7 +116,7 @@
     if (!a || a.state !== 'running' || vol <= 0.01) return;
     const t = a.currentTime;
     const out = a.createGain();
-    out.connect(H.audio.master);
+    out.connect(H.audio.effects || H.audio.master);
     const noiseSrc = (dur) => { const s = a.createBufferSource(); s.buffer = noise(); s.start(t, Math.random(), dur); s.stop(t + dur); return s; };
     if (kind === 'boom') {
       const big = clamp((o.size || 5) / 6, 0.5, 2);
@@ -126,7 +126,7 @@
       n.connect(lp).connect(out);
       const os = a.createOscillator(); os.type = 'sine'; os.frequency.setValueAtTime(110, t); os.frequency.exponentialRampToValueAtTime(28, t + 0.6);
       const og = a.createGain(); og.gain.setValueAtTime(0.9 * vol, t); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
-      os.connect(og).connect(H.audio.master); os.start(t); os.stop(t + 0.75);
+      os.connect(og).connect(H.audio.effects || H.audio.master); os.start(t); os.stop(t + 0.75);
     } else if (kind === 'crash') {
       const n = noiseSrc(0.45);
       const hp = a.createBiquadFilter(); hp.type = 'bandpass'; hp.frequency.value = 900 + Math.random() * 900; hp.Q.value = 0.7;

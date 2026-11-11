@@ -280,7 +280,8 @@
   let bedNode = null;
   const ducks = new Map();
   // The Overseer's voice has its own level into the master, and the music its own level (the player's settings), apart from each other.
-  let voiceNode = null, musicLevel = 1, voiceLevel = 1;
+  // SFX (footsteps, explosions, UI) go through effectsGain into the master, so Effects 0 keeps the Overseer's voice.
+  let voiceNode = null, musicLevel = 1, voiceLevel = 1, effectsGain = null, effectsLevel = 1;
   const effects = new Map();
   const mediaRouted = new WeakSet();
   // Only the chain's own links are undone when it changes: whatever else listens to the master or the output (a clip
@@ -354,6 +355,18 @@
     /** How loud the music and ambience are, 0 to 1 (the player's setting), under whatever ducks them. */
     get musicVolume() { return musicLevel; },
     set musicVolume(v) { musicLevel = Math.max(0, Math.min(1, Number(v))); if (!Number.isFinite(musicLevel)) musicLevel = 1; audioApi.duck('music-level', null); },
+    /** Footsteps, explosions and UI (into the master; the Overseer's voice and music stay on their own gains). */
+    get effects() {
+      if (effectsGain) return effectsGain;
+      if (!audioApi.master) return null;
+      effectsGain = audio.createGain();
+      effectsGain.gain.value = effectsLevel;
+      effectsGain.connect(masterNode);
+      return effectsGain;
+    },
+    /** How loud world SFX are, 0 to 1 (the player's setting); 0 silences footsteps and blasts, not voice. */
+    get effectsVolume() { return effectsLevel; },
+    set effectsVolume(v) { effectsLevel = Math.max(0, Math.min(1, Number(v))); if (!Number.isFinite(effectsLevel)) effectsLevel = 1; if (effectsGain) effectsGain.gain.value = effectsLevel; },
     /** The background's level (a gain into the master): what music and ambience go through. */
     get background() {
       if (bedNode) return bedNode;
@@ -921,7 +934,7 @@
       if (o.rate) src.playbackRate.value = o.rate;
       const gn = audio.createGain();
       gn.gain.value = Math.max(0, Math.min(1, vol));
-      src.connect(gn).connect(audioApi.master || audio.destination);
+      src.connect(gn).connect(audioApi.effects || audioApi.master || audio.destination);
       src.start();
     }).catch(() => { sfxBuffers.delete(url); });
     return true;
@@ -1137,6 +1150,13 @@
     };
     const state = { mode: 'fixed', target: null, opts: {}, cam, arc: null, shake: 0, shakeTime: 0, yaw: 0, pitch: 0, claimed: false };
     const claim = () => { if (!internal) state.claimed = true; };
+    /** Player look feel from the game menu (sensitivity multiplier and invert Y), else the camera's own opts. */
+    const lookFeel = () => {
+      const base = Number(state.opts && state.opts.sensitivity) || 0.15;
+      const S = H.gameMenu && H.gameMenu.settings;
+      const mult = S && Number.isFinite(Number(S.sensitivity)) ? Math.max(0.25, Math.min(2, Number(S.sensitivity))) : 1;
+      return { sensitivity: base * mult, invert: S && S.invertY ? -1 : 1 };
+    };
     const api = {
       get target() { return state.target; },
       set target(v) { state.target = v; },
@@ -1180,8 +1200,9 @@
       if (state.mode === 'orbit') { if (state.target && state.target.alive) state.arc.target.set(state.target.x, state.target.y, state.target.z); }
       else if (state.mode === 'fps') {
         const t = state.target;
-        state.yaw += mouse.dx * state.opts.sensitivity * RAD;
-        state.pitch = Math.max(-1.5, Math.min(1.5, state.pitch + mouse.dy * state.opts.sensitivity * RAD));
+        const look = lookFeel();
+        state.yaw += mouse.dx * look.sensitivity * RAD;
+        state.pitch = Math.max(-1.5, Math.min(1.5, state.pitch + mouse.dy * look.invert * look.sensitivity * RAD));
         if (t && t.alive) {
           t.node.rotation.y = state.yaw;
           const eye = t === W.player ? t.bottom + state.opts.height : t.y + state.opts.height;
@@ -1207,8 +1228,9 @@
         cam.setTarget(state.focus);
       } else if (state.mode === 'third') {
         const t = state.target, o = state.opts;
-        state.yaw += mouse.dx * o.sensitivity * RAD;
-        state.pitch = Math.max(-0.4, Math.min(1.2, state.pitch + mouse.dy * o.sensitivity * RAD));
+        const look = lookFeel();
+        state.yaw += mouse.dx * look.sensitivity * RAD;
+        state.pitch = Math.max(-0.4, Math.min(1.2, state.pitch + mouse.dy * look.invert * look.sensitivity * RAD));
         const nowMs = performance.now();
         if (mouse.dx || mouse.dy || state.idleSince === undefined) state.idleSince = nowMs;
         if (t && t.alive) {

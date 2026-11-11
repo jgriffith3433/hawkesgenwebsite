@@ -1,21 +1,19 @@
 // The `phone-hud-layout` scenario: the sandbox HUD on a phone (390x844 portrait and 844x390 short landscape).
 // Loaded by portal.js. Each size is a same-origin iframe of exactly that width and height (like site-layout), so media
-// queries and the touch layout are the real ones. Checks: the top-right actions fold into one 44 px menu and each
-// intent works with one tap; the open mirror sheet leaves the quest button and the move stick free; no HUD control
-// under 44 px or cut off by the edge. Screenshots with the sheet open and closed at each size.
-//
-// Actions are tapped while the mirror is still open (the menu sits above it at z-index 70) so closing the mirror does
-// not race the account gate (want('tour')) or remove intents mid-check on a signed-in beta account.
+// queries and the touch layout are the real ones. Checks: the top-right ☰ is ≥48 px and opens the game menu; Save /
+// Build / Invite intents still work when clicked; the open mirror sheet leaves the quest button and the move stick
+// free; no HUD control under 44 px or cut off by the edge.
 export const PHONE_HUD_LAYOUT = {
   id: 'phone-hud-layout',
-  title: 'Phone HUD: actions fold into one 44 px menu; the mirror is a bottom sheet (portrait) or narrow side sheet (landscape) that leaves the quest and the stick free',
+  title: 'Phone HUD: one ≥48 px menu opens the game menu; the mirror is a bottom sheet (portrait) or narrow side sheet (landscape) that leaves the quest and the stick free',
   seconds: 420,
   tags: ['full'],
-  description: 'for each of 390x844 and 844x390 (an iframe of that size with /play/sandbox?touch=1): veil, skip the intro, the mirror opens; sheet open and closed screenshots; the quest button and the move stick stay clear of the sheet and usable; the actions are one 44 px menu, tapping it shows every intent and each works with one tap (Save / Build open the account sheet or a signed-in save/toast; Invite runs). options: sizes (default ["390x844","844x390"]), frames (false: the browser\'s own window once)',
+  description: 'for each of 390x844 and 844x390 (an iframe of that size with /play/sandbox?touch=1): veil, skip the intro, the mirror opens; sheet open and closed screenshots; the quest button and the move stick stay clear of the sheet and usable; the ☰ is ≥48 px and one tap opens the game menu; Save / Build / Invite intents still work. options: sizes (default ["390x844","844x390"]), frames (false: the browser\'s own window once)',
 };
 
 const SIZES = ['390x844', '844x390'];
 const MIN = 44;
+const MENU_MIN = 48;
 
 export async function runPhoneHudLayout(t, options = {}) {
   const sizes = (Array.isArray(options.sizes) && options.sizes.length ? options.sizes : SIZES).map(String);
@@ -151,7 +149,7 @@ async function oneSize(t, { w, h, label, framed }) {
     if (!more) { bad.push(`${label}: no menu button`); return bad; }
     if (!visible(more)) bad.push(`${label}: menu button not visible`);
     const mr = more.getBoundingClientRect();
-    if (mr.width < MIN - 0.5 || mr.height < MIN - 0.5) bad.push(`${label}: menu ${Math.round(mr.width)}x${Math.round(mr.height)} under ${MIN} px`);
+    if (mr.width < MENU_MIN - 0.5 || mr.height < MENU_MIN - 0.5) bad.push(`${label}: menu ${Math.round(mr.width)}x${Math.round(mr.height)} under ${MENU_MIN} px`);
     else t.event('menu-button', `${label}: ${Math.round(mr.width)}x${Math.round(mr.height)}`);
 
     // Only one top-right control when folded (Journal is hidden on compact).
@@ -162,28 +160,29 @@ async function oneSize(t, { w, h, label, framed }) {
     if (intentsClosed.length) bad.push(`${label}: ${intentsClosed.length} intents still showing with the menu closed`);
     else t.event('menu-folded', `${label}: intents hidden behind the menu`);
 
+    // ☰ opens the game menu (modules/gamemenu), not the old actions fold.
     tap(more, win);
-    await wait(300);
-    if (!acts.classList.contains('open')) {
-      bad.push(`${label}: tapping the menu did not add .open`);
+    await wait(350);
+    const GM = win.HawkesPlay && win.HawkesPlay.gameMenu;
+    const menuOpen = GM && GM.isOpen && GM.isOpen();
+    const panel = $('.gm-panel');
+    if (!menuOpen || !panel) {
+      bad.push(`${label}: tapping the menu did not open the game menu`);
     } else {
-      const shownOpen = $$('[data-intent]', acts).filter((b) => visible(b));
-      if (shownOpen.length < 3) bad.push(`${label}: expected 3 intents after one tap, found ${shownOpen.length}`);
-      else t.event('menu-open', `${label}: ${shownOpen.map((b) => b.dataset.intent).join(', ')}`);
+      const items = $$('.gm-btn', panel).map((b) => b.textContent.trim());
+      if (!items.some((l) => /Invite a friend/.test(l))) bad.push(`${label}: game menu missing Invite a friend`);
+      else t.event('menu-open', `${label}: game menu (${items.length} items)`);
+      t.scene(`Phone ${label}: game menu open`);
+      if (GM.close) GM.close();
+      await wait(250);
     }
-    t.scene(`Phone ${label}: actions menu open`);
 
     for (const intent of ['save', 'build', 'invite']) {
       dismissOverlays(doc, win);
-      if (!acts.classList.contains('open')) {
-        tap(more, win);
-        await wait(250);
-        if (!acts.classList.contains('open')) { bad.push(`${label}: could not reopen menu for ${intent}`); continue; }
-      }
+      if (GM && GM.isOpen && GM.isOpen() && GM.close) { GM.close(); await wait(200); }
       const btn = acts.querySelector(`[data-intent="${intent}"]`);
-      if (!btn || !visible(btn)) { bad.push(`${label}: ${intent} not in the open menu`); continue; }
-      const br = btn.getBoundingClientRect();
-      if (br.height < MIN - 0.5) bad.push(`${label}: ${intent} ${Math.round(br.height)} px tall`);
+      if (!btn) { bad.push(`${label}: ${intent} intent missing from .gs-acts`); continue; }
+      // Intents stay in the DOM on compact (hidden); click them directly to check Save/Build/Invite still work.
       tap(btn, win);
       await wait(700);
       if (intent === 'invite') {

@@ -729,7 +729,7 @@ test('a return: no intro or mirror, welcomed by name, the tour resumes where it 
   assert.match(guestSrc, /ret\.patch\(\{ tour: STEPS\[i \+ 1\] \|\| 'done' \}\)/, 'the tour step is kept as it moves');
   assert.match(guestSrc, /Welcome back, \$\{name\}/);
   assert.match(guestSrc, /want\('tour', 'return'\)/, 'a guest without an account still meets the sheet: the gate does not move');
-  assert.match(guestSrc, /label: 'Change my look', onClick: look/, 'the look is the mirror: L, or the pause menu');
+  assert.match(guestSrc, /HawkesGuest\.look = look/, 'the look is the mirror: L, or the game menu');
   assert.doesNotMatch(guestSrc, /data-intent="assistant"/, 'no Ask the Overseer button: the chat is that');
   const sb = fs.readFileSync(path.join(ROOT, 'src', 'overseer-games', 'sandbox.js'), 'utf8');
   assert.match(sb, /HawkesGuest\.resume|GU\.resume/);

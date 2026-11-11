@@ -29,12 +29,13 @@
   }
   function play(name, o = {}) {
     const ctx = H.audio.context;
-    if (!ctx || ctx.state !== 'running' || !H.audio.master) return;
+    const dest = H.audio.effects || H.audio.master;
+    if (!ctx || ctx.state !== 'running' || !dest) return;
     load(name).then((b) => {
       if (!b) return;
       const s = ctx.createBufferSource(), g = ctx.createGain();
       s.buffer = b; s.playbackRate.value = o.rate || 1; g.gain.value = o.volume ?? 1;
-      s.connect(g).connect(H.audio.master); s.start();
+      s.connect(g).connect(dest); s.start();
     });
   }
   /** A different variant from the last one for this key (1..n), never the same twice in a row. */
@@ -52,11 +53,12 @@
   }
   function tone(f1, f2, dur, vol) {
     const ctx = H.audio.context;
-    if (!ctx || ctx.state !== 'running' || !H.audio.master) return;
+    const dest = H.audio.effects || H.audio.master;
+    if (!ctx || ctx.state !== 'running' || !dest) return;
     const o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime;
     o.type = 'sine'; o.frequency.setValueAtTime(f1, t); o.frequency.exponentialRampToValueAtTime(f2, t + dur);
     g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g).connect(H.audio.master); o.start(t); o.stop(t + dur + 0.02);
+    o.connect(g).connect(dest); o.start(t); o.stop(t + dur + 0.02);
   }
   const FALLBACK = { pickup: [660, 990, 0.12], place: [220, 140, 0.1], build: [440, 1320, 0.3], panel: [500, 700, 0.08], quest: [660, 1320, 0.35], send: [520, 880, 0.14] };
   /** One interaction sound by name (pickup, place, build, panel, quest, send): the file when the site has it, else a tone. */

@@ -48,6 +48,43 @@
   const DEFAULTS = budgetsFor(H.device);
   H.budget = { ...DEFAULTS };
   H.budgetsFor = budgetsFor;
+  // Graphics quality from the game menu: Auto keeps the device tier; Low/Medium/High map to phone/tablet/desktop budgets.
+  let quality = 'auto';
+  function qualityDevice(q) {
+    if (q === 'low') return { ...H.device, tier: 'phone' };
+    if (q === 'medium') return { ...H.device, tier: 'tablet' };
+    if (q === 'high') return { ...H.device, tier: 'desktop' };
+    return H.device;
+  }
+  /** Low is always cheaper than the device's Auto (phone Auto already is the phone tier; Low goes further). */
+  function lowCut(b) {
+    return {
+      ...b,
+      entities: Math.min(b.entities, 500),
+      bodies: Math.min(b.bodies, 80),
+      shadows: Math.min(b.shadows, 12),
+      detail: Math.min(b.detail, 0.35),
+      textureMB: Math.min(b.textureMB, 48),
+      maxTexture: Math.min(b.maxTexture, 512),
+      pixelRatio: Math.min(b.pixelRatio || 2, 1.25),
+      drawDistance: Math.min(b.drawDistance, 140),
+      shadowDistance: Math.min(b.shadowDistance, 28),
+      lights: Math.min(b.lights, 2),
+      characters: Math.min(b.characters, 6),
+    };
+  }
+  function applyQuality(q = quality) {
+    quality = ['auto', 'low', 'medium', 'high'].includes(q) ? q : 'auto';
+    let base = budgetsFor(qualityDevice(quality));
+    if (quality === 'low') base = lowCut(base);
+    const w = H.world;
+    const patch = (w && ((w.config && w.config.budget) || (w.gameJson && w.gameJson.budget))) || null;
+    H.budget = { ...base, ...(patch && typeof patch === 'object' ? patch : {}) };
+    applyPixelRatio();
+    return quality;
+  }
+  H.quality = () => quality;
+  H.setQuality = applyQuality;
   let born = 0;
   let t = 0;
   let warned = false;
@@ -66,12 +103,10 @@
 
   H.hooks.world.push({
     enter(w) {
-      const b = (w.config && w.config.budget) || (w.gameJson && w.gameJson.budget);
-      H.budget = { ...DEFAULTS, ...(b && typeof b === 'object' ? b : {}) };
       warned = false;
       shadow.near = null;
       t = 1;
-      applyPixelRatio();
+      applyQuality(quality);
     },
   });
 
