@@ -6,11 +6,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { load, world as run, sceneOf } from './harness.ts';
 import { templateBundle } from '../../src/templates.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const require = createRequire(import.meta.url);
+require(path.join(ROOT, 'public', 'play', 'modules', 'finish', 'finish-math.js'));
 const H = await load();
 const g = globalThis as any;
 const auditFile = path.join(ROOT, 'public', 'play', 'world-audit.js');
