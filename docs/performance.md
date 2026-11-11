@@ -235,6 +235,33 @@ level while saving files, and reports whether any request failed and whether eve
 `test/cluster.test.ts` is the same in small: editors on both processes get a save once; the lock holds across processes; a roll
 drops nothing; players who arrive at different processes are in one room.
 
+## First load: the number and the console (2026-11-11)
+
+The `first-load` playtest (`public/playtest/first-load.js`, safe on live: it reads only) measures what a stranger waits for.
+From the landing page with the runner's cold browser, a real click on Play now, then on the play page: `msToLoadingScreen`
+(the `hg-loading-shown` mark in `play.html`), `msToFirstFrame` (the `hg-first-frame` mark in `guest.js`, made with
+`sandbox_first_frame`), `msToFirstInput` (real W or the stick; the player moved; `msToInputReady` is when control was
+given, before the scenario's own pause at the click-to-enter veil), `bytesBeforeFirstFrame` and `requestsBeforeFirstFrame`
+(resource timings that ended before the first frame; `cachedRequests` says whether the cache was cold). The phone twin
+(`first-load@live:phone`: 390x844, touch) is meant to run at 4x CPU slowdown and 4G (9 Mbit/s, 85 ms): a page cannot set
+those, so the runner does, and the report carries `cpuProbeMs` (a timed loop) and `navigator.connection` to show which run
+it was. It reports its numbers however slow; nothing in it fails on time.
+
+**The console.** Every line with `WebGL`, `GL_` or `WARNING` from the landing page to the end of the intro is a problem and
+is listed in the report (`console-line`), with any `gl.getError()` code read at the first frame and at the end of the intro.
+`guest.js` keeps the play page's console from its first line (under automation only). Chrome's own GL driver messages are
+not `console.*` calls and a page cannot see them; the runner's console capture shows them, and the same rule applies.
+
+| Warning | Cause | Fix |
+|---|---|---|
+| `Babylon.js v7.54.3 - WebGL2` (a console line at every engine start) | Babylon logs its banner at message level through `Logger`, which defaults to everything, when `runtime.js` makes the engine | `runtime.js` sets `Logger.LogLevels` to warnings and errors before the engine is made. Warnings and errors from Babylon, and every WebGL complaint, still reach the console |
+
+Found by reading the engine, not yet by a run: anything else the first beta run lists goes in this table with its fix, at
+its cause (runtime.js, textures.js, loader.js, the loading pearl, the soundscape), never by silencing the console. The
+engine paths checked for GL warnings and found sound: the loading pearl is canvas 2D (no second WebGL context), the mirror
+texture's render list leaves out its own glass (no feedback loop), text and sky dynamic textures have sizes of at least 4 px.
+Textures and shadows are untouched by this change.
+
 ## What's left
 
 - **KTX2/Basis** (GPU-compressed textures: 4-8x less GPU memory than WebP's RGBA) isn't made yet. It needs an encoder on
