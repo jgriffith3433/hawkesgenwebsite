@@ -271,14 +271,21 @@
   }
   // H.audio: one output every sound goes through (the engine's, every module's, music), so a module can change how
   // everything sounds (water muffles it all under water). master (a gain) -> effects (in name order) -> speakers.
-  let masterNode = null, outputNode = null, links = [];
+  let masterNode = null, outputNode = null, links = [], clipSeq = 0;
   // H.audio.hold(owner): while held, everything but the background (music, ambience) is silent (a sheet over the game).
   let gateNode = null;
   const holds = new Set();
   // The background (music, ambience: media({ background: true })) has its own level into the master, which ducks
   // (H.audio.duck) while something must be heard over it: the Overseer speaking.
-  let bedNode = null;
+  let bedNode = null, musicBus = null, ambBus = null, uiBus = null;
   const ducks = new Map();
+  // The mix (modules/mix): buses music, voice, sfx (effects), ambience and ui into master -> effects -> makeup -> compressor
+  // -> limiter -> a soft ceiling -> speakers. A voice line ducks music by 8 dB and ambience by 4 dB (150 ms attack, 600 ms release).
+  let makeupNode = null, compNode = null, limitNode = null, ceilNode = null;
+  const voiceDucks = new Set();
+  const DUCK_MUSIC_DB = 8, DUCK_AMB_DB = 4, DUCK_ATTACK = 0.15, DUCK_RELEASE = 0.6;
+  const dbToGain = (db) => Math.pow(10, db / 20);
+  let duckNow = 0; // how deep the voices hold the music down now, in dB (0 when none speaks)
   // The Overseer's voice has its own level into the master, and the music its own level (the player's settings), apart from each other.
   // SFX (footsteps, explosions, UI) go through effectsGain into the master, so Effects 0 keeps the Overseer's voice.
   let voiceNode = null, musicLevel = 1, voiceLevel = 1, effectsGain = null, effectsLevel = 1;
@@ -289,7 +296,7 @@
   function wire() {
     if (!masterNode) return;
     for (const [a, b] of links) { try { a.disconnect(b); } catch { /* gone */ } }
-    const chain = [masterNode, gateNode, ...[...effects.keys()].sort().map((k) => effects.get(k)), outputNode];
+    const chain = [masterNode, gateNode, ...[...effects.keys()].sort().map((k) => effects.get(k)), makeupNode, compNode, limitNode, ceilNode, outputNode].filter(Boolean);
     links = [];
     for (let i = 0; i < chain.length - 1; i++) { chain[i].connect(chain[i + 1]); links.push([chain[i], chain[i + 1]]); }
     gateNode.gain.value = holds.size ? 0 : 1;
@@ -310,6 +317,18 @@
       gateNode = audio.createGain();
       outputNode = audio.createGain();
       outputNode.connect(audio.destination);
+      // Makeup gain (the loudness leveler in modules/mix moves it), a compressor that glues the mix, a limiter and a soft
+      // ceiling under 0 dBFS so nothing ever clips.
+      makeupNode = audio.createGain();
+      makeupNode.gain.value = dbToGain(3);
+      compNode = audio.createDynamicsCompressor();
+      compNode.threshold.value = -20; compNode.knee.value = 12; compNode.ratio.value = 3; compNode.attack.value = 0.012; compNode.release.value = 0.25;
+      limitNode = audio.createDynamicsCompressor();
+      limitNode.threshold.value = -3; limitNode.knee.value = 0; limitNode.ratio.value = 20; limitNode.attack.value = 0.001; limitNode.release.value = 0.09;
+      ceilNode = audio.createWaveShaper();
+      const curve = new Float32Array(2049);
+      for (let i = 0; i < curve.length; i++) { const x = (i / 1024) - 1, a = Math.abs(x); curve[i] = a < 0.8 ? x : Math.sign(x) * (0.8 + 0.17 * Math.tanh((a - 0.8) / 0.17)); }
+      ceilNode.curve = curve;
       wire();
       return masterNode;
     },
@@ -335,10 +354,53 @@
       if (!el || mediaRouted.has(el) || !audioApi.master) return el;
       try {
         if (new URL(el.src, location.href).origin !== location.origin) return el;
-        audio.createMediaElementSource(el).connect(o.background ? audioApi.background : o.voice ? audioApi.voice : masterNode);
+        const src = audio.createMediaElementSource(el);
+        const dest = o.background ? (o.ambience ? audioApi.ambience : audioApi.background) : o.voice ? audioApi.voice : o.ui ? audioApi.ui : o.sfx ? audioApi.effects : masterNode;
+        // o.at (a place, or a function giving one): the clip is heard from there (modules/mix: HRTF, or stereo on a phone).
+        const sp = o.at && audioApi.spatial ? audioApi.spatial(o.at, { ...(o.spatial || {}), who: o.who, bus: dest }) : null;
+        if (sp) src.connect(sp.input); else src.connect(dest);
         mediaRouted.add(el);
+        if (o.voice) {
+          const key = `clip:${++clipSeq}`;
+          const on = () => { if (sp && sp.start) sp.start(); audioApi.voiceDuck(key, true); };
+          const off = () => { if (sp && sp.stop) sp.stop(); audioApi.voiceDuck(key, false); };
+          el.addEventListener('playing', on);
+          for (const ev of ['ended', 'pause', 'error', 'emptied']) el.addEventListener(ev, off);
+        }
       } catch { /* plays directly */ }
       return el;
+    },
+    /** A voice is speaking (voiceDuck(owner, true)) or has stopped (false): while any does, the music is held 8 dB down and
+     *  the ambience 4 dB (150 ms to get there, 600 ms back). The one rule for every voice: the Overseer, Pip, islanders. */
+    voiceDuck(owner, on) {
+      const o = String(owner || 'voice');
+      const before = voiceDucks.size;
+      if (on) voiceDucks.add(o); else voiceDucks.delete(o);
+      if (before === voiceDucks.size && !on) return voiceDucks.size > 0;
+      applyBeds();
+      return voiceDucks.size > 0;
+    },
+    /** The levels now: { music, ambience, voice, sfx, ui } bus gains, the duck's depth in dB and the voices that hold it. */
+    get levels() {
+      const g = (n) => (n ? Math.round(n.gain.value * 1000) / 1000 : null);
+      return { music: g(musicBus), ambience: g(ambBus), voice: g(voiceNode), sfx: g(effectsGain), ui: g(uiBus), master: g(masterNode), makeup: g(makeupNode), duckDb: voiceDucks.size ? DUCK_MUSIC_DB : 0, ducking: [...voiceDucks], musicSetting: musicLevel, effectsSetting: effectsLevel, voiceSetting: voiceLevel, compReduction: compNode ? Math.round(compNode.reduction * 10) / 10 : 0, limitReduction: limitNode ? Math.round(limitNode.reduction * 10) / 10 : 0 };
+    },
+    /** The makeup gain in dB (the loudness leveler's). */
+    get makeupDb() { return makeupNode ? 20 * Math.log10(Math.max(1e-6, makeupNode.gain.value)) : 0; },
+    set makeupDb(db) { if (makeupNode) makeupNode.gain.setTargetAtTime(dbToGain(Math.max(-12, Math.min(12, Number(db) || 0))), audio.currentTime, 0.5); },
+    /** Ambience loops (the sea, the birds, the beds): their own bus, under the music slider, ducked 4 dB under a voice. */
+    get ambience() {
+      if (ambBus) return ambBus;
+      if (!audioApi.background) return null;
+      return ambBus;
+    },
+    /** Interface sounds: their own bus into the master (the effects slider does not touch them). */
+    get ui() {
+      if (uiBus) return uiBus;
+      if (!audioApi.master) return null;
+      uiBus = audio.createGain();
+      uiBus.connect(masterNode);
+      return uiBus;
     },
     /** The Overseer's voice (a gain into the master): media(el, { voice: true }) sends a clip through it. */
     get voice() {
@@ -367,14 +429,17 @@
     /** How loud world SFX are, 0 to 1 (the player's setting); 0 silences footsteps and blasts, not voice. */
     get effectsVolume() { return effectsLevel; },
     set effectsVolume(v) { effectsLevel = Math.max(0, Math.min(1, Number(v))); if (!Number.isFinite(effectsLevel)) effectsLevel = 1; if (effectsGain) effectsGain.gain.value = effectsLevel; },
-    /** The background's level (a gain into the master): what music and ambience go through. */
+    /** The music's level (a gain into the master via the background): what music goes through. */
     get background() {
-      if (bedNode) return bedNode;
+      if (musicBus) return musicBus;
       if (!audioApi.master) return null;
       bedNode = audio.createGain();
-      bedNode.gain.value = musicLevel;
+      musicBus = audio.createGain();
+      ambBus = audio.createGain();
+      musicBus.gain.value = musicLevel; ambBus.gain.value = musicLevel;
+      musicBus.connect(bedNode); ambBus.connect(bedNode);
       wire();
-      return bedNode;
+      return musicBus;
     },
     /** Silences every sound but the background (music, ambience) while `owner` holds; hold(owner, false) lets go. */
     hold(owner, on = true) {
@@ -387,15 +452,25 @@
     duck(owner, level) {
       const o = String(owner || 'default');
       if (level === null || level === undefined || Number(level) >= 1) ducks.delete(o); else ducks.set(o, Math.max(0, Number(level) || 0));
-      const bed = audioApi.background;
-      if (!bed) return 1;
-      let k = 1;
-      for (const v of ducks.values()) k = Math.min(k, v);
-      k *= musicLevel;
-      try { bed.gain.cancelScheduledValues(audio.currentTime); bed.gain.setTargetAtTime(k, audio.currentTime, k < bed.gain.value ? 0.08 : 0.35); } catch { bed.gain.value = k; }
-      return k;
+      return applyBeds();
     },
   };
+  /** Sets the music and ambience buses: the player's setting, the lowest asked duck, and the voices' duck on top. */
+  function applyBeds() {
+    if (!musicBus || !ambBus) return 1;
+    let k = 1;
+    for (const v of ducks.values()) k = Math.min(k, v);
+    const speaking = voiceDucks.size > 0;
+    const t = audio.currentTime;
+    const music = k * musicLevel * (speaking ? dbToGain(-DUCK_MUSIC_DB) : 1);
+    const amb = musicLevel * (speaking ? dbToGain(-DUCK_AMB_DB) : 1);
+    // Down in 150 ms and up in 600 ms (a time constant is a third of the time to settle).
+    for (const [bus, v] of [[musicBus, music], [ambBus, amb]]) {
+      try { bus.gain.cancelScheduledValues(t); bus.gain.setTargetAtTime(v, t, v < bus.gain.value ? DUCK_ATTACK / 3 : DUCK_RELEASE / 3); } catch { bus.gain.value = v; }
+    }
+    duckNow = speaking ? DUCK_MUSIC_DB : 0;
+    return music;
+  }
   const soundFails = new Set(); // sounds already reported as failing (once each, not on every play)
   async function loadBuffer(url) {
     if (!buffers.has(url)) {
@@ -924,7 +999,8 @@
     if (!audio || audio.state !== 'running') return true; // it would have played: no stand-in either
     let vol = o.volume ?? 1;
     const cam = W && W.scene && W.scene.activeCamera;
-    if (o.at && cam) { const p = posOf(o.at); const c = cam.globalPosition || cam.position; vol *= 1 / (1 + Math.hypot(c.x - p[0], c.y - p[1], c.z - p[2]) / 12); }
+    const placed = o.at && audioApi.spatial ? audioApi.spatial(posOf(o.at), { who: name, ref: 4, max: 120 }) : null;
+    if (!placed && o.at && cam) { const p = posOf(o.at); const c = cam.globalPosition || cam.position; vol *= 1 / (1 + Math.hypot(c.x - p[0], c.y - p[1], c.z - p[2]) / 12); }
     if (vol < 0.02) return true;
     const url = `${SFX_DIR}${name}.mp3`;
     let buf = sfxBuffers.get(url);
@@ -935,7 +1011,7 @@
       if (o.rate) src.playbackRate.value = o.rate;
       const gn = audio.createGain();
       gn.gain.value = Math.max(0, Math.min(1, vol));
-      src.connect(gn).connect(audioApi.effects || audioApi.master || audio.destination);
+      src.connect(gn).connect(placed ? placed.input : audioApi.effects || audioApi.master || audio.destination);
       src.start();
     }).catch(() => { sfxBuffers.delete(url); });
     return true;
@@ -954,8 +1030,10 @@
       if (!(near > 0)) return true;
       if (e._voiceClip) { try { e._voiceClip.pause(); } catch { /* gone */ } }
       const a = new Audio(url);
-      a.volume = Math.min(1, near);
-      audioApi.media(a, { voice: true });
+      // The clip is heard from the character (HRTF, or stereo on a phone: modules/mix); the distance is the panner's.
+      const heard = () => { const p = e.node && e.node.getAbsolutePosition ? e.node.getAbsolutePosition() : null; return p ? [p.x, p.y + 1.3, p.z] : [0, 0, 0]; };
+      a.volume = audioApi.spatial ? 1 : Math.min(1, near);
+      audioApi.media(a, { voice: true, at: audioApi.spatial && e.node ? heard : undefined, who: e.name || (e.voice && e.voice.speaker) || e.sceneId || null, spatial: { ref: 5, max: 60 } });
       e._voiceClip = a;
       const pr = a.play();
       if (pr && pr.catch) pr.catch(() => { if (e._voiceClip === a) { e._voiceClip = null; babble(e, str); } });
@@ -1852,7 +1930,9 @@
           if (o.rate) src.playbackRate.value = o.rate;
           const gn = audio.createGain();
           gn.gain.value = o.volume ?? 1;
-          src.connect(gn).connect(audioApi.master || audio.destination);
+          // A sound with a place (o.at) is heard from there; every one is an effect (the effects slider), not the bare master.
+          const sp = o.at && audioApi.spatial ? audioApi.spatial(posOf(o.at), { who: name, muffle: o.muffle ?? 1.4 }) : null;
+          src.connect(gn).connect(sp ? sp.input : audioApi.effects || audioApi.master || audio.destination);
           src.start();
         }).catch((e) => { if (!soundFails.has(name)) { soundFails.add(name); report(new Error(`Could not play ${name}: ${e.message || e}`)); } });
       },

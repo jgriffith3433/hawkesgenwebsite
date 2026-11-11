@@ -29,7 +29,7 @@
   }
   function play(name, o = {}) {
     const ctx = H.audio.context;
-    const dest = H.audio.effects || H.audio.master;
+    const dest = (o.ui && H.audio.ui) || H.audio.effects || H.audio.master;
     if (!ctx || ctx.state !== 'running' || !dest) return;
     load(name).then((b) => {
       if (!b) return;
@@ -53,7 +53,7 @@
   }
   function tone(f1, f2, dur, vol) {
     const ctx = H.audio.context;
-    const dest = H.audio.effects || H.audio.master;
+    const dest = H.audio.ui || H.audio.effects || H.audio.master;
     if (!ctx || ctx.state !== 'running' || !dest) return;
     const o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime;
     o.type = 'sine'; o.frequency.setValueAtTime(f1, t); o.frequency.exponentialRampToValueAtTime(f2, t + dur);
@@ -64,7 +64,7 @@
   /** One interaction sound by name (pickup, place, build, panel, quest, send): the file when the site has it, else a tone. */
   const UI_VOL = { pickup: 0.8, place: 0.85, build: 0.8, panel: 0.9, quest: 0.85, send: 0.95 };
   function ui(name) {
-    if (has(`ui-${name}`)) play(`ui-${name}`, { volume: UI_VOL[name] ?? 0.8, rate: 0.97 + Math.random() * 0.06 });
+    if (has(`ui-${name}`)) play(`ui-${name}`, { ui: true, volume: UI_VOL[name] ?? 0.8, rate: 0.97 + Math.random() * 0.06 });
     else if (FALLBACK[name]) tone(FALLBACK[name][0], FALLBACK[name][1], FALLBACK[name][2], 0.12);
   }
   // Wood Gen takes are sustained/thumpy (high RMS); scale them so pier boards match sand/grass punch.
@@ -86,7 +86,7 @@
   }
   function startBeds() {
     started = true;
-    const ctx = H.audio.context, bed = H.audio.background;
+    const ctx = H.audio.context, bed = H.audio.ambience || H.audio.background;
     for (const k of Object.keys(BEDS)) {
       if (!has(BEDS[k])) { started = false; continue; }
       if (beds[k]) continue;

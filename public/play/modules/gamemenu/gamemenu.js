@@ -128,6 +128,14 @@
         .gm-wrap.off .gm-panel{transform:translateY(8px)}
         .gm-btn,.gm-row{min-height:52px}
       }
+      /* Thumb-sized sliders on a phone (the mix's music, voice, effects): a 44 px thumb on a 48 px row. */
+      @media (max-width:759px),(max-height:499px),(pointer:coarse){
+        .gm-row input[type=range]{-webkit-appearance:none;appearance:none;width:min(240px,54vw);height:48px;margin:0;background:transparent;touch-action:pan-y}
+        .gm-row input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:4px;background:rgba(255,255,255,.24)}
+        .gm-row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:44px;height:44px;margin-top:-18px;border-radius:50%;background:#4a9eff;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.45)}
+        .gm-row input[type=range]::-moz-range-track{height:8px;border-radius:4px;background:rgba(255,255,255,.24)}
+        .gm-row input[type=range]::-moz-range-thumb{width:40px;height:40px;border-radius:50%;background:#4a9eff;border:3px solid #fff}
+      }
       @media (prefers-reduced-motion:reduce){
         .gm-wrap,.gm-panel{transition:none!important;transform:none!important}
       }

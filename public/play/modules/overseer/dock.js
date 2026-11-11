@@ -166,7 +166,7 @@
       const ac = H.audio && H.audio.context;
       if (!ac || ac.state !== 'running') return;
       const t0 = ac.currentTime;
-      const out = ac.createGain(); out.gain.value = 0.0001; out.connect(H.audio.master);
+      const out = ac.createGain(); out.gain.value = 0.0001; out.connect(H.audio.effects || H.audio.master);
       out.gain.exponentialRampToValueAtTime(0.12, t0 + 0.05); out.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.8);
       [523.25, 659.25, 783.99].forEach((fq, i) => { const o = ac.createOscillator(); o.type = 'sine'; o.frequency.value = fq; o.connect(out); o.start(t0 + i * 0.12); o.stop(t0 + 1.8); });
     } catch { /* no sound */ }

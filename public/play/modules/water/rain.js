@@ -70,7 +70,7 @@
     const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1400; f.Q.value = 0.4;
     const lo = ac.createBiquadFilter(); lo.type = 'lowpass'; lo.frequency.value = 5000;
     const gn = ac.createGain(); gn.gain.value = 0;
-    src.connect(f).connect(lo).connect(gn).connect(H.audio.master);
+    src.connect(f).connect(lo).connect(gn).connect(H.audio.effects || H.audio.master);
     src.start();
     ctx.state.noise = { src, gn };
   }
@@ -92,7 +92,7 @@
     const src = ac.createBufferSource(); src.buffer = X.noiseBuffer(ac);
     const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 160;
     const gn = ac.createGain(); gn.gain.setValueAtTime(0.0001, t0); gn.gain.exponentialRampToValueAtTime(0.9, t0 + 0.15); gn.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.6);
-    src.connect(f).connect(gn).connect(H.audio.master); src.start(t0, Math.random()); src.stop(t0 + 2.8);
+    src.connect(f).connect(gn).connect(H.audio.effects || H.audio.master); src.start(t0, Math.random()); src.stop(t0 + 2.8);
   }
 
   // Rings where the rain hits water near you: a few meshes, reused.

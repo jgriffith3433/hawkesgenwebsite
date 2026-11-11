@@ -98,13 +98,16 @@
     }
     const t0 = a.currentTime, noise = X.noise();
     if (!noise) return L;
+    // Heard from where it went off: placed (pan and HRTF) but with no second distance gain or filter, as the layers have theirs.
+    const sp = H.audio.spatial ? H.audio.spatial(at, { rolloff: 0, muffle: 0, who: 'explosion' }) : null;
+    const out = sp ? sp.input : (H.audio.effects || H.audio.master);
     const layer = (cfg, type, f0, f1, seconds, peak) => {
       if (cfg.gain < 0.02) return;
       const t = t0 + cfg.delay;
       const src = a.createBufferSource(); src.buffer = noise; src.start(t, Math.random(), seconds + 0.05); src.stop(t + seconds + 0.05);
       const f = a.createBiquadFilter(); f.type = type; f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(40, Math.min(f1, cfg.cutoff)), t + seconds);
       const g = a.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak * cfg.gain), t + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t + seconds);
-      src.connect(f).connect(g).connect(H.audio.effects || H.audio.master);
+      src.connect(f).connect(g).connect(out);
     };
     layer(L.crack, 'highpass', 1800, 900, 0.22, 0.7 * k + 0.2);
     layer(L.boom, 'lowpass', Math.min(2400, L.boom.cutoff), 70, L.boom.seconds, 0.9);
@@ -114,7 +117,7 @@
       const t = t0 + L.boom.delay;
       const os = a.createOscillator(); os.type = 'sine'; os.frequency.setValueAtTime(110, t); os.frequency.exponentialRampToValueAtTime(28, t + 0.6);
       const og = a.createGain(); og.gain.setValueAtTime(0.8 * L.boom.gain, t); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
-      os.connect(og).connect(H.audio.effects || H.audio.master); os.start(t); os.stop(t + 0.75);
+      os.connect(og).connect(out); os.start(t); os.stop(t + 0.75);
     }
     return L;
   }
