@@ -28,7 +28,7 @@ const Guest = sandboxCtx.window.HawkesGuestCore;
 function start() {
   errors.length = 0;
   // (What the script keeps on window across a hot reload is a fresh page's here.)
-  for (const k of ['__islandEarly', '__islandNudged', '__islandRescue', '__islandPlayed', '__islandAsked', '__islandJourney', '__islandNoticed', '__islandFuelled', '__islanderDid', '__islanderHeard', '__islanderLog', '__islanderListening', '__islandJournal', '__island']) delete g.window[k];
+  for (const k of ['__islandEarly', '__islandNudged', '__islandRescue', '__islandPlayed', '__islandAsked', '__islandJourney', '__islandNoticed', '__islandFuelled', '__islanderDid', '__islanderHeard', '__islanderLog', '__islanderListening', '__islanderBarks', '__islanderBarkState', '__islandJournal', '__island']) delete g.window[k];
   run(H, { ...scene, config: { ...scene.config, look: false, shadows: false } }, { mode: 'play', scripts: { 'scripts/main.js': bundle.files['scripts/main.js'] } });
   return H.game;
 }
@@ -352,7 +352,7 @@ const islanderLines = () => {
   H.chat = { ...(H.chat || {}), line: (m: any) => { chat.push(m); } };
   return chat;
 };
-const resetIslanders = () => { for (const k of ['__islanderDid', '__islanderHeard', '__islanderLog', '__islanderListening', '__islanders']) delete g.window[k]; };
+const resetIslanders = () => { for (const k of ['__islanderDid', '__islanderHeard', '__islanderLog', '__islanderListening', '__islanderBarks', '__islanderBarkState', '__islanders']) delete g.window[k]; g.window.__islanderBarkAnyView = true; };
 // (The harness has no intro to end, so the mirror stays "about to open"; here it has been answered.)
 const mirrorDone = (game: any) => { try { game.mirror.close(); } catch { /* none open */ } Object.defineProperty(game, 'mirror', { value: { pending: false }, configurable: true }); H.tick(0.3); };
 // Place the player next to an islander. Routines walk them around the island, so hold their AI (same pause as when
@@ -439,7 +439,7 @@ test('sandbox islanders: what the player did changes what at least four of them 
   const said = (id: string) => { stand(game, id); const n = chat.length; H.use.act(); return chat.slice(n).map((c: any) => c.text).join(' | '); };
   const topic = (id: string) => g.window.__islanderLog.filter((l: any) => l.id === id).map((l: any) => l.topic);
   // Before doing anything: hellos (they come by themselves when you walk up) and ordinary lines.
-  for (const id of CAST_IDS) { stand(game, id); }
+  for (const id of CAST_IDS) { stand(game, id); H.tick(4); } // (one voice at a time: the next bark waits 3.5 s)
   for (const id of CAST_IDS) assert.equal(topic(id)[0], 'hello', `${id} greets`);
   // The deeds: a fish, a blast, a flight.
   game.emit('catch', { fish: 'tuna', mine: true });
@@ -791,5 +791,37 @@ test('sandbox story (quality rule 6): every beat of chapter one is heard and see
   // Every line a neighbour types in the chat, they also say over their own head when the player is near (sandbox.js npc).
   assert.ok(chat.length > 0);
   if (process.env.STORY_PRINT) console.log(`beats ${beats.length}; Overseer lines still without a voice clip: ${unvoiced.length}\n${unvoiced.join('\n')}`);
+  assert.deepEqual(clean(), []);
+});
+
+// ------------------------------------------------------------------ barks: they turn to you and speak as you pass
+test('sandbox islanders: within 6 m each one turns and barks in a recorded voice, by context, never the same bark within 5 minutes', () => {
+  resetIslanders();
+  const game = start();
+  H.tick(2);
+  mirrorDone(game);
+  const B = g.window.__islanders.BARKS;
+  const index = new Set(JSON.parse(fs.readFileSync(path.join(ROOT, 'public', 'play', 'audio', 'voice', 'index.json'), 'utf8')).clips);
+  const hash = (t: string) => { const s = t.trim().toLowerCase().replace(/\s+/g, ' '); let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, '0'); };
+  for (const id of CAST_IDS) {
+    assert.ok(B[id].length >= 3, `${id} has at least three barks`);
+    for (const [ctx, text] of B[id]) assert.ok(index.has(`${id}-${hash(text)}`), `${id} ${ctx} bark has a recording: ${text}`);
+  }
+  const heard: any[] = [];
+  game.on('bark', (d: any) => heard.push(d));
+  for (const id of CAST_IDS) { stand(game, id, 5); H.tick(4); }
+  assert.equal(heard.length, 5, 'each of the five barked');
+  for (const d of heard) { assert.equal(d.ctx, 'first'); assert.ok(d.turned, `${d.id} turned to the player`); assert.ok(d.dist <= 6.01); }
+  // A deed changes the context; later barks never repeat one said within five minutes.
+  game.emit('explosion', { at: [50, 1, -18] });
+  const all: Record<string, number[]> = {};
+  for (let i = 0; i < 7; i++) {
+    for (const id of CAST_IDS) { stand(game, id, 5); H.tick(4); }
+    H.tick(62);
+  }
+  const t5 = 5 * 60 * 1000;
+  for (const d of g.window.__islanderBarks) { (all[d.id + d.text] ||= []).push(d.at); }
+  for (const [k, ts] of Object.entries(all)) for (let i = 1; i < ts.length; i++) assert.ok(ts[i] - ts[i - 1] >= t5, `no repeat within 5 minutes: ${k}`);
+  assert.ok(g.window.__islanderBarks.some((d: any) => d.ctx === 'boom'), 'the blast is answered');
   assert.deepEqual(clean(), []);
 });
