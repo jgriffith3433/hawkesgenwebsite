@@ -504,7 +504,11 @@
     leave() { playing = null; },
   });
   H.hooks.game.push((game) => {
-    if (game.overseer) game.overseer.intro = () => play();
+    if (game.overseer) {
+      game.overseer.intro = () => play();
+      // game.overseer is its own object (overseer.js), not H.overseer: scripts and the playtest read it from here.
+      Object.defineProperty(game.overseer, 'introPlaying', { get: () => Boolean(playing), enumerable: true, configurable: true });
+    }
   });
   Object.defineProperties(OV, Object.getOwnPropertyDescriptors({ intro: play, get introPlaying() { return Boolean(playing); }, introSeen: seen, INTRO_LINES: LINES }));
 })();
