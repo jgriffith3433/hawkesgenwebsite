@@ -191,10 +191,14 @@
     if ((mats.includes('dirt') || mats.includes('stone')) && speed > 5) dust(at, { amount: k * 0.6, surface: mats.includes('dirt') ? 'dirt' : 'stone' });
     if (mats.includes('water') && speed > 3) { if (H.water && H.water.splash) { try { H.water.splash(at, clamp(speed / 10, 0.2, 2), { sound: false }); } catch { /* fine */ } } else burst('spray', at, { count: 10 + k * 20 }); }
   });
-  // Landing from a height: dust at your feet.
-  J.feel.on('land', ({ speed, surface, entity }) => {
-    if (!entity || speed < 7) return;
-    dust([entity.x, entity.bottom + 0.05, entity.z], { amount: clamp((speed - 6) / 12, 0.2, 1.4), surface: surface === 'water' ? 'dirt' : surface });
+  // Landing from a height (≥0.5 m): one dust puff in the surface's colour (sand, grass, stone, wood...).
+  J.feel.on('land', ({ height, speed, surface, entity, amount }) => {
+    if (!entity) return;
+    const h = height != null ? height : (speed * speed) / (2 * 24);
+    if (h < 0.5) return;
+    const amt = amount != null ? amount : clamp((h - 0.35) / 2.8, 0.1, 1.4);
+    const ok = dust([entity.x, entity.bottom + 0.05, entity.z], { amount: clamp(0.25 + amt * 1.1, 0.25, 1.4), surface: surface === 'water' ? 'dirt' : surface });
+    if (ok && J.feel.lastLand) J.feel.lastLand.dust = true;
   });
   // Blasts: a scorch mark on the ground under it (and a ring of dust).
   H.physics.on('explosion', (d) => {

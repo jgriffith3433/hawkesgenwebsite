@@ -622,8 +622,8 @@
       else if (len > 0.01) this.wake();
       return this;
     }
-    // (A character that left the ground a moment ago without jumping, off a crest or an edge, may still jump: 0.15 s.)
-    jump(speed = 7) { if (!this.grounded && !(this._cc && this._cc.airT > 0 && this._cc.airT < 0.15 && this.vy <= 0.5)) return false; this.vy = speed; this.grounded = false; this.standing = null; this.wake(); return true; }
+    // (A character that left the ground a moment ago without jumping, off a crest or an edge, may still jump: ~0.1 s coyote.)
+    jump(speed = 7) { if (!this.grounded && !(this._cc && this._cc.airT > 0 && this._cc.airT < 0.1 && this.vy <= 0.5)) return false; this.vy = speed; this.grounded = false; this.standing = null; this.wake(); return true; }
     push(v) { const p = vec(v); this.vx += p[0]; this.vy += p[1]; this.vz += p[2]; this.grounded = false; this.wake(); return this; }
     lookAt(t) { const p = posOf(t); this.node.rotation.y = Math.atan2(p[0] - this.x, p[2] - this.z); return this; }
     distanceTo(t) { const p = posOf(t); return Math.hypot(p[0] - this.x, p[1] - this.y, p[2] - this.z); }
@@ -1153,7 +1153,8 @@
     /** Player look feel from the game menu (sensitivity multiplier and invert Y), else the camera's own opts. */
     const lookFeel = () => {
       const base = Number(state.opts && state.opts.sensitivity) || 0.15;
-      const S = H.gameMenu && H.gameMenu.settings;
+      const HP = window.HawkesPlay;
+      const S = HP && HP.gameMenu && HP.gameMenu.settings;
       const mult = S && Number.isFinite(Number(S.sensitivity)) ? Math.max(0.25, Math.min(2, Number(S.sensitivity))) : 1;
       return { sensitivity: base * mult, invert: S && S.invertY ? -1 : 1 };
     };
@@ -1232,9 +1233,13 @@
         state.yaw += mouse.dx * look.sensitivity * RAD;
         state.pitch = Math.max(-0.4, Math.min(1.2, state.pitch + mouse.dy * look.invert * look.sensitivity * RAD));
         const nowMs = performance.now();
-        if (mouse.dx || mouse.dy || state.idleSince === undefined) state.idleSince = nowMs;
+        // Idle recenter only when the player is not looking (mouse or phone look-drag) and not steering.
+        const ax = game.input && game.input.axis ? game.input.axis() : { x: 0, y: 0 };
+        const steering = Math.hypot(ax.x || 0, ax.y || 0) > 0.12;
+        if (mouse.dx || mouse.dy || steering || state.idleSince === undefined) state.idleSince = nowMs;
         if (t && t.alive) {
-          // After about 2 s without looking around, the camera swings back behind the player.
+          // After about 2 s idle (no look, no steer), the camera swings back behind the player. Never while they steer
+          // or look-drag (phone look must not fight the recenter).
           if (nowMs - state.idleSince > 2000 && t.node) {
             const k = 1 - Math.exp(-dt * 2.5);
             let dy = (t.node.rotation.y - state.yaw) % (Math.PI * 2);
