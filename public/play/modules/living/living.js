@@ -32,12 +32,13 @@
       if (r.home) r.home = xz(r.home);
       if (r.goal && !r.goal.ent) { const p = xz([r.goal.x, r.goal.z]); r.goal.x = p[0]; r.goal.z = p[1]; }
       if (r.netGoal) { const p = xz([r.netGoal.x, r.netGoal.z]); r.netGoal.x = p[0]; r.netGoal.z = p[1]; }
+      if (r.routine && r.routine.spots) for (const s of r.routine.spots) if (s && s.at) s.at = xz(s.at);
       r.path = null;
       if (r.trk) r.trk = null;
     }
     hash = new Map();
   });
-  const listeners = { startle: [], hurt: [], act: [], world: [] };
+  const listeners = { startle: [], hurt: [], act: [], world: [], routine: [] };
   living.on = (name, fn) => { (listeners[name] || (listeners[name] = [])).push(fn); return () => { const l = listeners[name]; const i = l.indexOf(fn); if (i >= 0) l.splice(i, 1); }; };
   const tell = (name, ...args) => { for (const f of listeners[name] || []) try { f(...args); } catch (err) { H.report(err, 'living'); } };
   const now = () => (W() ? W().time : 0);
@@ -98,6 +99,7 @@
       speed: Number(shape.speed) || 1, rideable: shape.rideable ?? sp.rideable ?? false, statue, command: null,
       home: null, herd: null, neighbors: [], visY: -tall / 2, tall, foot, think: 0, lastThink: 0, stuck: 0,
       checkAt: 0, lastPos: null, flying: false, inWater: false, anim: null, sight: Number(shape.sight) || sp.sight || 20,
+      routine: parseRoutine(shape.routine),
     };
     e.living = r;
     e.data.species = name;
@@ -320,6 +322,124 @@
   // ------------------------------------------------------------------ brains: what to do next (a few times a second)
   const fearful = (r) => r.temper === 'calm' || r.temper === 'shy' || r.temper === 'person' || (r.temper === 'pet' && r.fear > 0.9);
   const brave = (r) => r.temper === 'predator' || r.temper === 'angry' || r.temper === 'neutral' || (r.temper === 'pet' && r.name === 'dog');
+  // Named spots + idle activities on the game clock (shape.routine). A friend with stays still never wanders at
+  // random; with a routine it walks between those spots as the hour turns, and pauses to face a player who comes near.
+  const ROUTINE_DO = {
+    fish: { state: 'sit', act: 'fish' },
+    tend: { state: 'eat', act: 'tend' },
+    sit: { state: 'sit', act: 'sit' },
+    wave: { state: 'cheer', act: 'wave' },
+    idle: { state: 'idle', act: 'idle' },
+  };
+  function parseRoutine(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const spots = Array.isArray(raw.spots) ? raw.spots.map((s, i) => {
+      if (!s || typeof s !== 'object') return null;
+      const at = Array.isArray(s.at) ? [Number(s.at[0]) || 0, Number(s.at.length > 2 ? s.at[2] : s.at[1]) || 0] : null;
+      if (!at) return null;
+      const id = String(s.id || s.name || `spot${i}`).slice(0, 40);
+      const doWhat = String(s.do || s.act || 'idle').toLowerCase();
+      const face = s.face === undefined || s.face === null ? null : Number(s.face);
+      return { id, at, do: ROUTINE_DO[doWhat] ? doWhat : 'idle', face: Number.isFinite(face) ? face : null };
+    }).filter(Boolean) : [];
+    if (spots.length < 2) return null;
+    return {
+      spots: spots.slice(0, 6),
+      offset: ((Number(raw.offset) || 0) % 24 + 24) % 24,
+      near: Math.max(0.6, Number(raw.near) || 1.2),
+      notice: Math.max(2, Number(raw.notice) || 4),
+      leave: Math.max(2.5, Number(raw.leave) || 5.5),
+      here: null,
+      want: null,
+      facing: false,
+      visited: [],
+    };
+  }
+  /** The world's hour (0-24) when the clock is running; null if there is none. */
+  function clockHour() {
+    const g = G();
+    try {
+      if (g && g.events && Number.isFinite(g.events.hour)) return g.events.hour;
+      if (H.sky && H.sky.clock) { const c = H.sky.clock(false); if (c && Number.isFinite(c.hour)) return c.hour; }
+    } catch { /* no clock */ }
+    return null;
+  }
+  function routineSpot(r) {
+    const rt = r.routine;
+    if (!rt || !rt.spots.length) return null;
+    const h0 = clockHour();
+    // No clock yet: hold the first spot (stays still until the world has a day).
+    if (h0 === null) return rt.spots[0];
+    const h = (h0 + rt.offset) % 24;
+    const slice = 24 / rt.spots.length;
+    return rt.spots[Math.min(rt.spots.length - 1, Math.floor(h / slice))];
+  }
+  function tellRoutine(r, kind, extra) {
+    const g = G(), spot = r.routine && r.routine.here;
+    const payload = { thing: r.e, id: r.e.sceneId || r.e.id || null, name: r.friend ? r.friend.name : r.e.name, spot, doing: r.act, kind, ...(extra || {}) };
+    tell('routine', payload);
+    try { if (g && g.emit) g.emit('routine', payload); } catch { /* fine */ }
+  }
+  /** A stays friend with a routine: walk to the spot the clock says, idle there, face the player within ~4 m. */
+  function routineThink(r, t) {
+    const rt = r.routine, e = r.e, spot = routineSpot(r);
+    if (!spot) { r.act = 'idle'; r.state = 'idle'; r.until = t + 2; return; }
+    // Player nearby: pause, face them, resume when they leave (hysteresis).
+    let nearP = null, bd = rt.facing ? rt.leave : rt.notice;
+    for (const p of players()) {
+      if (!p || p.ghost) continue;
+      const d = Math.hypot(p.x - e.x, p.z - e.z);
+      if (d < bd) { bd = d; nearP = p; }
+    }
+    if (nearP) {
+      if (r.goal) stop(r, 'idle');
+      if (!rt.facing) { rt.facing = true; tellRoutine(r, 'face', { player: true }); }
+      try { e.lookAt(nearP); } catch { /* keep facing where they were */ }
+      r.act = 'idle'; r.state = 'idle'; r.until = t + 0.4;
+      return;
+    }
+    if (rt.facing) { rt.facing = false; tellRoutine(r, 'resume'); }
+    const dx = spot.at[0] - e.x, dz = spot.at[1] - e.z, dist = Math.hypot(dx, dz);
+    // Want is where the clock says; here is only set on arrival (so arrive/visited are honest).
+    if (dist > rt.near) {
+      // Yield if another islander on a routine is in the way (criterion: do not walk through each other).
+      for (const n of r.neighbors) {
+        if (!n.stays || !n.routine || n === r || !n.e.alive) continue;
+        if (Math.hypot(n.e.x - e.x, n.e.z - e.z) < 1.15) {
+          stop(r, 'idle'); r.act = 'idle'; r.until = t + 0.6; return;
+        }
+      }
+      if (rt.want !== spot.id || r.act !== 'goto') {
+        rt.want = spot.id;
+        goTo(r, spot.at, 'walk', rt.near, 'goto');
+        tellRoutine(r, 'walk', { from: rt.here, to: spot.id });
+      }
+      return;
+    }
+    // At the spot: idle activity for this place (pose + a small sound of what they're doing).
+    if (rt.here !== spot.id) {
+      rt.here = spot.id;
+      rt.want = spot.id;
+      if (!rt.visited.includes(spot.id)) rt.visited.push(spot.id);
+      tellRoutine(r, 'arrive', { to: spot.id, do: spot.do });
+      routineSound(r, spot.do, true);
+      rt.soundAt = t + 4 + Math.random() * 4;
+    }
+    const how = ROUTINE_DO[spot.do] || ROUTINE_DO.idle;
+    stop(r, how.state);
+    r.act = how.act;
+    if (spot.face !== null && e.node) {
+      try { e.node.rotation.y = spot.face * RAD; } catch { /* fine */ }
+    }
+    if (rt.soundAt && t >= rt.soundAt) { routineSound(r, spot.do, false); rt.soundAt = t + 5 + Math.random() * 6; }
+    r.until = t + 1.5;
+  }
+  /** Soft site sounds while a routine idles (cast, garden, fix, wave): heard near them, never loud. */
+  function routineSound(r, doWhat, arrive) {
+    const tag = ({ fish: 'fishing-cast', tend: 'mailbox-clank', sit: null, wave: 'tv-blip', idle: null })[doWhat];
+    if (!tag || !H.lib || !H.lib.siteSound) return;
+    try { H.lib.siteSound(tag, { volume: arrive ? 0.35 : 0.22, at: r.e }); } catch { /* pose only */ }
+  }
   function resolve(t) {
     if (!t) return null;
     if (t.__entity) return t.alive ? t : null;
@@ -417,7 +537,10 @@
 
     // 5. Busy with something (walking somewhere, eating, sleeping, resting).
     if (r.act === 'sleep') { if (r.energy >= 0.95) { r.act = 'idle'; r.state = 'idle'; } return; }
-    if (r.act === 'eat') { if (t > r.until) { r.hunger = 0; r.act = 'idle'; r.state = 'idle'; r.until = t + rand(1, 3); } return; }
+    // A clock-driven routine owns its idle acts (tend uses eat's pose): don't treat those as grazing.
+    if (r.act === 'eat' && !(r.stays && r.routine)) { if (t > r.until) { r.hunger = 0; r.act = 'idle'; r.state = 'idle'; r.until = t + rand(1, 3); } return; }
+    // Stays + routine: re-check the hour and a nearby player even while walking or idling at a spot.
+    if (r.stays && r.routine) { routineThink(r, t); return; }
     if (r.goal && r.act !== 'idle') return;
     if (t < r.until) return;
 
@@ -1007,8 +1130,20 @@
     dismount: () => { const p = G() && G().player; if (p && p.controller === 'ride') p.control('walk'); },
     /** A way around obstacles: [[x, z], ...] corners, or null (nav.js). */
     path: (from, to, o) => { const r = nav.path(H.lib.vec(from), H.lib.vec(to), o); return r ? r.points : null; },
-    /** What a creature is doing: { species, state, act, hunger, energy, fear, following, carrying }. */
-    status(e) { const r = recOf(e); return r ? { species: r.name, state: r.state, act: r.act, hunger: +r.hunger.toFixed(2), energy: +r.energy.toFixed(2), fear: +r.fear.toFixed(2), following: r.follow ? String(r.follow.__entity ? r.follow.name : r.follow) : null, carrying: r.carrying ? r.carrying.name || r.carrying.kind : null, riding: Boolean(r.ridden) } : null; },
+    /** What a creature is doing: { species, state, act, hunger, energy, fear, following, carrying, routine }. */
+    status(e) {
+      const r = recOf(e);
+      if (!r) return null;
+      const rt = r.routine;
+      return {
+        species: r.name, state: r.state, act: r.act, hunger: +r.hunger.toFixed(2), energy: +r.energy.toFixed(2), fear: +r.fear.toFixed(2),
+        following: r.follow ? String(r.follow.__entity ? r.follow.name : r.follow) : null,
+        carrying: r.carrying ? r.carrying.name || r.carrying.kind : null, riding: Boolean(r.ridden),
+        routine: rt ? { spot: rt.here, facing: Boolean(rt.facing), visited: rt.visited.slice(), want: rt.want || (routineSpot(r) && routineSpot(r).id) } : null,
+      };
+    },
+    /** The world's hour for routines (null when the clock is not there). */
+    hour: () => clockHour(),
     pickUp: (e, thing) => { const r = recOf(e); if (r && thing) pickUp(r, thing); return e; },
     drop: (e) => { const r = recOf(e); if (r) drop(r); return e; },
     states: STATES,
