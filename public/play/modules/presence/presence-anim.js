@@ -456,6 +456,7 @@
     // landing is a 1.3 s recovery to standing that, played over a run, slid the body along the ground in a crouch). Leaving
     // the ground again ends it too.
     if (A.take && A.take.name === 'land' && A.take.t >= LAND_HOLD && ((ctx.speed > LAND_MOVING && (role === 'walk' || role === 'run')) || role === 'jump' || role === 'fall')) A.take = null;
+    else if (A.take && A.take.name === 'land' && A.take.t >= LAND_MAX && role !== 'idle') A.take = null;
     if (A.take) { A.take.t += ctx.dt; if (A.take.t >= set.clips[A.take.name].seconds) A.take = null; else if (!shot) shot = A.take; }
     let name = roleClip(set, role, ctx.glb);
     if (name === 'walk' && set.clips.trot && ctx.speed > TROT_AT) name = 'trot'; // (a quicker diagonal gait between the walk and the run)
@@ -479,6 +480,9 @@
       if (!c) continue;
       out.push({ name: g, c, speed: ctx.stride[g] || (g === 'trot' ? STRIDE_TROT : ctx.stride.walk), u0: footfall(c) });
     }
+    // the sprint: the run clip again at a longer stride (past the run the cycle grows with the speed, so the feet keep up without the clip racing)
+    const run = out.find((x) => x.name === 'run');
+    if (run) out.push({ name: 'sprint', c: run.c, speed: ctx.stride.sprint || run.speed * SPRINT_OVER, u0: run.u0 });
     return out.sort((x, y) => x.speed - y.speed);
   }
   /**
@@ -549,7 +553,7 @@
   }
 
   P.anim = {
-    CLASSES, ROLE_CLIPS, FADE, FORM_CLASS, LOCO, GAITS, LAND_HOLD, LOCO_MAX_RATE, footfall, gaitsOf, locoLoop, sampleLoco, classOf, motionOf, groundSnap, finish, norm, validate, compile, sampleClip, evalKeys, toDelta, setData, load, setOf, attach, drive, bind, apply, release, Player, hasClip, roleClip,
+    CLASSES, ROLE_CLIPS, FADE, FORM_CLASS, LOCO, GAITS, LAND_HOLD, LAND_MAX, LOCO_MAX_RATE, SPRINT_OVER, footfall, gaitsOf, locoLoop, sampleLoco, classOf, motionOf, groundSnap, finish, norm, validate, compile, sampleClip, evalKeys, toDelta, setData, load, setOf, attach, drive, bind, apply, release, Player, hasClip, roleClip,
     q: { mul: qmul, inv: qinv, euler: qeuler, rot: qrot, fromTo: qfromto, blend: qblend, angle: qangle },
     /** Whether a rig's model plays this clip from data now (for /avatars): the set is loaded, fits the model, and has the clip. */
     has: (rig, name) => { const A = rig && rig.pm && rig.pm.anim; const s = A && setOf(A.cls); return Boolean(s && s.clips[name] && A.state !== 'unfit' && !keepsGait(rig.pm.ent, name)); },

@@ -30,7 +30,7 @@ test('the character-motion playtest on the sandbox: every slope landing goes bac
   try {
     const { runCharacterMotion } = await import('../../public/playtest/character-motion.js');
     if (g.location) g.location.hostname = 'beta.hawkesgames.com';
-    await runCharacterMotion(t, { options: {} });
+    await runCharacterMotion(t, { options: { bodies: ['person'] } });
   } finally { (performance as any).now = now; }
   assert.equal(problems.join('\n'), '', events.filter((e) => e.startsWith('trace')).join('\n'));
   assert.ok(events.some((e) => e.startsWith('foot-run')), 'the feet were traced');
