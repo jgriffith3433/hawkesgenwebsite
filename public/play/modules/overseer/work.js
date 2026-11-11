@@ -120,7 +120,7 @@
     const a = ac();
     if (!a || hum) return;
     try {
-      const out = a.createGain(); out.gain.value = 0; out.connect(H.audio.master);
+      const out = a.createGain(); out.gain.value = 0; out.connect(H.audio.effects || H.audio.master);
       const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; lp.connect(out);
       const o1 = a.createOscillator(); o1.type = 'sine'; o1.frequency.value = 196;
       const o2 = a.createOscillator(); o2.type = 'triangle'; o2.frequency.value = 293.7;
@@ -150,7 +150,7 @@
         const o = a.createOscillator(); o.type = 'sine'; o.frequency.value = f;
         const g = a.createGain(); const t0 = t + i * (kind === 'done' ? 0.09 : 0.07);
         g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(gain, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + (kind === 'done' ? 1.4 : 0.6));
-        o.connect(g).connect(H.audio.master); o.start(t0); o.stop(t0 + 1.6);
+        o.connect(g).connect(H.audio.effects || H.audio.master); o.start(t0); o.stop(t0 + 1.6);
       });
     } catch { /* no sound */ }
   }

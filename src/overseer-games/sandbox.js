@@ -48,7 +48,7 @@ const audioLog = (window.__islandAudioLog = []);
 const logAudio = (what, name) => { audioLog.push({ t: Math.round(performance.now()), what, name }); try { console.log(`island audio: ${what} ${name}`); } catch { /* fine */ } };
 const FADE_IN = 1.5; // seconds from silent to the sound's own level, once it has loaded
 const MUSIC_VOLUME = 0.14; // (Quiet enough to talk over: J, 2026-10-24, "I can't hear the voices".)
-function loop(name, target) {
+function loop(name, target, ambience) {
   if (!game.hasAsset(name) || !H || !H.audio || !H.audio.media) return null;
   try {
     const el = new Audio();
@@ -57,7 +57,7 @@ function loop(name, target) {
     el.loop = true;
     el.volume = 0;
     el.src = game.asset(name);
-    H.audio.media(el, { background: true }); // (background: it dips under the Overseer's voice)
+    H.audio.media(el, { background: true, ambience: Boolean(ambience) }); // (the music bus, or the ambience bus: both dip under a voice, 8 and 4 dB)
     const s = { name, el, target, fade: 0, ready: false };
     sounds.push(s);
     return s;
@@ -98,19 +98,23 @@ function stinger(step) {
   game.emit('stinger', { step, name, played: has });
   if (has) { sfx(name, { volume: 0.7 }); duck('stinger', 0.4, 3); }
 }
-// Music dips under every voice line: the Overseer's through the speech desk, Pip's here (H.audio.duck, lowest wins).
-// Every dip and recovery is logged with the level it left and the level it came back to.
+// Music dips under every voice line: the Overseer's through the speech desk, Pip's here, an islander's bark (H.audio.voiceDuck:
+// music 8 dB down and the ambience 4 dB, in 150 ms, back in 600 ms; the lowest asked of the stingers' own dips wins).
+// Every dip and recovery is logged with the level it left and the level it came back to (the playtest reads them).
 function duck(owner, level, seconds) {
   const A = H && H.audio;
   if (!A || !A.duck) return;
   const before = A.background ? A.background.gain.value : 1;
-  A.duck(owner, level);
-  game.emit('music-dip', { owner, level, before: Math.round(before * 100) / 100 });
+  const voice = owner !== 'stinger' && A.voiceDuck;
+  if (voice) A.voiceDuck(owner, true); else A.duck(owner, level);
+  const lv = A.levels || {};
+  game.emit('music-dip', { owner, level: voice ? 0.4 : level, before: Math.round(before * 100) / 100, db: voice ? 8 : null, ambienceDb: voice ? 4 : null });
   logAudio('dip', owner);
-  game.after(seconds, () => { A.duck(owner, null); game.emit('music-recover', { owner }); logAudio('recover', owner); });
+  game.after(seconds, () => { if (voice) A.voiceDuck(owner, false); else A.duck(owner, null); game.emit('music-recover', { owner }); logAudio('recover', owner); });
+  return lv;
 }
-const sea = loop('ocean-waves.mp3', 0);
-const birds = loop('forest.mp3', 0.05);
+const sea = loop('ocean-waves.mp3', 0, true);
+const birds = loop('forest.mp3', 0.05, true);
 /** Asks for the file now; it plays and fades in once enough is buffered to start (not the whole loop). */
 function fetchSound(s) {
   if (!s || s.asked) return;
@@ -176,7 +180,13 @@ function startSound() {
 function gulls() {
   game.after(18 + Math.random() * 30, () => {
     const p = game.player;
-    try { if (p && H && H.lib && H.lib.siteSound && seaDistance(p.x, p.z) < 25) H.lib.siteSound('seagull', { volume: 0.3 }); } catch { /* quiet */ }
+    try {
+      if (p && H && H.lib && H.lib.siteSound && seaDistance(p.x, p.z) < 25) {
+        // Over the water, to one side and up: wildlife is placed in the world (the mix pans it and darkens it with distance).
+        const a = Math.random() * Math.PI * 2, d = 18 + Math.random() * 22;
+        H.lib.siteSound('seagull', { volume: 0.3, at: [p.x + Math.cos(a) * d, p.y + 9 + Math.random() * 6, p.z + Math.sin(a) * d] });
+      }
+    } catch { /* quiet */ }
     gulls();
   });
 }
