@@ -183,7 +183,15 @@ async function oneSize(t, { w, h, label, framed }) {
       const btn = acts.querySelector(`[data-intent="${intent}"]`);
       if (!btn) { bad.push(`${label}: ${intent} intent missing from .gs-acts`); continue; }
       // Intents stay in the DOM on compact (hidden); click them directly to check Save/Build/Invite still work.
+      const tapAt = Date.now();
       tap(btn, win);
+      if (intent === 'save' || intent === 'build') {
+        // As a guest the account sheet opens at once, before any network call (finding f_a02d45284afc).
+        const shown = await until(() => $('.gs-veil .gs-sheet'), 1500, `${label}: the account sheet after ${intent}`).then(() => true, () => false);
+        const ms = Date.now() - tapAt;
+        if (!shown || ms > 1000) bad.push(`${label}: ${intent} as a guest opened the account sheet in ${shown ? ms : '>1500'} ms (should be under 1000)`);
+        else t.event('guest-sheet-fast', `${label}: ${intent} → account sheet in ${ms} ms`);
+      }
       await wait(700);
       if (intent === 'invite') {
         const linkToast = $('[data-invite="link"], .gs-toast[data-invite]');
@@ -220,6 +228,9 @@ async function oneSize(t, { w, h, label, framed }) {
       await wait(200);
     }
     t.event('actions-tapped', `${label}: save, build, invite`);
+
+    // --- Save, signed in (named setup shortcut: Google sign-in cannot be scripted), with the network cut and then with no live room ---
+    try { await saveSignedIn(t, { win, doc, label, bad, $, until, wait }); } catch (e) { bad.push(`${label}: save checks: ${e && e.message ? e.message : e}`); }
 
     // Close the mirror and re-check clearance with quest chrome if the tour is up.
     dismissOverlays(doc, win);
@@ -398,4 +409,97 @@ function overlayTaps(doc, min) {
     }
   }
   return out;
+}
+
+/** Signed in (a named `setup-shortcut`: the page is told who it is, as /v1/users/me would), Save by touch:
+ *  1. network cut (requests hang until the page's own AbortController gives up): within 16 s one plain error with Try again,
+ *     no "Keeping your island…" left, no raw error text, every request aborted at 15 s;
+ *  2. the server answers but has no live room: "Saved. Friends can't join right now.", one line, no error text;
+ *  3. an island already kept, the network cut: Save says it did not work, with Try again (a blink would be a lie). */
+async function saveSignedIn(t, { win, doc, label, bad, $, until, wait }) {
+  const G = win.HawkesGuest;
+  dismissOverlays(doc, win);
+  if (!G || typeof G.playtestSignedIn !== 'function' || !G.playtestSignedIn({ name: 'Playtest' })) { t.event('save-signed-in-skipped', `${label}: no playtest sign-in here`); return; }
+  t.event('setup-shortcut', `${label}: acting as signed in (HawkesGuest.playtestSignedIn)`);
+  const realFetch = win.fetch.bind(win);
+  const api = (u) => /\/v1\//.test(String(u && u.url ? u.url : u));
+  const log = [];
+  let mode = 'cut';
+  win.fetch = (u, init = {}) => {
+    const url = String(u && u.url ? u.url : u);
+    if (!api(url) || /\/v1\/(analytics|health)/.test(url)) return realFetch(u, init);
+    const method = (init.method || 'GET').toUpperCase();
+    if (mode === 'cut') {
+      const at = Date.now();
+      return new Promise((_res, rej) => {
+        const sig = init.signal;
+        const abort = () => { log.push({ method, url, ms: Date.now() - at, aborted: true }); rej(new DOMException('aborted', 'AbortError')); };
+        if (sig) { if (sig.aborted) abort(); else sig.addEventListener('abort', abort, { once: true }); } // (no signal: it hangs for good)
+      });
+    }
+    const json = (body, status = 200) => Promise.resolve(new win.Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }));
+    if (/\/v1\/users\/me/.test(url) && method === 'GET') return json({ user: { id: 'usr_playtest', credits: 0, name: 'Playtest' } });
+    if (method === 'POST' && /\/v1\/games$/.test(url)) return json({ id: 'g_playtest' });
+    if (method === 'POST' && /\/scene$/.test(url)) return json({ rev: 1 });
+    if (method === 'POST') return json({ ok: true });
+    if (/\/bundle$/.test(url)) return json({ error: 'no live room' }, 503);
+    return json({});
+  };
+  const sheetOf = () => $('.gs-veil [data-save-failed], [data-save-failed]');
+  const text = () => (doc.body.innerText || '');
+  const rawError = /TypeError|AbortError|Failed to fetch|NetworkError|undefined|\[object|status \d|HTTP \d/i;
+  try {
+    const save = () => doc.querySelector('.gs-acts [data-intent="save"]');
+    // 1. network cut
+    mode = 'cut';
+    const t0 = Date.now();
+    tap(save(), win);
+    await wait(600);
+    const busyShown = Boolean($('[data-save-busy]'));
+    t.event('keeping-toast', `${label}: "Keeping your island…" ${busyShown ? 'shown' : 'not shown'} while waiting`);
+    t.scene(`Phone ${label}: saving, network cut`);
+    await until(() => sheetOf(), 16000, `${label}: the save error with the network cut`).catch((e) => { bad.push(`${label}: ${e.message}`); });
+    const took = Date.now() - t0;
+    const sh = sheetOf();
+    if (sh) {
+      const retry = sh.querySelector('[data-retry]');
+      if (!retry || !/try again/i.test(retry.textContent)) bad.push(`${label}: save error has no Try again`);
+      if (rawError.test(sh.textContent)) bad.push(`${label}: raw error text in the save error: "${sh.textContent.trim().slice(0, 120)}"`);
+      if (took > 16000) bad.push(`${label}: save error came after ${took} ms (over 16 s)`);
+      t.event('save-error-shown', `${label}: plain error with Try again after ${took} ms`);
+      t.scene(`Phone ${label}: save failed, Try again`);
+      for (const s of overlayTaps(doc, MIN)) bad.push(`${label} save error: ${s}`);
+    }
+    if ($('[data-save-busy]') || /Keeping your island/.test(text())) bad.push(`${label}: "Keeping your island…" still on screen after the error`);
+    else t.event('no-keeping-toast', `${label}: no "Keeping your island…" toast left`);
+    const gamesReq = log.find((r) => r.method === 'POST' && /\/v1\/games$/.test(r.url));
+    if (!gamesReq) bad.push(`${label}: POST /v1/games was not aborted by the page`);
+    else if (gamesReq.ms < 14000 || gamesReq.ms > 16500) bad.push(`${label}: POST /v1/games aborted after ${gamesReq.ms} ms (expected the 15 s timeout)`);
+    else t.event('request-aborted', `${label}: ${log.length} request(s) aborted; POST /v1/games at ${gamesReq.ms} ms`);
+    dismissOverlays(doc, win);
+
+    // 2. a server that answers, with no live room
+    mode = 'ok';
+    tap(save(), win);
+    const gotNote = await until(() => [...doc.querySelectorAll('.gs-toast')].some((n) => /Saved/.test(n.textContent)), 8000, `${label}: Saved after a save with no live room`).then(() => true, () => false);
+    if (!gotNote) bad.push(`${label}: no "Saved" line after a save with no live room`);
+    else {
+      const lines = [...doc.querySelectorAll('.gs-toast')].filter((n) => /Saved/.test(n.textContent)).map((n) => n.textContent.trim());
+      if (lines.length !== 1 || lines[0] !== "Saved. Friends can't join right now.") bad.push(`${label}: expected the one line "Saved. Friends can't join right now.", got ${JSON.stringify(lines)}`);
+      else t.event('saved-no-live-room', `${label}: ${lines[0]}`);
+      if (rawError.test(text()) || /no live room/i.test(text())) bad.push(`${label}: raw error text on screen with no live room`);
+      t.scene(`Phone ${label}: saved, no live room`);
+    }
+    await wait(3600);
+
+    // 3. kept island, network cut
+    mode = 'cut';
+    const t1 = Date.now();
+    tap(save(), win);
+    await until(() => sheetOf(), 16000, `${label}: the save error on a kept island`).then(() => t.event('save-error-kept', `${label}: ${Date.now() - t1} ms`), (e) => { bad.push(`${label}: ${e.message}`); });
+    dismissOverlays(doc, win);
+  } finally {
+    win.fetch = realFetch;
+    try { win.localStorage.removeItem('hg_sandbox_island'); win.localStorage.removeItem('hg_sandbox_return'); } catch { /* fine */ }
+  }
 }
