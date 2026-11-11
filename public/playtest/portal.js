@@ -95,9 +95,9 @@ const SCENARIOS = [
     description: 'options: laps (default 1; the world has 3), touch (true: the phone controls, ?touch=1, and the frame rate is measured), ghost (false: one run only), signup (false: stop at the account sheet; always on live), watch (seconds of intro to watch), name, what',
   },
   {
-    id: 'vehicle-feel', title: 'Game feel in the 4x4: the view widens, the body leans, dust, the engine climbs, the handbrake drift squeals, and a landing dips the view with dust and a thud', seconds: 240, tags: ['full'],
+    id: 'vehicle-feel', title: 'Game feel in the 4x4: the view widens, the body leans, dust, the engine climbs, the handbrake drift squeals, a landing dips the view; then the effects by surface (road dust, sand plume and tracks, grass bits, shallows spray), headlights at dusk, and the helicopter\'s downwash over grass and sea', seconds: 480, tags: ['full'],
     starts: ['sandbox'],
-    description: 'the first-minutes path to the account sheet, then the 4x4 driven with real keys (straight, bends, handbrake) and one named jump shortcut; logs fov-widened, engine-pitch, dust, body-roll, drift-squeal, landing and the frame rate (driveFps). Options: touch (true: the phone controls, ?touch=1, and under 30 fps is a problem), signup (false: stop at the account sheet; always on live), watch',
+    description: 'the first-minutes path to the account sheet, then the 4x4 driven with real keys or, with touch: true, the stick (straight, bends, handbrake) and one named jump shortcut, then across road, sand, shallows and meadow (surface-switch, wheel-effect, tracks-on-sand, tracks-faded, surfaces-driven; surfaceDriveFps) with the headlights at dusk (headlights-on, brake-lights, a named clock shortcut) and, on a computer, the helicopter low over grass and sea (rotor-blur, downwash-ring-grass, spray-disc-sea); logs fov-widened, engine-pitch, dust, body-roll, drift-squeal, landing and the frame rate (driveFps). Options: touch (true: the phone controls, ?touch=1, and under 30 fps is a problem), signup (false: stop at the account sheet; always on live), watch',
   },
   {
     id: 'rocket-blast-feel', title: 'Game feel of the rocket launcher: recoil and muzzle flash, a smoke trail, hit-stop, shake, a shockwave, debris and embers, and ten barrels that explode in a rolling chain (30 fps on the phone tier)', seconds: 300, tags: ['full'],
@@ -2979,15 +2979,20 @@ async function stageFeel(t, ctx) {
   await t.wait(1500);
   const jeep = () => W().byId.get('jeep');
   const driving = () => G().player && G().player.controller === 'drive';
+  const touch = Boolean(ctx.options.touch || HP().touchUi);
   if (!driving()) {
-    await walkTo(t, 'jeep', 3.2, 60000, 'the 4x4');
-    for (let i = 0; i < 4 && !driving(); i++) { await tap(t, 'e'); await t.wait(700); }
+    await goTo(t, ctx, 'jeep', 3.2, 60000, 'the 4x4');
+    for (let i = 0; i < 4 && !driving(); i++) { if (touch && $('#touch .b')) await tapButton(t, $('#touch .b')); else await tap(t, 'e'); await t.wait(700); }
     if (!driving()) {
     t.problem('warning', 'E did not get the player into the 4x4 (the jeep: ' + (jeep() ? Math.round(Math.hypot(jeep().x - W().player.x, jeep().z - W().player.z)) + ' m away' : 'missing') + '): the hook put them in');
     await HOOKS.enterVehicle(t, 'jeep');
   }
   if (!driving()) throw new Error('timed out getting into the 4x4 (E and hooks.enterVehicle)');
   }
+  // The pedals: the keys, or on a phone the stick (a: -1 left .. 1 right, f: -1 back .. 1 forward).
+  let pad = null;
+  const dr = (a, f) => { if (touch) { if (!pad) pad = stickHold(); pad.set(a, f); } else setKeys({ w: f > 0, s: f < 0, d: a > 0, a: a < 0 }); };
+  const undrive = () => { if (pad) { pad.release(); pad = null; } releaseAll(); };
   const F = () => HP().vehicles.feel;
   if (!F()) throw new Error('the vehicles feel layer is not loaded');
   const cam = () => W().scene.activeCamera;
@@ -3006,7 +3011,7 @@ async function stageFeel(t, ctx) {
   const seen = { fov: 0, rpm: 0, roll: 0, skid: 0, speed: 0 };
   const peek = () => { const s = F().sample(), j = jeep(); seen.fov = Math.max(seen.fov, s.fov); seen.rpm = Math.max(seen.rpm, s.rpm || 0); seen.roll = Math.max(seen.roll, Math.abs(s.roll)); seen.skid = Math.max(seen.skid, s.skid); seen.speed = Math.max(seen.speed, j ? j.speed : 0); return s; };
   const puffs0 = F().sample().puffs;
-  setKeys({ w: true });
+  dr(0, 1);
   const marks = [];
   for (let i = 0; i < 9; i++) {
     await t.wait(500);
@@ -3020,18 +3025,18 @@ async function stageFeel(t, ctx) {
   t.event('dust', `${F().sample().puffs - puffs0} puffs kicked up on the way`);
   // 2) weave: the body leans
   for (let i = 0; i < 4; i++) {
-    setKeys({ w: true, d: i % 2 === 0, a: i % 2 === 1 });
+    dr(i % 2 === 0 ? 1 : -1, 1);
     await t.wait(700);
     peek();
     if (i === 1) t.scene('4x4: leaning in a bend');
   }
   t.event('body-roll', `leaned up to ${(seen.roll * 57.3).toFixed(1)} degrees in the bends`);
-  // 3) the handbrake: a drift
-  setKeys({ w: true, a: true });
-  keyEv('keydown', ' ');
+  // 3) the handbrake: a drift (a phone has no handbrake: a hard turn at speed)
+  dr(-1, 1);
+  if (!touch) keyEv('keydown', ' ');
   for (let i = 0; i < 6; i++) { await t.wait(250); peek(); }
-  keyEv('keyup', ' ');
-  setKeys({ w: true });
+  if (!touch) keyEv('keyup', ' ');
+  dr(0, 1);
   t.event('drift-squeal', `tire squeal up to ${seen.skid.toFixed(2)}`);
   t.scene('4x4: drifting');
   // 4) a jump: a push upward at speed (named shortcut), then the landing
@@ -3043,7 +3048,7 @@ async function stageFeel(t, ctx) {
   let dip = 0;
   for (let i = 0; i < 24; i++) { await t.wait(100); dip = Math.min(dip, F().sample().dip); if (i === 3) t.scene('4x4: in the air'); }
   const after = F().sample();
-  releaseAll();
+  dr(0, 0);
   const sounds = (HP().juice && HP().juice.sound ? HP().juice.sound.played : 0) - sounds0;
   if (after.landed > before.landed) t.event('landing', `camera dip ${dip.toFixed(3)} m, ${after.puffs - before.puffs} puffs of dust, ${sounds} sounds`);
   else t.problem('warning', 'the 4x4 did not land from the jump in time');
@@ -3051,9 +3056,167 @@ async function stageFeel(t, ctx) {
   running = false;
   const fps = Math.round(frames / ((performance.now() - t0) / 1000));
   t.metric('driveFps', fps);
-  t.event('drive-fps', `${fps} fps while driving${ctx.options.touch ? ' (phone controls)' : ''}`);
-  if (ctx.options.touch && fps < 30) t.problem('error', `the phone tier held ${fps} fps while driving (30 needed)`);
+  t.event('drive-fps', `${fps} fps while driving${touch ? ' (phone controls)' : ''}`);
+  if (touch && fps < 30) t.problem('error', `the phone tier held ${fps} fps while driving (30 needed)`);
+  t.progress(0.72);
+  undrive();
+  await driveSurfaces(t, ctx, { jeep, driving, touch, dr, undrive });
+  if (!touch) await flyOver(t, ctx, { jeep, driving });
   t.progress(1);
+}
+
+// ---- surface effects (vehicles-vfx.js): the 4x4 across road, sand, shallows and meadow, the headlights at dusk, then the helicopter low over grass and sea
+/** The nearest point (engine numbers) round (x, z) where the ground is what `want` says: 'road' (painted dirt), 'sand' (dry),
+ *  'shallows' (a little under the sea), 'grass' (meadow), 'sea' (anywhere the water is deeper than 1 m). Scans rings, 6 to 140 m. */
+function findGround(x, z, want, from = 6) {
+  const T = HP().terrain, Wt = HP().water;
+  if (!T || !T.heightAt || !T.materialAt) return null;
+  const lvl = (px, pz) => { try { const y = Wt && Wt.surfaceAt ? Wt.surfaceAt(px, pz) : null; return y === null || y === undefined ? null : y; } catch { return null; } };
+  for (let r = from; r <= 140; r += 6) {
+    for (let k = 0; k < 24; k++) {
+      const a = (k / 24) * Math.PI * 2 + r * 0.7, px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r;
+      const h = T.heightAt(px, pz), m = T.materialAt(px, pz), w = lvl(px, pz);
+      if (h === null || h === undefined) continue;
+      const ok = want === 'road' ? m === 'dirt' && h > 0.5 && w === null
+        : want === 'sand' ? m === 'sand' && h > (w === null ? 0.3 : w + 0.6)
+        : want === 'shallows' ? w !== null && h < w - 0.15 && h > w - 1.0
+        : want === 'sea' ? w !== null && h < w - 1.0
+        : m === 'grass' && h > 1 && w === null;
+      if (ok) return [px, h, pz];
+    }
+  }
+  return null;
+}
+async function driveSurfaces(t, ctx, { jeep, driving, touch, dr, undrive }) {
+  const F = () => HP().vehicles.feel, VF = () => HP().vehicles.vfx;
+  if (!VF()) throw new Error('the vehicles surface effects (vehicles-vfx.js) are not loaded');
+  const kindOf = { road: 'dust', sand: 'sand', grass: 'grass', shallows: 'spray' };
+  const seen = new Set(), logged = new Set();
+  const note = () => { for (const sw of VF().sample().switches) { const k = `${sw.t}`; if (!logged.has(k)) { logged.add(k); t.event('surface-switch', `${sw.from || 'start'} -> ${sw.ground}: ${sw.effect} (${sw.speed} m/s)`); seen.add(sw.ground); } } };
+  let frames = 0, running = true;
+  const t0 = performance.now();
+  const raf = () => { frames++; if (running) requestAnimationFrame(raf); };
+  requestAnimationFrame(raf);
+  let pad = null;
+  const drive = (a, f) => { if (touch) { if (!pad) pad = stickHold(); pad.set(a, f); } else setKeys({ w: f > 0, s: f < 0, d: a > 0, a: a < 0 }); };
+  const leg = async (want, ms) => {
+    const j = jeep();
+    const g = findGround(j.x, j.z, want);
+    if (!g) { t.problem('error', `no ${want} ground found within 140 m of the 4x4`); return false; }
+    const e0 = VF().sample().emitted[kindOf[want]];
+    const tl = performance.now();
+    steer.last = null; steer.slow = 0; steer.back = 0;
+    let got = false;
+    for (;;) {
+      const j2 = jeep(), s = VF().sample();
+      const r = steerAt(j2, g);
+      // steerAt sets the keys; a phone says the same on the stick
+      if (touch) { const d = down.has('d') ? 1 : down.has('a') ? -1 : 0, f = down.has('w') ? 1 : down.has('s') ? -1 : 0; setKeys({}); drive(d, f); }
+      note();
+      if (s.surface === want && VF().sample().emitted[kindOf[want]] - e0 > 8) { got = true; if (r.dist < 12 || performance.now() - tl > 3500) break; }
+      if (r.dist < 4) break;
+      if (performance.now() - tl > ms) break;
+      await t.wait(100);
+    }
+    note();
+    if (!got) t.problem('error', `driving toward ${want} ground for ${Math.round((performance.now() - tl) / 1000)} s never showed its ${kindOf[want]} effect (on ${VF().sample().surface})`);
+    else t.event('wheel-effect', `${kindOf[want]} on the ${want}: ${VF().sample().emitted[kindOf[want]] - e0} particles, ${Math.round(jeep().speed)} m/s`);
+    return got;
+  };
+  try {
+    await leg('road', 22000); t.scene('4x4: pale dust on the road');
+    await leg('sand', 30000); t.scene('4x4: a sand plume and tracks on the beach');
+    const tr = VF().sample().tracks;
+    if (tr.written > 3) t.event('tracks-on-sand', `${tr.written} track quads laid (${tr.live} showing, at most ${tr.cap})`); else t.problem('error', `the 4x4 left ${tr.written} tracks on the beach`);
+    await t.wait(1200); t.scene('4x4: tracks on the sand');
+    await leg('shallows', 30000); t.scene('4x4: spray and a wake in the shallows');
+    await leg('grass', 40000); t.scene('4x4: grass and dirt bits on the meadow');
+  } finally { running = false; }
+  note();
+  const fps = Math.round(frames / ((performance.now() - t0) / 1000));
+  t.metric('surfaceDriveFps', fps);
+  const need = ['road', 'sand', 'shallows', 'grass'].filter((k) => !seen.has(k));
+  t.event('surfaces-driven', `${[...seen].join(', ')}: ${JSON.stringify(VF().sample().emitted)}; ${fps} fps over ${Math.round((performance.now() - t0) / 1000)} s${touch ? ' (phone controls)' : ''}`);
+  if (need.length) t.problem('error', `the 4x4 never switched effect on: ${need.join(', ')}`);
+  if (touch && fps < 30) t.problem('error', `the phone tier held ${fps} fps over the four surfaces (30 needed)`);
+  // Headlights at dusk (the clock moved: a named shortcut), the road ahead lit.
+  const day0 = HP().sky.day;
+  const lt = HP().lighting;
+  if (lt && lt.setHour) {
+    lt.setHour(20.4);
+    t.event('setup-shortcut', 'the world clock set to dusk (H.lighting.setHour) so the lights can come on by themselves');
+    await t.until(() => { const l = VF().sample().lights; return l && l.on; }, 8000, 'the headlights to switch on at dusk').catch((e) => t.problem('error', e.message));
+    drive(0, 1);
+    await t.wait(1600);
+    const l = VF().sample().lights;
+    const v = jeep().vehicle;
+    t.event('headlights-on', `day ${HP().sky.day.toFixed(2)} (was ${day0.toFixed(2)}): lamp on ${l && l.on}, spot light ${v.light ? `range ${Math.round(v.light.range)} m, intensity ${v.light.intensity}` : 'missing'}, ${l && l.cone ? 'soft cone' : 'no cone (phone: no volumetric)'}, ${l ? l.flares : 0} lens flares`);
+    if (!v.light) t.problem('error', 'the headlight did not light the road ahead (no spot light)');
+    t.scene('4x4: headlights at dusk');
+    drive(0, -1); await t.wait(900);
+    const b = VF().sample().lights;
+    t.event('brake-lights', `brake lights ${b && b.brake ? 'on' : 'not seen'} under the brakes`);
+    t.scene('4x4: brake lights');
+    drive(0, 0);
+  } else t.problem('warning', 'no H.lighting.setHour: the dusk headlights were not checked');
+  if (pad) { pad.release(); pad = null; }
+  undrive();
+  // Tracks fade: wait with the car still. The last mark is at most 30 s old when it is gone.
+  const t1 = performance.now();
+  await t.until(() => VF().sample().tracks.live === 0, 34000, 'the tyre tracks to fade out').catch((e) => t.problem('error', e.message));
+  t.event('tracks-faded', `${Math.round((performance.now() - t1) / 1000)} s after the car stopped, ${VF().sample().tracks.live} tracks left`);
+  if (lt && lt.release) lt.release();
+}
+
+async function flyOver(t, ctx, { jeep, driving }) {
+  const VF = () => HP().vehicles.vfx;
+  const heli = () => W().byId.get('heli');
+  if (!heli()) { t.problem('warning', 'no helicopter in this world'); return; }
+  releaseAll();
+  const flying = () => G().player && G().player.controller === 'drive' && HP().vehicles.current && HP().vehicles.current.vehicle === heli().vehicle;
+  if (driving()) { await tap(t, 'e'); await t.wait(900); }
+  await goTo(t, ctx, 'heli', 3.5, 70000, 'the helicopter');
+  for (let i = 0; i < 4 && !flying(); i++) { await tap(t, 'e'); await t.wait(800); }
+  if (!flying()) { t.problem('warning', 'E did not put the player in the helicopter: the hook did'); await HOOKS.enterVehicle(t, 'heli'); }
+  if (!flying()) throw new Error('timed out getting into the helicopter');
+  t.event('in-the-helicopter');
+  const hk = (k, on) => { if (on && !down.has(k)) { down.add(k); keyEv('keydown', k); } if (!on && down.has(k)) { down.delete(k); keyEv('keyup', k); } };
+  keyEv('keydown', ' '); down.add(' ');
+  await t.wait(3500);
+  t.scene('Helicopter: rotor blur, lifting off');
+  const bl = VF().sample().rotorBlur;
+  t.event('rotor-blur', `the rotor disc at ${bl.toFixed(2)} opacity`);
+  if (bl < 0.05) t.problem('error', 'no rotor blur disc while the rotor turns');
+  // Fly at a point keeping 3 to 6 m up: space climbs, C descends, W tips it forward, A / D turn.
+  const hover = async (want, label) => {
+    const h = heli(), g = findGround(h.x, h.z, want, 10);
+    if (!g) { t.problem('error', `no ${want} ground found for the helicopter`); return; }
+    const t0 = performance.now();
+    let ok = false, still = 0;
+    while (performance.now() - t0 < 45000) {
+      const h2 = heli(), v = h2.vehicle, s = VF().sample();
+      const tx = g[0] - h2.x, tz = g[2] - h2.z, dist = Math.hypot(tx, tz);
+      const err = Math.atan2(tx * v.right.x + tz * v.right.z, tx * v.fwd.x + tz * v.fwd.z);
+      const alt = s.wash && s.wash.alt !== undefined && s.wash.mine !== false ? s.wash.alt : 9;
+      hk('w', dist > 7 && Math.abs(err) < 0.7);
+      hk('d', err > 0.12); hk('a', err < -0.12);
+      // altitude: climb under 3 m, sink over 6 m (a wash reports only under 8 m: no report means high)
+      if (!s.wash || !s.wash.ring || alt > 6) { hk(' ', false); hk('c', true); } else if (alt < 3) { hk('c', false); hk(' ', true); }
+      if (s.wash && s.wash.ring && s.wash.alt < 7 && s.wash.ground === (want === 'grass' ? 'grass' : 'shallows') && dist < 12) { still += 0.1; if (still > 1.5) { ok = true; break; } } else still = 0;
+      await t.wait(100);
+    }
+    for (const k of ['w', 'a', 'd', 'c', ' ']) hk(k, false);
+    const s = VF().sample();
+    if (ok) {
+      t.event(want === 'grass' ? 'downwash-ring-grass' : 'spray-disc-sea', `${label}: ring ${s.wash.radius} m wide at ${s.wash.alt} m up, strength ${s.wash.strength}${s.wash.spray ? ', spray disc' : ''}; ${JSON.stringify(VF().sample().emitted)}`);
+      t.scene(`Helicopter: ${label}`);
+      await t.wait(900);
+    } else t.problem('error', `the helicopter never showed its ${label} (${JSON.stringify(s.wash)})`);
+  };
+  await hover('grass', 'a downwash ring over grass');
+  await hover('sea', 'a spray disc over the sea');
+  t.event('washes', `${VF().washes().length} wash(es) told to the grass this frame`);
+  releaseAll();
 }
 
 // `rocket-blast-feel`: the same way in to the account, then the rocket launcher at the fuel barrels (mayhem-feel.js): the
