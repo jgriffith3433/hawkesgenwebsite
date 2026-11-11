@@ -1,9 +1,9 @@
 // The beginning (J's story): the first time a player enters a world, the camera looks up at the Overseer in the sky,
 // the Overseer beams the player down and says: "I have given you the power of free will. Do with it what you will."
-// About fifteen seconds, and the player is in control from the moment the beam lands (about 2 s in): they can walk and
-// look while the four lines play, each captioned with the Overseer's name in the letterbox bar (a dark plate on a phone).
-// One tap, click, Esc, Space or Enter skips the rest and the camera blends behind the player in 0.4 s. A guest's intro
-// ends with the beam's light on the mirror and the camera turned to it; the "first thing" card is for a signed-in player.
+// About fourteen seconds. A short look-up (~5.5 s, gently pushing in) frames the player fully under the ship; captions sit
+// on a dark plate (no letterbox crop); the greeting plays as the beam lands; control from ~2 s. A large Skip pill, plus
+// any tap/click/Esc/Space/Enter, ends it and blends the camera behind the player. A guest's intro ends facing the mirror;
+// the "first thing" card is for a signed-in player.
 //   - config.overseer.intro: "first" (the default: once per player, remembered on this device), "always", "short" (a friend answering an invitation: the beam and one line, about 4.5 s) or false.
 //   - The sound: a score made here (a hum, the beam's swell and whoosh, a chime, a tone under each line). The voice: a
 //     sound asset named "overseer-intro" in the game, else the Overseer's own line (overseer.js VOICES).
@@ -25,7 +25,7 @@
   // Greeting, the gift, the gift's second half, then the invitation that starts building (canon line 4, "Ask, and I will send it down").
   const LINES = ['You found your way. Good.', 'I have given you the power of free will.', 'Do with it what you will.', 'Ask, and I will send it down.'];
   const PROMPT = { text: 'Tell the Overseer what to make first: a lighthouse, a tune, a hat.', label: 'Ask for your first thing' };
-  const SECONDS = 15.5;
+  const SECONDS = 14;
 
   let playing = null;
   let playedThisPage = false;
@@ -200,22 +200,18 @@
     } catch (err) { H.report(err, 'intro'); }
   }
 
-  // ------------------------------------------------------------------ the caption: the Overseer's name and the line, in the letterbox bar
+  // ------------------------------------------------------------------ the caption: the Overseer's name and the line on a dark plate (no letterbox crop)
+  const LOOK_SEC = 5.5; // sky look with a push-in; then the camera settles behind the player while the lines finish
   const CAP_CSS = '.ov-cap{position:fixed;left:0;right:0;z-index:31;display:flex;justify-content:center;align-items:center;pointer-events:none;box-sizing:border-box;opacity:0;transition:opacity .35s;font-family:system-ui,sans-serif;color:#fff}'
     + '.ov-cap.on{opacity:1}.ov-cap .in{display:grid;gap:3px;text-align:center;max-width:min(92vw,900px)}'
     + '.ov-cap b{font:700 12px/1 system-ui,sans-serif;letter-spacing:.22em;text-transform:uppercase;color:#9fd0ff}'
     + '.ov-cap span{font:600 clamp(18px,2.1vw,26px)/1.25 system-ui,sans-serif;text-shadow:0 1px 6px rgba(0,0,0,.8)}'
-    + '.ov-cap.bar{bottom:0}'
     + '.ov-cap.plate{top:max(64px,calc(env(safe-area-inset-top) + 60px));z-index:28;padding:0 12px}'
     + '.ov-cap.plate .in{background:rgba(6,9,22,.86);border:1px solid rgba(160,190,255,.35);border-radius:12px;padding:10px 16px 12px;box-shadow:0 6px 24px rgba(0,0,0,.5)}'
     + '.ov-cap.plate span{font-size:clamp(17px,4.6vw,22px)}'
+    + '.ov-skip{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));z-index:34;appearance:none;border:0;cursor:pointer;color:#06091a;background:linear-gradient(#f4f7ff,#b9ccff);font:700 clamp(16px,2.4vw,20px)/1 system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;padding:.85em 1.6em;min-width:132px;min-height:48px;border-radius:999px;box-shadow:0 0 28px rgba(140,175,255,.7);pointer-events:auto;touch-action:manipulation}'
+    + '.ov-skip:focus-visible{outline:3px solid #fff;outline-offset:4px}'
     + 'body.ov-intro-on .hc-chat .hc-log{opacity:0!important}';
-  /** Where the words go: the letterbox bar when there is room (a wide window), else a dark plate near the top, clear of the stick and buttons. */
-  function captionBox() {
-    const iw = window.innerWidth, ih = window.innerHeight;
-    const bar = iw >= ih ? Math.round((ih - iw / 2.39) / 2) : 0;
-    return bar >= 60 ? { mode: 'bar', h: bar } : { mode: 'plate', h: 0 };
-  }
 
   /** Plays the intro now (resolves { skipped } when it ends). The player is in control from the moment the beam lands. */
   async function play() {
@@ -237,39 +233,51 @@
     const controls0 = p.controls;
     p.node.visibility = 0;
     p.controls = false; // until the beam lands (about 2 s in)
-    // Looking up at the Overseer, over the player's shoulder: the game's own camera, which settles behind them by itself.
+    // Looking up at the Overseer over the player's shoulder: pull the third-person camera back so the body stays in frame.
     const heading = Math.atan2(hx, hz);
-    try { p.node.rotation.y = heading; w.camera.yaw = heading; w.camera.pitch = -0.32; } catch { /* a camera without them */ }
+    const camOpts = w.camera && w.camera.opts;
+    const dist0 = camOpts && Number(camOpts.distance);
+    const LOOK = short ? 2.2 : LOOK_SEC;
+    try {
+      p.node.rotation.y = heading;
+      w.camera.yaw = heading;
+      w.camera.pitch = -0.38;
+      w.camera.idleSince = performance.now();
+      if (w.camera.mode === 'third' && camOpts) camOpts.distance = Math.max(7.5, Number(dist0) || 5);
+    } catch { /* a camera without them */ }
     const timers = [];
     const later = (s, fn) => timers.push(setTimeout(() => { if (playing && W() === w) fn(); }, s * 1000));
-    const S = H.share;
-    const box = captionBox();
     if (!document.getElementById('ov-cap-css')) { const st = document.createElement('style'); st.id = 'ov-cap-css'; st.textContent = CAP_CSS; document.head.appendChild(st); }
     const capEl = document.createElement('div');
-    capEl.className = `ov-cap ${box.mode}`;
-    if (box.mode === 'bar') capEl.style.height = `${box.h}px`;
+    capEl.className = 'ov-cap plate';
     capEl.setAttribute('aria-live', 'polite');
     capEl.innerHTML = '<div class="in"><b></b><span></span></div>';
     document.body.appendChild(capEl);
+    const skipEl = document.createElement('button');
+    skipEl.type = 'button';
+    skipEl.className = 'ov-skip';
+    skipEl.textContent = 'Skip ›';
+    skipEl.setAttribute('aria-label', 'Skip the introduction');
+    document.body.appendChild(skipEl);
     document.body.classList.add('ov-intro-on');
-    if (box.mode === 'bar' && S && S.letterbox) S.letterbox(true, 2.39);
-    let capUntil = 0, capTimer = null;
+    let capTimer = null;
     /** A line in the caption: the speaker's name and the words, held at least 2 s (a missing voice clip changes nothing). */
     const caption = (line, secs) => {
       capEl.querySelector('b').textContent = 'Overseer';
       capEl.querySelector('span').textContent = line;
       capEl.classList.add('on');
       const hold = Math.max(2, secs);
-      capUntil = performance.now() + hold * 1000;
       clearTimeout(capTimer);
       capTimer = setTimeout(() => capEl.classList.remove('on'), hold * 1000);
     };
-    let audio = null, ended = false;
+    let audio = null, ended = false, looking = true;
     let done;
     const finished = new Promise((r) => { done = r; });
     const SLOW = 0.4;
-    /** One tap, click, Esc, Space or Enter: the rest is skipped and the camera blends behind the player in 0.4 s. */
+    /** One tap, click, Esc, Space or Enter, or the Skip pill: the rest is skipped and the camera blends behind the player. */
     const skip = () => { if (playing && !ended) end(true); };
+    skipEl.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); skip(); });
+    skipEl.addEventListener('pointerdown', (e) => e.stopPropagation());
     const t0 = performance.now();
     const onKey = (e) => {
       if (performance.now() - t0 < 400 || e.repeat) return;
@@ -278,7 +286,7 @@
       if (e.target && e.target.closest && e.target.closest('input,textarea,[contenteditable]')) return;
       skip();
     };
-    const OUT = '#touch,.tl-zone,button,a,input,textarea,select,.hp-enter,.gs-ui,.hc-form,.hc-card,.hc-panel';
+    const OUT = '#touch,.tl-zone,button,a,input,textarea,select,.hp-enter,.gs-ui,.hc-form,.hc-card,.hc-panel,.ov-skip';
     let down = null;
     const onDown = (e) => {
       if (performance.now() - t0 < 400 || (e.target && e.target.closest && e.target.closest(OUT))) { down = null; return; }
@@ -299,8 +307,13 @@
     if (H.speech) H.speech.hold('intro');
     g.emit('intro', { state: 'start' });
 
+    const restoreDist = () => {
+      try { if (w.camera && w.camera.mode === 'third' && camOpts && Number.isFinite(dist0)) camOpts.distance = dist0; } catch { /* fine */ }
+    };
     /** Gives the camera back behind the player over ~0.4 s. */
     const blendBehind = () => {
+      looking = false;
+      restoreDist();
       const s0 = performance.now();
       const y0 = w.camera.yaw, q0 = w.camera.pitch;
       const dy = (() => { let d = (p.node.rotation.y - y0) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; })();
@@ -308,14 +321,31 @@
         if (W() !== w || !p.alive) return;
         const k = Math.min(1, (performance.now() - s0) / (SLOW * 1000));
         const e = k * k * (3 - 2 * k);
-        try { w.camera.yaw = y0 + dy * e; w.camera.pitch = q0 + (0.32 - q0) * e; } catch { /* fine */ }
+        try { w.camera.yaw = y0 + dy * e; w.camera.pitch = q0 + (0.32 - q0) * e; w.camera.idleSince = performance.now(); } catch { /* fine */ }
         if (k < 1) requestAnimationFrame(step);
       };
       step();
     };
+    // A short push-in while looking at the Overseer (not a static hold); then settle behind the player.
+    const lookStep = () => {
+      if (!playing || ended || W() !== w || !looking) return;
+      const t = (performance.now() - t0) / 1000;
+      if (t >= LOOK) { blendBehind(); return; }
+      const k = Math.min(1, t / LOOK);
+      const e = k * k * (3 - 2 * k);
+      try {
+        w.camera.pitch = -0.38 + 0.18 * e;
+        if (w.camera.mode === 'third' && camOpts) camOpts.distance = Math.max(7.5, Number(dist0) || 5) - 1.2 * e;
+        w.camera.idleSince = performance.now(); // hold the look; don't idle-recenter mid-shot
+      } catch { /* fine */ }
+      requestAnimationFrame(lookStep);
+    };
+    requestAnimationFrame(lookStep);
+
     function end(skipped) {
       if (ended) return;
       ended = true;
+      looking = false;
       for (const t of timers) clearTimeout(t);
       clearTimeout(capTimer);
       window.removeEventListener('keydown', onKey, true);
@@ -325,9 +355,10 @@
       stopScore(skipped ? 0.4 : 2.5);
       if (H.speech) { H.speech.hold('intro', false); if (skipped) H.speech.clear('intro'); }
       capEl.classList.remove('on');
+      skipEl.remove();
       setTimeout(() => capEl.remove(), 400);
       document.body.classList.remove('ov-intro-on');
-      if (S && S.letterbox && box.mode === 'bar') S.letterbox(false);
+      restoreDist();
       playing = null;
       if (W() === w && p.alive) {
         p.node.visibility = vis;
@@ -356,7 +387,7 @@
       done({ skipped: Boolean(skipped) });
     }
 
-    // The beam: the player appears in it and is in control as it lands.
+    // The beam: the player appears in it and is in control as it lands; the greeting is said then (canon).
     later(short ? 0.6 : 1.3, () => {
       OV.beam(p, { radius: 1.5, seconds: short ? 2.4 : 3.4 });
       const s0 = performance.now();
@@ -367,14 +398,13 @@
     const say = (line, secs) => { caption(line, secs); OV.say(line, secs, { owner: 'intro', priority: 'important', external: true }); };
     if (short) later(1.4, () => say(LINES[2], 2.8));
     else {
-      // The voice clip is the two free-will lines, so it starts with them.
-      later(5.8, () => { audio = voice(); if (audio) audio.play().catch(() => {}); });
-      // The greeting and the invitation have clips of their own (quality rule 6: no unvoiced story line): the desk plays them.
+      // The greeting as the player appears; the free-will voice clip covers the next two lines.
       const spoken = (line, secs, clip) => { caption(line, secs); OV.say(line, secs, { owner: 'intro', priority: 'important', voice: clip }); };
-      later(3.0, () => spoken(LINES[0], 2.6, 'overseer-found-your-way.mp3'));
-      later(6.0, () => say(LINES[1], 3.0));
-      later(9.2, () => say(LINES[2], 2.6));
-      later(12.3, () => spoken(LINES[3], 3.0, 'overseer-ask.mp3'));
+      later(1.5, () => spoken(LINES[0], 2.6, 'overseer-found-your-way.mp3'));
+      later(4.3, () => { audio = voice(); if (audio) audio.play().catch(() => {}); });
+      later(4.5, () => say(LINES[1], 3.0));
+      later(7.7, () => say(LINES[2], 2.6));
+      later(10.8, () => spoken(LINES[3], 3.0, 'overseer-ask.mp3'));
     }
     later(SEC, () => end(false));
     return finished;

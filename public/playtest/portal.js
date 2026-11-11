@@ -466,7 +466,7 @@ async function stageFirstVisit(t, ctx) {
   t.metric && t.metric('firstMoveMs', ms);
   t.scene('First visit: walking under the beam');
 
-  // 2. Each line: a caption naming the Overseer, in the letterbox bar (desktop) or on a dark plate (phone), clear of the controls; and its voice.
+  // 2. Each line: a caption naming the Overseer on a dark plate (or in the letterbox bar if a shot still uses one), clear of the controls; and its voice.
   const rect = (el) => el.getBoundingClientRect();
   const hit = (a, b) => !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom);
   const caps = new Set();
