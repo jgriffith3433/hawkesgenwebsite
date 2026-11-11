@@ -8,7 +8,7 @@
 const H = window.HawkesPlay;
 const sfx = (name, o) => { if (game.hasAsset(name)) game.sound(name, o); };
 const pip = () => game.all('Pip')[0] || null;
-const say = (text, seconds = 4) => { const p = pip(); if (p && p.say) p.say(text, seconds); };
+const say = (text, seconds = 4) => { const p = pip(); if (p && p.say) { p.say(text, seconds); duck('pip', 0.35, Math.min(seconds, 4)); } };
 const overseer = (text, seconds = 5, voice = null) => {
   // Spoken through the Overseer (its voice, by name; the music and the sea dip under it), else just its words.
   if (voice && game.overseer && game.overseer.speak) game.overseer.speak(text, voice, seconds);
@@ -63,7 +63,52 @@ function loop(name, target) {
     return s;
   } catch { return null; }
 }
-const music = loop('meadow.mp3', MUSIC_VOLUME);
+// ---- The music: one theme per area, crossfaded (J, 2026-11-11: "the island's music changes as the player crosses it").
+// Themes are assets by name (made with Hawkes Gen; docs/world-bible.md "Music"); a theme whose file is not in the game
+// falls back to the old meadow loop, so the island is never silent. Each file is asked for only when the player nears
+// its area (the clearing's at once), so the new music stays under 3 MB and never holds the first frame.
+const THEMES = { clearing: 'music-clearing.mp3', road: 'music-road.mp3', pier: 'music-pier.mp3' };
+const DRIVE_LAYER = 'music-drive.mp3';
+const STINGERS = { drive: 'stinger-first-drive.mp3', fish: 'stinger-first-catch.mp3', boom: 'stinger-barrel-chain.mp3', fly: 'stinger-helicopter-view.mp3', launch: 'stinger-rocket-launch.mp3' };
+const MUSIC_FADE = 2.5; // seconds for a crossfade between themes (2-3 s: no hard cut)
+const musicTracks = {};
+for (const k of Object.keys(THEMES)) musicTracks[k] = loop(THEMES[k], MUSIC_VOLUME);
+const driveTrack = loop(DRIVE_LAYER, 0.1);
+const meadow = Object.values(musicTracks).some(Boolean) ? null : loop('meadow.mp3', MUSIC_VOLUME);
+const music = musicTracks.clearing || meadow;
+let theme = 'clearing';
+const mix = { clearing: 1, road: 0, pier: 0, drive: 0 }; // each theme's share now, moving toward its goal over MUSIC_FADE
+/** Which area the player is in (the same cuts as the ambience beds in modules/soundscape: road from x 38, pier from x 65). */
+function areaAt(x, was) {
+  const hy = 3; // (a few metres of hysteresis: standing on a line never flips it back and forth)
+  if (was === 'pier') return x > 65 - hy ? 'pier' : x > 38 - hy ? 'road' : 'clearing';
+  if (was === 'road') return x > 65 + hy ? 'pier' : x > 38 - hy ? 'road' : 'clearing';
+  return x > 65 + hy ? 'pier' : x > 38 + hy ? 'road' : 'clearing';
+}
+const trackFor = (k) => musicTracks[k] || music;
+function nearEnough(k, x) { return k === 'clearing' || (k === 'road' ? x > 18 : x > 45); }
+const stung = (window.__islandStung = window.__islandStung || new Set());
+/** One short phrase for a moment, once. Logged as a stinger event either way (the file may not be in the game yet). */
+function stinger(step) {
+  if (stung.has(step) || !STINGERS[step]) return;
+  stung.add(step);
+  const name = STINGERS[step];
+  const has = game.hasAsset(name);
+  logAudio(has ? 'stinger' : 'stinger-missing', name);
+  game.emit('stinger', { step, name, played: has });
+  if (has) { sfx(name, { volume: 0.7 }); duck('stinger', 0.4, 3); }
+}
+// Music dips under every voice line: the Overseer's through the speech desk, Pip's here (H.audio.duck, lowest wins).
+// Every dip and recovery is logged with the level it left and the level it came back to.
+function duck(owner, level, seconds) {
+  const A = H && H.audio;
+  if (!A || !A.duck) return;
+  const before = A.background ? A.background.gain.value : 1;
+  A.duck(owner, level);
+  game.emit('music-dip', { owner, level, before: Math.round(before * 100) / 100 });
+  logAudio('dip', owner);
+  game.after(seconds, () => { A.duck(owner, null); game.emit('music-recover', { owner }); logAudio('recover', owner); });
+}
 const sea = loop('ocean-waves.mp3', 0);
 const birds = loop('forest.mp3', 0.05);
 /** Asks for the file now; it plays and fades in when the browser says it can play through. */
@@ -84,7 +129,7 @@ function startSound() {
   if (sounding || game.mode !== 'play') return;
   sounding = true;
   // The music first (it carries the first minute), then the sea and the birds.
-  for (const s of [music, sea, birds]) fetchSound(s);
+  for (const s of [trackFor('clearing'), sea, birds]) fetchSound(s);
   gulls();
 }
 // Now and then a gull over the shore, heard only near the sea (the site's own sound, runtime.js siteSound).
@@ -127,7 +172,25 @@ game.every(0.25, () => {
   const want = SEA_MAX * near * up;
   seaVol += (want - seaVol) * 0.35; // (eased: no jumps as you walk)
   const level = (s, v) => { if (s) s.el.volume = Math.max(0, Math.min(1, v * s.fade)); };
-  level(music, music && music.target);
+  // The music: the area picks the theme; shares move toward it at 1/MUSIC_FADE a second (the loop runs every 0.25 s).
+  const area = areaAt(p.x, theme);
+  if (area !== theme) {
+    game.emit('music-change', { from: theme, to: area, fade: MUSIC_FADE });
+    logAudio('music-change', `${theme}>${area}`);
+    theme = area;
+  }
+  // Ask for the next area's file when the player is nearing it (and a driving layer once they sit in a vehicle).
+  for (const k of Object.keys(THEMES)) if (nearEnough(k, p.x)) fetchSound(trackFor(k));
+  const driving = Boolean(H.vehicles && H.vehicles.current);
+  if (driving) fetchSound(driveTrack);
+  const step = 0.25 / MUSIC_FADE;
+  for (const k of Object.keys(mix)) {
+    const goal = k === 'drive' ? (driving ? 1 : 0) : (k === theme ? 1 : 0);
+    mix[k] += Math.max(-step, Math.min(step, goal - mix[k]));
+  }
+  if (meadow) level(meadow, meadow.target);
+  else for (const k of Object.keys(THEMES)) level(musicTracks[k], MUSIC_VOLUME * mix[k]);
+  level(driveTrack, driveTrack && driveTrack.target * mix.drive);
   level(sea, seaVol);
   const onLand = d > 0;
   level(birds, onLand && h < 60 ? 0.05 : 0.01);
@@ -363,6 +426,7 @@ game.on('tour', (d) => {
   sfx(m.sound, { volume: 0.55 });
   confetti();
   game.camera.shake(0.08, 0.2);
+  stinger(d.step);
   game.after(0.6, () => say(m.pip, 6));
   if (m.npc) game.after(0.2, () => npc(m.npc[0], m.npc[1], m.npc[2]));
   if (m.pad) game.after(1.2, () => { const h = game.all('Helicopter').find((e) => e.alive); const O = H && H.overseer; try { if (h && O && O.beam) O.beam(h, { radius: 2.4, seconds: 3 }); } catch { /* fine */ } });
