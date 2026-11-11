@@ -213,6 +213,26 @@
     + '.ov-skip:focus-visible{outline:3px solid #fff;outline-offset:4px}'
     + 'body.ov-intro-on .hc-chat .hc-log{opacity:0!important}';
 
+  /** Resolves when the scene's shaders and textures are ready and five frames in a row came in under 50 ms (at most 12 s):
+   *  the intro's camera work then starts on a smooth frame, not under the world's own compile stalls. */
+  function settled(w) {
+    const scene = w.scene;
+    const ready = new Promise((res) => {
+      const t = setTimeout(res, 8000);
+      try { scene.whenReadyAsync().then(() => { clearTimeout(t); res(); }, () => { clearTimeout(t); res(); }); } catch { clearTimeout(t); res(); }
+    });
+    const calm = new Promise((res) => {
+      let last = 0, good = 0;
+      const step = (now) => {
+        if (last) good = now - last < 50 ? good + 1 : 0;
+        last = now;
+        if (good >= 5 || w !== W()) res(); else requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    });
+    return ready.then(() => Promise.race([calm, new Promise((res) => setTimeout(res, 4000))]));
+  }
+
   /** Plays the intro now (resolves { skipped } when it ends). The player is in control from the moment the beam lands. */
   async function play() {
     const w = W(), g = G();
@@ -221,7 +241,9 @@
     const c = OV.position;
     if (!p || !p.alive || !c) return { skipped: true };
     playedThisPage = true;
+    const quiet = settled(w); // compiles behind the "Enter" veil
     await waitForSound();
+    await quiet;
     if (W() !== w || !p.alive) return { skipped: true };
     const short = isShort();
     const SEC = short ? 4.5 : SECONDS;
