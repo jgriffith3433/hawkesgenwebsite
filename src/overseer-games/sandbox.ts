@@ -142,7 +142,8 @@ export const RACES = {
  *  at y 4 within ~14 m of the start; the path runs east to the dock (the beach at x ~62, the pier out to x 82). */
 export const SANDBOX = {
   config: {
-    background: '#74b9ea', ambient: 0.78, sun: 1, gravity: -24, time: 'afternoon', motes: '#fff3d6',
+    // Clock runs for islander routines (living.js); light stays fixed so the island keeps its afternoon look.
+    background: '#74b9ea', ambient: 0.78, sun: 1, gravity: -24, time: { hour: 15.5, day: 120, light: false }, motes: '#fff3d6',
     fog: { color: '#a9d4f2', start: 260, end: 2200 },
     planet: PLANET,
     // (The start faces east, down the path to the dock: the Overseer hangs ahead of it, about 15 degrees wide.)
@@ -175,16 +176,53 @@ export const SANDBOX = {
     const mx = -6 + (ship[0] / sl) * 2.3, mz = (ship[1] / sl) * 2.3;
     add(thing('mirror', 'mirror', 'The mirror', [r2(mx), r2(groundAt(mx, mz) + 1.28), r2(mz)], { shape: { width: 1.5, height: 2.4, character: { steps: ['what', 'look', 'name'], start: 'always', voice: true } }, transform: yaw(Math.round(Math.atan2(-ship[0], -ship[1]) * 180 / Math.PI)) }));
     add({ id: 'pip', type: 'friend', name: 'Pip', shape: { personality: 'a cheerful island guide who loves explosions and fishing', species: 'person', color: '#f59e0b', follow: false, stays: true, lines: ['What a day for it!', 'The 4x4 is right there: walk up and press E.', 'Those fuel barrels on the beach go BOOM.', 'The pier is east, down the path. The rod is at the end of it.', 'There is a helicopter on the hill. From up there you can see the whole planet!'] }, physics: 'dynamic', transform: { position: [-1, r2(groundAt(-1, 2.2) + 0.6), 2.2], rotation: [0, -110, 0] } });
-    // The islanders (islanders.js talks for them): friends that stay at their posts, in the mirror's own bodies, text in the chat only.
-    const islander = (id: string, name: string, personality: string, what: string, body: string, accent: string, head: string, x: number, z: number, face: number, lift = 0) => add({
+    // The islanders (islanders.js talks for them): friends that stay on the island, in the mirror's own bodies, with a
+    // clock-driven routine of named spots (living.js think; shape.stays still blocks random wander). Offsets stagger
+    // their walks so they do not meet on the same path.
+    const islander = (id: string, name: string, personality: string, what: string, body: string, accent: string, head: string, x: number, z: number, face: number, routine: { spots: { id: string; at: number[]; do: string; face?: number }[]; offset?: number }, lift = 0) => add({
       id, type: 'friend', name, physics: 'dynamic', transform: { position: [x, r2(groundAt(x, z) + 1 + lift), z], rotation: [0, face, 0] },
-      shape: { personality, species: 'person', follow: false, stays: true, talk: false, look: { what, name, body, accent, head } },
+      shape: { personality, species: 'person', follow: false, stays: true, talk: false, look: { what, name, body, accent, head }, routine },
     });
-    islander('bobbin', 'Admiral Bobbin', 'a very small, very proud rubber duck, harbourmaster of a harbour with one boat', 'duck', '#facc15', '#f97316', '#111827', 66, -1, 180, 1.2);
-    islander('ember', 'Mrs Ember', 'a dry, motherly toaster who runs the post and the weather', 'toaster', '#b8bfcc', '#d9a35f', '#2b2f3a', -10.5, 15, 110);
-    islander('rolo', 'Rolo', 'a mild, kind roll-bot who fixes things and will not ask for help', 'rollbot', '#f4c430', '#22d3ee', '#3a3f4b', -34, -27, 200);
-    islander('dolores', 'Dolores', 'a blunt, deadpan cactus on the hill who asks for nothing', 'cactus', '#3f9a4a', '#f472b6', '#c2703d', 36, 24, 230);
-    islander('channel', 'Channel', 'a fast-talking TV robot, the island\'s one reporter', 'tvbot', '#3a3f4b', '#7dd3fc', '#e5e7eb', 55, -12, 90);
+    islander('bobbin', 'Admiral Bobbin', 'a very small, very proud rubber duck, harbourmaster of a harbour with one boat', 'duck', '#facc15', '#f97316', '#111827', 66, -1, 180, {
+      offset: 0,
+      spots: [
+        { id: 'pier-end', at: [84, -0.5], do: 'fish', face: 90 },
+        { id: 'harbour-desk', at: [63, 4.8], do: 'sit', face: 0 },
+        { id: 'dock', at: [58, -1.2], do: 'wave', face: 180 },
+      ],
+    }, 1.2);
+    islander('ember', 'Mrs Ember', 'a dry, motherly toaster who runs the post and the weather', 'toaster', '#b8bfcc', '#d9a35f', '#2b2f3a', -10.5, 15, 110, {
+      offset: 4,
+      spots: [
+        { id: 'mailbox', at: [-11, 16], do: 'idle', face: 100 },
+        { id: 'garden', at: [-14, 21.5], do: 'tend', face: 40 },
+        { id: 'bench', at: [-12.5, 9.5], do: 'sit', face: 130 },
+      ],
+    });
+    islander('rolo', 'Rolo', 'a mild, kind roll-bot who fixes things and will not ask for help', 'rollbot', '#f4c430', '#22d3ee', '#3a3f4b', -34, -27, 200, {
+      offset: 8,
+      spots: [
+        { id: 'rocket', at: [-36, -28], do: 'tend', face: 200 },
+        { id: 'slip', at: [-37.5, -22.5], do: 'sit', face: 20 },
+        { id: 'pad-side', at: [-30.5, -26], do: 'wave', face: 90 },
+      ],
+    });
+    islander('dolores', 'Dolores', 'a blunt, deadpan cactus on the hill who asks for nothing', 'cactus', '#3f9a4a', '#f472b6', '#c2703d', 36, 24, 230, {
+      offset: 12,
+      spots: [
+        { id: 'hill', at: [36, 24], do: 'sit', face: 230 },
+        { id: 'tally-rock', at: [39.5, 27.5], do: 'idle', face: 30 },
+        { id: 'pad-edge', at: [24.5, 28], do: 'wave', face: 200 },
+      ],
+    });
+    islander('channel', 'Channel', 'a fast-talking TV robot, the island\'s one reporter', 'tvbot', '#3a3f4b', '#7dd3fc', '#e5e7eb', 55, -12, 90, {
+      offset: 16,
+      spots: [
+        { id: 'beach', at: [55, -12], do: 'wave', face: 90 },
+        { id: 'chair', at: [52.5, -5.5], do: 'sit', face: 270 },
+        { id: 'barrels', at: [48, -16], do: 'idle', face: 200 },
+      ],
+    });
     // The 4x4, ready on the path.
     add({ id: 'jeep', type: 'truck', name: '4x4', shape: { model: A.truck }, material: { color: '#3f7d3a' }, transform: { position: [4, r2(groundAt(4, 6.5) + 1.4), 6.5], rotation: [0, 90, 0] } });
     // Pip's hut and yard, up the slope behind the start.
