@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Play games · Hawkes Games</title>
+  <title>Games · Hawkes Games</title>
   <link rel="icon" href="/favicon.ico" sizes="32x32">
   <link rel="icon" href="/brand/favicon-16.png" type="image/png" sizes="16x16">
   <link rel="icon" href="/brand/favicon-32.png" type="image/png" sizes="32x32">
@@ -28,6 +28,7 @@
   <link rel="stylesheet" href="/site.css">
   <link rel="stylesheet" href="/builder.css">
   <link rel="stylesheet" href="/overseer-sky.css">
+  <link rel="stylesheet" href="/games.css?v=1">
   <script src="https://hawkesgen.ai/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
   <script src="/site-analytics.js"></script>
   <script defer src="/google-gate.js"></script>
@@ -52,30 +53,15 @@
       <div class="sky-inner">
         <div class="sky-eyebrow">Hawkes Games</div>
         <h1>Play games</h1>
-        <p class="lede">Made by people like you, with friends and AI. Each featured game is a world from the Overseer: pick one and play, or remix it into your own.</p>
-        <div class="planets" id="featuredGrid" aria-label="Featured games"></div>
+        <p class="lede">Every Hawkes game in one place. Hover or scroll to see it move, then press Play.</p>
         <div class="sky-count" id="liveCount" aria-live="polite"></div>
       </div>
     </section>
 
-    <div class="page">
-    <div class="gallery-head">
-      <div>
-        <h2 class="gallery-title">Made by players</h2>
-        <p class="muted" style="margin:4px 0 0">Playable right now in your browser. Remix any of them to make your own copy.</p>
-      </div>
-      <div class="segmented">
-        <button type="button" class="on" data-sort="live">Live now</button>
-        <button type="button" data-sort="popular">Most played</button>
-        <button type="button" data-sort="new">New</button>
-      </div>
-    </div>
-
-    <div class="game-grid" id="gameGrid"></div>
-
-    <div id="empty" class="empty" hidden>
-      No games yet. <a href="/app">Be the first to build one!</a>
-    </div>
+    <div class="page store">
+      <section class="row" id="rowOriginal" aria-labelledby="hOriginal"><h2 id="hOriginal">Hawkes originals</h2><div class="cards" data-row="original"></div></section>
+      <section class="row" id="rowOverseer" aria-labelledby="hOverseer"><h2 id="hOverseer">The Overseer's games</h2><p class="muted">Worlds the Overseer built. Play one, or remix it into your own.</p><div class="cards" data-row="overseer"></div></section>
+      <section class="row" id="rowPlayers" aria-labelledby="hPlayers"><h2 id="hPlayers">Made by players</h2><p class="muted">Playable in your browser. Remix any of them to make your own copy.</p><div class="cards" data-row="players"></div><div id="empty" class="empty" hidden>No player worlds yet. <a href="/app">Build the first one.</a></div></section>
     </div>
   </main>
 

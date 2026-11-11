@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Game · Hawkes Games</title>
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0a0e1a">
+  <meta name="description" content="A Hawkes game. Play it now.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Hawkes Games">
+  <meta property="og:title" content="Game · Hawkes Games">
+  <meta property="og:description" content="A Hawkes game. Play it now.">
+  <meta property="og:url" content="https://hawkesgames.com/games">
+  <meta property="og:image" content="https://hawkesgames.com/brand/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Game · Hawkes Games">
+  <meta name="twitter:image" content="https://hawkesgames.com/brand/og.png">
+  <link rel="stylesheet" href="/public.css">
+  <link rel="stylesheet" href="/site.css">
+  <link rel="stylesheet" href="/builder.css">
+  <link rel="stylesheet" href="/games.css?v=1">
+  <script src="https://hawkesgen.ai/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
+  <script src="/site-analytics.js"></script>
+  <script src="/sitenav.js" defer></script>
+</head>
+<body class="landing">
+  <header class="hg-navbar">
+    <div class="wrap hg-navbar-inner">
+      <a href="/" class="hg-brand"><span class="wordmark">Hawkes Games</span></a>
+      <nav class="hg-nav-links" data-site-nav><a href="/games">Games</a><a href="/community">Community library</a></nav>
+      <div class="hg-nav-actions"><a class="btn btn-ghost" href="/app">Your games</a></div>
+    </div>
+  </header>
+  <main class="page store gp" id="gp" data-state="loading">
+    <nav class="crumbs" aria-label="Breadcrumb"><a href="/games">All games</a></nav>
+    <section class="gp-top">
+      <div class="gp-hero" id="hero"></div>
+      <div class="gp-side">
+        <h1 id="name">Loading…</h1>
+        <p class="gp-hook" id="hook"></p>
+        <ul class="chips" id="genres"></ul>
+        <ul class="badges" id="platforms" aria-label="Where it plays"></ul>
+        <div class="gp-play" id="playBox"></div>
+      </div>
+    </section>
+    <section aria-label="Screenshots"><div class="shots" id="shots"></div></section>
+    <section class="gp-info">
+      <div><h2>What you do</h2><ul class="feat" id="features"></ul><p class="muted" id="blurb"></p></div>
+      <div><h2>Controls</h2><div class="ctl"><h3>Keyboard and mouse</h3><ul id="kb"></ul></div><div class="ctl"><h3>Touch</h3><ul id="touch"></ul></div></div>
+    </section>
+    <section class="row" aria-labelledby="hMore"><h2 id="hMore">More Hawkes games</h2><div class="cards" id="more"></div></section>
+  </main>
+  <div class="lightbox" id="lb" hidden role="dialog" aria-modal="true" aria-label="Screenshot"><button type="button" class="lb-x" aria-label="Close">×</button><button type="button" class="lb-n lb-prev" aria-label="Previous">‹</button><img id="lbImg" alt=""><button type="button" class="lb-n lb-next" aria-label="Next">›</button></div>
+  <script type="module" src="/game.js"></script>
+  <script src="/enter.js"></script>
+</body>
+</html>
