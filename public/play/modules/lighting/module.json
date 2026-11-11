@@ -1,0 +1,7 @@
+{
+  "title": "Lighting: a raking sun with cascaded soft shadows, sky reflections, filmic tone, bloom and an hour-by-hour colour grade",
+  "order": 18,
+  "scripts": ["lighting-core.js", "lighting.js"],
+  "kinds": [],
+  "optional": true
+}
