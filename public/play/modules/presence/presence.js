@@ -741,6 +741,7 @@
     if (A) { out.role = A.role || null; out.take = A.take ? A.take.name || A.take : null; if (A.gait) out.gait = { lo: A.gait.lo, hi: A.gait.hi, w: A.gait.w, cps: A.gait.cps }; }
     if (pp && rig.hipL && rig.hipR && !rig.model) {
       out.airborne = Boolean(pp.airborne); out.landing = pp.air ? pp.air.landT < 0.25 : null;
+      if (pp.air) { out.landT = pp.air.landT; out.landDepth = pp.air.depth; }
       const down = typeof pp.soleY === 'number' ? pp.soleY : -0.52, duty = pp.duty || 0.5; // (the sole in the hip's own space: the hip's matrix scales it)
       const sole = (hip, ph) => { hip.computeWorldMatrix(true); const v = B.Vector3.TransformCoordinates(new B.Vector3(0, down, 0), hip.getWorldMatrix()); return { x: v.x, y: v.y, z: v.z, down: Boolean(C.strideDown && C.strideDown(ph, duty)) && !pp.airborne, via: 'sole' }; };
       out.feet = [sole(rig.hipL, pp.ph || 0), sole(rig.hipR, (pp.ph || 0) + Math.PI)];
@@ -749,7 +750,10 @@
       const pm = rig.pm;
       out.model = true; out.driven = Boolean(A && A.player);
       out.airborne = Boolean(pm.air && pm.air.was); out.landing = pm.air ? pm.air.landT < 0.25 : null;
+      if (pm.air) { out.landT = pm.air.landT; out.landDepth = pm.air.depth; }
       try { out.feet = modelFeet(rig, pm); } catch (err) { out.feet = null; out.feetError = String(err && err.message || err); }
+    } else if (rig.pm && rig.pm.air) {
+      out.landT = rig.pm.air.landT; out.landDepth = rig.pm.air.depth; out.landing = rig.pm.air.landT < 0.25;
     }
     return out;
   };
