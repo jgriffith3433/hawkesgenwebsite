@@ -508,15 +508,14 @@ const restores = () => db.collection('communityRestore');
 /** Gen's words for a job it turned away without making anything: too many at once, Claude busy or at its limit, no GPU free,
  * or a GPU provider's account switched off (Modal's gateway: "modal-http: workspace ... is disabled", Gen #195). */
 export const wasTurnedAway = (text: string) => /a lot at once|wait \d+ seconds?, then try again|throttl|rate.?limit|\b429\b|overloaded|no gpu is available|nothing was charged|modal-http/i.test(text);
+/**
+ * How long a thing waits after a try Gen turned away without running anything (no GPU, too many at once): 30 minutes,
+ * doubling with each such try in a row, up to 4 hours. While RunPod is empty this keeps the 10-minute sync from re-queueing
+ * the same things all night.
+ */
+export const turnedAwayWait = (inARow: number) => (inARow > 0 ? Math.min(4 * 3600_000, 30 * 60_000 * 2 ** (inARow - 1)) : 0);
 /** A run Gen's RunPod worker stopped at its old 300 s graph limit (fixed in Gen #189), or one whose GLB was too big to hand
  * back (HTTP 413, fixed in Gen #190): Gen's fault, and the try kept nothing of its own. */
-/** Gen had no GPU to run on (RunPod out of credit or capacity): nothing ran, and the thing itself is fine. */
-export const hadNoGpu = (text: string) => /no gpu is available/i.test(text);
-/**
- * How long a thing waits after a try turned away for want of a GPU: 30 minutes, doubling with each such try in a row, up to
- * 4 hours. While RunPod is empty this keeps the 10-minute sync from re-queueing the same things all night.
- */
-export const noGpuWait = (inARow: number) => (inARow > 0 ? Math.min(4 * 3600_000, 30 * 60_000 * 2 ** (inARow - 1)) : 0);
 export const stoppedAtGenLimit = (text: string) => /runpod: ran past this service's 300 s limit|runpod: HTTP Error 413/i.test(text);
 const REMAKE_SCHEME = 2;
 /**
@@ -581,8 +580,8 @@ export function copySteps(kind: string, main: string, thumb: string | null) {
 /**
  * Whether a starter thing gets its next try: tries left, and its last try is over (failed, or no open Gen job and queued
  * over 2 hours ago). A last try still queued or running in Gen is never repeated; when Gen's open jobs can't be read
- * (lastOpen true), nothing is repeated that round. A failed try waits waitAfterFail (a try turned away for want of a GPU
- * backs off) before the next.
+ * (lastOpen true), nothing is repeated that round. A failed try waits waitAfterFail (a try Gen turned away without running
+ * anything backs off) before the next.
  */
 export function tryDue(t: { tries: number; allowed: number; lastFailed: boolean; lastOpen: boolean; queuedAt: number; waitAfterFail?: number }, now = Date.now()) {
   if (t.tries >= t.allowed) return false;
@@ -635,31 +634,35 @@ export async function restoreStarter() {
       if (madeNothing.has(key) && !refunded.has(key)) toRefund.push({ key, kind: it.kind });
     }
   }
-  // A try Gen turned away for want of a GPU says nothing about the thing: it never uses up a try, however many there are
-  // (beta 2026-11-11: RunPod sat empty for 8 hours, the sync kept re-queueing, and 20 models used up all 16 tries without
-  // a GPU ever running them). It backs off instead (noGpuWait).
-  const noGpu = new Set(failedJobs.filter((j) => hadNoGpu(`${j.detail ?? ''} ${j.error ?? ''}`)).map((j) => String(j.key ?? '')));
-  const noGpuInARow = (it: { item: string; kind: string; name: string }) => {
+  // A try Gen turned away without running anything (no GPU, too many at once, a provider switched off) says nothing about
+  // the thing: it never uses up a try, however many there are, and the next try backs off instead (turnedAwayWait). Such
+  // tries are remembered in the state (nothingRan), not only read from Gen's failed jobs: Gen lists the newest 500, and
+  // older ones dropped out of sight (beta 2026-11-11: RunPod sat empty for 8 hours, the sync kept re-queueing, and 20
+  // models looked like they had used up all their tries without a GPU ever running them).
+  const nothingRan = new Set<string>([...(state.nothingRan ?? []), ...refunded, ...madeNothing]);
+  const genLimit = new Set(failedJobs.filter((j) => stoppedAtGenLimit(`${j.detail ?? ''} ${j.error ?? ''}`)).map((j) => String(j.key ?? '')));
+  const turnedAwayInARow = (it: { item: string; kind: string; name: string }) => {
     let n = 0;
-    for (let t = tries[it.item] ?? 0; t >= 1 && noGpu.has(remakeKey(keyOf(it as any), ref.id, t)); t--) n++;
+    for (let t = tries[it.item] ?? 0; t >= 1 && nothingRan.has(remakeKey(keyOf(it as any), ref.id, t)); t--) n++;
     return n;
   };
   const allowed = (it: { item: string; kind: string; name: string }) => {
     let free = 0;
-    let gpuless = 0;
+    let ranNothing = 0;
     for (let t = 1; t <= (tries[it.item] ?? 0); t++) {
       const key = remakeKey(keyOf(it as any), ref.id, t);
-      if (noGpu.has(key)) gpuless++;
-      else if (turnedAway.has(key)) free++;
+      if (nothingRan.has(key)) ranNothing++;
+      else if (genLimit.has(key)) free++;
     }
-    // Up to 14 tries Gen turned away (no GPU, too fast) are free: the model gate stops after a broken 3D path. The crate
-    // used 4 before Gen waited out a cold RunPod start (Gen #186) and 5 more before Gen let a 3D run outlast RunPod's
-    // 300 s cap instead of sending it to the AWS fleet that is gone (Gen #188, 2026-11-10), and 1 more on a GLB too big to
-    // hand back (Gen #190).
-    return 2 + Math.min(free, 14) + gpuless;
+    // Up to 14 tries Gen stopped at its own limits are free too: the model gate stops after a broken 3D path. The crate
+    // used 5 before Gen let a 3D run outlast RunPod's 300 s cap (Gen #188, 2026-11-10) and 1 more on a GLB too big to hand
+    // back (Gen #190).
+    return 2 + Math.min(free, 14) + ranNothing;
   };
-  const lastFailed = (it: { item: string; kind: string; name: string }) =>
-    (tries[it.item] ?? 0) > 0 && failedKeys.has(remakeKey(keyOf(it as any), ref.id, tries[it.item]));
+  const lastFailed = (it: { item: string; kind: string; name: string }) => {
+    const key = remakeKey(keyOf(it as any), ref.id, tries[it.item] ?? 0);
+    return (tries[it.item] ?? 0) > 0 && (failedKeys.has(key) || nothingRan.has(key));
+  };
   // A try whose Gen job is still queued or running is still being made, however long the GPU line is: a second try then
   // would pay for the same model twice and lengthen the line (beta 2026-11-10: the line passed 2 hours and 21 models got a
   // second try while their first was still running). The 2 hours only covers a try Gen has no open job for.
@@ -672,7 +675,7 @@ export async function restoreStarter() {
     lastFailed: lastFailed(it),
     lastOpen: openJobs === null || ((tries[it.item] ?? 0) > 0 && openKeys.has(remakeKey(keyOf(it as any), ref.id, tries[it.item]))),
     queuedAt: queuedAt[it.item] ?? 0,
-    waitAfterFail: noGpuWait(noGpuInARow(it)),
+    waitAfterFail: turnedAwayWait(turnedAwayInARow(it)),
   });
   let todo = packItems().filter((it) => missing.has(it.item) && order.kinds.includes(it.kind) && due(it)).sort((a, b) => rank(a) - rank(b));
   // Copying from another lane (live from beta): what the source has listed is copied, free; what it hasn't made yet waits
@@ -695,7 +698,7 @@ export async function restoreStarter() {
       } catch (e: any) { failed.push(`${it.item}: ${String(e.message).slice(0, 160)}`); }
     }
     if (failed.length) console.warn(`[portal] starter restore: copies that failed: ${failed.join('; ')}`);
-    await ref.set({ scheme: REMAKE_SCHEME, approved: order.approved, kinds: order.kinds, budgetUsd: order.budgetUsd, spentUsd: Math.round(spent * 100) / 100, tries, queuedAt, paid, refunded: [...refunded], updated: Date.now() });
+    await ref.set({ scheme: REMAKE_SCHEME, approved: order.approved, kinds: order.kinds, budgetUsd: order.budgetUsd, spentUsd: Math.round(spent * 100) / 100, tries, queuedAt, paid, refunded: [...refunded], nothingRan: [...nothingRan], updated: Date.now() });
     return { order: true, copyFrom: order.copyFrom, copied, waitingOnSource: todo.filter((x) => !src.has(sourceKey(x.kind, x.name))).length, spentUsd: Math.round(spent * 100) / 100, budgetUsd: order.budgetUsd };
   }
   // 3D models are most of the cost and the longest recipe: until one has listed in this lane, one at a time; and none at
@@ -710,7 +713,7 @@ export async function restoreStarter() {
   }
   // A few at a time: Gen turns away a burst, and each round is 10 minutes apart anyway.
   todo = todo.slice(0, 20);
-  const save = () => ref.set({ scheme: REMAKE_SCHEME, approved: order.approved, kinds: order.kinds, budgetUsd: order.budgetUsd, spentUsd: Math.round(spent * 100) / 100, tries, queuedAt, paid, refunded: [...refunded], updated: Date.now() });
+  const save = () => ref.set({ scheme: REMAKE_SCHEME, approved: order.approved, kinds: order.kinds, budgetUsd: order.budgetUsd, spentUsd: Math.round(spent * 100) / 100, tries, queuedAt, paid, refunded: [...refunded], nothingRan: [...nothingRan], updated: Date.now() });
   // Refunds priced when queued go back now; older tries (queued before prices were kept) take their kind's price today.
   const refund = (price: Record<string, number>) => {
     for (const r of toRefund) {
