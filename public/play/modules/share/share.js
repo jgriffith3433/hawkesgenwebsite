@@ -67,7 +67,7 @@
     .sh-caption b { display: block; font: 700 clamp(22px, 4.2vw, 56px)/1 'Orbitron', 'Rajdhani', sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #fff; text-shadow: 0 2px 18px rgba(0,0,0,.7); }
     .sh-caption span { display: block; margin-top: 8px; font: 600 clamp(13px, 1.6vw, 20px)/1.2 'Rajdhani', sans-serif; letter-spacing: .3em; text-transform: uppercase; color: rgba(255,255,255,.85); text-shadow: 0 1px 8px rgba(0,0,0,.8); }
     .sh-caption.on { opacity: 1; }
-    .sh-skip { position: fixed; right: 18px; bottom: 16px; z-index: 33; font: 600 12px/1 'Rajdhani', sans-serif; letter-spacing: .2em; text-transform: uppercase; color: rgba(255,255,255,.7); background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.25); padding: 8px 12px; border-radius: 999px; cursor: pointer; pointer-events: auto; }
+    .sh-skip { position: fixed; right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 33; font: 700 clamp(15px, 2.2vw, 18px)/1 'Rajdhani', system-ui, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #06091a; background: linear-gradient(#f4f7ff, #b9ccff); border: 0; padding: 12px 20px; min-width: 120px; min-height: 48px; border-radius: 999px; cursor: pointer; pointer-events: auto; box-shadow: 0 0 24px rgba(140,175,255,.65); touch-action: manipulation; }
     .sh-skip[hidden] { display: none; }
     .sh-dock { position: fixed; right: max(10px, env(safe-area-inset-right)); top: 50%; transform: translateY(-50%); display: grid; gap: 8px; z-index: 6; pointer-events: auto; }
     .sh-dock[hidden] { display: none; }

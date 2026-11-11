@@ -213,9 +213,11 @@ anything. They are written in the voice of whoever left them.
   rocket or a space ship reaches space and the Overseer. Players can build all four.
 - **The intro:** plays the first time a player enters a world (the sandbox, their first game), short and skippable; after
   that, being beamed in is enough. A game can turn the intro off, or always play it.
-  **First-visit lines (J: "the Overseer is the game's face"):** four lines, about 15 s, in its voice: *"You found your way.
+  **First-visit lines (J: "the Overseer is the game's face"):** four lines, about 14 s, in its voice: *"You found your way.
   Good."* as the player appears in the beam, *"I have given you the power of free will."*, *"Do with it what you will."*,
-  and last *"Ask, and I will send it down."* The intro then leaves a card in the chat, *Ask for your first thing* ("a
+  and last *"Ask, and I will send it down."* Captions sit on a dark plate (no letterbox crop); a short look-up at the
+  Overseer (~5.5 s, with a push-in) then settles behind the player while the lines finish; control from the beam. A large
+  Skip pill (or any key/click) ends it. The intro then leaves a card in the chat, *Ask for your first thing* ("a
   lighthouse, a tune, a hat"); one tap opens the chat to the Overseer, which is how building begins. The mirror still
   follows. A return (the intro's flag on the device) skips all of it. Only the free-will lines have a voice clip so far.
 - **Mirrors:** a key thing in every game (modules/mirror). Each mirror decides its questions (a game might only allow
