@@ -1,0 +1,8 @@
+{
+  "title": "Wind and wildlife: sway and gusts on trees, palms, bushes and grass, grass and flowers pushed aside, petals, gulls that scatter, butterflies, fireflies and a jumping fish",
+  "order": 93,
+  "scripts": ["wind-core.js", "wind.js", "wildlife.js"],
+  "kinds": [],
+  "config": ["wind", "wildlife"],
+  "optional": true
+}
