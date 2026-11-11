@@ -64,6 +64,17 @@ never blocks anyone (physics is always `none`).
 - A **fish tank**: no basin, small (`[2, 1, 1]`), `fish: ["koi", "golden-carp"]` (fish swim about in any water that has them).
 - A **hot tub**: `[2.5, 1, 2.5]`, `basin: "#8b5e3c"`, `waves: 0.05`.
 
+### How the sea looks
+
+The sea sums four Gerstner waves (two on a phone): the first runs the way the wind blows (`config.wind.dir`, the island's
+ambience), the others are turned off it, shorter and smaller, so crests are sharp and troughs broad. The colour follows
+the depth the terrain reports: pale turquoise over sand, the sea's `color` a few metres out, deep blue past about 12 m.
+White foam runs up the beach in surge lines, rings every post and rock that stands in the water, and caps the crests; the
+sky is reflected more at a low angle, the sun glints in the ripples, and the shallows are see-through so the sand shows.
+Under the surface the screen is tinted and fogged blue. The foam and ripple textures are made in code. A phone gets two
+waves, one ripple sample, the sky-only reflection and keeps the foam. The water module's `H.water.waveAt(x, z)` is the
+same formula the shader draws, so what floats rides the surface you see.
+
 ### Floating and sinking
 
 Everything that moves (`physics: "dynamic"`) floats or sinks in any water by its density next to water's (1):
