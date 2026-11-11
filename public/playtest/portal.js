@@ -30,6 +30,7 @@ import { SERVER_LIMITS, runServerLimits } from './server-limits.js';
 import { CHARACTER_MOTION, runCharacterMotion } from './character-motion.js';
 import { WORLD_QUALITY, runWorldQuality } from './world-quality.js';
 import { PHONE_HUD_LAYOUT, runPhoneHudLayout } from './phone-hud-layout.js';
+import { GAME_MENU, runGameMenu } from './game-menu.js';
 import { runHudOverlap } from './hud-overlap.js';
 import { ISLAND_SOUNDSCAPE, runIslandSoundscape } from './island-soundscape.js';
 import { ISLAND_MUSIC, runIslandMusic } from './island-music.js';
@@ -37,14 +38,15 @@ import { ISLAND_ROUTINES, runIslandRoutines } from './island-routines.js';
 import { FIRST_LOAD, markPlayClick, runFirstLoad } from './first-load.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'firstvisit', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'phoneperf', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'answer', 'progress', 'models', 'wish', 'toeditor', 'editor', 'react', 'motion', 'mirrorlayout', 'hudoverlap', 'soundscape', 'music', 'routines', 'firstload'];
+const STAGES = ['landing', 'veil', 'intro', 'firstvisit', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'phoneperf', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'answer', 'progress', 'models', 'wish', 'toeditor', 'editor', 'react', 'motion', 'mirrorlayout', 'hudoverlap', 'soundscape', 'music', 'routines', 'firstload', 'gamemenu'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'character-motion': ['landing', 'veil', 'intro', 'motion'], 'island-soundscape': ['landing', 'veil', 'intro', 'mirror', 'soundscape'], 'island-music': ['landing', 'veil', 'intro', 'mirror', 'music'], 'island-routines': ['landing', 'veil', 'intro', 'mirror', 'routines'], 'overseer-personality': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'react'], 'overseer-first-visit': ['landing', 'veil', 'firstvisit'], 'overseer-ask': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'answer'], 'gen-models-all': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-daily-wish': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wish'], 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'phone-performance': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'phoneperf'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'editor-bridge': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'toeditor', 'editor'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'mirror-panel-layout': ['landing', 'veil', 'intro', 'mirrorlayout'], 'hud-overlap': ['landing', 'veil', 'intro', 'hudoverlap'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
+const ORDERS = { 'character-motion': ['landing', 'veil', 'intro', 'motion'], 'island-soundscape': ['landing', 'veil', 'intro', 'mirror', 'soundscape'], 'island-music': ['landing', 'veil', 'intro', 'mirror', 'music'], 'island-routines': ['landing', 'veil', 'intro', 'mirror', 'routines'], 'overseer-personality': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'react'], 'overseer-first-visit': ['landing', 'veil', 'firstvisit'], 'overseer-ask': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'answer'], 'gen-models-all': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-daily-wish': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wish'], 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'phone-performance': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'phoneperf'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'editor-bridge': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'toeditor', 'editor'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'mirror-panel-layout': ['landing', 'veil', 'intro', 'mirrorlayout'], 'hud-overlap': ['landing', 'veil', 'intro', 'hudoverlap'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'], 'game-menu': ['landing', 'veil', 'intro', 'mirror', 'gamemenu'] };
 const SCENARIOS = [
   FIRST_LOAD, // Play click to the first frame and the first input, bytes before it, a clean WebGL console (first-load.js)
   SICKOFIT_PAGE, // Sick of It's page before play (sickofit-page.js)
   SITE_LAYOUT, // the landing page at three sizes (site-layout.js)
   PHONE_HUD_LAYOUT, // phone HUD fold + mirror sheet at 390x844 and 844x390 (phone-hud-layout.js)
+  GAME_MENU, // one Esc / one tap game menu with settings (game-menu.js)
   AVATAR_ANIMATIONS, // clips as data on /avatars (avatar-animations.js)
   COMMUNITY_LIBRARY, // the library: cards, loading, empty, 390px, no timer fetch (community-library.js)
   PROFILE_PAGE, // the profile page: avatar, worlds, plan, empty states (profile-page.js)
@@ -2303,13 +2305,13 @@ async function stageGame(t, ctx) {
   t.scene(`${name}: beamed down`);
   await t.wait(2500);
   const esc = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
-  esc(); await t.wait(250); esc();
-  await t.until(() => [...document.querySelectorAll('.ui-menu-items button')].some((b) => /Return to the Observatory/.test(b.textContent)), 5000, 'the pause menu (Esc twice)');
+  esc();
+  await t.until(() => [...document.querySelectorAll('.gm-btn, .ui-menu-items button')].some((b) => /Return to the Observatory/.test(b.textContent)), 5000, 'the game menu (Esc once)');
   t.scene(`${name}: the pause menu`);
-  t.event('pause-menu', 'Esc twice opened it, with Return to the Observatory');
+  t.event('pause-menu', 'Esc opened it, with Return to the Observatory');
   await t.wait(800);
   writeRun({ ...ctx.saved(), leg: 'back', visit: ctx.visit });
-  [...document.querySelectorAll('.ui-menu-items button')].find((b) => /Return to the Observatory/.test(b.textContent)).click();
+  [...document.querySelectorAll('.gm-btn, .ui-menu-items button')].find((b) => /Return to the Observatory/.test(b.textContent)).click();
   t.event('return-chosen', name);
   await t.wait(30000);
   throw new Error(`Return to the Observatory did not leave ${name}`);
@@ -3074,6 +3076,7 @@ const RUN = {
 };
 STAGES.push('pier');
 ORDERS['sandbox-pier-marker'] = ['landing', 'veil', 'intro', 'mirror', 'pier'];
+RUN.gamemenu = (t, ctx) => runGameMenu(t, ctx);
 // Island invitations (island-invite): after the sheet, the inviter's stage, then the friend's page on a closed island.
 STAGES.push('invite', 'gone', 'own');
 ORDERS['island-invite'] = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'invite', 'gone', 'own'];
@@ -3250,10 +3253,10 @@ async function stageInvite(t, ctx) {
   t.event('invite-link', `${link.pathname}?invite=… for room ${room}${link.searchParams.get('ref') ? ' and ?ref=' + link.searchParams.get('ref') : ' (a guest: no referral code)'}`);
   if (link.pathname !== '/play/sandbox' || !room) t.problem('error', 'the invitation link does not open the island');
   t.scene('Island: the invitation link');
-  // The pause menu offers it too (Esc twice).
-  await tap(t, 'Escape'); await t.wait(200); await tap(t, 'Escape');
-  await t.until(() => /Invite a friend/.test(($('.ui-menu') || {}).textContent || ''), 5000, 'the pause menu with Invite a friend').then(
-    () => { t.event('pause-menu-invite', 'Esc twice: Paused > Resume, Invite a friend, Change my look'); t.scene('Island: the pause menu'); const r = [...document.querySelectorAll('.ui-menu .ui-btn')].find((b) => /Resume/.test(b.textContent)); if (r) r.click(); },
+  // The game menu offers it too (one Esc).
+  await tap(t, 'Escape');
+  await t.until(() => /Invite a friend/.test(($('.gm-panel, .ui-menu') || {}).textContent || ''), 5000, 'the game menu with Invite a friend').then(
+    () => { t.event('pause-menu-invite', 'Esc: Paused > Resume, Invite a friend, Change my look'); t.scene('Island: the pause menu'); const r = [...document.querySelectorAll('.gm-btn, .ui-menu .ui-btn')].find((b) => /Resume/.test(b.textContent)); if (r) r.click(); },
     (e) => t.problem('error', e.message));
   const st = await fetch(`/v1/island-invite/${token}`).then((r) => r.json());
   t.event('invite-status', `${st.state}${st.name ? ' (' + st.name + ')' : ''}`);

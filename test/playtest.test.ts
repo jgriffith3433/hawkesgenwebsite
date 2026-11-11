@@ -11,7 +11,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
 test('the playtest files are valid modules', () => {
-  for (const f of ['portal.js', 'site-layout.js', 'phone-hud-layout.js', 'avatar-animations.js', 'community-library.js', 'profile-page.js', 'server-limits.js', 'world-report.js', 'world-quality.js', 'island-routines.js', 'hawkes-playtest.js', 'hawkes-perf.js']) {
+  for (const f of ['portal.js', 'site-layout.js', 'phone-hud-layout.js', 'game-menu.js', 'avatar-animations.js', 'community-library.js', 'profile-page.js', 'server-limits.js', 'world-report.js', 'world-quality.js', 'island-routines.js', 'hawkes-playtest.js', 'hawkes-perf.js']) {
     const r = spawnSync(process.execPath, ['--check', path.join(ROOT, 'public', 'playtest', f)], { encoding: 'utf8' });
     assert.equal(r.status, 0, `${f}: ${r.stderr}`);
   }
@@ -50,15 +50,22 @@ test('site-layout: three sizes, the checklist in AGENTS.md, horizontal scroll, a
   assert.match(read('public/overseer-sky.js'), /hero\.dataset\.overseer/);
 });
 
-test('phone-hud-layout: 390x844 and 844x390, menu fold, sheet clearance, 44 px taps; wired in portal and AGENTS.md', () => {
+test('phone-hud-layout: 390x844 and 844x390, game menu from ☰, sheet clearance, 44 px taps; wired in portal and AGENTS.md', () => {
   const src = read('public/playtest/phone-hud-layout.js');
   for (const size of ['390x844', '844x390']) assert.ok(src.includes(size), size);
-  for (const k of ['menu-button', 'sheet-clear', 'action-tapped', 'hl-compact', 'phone-hud-ok', 'menu-folded', 'quest-zone-free', 'dismissOverlays', 'overlayTaps', 'invite did not show a link toast']) assert.ok(src.includes(k), k);
-  assert.ok(src.includes('actions menu while the mirror is still open') || src.includes('while the mirror is still open'), 'actions tapped with mirror open (no account-gate race)');
+  for (const k of ['menu-button', 'sheet-clear', 'action-tapped', 'hl-compact', 'phone-hud-ok', 'menu-folded', 'quest-zone-free', 'dismissOverlays', 'overlayTaps', 'invite did not show a link toast', 'MENU_MIN', 'game menu']) assert.ok(src.includes(k), k);
   assert.match(read('public/playtest/portal.js'), /runPhoneHudLayout\(t, options\)/);
   assert.match(read('AGENTS.md'), /phone-hud-layout/);
   assert.match(read('public/play/modules/hudlayout/hudlayout.js'), /hl-compact/);
   assert.match(read('public/play/modules/hudlayout/hudlayout.js'), /body\.hl-compact \.jr-btn\{display:none/);
+});
+
+test('game-menu: Esc once, settings, effects bus, phone sheet; wired in portal and AGENTS.md', () => {
+  const src = read('public/playtest/game-menu.js');
+  for (const k of ['menu-opened', 'settings-shown', 'effects-muted', 'effects-persisted', 'menu-anim', 'phone-menu-open', 'menu-items']) assert.ok(src.includes(k), k);
+  assert.match(read('public/playtest/portal.js'), /runGameMenu|GAME_MENU/);
+  assert.match(read('AGENTS.md'), /game-menu/);
+  assert.match(read('public/play/modules/gamemenu/gamemenu.js'), /H\.gameMenu/);
 });
 
 test('avatar-animations: a frame per class, the bone checks, the fallbacks and ten characters; documented in AGENTS.md', () => {

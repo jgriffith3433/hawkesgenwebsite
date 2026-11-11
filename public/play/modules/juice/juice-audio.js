@@ -1,8 +1,8 @@
 // Juice: sound everywhere, from the physics. Impacts by the two materials and how hard they met (the game's sound for
 // the word when it has one, "metal crash", "wood hit"..., else synthesized), footsteps by surface for you, the nearest
 // creatures and other players, rolling and scraping loops for things that roll and slide, tire squeal, wind at speed,
-// whooshes for things that fly past. Every sound is placed in the world (a panner) and goes through H.audio.master;
-// a voice budget with priorities keeps it to a few dozen at once however many cows there are.
+// whooshes for things that fly past. Every sound is placed in the world (a panner) and goes through H.audio.effects
+// (falling back to master); a voice budget with priorities keeps it to a few dozen at once however many cows there are.
 //   H.juice.sound.impact(a, b, { speed, at })   H.juice.sound.play(material | words, { at, loudness, size })
 //   H.juice.sound.footstep(surface, { at, loudness })   H.juice.sound.whoosh(at, speed)
 /* global HawkesPlay, BABYLON */
@@ -15,7 +15,8 @@
   const W = () => H.world;
   const clamp = M.clamp;
   const ctx = () => H.audio.context;
-  const live = () => { const a = ctx(); return a && a.state === 'running' && H.audio.master ? a : null; };
+  const bus = () => H.audio.effects || H.audio.master;
+  const live = () => { const a = ctx(); return a && a.state === 'running' && bus() ? a : null; };
   const camPos = () => { const w = W(); const c = w && w.scene && w.scene.activeCamera; return c ? c.globalPosition || c.position : null; };
   const distTo = (at) => { const c = camPos(); return c && at ? Math.hypot(at[0] - c.x, at[1] - c.y, at[2] - c.z) : 0; };
 
@@ -33,18 +34,19 @@
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     return noiseBuf;
   }
-  /** Where a sound goes: a panner at `at` (or straight to the master for sounds at your own ears), then the master. */
+  /** Where a sound goes: a panner at `at` (or straight for sounds at your own ears), then the effects bus. */
   function outFor(a, at, gain) {
+    const dest = bus();
     const g = a.createGain();
     g.gain.value = gain;
     if (at) {
       const p = a.createPanner();
       p.panningModel = 'equalpower'; p.distanceModel = 'inverse'; p.refDistance = 3; p.maxDistance = 150; p.rolloffFactor = 1.1;
       setPos(p, at);
-      g.connect(p).connect(H.audio.master);
+      g.connect(p).connect(dest);
       return { g, p };
     }
-    g.connect(H.audio.master);
+    g.connect(dest);
     return { g, p: null };
   }
   function setPos(p, at) {

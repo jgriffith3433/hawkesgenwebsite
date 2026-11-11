@@ -57,7 +57,7 @@
     { group: 'Do', keys: '', what: 'your quests', when: () => Boolean(H.touchUi && document.querySelector('.qs-btn')), act: () => { const b = document.querySelector('.qs-btn'); if (b) b.click(); }, icon: '📜', tap: 'Quests' },
     { group: 'Do', keys: 'R', what: 'stuck? back to safety', when: () => Boolean(document.querySelector('.tour-stuck')), act: () => { const b = document.querySelector('.tour-stuck'); if (b) b.click(); }, icon: '🛟', tap: 'Stuck?' },
     { group: 'Do', keys: 'Enter', what: 'talk (to the Overseer, or to everyone)', when: () => Boolean(H.chat), act: () => H.chat.open && H.chat.open(), icon: '💬', tap: 'Talk' },
-    { group: 'Do', keys: 'Esc Esc', what: 'pause', when: () => H.mode === 'play' },
+    { group: 'Do', keys: 'Esc', what: 'open the game menu', when: () => H.mode === 'play' },
     { group: 'Building', keys: '1-9', what: 'put a new thing where you look', when: building },
     { group: 'Building', keys: 'Delete · C · Ctrl+Z', what: 'remove · copy · undo', when: building },
   ];

@@ -6,12 +6,13 @@ import { load } from './harness.ts';
 
 const H = await load();
 
-test('named HUD zones cover quest banner (.hc-card, #dl-stack), top-right actions (.gs-acts, .jr-btn), side panel (.mr) and bottom chat (.hc-chat)', () => {
+test('named HUD zones cover quest banner (.hc-card, #dl-stack), top-right actions (.gs-acts, .jr-btn), side panel (.mr), bottom chat (.hc-chat) and game menu', () => {
   const z = H.hudLayout.zones;
   assert.ok(z.quest.includes('#dl-stack') && z.quest.includes('.tour-track') && z.quest.includes('.hc-card'), 'quest zone includes #dl-stack, tracker and .hc-card prompt banner');
   assert.ok(z.actions.includes('.gs-acts') && z.actions.includes('.jr-btn'), 'actions zone includes .gs-acts and .jr-btn (fourth top-right action)');
   assert.ok(z.panel.includes('.mr') && z.panel.includes('[data-hud-panel]'), 'panel zone includes .mr and [data-hud-panel]');
   assert.ok(z.chat.includes('.hc-chat'), 'chat zone includes .hc-chat');
+  assert.ok(z.menu && z.menu.includes('[data-game-menu]'), 'menu zone includes [data-game-menu]');
 });
 
 test('a side panel reserves its width and a gap at 1280x720 and 1440x900; closed or a bottom sheet reserves nothing', () => {

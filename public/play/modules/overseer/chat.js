@@ -9,7 +9,7 @@
 //
 // An Overseer line goes through the speech desk (speech.js: one at a time, in priority order, its voice with it) and comes
 // back here as { now: true, reveal: seconds }: its words type out over the time its voice (or the reading) takes. The ⟲
-// button replays the last line; ⚙ opens captions on/off and the voice and music volumes (kept per device).
+// button replays the last line; ⚙ opens the game menu's Settings page (modules/gamemenu; kept per device).
 //
 // In the editor's frame there's no window here: each line goes to the editor page's own chat (post 'chat-line'), which is
 // the Overseer's chat there. Elsewhere it's drawn at the bottom middle (top left on phones, where the stick and buttons
@@ -114,7 +114,18 @@ body.pr-touch .hc-form:not(.on){display:none}`;
       panel.querySelector('[data-s=music]').value = Math.round(S.music * 100);
     };
     box.querySelector('.hc-replay').onclick = () => { if (H.speech) H.speech.replay(); focusGame(); };
-    box.querySelector('.hc-gear').onclick = () => { panel.hidden = !panel.hidden; tools.classList.toggle('open', !panel.hidden); if (!panel.hidden) sync(); };
+    box.querySelector('.hc-gear').onclick = () => {
+      // Prefer the full game-menu Settings page; fall back to the small panel if the module is not loaded.
+      if (H.gameMenu && H.gameMenu.open) {
+        panel.hidden = true;
+        tools.classList.remove('open');
+        H.gameMenu.open('settings');
+        return;
+      }
+      panel.hidden = !panel.hidden;
+      tools.classList.toggle('open', !panel.hidden);
+      if (!panel.hidden) sync();
+    };
     panel.addEventListener('input', (e) => {
       const el = e.target, k = el && el.dataset && el.dataset.s;
       if (!k || !H.speech) return;

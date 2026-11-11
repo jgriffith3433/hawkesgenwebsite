@@ -485,7 +485,7 @@
       var v = parts[3] === 'v' ? '?v=' + encodeURIComponent(parts[4]) : '';
       // Beamed here from the Observatory's travel board (?from=observatory): arrive out of the dark as the character they
       // made (the look and name come in the address: this page is sandboxed, with no storage), and always have the way back
-      // (the button here, and the pause menu: Esc twice). The game's own script is not touched.
+      // (the button here, and the game menu on Esc). The game's own script is not touched.
       var fromObs = tpl && q.get('from') === 'observatory';
       if (fromObs) (function () {
         var sheet = document.createElement('div');
@@ -507,16 +507,7 @@
         rb.hidden = false;
         rb.onclick = goBack;
         window.HawkesObservatoryReturn = goBack;
-        var last = 0;
-        document.addEventListener('keydown', function (e) {
-          if (e.key !== 'Escape' || back) return;
-          var now = Date.now();
-          if (now - last < 700) {
-            last = 0;
-            var G = window.HawkesPlay && window.HawkesPlay.game;
-            if (G && G.ui && G.ui.menu) G.ui.menu('pause', { title: 'Paused', items: [{ label: 'Resume' }, { label: 'Return to the Observatory', onClick: goBack }] });
-          } else last = now;
-        }, true);
+        // Esc is owned by modules/gamemenu; it picks up HawkesObservatoryReturn as a menu item.
         // Who they are: the look from the address, applied when the platform's presence has loaded.
         var look = null;
         try { look = JSON.parse(q.get('look') || 'null'); } catch (e) { look = null; }
@@ -528,7 +519,7 @@
         };
         window.__obsFadeUp = function () { fadeUp(); apply(); };
       })();
-      // Reporting a world (src/games.ts reportGame): the page's own pause menu (Esc twice) and a corner button, for any
+      // Reporting a world (src/games.ts reportGame): the game menu on Esc (Report this world) and a corner button, for any
       // published game. This page is ours, not the game's, so a game's scripts cannot take the way out away. The report is
       // a text/plain POST (a simple request: this page is sandboxed, with no origin).
       if (!tpl && slug !== 'sandbox' && window.parent === window) (function () {
@@ -538,7 +529,6 @@
         var items = document.getElementById('rbItems');
         var rbtn = document.getElementById('reportBtn');
         var open = false;
-        var last = 0;
         var show = function (t, p, buttons) {
           open = true;
           box.hidden = false;
@@ -590,11 +580,10 @@
           var scripts = Array.prototype.map.call(document.scripts, function (x) { return x.src; }).filter(Boolean);
           window.parent.postMessage({ hawkesPlaytest: 'report-state', open: open, title: title.textContent, text: text.textContent, buttons: Array.prototype.map.call(items.children, function (x) { return x.textContent; }), cornerShown: !rbtn.hidden, reported: window.HawkesReported || null, scripts: scripts.length }, '*');
         });
+        // Esc opens the game menu (Report this world is an item). Esc closes the report dialog while it is open.
         document.addEventListener('keydown', function (e) {
           if (e.key !== 'Escape') { if (open) e.stopPropagation(); return; }
-          if (open) { close(); e.stopPropagation(); return; }
-          var now = Date.now();
-          if (now - last < 700) { last = 0; pause(); } else last = now;
+          if (open) { close(); e.stopPropagation(); }
         }, true);
       })();
       // The game and the engine at once; the engine brings only the modules this game uses (the rest come after).
