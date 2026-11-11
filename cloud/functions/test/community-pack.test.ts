@@ -88,3 +88,15 @@ test('a copied model keeps the recipe\'s own output names, so the sync lists it 
   assert.equal(row?.main.id, 'a_1');
   assert.equal(row?.thumb?.id, 'a_2');
 });
+
+test('a starter thing gets no second try while its first is still queued or running in Gen', async () => {
+  const { tryDue } = await import('../src/community.ts');
+  const now = 10 * 3600_000;
+  const base = { tries: 1, allowed: 2, lastFailed: false, lastOpen: false, queuedAt: now - 3 * 3600_000 };
+  assert.equal(tryDue({ ...base, tries: 0, queuedAt: 0 }, now), true);
+  assert.equal(tryDue(base, now), true, 'over 2 hours and no open job: try again');
+  assert.equal(tryDue({ ...base, lastOpen: true }, now), false, 'still running in Gen after 3 hours: wait');
+  assert.equal(tryDue({ ...base, queuedAt: now - 3600_000 }, now), false, 'under 2 hours: wait');
+  assert.equal(tryDue({ ...base, lastOpen: true, lastFailed: true }, now), true, 'failed: the next try needn\'t wait');
+  assert.equal(tryDue({ ...base, tries: 2, lastFailed: true }, now), false, 'no tries left');
+});
