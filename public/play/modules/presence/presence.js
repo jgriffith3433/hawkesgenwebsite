@@ -742,11 +742,51 @@
     if (pp && rig.hipL && rig.hipR && !rig.model) {
       out.airborne = Boolean(pp.airborne); out.landing = pp.air ? pp.air.landT < 0.25 : null;
       const down = typeof pp.soleY === 'number' ? pp.soleY : -0.52, duty = pp.duty || 0.5; // (the sole in the hip's own space: the hip's matrix scales it)
-      const sole = (hip, ph) => { hip.computeWorldMatrix(true); const v = B.Vector3.TransformCoordinates(new B.Vector3(0, down, 0), hip.getWorldMatrix()); return { x: v.x, y: v.y, z: v.z, down: Boolean(C.strideDown && C.strideDown(ph, duty)) && !pp.airborne }; };
+      const sole = (hip, ph) => { hip.computeWorldMatrix(true); const v = B.Vector3.TransformCoordinates(new B.Vector3(0, down, 0), hip.getWorldMatrix()); return { x: v.x, y: v.y, z: v.z, down: Boolean(C.strideDown && C.strideDown(ph, duty)) && !pp.airborne, via: 'sole' }; };
       out.feet = [sole(rig.hipL, pp.ph || 0), sole(rig.hipR, (pp.ph || 0) + Math.PI)];
+    } else if (rig.pm && rig.pm.on && rig.pm.cur) {
+      // a Gen model (presence-models.js): what it draws, and where its feet are after the last render (the playtest's trace)
+      const pm = rig.pm;
+      out.model = true; out.driven = Boolean(A && A.player);
+      out.airborne = Boolean(pm.air && pm.air.was); out.landing = pm.air ? pm.air.landT < 0.25 : null;
+      try { out.feet = modelFeet(rig, pm); } catch (err) { out.feet = null; out.feetError = String(err && err.message || err); }
     }
     return out;
   };
+  /** The foot nodes of a model's drawn level: Mixamo's feet, or the template rigs' leg tips (dinosaur, dog); none: the lowest vertices instead. */
+  const FOOT_NODE = [/^(mixamorig\d*[:_])?(Left|Right)Foot$/, /^Leg[LR]Tip$/, /^Leg[FB][LR]Tip$/];
+  function modelFeet(rig, pm) {
+    const lvl = pm.cur;
+    if (!pm.footN || pm.footN.lvl !== lvl) {
+      const nodes = [];
+      for (const r of lvl.roots) for (const n of [r, ...r.getDescendants(false)]) if (typeof n.getTotalIndices !== 'function' && FOOT_NODE.some((re) => re.test(n.name)) && !nodes.some((x) => x.name === n.name)) nodes.push(n);
+      nodes.sort((a, b) => (a.name < b.name ? -1 : 1));
+      const meshes = [];
+      for (const r of lvl.roots) for (const m of [r, ...r.getChildMeshes(false)]) if (typeof m.getTotalIndices === 'function' && m.getTotalVertices() > 0 && m.isEnabled()) meshes.push(m);
+      pm.footN = { lvl, nodes, meshes, data: new Map() };
+    }
+    const F = pm.footN;
+    if (F.nodes.length) {
+      return F.nodes.map((n) => { n.computeWorldMatrix(true); const v = n.getAbsolutePosition(); return { x: v.x, y: v.y, z: v.z, down: null, via: 'bone', part: n.name }; });
+    }
+    // no feet to follow (a toaster): the lowest vertex on each side of the body, from the vertices as they are drawn now
+    rig.root.computeWorldMatrix(true);
+    const inv = rig.root.getWorldMatrix().clone().invert(), low = [null, null], tmp = new B.Vector3(), loc = new B.Vector3();
+    for (const m of F.meshes) {
+      let pos = F.data.get(m);
+      if (!pos) F.data.set(m, (pos = m.getVerticesData(B.VertexBuffer.PositionKind) || []));
+      m.computeWorldMatrix(true);
+      const wm = m.getWorldMatrix();
+      for (let i = 0; i + 2 < pos.length; i += 3) {
+        tmp.set(pos[i], pos[i + 1], pos[i + 2]);
+        B.Vector3.TransformCoordinatesToRef(tmp, wm, tmp);
+        B.Vector3.TransformCoordinatesToRef(tmp, inv, loc);
+        const side = loc.x >= 0 ? 0 : 1;
+        if (!low[side] || tmp.y < low[side].y) low[side] = { x: tmp.x, y: tmp.y, z: tmp.z, down: null, via: 'vertex' };
+      }
+    }
+    return low.filter(Boolean);
+  }
   const nearestRigs = (pos, radius) => { const out = []; for (const [e, rig] of rigs) { const d = Math.hypot(e.x - pos[0], e.y - pos[1], e.z - pos[2]); if (d <= radius) out.push({ rig, dist: d }); } return out; };
   function wireFeelings() {
     const g = H.game;
