@@ -270,15 +270,15 @@
     if (!plan) return;
     const scene = t.scene;
     const mat = (name, color) => { const m = new B.StandardMaterial(name, scene); m.diffuseColor = L.hex(color); m.specularColor = new B.Color3(0.03, 0.03, 0.03); return m; };
-    const part = (mesh, material, offset) => { mesh.material = material; mesh.isPickable = false; mesh.metadata = { decor: true }; mesh.receiveShadows = true; mesh.parent = t.root; return { mesh, offset }; };
+    const part = (mesh, material, offset, wind) => { mesh.material = material; mesh.isPickable = false; mesh.metadata = wind ? { decor: true, wind } : { decor: true }; mesh.receiveShadows = true; mesh.parent = t.root; return { mesh, offset }; };
     const kinds = {
       trees: () => [
-        part(B.MeshBuilder.CreateCylinder('tree-trunk', { diameterTop: 0.35, diameterBottom: 0.55, height: 2.6, tessellation: 6 }, scene), mat('tree-trunk', '#6b4a2f'), 1.3),
-        part(B.MeshBuilder.CreateCylinder('tree-crown', { diameterTop: 0, diameterBottom: 3.6, height: 4.6, tessellation: 7 }, scene), mat('tree-crown', '#3d6b35'), 4.2),
-        part(B.MeshBuilder.CreateCylinder('tree-crown2', { diameterTop: 0, diameterBottom: 2.6, height: 3.2, tessellation: 7 }, scene), mat('tree-crown2', '#4a7d3f'), 6.1),
+        part(B.MeshBuilder.CreateCylinder('tree-trunk', { diameterTop: 0.35, diameterBottom: 0.55, height: 2.6, tessellation: 6 }, scene), mat('tree-trunk', '#6b4a2f'), 1.3, 'tree'),
+        part(B.MeshBuilder.CreateCylinder('tree-crown', { diameterTop: 0, diameterBottom: 3.6, height: 4.6, tessellation: 7 }, scene), mat('tree-crown', '#3d6b35'), 4.2, 'tree'),
+        part(B.MeshBuilder.CreateCylinder('tree-crown2', { diameterTop: 0, diameterBottom: 2.6, height: 3.2, tessellation: 7 }, scene), mat('tree-crown2', '#4a7d3f'), 6.1, 'tree'),
       ],
       rocks: () => [part(B.MeshBuilder.CreateIcoSphere('rock', { radius: 0.8, subdivisions: 1, flat: true }, scene), mat('rock', '#8b8780'), 0.25)],
-      bushes: () => [part(B.MeshBuilder.CreateIcoSphere('bush', { radius: 0.7, subdivisions: 1, flat: true }, scene), mat('bush', '#557f3a'), 0.35)],
+      bushes: () => [part(B.MeshBuilder.CreateIcoSphere('bush', { radius: 0.7, subdivisions: 1, flat: true }, scene), mat('bush', '#557f3a'), 0.35, 'bush')],
     };
     for (const kind of ['trees', 'rocks', 'bushes']) {
       if (!plan[kind]) continue;
@@ -386,7 +386,7 @@
       merged.scaling.setAll(k);
       merged.position.y = -bb.minimum.y * k;
       merged.bakeCurrentTransformIntoVertices();
-      merged.isPickable = false; merged.metadata = { decor: true }; merged.receiveShadows = true;
+      merged.isPickable = false; merged.metadata = group.kind === 'rocks' ? { decor: true } : { decor: true, wind: group.kind === 'trees' ? 'tree' : 'bush' }; merged.receiveShadows = true;
       merged.parent = t.root; // (with the ground: a round world's frame moves it)
       // (The stand-ins stay for the far copies.)
       group.far = group.parts;

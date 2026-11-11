@@ -148,6 +148,10 @@ export const SANDBOX = {
     background: '#74b9ea', ambient: 0.78, sun: 1, gravity: -24, time: { hour: 15.5, day: 120, light: false }, motes: '#fff3d6',
     // The light stack (modules/lighting): a low golden sun, cascaded soft shadows, sky reflections, ACES, bloom and the grade of the hour.
     lighting: { hour: 16.9 },
+    // The island moves on its own (modules/wind): gusts across the meadow, grass pushed aside, petals; gulls over the beach that scatter,
+    // butterflies in the clearing by day, fireflies there at night, a fish that jumps off the pier.
+    wind: true,
+    wildlife: { gulls: [68, -2], clearing: [-4, 0, 12], pier: [80, 0] },
     fog: { color: '#a9d4f2', start: 260, end: 2200 },
     planet: PLANET,
     // (The start faces east, down the path to the dock: the Overseer hangs ahead of it, about 15 degrees wide.)
