@@ -165,7 +165,24 @@
   /** A launcher's kick: how far the model comes back (0-1.7), the camera's nudge and how long the muzzle flash lasts. */
   const launcherKick = (power = 1) => ({ model: clamp(1 + 0.7 * num(power, 1), 1, 1.7), camera: clamp(0.14 * num(power, 1), 0.04, 0.3), flash: 0.07 });
 
-  const math = { soundDelay, chainSchedule, detail, boomLayers, emberCount, launcherKick, rng, hashSeed, layout, fracture, falloff, score, arc, POINTS, PATTERNS };
+  /** What each layer of a blast makes (mayhem-vfx.js). radius: the blast's; k: detail from `detail()` (0-1); tier:
+   *  'phone' | 'tablet' | 'desktop'. The phone makes half the particles, has no heat ripple and reads 512 px flipbooks;
+   *  the smoke column lingers 6 to 8 s; the flash lasts 0.15 s; the scorch fades over 60 s. */
+  function vfxPlan(radius, k = 1, tier = 'desktop', chain = 0) {
+    const R = clamp(num(radius, 5), 0.5, 40), kk = clamp(num(k, 1), 0.1, 1), phone = tier === 'phone';
+    const mul = phone ? 0.5 : tier === 'tablet' ? 0.75 : 1;
+    const n = (v) => Math.max(2, Math.round(v * kk * mul));
+    return {
+      size: R < 4 ? 'S' : R < 8 ? 'M' : 'L',
+      fire: n(8 + R * 2.2), smoke: n(14 + R * 2.6), sparks: n(18 + R * 4), dust: n(10 + R * 2.5),
+      smokeLife: clamp(6 + R * 0.15, 6, 8), flash: 0.15, flashRange: R * 4.5, ring: R * 3,
+      scorchSeconds: 60, scorchSize: R * 0.9, sheet: phone ? 512 : 1024,
+      distortion: tier === 'desktop' && num(chain, 0) < 1,
+      lights: phone ? 1 : 2,
+    };
+  }
+
+  const math = { vfxPlan, soundDelay, chainSchedule, detail, boomLayers, emberCount, launcherKick, rng, hashSeed, layout, fracture, falloff, score, arc, POINTS, PATTERNS };
   if (root && root.HawkesPlay) root.HawkesPlay.mayhemMath = math;
   if (typeof module !== 'undefined' && module.exports) module.exports = math;
   if (root) root.HawkesMayhemMath = math;
