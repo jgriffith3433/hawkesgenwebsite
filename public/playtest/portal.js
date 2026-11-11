@@ -50,8 +50,8 @@ const SCENARIOS = [
   ISLAND_SOUNDSCAPE, // ambience beds, footsteps by surface, interaction SFX, mute (island-soundscape.js)
   WORLD_QUALITY, // quality rules 1 to 4 on a world: ground contact, backwards words, z-fighting, inside out (world-quality.js)
   {
-    id: 'overseer-first-visit', title: 'The Overseer\'s first-visit introduction: at least three lines, then a prompt that starts building; a return skips it', seconds: 90, tags: ['full'], starts: ['sandbox'],
-    description: 'landing, Play click, the click-to-enter veil, then the intro watched to its end with no key pressed: the Overseer\'s lines (overseer-said, greeting-lines needs three or more), then the card that starts building (build-prompt-shown) and a real click on it opens the chat to the Overseer (build-prompt-used); the intro\'s flag is kept and the intro is no longer wanted (return-skips-intro). Sign-in and credits are not touched. Never signs up.',
+    id: 'overseer-first-visit', title: 'The Overseer\'s first-visit introduction: the player moves within 5 s, captioned voiced lines, a tap or key skips it, a guest ends at the mirror; a return skips it', seconds: 90, tags: ['full'], starts: ['sandbox'],
+    description: 'options: touch (true: ?touch=1 and at: "sandbox"; the stick and a tap), skipAfter (seconds before the skip, 8.5). Landing, Play click, the click-to-enter veil, then the first move (first-move: real W or stick input, within 5000 ms of intro-start; control-given), each line captioned with the Overseer\'s name in the letterbox bar or on a phone plate (intro-caption, clear of the controls) and voiced (intro-voice), one key or tap skipping the rest (skip-control-back: control and the camera behind the player), a guest then at the mirror with no first-thing card (mirror-open-after-intro, no-ask-card); signed in, the card that starts building (build-prompt-shown, build-prompt-used). The old scenario watched to the end with no key pressed: the Overseer\'s lines (overseer-said, greeting-lines needs three or more), then the card that starts building (build-prompt-shown) and a real click on it opens the chat to the Overseer (build-prompt-used); the intro\'s flag is kept and the intro is no longer wanted (return-skips-intro). Sign-in and credits are not touched. Never signs up.',
   },
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
   {
@@ -435,33 +435,106 @@ async function stageIntro(t, ctx) {
 async function stageFirstVisit(t, ctx) {
   const g = () => G() && G().overseer;
   const seen = [];
+  const touch = Boolean(HP().touchUi) || Boolean(ctx.options.touch);
   await t.until(() => G() && G().on, 20000, 'the game events').catch(() => {});
   let prompted = false;
   G().on('intro', (d) => { if (d && d.state === 'prompt') prompted = true; });
+  const speech = [];
+  G().on('overseer-speech', (d) => { if (d && d.state === 'start') speech.push(d); });
   const said = () => [...document.querySelectorAll('.hc-log p.overseer')].map((p) => p.textContent.replace(/\s+/g, ' ').trim()).filter(Boolean);
   const started = await t.until(() => g() && g().introPlaying, 25000, 'the Overseer\'s intro to start').then(() => true, () => false);
   if (!started) throw new Error('timed out waiting for the Overseer\'s intro to start (first visit)');
   t.event('intro-start');
   t.scene('First visit: the Overseer appears');
   const t0 = performance.now();
-  let shot = false;
-  await t.until(() => {
+  const sec = () => ((performance.now() - t0) / 1000).toFixed(1);
+  const p = () => W() && W().player;
+  const start = { x: p().x, z: p().z };
+
+  // 1. The first move: real input (the stick, or W), as soon as the player has control; it must show within 5 s of the intro's start.
+  await t.until(() => p() && p().controls !== false, 8000, 'the player to be given control during the intro').catch((e) => t.problem('error', e.message));
+  t.event('control-given', `${sec()} s after the intro started`);
+  let stick = null;
+  if (touch) { stick = stickHold(); stick.set(0, 1); } else setKeys({ w: true });
+  let moved = false;
+  await t.until(() => { moved = Math.hypot(p().x - start.x, p().z - start.z) > 0.3; return moved; }, 5000, 'the player to move').catch(() => {});
+  const ms = Math.round(performance.now() - t0);
+  if (moved && ms <= 5000) t.event('first-move', `${ms} ms after the intro started (${touch ? 'the stick' : 'W'})`);
+  else t.problem('error', `the first move came ${moved ? ms + ' ms' : 'never'} after the intro started; it must be within 5000 ms`);
+  t.metric && t.metric('firstMoveMs', ms);
+  t.scene('First visit: walking under the beam');
+
+  // 2. Each line: a caption naming the Overseer, in the letterbox bar (desktop) or on a dark plate (phone), clear of the controls; and its voice.
+  const rect = (el) => el.getBoundingClientRect();
+  const hit = (a, b) => !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom);
+  const caps = new Set();
+  let capProblems = 0, shots = 0;
+  const watch = () => {
     for (const l of said()) if (!seen.includes(l)) { seen.push(l); t.event('overseer-said', l); }
-    if (!shot && seen.length >= 2) { shot = true; t.scene('First visit: the Overseer speaks'); }
-    return !g().introPlaying;
-  }, 40000, 'the intro to play to its end');
-  for (const l of said()) if (!seen.includes(l)) { seen.push(l); t.event('overseer-said', l); }
-  t.event('intro-ended', `${Math.round((performance.now() - t0) / 1000)} s`);
+    const el = document.querySelector('.ov-cap.on');
+    if (el) {
+      const name = (el.querySelector('b') || {}).textContent || '', line = (el.querySelector('span') || {}).textContent || '';
+      if (line && !caps.has(line)) {
+        caps.add(line);
+        const r = rect(el.querySelector('.in')), plate = el.classList.contains('plate');
+        const bars = document.querySelector('.sh-bars'), bar = bars && bars.lastElementChild ? rect(bars.lastElementChild) : null;
+        const inBar = !plate && bar && r.top >= bar.top - 1 && r.bottom <= bar.bottom + 1;
+        const where = plate ? 'a dark plate' : inBar ? 'the letterbox bar' : 'OUTSIDE the letterbox bar';
+        t.event('intro-caption', `${name}: "${line}" in ${where}`);
+        if (!/overseer/i.test(name)) { capProblems++; t.problem('error', `a caption without the Overseer's name: "${line}"`); }
+        if (!plate && !inBar) { capProblems++; t.problem('error', `the caption "${line}" is not inside the letterbox bar`); }
+        if (touch) {
+          if (!plate) { capProblems++; t.problem('error', 'on a phone the caption must sit on a dark plate'); }
+          if (r.height > 0 && parseFloat(getComputedStyle(el.querySelector('span')).fontSize) < 16) { capProblems++; t.problem('error', 'the caption is under 16 px on a phone'); }
+          for (const c of document.querySelectorAll('#touch .pad, #touch .a, #touch .b, #touch button, .tl-zone button')) { const cr = rect(c); if (cr.width && hit(r, cr)) { capProblems++; t.problem('error', `the caption overlaps a control (${c.className || c.id})`); break; } }
+        }
+        if (!shots) { shots++; t.scene(`First visit: caption "${line}"`); }
+      }
+    }
+  };
+  // Walk on (a thumb or a key held) while the lines play, until the skip point.
+  const skipAfter = Number(ctx.options.skipAfter || 8.5);
+  await t.until(() => { watch(); return (performance.now() - t0) / 1000 >= skipAfter || !g().introPlaying; }, 20000, 'the intro lines');
+  const voiced = speech.filter((d) => d.voiced);
+  t.event('intro-voice', `${voiced.length} of ${speech.length} lines voiced so far`);
+  if (speech.length && !voiced.length) t.problem('error', 'none of the intro lines had a voice clip playing');
+
+  // 3. One key or tap skips the rest: control back within 0.5 s, the camera behind the player.
+  if (g().introPlaying) {
+    if (stick) stick.release(); else setKeys({});
+    const ts = performance.now();
+    if (touch) { const c = canvas(), id = ++touchId, x = innerWidth * 0.5, y = innerHeight * 0.25; touchEv('pointerdown', c, x, y, id); touchEv('pointerup', c, x, y, id); }
+    else await tap(t, 'Enter');
+    await t.until(() => !g().introPlaying, 2000, 'the intro to end after the skip');
+    await t.wait(450);
+    const back = performance.now() - ts;
+    const delta = Math.abs(wrap(camYaw() - p().node.rotation.y));
+    t.event('skip-control-back', `${Math.round(back)} ms after the ${touch ? 'tap' : 'key'}; controls ${p().controls !== false}; camera ${delta.toFixed(2)} rad off behind the player`);
+    t.scene('First visit: after the skip');
+    if (p().controls === false && !(G().mirror && G().mirror.pending)) t.problem('error', 'control did not come back after the skip');
+    if (delta > 0.35) t.problem('error', `the camera is not behind the player after the skip (${delta.toFixed(2)} rad off)`);
+  } else t.event('skip-not-needed', 'the intro had ended before the skip point');
+  watch();
   if (seen.length >= 3) t.event('greeting-lines', `${seen.length} lines in character`);
   else t.problem('error', `the Overseer said ${seen.length} lines in the intro; at least 3 are expected: ${JSON.stringify(seen)}`);
-  const card = await t.until(() => [...document.querySelectorAll('.hc-card .act')].find((b) => /first thing/i.test(b.textContent)), 8000, 'the prompt that starts building').catch((e) => { t.problem('error', e.message); return null; });
-  if (card) {
-    t.scene('First visit: the prompt to build');
-    t.event('build-prompt-shown', card.textContent.trim());
-    card.click();
-    const open = await t.until(() => document.querySelector('.hc-form.on'), 5000, 'the chat to open for the first ask').then(() => true, (e) => { t.problem('error', e.message); return false; });
-    if (open) t.event('build-prompt-used', 'the chat is open to the Overseer');
-    if (!prompted) t.problem('error', 'the intro never said it had prompted');
+
+  // 4. As a guest: the mirror is the next thing, and no "Ask for your first thing" card is on screen.
+  const guest = Boolean(window.HawkesGuest);
+  if (guest) {
+    await t.until(() => G().mirror && G().mirror.isOpen, 6000, 'the mirror to open after the intro').then(() => t.event('mirror-open-after-intro', 'the questions are on screen'), (e) => t.problem('error', e.message));
+    const card = [...document.querySelectorAll('.hc-card .act')].find((b) => /first thing/i.test(b.textContent));
+    if (card) t.problem('error', 'a guest sees the "Ask for your first thing" card'); else t.event('no-ask-card', 'no first-thing card for a guest');
+    t.scene('First visit: the mirror');
+  } else {
+    const card = await t.until(() => [...document.querySelectorAll('.hc-card .act')].find((b) => /first thing/i.test(b.textContent)), 8000, 'the prompt that starts building').catch((e) => { t.problem('error', e.message); return null; });
+    if (card) {
+      t.scene('First visit: the prompt to build');
+      t.event('build-prompt-shown', card.textContent.trim());
+      card.click();
+      const open = await t.until(() => document.querySelector('.hc-form.on'), 5000, 'the chat to open for the first ask').then(() => true, (e) => { t.problem('error', e.message); return false; });
+      if (open) t.event('build-prompt-used', 'the chat is open to the Overseer');
+      if (!prompted) t.problem('error', 'the intro never said it had prompted');
+    }
   }
   // A return skips it: the intro's flag is kept, so a second visit does not want it.
   let flag = false; try { flag = Boolean(localStorage.getItem('hg_overseer_intro')); } catch { /* sandboxed */ }
