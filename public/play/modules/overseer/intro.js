@@ -11,6 +11,7 @@
 //     sound asset named "overseer-intro" in the game, else the Overseer's own line (overseer.js VOICES).
 //   - With sound still blocked by the browser (no click or key yet), it first shows the gateway: the Overseer's ring, one
 //     "Enter" (click, tap, Enter or Space) that unlocks the sound and starts the intro at once (game.on('gateway')).
+//   - It starts only once the world has been drawn (H.worldDrawn, runtime.js whenDrawn: scene ready, three frames on screen); the loading screen stays up until then, so the bars, captions and Skip never sit over an undrawn black page.
 //   - Remembered in localStorage ("hg_overseer_intro"); a sandboxed game page (the editor's stage) asks its page,
 //     which passes it in the bundle (bundle.overseen) and is told when it has played (message "overseer-seen").
 //   - game.overseer.intro() plays it from a script; game.on('intro', ({ state }) => ...) hears it start and end.
@@ -254,6 +255,9 @@
     const quiet = settled(w); // compiles behind the "Enter" veil
     await waitForSound();
     await quiet;
+    // Nothing of the intro (bars, captions, Skip) shows over a world that has not been drawn yet: the loading screen is
+    // still up until it has (runtime.js whenDrawn).
+    try { await H.worldDrawn; } catch { /* the loading screen's own timeout */ }
     if (W() !== w || !p.alive) return { skipped: true };
     const short = isShort();
     const SEC = short ? 4.5 : SECONDS;
