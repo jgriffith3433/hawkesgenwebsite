@@ -5,6 +5,8 @@ the settings; this is for scripts.
 
 | | What |
 |---|---|
+| `game.water.waveAt(x, z)` | Height of the waves alone (the one function the shader and floating share), over the sea's level. |
+| `game.water.seaDepthAt(x, z)` | How deep the sea is there, from the terrain, or `null`. |
 | `game.water.surfaceAt(x, z)` | Height of the water's surface there (waves included), or `null` where there's no water. |
 | `game.water.inWater(pos)` | True if a point `[x, y, z]` (or a thing's middle) is under water. `depthAt(pos)`: how far under (negative: above). |
 | `game.water.at(pos)` | `{ body, surface, depth }` or null: which water (`body.kind` is `"ocean"` or `"box"`, `body.entity` the water thing). |
