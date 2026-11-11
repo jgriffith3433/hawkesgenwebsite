@@ -321,7 +321,30 @@
           const y = T.heightAt(t.f, p[0], p[1]) ?? 0;
           const s = group.alive[i] ? p[2] : 0;
           const sy = group.kind === 'rocks' ? s * (0.5 + p[4] * 0.5) : s;
-          B.Matrix.ComposeToRef(new B.Vector3(s, sy, s), B.Quaternion.RotationYawPitchRoll(p[3], group.kind === 'rocks' ? p[4] * 0.5 : 0, 0), new B.Vector3(p[0] - cx, y + part.offset * sy - (group.kind === 'trees' ? 0.15 : 0), p[1] - cz), tmp);
+          // Trees dig a little; rocks and bushes tip with the slope (capped ~15°) and sink so the base never shows air.
+          const nrm = T.normalAt(t.f, p[0], p[1]) || [0, 1, 0];
+          const maxTilt = group.kind === 'rocks' ? 15 : group.kind === 'bushes' ? 10 : 0;
+          let pitch = 0, roll = 0;
+          if (maxTilt) {
+            const maxC = Math.cos(maxTilt * Math.PI / 180);
+            let nx = nrm[0], ny = nrm[1], nz = nrm[2];
+            const L = Math.hypot(nx, ny, nz) || 1;
+            nx /= L; ny /= L; nz /= L;
+            if (ny < maxC) {
+              const flat = Math.hypot(nx, nz) || 1e-9;
+              const k = Math.sin(maxTilt * Math.PI / 180) / flat;
+              nx *= k; nz *= k; ny = maxC;
+              const L2 = Math.hypot(nx, ny, nz) || 1;
+              nx /= L2; ny /= L2; nz /= L2;
+            }
+            pitch = Math.atan2(nz, ny);
+            roll = -Math.atan2(nx, ny);
+          } else if (group.kind === 'rocks') {
+            pitch = p[4] * 0.35;
+          }
+          // Dig stays within 5 cm so the world-quality ground rule and scatter agree.
+          const dig = group.kind === 'trees' ? 0.05 : group.kind === 'rocks' ? 0.05 : group.kind === 'bushes' ? 0.04 : 0;
+          B.Matrix.ComposeToRef(new B.Vector3(s, sy, s), B.Quaternion.RotationYawPitchRoll(p[3], pitch, roll), new B.Vector3(p[0] - cx, y + part.offset * sy - dig, p[1] - cz), tmp);
           tmp.copyToArray(buf, j * 16);
         });
         part.buf = buf;

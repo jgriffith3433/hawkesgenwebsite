@@ -423,7 +423,21 @@
       // one the repo's tests run. Set up before any branch below returns, so /play/sandbox (the guest island) answers too. Like the report bridge above: only a browser under automation, only to its parent, read only.
       if (navigator.webdriver && window.parent !== window) window.addEventListener('message', function (e) {
         var m = e.data;
-        if (e.source !== window.parent || !m || m.hawkesPlaytest !== 'audit') return;
+        if (e.source !== window.parent || !m) return;
+        // Orbit the camera for the eight-angle back-face stills (world-quality playtest).
+        if (m.hawkesPlaytest === 'look') {
+          try {
+            var H = window.HawkesPlay, W = H && H.world, cam = W && W.scene && W.scene.activeCamera;
+            if (!cam) return window.parent.postMessage({ hawkesPlaytest: 'look-state', error: 'no camera' }, '*');
+            var at = m.at || [0, 8, 0], look = m.look || [0, 4, 0];
+            cam.position.set(at[0], at[1], at[2]);
+            if (cam.setTarget) cam.setTarget(new BABYLON.Vector3(look[0], look[1], look[2]));
+            W.scene.render();
+            window.parent.postMessage({ hawkesPlaytest: 'look-state', ok: true }, '*');
+          } catch (err) { window.parent.postMessage({ hawkesPlaytest: 'look-state', error: String((err && err.message) || err) }, '*'); }
+          return;
+        }
+        if (m.hawkesPlaytest !== 'audit') return;
         var answer = function (r) { window.parent.postMessage({ hawkesPlaytest: 'audit-state', result: r }, '*'); };
         var go = function () {
           try { answer(window.HawkesPlay && window.HawkesPlay.world ? window.HawkesWorldAudit.audit(window.HawkesPlay, m.options || {}) : { error: 'no world yet' }); }
