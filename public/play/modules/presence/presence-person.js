@@ -465,7 +465,7 @@
     const airborne = !seated && !swim && !grounded && A.t > (fm ? 0 : 0.1);
     if (airborne) A.peak = Math.max(A.peak, -vy);
     if (airborne && !A.was) A.takeT = 0;
-    if (!airborne && A.was && A.t < 0.01 && !swim) { A.landT = 0; A.depth = lerp(0.9, 0.8, clamp(A.peak / 10, 0, 1)); }
+    if (!airborne && A.was && A.t < 0.01 && !swim) { A.landT = 0; A.depth = lerp(0.94, 0.72, clamp(A.peak / 12, 0, 1)); }
     if (!airborne && A.was) A.peak = 0;
     A.was = airborne;
     A.takeT += dt; A.landT += dt;
@@ -570,8 +570,11 @@
       if (A.landT < 0.31) {
         const tt = A.landT;
         landK = tt < 0.09 ? lerp(1, A.depth, ease(tt / 0.09)) : (() => { const u = (tt - 0.09) / 0.22; return u < 0.55 ? lerp(A.depth, 1.05, ease(u / 0.55)) : lerp(1.05, 1, ease((u - 0.55) / 0.45)); })();
-        const dep = clamp((1 - landK) / 0.2, -0.3, 1);
-        SL.rotation.x += 0.5 * dep; SR.rotation.x += 0.5 * dep; L.rotation.x -= 0.25 * dep; R.rotation.x -= 0.25 * dep;
+        // Knee bend scales with how hard the land was (depth): a 1.5 m fall reads as a clear crouch, a hop almost nothing.
+        const hard = clamp((1 - A.depth) / 0.22, 0, 1);
+        const dep = clamp((1 - landK) / 0.2, -0.3, 1) * (0.35 + 0.65 * hard);
+        SL.rotation.x += 0.7 * dep; SR.rotation.x += 0.7 * dep; L.rotation.x -= 0.45 * dep; R.rotation.x -= 0.45 * dep;
+        bob -= 0.04 * dep;
       }
       sy *= landK;
       setPose(pose, sy, rx, sxz);

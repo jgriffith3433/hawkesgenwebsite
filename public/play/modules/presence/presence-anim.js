@@ -55,10 +55,13 @@
   /** Which roles and emotes take which clips, first found wins. An emote is its own name. */
   /** Metres a clip's cycle covers when a row has no stride of its own for it: the walk and run are the registry's, a trot is between them. */
   const TROT_AT = 2.4, STRIDE_TROT = 2.2;
-  /** A landing shows for LAND_HOLD seconds before walking on (faster than LAND_MOVING m/s) or a new jump may end it. */
-  const LAND_HOLD = 0.18, LAND_MOVING = 0.6;
+  /** A landing shows for LAND_HOLD seconds before walking on (faster than LAND_MOVING m/s) or a new jump may end it.
+   *  LAND_MAX caps a land take when the player is not idle (so a long recovery clip cannot leave them crouched). */
+  const LAND_HOLD = 0.18, LAND_MOVING = 0.6, LAND_MAX = 0.55;
   /** The quickest a gait clip plays (times its own speed): quicker still and the feet slide rather than blur. */
   const LOCO_MAX_RATE = 3;
+  /** When there is no sprint stride, a run clip stretches this far past its run speed before it is the "sprint" gait. */
+  const SPRINT_OVER = 1.35;
   const ROLE_CLIPS = { idle: ['idle'], walk: ['walk', 'run'], run: ['run', 'walk'], jump: ['jump', 'fall'], fall: ['fall', 'jump'], swim: ['swim'], drive: ['drive', 'sit'], sit: ['sit'] };
 
   // ------------------------------------------------------------------ quaternions [x, y, z, w] (Hamilton: a * b is b first)
