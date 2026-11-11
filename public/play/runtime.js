@@ -2445,15 +2445,32 @@
   }
 
   let looping = false;
+  let worldDrawn = Promise.resolve();
+  /** Resolves when the scene is ready (shaders compiled, textures in) and three frames have been drawn after that; at
+   *  most 25 s (a slow device shows the world as it is by then). No screen (the engine tests): at once. */
+  function whenDrawn(scene) {
+    if (!scene || engine instanceof B.NullEngine) return Promise.resolve();
+    return new Promise((res) => {
+      let seen = 0, obs = null;
+      const finish = () => { clearTimeout(cap); if (obs) scene.onAfterRenderObservable.remove(obs); res(); };
+      const cap = setTimeout(finish, 25000);
+      const frames = () => { if (scene.isDisposed()) return finish(); obs = scene.onAfterRenderObservable.add(() => { if (++seen >= 3) finish(); }); };
+      try { scene.whenReadyAsync().then(frames, frames); } catch { frames(); }
+    });
+  }
   function run(b, o = {}) {
     bundle = b;
     if (o.mode) mode = o.mode;
     document.title = b.title ? `${b.title} · Hawkes Play` : 'Hawkes Play';
     const loading = $('loading');
-    if (loading) { if (window.HawkesLoadScreen) window.HawkesLoadScreen.done(); else loading.hidden = true; }
     // Warm the sound cache so the first effect plays on time.
     for (const [, a] of Object.entries(b.assets || {})) if (/^audio\//.test(a.mime || '') && a.url) fetch(a.url).catch(() => {});
     try { start({ newScene: true }); } catch (e) { report(e); } // a new bundle: its own world
+    // The loading screen stays until the world has really been drawn (its shaders and textures ready, a few frames on
+    // screen), not just built: a page with nothing drawn yet is the page's dark background, and the intro waits for this.
+    const shown = () => { if (loading) { if (window.HawkesLoadScreen) window.HawkesLoadScreen.done(); else loading.hidden = true; } };
+    worldDrawn = whenDrawn(W && W.scene);
+    worldDrawn.then(shown, shown);
     if (!looping && o.loop !== false) {
       looping = true;
       engine.runRenderLoop(() => { try { advance(true); } catch (e) { report(e); if (W) W.paused = true; } });
@@ -2492,7 +2509,7 @@
   }
 
   window.HawkesPlay = {
-    run, reload, setAssets, setMode, applyOps, respawn: () => respawn(false),
+    run, reload, setAssets, get worldDrawn() { return worldDrawn; }, setMode, applyOps, respawn: () => respawn(false),
     restart: () => { if (W) W.restartAsked = true; },
     behavior: (name, def) => defineBehavior(name, def, true),
     behaviorDef: (name) => findDef(name),
