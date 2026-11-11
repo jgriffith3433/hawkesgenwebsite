@@ -103,12 +103,10 @@ test('a starter thing gets no second try while its first is still queued or runn
   assert.equal(tryDue({ ...base, lastFailed: true, queuedAt: now - 31 * 60_000, waitAfterFail: 30 * 60_000 }, now), true, 'backed off long enough');
 });
 
-test('a try with no GPU is told apart, and backs off up to 4 hours', async () => {
-  const { hadNoGpu, noGpuWait } = await import('../src/community.ts');
-  assert.ok(hadNoGpu("step 3 (image.viewsheet) failed: the front view (image.edit) failed: No GPU is available right now, so this couldn't start. Nothing was charged."));
-  assert.ok(!hadNoGpu("That's a lot at once: wait 1 second, then try again."));
-  assert.equal(noGpuWait(0), 0);
-  assert.equal(noGpuWait(1), 30 * 60_000);
-  assert.equal(noGpuWait(2), 60 * 60_000);
-  assert.equal(noGpuWait(10), 4 * 3600_000);
+test('a try Gen turned away backs off, up to 4 hours', async () => {
+  const { turnedAwayWait } = await import('../src/community.ts');
+  assert.equal(turnedAwayWait(0), 0);
+  assert.equal(turnedAwayWait(1), 30 * 60_000);
+  assert.equal(turnedAwayWait(2), 60 * 60_000);
+  assert.equal(turnedAwayWait(10), 4 * 3600_000);
 });
