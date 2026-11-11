@@ -2451,25 +2451,28 @@
 
   let looping = false;
   let worldDrawn = Promise.resolve();
-  /** Resolves when the scene is ready (shaders compiled, textures in) and two frames have been drawn after that, so the
-   *  loading cover lifts from the first frame that is really on screen. Never hangs: after 6 s of a slow device (software
-   *  GL compiling shaders) one drawn frame is enough, and at 12 s the cover lifts whatever is happening (the world as it is).
-   *  No screen (the engine tests): at once. */
+  /** Resolves when the first frames are really on screen, so the loading cover lifts as soon as the sky, the ground near
+   *  the start and the player are drawn: the scene's own "ready" (every shader and texture of the whole island, which on a
+   *  phone is seconds) is not waited for. Babylon draws what is ready (with KHR_parallel_shader_compile the rest compiles
+   *  off the main thread and joins frame by frame) and textures.js / kinds.js already start with the lowest levels. Needs
+   *  the scene ready, or four frames drawn with at least 1.2 s of them behind us, then two more drawn frames; never hangs:
+   *  at 8 s the cover lifts whatever is happening. No screen (the engine tests): at once. */
   function whenDrawn(scene) {
     if (!scene || engine instanceof B.NullEngine) return Promise.resolve();
     return new Promise((res) => {
       const t0 = performance.now();
       let after = 0, any = 0, ready = false, obs = null;
       const finish = () => { clearTimeout(cap); if (obs) scene.onAfterRenderObservable.remove(obs); res(); };
-      const cap = setTimeout(finish, 12000);
+      const cap = setTimeout(finish, 8000);
       const frames = () => {
         ready = true;
         if (scene.isDisposed()) finish();
       };
       obs = scene.onAfterRenderObservable.add(() => {
         any++;
+        if (!ready && any >= 4 && performance.now() - t0 > 1200) ready = true; // (the near world is drawn; the rest streams in)
         if (ready) after++;
-        if (after >= 2 || (any >= 1 && performance.now() - t0 > 6000)) finish();
+        if (after >= 2) finish();
       });
       try { scene.whenReadyAsync().then(frames, frames); } catch { frames(); }
     });
