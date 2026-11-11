@@ -109,6 +109,7 @@
     body:not(.tl):not(.pr-touch) .hc-chat{left:calc(50vw - var(--hl-panel) / 2);width:min(640px,calc(100vw - var(--hl-panel) - 32px));max-width:calc(100vw - var(--hl-panel) - 32px);transition:left .3s ease,width .3s ease,max-width .3s ease}
     body.pr-touch:not(.tl) .hc-chat{max-width:min(340px,calc(100vw - var(--hl-panel) - 24px))}
     body.tl .gs-acts{max-width:none}
+    .gs-acts button,.jr-btn,.mr-x{min-height:44px;min-width:44px;box-sizing:border-box}
     /* phone: one 44 px menu; the intents sit in a list under it when .open. Journal (.jr-btn) is in Controls on touch. */
     body.hl-compact .jr-btn{display:none!important}
     body.hl-compact .gs-acts{flex-wrap:nowrap;align-items:flex-end;max-width:min(280px,calc(100vw - 24px));z-index:70}

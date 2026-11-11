@@ -30,6 +30,7 @@ import { SERVER_LIMITS, runServerLimits } from './server-limits.js';
 import { CHARACTER_MOTION, runCharacterMotion } from './character-motion.js';
 import { WORLD_QUALITY, runWorldQuality } from './world-quality.js';
 import { PHONE_HUD_LAYOUT, runPhoneHudLayout } from './phone-hud-layout.js';
+import { runHudOverlap } from './hud-overlap.js';
 import { ISLAND_SOUNDSCAPE, runIslandSoundscape } from './island-soundscape.js';
 
 const KEY = 'hg_playtest_run';
@@ -106,7 +107,7 @@ const SCENARIOS = [
   {
     id: 'hud-overlap', title: 'No HUD control overlaps another, leaves the screen or is too small to tap, with the mirror panel and the Overseer chat opened and closed', seconds: 120, tags: ['full'],
     starts: ['sandbox'],
-    description: 'the intro is skipped, then at each step (mirror open, mirror closed, chat open, chat closed) every visible HUD control (buttons, links, inputs) is measured after the open/close transition ends (transitionend, no polling) and a screenshot is taken. Events hud-no-overlap, hud-in-viewport and hud-tap-targets pass or fail per step; a failure names the two controls (or the one). Run it at 1280x720, 390x844 and 844x390 (the window size is the runner\'s)',
+    description: 'the intro is skipped, then at each step (mirror open, mirror closed, chat open, chat closed) every visible HUD control (buttons, links, inputs) is measured after the open/close transition ends (transitionend, no polling) and a screenshot is taken. Events hud-no-overlap, hud-in-viewport and hud-tap-targets pass or fail per step; a failure names the two controls (or the one). Runs itself at 1280x720, 390x844 and 844x390 (an iframe of each size, a screenshot per step)',
   },
   {
     id: 'mirror-panel-layout', title: 'The HUD makes room for the mirror panel: the quest banner and the action row stay whole beside it, and glide back when it closes', seconds: 120, tags: ['full'],
@@ -3227,6 +3228,7 @@ export function install() {
     async start(id, options, t) {
       if (id === SITE_LAYOUT.id) return runSiteLayout(t, options);
       if (id === PHONE_HUD_LAYOUT.id) return runPhoneHudLayout(t, options);
+      if (id === 'hud-overlap') return runHudOverlap(t, options);
       if (id === SICKOFIT_PAGE.id) return runSickofitPage(t, options);
       if (id === AVATAR_ANIMATIONS.id) return runAvatarAnimations(t, options);
       if (id === COMMUNITY_LIBRARY.id) return runCommunityLibrary(t, options);
