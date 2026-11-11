@@ -8,19 +8,14 @@
 import { db, users } from './store.ts';
 import { route } from './http.ts';
 import { cdnOf } from './lods.ts';
+import { CATALOGUE, catalogueEntry } from './catalogue.ts';
 
 export type Live = { playing: number; building: number };
 /** Who is playing and building each game (ids: g_..., or t:<template> for the Overseer's games). Replaced by presence. */
 export const liveCounts: { of: (ids: string[]) => Promise<Record<string, Live>> } = { of: async () => ({}) };
 
-/** The Overseer's featured games (src/templates.ts featured(), in TEMPLATES order). */
-const FEATURED: { id: string; name: string; emoji: string; blurb: string; url?: string; cover?: string; remix?: boolean }[] = [
-  { id: 'sickofit', name: 'Sick of It', emoji: '😈', url: '/play/sickofit', cover: '/play/sickofit/cover.svg', remix: false, blurb: 'A sarcastic nobody chases the Overlord up 1,000 floors of Hell. Dodge bullets, rewind time, free the diamonds.' },
-  { id: 'fps-arena', name: 'Bot Arena', emoji: '🎯', blurb: 'A first-person arena on a far planet at dusk: robots beamed in by the Overseer, a shotgun, a rocket launcher on the tower, barrels that blow. Clear 25, three lives.' },
-  { id: 'sky-racer', name: 'Sky Racer', emoji: '🛩️', blurb: 'Race a starship down a sunset valley through 24 glowing gates. Each gate buys time; boost with space, beat your best.' },
-  { id: 'platform-run', name: 'Leap', emoji: '🏃', blurb: 'A third-person climb from a village to the Overseer\'s rocket before the sun sets: moving platforms, spikes, coins, gems and checkpoints.' },
-];
-export const featured = () => FEATURED.map((t) => ({ id: t.id, name: t.name, blurb: t.blurb, emoji: t.emoji, url: t.url ?? `/play/t/${t.id}`, ...(t.cover ? { cover: t.cover } : {}), remix: t.remix !== false }));
+/** The Overseer's featured games: the catalogue's ones that play on this site (catalogue.ts), in its order. */
+export const featured = () => CATALOGUE.filter((g) => g.playsHere && g.id !== 'island').map((g) => ({ id: g.id, name: g.name, blurb: g.blurb, emoji: g.emoji, url: g.url, ...(catalogueEntry(g).cover ? { cover: catalogueEntry(g).cover } : g.id === 'sickofit' ? { cover: '/play/sickofit/cover.svg' } : {}), remix: g.remix }));
 
 /** Test and placeholder islands never make the page (a name like "test", "untitled", "playtest-..."), nor do worlds nobody has played. */
 export const isTestName = (title: unknown) => /^\s*(test|testing|tests|untitled|asdf+|qwerty|playtest|qa|demo|new (game|world|island)|my (first )?(game|world|island)|game \d*|world \d*)\b|playtest|\btest\b/i.test(String(title ?? '')) || !String(title ?? '').trim();
