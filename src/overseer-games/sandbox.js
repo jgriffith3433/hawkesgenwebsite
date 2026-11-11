@@ -376,6 +376,8 @@ function lightRodMark() {
     game.emit('rod-marker', { state: 'on' });
   }
 }
+// (The island-look playtest lights the beacon for its bloom shot through this; nothing else calls it from outside.)
+window.__islandLightRodMark = lightRodMark;
 /** Pip points east and the camera flies the path to the rod. Resolves when the shot ends (or is skipped). */
 async function showPier() {
   if (window.__islandPierShown) { lightRodMark(); return { skipped: true, already: true }; }

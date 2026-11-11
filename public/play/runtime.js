@@ -760,7 +760,7 @@
   /** A material for a look. Plain looks (a color, a glow, an opacity: no texture) are shared by everything that has
    *  them, so a world of a thousand crates has a few materials; changing one thing's look gives it its own (ownMaterial). */
   function material(opts, name, hint) {
-    const key = !opts.texture && opts.share !== false ? `${hex(opts.color, '#cfcfcf').toHexString()}|${opts.emissive ? hex(opts.emissive).toHexString() : ''}|${opts.opacity ?? ''}` : null;
+    const key = !opts.texture && opts.share !== false ? `${hex(opts.color, '#cfcfcf').toHexString()}|${opts.emissive ? hex(opts.emissive).toHexString() : ''}|${opts.opacity ?? ''}|${opts.zOffset || 0}` : null;
     if (key && W.mats && W.mats.has(key)) return W.mats.get(key);
     const m = new B.StandardMaterial(name || 'm', W.scene);
     if (key && W.mats) { m._shared = true; W.mats.set(key, m); }
@@ -779,6 +779,7 @@
       } catch (e) { if (!opts.lenient) throw e; }
     }
     if (opts.opacity !== undefined && opts.opacity !== null) m.alpha = Number(opts.opacity);
+    if (opts.zOffset) m.zOffset = Number(opts.zOffset) || 0;
     cutout(m);
     return m;
   }
@@ -1065,6 +1066,7 @@
       physics: spec.physics || (kindDefs.get(spec.type) && kindDefs.get(spec.type).physics) || 'static',
       position: t.position, rotation: t.rotation, scale: t.scale,
       color: m.color, emissive: m.emissive, opacity: m.opacity, texture: m.texture, tile: m.tile,
+      zOffset: m.zOffset, // laid on a surface: polygon offset so coplanar faces do not flicker (quality rule 2)
       bounce: body.bounce, friction: body.friction, mass: body.mass, grab: body.grab,
       shadow: spec.shadow, visible: spec.visible, instanced: spec.instanced, lenient: true,
     };

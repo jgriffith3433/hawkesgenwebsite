@@ -34,6 +34,16 @@
 - **Barks (all five, 2026-11-11)**: walking past, whoever you come within about 6 m of (and can see) stops, turns head and body to you and says one short, captioned bark in their own recorded voice; the caption sits over their head and in the chat. Each has 8 or 9 barks chosen by what is true: the first meeting, the rod in your hands, the drive just done, the barrels just blown (or a fish just caught), else an ordinary line. Never the same bark within 5 minutes, one bark per islander a minute, one voice at a time. The words never contain a name or what the mirror made you, so each has a recording.
 - **Island wildlife**: an eight-strong **sheep herd** grazing the northern meadow (`[8, 30]`), a five-strong **cow herd** on the south-western grass (`[-14, -26]`), **saltwater fish** (tuna, snapper, salmon, swordfish) schooling off the pier, a bobbing **rubber duck** in the harbour (`[77, -4]`), and **shore gulls** calling near the water.
 
+## Ground and finish (canon for builders)
+
+Every tree, rock, bush, crate, barrel, sign, fence, building and parked vehicle on the island sits on the real ground:
+the engine finishes them at load from each model's drawn bottom (not a fixed pivot), tips small props to the slope up
+to 15°, and sinks large rocks and buildings a few centimetres so no base edge shows air. On a phone, a soft contact
+shadow sits under nearby props and characters. Decals (pier deck, helipad `H`, hangar pad markings) use a polygon
+offset so nothing flickers. Jaycee's standing rule: nothing floats, sinks, z-fights or is inside out — the
+`world-quality` playtest fails a prop more than 5 cm off the ground, any flickering pixel at its ten spots, or a back
+face from one of eight camera angles.
+
 ## What happens
 
 - **The Clearing & Mirror**: Overseer beam-in score and voiced greeting; stepping into the Mirror (`E` or automatic on first visit) to choose body, colours and name; climbing into the 4x4 (`E`); spawning items or play kits from the spawn wheel (`Q` / `➕`) under an Overseer beam; asking the Overseer in chat to build live on the island; meadow music and birdsong.
@@ -62,3 +72,6 @@ The island's music follows the player (`src/overseer-games/sandbox.js`, "The mus
 
 ## The mix (design, 2026-11-11)
 The island is mixed, not only played (`public/play/modules/mix`, docs/world/92-mix.md). Five buses (music, ambience, voice, effects, interface) go through one compressor and a limiter; the aim is about -16 LUFS with nothing clipping. **A voice always cuts through**: any clip of the Overseer, Pip or an islander holds the music 8 dB and the ambience 4 dB down (150 ms in, 600 ms out); the stingers' own dips still use `H.audio.duck`. **Sounds have places**: islanders' voices come from their heads, blasts from where they went off (duller and later the farther away), the beam's whoosh from the beam, gulls from over the water; HRTF on a desktop, plain stereo panning on a phone. **Spaces sound like spaces**: open air is dry with a short tail; the Overseer's hangar is a big hall (2.6 s); under and beside Pip's pier is a wooden echo (1.1 s, bright early reflections); a hut or house is a soft room (0.5 s). The impulse responses are made in code (no files). The Music, Voice and Effects sliders in the game menu each drive their own bus; Effects 0 silences footsteps, blasts and engines but never a voice.
+
+## The light (design, 2026-11-11)
+The island is held in a golden late afternoon (16.9 h) with a low sun: long soft shadows across the sand, warm bloom on every lantern, beam, glint and the rod's beacon, the sky reflected in the 4x4's paint and the sea's wet sand (`modules/lighting`, `config.lighting` in the sandbox). The Overseer's world has four looks by the hour, each a grade with its own temperature: **dawn** warm gold, **noon** neutral, **dusk** orange-magenta, **night** moonlit blue; the island's own clock only runs the islanders' day and does not change the light (the tour keeps its afternoon). Reference: Sea of Thieves' golden hour on the outpost beach. Graphics Auto / Low / High cut it: High has four shadow cascades and ambient occlusion, a phone two cascades and half-resolution bloom, Low a short shadow reach and no bloom; tone and grade stay in every tier.

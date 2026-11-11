@@ -84,17 +84,19 @@
     for (let i = 0; i < 5; i++) { const z = f.back + 10 + i * (f.front - f.back - 20) / 4; warm.push(boxAt(scene, [f.halfW * 1.6, 0.4, 1.4], [0, f.top - 0.3, z])); }
     for (const s of [-1, 1]) warm.push(boxAt(scene, [1.6, f.top - f.floor, 1.6], [s * (f.halfW - 0.8), (f.top + f.floor) / 2, f.front - 0.6]));
     warm.push(boxAt(scene, [f.halfW * 2, 1.6, 1.6], [0, f.top - 0.8, f.front - 0.6]));
+    // Pad markings sit a few cm above the hangar floor; material zOffset keeps them from flickering against it.
     const padRing = B.MeshBuilder.CreateTorus('ov-pad', { diameter: f.padR * 2, thickness: 0.7, tessellation: 64 }, scene);
-    padRing.position.set(0, f.floor + 0.08, f.padZ);
+    padRing.position.set(0, f.floor + 0.1, f.padZ);
     cyan.push(padRing);
     const inner = B.MeshBuilder.CreateTorus('ov-pad', { diameter: f.padR * 1.1, thickness: 0.35, tessellation: 48 }, scene);
-    inner.position.set(0, f.floor + 0.08, f.padZ);
+    inner.position.set(0, f.floor + 0.1, f.padZ);
     cyan.push(inner);
-    cyan.push(boxAt(scene, [0.5, 0.12, f.padR * 1.6], [0, f.floor + 0.07, f.padZ]), boxAt(scene, [f.padR * 1.6, 0.12, 0.5], [0, f.floor + 0.07, f.padZ]));
-    for (let i = 0; i < 8; i++) for (const s of [-1, 1]) cyan.push(boxAt(scene, [1, 0.2, 1], [s * (f.halfW - 6), f.floor + 0.1, f.padZ + f.padR + 6 + i * ((f.front + f.apron - f.padZ - f.padR - 8) / 8)]));
+    cyan.push(boxAt(scene, [0.5, 0.12, f.padR * 1.6], [0, f.floor + 0.09, f.padZ]), boxAt(scene, [f.padR * 1.6, 0.12, 0.5], [0, f.floor + 0.09, f.padZ]));
+    for (let i = 0; i < 8; i++) for (const s of [-1, 1]) cyan.push(boxAt(scene, [1, 0.2, 1], [s * (f.halfW - 6), f.floor + 0.12, f.padZ + f.padR + 6 + i * ((f.front + f.apron - f.padZ - f.padR - 8) / 8)]));
     const warmM = B.Mesh.MergeMeshes(warm, true, true), cyanM = B.Mesh.MergeMeshes(cyan, true, true);
     warmM.material = mat(scene, 'ov-light', { emissive: new B.Color3(1, 0.88, 0.66), unlit: true });
     cyanM.material = mat(scene, 'ov-pad', { emissive: L.hex(O.cfg.glow, '#8fd8ff'), unlit: true });
+    cyanM.material.zOffset = -2;
     for (const m of [warmM, cyanM]) { m.parent = node; m.isPickable = false; m.metadata = { decor: true, overseer: true }; }
     node.position.set(c[0], c[1], c[2]);
     node.rotation.y = f.yaw;
