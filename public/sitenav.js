@@ -3,13 +3,13 @@
 // fold into a Menu button. The links inside each nav in the HTML are the same list, for a page read without scripts.
 (() => {
   const LINKS = [
-    ['/games', 'Worlds', 'Play what people built'],
-    ['/play/sickofit', 'Sick of It', 'Play Sick of It: 1,000 floors of Hell, one rewind button'],
+    ['/games', 'Games', 'Play what people built'],
+    ['/games/sickofit', 'Sick of It', 'Play Sick of It: 1,000 floors of Hell, one rewind button'],
     // Studio game sites: a full address opens in a new tab. Add a title with one line here.
-    ['https://yoobalandgame.com', 'Yooba Land', 'Yooba Land, a Hawkes game'],
-    ['https://doseofdestruction.com', 'Dose of Destruction', 'Dose of Destruction, a Hawkes game'],
-    ['https://phorigins.com', 'PH Origins', 'PH Origins, a Hawkes game'],
-    ['https://theplacedepartment.com', 'The Place Department', 'The Place Department, a Hawkes game'],
+    ['/games/yoobaland', 'Yooba Land', 'Yooba Land, a Hawkes game'],
+    ['/games/dose-of-destruction', 'Dose of Destruction', 'Dose of Destruction, a Hawkes game'],
+    ['/games/ph-origins', 'PH Origins', 'PH Origins, a Hawkes game'],
+    ['/games/place-department', 'The Place Department', 'The Place Department, a Hawkes game'],
     ['/community', 'Community library', 'Every shared model, texture, sky, sprite and sound, free to use in your game'],
     ['/entities', 'Engine codex', 'Every kind of thing the game engine builds, live'],
     ['/avatars', 'Avatars', 'Every body a player can be, live'],
