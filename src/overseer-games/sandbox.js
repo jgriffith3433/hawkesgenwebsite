@@ -254,6 +254,7 @@ function begin() {
   const me = H && H.presence && H.presence.look;
   const name = me && me.name;
   const back = window.HawkesGuest && window.HawkesGuest.resume; // a return: the step they left on (guest.js)
+  if (!back) game.after(0.5, lightJeepMark);
   game.after(1.2, () => say(back ? (name ? `Hey, ${name}! You're back!` : "Hey, you're back!") : name ? `Hi, ${name}! I'm Pip. Welcome to the island!` : 'Hi! I\'m Pip. Welcome to the island!', 4));
   game.after(3.4, () => {
     const q = game.events && game.events.quests;
@@ -263,7 +264,8 @@ function begin() {
       return;
     }
     // First visit: Pip's pier directions are an in-engine beat (camera fly + glowing rod marker), not a long caption.
-    showPier().then(() => say("Come on — the 4x4 first!", 4)).catch(() => say("Come on — the 4x4 first!", 4));
+    const nudge = () => { say("Come on — the 4x4 first!", 4); nudgeToJeep(); };
+    showPier().then(nudge).catch(nudge);
   });
 }
 
@@ -383,16 +385,16 @@ async function showPier() {
   const pipAt = p && p.alive ? [p.x, p.y + 1.4, p.z] : at(-1, ground(-1, 2.2) + 1.4, 2.2);
   const keys = [
     { pos: [pipAt[0] - 2.5, pipAt[1] + 1.2, pipAt[2] + 4.5], look: [pipAt[0] + 6, pipAt[1] - 0.2, pipAt[2] - 1], at: 0 },
-    { pos: at(18, ground(18, -6) + 7, -6), look: at(34, ground(34, 0) + 2, 0), at: 2.2 },
-    { pos: at(42, ground(42, -10) + 9, -10), look: at(62, 2, 0), at: 4.4 },
-    { pos: at(68, 7.5, -11), look: [rod[0], rod[1], rod[2]], at: 6.6 },
-    { pos: at(80, 4.2, -5.5), look: [rod[0], rod[1] - 0.1, rod[2]], at: 8.4, hold: 1.6 },
+    { pos: at(18, ground(18, -6) + 7, -6), look: at(34, ground(34, 0) + 2, 0), at: 1.8 },
+    { pos: at(42, ground(42, -10) + 9, -10), look: at(62, 2, 0), at: 3.6 },
+    { pos: at(68, 7.5, -11), look: [rod[0], rod[1], rod[2]], at: 5.4 },
+    { pos: at(80, 4.2, -5.5), look: [rod[0], rod[1] - 0.1, rod[2]], at: 6.8, hold: 1.2 },
   ];
   game.emit('pier-cinematic', { state: 'flying' });
   let r = { skipped: true };
   try {
     r = await cin.path(keys, {
-      seconds: 10,
+      seconds: 8,
       fade: { in: 0.45, out: 0.5 },
       letterbox: typeof window !== 'undefined' ? window.innerWidth >= window.innerHeight : true,
       skippable: true,
@@ -407,6 +409,104 @@ window.__islandShowPier = showPier; // (playtest / Stuck? never needs it; tests 
 game.on('pickup', (d) => {
   if (d && d.gives === 'tool' && d.tool === 'rod') clearRodMark('pickup');
 });
+// ------------------------------------------------------------------ the 4x4's beacon (follow the light, not text)
+// After the mirror a soft column of warm light stands on the 4x4 (tall enough to read from the start on a phone, with a
+// pulsing glow and a shimmer), and the camera turns toward it for two seconds. It goes out when the player gets in.
+// The first thing to do is a light on the horizon; the one short line is Pip's "Come on — the 4x4 first!".
+const jeepMark = (window.__islandJeepMark = window.__islandJeepMark || { on: false, parts: [], pulse: null, since: 0 });
+function clearJeepMark(why) {
+  if (!jeepMark.on) return;
+  jeepMark.on = false;
+  if (jeepMark.pulse) { try { jeepMark.pulse(); } catch { /* gone */ } jeepMark.pulse = null; }
+  for (const o of jeepMark.parts) { try { if (o.stop) o.stop(); o.dispose(); } catch { /* gone */ } }
+  jeepMark.parts = [];
+  game.emit('jeep-beacon', { state: 'off', why: why || 'clear' });
+}
+function lightJeepMark() {
+  if (jeepMark.on) return;
+  const jeep = game.find && game.find('jeep');
+  const B = window.BABYLON, sc = H && H.world && H.world.scene;
+  jeepMark.on = true; jeepMark.since = performance.now();
+  if (!jeep || !jeep.alive || !B || !sc) { game.emit('jeep-beacon', { state: 'on', visual: false }); return; }
+  try {
+    const mk = () => ({ x: jeep.x, y: jeep.y, z: jeep.z });
+    const p0 = mk();
+    const col = B.MeshBuilder.CreateCylinder('jeep-beacon', { diameterTop: 0.9, diameterBottom: 2.4, height: 16, tessellation: 20 }, sc);
+    const cm = new B.StandardMaterial('jeep-beacon', sc);
+    cm.disableLighting = true; cm.emissiveColor = new B.Color3(1, 0.82, 0.3); cm.alpha = 0.3; cm.alphaMode = B.Engine.ALPHA_ADD;
+    try { cm.disableDepthWrite = true; cm.backFaceCulling = false; } catch { /* fine */ }
+    col.material = cm; col.isPickable = false; col.metadata = { decor: true }; col.renderingGroupId = 1;
+    const light = new B.PointLight('jeep-beacon-light', new B.Vector3(p0.x, p0.y + 3, p0.z), sc);
+    light.diffuse = new B.Color3(1, 0.85, 0.35); light.intensity = 2.2; light.range = 30;
+    const ps = new B.ParticleSystem('jeep-beacon-shimmer', H.touchUi ? 30 : 60, sc);
+    ps.particleTexture = H.world.dot; ps.emitter = new B.Vector3(p0.x, p0.y + 1, p0.z);
+    ps.minEmitBox = new B.Vector3(-1, 0, -1); ps.maxEmitBox = new B.Vector3(1, 0.5, 1);
+    ps.color1 = new B.Color4(1, 0.92, 0.45, 0.85); ps.color2 = new B.Color4(1, 0.78, 0.25, 0.45); ps.colorDead = new B.Color4(1, 0.85, 0.4, 0);
+    ps.minSize = 0.08; ps.maxSize = 0.22; ps.minLifeTime = 1; ps.maxLifeTime = 2.4; ps.emitRate = H.touchUi ? 14 : 30;
+    ps.blendMode = B.ParticleSystem.BLENDMODE_ADD;
+    ps.direction1 = new B.Vector3(-0.2, 1.5, -0.2); ps.direction2 = new B.Vector3(0.2, 3, 0.2);
+    ps.minEmitPower = 0.5; ps.maxEmitPower = 1.2; ps.start();
+    jeepMark.parts = [col, light, ps];
+    const t0 = performance.now();
+    jeepMark.pulse = game.every(0.05, () => {
+      const pl = game.player;
+      if (pl && pl.controller === 'drive') { clearJeepMark('entered'); return; }
+      const k = 0.5 + 0.5 * Math.sin((performance.now() - t0) / 1000 * 2.4);
+      const q = mk();
+      col.position.set(q.x, q.y + 8, q.z); cm.alpha = 0.2 + 0.2 * k;
+      light.position.set(q.x, q.y + 3, q.z); light.intensity = 1.6 + 1.4 * k;
+      ps.emitter.set(q.x, q.y + 1, q.z);
+    });
+    game.emit('jeep-beacon', { state: 'on', visual: true });
+  } catch (err) { try { if (H && H.report) H.report(err, 'jeep-beacon'); } catch { /* fine */ } game.emit('jeep-beacon', { state: 'on', visual: false }); }
+}
+/** Two seconds: the camera turns from where the player stands to the 4x4 and its light, then hands back. */
+async function nudgeToJeep() {
+  const jeep = game.find && game.find('jeep'), p = game.player, cin = game.cinematic;
+  if (!jeep || !jeep.alive || !p || !cin || !cin.path || cin.isPlaying) return;
+  const dx = jeep.x - p.x, dz = jeep.z - p.z, d = Math.hypot(dx, dz) || 1;
+  const ux = dx / d, uz = dz / d;
+  const cam = [p.x - ux * 3 + uz * 1.2, p.y + 2.4, p.z - uz * 3 - ux * 1.2];
+  game.emit('jeep-nudge', { state: 'start' });
+  try {
+    await cin.path([
+      { pos: cam, look: [p.x + ux * 6, p.y + 1.6, p.z + uz * 6], at: 0 },
+      { pos: cam, look: [jeep.x, jeep.y + 5, jeep.z], at: 1.6, hold: 0.5 },
+    ], { seconds: 2.2, fade: { in: 0, out: 0.25 }, letterbox: false, skippable: true, ease: 'inOut' });
+  } catch { /* the light is still there */ }
+  game.emit('jeep-nudge', { state: 'end' });
+}
+window.__islandNudge = nudgeToJeep;
+
+// ------------------------------------------------------------------ a first success lands: arriving at the pier, the first fish
+// Particles (a burst and a rising ring), the site's sounds (ui-quest; fish-catch for the fish), a short camera move that
+// never uses the letterbox (the touch controls stay uncovered) and the Overseer's recorded line (the MOMENTS table below).
+function celebrate(step) {
+  const p = game.player;
+  if (!p) return;
+  const fish = step === 'fish';
+  const o = { particles: false, sounds: [], camera: false };
+  try {
+    game.burst([p.x, p.y + 0.4, p.z], { color: '#fff4c4', count: 36, speed: 3.5, size: 0.16 });
+    game.burst([p.x, p.y + 2.2, p.z], { color: fish ? '#7dd3fc' : '#ffd84a', count: 40, speed: 5, size: 0.2 });
+    o.particles = true;
+  } catch { /* the confetti stands */ }
+  const site = (n, v) => { try { if (H && H.lib && H.lib.siteSound) { H.lib.siteSound(n, { volume: v }); o.sounds.push(n); } } catch { /* quiet */ } };
+  site('ui-quest', 0.6);
+  if (fish) game.after(0.25, () => site('fish-catch', 0.7));
+  // A short camera move: a slow push-in and a lift, 1.8 s, then control is back (skippable by any input).
+  const cin = game.cinematic;
+  if (cin && cin.path && !cin.isPlaying) {
+    const yaw = p.node ? p.node.rotation.y : 0, fx = Math.sin(yaw), fz = Math.cos(yaw);
+    cin.path([
+      { pos: [p.x - fx * 5, p.y + 2.2, p.z - fz * 5], look: [p.x, p.y + 1.4, p.z], at: 0 },
+      { pos: [p.x - fx * 3.4, p.y + 2.8, p.z - fz * 3.4], look: [p.x, p.y + 2, p.z], at: 1.6 },
+    ], { seconds: 1.8, fade: { in: 0, out: 0.2 }, letterbox: false, skippable: true, ease: 'inOut' }).catch(() => {});
+    o.camera = true;
+  }
+  game.emit('celebration', { step, ...o });
+}
+
 // After the Overseer's intro (it plays every time here) and the mirror that follows it, or straight away when there
 // are neither. The mirror says when you're done (game.on('mirror')); while it's open (or about to open) Pip waits.
 const mirrorBusy = () => Boolean(game.mirror && game.mirror.pending);
@@ -470,6 +570,7 @@ game.on('tour', (d) => {
   confetti();
   game.camera.shake(0.08, 0.2);
   stinger(d.step);
+  if (d.step === 'drive' || d.step === 'fish') celebrate(d.step);
   game.after(0.6, () => say(m.pip, 6));
   if (m.npc) game.after(0.2, () => npc(m.npc[0], m.npc[1], m.npc[2]));
   if (m.pad) game.after(1.2, () => { const h = game.all('Helicopter').find((e) => e.alive); const O = H && H.overseer; try { if (h && O && O.beam) O.beam(h, { radius: 2.4, seconds: 3 }); } catch { /* fine */ } });
@@ -849,7 +950,7 @@ if (typeof document !== 'undefined' && !document.getElementById('tour-style')) {
   st.textContent = [
     'body.tour-on .qs-track{display:none!important}',
     '.tour-track{position:fixed;left:12px;top:max(10px,env(safe-area-inset-top));z-index:25;width:min(300px,calc(100vw - 24px));box-sizing:border-box;padding:8px 11px;border-radius:12px;background:rgba(10,14,24,.7);border:1px solid rgba(255,216,74,.45);color:#fff;font:600 14px/1.3 system-ui,sans-serif;pointer-events:none;backdrop-filter:blur(4px)}',
-    '.tour-track[hidden]{display:none}',
+    '.tour-track[hidden],.tour-track.quiet{display:none}',
     '.tour-track .n{display:block;font:800 11px system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#ffd84a}',
     '.tour-track .t{display:block}',
     '.tour-track .h{display:none;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.18);font-weight:500;font-size:13px;color:#dbe7ff}',
@@ -925,6 +1026,8 @@ function drawTour() {
     tour.h.textContent = (HINTS[step] || [])[H && H.touchUi ? 1 : 0] || '';
   }
   el.classList.toggle('hint', now - tour.since >= HINT_AFTER);
+  // The first quest is led by the beacon: no tracker (one short line on screen, Pip's) until a player has idled a while.
+  el.classList.toggle('quiet', step === 'drive' && now - tour.since < HINT_AFTER);
   // The marker over the place; fades as the player arrives.
   const target = NAMES[step] ? markTarget(step) : null;
   if (!target) { clearMark(); return; }
