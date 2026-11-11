@@ -681,25 +681,41 @@ export async function restoreStarter() {
   // Copying from another lane (live from beta): what the source has listed is copied, free; what it hasn't made yet waits
   // for it (each thing is made once, on the source, and the lanes don't pay twice).
   if (order.copyFrom) {
-    const src = await sourceRows(order.copyFrom, [...new Set(todo.map((it) => it.kind))]);
+    // Copies are counted on their own (copies), under keys of their own, and only once Gen took the job: a copy is free,
+    // and this lane's own make tries from before it copied must not stop it (live 2026-11-11: 41 models it had tried to
+    // make itself, or whose copy Gen turned away before taking it, were never copied once beta had them). Up to 3 copies a
+    // thing, 30 minutes apart unless the last one failed.
+    const copies: Record<string, number> = state.copies ?? {};
+    const copyKey = (it: { item: string; kind: string; name: string }, n: number) => remakeKey(keyOf(it as any), `${ref.id}/copy`, n);
+    const copyDue = (it: { item: string; kind: string; name: string }) => {
+      const n = copies[it.item] ?? 0;
+      if (n >= 3) return false;
+      if (n === 0) return true;
+      const key = copyKey(it, n);
+      if (openJobs === null || openKeys.has(key)) return false;
+      return failedKeys.has(key) || Date.now() - (queuedAt[it.item] ?? 0) > 30 * 60_000;
+    };
+    const wanted = packItems().filter((it) => missing.has(it.item) && order.kinds.includes(it.kind) && copyDue(it)).sort((a, b) => rank(a) - rank(b));
+    const src = await sourceRows(order.copyFrom, [...new Set(wanted.map((it) => it.kind))]);
     let copied = 0;
     const failed: string[] = [];
-    for (const it of todo.filter((x) => src.has(sourceKey(x.kind, x.name))).slice(0, 10)) {
+    for (const it of wanted.filter((x) => src.has(sourceKey(x.kind, x.name))).slice(0, 10)) {
       const row = src.get(sourceKey(it.kind, it.name))!;
       try {
         const main = await copyBlob(order.copyFrom, row.id, it.kind);
         const thumb = it.kind === 'model' && row.thumb ? await copyBlob(order.copyFrom, row.thumb, 'cutout') : null;
-        tries[it.item] = (tries[it.item] ?? 0) + 1;
-        queuedAt[it.item] = Date.now();
-        const key = remakeKey(keyOf(it), ref.id, tries[it.item]);
-        paid[key] = 0;
+        const n = (copies[it.item] ?? 0) + 1;
+        const key = copyKey(it, n);
         await gen('/v1/jobs', { method: 'POST', as: STARTER_PROJECT, body: { tool: 'asset.make', project: STARTER_PROJECT, params: copySteps(it.kind, main, thumb), labels: { ...labelsOf(it), copiedFrom: order.copyFrom }, key, reuse: true } });
+        copies[it.item] = n;
+        queuedAt[it.item] = Date.now();
+        paid[key] = 0;
         copied++;
       } catch (e: any) { failed.push(`${it.item}: ${String(e.message).slice(0, 160)}`); }
     }
     if (failed.length) console.warn(`[portal] starter restore: copies that failed: ${failed.join('; ')}`);
-    await ref.set({ scheme: REMAKE_SCHEME, approved: order.approved, kinds: order.kinds, budgetUsd: order.budgetUsd, spentUsd: Math.round(spent * 100) / 100, tries, queuedAt, paid, refunded: [...refunded], nothingRan: [...nothingRan], updated: Date.now() });
-    return { order: true, copyFrom: order.copyFrom, copied, waitingOnSource: todo.filter((x) => !src.has(sourceKey(x.kind, x.name))).length, spentUsd: Math.round(spent * 100) / 100, budgetUsd: order.budgetUsd };
+    await ref.set({ scheme: REMAKE_SCHEME, approved: order.approved, kinds: order.kinds, budgetUsd: order.budgetUsd, spentUsd: Math.round(spent * 100) / 100, tries, copies, queuedAt, paid, refunded: [...refunded], nothingRan: [...nothingRan], updated: Date.now() });
+    return { order: true, copyFrom: order.copyFrom, copied, waitingOnSource: wanted.filter((x) => !src.has(sourceKey(x.kind, x.name))).length, spentUsd: Math.round(spent * 100) / 100, budgetUsd: order.budgetUsd };
   }
   // 3D models are most of the cost and the longest recipe: until one has listed in this lane, one at a time; and none at
   // all once one has failed both its tries with none listed (Gen's 3D path is broken: nothing more is spent on it).
@@ -713,7 +729,7 @@ export async function restoreStarter() {
   }
   // A few at a time: Gen turns away a burst, and each round is 10 minutes apart anyway.
   todo = todo.slice(0, 20);
-  const save = () => ref.set({ scheme: REMAKE_SCHEME, approved: order.approved, kinds: order.kinds, budgetUsd: order.budgetUsd, spentUsd: Math.round(spent * 100) / 100, tries, queuedAt, paid, refunded: [...refunded], nothingRan: [...nothingRan], updated: Date.now() });
+  const save = () => ref.set({ scheme: REMAKE_SCHEME, approved: order.approved, kinds: order.kinds, budgetUsd: order.budgetUsd, spentUsd: Math.round(spent * 100) / 100, tries, copies: state.copies ?? {}, queuedAt, paid, refunded: [...refunded], nothingRan: [...nothingRan], updated: Date.now() });
   // Refunds priced when queued go back now; older tries (queued before prices were kept) take their kind's price today.
   const refund = (price: Record<string, number>) => {
     for (const r of toRefund) {
