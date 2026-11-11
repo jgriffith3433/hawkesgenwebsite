@@ -510,6 +510,13 @@ const restores = () => db.collection('communityRestore');
 export const wasTurnedAway = (text: string) => /a lot at once|wait \d+ seconds?, then try again|throttl|rate.?limit|\b429\b|overloaded|no gpu is available|nothing was charged|modal-http/i.test(text);
 /** A run Gen's RunPod worker stopped at its old 300 s graph limit (fixed in Gen #189), or one whose GLB was too big to hand
  * back (HTTP 413, fixed in Gen #190): Gen's fault, and the try kept nothing of its own. */
+/** Gen had no GPU to run on (RunPod out of credit or capacity): nothing ran, and the thing itself is fine. */
+export const hadNoGpu = (text: string) => /no gpu is available/i.test(text);
+/**
+ * How long a thing waits after a try turned away for want of a GPU: 30 minutes, doubling with each such try in a row, up to
+ * 4 hours. While RunPod is empty this keeps the 10-minute sync from re-queueing the same things all night.
+ */
+export const noGpuWait = (inARow: number) => (inARow > 0 ? Math.min(4 * 3600_000, 30 * 60_000 * 2 ** (inARow - 1)) : 0);
 export const stoppedAtGenLimit = (text: string) => /runpod: ran past this service's 300 s limit|runpod: HTTP Error 413/i.test(text);
 const REMAKE_SCHEME = 2;
 /**
@@ -574,12 +581,13 @@ export function copySteps(kind: string, main: string, thumb: string | null) {
 /**
  * Whether a starter thing gets its next try: tries left, and its last try is over (failed, or no open Gen job and queued
  * over 2 hours ago). A last try still queued or running in Gen is never repeated; when Gen's open jobs can't be read
- * (lastOpen true), nothing is repeated that round.
+ * (lastOpen true), nothing is repeated that round. A failed try waits waitAfterFail (a try turned away for want of a GPU
+ * backs off) before the next.
  */
-export function tryDue(t: { tries: number; allowed: number; lastFailed: boolean; lastOpen: boolean; queuedAt: number }, now = Date.now()) {
+export function tryDue(t: { tries: number; allowed: number; lastFailed: boolean; lastOpen: boolean; queuedAt: number; waitAfterFail?: number }, now = Date.now()) {
   if (t.tries >= t.allowed) return false;
   if (t.tries === 0) return true;
-  if (t.lastFailed) return true;
+  if (t.lastFailed) return now - t.queuedAt >= (t.waitAfterFail ?? 0);
   return !t.lastOpen && now - t.queuedAt > 2 * 3600_000;
 }
 
@@ -627,14 +635,28 @@ export async function restoreStarter() {
       if (madeNothing.has(key) && !refunded.has(key)) toRefund.push({ key, kind: it.kind });
     }
   }
+  // A try Gen turned away for want of a GPU says nothing about the thing: it never uses up a try, however many there are
+  // (beta 2026-11-11: RunPod sat empty for 8 hours, the sync kept re-queueing, and 20 models used up all 16 tries without
+  // a GPU ever running them). It backs off instead (noGpuWait).
+  const noGpu = new Set(failedJobs.filter((j) => hadNoGpu(`${j.detail ?? ''} ${j.error ?? ''}`)).map((j) => String(j.key ?? '')));
+  const noGpuInARow = (it: { item: string; kind: string; name: string }) => {
+    let n = 0;
+    for (let t = tries[it.item] ?? 0; t >= 1 && noGpu.has(remakeKey(keyOf(it as any), ref.id, t)); t--) n++;
+    return n;
+  };
   const allowed = (it: { item: string; kind: string; name: string }) => {
     let free = 0;
-    for (let t = 1; t <= (tries[it.item] ?? 0); t++) if (turnedAway.has(remakeKey(keyOf(it as any), ref.id, t))) free++;
+    let gpuless = 0;
+    for (let t = 1; t <= (tries[it.item] ?? 0); t++) {
+      const key = remakeKey(keyOf(it as any), ref.id, t);
+      if (noGpu.has(key)) gpuless++;
+      else if (turnedAway.has(key)) free++;
+    }
     // Up to 14 tries Gen turned away (no GPU, too fast) are free: the model gate stops after a broken 3D path. The crate
     // used 4 before Gen waited out a cold RunPod start (Gen #186) and 5 more before Gen let a 3D run outlast RunPod's
     // 300 s cap instead of sending it to the AWS fleet that is gone (Gen #188, 2026-11-10), and 1 more on a GLB too big to
     // hand back (Gen #190).
-    return 2 + Math.min(free, 14);
+    return 2 + Math.min(free, 14) + gpuless;
   };
   const lastFailed = (it: { item: string; kind: string; name: string }) =>
     (tries[it.item] ?? 0) > 0 && failedKeys.has(remakeKey(keyOf(it as any), ref.id, tries[it.item]));
@@ -650,6 +672,7 @@ export async function restoreStarter() {
     lastFailed: lastFailed(it),
     lastOpen: openJobs === null || ((tries[it.item] ?? 0) > 0 && openKeys.has(remakeKey(keyOf(it as any), ref.id, tries[it.item]))),
     queuedAt: queuedAt[it.item] ?? 0,
+    waitAfterFail: noGpuWait(noGpuInARow(it)),
   });
   let todo = packItems().filter((it) => missing.has(it.item) && order.kinds.includes(it.kind) && due(it)).sort((a, b) => rank(a) - rank(b));
   // Copying from another lane (live from beta): what the source has listed is copied, free; what it hasn't made yet waits
