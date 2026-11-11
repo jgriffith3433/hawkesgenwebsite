@@ -23,6 +23,7 @@ import { installPlaytest } from './hawkes-playtest.js';
 import { SITE_LAYOUT, runSiteLayout } from './site-layout.js';
 import { AVATAR_ANIMATIONS, runAvatarAnimations } from './avatar-animations.js';
 import { COMMUNITY_LIBRARY, runCommunityLibrary } from './community-library.js';
+import { STORE_PAGES, runStorePages } from './store-pages.js';
 import { PROFILE_PAGE, runProfilePage } from './profile-page.js';
 import { SICKOFIT_PAGE, runSickofitPage } from './sickofit-page.js';
 import { LOADING_WRAPPER, runLoadingWrapper } from './loading-wrapper.js';
@@ -54,6 +55,7 @@ const SCENARIOS = [
   PHONE_HUD_LAYOUT, // phone HUD fold + mirror sheet at 390x844 and 844x390 (phone-hud-layout.js)
   GAME_MENU, // one Esc / one tap game menu with settings (game-menu.js)
   AVATAR_ANIMATIONS, // clips as data on /avatars (avatar-animations.js)
+  STORE_PAGES, // the games page and store pages (store-pages.js)
   COMMUNITY_LIBRARY, // the library: cards, loading, empty, 390px, no timer fetch (community-library.js)
   PROFILE_PAGE, // the profile page: avatar, worlds, plan, empty states (profile-page.js)
   WORLD_REPORT, // report a world from its pause menu; a closed world loads nothing (world-report.js)
@@ -3534,6 +3536,7 @@ export function install() {
       if (id === LOADING_WRAPPER.id) return runLoadingWrapper(t, options);
       if (id === SICKOFIT_PAGE.id) return runSickofitPage(t, options);
       if (id === AVATAR_ANIMATIONS.id) return runAvatarAnimations(t, options);
+      if (id === STORE_PAGES.id) return runStorePages(t, options);
       if (id === COMMUNITY_LIBRARY.id) return runCommunityLibrary(t, options);
       if (id === PROFILE_PAGE.id) return runProfilePage(t, options);
       if (id === WORLD_REPORT.id) return runWorldReport(t, options);

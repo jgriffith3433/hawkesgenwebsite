@@ -27,6 +27,8 @@ export async function gallery(sort: 'live' | 'popular' | 'new' = 'live', limit =
   const s = await db.collection('games').where('visibility', '==', 'public').where('hidden', '==', 0).orderBy(sort === 'new' ? 'updated' : 'plays', 'desc').limit(500).get();
   const rows = s.docs.map((d) => ({ id: d.id, ...(d.data() as any) })).filter((g) => (g.plays ?? 0) > 0 && !isTestName(g.title));
   const live = await liveCounts.of([...featured().map((t) => `t:${t.id}`), ...rows.map((g) => g.id)]).catch(() => ({} as Record<string, Live>));
+  // While nothing reports presence (liveCounts.of answers {}), no count is sent at all: pages show no live badge.
+  const liveKnown = Object.keys(live).length > 0;
   const counts = (key: string): Live => ({ playing: live[key]?.playing ?? 0, building: live[key]?.building ?? 0 });
   const list = rows.map((g) => ({ g, slug: g.slug, title: g.title, description: g.description ?? '', plays: g.plays ?? 0, updated: g.updated, url: `/play/${g.slug}`, visitors: g.visitors ?? 'play', ...counts(g.id) }));
   if (sort === 'live') list.sort((a, b) => b.playing + b.building - (a.playing + a.building) || b.plays - a.plays);
@@ -42,6 +44,7 @@ export async function gallery(sort: 'live' | 'popular' | 'new' = 'live', limit =
   }));
   const cdn = await cdnOf([...covers.values()]);
   return {
+    liveKnown,
     featured: featured().map((t) => ({ ...t, ...counts(`t:${t.id}`) })),
     games: top.map(({ g, ...x }) => {
       const asset = covers.get(g.id);
