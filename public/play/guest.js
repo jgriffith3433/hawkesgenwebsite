@@ -186,9 +186,15 @@
   const api = async (method, url, body, o = {}) => {
     let r;
     // (o.timeout: a request that may never come back, like a message to the Overseer, is given up after that long.)
-    const signal = o.timeout && typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(o.timeout) : undefined;
+    // (An AbortController, so the network log shows the request cancelled when the time is up; o.signal ends it early too.)
+    const ctl = o.timeout || o.signal ? new AbortController() : null;
+    let timedOut = false;
+    const timer = o.timeout ? setTimeout(() => { timedOut = true; ctl.abort(); }, o.timeout) : null;
+    if (o.signal) { if (o.signal.aborted) ctl.abort(); else o.signal.addEventListener('abort', () => { timedOut = timedOut || Boolean(o.signal.timedOut); ctl.abort(); }, { once: true }); }
+    const signal = ctl ? ctl.signal : undefined;
     try { r = await fetch(url, { method, headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(o.headers || {}) }, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin', keepalive: Boolean(o.keepalive), signal }); }
-    catch (err) { const e = new Error(err && err.name === 'TimeoutError' ? 'Hawkes Games took too long to answer. Try again.' : "Couldn't reach Hawkes Games. Check your connection and try again."); e.status = 0; e.timedOut = Boolean(err && err.name === 'TimeoutError'); throw e; }
+    catch (err) { clearTimeout(timer); const e = new Error(timedOut ? 'Hawkes Games took too long to answer. Try again.' : "Couldn't reach Hawkes Games. Check your connection and try again."); e.status = 0; e.timedOut = timedOut; throw e; }
+    clearTimeout(timer);
     const d = await r.json().catch(() => ({}));
     if (!r.ok) {
       const e = new Error(d.error || `That did not work (${r.status})`); e.status = r.status;
@@ -198,7 +204,15 @@
     }
     return d;
   };
-  const me = () => fetch('/v1/users/me?soft=1', { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null)).then((d) => (d && d.user) || null).catch(() => null);
+  // Who is signed in. Remembered in session.user, so a tap on Save knows without asking the network (and a dead network
+  // never makes a signed-in player look like a guest); a request that never answers is given up after 8 s.
+  const me = () => {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 8000);
+    return fetch('/v1/users/me?soft=1', { credentials: 'same-origin', signal: ctl.signal })
+      .then((r) => (r.ok ? r.json() : null)).then((d) => { const u = (d && d.user) || null; session.user = u; return u; })
+      .catch(() => null).finally(() => clearTimeout(timer));
+  };
 
   const isTouch = () => { try { return Boolean(window.HawkesPlay && window.HawkesPlay.touchUi); } catch { return false; } };
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -285,7 +299,7 @@
   const TRIES = ['drive', 'boom', 'fish', 'talk', 'spawn', 'fly'];
 
   // What the signed-in part needs from the running island (startUi sets it).
-  const session = { H: null, base: null, edits: null, acts: null, friend: null, invited: false };
+  const session = { H: null, base: null, edits: null, acts: null, friend: null, invited: false, user: null };
   function startUi(H, base, t0) {
     style();
     const touch = isTouch();
@@ -431,8 +445,8 @@
       try { if (document.pointerLockElement) document.exitPointerLock(); } catch { /* fine */ }
       if (!invited) {
         let r;
-        try { r = await api('POST', '/v1/island-invite', { name: myName() }); }
-        catch (err) { flash(err.message || 'Could not make a link. Try again.'); return; }
+        try { r = await api('POST', '/v1/island-invite', { name: myName() }, { timeout: SAVE_MS }); }
+        catch { flash("Couldn't make the link just now. Try again."); return; }
         invited = { link: r.link, room: r.room };
         session.invited = true;
         // Our room: the friend comes to us here. (A signed-in player's editor room is left for it; their island is saved as ever.)
@@ -555,7 +569,7 @@
       if (intent === 'invite') return invite(from); // (no account: the friend does not need one, and neither does the inviter)
       // Kept already (signed in): Save saves now, Build and Invite open the editor, Ask opens the chat.
       if (island) {
-        if (intent === 'save') return saveNow(false).then(flashSaved);
+        if (intent === 'save') return saveExplicit();
         if (intent === 'build' || intent === 'invite') return toEditor();
         if (intent === 'assistant') return void (H.chat && H.chat.open());
         return;
@@ -566,6 +580,15 @@
       let look = null;
       try { look = H.presence && H.presence.look ? JSON.parse(JSON.stringify(H.presence.look)) : null; } catch { look = null; }
       store.set({ v: 1, at: Date.now(), intent, scene: snap || base, base, look });
+      if (intent !== 'tour') {
+        // A tap on Save / Build / Ask / Share: signed in (known already), the request runs behind its timeouts; a guest gets
+        // the account sheet at once, before any network call. (A player whose sign-in this page has not heard of yet: the
+        // sheet closes by itself when the answer says so.)
+        if (session.user) return signedIn(intent, session.user);
+        const sheet = openSheet(intent, { name: lookName(H) });
+        me().then((u) => { if (u && sheet && sheet.isOpen()) { sheet.close(); signedIn(intent, u); } });
+        return;
+      }
       const user = await me();
       if (user) return signedIn(intent, user);
       openSheet(intent, { forced: intent === 'tour', name: lookName(H) });
@@ -690,6 +713,7 @@
     veil.addEventListener('pointerdown', (e) => { e.stopPropagation(); if (e.target === veil) dismiss(); });
     veil.addEventListener('keydown', (e) => { if (e.key === 'Escape') dismiss(); });
     setTimeout(() => { const t = $('gsGoogle'); if (t && !veil.contains(document.activeElement)) t.focus({ preventScroll: true }); }, 50);
+    return { close, isOpen: () => veil.isConnected };
   }
   /** /auth/google with where to go after, and where the visitor came from (the hg_ref / hg_src cookies the landing page
    *  and invitations keep: Firebase Hosting forwards only __session, so they ride as ?ref= and ?src=). */
@@ -780,41 +804,63 @@
     window.HawkesGuest.accountFirst = false;
     track('sandbox_tour_guest', { signedIn: true, kept: false });
   }
+  // Every tap on Save ends in one visible thing within 15 s (J, 2026-11-11, finding f_a02d45284afc): the account sheet (a
+  // guest), "Saved", or one plain sentence with Try again. Each request is behind its own 15 s AbortController timeout, and
+  // the whole keep has one more (`all`), so no step can leave "Keeping your island…" on the screen.
+  const SAVE_MS = 15000;
+  /** The same as `Promise.race` with a time: a step that is not a request (the Overseer's memory) cannot hold the toast either. */
+  const within = (p, ms = SAVE_MS) => Promise.race([Promise.resolve(p).catch(() => {}), new Promise((res) => setTimeout(res, ms))]);
+  /** A short note over the island (it takes itself away); `text` is ours, never an error's own words. */
+  function note(text, ms = 3200) { const t = toast(text); t.dataset.saveNote = '1'; setTimeout(() => t.remove(), ms); return t; }
+  /** One plain sentence and Try again. `retry` runs the same save again. */
+  function saveFailed(retry, o = {}) {
+    track('sandbox_save_failed', { timedOut: Boolean(o.timedOut) });
+    const sheet = el(`<div class="gs-glass gs-sheet" data-save-failed="1" role="alertdialog" aria-label="Save"><h3>Your island wasn't kept yet</h3><p>${o.timedOut ? 'Hawkes Games took too long to answer.' : "Couldn't reach Hawkes Games."} Check your connection and try again.</p><button type="button" class="go" data-retry>Try again</button><button type="button" class="back" data-back>Keep playing</button></div>`, 'gs-veil');
+    sheet.querySelector('[data-retry]').onclick = () => { sheet.remove(); retry(); };
+    sheet.querySelector('[data-back]').onclick = () => sheet.remove();
+  }
   async function keep(intent, user) {
     const H = session.H;
     if (!H || !H.world) return claim(intent, user);
     if (island) return afterKeep(intent);
     const busy = toast('Keeping your island…');
-    // A request that never comes back must not leave this toast up for good: the api calls below give up after 20 s and the catch says so.
+    busy.dataset.saveBusy = '1';
+    const all = new AbortController(); // (the whole keep: its requests end with it)
+    const stop = setTimeout(() => { all.signal.timedOut = true; all.abort(); }, SAVE_MS);
+    const req = (method, url, body) => api(method, url, body, { timeout: SAVE_MS, signal: all.signal });
+    let live = true;
     try {
       const snap = Core.snapshot(H, { edits: session.edits });
       const name = lookName(H);
       let look = null;
       try { look = H.presence && H.presence.look ? JSON.parse(JSON.stringify(H.presence.look)) : null; } catch { look = null; }
       let game;
-      try { game = await api('POST', '/v1/games', { title: name ? `${name}'s island` : 'My island', template: 'sandbox' }, { timeout: 20000 }); }
-      catch (x) { busy.remove(); if (x.status === 402) return gamesFull(x.message, intent); throw x; }
+      try { game = await req('POST', '/v1/games', { title: name ? `${name}'s island` : 'My island', template: 'sandbox' }); }
+      catch (x) { if (x.status === 402) { busy.remove(); return gamesFull(x.message, intent); } throw x; }
       // The look they made at the mirror is theirs now (it replaces what the account had: they just chose it).
-      if (look) await api('POST', '/v1/users/me/avatar', { avatar: look }).catch((e) => console.warn('sandbox: look not saved', e));
+      if (look) await req('POST', '/v1/users/me/avatar', { avatar: look }).catch((e) => console.warn('sandbox: look not saved', e));
       // What the Overseer remembered of them on this device goes into the account (the newer record wins).
-      try { if (H.memory) await H.memory.sync(); } catch { /* fine */ }
+      try { if (H.memory) await within(H.memory.sync()); } catch { /* fine */ }
       const ops = Core.toOps(session.base || { config: {}, entities: {} }, snap);
-      for (const part of Core.chunks(ops, 200)) await api('POST', `/v1/games/${game.id}/scene`, { ops: part }, { timeout: 20000 });
+      for (const part of Core.chunks(ops, 200)) await req('POST', `/v1/games/${game.id}/scene`, { ops: part });
       // Their island: no Overseer's beginning or mirror again (they've seen them; the mirror is still there to use).
-      await api('POST', `/v1/games/${game.id}/scene`, { ops: [{ op: 'config', patch: { overseer: { intro: false } } }, { op: 'update', id: 'mirror', patch: { shape: { character: { start: false } } } }] }).catch(() => {});
+      await req('POST', `/v1/games/${game.id}/scene`, { ops: [{ op: 'config', patch: { overseer: { intro: false } } }, { op: 'update', id: 'mirror', patch: { shape: { character: { start: false } } } }] }).catch(() => {});
       island = { id: game.id, base: snap, user: user.id };
       store.clear();
       kept.set({ id: game.id, user: user.id });
       track('sandbox_claimed', { intent, changes: ops.length, user: 'yes', seamless: true });
+      clearTimeout(stop);
       busy.remove();
-      await goLive(user, true);
+      // Saved is the news; the room is a bonus (a missing one is told in one short line, not an error).
+      live = (await goLive(user, true)) !== false;
+      note(live ? 'Saved' : "Saved. Friends can't join right now.");
+      flashSaved();
       afterKeep(intent);
     } catch (x) {
+      clearTimeout(stop);
       busy.remove();
-      const sheet = el(`<div class="gs-glass gs-sheet"><h3>Your island wasn't kept yet</h3><p>${esc(x.message)}</p><button type="button" class="go" data-retry>Try again</button><button type="button" class="back" data-back>Keep playing</button></div>`, 'gs-veil');
-      sheet.querySelector('[data-retry]').onclick = () => { sheet.remove(); keep(intent, user); };
-      const back = sheet.querySelector('[data-back]');
-      if (back) back.onclick = () => sheet.remove();
+      console.warn('sandbox: not kept', x);
+      saveFailed(() => keep(intent, user), { timedOut: Boolean(x && (x.timedOut || all.signal.timedOut)) });
     }
   }
   function afterKeep(intent) {
@@ -827,13 +873,14 @@
     const id = island.id;
     takeSeat(user && user.id);
     window.HawkesGuest.accountFirst = false; // (Pip's tour, here)
+    let live = true;
     try {
-      const b = await api('GET', `/v1/games/${id}/bundle`);
+      const b = await api('GET', `/v1/games/${id}/bundle`, undefined, { timeout: SAVE_MS });
       // Our room connection: saves carry it so the server doesn't send our own changes back to us (applied again, they
       // rebuilt what they touched: you were thrown out of the car and the camera reset on every save).
       if (!session.hooked && H.hooks && H.hooks.world) { session.hooked = true; H.hooks.world.push({ net: (st, info) => { if (info && info.me) session.conn = info.me; } }); }
       if (b.net && b.net.token && window.HawkesNet && !session.friend && !session.invited) window.HawkesNet.connect({ token: b.net.token });
-    } catch (x) { console.warn('sandbox: no live room', x); }
+    } catch (x) { live = false; console.warn('sandbox: no live room', x); }
     feed(id, user);
     if (H.chat) H.chat.attach({ send: (t) => ask(id, t), placeholder: isTouch() ? 'Talk to the Overseer…' : 'Press Enter to talk to the Overseer' });
     // What the Observatory's wardrobe asks the Overseer with (modules/overseer/wardrobe.js): the price first, then the same paid message the chat sends.
@@ -863,6 +910,7 @@
     }, 1200);
     // The tour's ask step teaches the same three asks again, when it is reached (spawn done).
     H.game.on('tour', (d) => { if (d && d.step === 'spawn') offerAsks(true); });
+    return live; // (false: saved, but no live room to be in)
   }
   /** What a message to the Overseer costs now (Gen's quote through the portal; the portal's floor if it can't be had). */
   async function askPrice(id) {
@@ -1096,7 +1144,7 @@
   let saving = false, saveTimer = null, rebaseT = null;
   const savedRevs = new Set(); // scene.json revisions our saves made (their feed events are ours, nothing to do)
   async function saveNow(keepalive) {
-    if (!island || saving || !session.H || !session.H.world || (seat && seat.aside)) return;
+    if (!island || saving || !session.H || !session.H.world || (seat && seat.aside)) return undefined;
     saving = true;
     try {
       const now = Core.snapshot(session.H, { edits: session.edits });
@@ -1108,12 +1156,20 @@
       }
       const ops = Core.toOps(island.base, now);
       for (const part of Core.chunks(ops, 200)) {
-        const r = await api('POST', `/v1/games/${island.id}/scene`, { ops: part }, { keepalive, headers: session.conn ? { 'X-Room-Conn': session.conn } : undefined });
+        const r = await api('POST', `/v1/games/${island.id}/scene`, { ops: part }, { keepalive, timeout: keepalive ? 0 : SAVE_MS, headers: session.conn ? { 'X-Room-Conn': session.conn } : undefined });
         if (r && r.rev) { savedRevs.add(r.rev); if (savedRevs.size > 50) savedRevs.delete(savedRevs.values().next().value); }
       }
       island.base = now;
       if (ops.length) flashSaved();
-    } catch (x) { console.warn('sandbox: not saved yet', x); } finally { saving = false; }
+      return true;
+    } catch (x) { console.warn('sandbox: not saved yet', x); return false; } finally { saving = false; }
+  }
+  /** The Save tap on a kept island: "Saved", or one plain sentence with Try again (never a button that only blinks). */
+  async function saveExplicit() {
+    const ok = await saveNow(false);
+    if (ok === false) return saveFailed(saveExplicit);
+    note('Saved');
+    flashSaved();
   }
   /** The Overseer (or a builder) changed the world: save ours first, then count theirs as already there. */
   function rebase() {
@@ -1182,14 +1238,14 @@
       if (!saved && !tour) throw new Error('Nothing to save: this browser has no island from the sandbox.');
       const name = saved && saved.look && saved.look.name ? String(saved.look.name).slice(0, 40) : '';
       let game;
-      try { game = await api('POST', '/v1/games', { title: name ? `${name}'s island` : 'My island', template: 'sandbox' }); }
+      try { game = await api('POST', '/v1/games', { title: name ? `${name}'s island` : 'My island', template: 'sandbox' }, { timeout: SAVE_MS }); }
       catch (x) { if (x.status === 402) { busy.remove(); return gamesFull(x.message, intent); } throw x; }
       // The look they made at the mirror is theirs now (it replaces what the account had: they just chose it).
       if (saved && saved.look) await api('POST', '/v1/users/me/avatar', { avatar: saved.look }).catch((e) => console.warn('sandbox: look not saved', e));
       const ops = saved ? Core.toOps(saved.base || { config: {}, entities: {} }, saved.scene) : [];
       const notApplied = [];
       for (const part of Core.chunks(ops, 200)) {
-        const r = await api('POST', `/v1/games/${game.id}/scene`, { ops: part });
+        const r = await api('POST', `/v1/games/${game.id}/scene`, { ops: part }, { timeout: SAVE_MS });
         if (r && r.errors && r.errors.length) notApplied.push(...r.errors);
       }
       // Their island, from now on: the Overseer's beginning and the mirror only the first time (they've seen them here);
@@ -1202,7 +1258,7 @@
       // (The tour: playing, Pip's tour, the Overseer in the chat. Otherwise the editor's short building tour.)
       location.replace(tour ? `/app/g/${game.id}?tour=1` : `/app/g/${game.id}?welcome=build`);
     } catch (x) {
-      busy.innerHTML = `<div class="gs-glass gs-sheet"><h3>That did not work</h3><p>${esc(x.message)}</p><button type="button" class="go" data-retry>Try again</button><a class="back" style="display:block;text-align:center" href="/app">Go to my games</a>${tour ? '' : '<button type="button" class="back" data-back>Back to the island</button>'}</div>`;
+      busy.innerHTML = `<div class="gs-glass gs-sheet"><h3>That did not work</h3><p>${x.status === 0 ? esc(x.message) : "That did not work. Try again in a moment."}</p><button type="button" class="go" data-retry>Try again</button><a class="back" style="display:block;text-align:center" href="/app">Go to my games</a>${tour ? '' : '<button type="button" class="back" data-back>Back to the island</button>'}</div>`;
       busy.querySelector('[data-retry]').onclick = () => { busy.remove(); claim(intent, user); };
       const back = busy.querySelector('[data-back]');
       if (back) back.onclick = () => { busy.remove(); if (!window.HawkesPlay || !window.HawkesPlay.world) location.replace('/play/sandbox'); };
@@ -1280,6 +1336,14 @@
     playtestContinue() {
       window.HawkesGuest.accountFirst = false;
       try { if (typeof window.HawkesGuest._dismissSheet === 'function') window.HawkesGuest._dismissSheet(); } catch { /* fine */ }
+    },
+    /** Playtests only (automation: navigator.webdriver or ?playtest=): act as signed in, as if the page had heard from
+     *  /v1/users/me (Google sign-in cannot be scripted), so Save runs its signed-in path. Refused on a live site. */
+    playtestSignedIn(user) {
+      if (!(navigator.webdriver || /[?&]playtest=/.test(location.search) || sessionStorage.getItem('hg_playtest_run'))) return false;
+      if (/^(www\.)?(hawkesgames\.com|hawkesgen\.ai)$/.test(location.hostname)) return false;
+      session.user = { id: 'usr_playtest', credits: 0, ...(user || {}) };
+      return true;
     },
     async boot(o = {}) {
       const t0 = performance.now();
