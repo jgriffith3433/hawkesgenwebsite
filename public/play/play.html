@@ -295,6 +295,7 @@
     // HawkesLoadScreen.done() (runtime.js run) fades it out as the world becomes playable and the intro begins.
     (function () {
       var box = document.getElementById('loading'), cv = document.getElementById('ldPearl'), fill = document.getElementById('ldFill');
+      requestAnimationFrame(function () { try { performance.mark('hg-loading-shown'); } catch (e) { /* only for the first-load playtest */ } });
       var bar = box.querySelector('.ld-bar'), ctx = cv.getContext('2d'), TAU = Math.PI * 2;
       var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
       var shown = 0, over = false, raf = 0;
