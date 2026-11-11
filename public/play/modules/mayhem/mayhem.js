@@ -648,12 +648,16 @@
     if (d.effects !== false) {
       // (mayhem-feel.js: a chain's later blasts make less, so ten barrels stay inside the budget.)
       const F2 = H.mayhem.feel, dt = F2 ? F2.note(at, chain) : { k: 1, light: true, embers: false, ring: true };
-      if (dt.light) flash(at, R * 0.55, d.color || (d.fire ? '#ff9a3c' : '#ffd27a'));
-      if (dt.ring) shockwave(at, R);
-      sparks(at, { color: d.color || '#ff8a3d', speed: 5 + R, count: Math.max(6, Math.round((30 + R * 8) * dt.k)) });
-      smoke(at, { radius: R * 0.35, count: Math.max(6, Math.round((20 + R * 4) * dt.k)), life: 2 + R * 0.25 });
+      // (mayhem-vfx.js: the layered blast, pooled; until its flipbooks are drawn the older effects below stand in.)
+      const layered = H.mayhem.vfx && H.mayhem.vfx.blast(at, R, dt, { chain });
+      if (!layered) {
+        if (dt.light) flash(at, R * 0.55, d.color || (d.fire ? '#ff9a3c' : '#ffd27a'));
+        if (dt.ring) shockwave(at, R);
+        sparks(at, { color: d.color || '#ff8a3d', speed: 5 + R, count: Math.max(6, Math.round((30 + R * 8) * dt.k)) });
+        smoke(at, { radius: R * 0.35, count: Math.max(6, Math.round((20 + R * 4) * dt.k)), life: 2 + R * 0.25 });
+      }
       debrisBits(at, R, dt.k);
-      if (dt.embers && F2) F2.embers(at, R, dt.k);
+      if (dt.embers && F2 && !layered) F2.embers(at, R, dt.k);
       shake(at, Math.min(0.9, 0.15 + R * 0.06), 0.25 + R * 0.03);
       if (F2) F2.boomSound(at, R, d.sound, dt.k); else sound('boom', { at, size: R, asset: d.sound });
     }

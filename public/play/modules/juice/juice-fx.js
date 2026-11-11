@@ -204,6 +204,7 @@
   H.physics.on('explosion', (d) => {
     const at = d.position, R = Number(d.radius) || 4.5;
     if (!W()) return;
+    if (d.mayhem && H.mayhem && H.mayhem.vfx && H.mayhem.vfx.ready()) return; // the layered blast (mayhem-vfx.js) makes its own scorch and dust
     let ground = null;
     try { ground = H.physics.raycast([at[0], at[1] + 0.5, at[2]], [0, -1, 0], Math.max(2, R * 0.8)); } catch { /* fine */ }
     if (ground && !(ground.entity && (ground.entity.living || ground.entity._ragPart))) {
