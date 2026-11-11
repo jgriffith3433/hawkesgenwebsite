@@ -13,7 +13,8 @@ but only once the world is running: in updates, events and timers, not at the to
 | `living.command(e, what, opts)` | `'follow'` (`target`: `'player'`, an entity or a name), `'stay'`, `'sit'`, `'sleep'`, `'come'` (`target`), `'goto'` (`at: [x, z]`), `'dance'`, `'cheer'`, `'fetch'` (`target`), `'carry'` (`thing`), `'drop'`, `'wander'`, `'attack'` (`target`), `'flee'` (`target`); `seconds` ends it |
 | `living.follow(e, target)`, `living.stay(e)`, `living.goTo(e, [x, z])`, `living.wander(e)` | the same, shorter |
 | `living.startle(at, { radius, strength })` | scares the creatures near a point: they run (herds stampede). Explosions (the engine's `'explosion'` event: any blast) and gunfire do it by themselves; the closest are knocked over |
-| `living.status(e)` | `{ species, state, act, hunger, energy, fear, following, carrying, riding }` (state: idle walk run eat sleep sit dance knocked attack cheer fly swim flop) |
+| `living.status(e)` | `{ species, state, act, hunger, energy, fear, following, carrying, riding, routine? }` (state: idle walk run eat sleep sit dance knocked attack cheer fly swim flop; `act` may also be `fish` / `tend` / `wave` on a routine; `routine` is `{ spot, facing, visited, want }` when `shape.routine` is set) |
+| `living.hour()` | the world's hour (0–24) for routines, or null when there is no clock |
 | `living.ride(e)`, `living.dismount()` | puts the player on a creature and off it (the `ride` controller) |
 | `living.path(from, to)` | a way around obstacles: `[[x, z], ...]` or null |
 | `living.pickUp(e, thing)`, `living.drop(e)` | a creature carries something (in its mouth or its arms) |
@@ -23,7 +24,7 @@ but only once the world is running: in updates, events and timers, not at the to
 | `living.chat.addChip({ label, show(friend), act(friend) })` | a button of your own in friends' chats (shown when `show` says so); returns a function that removes it |
 | `living.species.add(name, def)` | a new species: `living.species.add('goat', { ...living.species.get('sheep'), colors: { body: '#eee', head: '#eee', legs: '#555', accent: '#555' } })` |
 | `living.count`, `living.max` | how many creatures there are, and the world's limit |
-| `living.on('startle' / 'hurt' / 'act', fn)` | hear about it |
+| `living.on('startle' / 'hurt' / 'act' / 'routine', fn)` | hear about it (`routine`: a stays friend walked, arrived, faced the player or resumed) |
 
 The **`ball` tool** (`game.player.tool = 'ball'`): click (or G, or the Throw button on phones) throws it; dogs fetch
 it; walk over it to pick it up. The **`ride` controller**: `game.player.control('ride', { mount: horse })`.

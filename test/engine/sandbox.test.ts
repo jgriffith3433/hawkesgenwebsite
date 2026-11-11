@@ -355,7 +355,24 @@ const islanderLines = () => {
 const resetIslanders = () => { for (const k of ['__islanderDid', '__islanderHeard', '__islanderLog', '__islanderListening', '__islanders']) delete g.window[k]; };
 // (The harness has no intro to end, so the mirror stays "about to open"; here it has been answered.)
 const mirrorDone = (game: any) => { try { game.mirror.close(); } catch { /* none open */ } Object.defineProperty(game, 'mirror', { value: { pending: false }, configurable: true }); H.tick(0.3); };
-const stand = (game: any, id: string, d = 1.8) => { const e = H.world.byId.get(id); game.player.position = [e.x - d, e.y + 0.5, e.z]; H.tick(0.7); return e; };
+// Place the player next to an islander. Routines walk them around the island, so hold their AI (same pause as when
+// the player is within ~4 m) and snap beside their current place before E. Also clear blast slow-mo's controls=false
+// so H.use.act can run (it refuses when controls are off).
+const stand = (game: any, id: string, d = 1.8) => {
+  const e = H.world.byId.get(id);
+  const r = e && e.living;
+  if (r) {
+    r.goal = null; r.path = null; r.act = 'idle'; r.state = 'idle';
+    r.until = (H.world.time || 0) + 20;
+    if (r.routine) r.routine.facing = true;
+  }
+  game.player.controls = true;
+  game.player.position = [e.x - d, e.y + 0.5, e.z];
+  H.tick(0.5);
+  game.player.position = [e.x - d, e.y + 0.5, e.z];
+  H.tick(0.2);
+  return e;
+};
 const BODY_WORDS = /\b(toaster|duck|cactus|roll-?bot|robot|television|shoe|potato|banana|teapot|mushroom|cone|dog|cat|fox|pig|bear|rabbit|penguin|chicken|cow|sheep|horse|dinosaur|person|human)\b/i;
 
 test('sandbox islanders: five named neighbours stand on the island, in the mirror\'s bodies, with talk in the chat only', () => {
@@ -376,6 +393,12 @@ test('sandbox islanders: five named neighbours stand on the island, in the mirro
   // The tag they carry is their name; none of the scene's voice lines or assets are new.
   assert.deepEqual(CAST_IDS.map((id) => H.world.byId.get(id).name), ['Admiral Bobbin', 'Mrs Ember', 'Rolo', 'Dolores', 'Channel']);
   assert.ok(!Object.keys(bundle.files).some((f) => /islander|bobbin|ember|rolo|dolores|channel/i.test(f) && /\.(mp3|wav|ogg)$/.test(f)), 'no voice files');
+  for (const id of CAST_IDS) {
+    const r = H.world.byId.get(id).living;
+    assert.ok(r.stays, `${id} stays (no random wander)`);
+    assert.ok(r.routine && r.routine.spots.length >= 2, `${id} has a clock routine of two or more spots`);
+  }
+  assert.ok(H.world.byId.get('pip').living.stays && !H.world.byId.get('pip').living.routine, 'Pip stays put with no routine');
   assert.deepEqual(clean(), []);
 });
 

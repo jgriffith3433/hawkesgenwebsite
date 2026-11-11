@@ -51,7 +51,7 @@
       group: 'Living things',
       what: 'An AI friend you talk to (T, or click them): follows you, carries things, sits, dances, plays fetch, builds with you, rides along, cheers. They understand plain commands and answer in character (their personality, their species\' voice), for free.',
       spec: { type: 'friend', name: 'Max', shape: { species: 'person', personality: 'cheerful, loves building things and bad puns' }, transform: { position: [2, 1, 2] } },
-      fields: [['name', 'what they\'re called', 'Max'], ['shape.personality', 'who they are, in words', ''], ['shape.species', 'person, robot, dog, cat, dinosaur... (any creature)', 'person'], ['shape.follow', 'false: stays put (a villager); "player" or a name', 'player'], ['shape.lines', 'things they say when you come near', ''], ['shape.talk', 'false: no chat', 'true'], ['shape.color', 'their shirt (people) or body', '']],
+      fields: [['name', 'what they\'re called', 'Max'], ['shape.personality', 'who they are, in words', ''], ['shape.species', 'person, robot, dog, cat, dinosaur... (any creature)', 'person'], ['shape.follow', 'false: stays put (a villager); "player" or a name', 'player'], ['shape.stays', 'true: never wanders at random (a post or a routine)', ''], ['shape.routine', '{ spots: [{ id, at:[x,z], do: fish|tend|sit|wave|idle, face? }], offset? }: clock-driven places when stays', ''], ['shape.lines', 'things they say when you come near', ''], ['shape.talk', 'false: no chat', 'true'], ['shape.color', 'their shirt (people) or body', '']],
     },
   });
 

@@ -187,6 +187,68 @@ test('build mode: animals stand still where they were put', () => {
   assert.ok(Math.hypot(daisy.x - 5, daisy.z - 5) < 0.3, 'the cow stays put while building');
 });
 
+test('a stays friend with a routine walks between clock spots, idles there, and faces the player', () => {
+  world(H, sceneOf({
+    floor, start,
+    bob: {
+      type: 'friend', name: 'Bob',
+      shape: {
+        personality: 'harbour', follow: false, stays: true, talk: false,
+        routine: {
+          spots: [
+            { id: 'a', at: [-8, 0], do: 'fish', face: 90 },
+            { id: 'b', at: [8, 0], do: 'sit', face: 0 },
+            { id: 'c', at: [0, 8], do: 'wave', face: 180 },
+          ],
+        },
+      },
+      transform: { position: [-8, 1, 0] },
+    },
+  }, { time: { hour: 2, day: 600, light: false, run: true } }));
+  const bob = H.game.entity('bob'), p = H.game.player;
+  p.controls = false;
+  p.position = [0, 1, -10]; // far from Bob so he is not paused facing the player
+  H.tick(1);
+  assert.ok(bob.living.stays && bob.living.routine, 'stays + routine on the record');
+  assert.ok(Number.isFinite(L.hour()), `the clock is running (hour ${L.hour()})`);
+  // Spot a (hours 0–8): stay put and fish.
+  if (H.game.events) H.game.events.hour = 2;
+  H.tick(2);
+  assert.ok(Math.hypot(bob.x + 8, bob.z - 0) < 2, `at spot a (${flat(bob.x)}, ${flat(bob.z)})`);
+  assert.ok(['fish', 'sit', 'idle'].includes(L.status(bob).act), `idle activity at a (${L.status(bob).act})`);
+  const seen: string[] = [];
+  H.game.on('routine', (d: any) => { if (d && (d.id === 'bob' || d.name === 'Bob') && d.kind) seen.push(d.kind); });
+  // Jump the clock into spot b's slice and watch the walk across the open floor.
+  if (H.game.events) H.game.events.hour = 12;
+  H.tick(12);
+  const st = L.status(bob);
+  assert.ok(Math.hypot(bob.x - 8, bob.z - 0) < 2.5, `walked to spot b (${flat(bob.x)}, ${flat(bob.z)}; want=${st.routine && st.routine.want} hour=${L.hour()})`);
+  assert.ok(st.routine && st.routine.spot === 'b', `arrived at b (${JSON.stringify(st.routine)})`);
+  assert.ok(st.routine.visited.includes('b'), 'visited records the arrival');
+  assert.ok(['sit', 'idle'].includes(st.act) || st.state === 'sit', `idle activity at the spot (act ${st.act}, state ${st.state})`);
+  assert.ok(seen.includes('walk'), `walk event (${seen.join(',')})`);
+  assert.ok(seen.includes('arrive'), `arrive event after the walk (${seen.join(',')})`);
+  // Player near: pauses and faces, then resumes when the player leaves.
+  p.position = [bob.x + 1.2, 1, bob.z];
+  H.tick(1.2);
+  const faced = L.status(bob);
+  assert.equal(faced.act, 'idle', 'paused for the player');
+  assert.ok(faced.routine && faced.routine.facing, 'facing the player');
+  p.position = [0, 1, -10];
+  H.tick(1.5);
+  assert.ok(!L.status(bob).routine.facing, 'resumed after the player left');
+});
+
+test('a stays friend without a routine still stands still (no wander)', () => {
+  world(H, sceneOf({
+    floor, start,
+    pip: { type: 'friend', name: 'Pip', shape: { follow: false, stays: true, talk: false }, transform: { position: [2, 1, 2] } },
+  }));
+  const pip = H.game.entity('pip');
+  H.tick(8);
+  assert.ok(Math.hypot(pip.x - 2, pip.z - 2) < 0.4, `stays put without a routine (${flat(pip.x)}, ${flat(pip.z)})`);
+});
+
 test('animals: real eyes that blink, ears and tails on springs, an idle and a gait of the species', () => {
   world(H, sceneOf({ floor, start }));
   const rigOf = (sp: string) => L.spawn(sp, { x: 0, z: 0 });
