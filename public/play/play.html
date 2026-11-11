@@ -46,7 +46,7 @@
     #error { position: fixed; left: 12px; right: 12px; bottom: 12px; background: #2a0d0d; color: #ffd9d9; border: 1px solid var(--bad); padding: 10px 12px; font: 12px/1.45 var(--mono); max-height: 30%; overflow: auto; z-index: 9; white-space: pre-wrap; border-radius: 8px; }
     html { background: #0a0a0f; }
     #loading { position: fixed; inset: 0; z-index: 20; display: grid; place-content: center; justify-items: center; gap: 22px; padding: 0 20px; box-sizing: border-box; background: radial-gradient(ellipse at 50% 42%, #0f1a2c 0%, #0a0a0f 70%); color: #cfe6ff; font: 14px var(--mono); letter-spacing: .08em; text-align: center; transition: opacity .7s ease; }
-    #loading.fade { opacity: 0; pointer-events: none; }
+    #loading.fade, body.hlw-on #loading:not(.ld-fail) { opacity: 0; pointer-events: none; }
     #loading[hidden], #error[hidden] { display: none; }
     #loading canvas { width: min(46vw, 220px); height: min(46vw, 220px); display: block; }
     #loading .ld-words { font: 600 15px/1.35 var(--sans, system-ui, sans-serif); letter-spacing: .04em; color: #e8f3ff; max-width: 300px; }
@@ -336,12 +336,17 @@
         v = Math.max(shown, Math.min(1, v)); shown = v;
         fill.style.width = (v * 100).toFixed(1) + '%'; bar.setAttribute('aria-valuenow', String(Math.round(v * 100)));
       }
-      function update(done, total) { if (total > 0 && !over) show(Math.min(0.97, done / total)); }
+      // The loading wrapper (play/loadwrap.js): the hook line and the toy over the pearl screen, the same real progress.
+      var wrap = null;
+      try { if (window.HawkesLoadWrap && window.parent === window) { wrap = HawkesLoadWrap.mount({ root: document.body, hook: 'The Overseer is preparing your world', accent: '#6cf0ff' }); document.body.classList.add('hlw-on'); } } catch (e) { wrap = null; }
+      function update(done, total) { if (total > 0 && !over) { show(Math.min(0.97, done / total)); if (wrap) wrap.progress(Math.min(0.97, done / total)); } }
       function wire() { var M = window.HawkesModules; if (M) { M.onprogress = update; if (M.progress) update(M.progress.done, M.progress.total); } }
       window.HawkesLoadScreen = {
-        progress: function (v) { show(Math.min(0.97, v)); },
+        progress: function (v) { show(Math.min(0.97, v)); if (wrap) wrap.progress(Math.min(0.97, v)); },
+        fail: function () { document.body.classList.remove('hlw-on'); if (wrap) { wrap.finish(); wrap = null; } },
         done: function () {
           if (over) return; over = true; show(1);
+          if (wrap) { wrap.downloaded(); document.body.classList.remove('hlw-on'); wrap.finish(); wrap = null; }
           box.classList.add('fade');
           setTimeout(function () { box.hidden = true; cancelAnimationFrame(raf); }, reduce ? 0 : 750);
         },
@@ -372,6 +377,7 @@
       }, true);
     });
   </script>
+  <script src="/play/loadwrap.js"></script>
   <script src="/play/modules.js"></script>
   <script>HawkesLoadScreen.wire();</script>
   <script>
@@ -398,6 +404,7 @@
       var failed = function (e) {
         var detail = (e && e.message) || 'The game engine did not load';
         try { console.error(detail); } catch (err) { /* fine */ }
+        if (window.HawkesLoadScreen && HawkesLoadScreen.fail) HawkesLoadScreen.fail();
         loading.hidden = false;
         loading.classList.remove('fade');
         loading.classList.add('ld-fail');

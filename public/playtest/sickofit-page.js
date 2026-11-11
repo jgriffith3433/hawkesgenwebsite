@@ -40,6 +40,8 @@ export async function runSickofitPage(t, options = {}) {
     // The Tap to play prompt comes from the build host's hawkes-sound.js, after build.json: wait for it (a page where it
     // never loads is a failure too: nothing to tap).
     await t.until(() => d.getElementById('hawkes-tap') && rect(d.getElementById('hawkes-tap')).height > 0, 30000, `Tap to play at ${label}`);
+    // The loading wrapper (play/loadwrap.js) covers the page until the game has loaded: the guide and the prompt are checked once it is gone.
+    await t.until(() => !d.querySelector('.hlw'), 150000, `the loading wrapper handing off at ${label}`);
     await t.wait(1500);
     const vis = (s) => { const e = d.querySelector(s); return e && win.getComputedStyle(e).display !== 'none' && rect(e).height > 0 ? e : null; };
     const prem = vis('#pre .premise');
