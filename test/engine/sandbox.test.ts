@@ -352,7 +352,7 @@ const islanderLines = () => {
   H.chat = { ...(H.chat || {}), line: (m: any) => { chat.push(m); } };
   return chat;
 };
-const resetIslanders = () => { for (const k of ['__islanderDid', '__islanderHeard', '__islanderLog', '__islanderListening', '__islanderBarks', '__islanderBarkState', '__islanders']) delete g.window[k]; };
+const resetIslanders = () => { for (const k of ['__islanderDid', '__islanderHeard', '__islanderLog', '__islanderListening', '__islanderBarks', '__islanderBarkState', '__islanders']) delete g.window[k]; g.window.__islanderBarkAnyView = true; };
 // (The harness has no intro to end, so the mirror stays "about to open"; here it has been answered.)
 const mirrorDone = (game: any) => { try { game.mirror.close(); } catch { /* none open */ } Object.defineProperty(game, 'mirror', { value: { pending: false }, configurable: true }); H.tick(0.3); };
 // Place the player next to an islander. Routines walk them around the island, so hold their AI (same pause as when

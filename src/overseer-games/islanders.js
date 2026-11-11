@@ -249,6 +249,21 @@
     }
     return null;
   }
+  /** Is the islander's head where the player can see a caption over it (in the picture, above the thumbs' corners)? When the
+   *  camera cannot be read (no scene yet), yes. */
+  function seen(e) {
+    try {
+      if (window.__islanderBarkAnyView) return true; // (the engine tests have no picture to look at)
+      const W = H && H.world, cam = W && W.scene && W.scene.activeCamera;
+      if (!cam || !e.node || !e.node.getAbsolutePosition || !cam.getViewMatrix) return true;
+      const a = e.node.getAbsolutePosition(), v = cam.getViewMatrix().m, pr = cam.getProjectionMatrix().m;
+      const x = a.x, y = a.y + (e.half ? e.half[1] : 0.6) + 0.9, z = a.z;
+      const vx = x * v[0] + y * v[4] + z * v[8] + v[12], vy = x * v[1] + y * v[5] + z * v[9] + v[13], vz = x * v[2] + y * v[6] + z * v[10] + v[14], vw = x * v[3] + y * v[7] + z * v[11] + v[15];
+      const cx = vx * pr[0] + vy * pr[4] + vz * pr[8] + vw * pr[12], cy = vx * pr[1] + vy * pr[5] + vz * pr[9] + vw * pr[13], cw = vx * pr[3] + vy * pr[7] + vz * pr[11] + vw * pr[15];
+      if (!(cw > 0.1)) return false;
+      return Math.abs(cx / cw) < 0.7 && (cy / cw) < 0.85 && (cy / cw) > -0.25;
+    } catch { return true; }
+  }
   function bark(id) {
     const e = islander(id), p = game.player, c = CAST[id], b = pickBark(id);
     if (!e || !p || !b) return null;
@@ -283,6 +298,7 @@
       const e = islander(id);
       if (!e || dist(e, p) >= BARK_RANGE) continue;
       if (barkState.last[id] && now - barkState.last[id] < BARK_GAP) continue;
+      if (!seen(e)) continue; // a caption nobody can see is no greeting: it waits until you look
       if (bark(id)) return;
     }
   });
