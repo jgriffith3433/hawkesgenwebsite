@@ -471,7 +471,8 @@
    "text": "The log needs a new name. Take the boat out, then catch me a fish. Salute optional.",
    "direction": {
     "emotion": "pompous, issuing a harbour order, a soft duck note",
-    "pace": "slow, ceremonial"
+    "pace": "slow",
+    "delivery": "ceremonial"
    }
   },
   {
@@ -480,7 +481,8 @@
    "text": "Fleet of two. Logbook updated. Same boat, longer name. Carry on.",
    "direction": {
     "emotion": "swelling pride, then dry resignation on the longer name",
-    "pace": "measured, proud"
+    "pace": "normal",
+    "delivery": "measured, proud"
    }
   },
   {
@@ -489,7 +491,8 @@
    "text": "A letter for the beach, dear. Carry it to the chair, then a small boom so he notices. Sorry.",
    "direction": {
     "emotion": "warm, secretive, apologising for the boom",
-    "pace": "unhurried"
+    "pace": "slow",
+    "delivery": "unhurried"
    }
   },
   {
@@ -498,7 +501,8 @@
    "text": "It reached him. Forecast: clear. Sorry. Take this stamp.",
    "direction": {
     "emotion": "relieved, fond, wry on Sorry",
-    "pace": "soft, warm"
+    "pace": "slow",
+    "delivery": "soft, warm"
    }
   },
   {
@@ -507,7 +511,8 @@
    "text": "huh. need scrap. drive the 4x4 to the barrels. then blow them. estimate: two wobbles.",
    "direction": {
     "emotion": "mild, matter of fact, a little shy to ask",
-    "pace": "slow, lowercase mumble"
+    "pace": "slow",
+    "delivery": "lowercase mumble"
    }
   },
   {
@@ -516,7 +521,8 @@
    "text": "huh. that was a small tuesday. take this. mostly fine.",
    "direction": {
     "emotion": "quietly pleased, still under something",
-    "pace": "slow, soft"
+    "pace": "slow",
+    "delivery": "soft"
    }
   }
  ]
