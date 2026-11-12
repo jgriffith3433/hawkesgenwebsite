@@ -196,12 +196,22 @@
     ranks = new Map(list.sort((x, y) => x.dist - y.dist).map((x, i) => [x.id, i]));
   }
 
-  /** Before the body's animation: the voice and the mouth, the eyes' target. */
+  /** Before the body's animation: the voice and the mouth, the eyes' target. On a phone only the 3 nearest (and whoever is
+   *  speaking) run lip flap and look-at; farther mouths close. */
   function before(rig, dt) {
     if (!isCast(rig)) return;
     const a = stateOf(rig), e = rig.e, t = rig.time || 0;
     ranking(t);
     a.active = activeIds.has(a.id); a.rank = ranks.has(a.id) ? ranks.get(a.id) : -1;
+    rig.alive = a;
+    if (!a.active) {
+      a.voiced = false; a.playing = false; a.level = 0;
+      Core.mouthStep(a.mouth, 0, dt); a.mouthOpen = a.mouth.open; a.mouthDraw = null;
+      driveJaw(rig, a, 0);
+      a.lookOn = false;
+      if (a.ownedLook) { rig.lookTarget = null; a.ownedLook = false; }
+      return;
+    }
     const lv = readLevel(a, e);
     a.voiced = lv !== null;
     let open;
@@ -209,8 +219,7 @@
     else if (a.talkUntil > t) { a.level = 0; open = Core.mouthStep(a.mouth, Core.babbleOpen(t) > 0.5 ? 0.5 : 0.05, dt); }
     else { a.level = 0; open = Core.mouthStep(a.mouth, 0, dt); }
     a.mouthOpen = open;
-    // what the face draws (presence-person.js face / presence-things.js stepFace read rig.alive.mouth)
-    rig.alive = a;
+    // what the face draws (presence-person.js face / presence-things.js stepFace read rig.alive.mouthDraw)
     a.mouthDraw = a.voiced || a.talkUntil > t || a.mouth.open > 0.01 ? open * Core.MOUTH_MAX : null;
     driveJaw(rig, a, open);
     // the stats the playtest reads: the mouth against the sound
@@ -220,7 +229,7 @@
     if (a.samples.length < 400 && (a.playing || open > 0.01)) a.samples.push([Math.round(t * 100) / 100, Math.round(open * 100) / 100, a.playing ? 1 : 0]);
     // the eyes follow the player within 6 m (the face system reads rig.lookTarget as an explicit point)
     const p = H.world && H.world.player;
-    if (a.active && p) {
+    if (p) {
       a.lookOn = Core.lookIn(a.lookOn, a.dist);
       if (a.lookOn && !(rig.lookTarget && !a.ownedLook)) { rig.lookTarget = [p.x, p.y + 0.7, p.z]; a.ownedLook = true; }
     } else a.lookOn = false;
@@ -287,8 +296,8 @@
   function gesture(who, ctxOrName, seconds) {
     const e = typeof who === 'string' ? (H.game && H.game.find && H.game.find(who)) : who;
     const rig = e && P.rigOf ? P.rigOf(e) : null;
-    const a = rig && casts.get(rig);
-    if (!a) return null;
+    if (!rig || !isCast(rig)) return null;
+    const a = stateOf(rig); // create even if the bark fires before this frame's before()
     const name = Core.GESTURES[ctxOrName] ? ctxOrName : Core.gestureFor(a.id, ctxOrName, a.gn);
     a.gn++;
     a.g = { name, ctx: Core.GESTURES[ctxOrName] ? 'named' : ctxOrName, t0: rig.time || 0, dur: clamp(seconds || 2, 1, 6), x0: e.x, z0: e.z, drift: 0 };
@@ -298,9 +307,9 @@
   /** Someone's line was said (runtime.js showBubble): the mouth flaps while it lasts if no clip plays, and a gesture fits the words
    *  unless a bark named one in the last second. */
   function spoke(e, text, seconds) {
-    const rig = P.rigOf ? P.rigOf(e) : null, a = rig && casts.get(rig);
-    if (!a) return;
-    const t = rig.time || 0;
+    const rig = P.rigOf ? P.rigOf(e) : null;
+    if (!rig || !isCast(rig)) return;
+    const a = stateOf(rig), t = rig.time || 0;
     a.talkUntil = t + clamp(seconds || 2, 0.6, 8);
     if (t - a.lastGestureAt < 1) return;
     gesture(e, Core.gestureForText(text, a.gn), Core.gestureSeconds(text));
