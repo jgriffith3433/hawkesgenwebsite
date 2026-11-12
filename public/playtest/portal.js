@@ -48,7 +48,7 @@ import { FIRST_LOAD, markPlayClick, runFirstLoad } from './first-load.js';
 const KEY = 'hg_playtest_run';
 const STAGES = ['landing', 'veil', 'intro', 'firstvisit', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'phoneperf', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'answer', 'progress', 'models', 'wish', 'toeditor', 'editor', 'react', 'motion', 'mirrorlayout', 'hudoverlap', 'soundscape', 'music', 'mix', 'look', 'wind', 'water', 'routines', 'islandalive', 'firstload', 'gamemenu', 'landcam'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'character-motion': ['landing', 'veil', 'intro', 'motion'], 'landing-camera-feel': ['landing', 'veil', 'intro', 'mirror', 'landcam'], 'island-soundscape': ['landing', 'veil', 'intro', 'mirror', 'soundscape'], 'island-music': ['landing', 'veil', 'intro', 'mirror', 'music'], 'island-mix': ['landing', 'veil', 'intro', 'mirror', 'mix'], 'island-look': ['landing', 'veil', 'intro', 'mirror', 'look'], 'island-wind': ['landing', 'veil', 'intro', 'mirror', 'wind'], 'island-water': ['landing', 'veil', 'intro', 'mirror', 'water'], 'island-routines': ['landing', 'veil', 'intro', 'mirror', 'routines'], 'island-alive': ['landing', 'veil', 'intro', 'mirror', 'islandalive'], 'overseer-personality': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'react'], 'overseer-first-visit': ['landing', 'veil', 'firstvisit'], 'overseer-ask': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'answer'], 'gen-models-all': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-daily-wish': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wish'], 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'phone-performance': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'phoneperf'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'editor-bridge': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'toeditor', 'editor'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'mirror-panel-layout': ['landing', 'veil', 'intro', 'mirrorlayout'], 'hud-overlap': ['landing', 'veil', 'intro', 'hudoverlap'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'], 'game-menu': ['landing', 'veil', 'intro', 'mirror', 'gamemenu'] };
+const ORDERS = { 'chapter-one-finale': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'finale'], 'character-motion': ['landing', 'veil', 'intro', 'motion'], 'landing-camera-feel': ['landing', 'veil', 'intro', 'mirror', 'landcam'], 'island-soundscape': ['landing', 'veil', 'intro', 'mirror', 'soundscape'], 'island-music': ['landing', 'veil', 'intro', 'mirror', 'music'], 'island-mix': ['landing', 'veil', 'intro', 'mirror', 'mix'], 'island-look': ['landing', 'veil', 'intro', 'mirror', 'look'], 'island-wind': ['landing', 'veil', 'intro', 'mirror', 'wind'], 'island-water': ['landing', 'veil', 'intro', 'mirror', 'water'], 'island-routines': ['landing', 'veil', 'intro', 'mirror', 'routines'], 'island-alive': ['landing', 'veil', 'intro', 'mirror', 'islandalive'], 'overseer-personality': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'react'], 'overseer-first-visit': ['landing', 'veil', 'firstvisit'], 'overseer-ask': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'answer'], 'gen-models-all': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-daily-wish': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wish'], 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'phone-performance': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'phoneperf'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'editor-bridge': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'toeditor', 'editor'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'mirror-panel-layout': ['landing', 'veil', 'intro', 'mirrorlayout'], 'hud-overlap': ['landing', 'veil', 'intro', 'hudoverlap'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'], 'game-menu': ['landing', 'veil', 'intro', 'mirror', 'gamemenu'] };
 const SCENARIOS = [
   FIRST_LOAD, // Play click to the first frame and the first input, bytes before it, a clean WebGL console (first-load.js)
   LOADING_WRAPPER, // the loading wrapper on /play/sickofit (loading-wrapper.js)
@@ -157,6 +157,11 @@ const SCENARIOS = [
     id: 'sandbox-chapter-one', title: 'Chapter One "What Are You?": the eight quests to the launch pad, the lit bay and the two closing lines', seconds: 420, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first-minutes path, then quests 6 (walk up to Dolores) and 8 (Rolo\'s rocket) with real input; quests 4, 5 and 7 are named setup shortcuts (the quest line advanced); options as sandbox-first-minutes, plus rocket ("shortcut": skip the climb)',
+  },
+  {
+    id: 'chapter-one-finale', title: 'The end of Chapter One: the hangar opens, the islanders gather and speak, the Overseer pays off its first words, the player lights the sky, the title and the tease', seconds: 300, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the account sheet, then the quest line to the rocket quest\'s end and docking (named setup shortcuts), then the finale (src/overseer-games/finale.js): doors open (finale-doors-open), the voiced lines with captions (finale-line, clip), control back and the player\'s own act (finale-input, a tap on the big button with touch: true), the title (finale-title), the tease (finale-tease) and control back within 2 s (finale-control-returned); with touch: true (390x844) the non-playable shots are skipped with one tap (finale-skip). Option skip (true: tap-skip the shots on any device)',
   },
   {
     id: 'sandbox-observatory', title: 'Docking, the lift to the Observatory: the first arrival (windows, music, the pearl, a gift by name), the quick return, and the way back to the bay', seconds: 330, tags: ['full'],
@@ -1984,6 +1989,80 @@ async function stageChapter(t, ctx) {
   t.progress(1);
 }
 
+/** The end of Chapter One (src/overseer-games/finale.js). Setup shortcuts, named: the quest line passed to its end and the rocket
+ *  docked by the game's own dock path. Everything after is the game's own sequence; the player's act is real input (E, or a
+ *  touch pointer on the big button). With touch (or skip) the non-playable shots are skipped with one tap each. */
+async function stageFinale(t, ctx) {
+  const F = () => window.__island && window.__island.finale;
+  const touch = Boolean(ctx.options.touch || HP().touchUi);
+  const skip = touch || ctx.options.skip === true;
+  const mark = {};
+  const at = (n) => { mark[n] = performance.now(); };
+  for (const n of ['finale-start', 'finale-doors-open', 'finale-control', 'finale-input', 'finale-title', 'finale-tease', 'finale-control-returned', 'chapter-one-complete', 'finale-skip']) {
+    G().on(n, (d) => { at(n); t.event(n, JSON.stringify(d || {}).slice(0, 160)); });
+  }
+  const lines = [];
+  G().on('finale-line', (d) => { lines.push(d); t.event('finale-line', `${d.who}: ${d.text} [${d.clip ? 'recorded clip' : 'NO clip'}]`); if (!d.clip) t.problem('error', `no recording for the finale line "${d.text}"`); });
+  releaseAll();
+  await t.until(() => W() && W().player && W().player.alive && F() && HP().overseer && HP().overseer.dockShip, 60000, 'the world and the finale');
+  if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
+  const q = () => G().events.quests;
+  for (let i = 0; i < 10 && q().state('tour') === 'active'; i++) { t.event('setup-shortcut', `the quest line passed "${q().step('tour')}" (the rocket quest's end)`); q().advance('tour'); await t.wait(700); }
+  await t.until(() => window.__islandPlayed && window.__islandPlayed.has('launch'), 15000, "the rocket quest's moment");
+  await t.wait(5000);
+  dockRocket(t);
+  await t.until(() => F().state.running, 12000, 'the finale to begin after docking');
+  const tapShot = async (why) => {
+    await t.until(() => G().cinematic && G().cinematic.playing, 10000, 'a shot to be playing').catch(() => {});
+    t.scene(`Finale: ${why}`);
+    await t.wait(touch ? 2500 : 4000);
+    if (skip && G().cinematic && G().cinematic.playing) {
+      const up = press(canvas()); await t.wait(90); up();
+      t.event('shot-skipped-by-tap', why);
+    }
+  };
+  await t.until(() => mark['finale-doors-open'], 10000, 'the hangar doors to open');
+  t.scene('Finale: the doors open');
+  await tapShot('the doors, light spilling out');
+  await t.until(() => !(G().cinematic && G().cinematic.playing) || mark['finale-control'], 40000, 'the doors shot to end').catch(() => {});
+  if (!mark['finale-control']) { await t.wait(1800); await tapShot('the islanders gather'); }
+  await t.until(() => mark['finale-control'], 60000, 'control to come back for the player\'s act');
+  const ctrl = W().player.controls !== false;
+  t.event('control-mid-sequence', `controls ${ctrl ? 'free' : 'LOCKED'} before the finale act`);
+  if (!ctrl) t.problem('error', 'the player had no control at the finale act');
+  t.scene('Finale: the player\'s turn');
+  await t.until(() => $('.fn-act') && !$('.fn-act').hidden, 8000, 'the big action button');
+  const r = $('.fn-act').getBoundingClientRect();
+  t.event('act-button', `${Math.round(r.width)}x${Math.round(r.height)} px at ${Math.round(r.left)},${Math.round(r.top)} in ${innerWidth}x${innerHeight}`);
+  if (r.height < 48 || r.width < 120) t.problem('error', 'the finale button is too small to tap');
+  await t.wait(2500);
+  if (touch) await tapButton(t, $('.fn-act')); else await tap(t, 'e');
+  await t.until(() => mark['finale-input'], 6000, 'the finale input to be logged');
+  t.scene('Finale: the sky lit');
+  await t.wait(touch ? 2500 : 5000);
+  if (skip && G().cinematic && G().cinematic.playing) { const up = press(canvas()); await t.wait(90); up(); t.event('shot-skipped-by-tap', 'fireworks'); }
+  await t.until(() => mark['finale-title'], 20000, 'the Chapter One complete title');
+  await t.wait(1800);
+  t.scene('Finale: Chapter One complete');
+  await t.until(() => mark['finale-tease'], 12000, 'the tease');
+  await t.wait(3200);
+  t.scene('Finale: the tease on the horizon');
+  await t.until(() => mark['finale-control-returned'], 15000, 'control to come back after the tease');
+  const gap = Math.round(mark['finale-control-returned'] - mark['finale-tease']);
+  t.event('control-returned', `${Math.round(performance.now() - mark['finale-control-returned'])} ms ago; the tease began ${gap} ms before`);
+  t.metric('teaseToControlMs', gap);
+  const ok = W().player.controls !== false && !(G().cinematic && G().cinematic.playing);
+  if (!ok) t.problem('error', 'control did not come back after the finale');
+  const spoken = new Set(lines.map((l) => l.who));
+  t.event('voiced-lines', `${lines.length} lines (${[...spoken].join(', ')})`);
+  if (lines.length < 4) t.problem('error', `only ${lines.length} voiced finale lines`);
+  if (!lines.some((l) => /free will/.test(l.text) && /shoe/.test(l.text))) t.problem('error', 'the Overseer never paid off the opening hook');
+  t.metric('finaleLines', lines.length);
+  await t.wait(2000);
+  t.scene('Back with control, the chapter done');
+  t.progress(1);
+}
+
 /** Docking, as a named setup shortcut: the game's own dock path (H.overseer.dockShip: the rocket settles on the pad, the Docked
  *  moment and `docked-pad` as a flown ship's), then the player on foot beside it. Walking from there is real input. */
 function dockRocket(t) {
@@ -3456,7 +3535,7 @@ async function stagePhonePerf(t, ctx) {
 const RUN = {
   models: stageModels,
   hats: stageHats,
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, firstvisit: stageFirstVisit, mirror: stageMirror, mirrorlayout: stageMirrorLayout, hudoverlap: stageHudOverlap, sheet: stageSheet, asks: stageAsks, answer: stageAnswer, toeditor: stageToEditor, editor: stageEditor, pier: stagePier, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, wish: stageWish, react: stageReact, alive: stageAlive, touch: stageTouch, phoneperf: stagePhonePerf, motion: runCharacterMotion, soundscape: (t, ctx) => runIslandSoundscape(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), wind: (t, ctx) => runIslandWind(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, stickHold, tapButton, $, options: ctx && ctx.options }), look: (t, ctx) => runIslandLook(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, stickHold, tapButton, $, options: ctx && ctx.options }), music: (t, ctx) => runIslandMusic(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), islandalive: (t, ctx) => runIslandAlive(t, { setKeys, lookAt, camYaw, releaseAll, stickHold, dragLook, options: ctx && ctx.options }), routines: (t, ctx) => runIslandRoutines(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), landcam: (t, ctx) => runLandingCameraFeel(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), leave: stageLeave, back: stageBack,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, firstvisit: stageFirstVisit, mirror: stageMirror, mirrorlayout: stageMirrorLayout, hudoverlap: stageHudOverlap, sheet: stageSheet, asks: stageAsks, answer: stageAnswer, toeditor: stageToEditor, editor: stageEditor, pier: stagePier, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, finale: stageFinale, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, wish: stageWish, react: stageReact, alive: stageAlive, touch: stageTouch, phoneperf: stagePhonePerf, motion: runCharacterMotion, soundscape: (t, ctx) => runIslandSoundscape(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), wind: (t, ctx) => runIslandWind(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, stickHold, tapButton, $, options: ctx && ctx.options }), look: (t, ctx) => runIslandLook(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, stickHold, tapButton, $, options: ctx && ctx.options }), music: (t, ctx) => runIslandMusic(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), islandalive: (t, ctx) => runIslandAlive(t, { setKeys, lookAt, camYaw, releaseAll, stickHold, dragLook, options: ctx && ctx.options }), routines: (t, ctx) => runIslandRoutines(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), landcam: (t, ctx) => runLandingCameraFeel(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), leave: stageLeave, back: stageBack,
   mix: (t, ctx) => runIslandMix(t, { setKeys, lookAt, camYaw, releaseAll, HOOKS, touchEv, tapButton, stickHold, options: ctx && ctx.options }),
 };
 STAGES.push('pier');
@@ -3519,7 +3598,7 @@ RUN.firstload = (t, ctx) => runFirstLoad(t, ctx, { W, G, HP, setKeys, stickHold,
 const legSeq = (id, prior) => (id === 'editor-bridge' && prior && prior.leg === 'editor' ? ['editor'] : id === 'island-invite' && prior && (prior.leg === 'gone' || prior.leg === 'own') ? [prior.leg] : null);
 
 ORDERS['first-load'] = ['landing', 'veil', 'firstload'];
-const ENDS = { 'first-load': 'firstload', 'hud-overlap': 'hudoverlap', 'mirror-panel-layout': 'mirrorlayout', 'character-motion': 'motion', 'landing-camera-feel': 'landcam', 'island-soundscape': 'soundscape', 'island-music': 'music', 'island-look': 'look', 'island-wind': 'wind', 'island-water': 'water', 'island-mix': 'mix', 'island-routines': 'routines', 'island-alive': 'islandalive', 'overseer-personality': 'react', 'overseer-first-visit': 'firstvisit', 'island-invite-friend': 'farrive', 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-pier-marker': 'pier', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'overseer-ask': 'answer', 'editor-bridge': 'editor', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'phone-performance': 'phoneperf', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models', 'gen-hats': 'hats' };
+const ENDS = { 'chapter-one-finale': 'finale', 'first-load': 'firstload', 'hud-overlap': 'hudoverlap', 'mirror-panel-layout': 'mirrorlayout', 'character-motion': 'motion', 'landing-camera-feel': 'landcam', 'island-soundscape': 'soundscape', 'island-music': 'music', 'island-look': 'look', 'island-wind': 'wind', 'island-water': 'water', 'island-mix': 'mix', 'island-routines': 'routines', 'island-alive': 'islandalive', 'overseer-personality': 'react', 'overseer-first-visit': 'firstvisit', 'island-invite-friend': 'farrive', 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-pier-marker': 'pier', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'overseer-ask': 'answer', 'editor-bridge': 'editor', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'phone-performance': 'phoneperf', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models', 'gen-hats': 'hats' };
 
 
 // ---------------------------------------------------------------------------------------------- share-moment
