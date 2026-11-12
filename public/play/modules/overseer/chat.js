@@ -152,6 +152,8 @@ body.pr-touch .hc-form:not(.on){display:none}`;
   }
   const focusGame = () => { const c = document.getElementById('stage'); if (c && c.focus) try { c.focus(); } catch { /* fine */ } };
 
+  // The six neighbours' caption colours (same as src/overseer-games/islanders.js and public/play/audio/voice/cast.json).
+  const CAST_COLORS = { pip: '#f472b6', 'admiral bobbin': '#facc15', bobbin: '#facc15', 'mrs ember': '#fb923c', ember: '#fb923c', rolo: '#22d3ee', dolores: '#4ade80', channel: '#7dd3fc' };
   /** A line in the chat: who said it and what (an Overseer line may carry a link to act on: { label, href }). */
   function line(m) {
     if (!m || m.text === undefined || m.text === null || String(m.text).trim() === '') return;
@@ -159,14 +161,15 @@ body.pr-touch .hc-form:not(.on){display:none}`;
     const text = String(m.text).slice(0, 600);
     if (kind === 'overseer' && !m.now && H.speech) return H.speech.say({ text, priority: m.priority, owner: m.owner, voice: m.voice, seconds: m.seconds, action: m.action, keep: m.keep, m });
     const who = kind === 'overseer' ? 'Overseer' : kind === 'me' ? 'You' : m.who || m.name || '';
-    if (embedded) { try { H.post({ type: 'chat-line', kind, who, text, color: m.color || null, action: m.action || null }); } catch { /* fine */ } return; }
+    if (embedded) { try { H.post({ type: 'chat-line', kind, who, text, color: m.color || (kind === 'npc' ? CAST_COLORS[String(who).toLowerCase()] : null) || null, action: m.action || null }); } catch { /* fine */ } return; }
     if (!ensure()) return;
     const p = document.createElement('p');
     p.className = kind;
     if (kind !== 'sys') {
       const b = document.createElement('b');
       b.innerHTML = kind === 'overseer' ? '<i aria-hidden="true"></i>Overseer' : esc(`${m.friend ? '★ ' : ''}${who}`);
-      if (m.color && kind === 'player') b.style.color = m.color;
+      if (kind === 'player' && m.color) b.style.color = m.color;
+      else if (kind === 'npc') { const c = m.color || CAST_COLORS[String(who).toLowerCase()]; if (c) { b.style.color = c; b.dataset.cast = String(who).toLowerCase(); } }
       p.appendChild(b);
     }
     const t = document.createElement('span');
