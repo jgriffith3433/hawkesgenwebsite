@@ -714,6 +714,60 @@
       "file": "public/play/audio/voice/overseer-24c65706.mp3",
       "text": "A small hand drew a barrel a smile, and called it a friend.",
       "use": "Lore memory: drawing (memories.js)"
+    },
+    {
+      "id": "ember-cb95a8e2",
+      "kind": "voice",
+      "asset": "a_181345a0a66f251c",
+      "job": "j_beeb4231dd4c",
+      "file": "public/play/audio/voice/ember-cb95a8e2.mp3",
+      "text": "A ribbon on the box, dear. For the new one. Sorry.",
+      "use": "Chapter One world mark cheer: ask / mailbox ribbon (world-marks.js)"
+    },
+    {
+      "id": "dolores-8a6a9eec",
+      "kind": "voice",
+      "asset": "a_f5946ff3d0a3d428",
+      "job": "j_1e8830e82ae8",
+      "file": "public/play/audio/voice/dolores-8a6a9eec.mp3",
+      "text": "I put a stone. I was not waiting. It is there.",
+      "use": "Chapter One world mark cheer: hill cairn (world-marks.js)"
+    },
+    {
+      "id": "dolores-75bf2af3",
+      "kind": "voice",
+      "asset": "a_a2d0809900c111a4",
+      "job": "j_96110011f9a9",
+      "file": "public/play/audio/voice/dolores-75bf2af3.mp3",
+      "text": "The pad lights. The windsock. Use them. Or do not.",
+      "use": "Chapter One world mark cheer: fly / helipad (world-marks.js)"
+    },
+    {
+      "id": "rolo-31303de5",
+      "kind": "voice",
+      "asset": "a_129959e9f1e1fdc6",
+      "job": "j_646f6f194c09",
+      "file": "public/play/audio/voice/rolo-31303de5.mp3",
+      "text": "huh. a banner. the pad is lit. that is fine.",
+      "use": "Chapter One world mark cheer: launch banner (world-marks.js)"
+    },
+    {
+      "id": "pip-5910e965",
+      "kind": "voice",
+      "asset": "a_da5612e78ad79c9f",
+      "job": "j_e775398007f1",
+      "file": "public/play/audio/voice/pip-5910e965.mp3",
+      "text": "The road kept your tracks. Look!",
+      "use": "Chapter One world mark cheer: drive / road markers (world-marks.js)"
+    },
+    {
+      "id": "pip-ca762325",
+      "kind": "voice",
+      "asset": "a_ea6ba16ff0ed97ba",
+      "job": "j_0e87898bab25",
+      "file": "public/play/audio/voice/pip-ca762325.mp3",
+      "text": "That spot glowed. The Overseer left a mark.",
+      "use": "Chapter One world mark cheer: spawn pad (world-marks.js)"
     }
   ]
 }
