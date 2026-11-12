@@ -65,6 +65,9 @@
   text-shadow:0 0 40px rgba(140,180,255,.35)}
 .hp-title .hp-title-word b{display:block;font:600 clamp(12px,2.8vw,16px)/1 system-ui,sans-serif;letter-spacing:.42em;color:#9ec0ff;margin-top:10px;
   -webkit-background-clip:initial;background:none;color:#9ec0ff;text-shadow:none}
+.hp-title .hp-title-seal{margin:0;font:600 clamp(12px,2.8vw,16px)/1 system-ui,sans-serif;letter-spacing:.42em;text-transform:uppercase;
+  color:#9ec0ff;text-align:center;text-shadow:0 0 18px rgba(120,170,255,.45)}
+.hp-title .hp-title-seal[hidden]{display:none!important}
 .hp-title .hp-title-prompt{grid-row:3;align-self:start;margin-top:min(6vh,40px);pointer-events:auto;appearance:none;border:0;background:transparent;
   color:#e8efff;font:600 clamp(14px,3.6vw,18px)/1.3 system-ui,sans-serif;letter-spacing:.18em;text-transform:uppercase;
   padding:14px 18px;min-height:48px;opacity:.9;animation:hpTitlePulse 1.8s ease-in-out infinite;cursor:pointer}
@@ -156,6 +159,7 @@ body.hp-title-on .hc-chat,body.hp-title-on .tl-zone,body.hp-title-on .gs-acts,bo
       <div class="hp-title-logo" data-logo>
         <img alt="" hidden data-logo-img>
         <p class="hp-title-word" data-word>Hawkes Games<b>Island</b></p>
+        <p class="hp-title-seal" data-seal hidden>Island</p>
       </div>
       <button type="button" class="hp-title-prompt" data-prompt>${prompt}</button>
       <div class="hp-title-menu" data-menu hidden>
@@ -166,11 +170,16 @@ body.hp-title-on .hc-chat,body.hp-title-on .tl-zone,body.hp-title-on .gs-acts,bo
     document.body.appendChild(root);
     const img = root.querySelector('[data-logo-img]');
     const word = root.querySelector('[data-word]');
+    const seal = root.querySelector('[data-seal]');
     // Prefer the Gen lockup when the file is there; keep the CSS wordmark as fallback.
+    // With the Gen lockup, keep a soft "Island" seal so the mark reads as this world's.
     const probe = new Image();
-    probe.onload = () => { img.src = LOGO_URL; img.hidden = false; img.alt = 'Hawkes Games'; word.hidden = true; };
-    probe.onerror = () => { img.hidden = true; word.hidden = false; };
-    probe.src = LOGO_URL + '?v=1';
+    probe.onload = () => {
+      img.src = LOGO_URL; img.hidden = false; img.alt = 'Hawkes Games';
+      word.hidden = true; if (seal) seal.hidden = false;
+    };
+    probe.onerror = () => { img.hidden = true; word.hidden = false; if (seal) seal.hidden = true; };
+    probe.src = LOGO_URL + '?v=2';
     requestAnimationFrame(() => requestAnimationFrame(() => root.classList.add('on')));
     return root;
   }
