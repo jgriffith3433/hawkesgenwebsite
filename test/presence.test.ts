@@ -133,6 +133,9 @@ test('what the Overseer remembers is kept per account, cleaned and size-limited'
   const w = await call('/v1/users/me/overseer', { cookie: kim.cookie, body: { overseer: { ...rec, wish: { last: '2026-10-24', st: 3, best: 5, day: '2026-10-25', n: 2, set: ['trout', 'Bad Id'], said: 1, secret: 1 } } } });
   assert.deepEqual(w.body.overseer.wish, { last: '2026-10-24', st: 3, best: 5, day: '2026-10-25', n: 2, set: ['trout'], said: 1 });
   assert.deepEqual((await call('/v1/users/me/overseer', { cookie: kim.cookie, body: { overseer: { ...rec, wish: { last: 'yesterday', st: 9, day: '2026-13-45' } } } })).body.overseer.wish, { last: null, st: 0, best: 0, day: null, n: 0, set: [], said: 0 }, 'a bad date is no date, and no date means no streak');
+  // Chapter One world marks (world-marks.js): lasting island changes per tour step.
+  const mk = await call('/v1/users/me/overseer', { cookie: kim.cookie, body: { overseer: { ...rec, marks: { done: ['drive', 'fish', 'nope'], last: 'fish', secret: 1 } } } });
+  assert.deepEqual(mk.body.overseer.marks, { done: ['drive', 'fish'], last: 'fish' });
   assert.equal((await call('/v1/users/me/overseer', { body: { overseer: rec } })).status, 401, 'no account, no memory here (the device keeps it)');
   assert.equal((await call('/v1/users/me/overseer', { cookie: kim.cookie, body: { overseer: { ...rec, name: 'x'.repeat(5000) } } })).status, 413);
   assert.equal((await call('/v1/users/me/overseer', { cookie: kim.cookie, body: { overseer: { last: { id: 'spy' }, what: 'hacker' } } })).body.overseer.last, null, 'only in-game deeds');

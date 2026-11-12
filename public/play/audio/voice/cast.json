@@ -464,6 +464,86 @@
     "emotion": "anchor poise cracking into honesty",
     "pace": "crisp, a pause before the last line"
    }
+  },
+  {
+   "key": "pip-5910e965",
+   "speaker": "pip",
+   "text": "The road kept your tracks. Look!",
+   "direction": {
+    "emotion": "delighted",
+    "pace": "fast",
+    "delivery": "cheer for the road markers after the first drive"
+   }
+  },
+  {
+   "key": "bobbin-e6f2e00a",
+   "speaker": "bobbin",
+   "text": "The lamps are lit. The harbour remembers your cast.",
+   "direction": {
+    "emotion": "proud harbourmaster",
+    "pace": "normal",
+    "delivery": "cheer for the lit pier lamps and fish mural"
+   }
+  },
+  {
+   "key": "channel-bb40559b",
+   "speaker": "channel",
+   "text": "Breaking: a blast site. Fenced. Historic. Ratings: record.",
+   "direction": {
+    "emotion": "breaking-news excitement",
+    "pace": "fast",
+    "delivery": "cheer for the fenced blast site"
+   }
+  },
+  {
+   "key": "pip-ca762325",
+   "speaker": "pip",
+   "text": "That spot glowed. The Overseer left a mark.",
+   "direction": {
+    "emotion": "awed",
+    "pace": "normal",
+    "delivery": "cheer for the glowing arrival pad"
+   }
+  },
+  {
+   "key": "ember-cb95a8e2",
+   "speaker": "ember",
+   "text": "A ribbon on the box, dear. For the new one. Sorry.",
+   "direction": {
+    "emotion": "warm apologetic",
+    "pace": "slow",
+    "delivery": "cheer for the mailbox ribbon"
+   }
+  },
+  {
+   "key": "dolores-8a6a9eec",
+   "speaker": "dolores",
+   "text": "I put a stone. I was not waiting. It is there.",
+   "direction": {
+    "emotion": "dry",
+    "pace": "slow",
+    "delivery": "cheer for the hill cairn"
+   }
+  },
+  {
+   "key": "dolores-75bf2af3",
+   "speaker": "dolores",
+   "text": "The pad lights. The windsock. Use them. Or do not.",
+   "direction": {
+    "emotion": "matter-of-fact",
+    "pace": "normal",
+    "delivery": "cheer for helipad lights and windsock"
+   }
+  },
+  {
+   "key": "rolo-31303de5",
+   "speaker": "rolo",
+   "text": "huh. a banner. the pad is lit. that is fine.",
+   "direction": {
+    "emotion": "quietly pleased",
+    "pace": "slow",
+    "delivery": "cheer for the launch banner and lights"
+   }
   }
  ]
 }
