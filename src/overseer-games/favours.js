@@ -219,6 +219,8 @@
     let ok = false;
     if (g.kind === 'acc' && H && H.memory && H.memory.wardrobe) {
       ok = Boolean(H.memory.wardrobe.add({ acc: [g.id] }));
+      // Wear it at once so the gift is visible on the player (Observatory gift path).
+      try { if (ok && H.presence && H.presence.setLook) H.presence.setLook({ accessory: g.id }); } catch { /* wardrobe still owns it */ }
     } else if (g.kind === 'tool' && H && H.mayhem && H.mayhem.addToBelt) {
       ok = Boolean(H.mayhem.addToBelt(g.id));
     } else if (g.kind === 'col' && H && H.memory && H.memory.wardrobe) {
@@ -234,6 +236,8 @@
             const c = window.BABYLON.Color3.FromHexString(f.paint);
             jeep._mat.diffuseColor = c;
           }
+          // Soft sparkle on the jeep so the paint reads as the gift moment.
+          try { if (H && H.lib && H.lib.siteSound) H.lib.siteSound('ui-quest', { volume: 0.4, at: [jeep.x, jeep.y, jeep.z] }); } catch { /* fine */ }
           ok = true;
         } catch { /* wardrobe gift still counts */ }
       }
@@ -284,6 +288,7 @@
     const entry = { id, who: f.who, step: a.step, verb: step.verb, next, of: 2 };
     push({ kind: 'step', ...entry });
     game.emit('favour-step', { ...entry, done: true });
+    try { if (H && H.lib && H.lib.siteSound) H.lib.siteSound('ui-quest', { volume: 0.45 }); } catch { /* fine */ }
     // Ember's boom: Channel notices live (the joke lands on him).
     if (id === 'ember' && stepId === 'boom') channelNotices();
     if (next >= f.steps.length) return awaitReturn(id);
