@@ -34,7 +34,7 @@
       "id": "journal-paintings",
       "kind": "image-pack",
       "name": "Lore journal painted pages",
-      "note": "Twelve painterly journal illustrations (image.generate 1024x768). Import each with studio_gen_import to public/play/journal/<id>.webp (format webp, width 1024, height 768). Engine: journal.js l.art.",
+      "note": "Twelve painterly journal illustrations (image.generate 1024x768 → studio_gen_import webp). Engine: journal.js l.art. tag/chair/drawing have interim art pending retakes.",
       "dir": "public/play/journal",
       "jobs": {
         "logbook": "j_c34c76924e27",
@@ -49,6 +49,39 @@
         "drawing": "j_363def3fd6f8",
         "mirror2": "j_174ae3870194",
         "page": "j_b67a05500408"
+      },
+      "retakeJobs": {
+        "tag": "j_e1be1874beab",
+        "chair": "j_c1f3632a9a6a",
+        "drawing": "j_60ba6b814ce4"
+      },
+      "assets": {
+        "logbook": "a_890cedf0dc8b3ea6",
+        "planks": "a_68b07c201d8b79ea",
+        "letter": "a_78c4afa9d6da549f",
+        "lamp": "a_fc0a516df9d4c8c5",
+        "receipt": "a_f2f4c2da46bc1117",
+        "tally": "a_dc9287511c87c82c",
+        "file": "a_25d424b47944ef7e",
+        "tag": "a_9400c2f68f44389b",
+        "chair": "a_9023310957bd2a4f",
+        "drawing": "a_5f6f7cb75c44db85",
+        "mirror2": "a_ba017be036522ee4",
+        "page": "a_db039b843468dc57"
+      },
+      "files": {
+        "logbook": "public/play/journal/logbook.webp",
+        "planks": "public/play/journal/planks.webp",
+        "letter": "public/play/journal/letter.webp",
+        "lamp": "public/play/journal/lamp.webp",
+        "receipt": "public/play/journal/receipt.webp",
+        "tally": "public/play/journal/tally.webp",
+        "file": "public/play/journal/file.webp",
+        "tag": "public/play/journal/tag.webp",
+        "chair": "public/play/journal/chair.webp",
+        "drawing": "public/play/journal/drawing.webp",
+        "mirror2": "public/play/journal/mirror2.webp",
+        "page": "public/play/journal/page.webp"
       },
       "pages": [
         "logbook",
