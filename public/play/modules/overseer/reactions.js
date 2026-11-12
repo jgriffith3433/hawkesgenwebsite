@@ -5,6 +5,10 @@
 //   fail   the request did not come down: what the world did, never what a system did, and an offer to ask again
 //   idle   the player has been quiet for a while: an invitation, never a nudge
 //   think  while it works: the work pill's headline changes (work.js asks H.reactions.think())
+//   delight  a blast or rocket: the sky presence widens (presence.js)
+//   interest a catch: the gaze leans in
+//   awe      a first build: soft swell
+//   night    dusk to night: a squint
 //
 // Each kind is a shuffled deck: every line is used once before any is used again, and the first of a new deck is never
 // the last of the old one. H.reactions.say(kind) asks; the line is spoken through the Overseer's speech desk when the way
@@ -71,6 +75,39 @@
       'Imagining it',
       'Sorting out the edges',
       'Taking my time',
+    ],
+    // Sky presence (presence.js): spoken when the soft face in the clouds reacts. Same voice rules; never the same twice.
+    delight: [
+      'That was a bright idea.',
+      'The barrels found each other. I noticed.',
+      'Light, then quiet. I liked that.',
+      'Destruction is a kind of freedom too.',
+      'The sky felt that one.',
+      'A small cause. A large answer.',
+    ],
+    interest: [
+      'The sea gives. Remember that.',
+      'A catch. Quiet work.',
+      'You waited. The sea noticed too.',
+      'Something from the water. Good.',
+      'Held gently. That is the way.',
+      'The pier keeps its promises.',
+    ],
+    awe: [
+      'There. It was not there, and now it is.',
+      'A new one. Look how the light holds it.',
+      'You asked, and the sky answered.',
+      'I like how it landed. Soft.',
+      'A first thing. I am glad of it.',
+      'Hold still. It has found its place.',
+    ],
+    night: [
+      'The night is soft. I can see farther.',
+      'Quiet. The rings keep time.',
+      'The island rests. I do not mind the dark.',
+      'Stars, and the sea under them.',
+      'Look up. I am still here.',
+      'Night suits the pearl.',
     ],
   };
   const STALE = 25; // a reaction that could not be said within this long is dropped
