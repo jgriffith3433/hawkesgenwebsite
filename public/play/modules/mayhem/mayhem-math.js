@@ -106,6 +106,15 @@
     return out;
   }
 
+  /** What small props are made of: dust and splinter colors, and how dense (1 = water: under 1 floats, over 1 sinks). */
+  const PROP_MATERIALS = {
+    wood: { dust: '#b39a76', splinter: '#d8bd8a', density: 0.55 },
+    crate: { dust: '#a8896a', splinter: '#d2b27c', density: 0.5 },
+    pot: { dust: '#9a8466', splinter: '#c9ab76', density: 0.5 },
+    metal: { dust: '#8f98a3', splinter: '#cfd6de', density: 2.4 },
+    stone: { dust: '#a5a39c', splinter: '#c4c2ba', density: 2.6 },
+  };
+  const propMaterial = (name) => PROP_MATERIALS[name] || null;
   /** How strongly a blast reaches something `d` meters away (1 at the middle, 0 at the edge). */
   const falloff = (d, radius) => Math.max(0, 1 - Math.max(0, d) / Math.max(0.01, radius)) ** 1.2;
 
@@ -182,7 +191,7 @@
     };
   }
 
-  const math = { vfxPlan, soundDelay, chainSchedule, detail, boomLayers, emberCount, launcherKick, rng, hashSeed, layout, fracture, falloff, score, arc, POINTS, PATTERNS };
+  const math = { vfxPlan, soundDelay, chainSchedule, detail, boomLayers, emberCount, launcherKick, rng, hashSeed, layout, fracture, falloff, PROP_MATERIALS, propMaterial, score, arc, POINTS, PATTERNS };
   if (root && root.HawkesPlay) root.HawkesPlay.mayhemMath = math;
   if (typeof module !== 'undefined' && module.exports) module.exports = math;
   if (root) root.HawkesMayhemMath = math;

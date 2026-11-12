@@ -124,6 +124,12 @@ function model(id: string, name: string, asset: string, x: number, z: number, si
   return thing(id, 'model', name, [x, groundAt(x, z) + lift + size / 2, z], { ...(still ? { body: { shape: 'box' } } : {}), ...more, shape: { asset, size, ...(more.shape ?? {}) } });
 }
 const yaw = (deg: number) => ({ rotation: [0, deg, 0] });
+/** A small prop that breaks into pieces under a 4x4 (strength m/s) or a blast, topples in a weaker blast and is rebuilt out
+ *  of view after `rebuild` seconds (modules/mayhem: mayhem-props.js). Quest things never get this. */
+const smash = (material: string, color: string, o: { strength?: number; pieces?: number; blast?: number; with?: string[] } = {}) => ({
+  behaviors: [{ use: 'breakable', strength: o.strength ?? 4, pieces: o.pieces ?? 6, blast: o.blast ?? 14 }],
+  data: { color, prop: { material, rebuild: 120, ...(o.with ? { with: o.with } : {}) } },
+});
 
 // ------------------------------------------------------------------ the quest line: Pip shows the island
 const QUEST = {
@@ -268,7 +274,20 @@ export const SANDBOX = {
     add(model('bench', 'Bench', A.bench, -13, 9, 0.9, { transform: yaw(130), shape: near, shadow: false }));
     add(model('mailbox', 'Mailbox', A.mailbox, -12.5, 17, 1.3, { transform: yaw(100), shape: near, shadow: false }));
     [[-27, 6], [-14, 22]].forEach(([x, z], i) => add(model(`flowers_${i}`, 'Flowers', A.flowers, x, z, 0.7, { physics: 'none', shape: near, shadow: false })));
-    [[-28, 10, 70], [-27.3, 13.6, 82]].forEach(([x, z, r], i) => add(model(`fence_${i}`, 'Fence', A.fence, x, z, 1.1, { transform: yaw(r), shape: near, shadow: false })));
+    [[-28, 10, 70], [-27.3, 13.6, 82]].forEach(([x, z, r], i) => add(model(`fence_${i}`, 'Fence', A.fence, x, z, 1.1, { transform: yaw(r), shape: near, shadow: false, ...smash('wood', '#b08a5a') })));
+    // A fence line along the road's north side (x 28 to 40): drive the 4x4 into it and it bursts into planks.
+    [28, 31.2, 34.4, 37.6].forEach((x, i) => add(model(`fence_line_${i}`, 'Fence', A.fence, x, 5.5, 1.1, { transform: yaw(0), shape: near, shadow: false, ...smash('wood', '#b08a5a') })));
+    // Signposts by the road, and a stack of crates beside it.
+    const signpost = (id: string, x: number, z: number, words: string, face: number) => {
+      const gy = groundAt(x, z);
+      add(thing(`${id}_post`, 'cylinder', 'Signpost', [x, gy + 0.75, z], { shape: { radius: 0.07, height: 1.5 }, material: { color: '#6b4a2f', texture: A.oldWood }, ...smash('wood', '#6b4a2f', { strength: 4, pieces: 5, with: [`${id}_board`, `${id}_text`] }) }));
+      add(thing(`${id}_board`, 'box', 'Sign', [x, gy + 1.45, z], { shape: { size: [1.3, 0.55, 0.08] }, material: { color: '#d8b48a', texture: A.planks, tile: [1, 1] }, transform: yaw(face) }));
+      const o = 0.06, a = (face * Math.PI) / 180;
+      add(thing(`${id}_text`, 'text', 'Sign words', [x + Math.sin(a) * o, gy + 1.45, z + Math.cos(a) * o], { shape: { text: words, size: 0.15, billboard: false, color: '#3a2614', background: false, zOffset: -2 }, transform: yaw(face + 180) }));
+    };
+    signpost('sign_road_a', 22, -5.2, 'DOCK →', 0);
+    signpost('sign_road_b', 42, 5.2, 'BEACH ↓', 0);
+    [[36.2, -7.5, 0, 0.02], [37.3, -7.5, 8, 0.02], [36.7, -7.5, 4, 1.04]].forEach(([x, z, r, lift], i) => add(model(`crate_stack_${i + 1}`, 'Crate', A.crate, x, z, 1, { physics: 'dynamic', body: { shape: { type: 'box', size: [1, 1, 1] } }, transform: yaw(r), ...smash('crate', '#a8896a', { strength: 4, pieces: 8, blast: 12 }) }, lift)));
     // The dock: a zone at the foot of the pier (the quest's "Dock"), the pier of planks on posts, lamps, the boat and the rod.
     // The pier runs x 57 to 89: its landward end is buried in the beach (the sand passes its top at x ~59.7), so you walk up onto it.
     const pierY = 0.95;
@@ -292,7 +311,7 @@ export const SANDBOX = {
     add(model('lamp_b', 'Street lamp', A.lamp, 61, 2.4, 3.4, { transform: yaw(90) }));
     add(thing('lantern', 'model', 'Lantern', [87.6, pierY + 0.45, 1.3], { shape: { asset: A.lantern, size: 0.6 }, body: { shape: 'box' }, shadow: false }));
     add(thing('sign_board', 'box', 'Sign', [58.5, groundAt(58.5, -3.6) + 1.5, -3.6], { shape: { size: [1.9, 0.75, 0.08] }, material: { color: '#d8b48a', texture: A.planks, tile: [1, 1] }, transform: yaw(-90) }));
-    add(thing('sign_post', 'cylinder', 'Sign post', [58.62, groundAt(58.62, -3.6) + 0.75, -3.6], { shape: { radius: 0.07, height: 1.5 }, material: { color: '#6b4a2f', texture: A.oldWood } }));
+    add(thing('sign_post', 'cylinder', 'Sign post', [58.62, groundAt(58.62, -3.6) + 0.75, -3.6], { shape: { radius: 0.07, height: 1.5 }, material: { color: '#6b4a2f', texture: A.oldWood }, ...smash('wood', '#6b4a2f', { strength: 4, pieces: 5, with: ['sign_board', 'sign_text'] }) }));
     add(thing('sign_text', 'text', 'Sign words', [58.44, groundAt(58.5, -3.6) + 1.5, -3.6], { shape: { text: "PIP'S PIER\nfishing · boats", size: 0.2, billboard: false, color: '#3a2614', background: false, zOffset: -2 }, transform: yaw(90) }));
     // The catch board at Pip's pier: it lists your best catches (water's fishing.js), and E there opens the catch log.
     add(thing('catch_board', 'box', 'Catch board', [58.5, groundAt(58.5, 3.6) + 1.5, 3.6], { shape: { size: [1.9, 1.05, 0.08] }, material: { color: '#6b4a2f', texture: A.oldWood, tile: [1, 1] }, transform: yaw(-90), data: { catchBoard: true } }));
@@ -316,6 +335,12 @@ export const SANDBOX = {
     // The fuel dump on the beach north of the dock: oil barrels close enough to chain, and crates to smash.
     [[50, -18], [51.2, -18.4], [50.5, -19.5], [51.7, -17.2], [49.6, -16.9]].forEach(([x, z], i) => add(model(`barrel_${i + 1}`, 'Fuel barrel', A.barrel, x, z, 1.15, { physics: 'dynamic', body: { shape: { type: 'cylinder', radius: 0.4, height: 1.15 } }, behaviors: [{ use: 'explosive', radius: 6, force: 22, damage: 60 }], data: { barrel: true } }, 0.05)));
     [[46.5, -21.5, 0], [47.6, -21.6, 20], [47.1, -21.4, 10]].forEach(([x, z, r], i) => add(model(`crate_${i + 1}`, 'Crate', A.crate, x, z, 1, { physics: 'dynamic', body: { shape: { type: 'box', size: [1, 1, 1] } }, transform: yaw(r), behaviors: [{ use: 'breakable', strength: 10, pieces: 8 }] }, i === 2 ? 1.02 : 0.02)));
+    // The pier's loose things: wooden barrels and lobster pots on the deck (they break under a 4x4, topple in a blast and go into
+    // the sea: a splash, then wood floats), and one fuel barrel to blow them with. The planks' top is at pierY + 0.15.
+    const deck = pierY + 0.15;
+    [[66.5, 1.0], [69.5, -1.0], [80.5, 1.0]].forEach(([x, z], i) => add(thing(`lobster_pot_${i + 1}`, 'box', 'Lobster pot', [x, deck + 0.26, z], { shape: { size: [0.7, 0.5, 0.5] }, material: { color: '#8a6a4a', texture: A.oldWood, tile: [1, 1] }, physics: 'dynamic', transform: yaw(i * 40), ...smash('pot', '#8a6a4a', { strength: 4, pieces: 6, blast: 10 }) })));
+    [[74.5, -1.0], [77.5, 1.1]].forEach(([x, z], i) => add(thing(`pier_cask_${i + 1}`, 'cylinder', 'Wooden barrel', [x, deck + 0.46, z], { shape: { radius: 0.34, height: 0.92 }, material: { color: '#7a5a3a', texture: A.oldWood, tile: [1, 1] }, physics: 'dynamic', ...smash('wood', '#7a5a3a', { strength: 4, pieces: 6, blast: 12 }) })));
+    add(model('barrel_pier', 'Fuel barrel', A.barrel, 72, 0.6, 1.15, { physics: 'dynamic', body: { shape: { type: 'cylinder', radius: 0.4, height: 1.15 } }, behaviors: [{ use: 'explosive', radius: 6, force: 22, damage: 60 }], data: { barrel: true } }, pierY + 0.2));
     // The helipad on the hill, with the helicopter on it.
     const padY = groundAt(HELIPAD[0], HELIPAD[1]);
     add(thing('helipad', 'cylinder', 'Helipad', [HELIPAD[0], padY + 0.08, HELIPAD[1]], { shape: { radius: 5, height: 0.16 }, material: { color: '#9aa3ad', texture: A.plate, tile: [3, 3], zOffset: -1 }, data: { surface: 'metal' } }));

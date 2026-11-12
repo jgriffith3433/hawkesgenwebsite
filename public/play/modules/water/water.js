@@ -923,8 +923,9 @@ void main(void) {
       e._wIn = isIn;
       if (isIn === wasIn) continue;
       const vy = (bot - prev) / Math.max(dt, 1e-4);
-      if (isIn && vy < -2.5) {
-        const vol = e.size[0] * e.size[1] * e.size[2];
+      if (isIn && vy < -1.8) {
+        // Sized by mass (a barrel against a splinter), by volume where a thing has none set.
+        const vol = Math.max(e.size[0] * e.size[1] * e.size[2], (e.mass > 1 ? e.mass : 0) / 500);
         const size = clamp((-vy / 10) * Math.cbrt(Math.max(0.01, vol)) * (e.isPlayer || e.remotePlayer ? 1.4 : 1), 0.2, 3.5);
         splash([e.x, s, e.z], size);
         G().emit('splash', { at: [e.x, s, e.z], size, entity: e });
