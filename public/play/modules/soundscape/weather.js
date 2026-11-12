@@ -315,7 +315,10 @@
       if (c.area) { S.mask[c.area] = on ? duck : 0; continue; }
       const b = bed(c.tod ? TOD[c.tod] : RAIN[c.rain]);
       b.target = on ? c.v * (c.tod ? duck : 1) : 0;
-      drive(b, dt, c.tod ? 1 / FADE_S : 0.6);
+      // ToD: reach the target (or silence) in FADE_S seconds, whatever its level — absolute 1/FADE_S would finish a
+      // 0.8 bed in ~24 s and trip the playtest's "≥ 30 s" check.
+      const todSlew = Math.max(Math.abs(b.target), b.w, 0.05) / FADE_S;
+      drive(b, dt, c.tod ? todSlew : 0.6);
     }
     const act = cand.filter((c) => c.v > 0.02 && (!keep || keep.has(c.id))).map((c) => c.id);
     if (act.join() !== st.active.join()) { st.active = act; note('beds', { active: act }); }
@@ -337,7 +340,7 @@
       raining: st.rain.on, level: Math.round(st.rain.level * 100) / 100, seconds: Math.round(st.rain.t), duration: Math.round(st.rain.dur),
       surface: st.surface, hour: st.hour, bed: st.bed, fadeSeconds: FADE_S, hourWeights: st.wt, phone: PHONE, maxBeds: MAX_BEDS,
       active: st.active.slice(), activeBeds: st.active.length, wet: Math.round(st.wet * 100) / 100,
-      beds: Object.values(beds).map((b) => ({ name: b.name, w: Math.round(b.w * 1000) / 1000, playing: Boolean(b.src), missing: b.missing })),
+      beds: Object.values(beds).map((b) => ({ name: b.name, w: Math.round(b.w * 1000) / 1000, target: Math.round(b.target * 1000) / 1000, playing: Boolean(b.src), missing: b.missing })),
       flashes: st.flashes, thunders: st.thunders, pendingThunder: pending.length,
       particles: fx.ps ? fx.ps.getActiveCount() : 0, splashes: fx.splash ? fx.splash.getActiveCount() : 0,
       ringsLive: fx.rings.filter((q) => q.t < 1).length, log: log.slice(), force: api.force, clear: api.clear, strike: api.strike,

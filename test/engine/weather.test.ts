@@ -36,9 +36,31 @@ test('weather.js reads the files it plays, and the playtest is registered', () =
   const src = fs.readFileSync(path.join(process.cwd(), 'public/play/modules/soundscape/weather.js'), 'utf8');
   for (const n of ['tod-dawn', 'tod-day', 'tod-dusk', 'tod-night', 'rain-ground', 'rain-wood', 'rain-metal']) assert.ok(src.includes(`'${n}'`), n);
   assert.ok(src.includes('FADE_S = 30'), 'crossfade of 30 s');
+  assert.ok(src.includes('todSlew') || src.includes('/ FADE_S'), 'ToD fade reaches its target in FADE_S (not a fixed 1/FADE_S rate)');
   assert.ok(src.includes('MAX_BEDS = PHONE ? 2'), 'a phone plays two beds');
   const portal = fs.readFileSync(path.join(process.cwd(), 'public/playtest/portal.js'), 'utf8');
   assert.ok(portal.includes('runIslandHours') && portal.includes("'island-hours'"), 'island-hours is registered');
   const m = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'public/play/modules/soundscape/module.json'), 'utf8'));
   assert.deepEqual(m.scripts, ['soundscape.js', 'weather.js']);
+});
+
+test('weather: Gen ToD, rain and thunder clips are in the repo and under 2.5 MB', () => {
+  const dir = path.join(process.cwd(), 'public/play/audio/sfx');
+  const index = JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8'));
+  const sounds = new Set(index.sounds);
+  const names = [
+    'tod-dawn', 'tod-day', 'tod-dusk', 'tod-night',
+    'rain-ground', 'rain-wood', 'rain-metal',
+    'thunder-1', 'thunder-2', 'thunder-3',
+  ];
+  let bytes = 0;
+  for (const n of names) {
+    assert.ok(sounds.has(n), `${n} listed in index.json`);
+    const p = path.join(dir, `${n}.mp3`);
+    assert.ok(fs.existsSync(p), `${n}.mp3 on disk`);
+    const sz = fs.statSync(p).size;
+    assert.ok(sz > 80_000, `${n}.mp3 is a real take (${sz} B)`);
+    bytes += sz;
+  }
+  assert.ok(bytes < 2.5 * 1024 * 1024, `new weather audio ${bytes} B under 2.5 MB`);
 });

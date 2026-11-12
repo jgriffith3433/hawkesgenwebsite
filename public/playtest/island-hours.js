@@ -80,17 +80,18 @@ export async function runIslandHours(t, helpers) {
       const bedName = want[name];
       while (performance.now() - t0 < (FADE + 3) * 1000) {
         const b = wx().beds.find((x) => x.name === bedName);
-        if (b && at90 === null && b.w >= 0.9 * 0.7 * (wx().hourWeights[name === 'noon' ? 'day' : name] || 1)) at90 = (performance.now() - t0) / 1000;
+        // 90% of this bed's own target (TOD_GAIN × hour weight × duck), not a hardcoded 0.7.
+        if (b && at90 === null && b.target > 0.05 && b.w >= 0.9 * b.target) at90 = (performance.now() - t0) / 1000;
         await t.wait(500);
       }
       const b = wx().beds.find((x) => x.name === bedName);
       seen.add(bedName);
       t.scene(`Hours: ${name}`);
-      if (!b || b.missing) t.problem('warning', `the ${name} bed file (${bedName}.mp3) did not load`);
+      if (!b || b.missing) t.problem('error', `the ${name} bed file (${bedName}.mp3) did not load`);
       else {
-        t.event('crossfade', `${name}: ${bedName} reached ${(b.w).toFixed(2)} after ${at90 === null ? '>' + (FADE + 3) : at90.toFixed(1)} s (never faster than ${FADE} s)`);
+        t.event('crossfade', `${name}: ${bedName} reached ${(b.w).toFixed(2)} of target ${(b.target || 0).toFixed(2)} after ${at90 === null ? '>' + (FADE + 3) : at90.toFixed(1)} s (never faster than ${FADE} s)`);
         t.metric(`crossfade_${name}_s`, at90 === null ? FADE + 3 : Math.round(at90 * 10) / 10);
-        if (at90 !== null && at90 < FADE * 0.85 && name !== 'noon') t.problem('error', `the ${name} bed faded in over ${at90.toFixed(1)} s (${FADE} s or more expected)`);
+        if (at90 !== null && at90 < FADE * 0.85) t.problem('error', `the ${name} bed faded in over ${at90.toFixed(1)} s (${FADE} s or more expected)`);
       }
       t.progress(0.1 + 0.25 * (seen.size / 4));
     }

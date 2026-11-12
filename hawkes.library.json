@@ -66,6 +66,81 @@
       "about": "Overseer sound identity (modules/overseer/sound.js). Gen assets land in public/play/audio/sfx/ via studio_gen_import; loudness-normalised at Gen (normalize: true on sfx; music trimmed in play)."
     },
     {
+      "id": "island-hours-weather",
+      "kind": "sound-pack",
+      "name": "Island hours and weather ambience",
+      "jobs": {
+        "loops": "j_28b2b53abb66",
+        "thunder": "j_893c3d58f20d"
+      },
+      "data": {
+        "canon": "Time-of-day beds (dawn chorus, midday cicadas, dusk gulls/waves, night crickets/frogs/owl) under the area beds; rain on ground/wood/metal; three thunder claps with long tails. Crossfade ≥30 s by H.sky.clock; phone ≤2 beds.",
+        "slots": {
+          "tod/dawn": {
+            "brief": "Dawn chorus seamless loop",
+            "path": "public/play/audio/sfx/tod-dawn.mp3",
+            "asset": "a_ec5a9959118cd3c0",
+            "job": "j_28b2b53abb66"
+          },
+          "tod/day": {
+            "brief": "Midday cicadas seamless loop",
+            "path": "public/play/audio/sfx/tod-day.mp3",
+            "asset": "a_51ab62f7f39a6bd5",
+            "job": "j_28b2b53abb66"
+          },
+          "tod/dusk": {
+            "brief": "Dusk gulls and waves seamless loop",
+            "path": "public/play/audio/sfx/tod-dusk.mp3",
+            "asset": "a_0b413c98827f60a8",
+            "job": "j_28b2b53abb66"
+          },
+          "tod/night": {
+            "brief": "Night crickets frogs owl seamless loop",
+            "path": "public/play/audio/sfx/tod-night.mp3",
+            "asset": "a_e1b4a9d3a13c9ab6",
+            "job": "j_28b2b53abb66"
+          },
+          "rain/ground": {
+            "brief": "Rain on open ground seamless loop",
+            "path": "public/play/audio/sfx/rain-ground.mp3",
+            "asset": "a_17f55bf002b15bd5",
+            "job": "j_28b2b53abb66"
+          },
+          "rain/wood": {
+            "brief": "Rain on pier wood seamless loop",
+            "path": "public/play/audio/sfx/rain-wood.mp3",
+            "asset": "a_b6043882355822c3",
+            "job": "j_28b2b53abb66"
+          },
+          "rain/metal": {
+            "brief": "Rain on hangar metal roof seamless loop",
+            "path": "public/play/audio/sfx/rain-metal.mp3",
+            "asset": "a_512a7434982e0f22",
+            "job": "j_28b2b53abb66"
+          },
+          "thunder/1": {
+            "brief": "Close lightning crack with long rumble",
+            "path": "public/play/audio/sfx/thunder-1.mp3",
+            "asset": "a_03090d8a91940d73",
+            "job": "j_893c3d58f20d"
+          },
+          "thunder/2": {
+            "brief": "Distant soft boom with long tail",
+            "path": "public/play/audio/sfx/thunder-2.mp3",
+            "asset": "a_58006b85aac57712",
+            "job": "j_893c3d58f20d"
+          },
+          "thunder/3": {
+            "brief": "Medium-distance crack and rumble",
+            "path": "public/play/audio/sfx/thunder-3.mp3",
+            "asset": "a_4bdd8e25c032565a",
+            "job": "j_893c3d58f20d"
+          }
+        }
+      },
+      "about": "Island hours and weather (modules/soundscape/weather.js, window.__weather). Gen audio.sfx-open; 10 clips ≈1.89 MB (under 2.5 MB phone budget)."
+    },
+    {
       "id": "island-pbr",
       "kind": "material-pack",
       "name": "Sandbox island PBR materials",
