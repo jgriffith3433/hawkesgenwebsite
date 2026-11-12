@@ -1,0 +1,469 @@
+{
+ "note": "The six islanders' voices (Hawkes Gen audio.voice-design / audio.voice-save) and their re-acted lines. Voice ids are Gen voice-library ids (gv_...). Keys are the clip names in index.json (same key, .webm replaces .mp3).",
+ "voices": {
+  "pip": {
+   "name": "Pip",
+   "color": "#f472b6",
+   "voiceId": null
+  },
+  "bobbin": {
+   "name": "Admiral Bobbin",
+   "color": "#facc15",
+   "voiceId": null
+  },
+  "ember": {
+   "name": "Mrs Ember",
+   "color": "#fb923c",
+   "voiceId": null
+  },
+  "rolo": {
+   "name": "Rolo",
+   "color": "#22d3ee",
+   "voiceId": null
+  },
+  "dolores": {
+   "name": "Dolores",
+   "color": "#4ade80",
+   "voiceId": null
+  },
+  "channel": {
+   "name": "Channel",
+   "color": "#7dd3fc",
+   "voiceId": null
+  }
+ },
+ "lines": [
+  {
+   "key": "pip-c5e2e4cc",
+   "speaker": "pip",
+   "text": "Hi, I'm Pip! The Overseer just beamed you onto the best island on the whole planet. Want the tour? It's mostly things that go fast and things that go boom.",
+   "direction": {
+    "emotion": "delighted, breathless, grinning",
+    "pace": "quick, bouncy"
+   }
+  },
+  {
+   "key": "pip-25ef3131",
+   "speaker": "pip",
+   "text": "The rod is at the very end of the pier!",
+   "direction": {
+    "emotion": "excited, pointing the way",
+    "pace": "brisk"
+   }
+  },
+  {
+   "key": "pip-3b37e7f3",
+   "speaker": "pip",
+   "text": "BOOM! Goodbye, Barrel! Now ask the Overseer for anything.",
+   "direction": {
+    "emotion": "gleeful, a little too proud",
+    "pace": "punchy then warm"
+   }
+  },
+  {
+   "key": "pip-5f37ea7e",
+   "speaker": "pip",
+   "text": "Told you she likes you. Take the helicopter. Way up!",
+   "direction": {
+    "emotion": "teasing, delighted",
+    "pace": "quick"
+   }
+  },
+  {
+   "key": "pip-bcb6e3dd",
+   "speaker": "pip",
+   "text": "Huh. That's new.",
+   "direction": {
+    "emotion": "quietly puzzled, wondering",
+    "pace": "slow, soft, a long beat after Huh"
+   }
+  },
+  {
+   "key": "pip-60cc3ead",
+   "speaker": "pip",
+   "text": "What a day for it!",
+   "direction": {
+    "emotion": "joyful, sunny",
+    "pace": "bright and quick"
+   }
+  },
+  {
+   "key": "pip-bc366e16",
+   "speaker": "pip",
+   "text": "Hey, you're back!",
+   "direction": {
+    "emotion": "thrilled to see them",
+    "pace": "fast, warm"
+   }
+  },
+  {
+   "key": "pip-990fd655",
+   "speaker": "pip",
+   "text": "The 4x4 is right there: walk up and press E.",
+   "direction": {
+    "emotion": "encouraging, friendly",
+    "pace": "even"
+   }
+  },
+  {
+   "key": "pip-78b77eff",
+   "speaker": "pip",
+   "text": "A fish! Take the rocket launcher. Barrels, up the beach. Go on!",
+   "direction": {
+    "emotion": "thrilled, urging",
+    "pace": "fast"
+   }
+  },
+  {
+   "key": "pip-6a21ca6b",
+   "speaker": "pip",
+   "text": "Hi! I'm Pip. Welcome to the island!",
+   "direction": {
+    "emotion": "warm, welcoming",
+    "pace": "easy, bright"
+   }
+  },
+  {
+   "key": "bobbin-845bb71c",
+   "speaker": "bobbin",
+   "text": "Carry on. That is an order. It is also a suggestion.",
+   "direction": {
+    "emotion": "pompous, then a flicker of kindness on the second sentence",
+    "pace": "slow, ceremonial"
+   }
+  },
+  {
+   "key": "bobbin-6a9d3220",
+   "speaker": "bobbin",
+   "text": "Salute optional. Appreciated, though.",
+   "direction": {
+    "emotion": "stiff pride, a touch wistful",
+    "pace": "slow"
+   }
+  },
+  {
+   "key": "bobbin-d589503c",
+   "speaker": "bobbin",
+   "text": "Fine cast. Eight out of ten. The two is for the wind, which I take personally.",
+   "direction": {
+    "emotion": "grandly approving, then wounded about the wind",
+    "pace": "measured"
+   }
+  },
+  {
+   "key": "bobbin-482d027f",
+   "speaker": "bobbin",
+   "text": "That is a rod. Then you are one of mine. Cast from the very end.",
+   "direction": {
+    "emotion": "proud, commanding",
+    "pace": "slow, booming"
+   }
+  },
+  {
+   "key": "bobbin-8711e6b6",
+   "speaker": "bobbin",
+   "text": "A wave just looked at me. I took it personally.",
+   "direction": {
+    "emotion": "offended dignity",
+    "pace": "deadpan, slow"
+   }
+  },
+  {
+   "key": "bobbin-6dff421d",
+   "speaker": "bobbin",
+   "text": "Ships commanded: one. Ships commanded, again: one.",
+   "direction": {
+    "emotion": "reciting from the log, solemn, faintly sad",
+    "pace": "flat and steady"
+   }
+  },
+  {
+   "key": "bobbin-7fd92746",
+   "speaker": "bobbin",
+   "text": "You took the boat out. Then it is a fleet of two. I shall update the logbook. Same boat, longer name.",
+   "direction": {
+    "emotion": "swelling pride, then dry resignation",
+    "pace": "slow"
+   }
+  },
+  {
+   "key": "bobbin-57d006af",
+   "speaker": "bobbin",
+   "text": "A gull. Do not look at me like that. A gull.",
+   "direction": {
+    "emotion": "defensive, hiding something",
+    "pace": "clipped"
+   }
+  },
+  {
+   "key": "ember-cb2871be",
+   "speaker": "ember",
+   "text": "Dear, you've gone a funny colour. Eat something.",
+   "direction": {
+    "emotion": "fond, wry concern",
+    "pace": "unhurried"
+   }
+  },
+  {
+   "key": "ember-5349208b",
+   "speaker": "ember",
+   "text": "Rain at four. Sorry.",
+   "direction": {
+    "emotion": "apologetic, gently dry",
+    "pace": "slow, soft"
+   }
+  },
+  {
+   "key": "ember-7e8f5276",
+   "speaker": "ember",
+   "text": "A letter came for the new one, dear. It says: mind the third plank, it sticks. That is all. Sorry.",
+   "direction": {
+    "emotion": "warm, secretive, apologising for the secret",
+    "pace": "unhurried"
+   }
+  },
+  {
+   "key": "ember-9cc6ffba",
+   "speaker": "ember",
+   "text": "Dear, I brought you a letter. It says: well done. It has no sender. Sorry.",
+   "direction": {
+    "emotion": "tender, a little puzzled",
+    "pace": "slow"
+   }
+  },
+  {
+   "key": "ember-c65c6910",
+   "speaker": "ember",
+   "text": "You caught a fish, dear. The pier told me. You should eat something. Sorry.",
+   "direction": {
+    "emotion": "proud and motherly, wry",
+    "pace": "warm"
+   }
+  },
+  {
+   "key": "ember-8311481f",
+   "speaker": "ember",
+   "text": "That was a loud one, dear. The chimney held. I did say there might be weather. Sorry.",
+   "direction": {
+    "emotion": "dry, amused, unbothered",
+    "pace": "easy"
+   }
+  },
+  {
+   "key": "ember-4ff0d2f8",
+   "speaker": "ember",
+   "text": "Every letter reaches someone. Even the ones nobody sent. I just have not found whose yet.",
+   "direction": {
+    "emotion": "soft, sincere, a little wistful",
+    "pace": "slow"
+   }
+  },
+  {
+   "key": "ember-982c44de",
+   "speaker": "ember",
+   "text": "I did not read it twice. Sorry.",
+   "direction": {
+    "emotion": "guilty, caught out, apologetic",
+    "pace": "quick, small"
+   }
+  },
+  {
+   "key": "rolo-835187a6",
+   "speaker": "rolo",
+   "text": "huh. that's fine. that's mostly fine.",
+   "direction": {
+    "emotion": "mild, absent, kind",
+    "pace": "slow, lowercase mumble"
+   }
+  },
+  {
+   "key": "rolo-1243fd0c",
+   "speaker": "rolo",
+   "text": "huh. hi. the 4x4 is fine. mostly fine. flip it and i fix it.",
+   "direction": {
+    "emotion": "mild, shy, helpful",
+    "pace": "slow"
+   }
+  },
+  {
+   "key": "rolo-83885d00",
+   "speaker": "rolo",
+   "text": "estimate: three wobbles. maybe a small tuesday.",
+   "direction": {
+    "emotion": "earnest, matter of fact",
+    "pace": "even, quiet"
+   }
+  },
+  {
+   "key": "rolo-9e7b0f9d",
+   "speaker": "rolo",
+   "text": "huh. it is built. i cannot say why. it is fine. mostly fine.",
+   "direction": {
+    "emotion": "uneasy under the calm, puzzled",
+    "pace": "slow, trailing"
+   }
+  },
+  {
+   "key": "rolo-e77cb147",
+   "speaker": "rolo",
+   "text": "there is one thing i cannot fix. it is fine.",
+   "direction": {
+    "emotion": "quiet sadness hidden behind fine",
+    "pace": "very slow, soft"
+   }
+  },
+  {
+   "key": "rolo-c768b23d",
+   "speaker": "rolo",
+   "text": "huh. that is the last can. it holds. probably it holds.",
+   "direction": {
+    "emotion": "relieved, unsure",
+    "pace": "slow"
+   }
+  },
+  {
+   "key": "rolo-a303838e",
+   "speaker": "rolo",
+   "text": "i'm fine. just under here.",
+   "direction": {
+    "emotion": "muffled, shy",
+    "pace": "quiet, a little quick"
+   }
+  },
+  {
+   "key": "rolo-36517493",
+   "speaker": "rolo",
+   "text": "huh. it flew. that is fine. that is mostly fine.",
+   "direction": {
+    "emotion": "quietly amazed",
+    "pace": "slow"
+   }
+  },
+  {
+   "key": "dolores-11c5a712",
+   "speaker": "dolores",
+   "text": "I was not waiting. The pad is free. Use it. I will not watch.",
+   "direction": {
+    "emotion": "deadpan, defensive, faint tenderness",
+    "pace": "slow and dry"
+   }
+  },
+  {
+   "key": "dolores-3c3375ad",
+   "speaker": "dolores",
+   "text": "I'm not lonely. The hill is just quiet. Stay.",
+   "direction": {
+    "emotion": "flat, then a soft crack on Stay",
+    "pace": "slow, the last word almost a whisper"
+   }
+  },
+  {
+   "key": "dolores-c014e8a1",
+   "speaker": "dolores",
+   "text": "Oh. You again. I kept your spot. It was already there. Sit.",
+   "direction": {
+    "emotion": "grudging pleasure, hiding it",
+    "pace": "dry"
+   }
+  },
+  {
+   "key": "dolores-01e11af1",
+   "speaker": "dolores",
+   "text": "You went up in the helicopter. I did not watch. You turned left at the top. Do not look at me like that.",
+   "direction": {
+    "emotion": "blunt, caught being fond",
+    "pace": "dry, deliberate"
+   }
+  },
+  {
+   "key": "dolores-6a971cf3",
+   "speaker": "dolores",
+   "text": "You caught a fish. A decent size. I do not care. It had a green back.",
+   "direction": {
+    "emotion": "unimpressed, then slips and remembers detail",
+    "pace": "flat"
+   }
+  },
+  {
+   "key": "dolores-b4d09156",
+   "speaker": "dolores",
+   "text": "The wind is from the east. Not that I checked.",
+   "direction": {
+    "emotion": "dry",
+    "pace": "slow"
+   }
+  },
+  {
+   "key": "dolores-7222c927",
+   "speaker": "dolores",
+   "text": "Scratched into the rock, in fives: the rings, turning. The marks go back further than I have been here.",
+   "direction": {
+    "emotion": "hushed, uneasy, awed",
+    "pace": "slow, low"
+   }
+  },
+  {
+   "key": "dolores-3094fda2",
+   "speaker": "dolores",
+   "text": "I do not care who comes up here. You had a long walk, though.",
+   "direction": {
+    "emotion": "gruff, then gentler",
+    "pace": "slow"
+   }
+  },
+  {
+   "key": "channel-461d1b2e",
+   "speaker": "channel",
+   "text": "Breaking: the tide is in. More on this as it happens.",
+   "direction": {
+    "emotion": "urgent anchor, dramatic over trivia",
+    "pace": "fast, pause after Breaking"
+   }
+  },
+  {
+   "key": "channel-12f20fd1",
+   "speaker": "channel",
+   "text": "Breaking: a nap. Ratings: record.",
+   "direction": {
+    "emotion": "solemn gravity about something trivial",
+    "pace": "crisp"
+   }
+  },
+  {
+   "key": "channel-cea961d8",
+   "speaker": "channel",
+   "text": "Breaking: BOOM, live from the beach. Eyewitnesses: one. Ratings: record.",
+   "direction": {
+    "emotion": "wild breaking-news excitement",
+    "pace": "very fast, loud then deflating"
+   }
+  },
+  {
+   "key": "channel-c1e208de",
+   "speaker": "channel",
+   "text": "Breaking: a fish. A real one. More on this as it happens. Nothing happens. Still a record.",
+   "direction": {
+    "emotion": "thrilled, then crestfallen, then proud",
+    "pace": "fast, a beat before Nothing happens"
+   }
+  },
+  {
+   "key": "channel-7ce12212",
+   "speaker": "channel",
+   "text": "Breaking: a vehicle, in motion. Driver: you. Ratings: record.",
+   "direction": {
+    "emotion": "live-report urgency",
+    "pace": "fast"
+   }
+  },
+  {
+   "key": "channel-6e4e8feb",
+   "speaker": "channel",
+   "text": "Breaking: the wind has changed. Details after the break. There is no break.",
+   "direction": {
+    "emotion": "anchor poise cracking into honesty",
+    "pace": "crisp, a pause before the last line"
+   }
+  }
+ ]
+}
