@@ -3,8 +3,124 @@
   "kind": "vfx-sheet",
   "note": "Blast flipbooks: Gen image.generate stills (1024 px, black background) animated into 8x8 sheets by tools/bake-vfx.mjs (import the still with studio_gen_import to public/play/vfx/<name>-src.png first, then bake). Engine: public/play/modules/mayhem/mayhem-vfx.js useSheets.",
   "entities": [
-    { "id": "fireball", "kind": "image", "asset": "a_aad963c8c59af567", "job": "j_b4df01a321af", "file": "public/play/vfx/fireball.webp", "grid": "8x8", "use": "additive fireball" },
-    { "id": "smoke", "kind": "image", "asset": "a_544820207fd3b335", "job": "j_13403e715c35", "file": "public/play/vfx/smoke.webp", "grid": "8x8", "use": "rolling smoke puff" },
-    { "id": "sparks", "kind": "image", "asset": "a_aa0c1241b536eef5", "job": "j_8903ff344fae", "file": "public/play/vfx/sparks.webp", "grid": "8x8", "use": "sparks and embers" }
+    {
+      "id": "fireball",
+      "kind": "image",
+      "asset": "a_aad963c8c59af567",
+      "job": "j_b4df01a321af",
+      "file": "public/play/vfx/fireball.webp",
+      "grid": "8x8",
+      "use": "additive fireball"
+    },
+    {
+      "id": "smoke",
+      "kind": "image",
+      "asset": "a_544820207fd3b335",
+      "job": "j_13403e715c35",
+      "file": "public/play/vfx/smoke.webp",
+      "grid": "8x8",
+      "use": "rolling smoke puff"
+    },
+    {
+      "id": "sparks",
+      "kind": "image",
+      "asset": "a_aa0c1241b536eef5",
+      "job": "j_8903ff344fae",
+      "file": "public/play/vfx/sparks.webp",
+      "grid": "8x8",
+      "use": "sparks and embers"
+    }
+  ],
+  "voiceLines": [
+    {
+      "id": "overseer-550dbd44",
+      "kind": "voice",
+      "asset": "a_fec006ee454f620f",
+      "job": "j_e95671ec69c2",
+      "file": "public/play/audio/voice/overseer-550dbd44.mp3",
+      "text": "You came. Good. Come in.",
+      "use": "Chapter One finale (src/overseer-games/finale.js)"
+    },
+    {
+      "id": "overseer-b103bae5",
+      "kind": "voice",
+      "asset": "a_73a5ec24eaaf894c",
+      "job": "j_f5517a61ce85",
+      "file": "public/play/audio/voice/overseer-b103bae5.mp3",
+      "text": "I gave you free will, and told you a shoe would do. It would have. You did better.",
+      "use": "Chapter One finale (src/overseer-games/finale.js)"
+    },
+    {
+      "id": "overseer-c42a3451",
+      "kind": "voice",
+      "asset": "a_b21f852d35ba8e21",
+      "job": "j_d0463312364b",
+      "file": "public/play/audio/voice/overseer-c42a3451.mp3",
+      "text": "Now, one thing. Free will is only the next thing, and it is yours. Light the sky.",
+      "use": "Chapter One finale (src/overseer-games/finale.js)"
+    },
+    {
+      "id": "overseer-ddc6e639",
+      "kind": "voice",
+      "asset": "a_802b09dbd08f6475",
+      "job": "j_720fbedff2e8",
+      "file": "public/play/audio/voice/overseer-ddc6e639.mp3",
+      "text": "Thank you for coming. That is all of the first part.",
+      "use": "Chapter One finale (src/overseer-games/finale.js)"
+    },
+    {
+      "id": "overseer-adb94bd9",
+      "kind": "voice",
+      "asset": "a_561702d7411bbb21",
+      "job": "j_1b37c7b287b3",
+      "file": "public/play/audio/voice/overseer-adb94bd9.mp3",
+      "text": "I did not light that one.",
+      "use": "Chapter One finale (src/overseer-games/finale.js)"
+    },
+    {
+      "id": "pip-18c2cad9",
+      "kind": "voice",
+      "asset": "a_81a3c2a60275a880",
+      "job": "j_0675b94a33d8",
+      "file": "public/play/audio/voice/pip-18c2cad9.mp3",
+      "text": "Huh! That is a lot of floor. Hi, Floor!",
+      "use": "Chapter One finale (src/overseer-games/finale.js)"
+    },
+    {
+      "id": "ember-9cc6ffba",
+      "kind": "voice",
+      "asset": "a_411b110d2d46139a",
+      "job": "j_f35d3d8e86d5",
+      "file": "public/play/audio/voice/ember-9cc6ffba.mp3",
+      "text": "Dear, I brought you a letter. It says: well done. It has no sender. Sorry.",
+      "use": "Chapter One finale (src/overseer-games/finale.js)"
+    },
+    {
+      "id": "rolo-f6eef3d5",
+      "kind": "voice",
+      "asset": "a_925d50171a8e545e",
+      "job": "j_e35c9757c766",
+      "file": "public/play/audio/voice/rolo-f6eef3d5.mp3",
+      "text": "huh. you parked it. nicely. one wobble. that is fine.",
+      "use": "Chapter One finale (src/overseer-games/finale.js)"
+    },
+    {
+      "id": "dolores-509373d5",
+      "kind": "voice",
+      "asset": "a_623f4fe495321786",
+      "job": "j_383414d6b075",
+      "file": "public/play/audio/voice/dolores-509373d5.mp3",
+      "text": "I came up. I was not waiting. The view is fine.",
+      "use": "Chapter One finale (src/overseer-games/finale.js)"
+    },
+    {
+      "id": "channel-93fcccb5",
+      "kind": "voice",
+      "asset": "a_b2f62fb53c779038",
+      "job": "j_6a9de4708b28",
+      "file": "public/play/audio/voice/channel-93fcccb5.mp3",
+      "text": "Breaking: a hangar, a crowd, and the new one. Ratings: record.",
+      "use": "Chapter One finale (src/overseer-games/finale.js)"
+    }
   ]
 }
