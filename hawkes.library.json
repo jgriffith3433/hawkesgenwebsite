@@ -64,6 +64,42 @@
         }
       },
       "about": "Overseer sound identity (modules/overseer/sound.js). Gen assets land in public/play/audio/sfx/ via studio_gen_import; loudness-normalised at Gen (normalize: true on sfx; music trimmed in play)."
+    },
+    {
+      "id": "sky-dawn",
+      "kind": "image",
+      "asset": "a_20eaa6cdb7ff8f4f",
+      "job": "j_fed7a0c8cb98",
+      "file": "public/play/sky/dawn-4k.webp",
+      "file2k": "public/play/sky/dawn-2k.webp",
+      "use": "painted 360 sky panorama (skypaint.js)"
+    },
+    {
+      "id": "sky-noon",
+      "kind": "image",
+      "asset": "a_64f123008c75115d",
+      "job": "j_d7c76e85b43d",
+      "file": "public/play/sky/noon-4k.webp",
+      "file2k": "public/play/sky/noon-2k.webp",
+      "use": "painted 360 sky panorama (skypaint.js)"
+    },
+    {
+      "id": "sky-dusk",
+      "kind": "image",
+      "asset": "a_9ac459bdec666d5d",
+      "job": "j_486c408f1fed",
+      "file": "public/play/sky/dusk-4k.webp",
+      "file2k": "public/play/sky/dusk-2k.webp",
+      "use": "painted 360 sky panorama (skypaint.js)"
+    },
+    {
+      "id": "sky-night",
+      "kind": "image",
+      "asset": "a_ff5274f9027c751a",
+      "job": "j_22e28acf922c",
+      "file": "public/play/sky/night-4k.webp",
+      "file2k": "public/play/sky/night-2k.webp",
+      "use": "painted 360 sky panorama (skypaint.js)"
     }
   ],
   "voiceLines": [
