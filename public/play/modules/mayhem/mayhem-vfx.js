@@ -109,6 +109,8 @@
       if (!all) { setTimeout(step, 0); return; }
       for (const n of names) try { sheets[n].tex.update(); } catch { /* fine */ }
       try { init(); ready = true; } catch (err) { H.report(err, 'mayhem vfx'); }
+      // Hawkes Gen's art over the drawn stand-ins (they stay if a file does not load)
+      try { useSheets({ fire: '/play/vfx/fireball.webp', smoke: '/play/vfx/smoke.webp', sparks: '/play/vfx/sparks.webp' }); } catch { /* the drawn ones stay */ }
       building = false;
     };
     setTimeout(step, 50);
