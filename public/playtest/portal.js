@@ -533,6 +533,7 @@ async function stageVeil(t, ctx) {
     t.metric('titlePlayMs', playMs);
     if (playMs > 3000) t.problem('bug', `Play to control/intro took ${playMs} ms (need within 3 s)`);
     t.event('title-play', `control/intro in ${playMs} ms`);
+    await checkNotFlat(t, 'swoop and intro start');
     return;
   }
 
@@ -543,6 +544,46 @@ async function stageVeil(t, ctx) {
   titleOrVeil.click();
   t.event('veil-passed', 'clicked Enter');
   await t.until(() => !$('.hp-enter'), 8000, 'the veil to fade after Enter (the sound did not unlock?)');
+}
+
+/** Reads a grid of pixels from the canvas as it is drawn (inside the end of a frame, where the buffer is still there) and
+ *  says whether the frame is one flat colour: the character selection intro must never be a blue screen. */
+function sampleFrame() {
+  const w = W(), sc = w && w.scene, eng = sc && sc.getEngine && sc.getEngine();
+  if (!eng || !eng.onEndFrameObservable) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    let done = false;
+    const obs = eng.onEndFrameObservable.add(() => {
+      if (done) return;
+      done = true;
+      eng.onEndFrameObservable.remove(obs);
+      try {
+        const gl = eng._gl, rw = eng.getRenderWidth(), rh = eng.getRenderHeight(), px = new Uint8Array(4), seen = [];
+        for (let iy = 1; iy <= 8; iy++) for (let ix = 1; ix <= 8; ix++) {
+          gl.readPixels(Math.floor(rw * ix / 9), Math.floor(rh * iy / 9), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+          seen.push([px[0], px[1], px[2]]);
+        }
+        const mean = [0, 1, 2].map((c) => seen.reduce((n, q) => n + q[c], 0) / seen.length);
+        const spread = Math.max(...seen.map((q) => Math.max(Math.abs(q[0] - mean[0]), Math.abs(q[1] - mean[1]), Math.abs(q[2] - mean[2]))));
+        resolve({ flat: spread < 6, spread: Math.round(spread), mean: mean.map(Math.round) });
+      } catch { resolve(null); }
+    });
+    setTimeout(() => { if (!done) { done = true; try { eng.onEndFrameObservable.remove(obs); } catch { /* fine */ } resolve(null); } }, 2000);
+  });
+}
+/** Samples the frame for `ms`; any flat frame is a bug (the title's camera once took the world's picture with it). */
+async function checkNotFlat(t, label, ms = 2500, every = 250) {
+  const t0 = performance.now();
+  let n = 0, flat = 0, worst = null;
+  while (performance.now() - t0 < ms) {
+    const r = await sampleFrame();
+    if (r) { n++; if (r.flat) { flat++; worst = r; } }
+    await t.wait(every);
+  }
+  if (!n) { t.event('frame-not-sampled', `${label}: no pixels to read`); return; }
+  if (flat) t.problem('bug', `${label}: ${flat} of ${n} frames were one flat colour (rgb ${worst.mean.join(',')}): a blue screen instead of the island`);
+  else t.event('frame-not-flat', `${label}: ${n} frames, all with a picture`);
+  t.metric('flatFrames', flat);
 }
 
 /** After stageVeil has driven the title: mark complete and end (sandbox-title scenario). */
@@ -624,6 +665,7 @@ async function stageIntro(t, ctx) {
   // A beat into the look-up: portrait framing (character centred, mirror hidden, Skip clear) before any skip.
   await t.wait(1200);
   if (g() && g().introPlaying) checkIntroPortraitFrame(t);
+  await checkNotFlat(t, 'character selection intro', 2000, 400);
   const heard = [];
   const hear = () => { for (const p of document.querySelectorAll('.hc-log p.overseer')) { const l = p.textContent.replace(/\s+/g, ' ').trim(); if (l && !heard.includes(l)) { heard.push(l); t.event('overseer-said', l); } } };
   checkSelfHosted(t);

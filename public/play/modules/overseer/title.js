@@ -233,6 +233,25 @@ body.hp-title-on .hc-chat,body.hp-title-on .tl-zone,body.hp-title-on .gs-acts,bo
     } catch { /* fine */ }
   }
 
+  /** Disposes the title's camera without taking the world's picture with it. The look's pipeline (runtime.js) adds every
+   *  new camera, and Camera.dispose() disposes the post-processes it holds: those are shared with the player's camera, so
+   *  disposing an attached camera left the world rendering into dead textures: one flat sky-blue frame for the intro.
+   *  So: take it out of every pipeline first, make sure the player's camera is still in the look, then dispose. */
+  function dropCam(w, cam, main) {
+    const sc = w.scene;
+    try { if (w.look && w.look.cameras && w.look.cameras.includes(cam)) w.look.removeCamera(cam); } catch { /* fine */ }
+    try { sc.postProcessRenderPipelineManager.detachCamerasFromRenderPipeline('hp-ssao', [cam]); } catch { /* not built */ }
+    try {
+      if (cam.detachPostProcess && cam._postProcesses) for (const pp of cam._postProcesses.slice()) if (pp) cam.detachPostProcess(pp);
+    } catch { /* fine */ }
+    try { cam.dispose(); } catch { /* fine */ }
+    try {
+      const m = main && !(main.isDisposed && main.isDisposed()) ? main : (w.camera && w.camera.cam);
+      if (m && w.look && w.look.cameras && !w.look.cameras.includes(m)) w.look.addCamera(m);
+      if (m && sc.activeCamera !== m && (!sc.activeCamera || sc.activeCamera.isDisposed())) sc.activeCamera = m;
+    } catch { /* fine */ }
+  }
+
   function clearNewIsland() {
     try {
       localStorage.removeItem('hg_overseer_intro');
@@ -462,8 +481,8 @@ body.hp-title-on .hc-chat,body.hp-title-on .tl-zone,body.hp-title-on .gs-acts,bo
       restoreDof(dof);
       try {
         if (prev && !(prev.isDisposed && prev.isDisposed())) w.scene.activeCamera = prev;
-        cam.dispose();
       } catch { /* fine */ }
+      dropCam(w, cam, prev || (w.camera && w.camera.cam));
       if (held && p && p.node) {
         p.node.visibility = held.vis;
         // Intro (or play) takes controls; leave them off until then when intro wants them.
