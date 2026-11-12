@@ -150,6 +150,15 @@
     });
   }
 
+  // ------------------------------------------------------------------ side favours (favours.js; docs/story.md 5d)
+  function favourList() {
+    try {
+      const api = window.__islandFavours;
+      if (api && typeof api.list === 'function') return api.list();
+    } catch { /* none yet */ }
+    return [];
+  }
+
   // ------------------------------------------------------------------ the panel
   const model = () => {
     const k = kept();
@@ -157,19 +166,28 @@
       quests: questList(),
       done: questList().filter((q) => q.state === 'done' || q.state === 'skipped').length,
       cast: CAST.map((c) => ({ ...c, met: k.met.has(c.id) })),
+      favours: favourList(),
       finale: Boolean(window.__island && window.__island.finale && window.__island.finale.isDone()),
       lore: LORE.map((l) => ({ id: l.id, n: l.n, title: l.title, by: l.by, found: k.lore.has(l.id), here: Boolean(l.at), art: l.art, text: k.lore.has(l.id) ? l.text : null })),
     };
   };
   function html(m) {
-    const ico = { done: '✓', skipped: '↷', now: '▸', todo: '·' };
+    const ico = { done: '✓', skipped: '↷', now: '▸', todo: '·', open: '·', active: '▸', locked: '·' };
     const qs = m.quests.map((q) => `<li class="jr-q ${q.state}"><b>${ico[q.state]}</b><span><i>${q.n}. ${esc(q.title)}</i> ${esc(q.text)}${q.state === 'skipped' ? ' (skipped)' : ''} <em>skippable</em></span></li>`).join('');
     const cs = m.cast.map((c) => (c.met ? `<li class="jr-c"><i>${esc(c.name)}</i> <em>${esc(c.what)}</em><span>${esc(c.line)}</span></li>` : `<li class="jr-c unmet"><i>?</i> <em>Not met yet</em></li>`)).join('');
+    const favs = (m.favours || []).map((f) => {
+      const st = f.status === 'done' ? 'done' : f.status === 'active' ? 'now' : f.status === 'open' ? 'todo' : 'todo';
+      const body = f.status === 'done' ? (f.journal || f.title) : f.status === 'locked' ? 'Opens after the pier quest.' : f.status === 'active' ? `${f.title} — step ${(f.activeStep || 0) + 1} of 2` : f.title;
+      return `<li class="jr-q ${st}"><b>${ico[st]}</b><span><i>${esc(f.who)}</i> ${esc(body)}</span></li>`;
+    }).join('');
     const found = m.lore.filter((l) => l.found).length;
     const ls = m.lore.map((l) => `<li class="jr-pg ${l.found ? 'found' : 'unfound'}" data-n="${l.n}"><div class="jr-art"><img src="${esc(l.art)}" alt="" loading="lazy" draggable="false" onerror="this.style.visibility='hidden'"></div>`
       + (l.found ? `<i>${esc(l.title)}</i> <em>${esc(l.by)}</em><span>${l.text.map(esc).join(' ')}</span>` : `<i>? ${l.n}.</i> <em>Not yet found${l.here ? '' : '. It is not on this island yet.'}</em>`) + '</li>').join('');
+    const favDone = (m.favours || []).filter((f) => f.status === 'done').length;
+    const favTotal = (m.favours || []).length;
     return `<div class="jr-head"><b>Journal</b><button type="button" class="jr-x" aria-label="Close the journal">×</button></div><div class="jr-body">`
       + `<h4>Chapter One: What Are You? <small>${m.done} of 8</small></h4><ul>${qs}</ul>${m.finale ? '<button type="button" class="jr-replay">▶ Replay the end of Chapter One</button>' : ''}`
+      + (favTotal ? `<h4>Favours <small>${favDone} of ${favTotal}</small></h4><ul>${favs}</ul>` : '')
       + `<h4>Neighbours met <small>${m.cast.filter((c) => c.met).length} of ${m.cast.length}</small></h4><ul>${cs}</ul>`
       + `<h4>Painted pages <small>${found} of ${m.lore.length} found</small><small class="jr-count">1 / ${m.lore.length}</small></h4><ul class="jr-pages">${ls}</ul></div>`;
   }
@@ -259,5 +277,5 @@
     window.addEventListener('message', window.__islandJournalMsg);
   }
 
-  window.__island = Object.assign(window.__island || {}, { journal: { open, close, isOpen, model, find, meet, LORE, CAST, QUESTS } });
+  window.__island = Object.assign(window.__island || {}, { journal: { open, close, isOpen, model, find, meet, LORE, CAST, QUESTS, favours: favourList } });
 })();
