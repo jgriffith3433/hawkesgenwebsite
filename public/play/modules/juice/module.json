@@ -1,6 +1,6 @@
 {
   "title": "Juice (how it feels)",
   "order": 90,
-  "scripts": ["juice-core.js", "juice-audio.js", "juice-feel.js", "juice-ragdoll.js", "juice-fx.js"],
+  "scripts": ["juice-core.js", "juice-audio.js", "juice-impact.js", "juice-feel.js", "juice-ragdoll.js", "juice-fx.js"],
   "kinds": []
 }

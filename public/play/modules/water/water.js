@@ -873,6 +873,17 @@ void main(void) {
     let vol = o.volume ?? 1;
     if (o.at && g && W() && W().scene.activeCamera) { const c = W().scene.activeCamera.globalPosition; const p = posOf(o.at); vol *= 1 / (1 + Math.hypot(c.x - p[0], c.y - p[1], c.z - p[2]) / 10); }
     if (vol < 0.03) return;
+    // The impact library's fishing set and splashes (modules/juice/juice-impact.js), before a game's own words or the synth.
+    if (H.impact) {
+      try {
+        if (name === 'splash' && H.impact.splash(o.at ? posOf(o.at) : null, o.size ?? 1, { volume: o.volume })) return;
+        if (name === 'cast' && H.impact.fish('cast', { volume: o.volume })) return;
+        if (name === 'plop' && H.impact.fish('plop', { at: o.at ? posOf(o.at) : null, volume: o.volume })) return;
+        if (name === 'bite' && H.impact.fish('strike', { volume: o.volume })) return;
+        if (name === 'reel' && H.impact.fish('reel', { volume: o.volume })) return;
+        if (name === 'catch') H.impact.fish('flap', { volume: o.volume }); // (the catch chime plays on top)
+      } catch { /* the old sounds */ }
+    }
     const asset = assetNamed(name);
     if (asset && g) { g.sound(asset, { volume: clamp(vol, 0, 1), rate: o.rate }); return; }
     // The site's own recordings of the fishing sounds (runtime.js siteSound), before the synthesized ones.

@@ -27,3 +27,7 @@ game.find('Trampoline').on('hit', (who) => { if (who === game.player) game.ragdo
 // A boss stomp: shake, a beat of freeze, dust.
 game.on('stomp', (d) => { game.juice.shake(0.8); game.juice.hitStop(0.06); game.juice.fx.burst('dust', d.at, { count: 60 }); });
 ```
+
+## The impact sound library (`H.impact`, juice-impact.js)
+
+Hawkes Gen clips in `/play/audio/impact/` (`index.json` lists the sets): light and heavy hits on wood, metal, stone, water, sand and glass (4 variants each), barrel bounce and roll, debris patter, a near blast and a far blast, the fishing set. Every Havok collision goes through `H.impact.hit(a, b, { speed, impulse, at })` (juice-audio.js `impact`): the material comes from both bodies (the louder rings; sand on the beach), light or heavy by the impulse, a variant never the one before it in that set, pitch +-8 percent, gain +-2 dB, a rate limit per body, through the sfx bus. `H.impact.explosion(at, radius)` is late by distance / 343 m/s (scheduled on the audio clock), the far version with a low-pass past 60 m, then debris. `H.water.sound` plays the fishing set (`cast`, `plop`, `bite` = strike, `reel` loop, `catch` = flap) and splashes. A game's own sound words still win for blasts (`d.sound`). Until the clips decode, the synthesized hits play. `window.__impact.log` records material, set, variant, delay and latency of every one.
