@@ -34,7 +34,7 @@
       "id": "journal-paintings",
       "kind": "image-pack",
       "name": "Lore journal painted pages",
-      "note": "Twelve painterly journal illustrations (image.generate 1024x768 → studio_gen_import webp). Engine: journal.js l.art. chair landed (inland seat); drawing still pending retake 3 edit (remove physical barrel, keep chalk on wall).",
+      "note": "Twelve painterly journal illustrations (image.generate 1024x768 → studio_gen_import webp). Engine: journal.js l.art. All twelve landed; drawing is chalk graffiti on wall only (retake 3 edit j_bfc85693a401).",
       "dir": "public/play/journal",
       "jobs": {
         "logbook": "j_c34c76924e27",
@@ -46,12 +46,9 @@
         "file": "j_81d2d534cf31",
         "tag": "j_e1be1874beab",
         "chair": "j_94503bdf1bcf",
-        "drawing": "j_363def3fd6f8",
+        "drawing": "j_bfc85693a401",
         "mirror2": "j_174ae3870194",
         "page": "j_b67a05500408"
-      },
-      "retakeJobs": {
-        "drawing": "j_bfc85693a401"
       },
       "assets": {
         "logbook": "a_890cedf0dc8b3ea6",
@@ -63,7 +60,7 @@
         "file": "a_25d424b47944ef7e",
         "tag": "a_05f671cb2f0bb5ec",
         "chair": "a_0caabf23e8f4ac0e",
-        "drawing": "a_5f6f7cb75c44db85",
+        "drawing": "a_6ea48de920156750",
         "mirror2": "a_ba017be036522ee4",
         "page": "a_db039b843468dc57"
       },
