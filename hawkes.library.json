@@ -31,6 +31,41 @@
       "use": "sparks and embers"
     },
     {
+      "id": "journal-paintings",
+      "kind": "image-pack",
+      "name": "Lore journal painted pages",
+      "note": "Twelve painterly journal illustrations (image.generate 1024x768). Import each with studio_gen_import to public/play/journal/<id>.webp (format webp, width 1024, height 768). Engine: journal.js l.art.",
+      "dir": "public/play/journal",
+      "jobs": {
+        "logbook": "j_c34c76924e27",
+        "planks": "j_67acd373ae05",
+        "letter": "j_05954456a883",
+        "lamp": "j_cddbb5e8e2e5",
+        "receipt": "j_5fbc2da1c8b6",
+        "tally": "j_7cdb1d53a5de",
+        "file": "j_81d2d534cf31",
+        "tag": "j_cb70690a8790",
+        "chair": "j_13ced1fa3969",
+        "drawing": "j_363def3fd6f8",
+        "mirror2": "j_174ae3870194",
+        "page": "j_b67a05500408"
+      },
+      "pages": [
+        "logbook",
+        "planks",
+        "letter",
+        "lamp",
+        "receipt",
+        "tally",
+        "file",
+        "tag",
+        "chair",
+        "drawing",
+        "mirror2",
+        "page"
+      ]
+    },
+    {
       "id": "overseer-sound",
       "kind": "sound-pack",
       "name": "Overseer sound identity",
@@ -427,6 +462,70 @@
       "file": "public/play/audio/voice/overseer-700a1f9e.mp3",
       "text": "Night suits the pearl.",
       "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-71c75ee1",
+      "kind": "voice",
+      "asset": "a_3c255482b87c457d",
+      "file": "public/play/audio/voice/overseer-71c75ee1.mp3",
+      "text": "Someone sat here and wrote down every ship that came. Then someone took three pages, and was careful about it.",
+      "use": "Lore memory: logbook (memories.js)"
+    },
+    {
+      "id": "overseer-23f68443",
+      "kind": "voice",
+      "asset": "a_65336c6de123211c",
+      "file": "public/play/audio/voice/overseer-23f68443.mp3",
+      "text": "The third plank sticks. It was left that way, so you would notice.",
+      "use": "Lore memory: planks (memories.js)"
+    },
+    {
+      "id": "overseer-fb2804c6",
+      "kind": "voice",
+      "asset": "a_54b46ad64510cfa9",
+      "file": "public/play/audio/voice/overseer-fb2804c6.mp3",
+      "text": "A letter climbed this path before anyone lived here to read it.",
+      "use": "Lore memory: letter (memories.js)"
+    },
+    {
+      "id": "overseer-653fc008",
+      "kind": "voice",
+      "asset": "a_050173012ec353c6",
+      "file": "public/play/audio/voice/overseer-653fc008.mp3",
+      "text": "Someone lit this lamp the first evening. It has never needed more.",
+      "use": "Lore memory: lamp (memories.js)"
+    },
+    {
+      "id": "overseer-d00d0144",
+      "kind": "voice",
+      "asset": "a_5763991f29caef80",
+      "file": "public/play/audio/voice/overseer-d00d0144.mp3",
+      "text": "A door was mended here. The hand forgot. The door remembers.",
+      "use": "Lore memory: receipt (memories.js)"
+    },
+    {
+      "id": "overseer-3ce1dc22",
+      "kind": "voice",
+      "asset": "a_350e01ff537036ad",
+      "file": "public/play/audio/voice/overseer-3ce1dc22.mp3",
+      "text": "Someone counted the turns, in fives, long after anyone was watching.",
+      "use": "Lore memory: tally (memories.js)"
+    },
+    {
+      "id": "overseer-47c6d94d",
+      "kind": "voice",
+      "asset": "a_e556dd7886301e33",
+      "file": "public/play/audio/voice/overseer-47c6d94d.mp3",
+      "text": "Someone sat here, facing the land, waiting for something to arrive.",
+      "use": "Lore memory: chair (memories.js)"
+    },
+    {
+      "id": "overseer-24c65706",
+      "kind": "voice",
+      "asset": "a_22f45cd165420b07",
+      "file": "public/play/audio/voice/overseer-24c65706.mp3",
+      "text": "A small hand drew a barrel a smile, and called it a friend.",
+      "use": "Lore memory: drawing (memories.js)"
     }
   ]
 }

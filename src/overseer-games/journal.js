@@ -58,10 +58,10 @@
     { id: 'tally', n: 6, title: "Dolores's Tally of Turns", by: 'Dolores', at: [40.5, 28], text: ['Scratched into the rock, in fives: the rings, turning. The marks go back further than I have been here.', 'I was not counting. It is just a rock.'] },
     { id: 'chair', n: 9, title: 'The Beach Chair Facing Away From the Sea', by: 'Channel', at: [53, -5], text: ['Breaking: one chair. It faces the land, not the sea.', 'The seat is warm. It is always warm. Source of the warmth: unconfirmed. Ratings: record.'] },
     { id: 'drawing', n: 10, title: "Pip's First Drawing", by: 'Pip', at: [48.4, -15.4], text: ['A barrel with a face! Is that mine? I think it is mine!', 'It is very faded. Older than me, I think. I would remember drawing it. Hello, Barrel.'] },
-    { id: 'file', n: 7, title: "Channel's Dead-End File", by: 'Channel', at: null },
-    { id: 'tag', n: 8, title: 'A Fish Tag in an Unknown Number', by: 'the first fish', at: null },
-    { id: 'mirror2', n: 11, title: 'The Cracked Mirror', by: 'the hangar', at: null },
-    { id: 'page', n: 12, title: 'The Blank Page', by: 'the last page of the logbook', at: null },
+    { id: 'file', n: 7, title: "Channel's Dead-End File", by: 'Channel', at: null, text: ['Breaking: a tape of the "Who Was Here?" series. Every episode ends mid-sentence.', 'Source of the cut: unconfirmed. Ratings: still climbing.'] },
+    { id: 'tag', n: 8, title: 'A Fish Tag in an Unknown Number', by: 'the first fish', at: null, text: ['A small silver tag, no name, no number that means anything to anyone here.', 'It was inside a fish. The fish did not put it there.'] },
+    { id: 'mirror2', n: 11, title: 'The Cracked Mirror', by: 'the hangar', at: null, text: ['A standing mirror, cracked once down the middle. The hangar keeps it.', 'Nobody can say who stood in it. The glass does not answer.'] },
+    { id: 'page', n: 12, title: 'The Blank Page', by: 'the last page of the logbook', at: null, text: ['The last page of the logbook. Blank, until someone writes on it.', 'Then the island remembers what was written. That is all it says for now.'] },
   ].sort((a, b) => a.n - b.n);
   for (const l of LORE) l.art = `/play/journal/${l.id}.webp`; // the painted page (hawkes.library.json "journal-paintings")
 
@@ -107,7 +107,7 @@
     return fresh;
   }
   // The thing in the world each piece of lore is (sandbox.ts), so it can be seen and heard there.
-  const LORE_THING = { logbook: 'logbook', tally: 'lore_rock', receipt: 'lore_slip', chair: 'lore_chair', drawing: 'lore_drawing' };
+  const LORE_THING = { logbook: 'logbook', lamp: 'lamp_a', tally: 'lore_rock', receipt: 'lore_slip', chair: 'lore_chair', drawing: 'lore_drawing' };
   function loreThing(id) {
     const e = game.find ? game.find(LORE_THING[id] || `lore_${id}`) : null;
     return e && e.alive ? e : null;
