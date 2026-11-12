@@ -49,15 +49,16 @@ import { ISLAND_DESTRUCTION, runIslandDestruction } from './island-destruction.j
 import { FISHING_SHOWCASE, runFishingShowcase } from './fishing-showcase.js';
 import { ISLAND_ROUTINES, runIslandRoutines } from './island-routines.js';
 import { ISLAND_ALIVE, runIslandAlive } from './island-alive.js';
+import { SIDE_STORIES, runSideStories } from './side-stories.js';
 import { LANDING_CAMERA_FEEL, runLandingCameraFeel } from './landing-camera-feel.js';
 import { FIRST_LOAD, markPlayClick, runFirstLoad } from './first-load.js';
 import { OVERSEER_PRESENCE, runOverseerPresence } from './overseer-presence.js';
 import { WORLD_MEMORY, runWorldMemory } from './world-memory.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'firstvisit', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'memories', 'faces', 'alive', 'ovpres', 'touch', 'phoneperf', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'answer', 'progress', 'worldmem', 'models', 'wish', 'toeditor', 'editor', 'react', 'motion', 'mirrorlayout', 'hudoverlap', 'soundscape', 'hours', 'music', 'mix', 'ovsound', 'look', 'wind', 'water', 'destruction', 'impact', 'fishshow', 'routines', 'islandalive', 'firstload', 'gamemenu', 'landcam', 'castvoice', 'castfaces'];
+const STAGES = ['landing', 'veil', 'intro', 'firstvisit', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'memories', 'faces', 'alive', 'ovpres', 'touch', 'phoneperf', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'answer', 'progress', 'worldmem', 'models', 'wish', 'toeditor', 'editor', 'react', 'motion', 'mirrorlayout', 'hudoverlap', 'soundscape', 'hours', 'music', 'mix', 'ovsound', 'look', 'wind', 'water', 'destruction', 'impact', 'fishshow', 'routines', 'islandalive', 'sidestories', 'firstload', 'gamemenu', 'landcam', 'castvoice', 'castfaces', 'title'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'cast-voice': ['landing', 'veil', 'intro', 'mirror', 'castvoice'], 'cast-faces': ['landing', 'veil', 'intro', 'mirror', 'castfaces'], 'chapter-one-finale': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'finale'], 'character-motion': ['landing', 'veil', 'intro', 'motion'], 'landing-camera-feel': ['landing', 'veil', 'intro', 'mirror', 'landcam'], 'island-soundscape': ['landing', 'veil', 'intro', 'mirror', 'soundscape'], 'island-hours': ['landing', 'veil', 'intro', 'mirror', 'hours'], 'island-music': ['landing', 'veil', 'intro', 'mirror', 'music'], 'island-mix': ['landing', 'veil', 'intro', 'mirror', 'mix'], 'overseer-sound': ['landing', 'veil', 'ovsound'], 'island-look': ['landing', 'veil', 'intro', 'mirror', 'look'], 'island-wind': ['landing', 'veil', 'intro', 'mirror', 'wind'], 'island-impact': ['landing', 'veil', 'intro', 'mirror', 'impact'], 'island-water': ['landing', 'veil', 'intro', 'mirror', 'water'], 'island-destruction': ['landing', 'veil', 'intro', 'mirror', 'destruction'], 'fishing-showcase': ['landing', 'veil', 'intro', 'mirror', 'fishshow'], 'island-routines': ['landing', 'veil', 'intro', 'mirror', 'routines'], 'island-alive': ['landing', 'veil', 'intro', 'mirror', 'islandalive'], 'overseer-personality': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'react'], 'overseer-first-visit': ['landing', 'veil', 'firstvisit'], 'overseer-ask': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'answer'], 'gen-models-all': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-daily-wish': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wish'], 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'world-memory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'worldmem'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'vehicle-sound': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'vsound'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'lore-memories': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'memories'], 'phone-performance': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'phoneperf'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'editor-bridge': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'toeditor', 'editor'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'overseer-presence': ['landing', 'veil', 'intro', 'mirror', 'ovpres'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'mirror-panel-layout': ['landing', 'veil', 'intro', 'mirrorlayout'], 'hud-overlap': ['landing', 'veil', 'intro', 'hudoverlap'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'], 'game-menu': ['landing', 'veil', 'intro', 'mirror', 'gamemenu'] };
+const ORDERS = { 'sandbox-title': ['landing', 'veil', 'title'], 'cast-voice': ['landing', 'veil', 'intro', 'mirror', 'castvoice'], 'cast-faces': ['landing', 'veil', 'intro', 'mirror', 'castfaces'], 'chapter-one-finale': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'finale'], 'character-motion': ['landing', 'veil', 'intro', 'motion'], 'landing-camera-feel': ['landing', 'veil', 'intro', 'mirror', 'landcam'], 'island-soundscape': ['landing', 'veil', 'intro', 'mirror', 'soundscape'], 'island-hours': ['landing', 'veil', 'intro', 'mirror', 'hours'], 'island-music': ['landing', 'veil', 'intro', 'mirror', 'music'], 'island-mix': ['landing', 'veil', 'intro', 'mirror', 'mix'], 'overseer-sound': ['landing', 'veil', 'ovsound'], 'island-look': ['landing', 'veil', 'intro', 'mirror', 'look'], 'island-wind': ['landing', 'veil', 'intro', 'mirror', 'wind'], 'island-impact': ['landing', 'veil', 'intro', 'mirror', 'impact'], 'island-water': ['landing', 'veil', 'intro', 'mirror', 'water'], 'island-destruction': ['landing', 'veil', 'intro', 'mirror', 'destruction'], 'fishing-showcase': ['landing', 'veil', 'intro', 'mirror', 'fishshow'], 'island-routines': ['landing', 'veil', 'intro', 'mirror', 'routines'], 'island-alive': ['landing', 'veil', 'intro', 'mirror', 'islandalive'], 'side-stories': ['landing', 'veil', 'intro', 'mirror', 'sidestories'], 'overseer-personality': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'react'], 'overseer-first-visit': ['landing', 'veil', 'firstvisit'], 'overseer-ask': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'answer'], 'gen-models-all': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-daily-wish': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wish'], 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'world-memory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'worldmem'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'vehicle-sound': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'vsound'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'lore-memories': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'memories'], 'phone-performance': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'phoneperf'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'editor-bridge': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'toeditor', 'editor'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'overseer-presence': ['landing', 'veil', 'intro', 'mirror', 'ovpres'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'mirror-panel-layout': ['landing', 'veil', 'intro', 'mirrorlayout'], 'hud-overlap': ['landing', 'veil', 'intro', 'hudoverlap'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'], 'game-menu': ['landing', 'veil', 'intro', 'mirror', 'gamemenu'] };
 const SCENARIOS = [
   FIRST_LOAD, // Play click to the first frame and the first input, bytes before it, a clean WebGL console (first-load.js)
   LOADING_WRAPPER, // the loading wrapper on /play/sickofit (loading-wrapper.js)
@@ -87,6 +88,7 @@ const SCENARIOS = [
   ISLAND_SOUNDSCAPE, // ambience beds, footsteps by surface, interaction SFX, mute (island-soundscape.js)
   LANDING_CAMERA_FEEL, // landing dust/squash/sound/dip + camera-in-geometry walk (landing-camera-feel.js)
   ISLAND_ALIVE, // barks within 6 m, no 10 s of quiet on a beach-path-pier walk (island-alive.js)
+  SIDE_STORIES, // Bobbin/Ember/Rolo two-step favours after the pier (side-stories.js)
   ISLAND_ROUTINES, // clock-driven islander spots, face the player, no clip (island-routines.js)
   WORLD_QUALITY, // quality rules 1 to 4 on a world: ground contact, backwards words, z-fighting, inside out (world-quality.js)
   {
@@ -94,6 +96,11 @@ const SCENARIOS = [
     description: 'options: touch (true: ?touch=1 and at: "sandbox"; the stick and a tap), skipAfter (seconds before the skip, 8.5). Landing, Play click, the click-to-enter veil, then the first move (first-move: real W or stick input, within 5000 ms of intro-start; control-given), each line captioned with the Overseer\'s name in the letterbox bar or on a phone plate (intro-caption, clear of the controls) and voiced (intro-voice), one key or tap skipping the rest (skip-control-back: control and the camera behind the player), a guest then at the mirror with no first-thing card (mirror-open-after-intro, no-ask-card); signed in, the card that starts building (build-prompt-shown, build-prompt-used). The old scenario watched to the end with no key pressed: the Overseer\'s lines (overseer-said, greeting-lines needs three or more), then the card that starts building (build-prompt-shown) and a real click on it opens the chat to the Overseer (build-prompt-used); the intro\'s flag is kept and the intro is no longer wanted (return-skips-intro). Sign-in and credits are not touched. Never signs up.',
   },
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
+  {
+    id: 'sandbox-title', title: 'Island title screen: fly-over, logo, first input starts the theme, Play swoops to control', seconds: 90, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'options: touch (true: 390x844, ?touch=1). Landing or at:sandbox, then the title fly-over (logo within 3 s), first key/tap starts the theme and shows Play/Continue within 1 s, Play swoops to the intro or control within 3 s. Phone: logo top third, Tap to start bottom third, fly-over ≥30 fps. Metrics titleLogoMs, titleThemeMs, titlePlayMs, titleFlyFps.',
+  },
   {
     id: 'overseer-ask', title: 'Ask the Overseer: an answer shows in the chat within 90 s; a failed or silent ask is a plain message with Retry and no spinner; the next ask works at once', seconds: 480, tags: ['full'],
     starts: ['sandbox'],
@@ -432,15 +439,116 @@ async function stageVeil(t, ctx) {
   t.event('world-ready');
   t.scene('Sandbox: world ready');
   t.progress(0.14);
-  // Where sound is already allowed there is no veil: the intro just starts.
-  const veil = await t.until(() => $('.hp-enter button') || (G() && G().overseer && G().overseer.introPlaying), 12000, 'the click-to-enter veil or the intro').then(() => $('.hp-enter button'), () => null);
-  if (!veil) { t.event('veil-skipped', 'sound already allowed; the intro went on'); return; }
+  const firstFrameAt = performance.now();
+  // Title screen (live fly-over) or the legacy Enter veil, else the intro already running.
+  const titleOrVeil = await t.until(() =>
+    document.querySelector('.hp-title [data-prompt], .hp-title [data-play], .hp-title [data-continue], .hp-enter button')
+    || (G() && G().overseer && (G().overseer.titlePlaying || G().overseer.introPlaying)),
+  16000, 'the title screen, Enter veil, or the intro').then(() =>
+    document.querySelector('.hp-title [data-prompt], .hp-title [data-play], .hp-title [data-continue], .hp-enter button'),
+  () => null);
+  if (!titleOrVeil) { t.event('veil-skipped', 'sound already allowed; the intro went on'); return; }
+
+  // ---- Island title screen (replaces the opaque Enter veil on /play/sandbox)
+  if (document.querySelector('.hp-title')) {
+    await t.until(() => {
+      const logo = document.querySelector('.hp-title .hp-title-logo');
+      if (!logo) return false;
+      const cs = getComputedStyle(logo);
+      return Number(cs.opacity) > 0.6;
+    }, 5000, 'the title logo to be visible');
+    const logoMs = Math.round(performance.now() - firstFrameAt);
+    t.metric('titleLogoMs', logoMs);
+    if (logoMs > 3000) t.problem('bug', `title logo took ${logoMs} ms (need within 3 s of first frame)`);
+    t.scene('Title: fly-over');
+    t.event('title-logo', `logo visible in ${logoMs} ms`);
+    t.event('veil-shown', 'title screen');
+
+    const touch = Boolean(ctx.options && ctx.options.touch);
+    const logoEl = document.querySelector('.hp-title .hp-title-logo');
+    const promptEl = document.querySelector('.hp-title [data-prompt]');
+    if (logoEl) {
+      const r = logoEl.getBoundingClientRect();
+      if (r.width < 8 || r.height < 8 || r.top < -4 || r.bottom > innerHeight + 4) {
+        t.problem('bug', 'title logo not fully on screen');
+      }
+    }
+    if (promptEl && !promptEl.hidden) {
+      const r = promptEl.getBoundingClientRect();
+      if (r.width < 8 || r.height < 40 || r.top < -4 || r.bottom > innerHeight + 4) {
+        t.problem('bug', 'Tap to start / Press any key not fully on screen');
+      }
+      if (touch && r.top < innerHeight * 0.45) t.problem('warning', 'Tap to start should sit in the lower third on a phone');
+    }
+    if (touch) t.event('title-phone-layout', 'logo top / tap bottom checked');
+
+    // Sample fps during the fly-over (phone criterion: ≥30).
+    const fpsSamples = [];
+    let lastF = performance.now();
+    const fpsFor = 900;
+    const fpsT0 = performance.now();
+    while (performance.now() - fpsT0 < fpsFor) {
+      await new Promise((r) => requestAnimationFrame(r));
+      const now = performance.now();
+      fpsSamples.push(1000 / Math.max(1, now - lastF));
+      lastF = now;
+    }
+    const flyFps = fpsSamples.length ? Math.round(fpsSamples.reduce((a, b) => a + b, 0) / fpsSamples.length) : 0;
+    t.metric('titleFlyFps', flyFps);
+    if (touch && flyFps < 30) t.problem('bug', `title fly-over ${flyFps} fps (need ≥30 on phone)`);
+    t.event('title-fly-fps', `${flyFps} fps`);
+
+    let musicHeard = false;
+    const onMusic = (d) => { if (d && d.name && /^music-|^meadow/.test(d.name)) musicHeard = true; };
+    try { if (G()) G().on('music-start', onMusic); } catch { /* fine */ }
+    const inputAt = performance.now();
+    if (promptEl && !promptEl.hidden) {
+      if (touch) await tapButton(t, promptEl);
+      else { promptEl.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' })); promptEl.click(); }
+    } else {
+      await tap(t, ' ');
+    }
+    await t.until(() => document.querySelector('.hp-title [data-play], .hp-title [data-continue]'), 5000, 'Continue / Play after first input');
+    // Theme must start within 1 s of the gesture (gateway → sandbox kickPlay → music-start).
+    await t.until(() => musicHeard || (HP() && HP().audio && HP().audio.context && HP().audio.context.state === 'running'), 2000, 'the clearing theme after first input').catch(() => null);
+    const themeMs = Math.round(performance.now() - inputAt);
+    t.metric('titleThemeMs', themeMs);
+    if (!musicHeard && themeMs > 1000) t.problem('bug', `theme after input took ${themeMs} ms or never started (need within 1 s)`);
+    else if (themeMs > 1000) t.problem('warning', `menu after input took ${themeMs} ms`);
+    t.event('title-input', `menu in ${themeMs} ms; theme ${musicHeard ? 'heard' : 'audio unlocked'}`);
+    t.event('veil-passed', 'title first input');
+    t.scene('Title: menu');
+    t.progress(0.16);
+    try { if (G() && G().off) G().off('music-start', onMusic); } catch { /* fine */ }
+
+    const playBtn = document.querySelector('.hp-title [data-continue], .hp-title [data-play]');
+    const playAt = performance.now();
+    if (touch) await tapButton(t, playBtn);
+    else { playBtn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' })); playBtn.click(); }
+    await t.until(() => !document.querySelector('.hp-title') || (G() && G().overseer && G().overseer.introPlaying)
+      || (W() && W().player && W().player.controls), 8000, 'Play to swoop / intro / control');
+    const playMs = Math.round(performance.now() - playAt);
+    t.metric('titlePlayMs', playMs);
+    if (playMs > 3000) t.problem('bug', `Play to control/intro took ${playMs} ms (need within 3 s)`);
+    t.event('title-play', `control/intro in ${playMs} ms`);
+    return;
+  }
+
+  // ---- Legacy Enter veil (non-sandbox worlds)
   t.scene('Entry veil');
   t.event('veil-shown', 'Enter');
   await t.wait(1200);
-  veil.click();
+  titleOrVeil.click();
   t.event('veil-passed', 'clicked Enter');
   await t.until(() => !$('.hp-enter'), 8000, 'the veil to fade after Enter (the sound did not unlock?)');
+}
+
+/** After stageVeil has driven the title: mark complete and end (sandbox-title scenario). */
+async function stageTitle(t, ctx) {
+  t.scene('Title: done');
+  t.event('title-complete', 'fly-over, first input, Play swoop checked in veil stage');
+  t.progress(1);
+  if (ctx.id === 'sandbox-title') return 'stop';
 }
 
 /** What the page fetched so far: Babylon, the loaders and Havok's wasm come from our own /vendor, nothing from a CDN. */
@@ -3740,7 +3848,7 @@ async function stagePhonePerf(t, ctx) {
 const RUN = {
   models: stageModels,
   hats: stageHats,
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, firstvisit: stageFirstVisit, mirror: stageMirror, mirrorlayout: stageMirrorLayout, hudoverlap: stageHudOverlap, sheet: stageSheet, asks: stageAsks, answer: stageAnswer, toeditor: stageToEditor, editor: stageEditor, pier: stagePier, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, finale: stageFinale, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, vsound: stageVehicleSound, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, memories: stageMemories, faces: stageFaces, progress: stageProgress, wish: stageWish, react: stageReact, alive: stageAlive, touch: stageTouch, phoneperf: stagePhonePerf, motion: runCharacterMotion, soundscape: (t, ctx) => runIslandSoundscape(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), hours: (t, ctx) => runIslandHours(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, stickHold, tapButton, $, options: ctx && ctx.options }), wind: (t, ctx) => runIslandWind(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, stickHold, tapButton, $, options: ctx && ctx.options }), look: (t, ctx) => runIslandLook(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, stickHold, tapButton, $, options: ctx && ctx.options }), music: (t, ctx) => runIslandMusic(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), islandalive: (t, ctx) => runIslandAlive(t, { setKeys, lookAt, camYaw, releaseAll, stickHold, dragLook, options: ctx && ctx.options }), routines: (t, ctx) => runIslandRoutines(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), landcam: (t, ctx) => runLandingCameraFeel(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), leave: stageLeave, back: stageBack,
+  landing: stageLanding, veil: stageVeil, title: stageTitle, intro: stageIntro, firstvisit: stageFirstVisit, mirror: stageMirror, mirrorlayout: stageMirrorLayout, hudoverlap: stageHudOverlap, sheet: stageSheet, asks: stageAsks, answer: stageAnswer, toeditor: stageToEditor, editor: stageEditor, pier: stagePier, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, finale: stageFinale, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, vsound: stageVehicleSound, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, memories: stageMemories, faces: stageFaces, progress: stageProgress, wish: stageWish, react: stageReact, alive: stageAlive, touch: stageTouch, phoneperf: stagePhonePerf, motion: runCharacterMotion, soundscape: (t, ctx) => runIslandSoundscape(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), hours: (t, ctx) => runIslandHours(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, stickHold, tapButton, $, options: ctx && ctx.options }), wind: (t, ctx) => runIslandWind(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, stickHold, tapButton, $, options: ctx && ctx.options }), look: (t, ctx) => runIslandLook(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, stickHold, tapButton, $, options: ctx && ctx.options }), music: (t, ctx) => runIslandMusic(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), islandalive: (t, ctx) => runIslandAlive(t, { setKeys, lookAt, camYaw, releaseAll, stickHold, dragLook, options: ctx && ctx.options }), sidestories: (t, ctx) => runSideStories(t, { setKeys, lookAt, camYaw, releaseAll, stickHold, dragLook, tapButton, touchEv, HOOKS, options: ctx && ctx.options }), routines: (t, ctx) => runIslandRoutines(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), landcam: (t, ctx) => runLandingCameraFeel(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), leave: stageLeave, back: stageBack,
   castfaces: (t, ctx) => runCastFaces(t, { setKeys, lookAt, camYaw, releaseAll, stickHold, dragLook, touchEv, options: ctx && ctx.options }),
   castvoice: (t, ctx) => runCastVoice(t, { setKeys, lookAt, camYaw, releaseAll, HOOKS, touchEv, tapButton, stickHold, options: ctx && ctx.options }),
   impact: (t, ctx) => runIslandImpact(t, { setKeys, releaseAll, stickHold, press, pointer, canvas, dragLook, HOOKS, $, options: ctx && ctx.options }),
@@ -3812,7 +3920,7 @@ RUN.firstload = (t, ctx) => runFirstLoad(t, ctx, { W, G, HP, setKeys, stickHold,
 const legSeq = (id, prior) => (id === 'editor-bridge' && prior && prior.leg === 'editor' ? ['editor'] : id === 'island-invite' && prior && (prior.leg === 'gone' || prior.leg === 'own') ? [prior.leg] : null);
 
 ORDERS['first-load'] = ['landing', 'veil', 'firstload'];
-const ENDS = { 'cast-voice': 'castvoice', 'cast-faces': 'castfaces', 'chapter-one-finale': 'finale', 'first-load': 'firstload', 'hud-overlap': 'hudoverlap', 'mirror-panel-layout': 'mirrorlayout', 'character-motion': 'motion', 'landing-camera-feel': 'landcam', 'island-soundscape': 'soundscape', 'island-hours': 'hours', 'island-music': 'music', 'island-look': 'look', 'island-wind': 'wind', 'island-impact': 'impact', 'island-water': 'water', 'island-destruction': 'destruction', 'fishing-showcase': 'fishshow', 'island-mix': 'mix', 'overseer-sound': 'ovsound', 'island-routines': 'routines', 'island-alive': 'islandalive', 'overseer-personality': 'react', 'overseer-presence': 'ovpres', 'overseer-first-visit': 'firstvisit', 'island-invite-friend': 'farrive', 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', 'world-memory': 'worldmem', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-pier-marker': 'pier', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'lore-memories': 'memories', 'ask-the-overseer': 'asks', 'overseer-ask': 'answer', 'editor-bridge': 'editor', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'phone-performance': 'phoneperf', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models', 'gen-hats': 'hats' };
+const ENDS = { 'sandbox-title': 'title', 'cast-voice': 'castvoice', 'cast-faces': 'castfaces', 'chapter-one-finale': 'finale', 'first-load': 'firstload', 'hud-overlap': 'hudoverlap', 'mirror-panel-layout': 'mirrorlayout', 'character-motion': 'motion', 'landing-camera-feel': 'landcam', 'island-soundscape': 'soundscape', 'island-hours': 'hours', 'island-music': 'music', 'island-look': 'look', 'island-wind': 'wind', 'island-impact': 'impact', 'island-water': 'water', 'island-destruction': 'destruction', 'fishing-showcase': 'fishshow', 'island-mix': 'mix', 'overseer-sound': 'ovsound', 'island-routines': 'routines', 'island-alive': 'islandalive', 'side-stories': 'sidestories', 'overseer-personality': 'react', 'overseer-presence': 'ovpres', 'overseer-first-visit': 'firstvisit', 'island-invite-friend': 'farrive', 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', 'world-memory': 'worldmem', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-pier-marker': 'pier', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'lore-memories': 'memories', 'ask-the-overseer': 'asks', 'overseer-ask': 'answer', 'editor-bridge': 'editor', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'phone-performance': 'phoneperf', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models', 'gen-hats': 'hats' };
 
 
 // ---------------------------------------------------------------------------------------------- share-moment

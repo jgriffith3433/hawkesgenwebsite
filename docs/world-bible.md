@@ -32,8 +32,59 @@
 - **Dolores** (a deadpan cactus on Helipad Hill, voiced in Matilda): stands near the helipad with a dry cactus rustle, insists she was not waiting while remembering everything the player did, and waves them onto the helicopter pad.
 - **Channel** (a fast-talking TV robot on Fuel Beach, voiced in Daniel): covers explosions and island happenings as breaking news with a TV blip for "record" ratings on his own screen.
 - **Barks (all five, 2026-11-11)**: walking past, whoever you come within about 6 m of (and can see) stops, turns head and body to you and says one short, captioned bark in their own recorded voice; the caption sits over their head and in the chat. Each has 8 or 9 barks chosen by what is true: the first meeting, the rod in your hands, the drive just done, the barrels just blown (or a fish just caught), else an ordinary line. Never the same bark within 5 minutes, one bark per islander a minute, one voice at a time. The words never contain a name or what the mirror made you, so each has a recording.
+- **Side favours (Bobbin, Mrs Ember, Rolo, after the pier quest)**: each asks once in voice for a two-step errand (boat+fish, carry letter+boom, drive+boom), points at a golden world marker, then reacts with salute / wave / shrug and a wardrobe gift. Journal **Favours** section. Playtest `side-stories`.
 - **Alive faces (Pip and the five, 2026-11-12)**: while they speak, their mouths open on the voice (analyser-driven lip flap), they blink every few seconds, turn their heads to follow you within 6 m, and about half the barks (or more) come with an upper-body gesture — point, wave, shrug, laugh, salute — with the feet planted. Small idle life when standing still. On a phone only the 3 nearest friends run it (the speaker always counts). `presence-alive.js`; playtest `cast-faces`.
 - **Island wildlife**: an eight-strong **sheep herd** grazing the northern meadow (`[8, 30]`), a five-strong **cow herd** on the south-western grass (`[-14, -26]`), **saltwater fish** (tuna, snapper, salmon, swordfish) schooling off the pier, a bobbing **rubber duck** in the harbour (`[77, -4]`), and **shore gulls** calling near the water.
+
+## Characters
+
+### Pip
+- Want: to try everything on the island, with company beside them.
+- Arc: Ch.1 the joyous guide; Ch.2 goes quiet at the old pier; Ch.3 asks where they came from and chooses the island anyway.
+- Moment: points east and the camera flies to the glowing fishing rod as the tour begins.
+- Personality: bright, breathless, warm.
+- Voice: gv_563f7380cfb0dd4a
+- Animations: idle, walk, talk; point and cheer on tour beats.
+
+### Admiral Bobbin
+- Want: a proper fleet, and to be saluted.
+- Arc: Ch.1 rates your boat; Ch.2 promotes "the fleet"; Ch.3 admits the logbook has older handwriting.
+- Moment: after the pier quest, his favour — take the boat out, catch a fish, earn a salute and a medal (`favours.js`).
+- Personality: pompous, proud, soft-hearted.
+- Voice: gv_d11b25da2a8a8a60
+- Animations: idle, walk, talk; salute on favour payoff and barks.
+
+### Mrs Ember
+- Want: for every letter to reach someone, even ones nobody sent.
+- Arc: Ch.1 hands the first letter; Ch.2 finds sender-less mail; Ch.3 sends one back and gets an answer.
+- Moment: after the pier quest, her favour — carry a letter to the beach chair, then a boom so Channel notices (`favours.js`).
+- Personality: dry, motherly, apologetic.
+- Voice: gv_a3fcc5a04bf9ea6a
+- Animations: idle, walk, talk; wave on favour payoff; shrug on weather barks.
+
+### Rolo
+- Want: to fix the one thing he cannot (he will not say what).
+- Arc: Ch.1 patches the 4x4; Ch.2 faces the door in the hill; Ch.3 opens it with you.
+- Moment: after the pier quest, his favour — drive the 4x4 to the barrels, blow them for scrap, get an antenna (`favours.js`).
+- Personality: mild, few-words, kind.
+- Voice: gv_05b19c31d81a9d31
+- Animations: idle, walk, talk; shrug on favour payoff and repair estimates.
+
+### Dolores
+- Want: to be left alone, but near people.
+- Arc: Ch.1 watches the climb; Ch.2 knows the sphere's turning; Ch.3 says the sky was different before.
+- Moment: walking up to her on the hill unlocks the helicopter pad.
+- Personality: blunt, deadpan, tender.
+- Voice: gv_7cfde788dea2a5cd
+- Animations: idle, walk, talk; nod when she greets you.
+
+### Channel
+- Want: a story worth the broadcast.
+- Arc: Ch.1 covers your first boom; Ch.2 hits dead ends on "Who Was Here?"; Ch.3 gets the story and waits for you to air it.
+- Moment: live report when the beach barrels chain-explode.
+- Personality: urgent, dramatic, earnest.
+- Voice: gv_880bf028e8ff7207
+- Animations: idle, walk, talk; explain gesture on breaking-news barks.
 
 ## Ground and finish (canon for builders)
 
@@ -58,6 +109,7 @@ face from one of eight camera angles.
 
 ## Story beats
 
+0. **Title over the island** (*before the beginning, every visit*): a live attract camera glides the real island at golden hour (clearing → beach → pier → hangar look → start) with soft depth of field while the Hawkes Games lockup settles in; *Press any key* / *Tap to start* pulses; the first input unlocks audio and starts the clearing theme, then Continue (returning players), New island and Settings. Choosing Play swoops the camera to the player with a whoosh (1.5–2.5 s) and hands off to the Gift of Free Will (or straight into a return). Reference: Sea of Thieves outpost title. Code `modules/overseer/title.js`; playtest `sandbox-title`.
 1. **The Gift of Free Will** (*The Clearing, first arrival*): camera tilts up from the grass to the Overseer sphere in the sky as a presence swell and the wonder leitmotif land, a beam of light brings the player into the world (its hum swelling as you step near), and the Overseer speaks its treated voiced greeting (*"You found your way. Good. I have given you the power of free will. Do with it what you will. Ask, and I will send it down."*).
 2. **Who Are You?** (*The Mirror, right after arrival*): camera glides over the player's shoulder to their live reflection while the Overseer voices each question (*What are you? How do you look? What are you called?*); Pip walks over and greets the Newly Free by name.
 3. **Pip Shows the Pier** (*From Pip down Gravel Road to Pip's Pier, tour start*): Pip turns east and speaks one short voiced line (*"The rod is at the very end of the pier!"*) while the cinematic camera flies from Pip down Gravel Road, crests the ridge over the bay, sweeps along the wooden pier and holds on the fishing rod as a soft pulsing golden light and particle shimmer bloom around it — staying lit so the player can drive to the beach, spot the glow from shore without reading text, and walk out to claim the rod in a chime and burst of light.
@@ -69,6 +121,7 @@ face from one of eight camera angles.
 8. **Rolo's Rocket & The Lit Bay** (*Rolo's Launch Pad to 1,000 m altitude*): Rolo points out the rocket under a standing Overseer beam; filling its tank (`E`) and burning past 1,000 m reveals the whole curved planet below while the Overseer turns its open hull bay toward the player and flares twice in the sky, closing Chapter One on Pip's *"Huh. That's new."* and the Overseer's *"It is yours, if you come."*
 9. **The Hangar Opens** (*The Overseer's hangar, after Rolo's rocket docks*): the back wall's doors grind open with light spilling across the floor and a chord swelling; Pip, Bobbin, Mrs Ember, Rolo, Dolores and Channel are beamed in, walk to the player and each say one voiced line; the Overseer pays off its first words (*"I gave you free will, and told you a shoe would do. It would have. You did better."*); control returns and the player lights the sky themselves (the big button, E or a tap); fireworks, the *Chapter One complete* title, and a five-second tease: a lamp lit on the far shore, *"I did not light that one."* Once per device; replay in the journal (`finale.js`, docs/story.md 5c).
 10. **World marks** (*each quest spot, lasting*): finishing a tour quest leaves a grounded change the player can see on the next look and the next visit — yellow road chevrons on Gravel Road; warmer pier lamps and a turquoise fish mural on the pier; a fenced blast site with a *BLAST SITE* sign on Fuel Beach; a glowing arrival pad in the Clearing; an orange ribbon on Mrs Ember's mailbox; a three-stone cairn by Dolores; a windsock and helipad rim lights; a cyan banner and pad lights at Rolo's launch. Each appears with a sparkle, the quest chime and a nearby islander's voiced cheer. Kept in Overseer memory `marks` and scene `chapterMarks`; a return pans the camera across the newest for 3–5 s (`world-marks.js`, playtest `world-memory`).
+11. **Side favours** (*after the pier quest, any order*): Bobbin's fleet entry (boat then fish, salute + medal), Mrs Ember's letter (carry to the beach chair then a boom, wave + stamp-flower), Rolo's scrap run (drive to barrels then boom, shrug + antenna and cyan 4x4). World markers only; journal Favours section (`favours.js`, docs/story.md 5d).
 
 ## Music (design, 2026-11-11)
 The island's music follows the player (`src/overseer-games/sandbox.js`, "The music"). Themes are community-library assets by name, crossfaded over 2.5 s: **clearing** (`music-clearing.mp3`, calm, warm, a soft piano and plucked strings, the Overseer's beam-in feeling), **road and beach** (`music-road.mp3`, the same tune with a light walking beat and guitar, from x 38), **pier and sea** (`music-pier.mp3`, slower, open, a low drone and bell tones, from x 65), a **driving layer** (`music-drive.mp3`, a pulse that fades in while in a vehicle). Five short stingers, one per tour first, each played once: `stinger-first-drive.mp3`, `stinger-first-catch.mp3`, `stinger-barrel-chain.mp3`, `stinger-helicopter-view.mp3`, `stinger-rocket-launch.mp3`. Budget: under 3 MB in all, a theme asked for only when the player nears its area. Music dips under every Overseer and Pip line (`H.audio.duck`). Until the files are generated and added, the old meadow loop plays and stingers log `stinger-missing`.

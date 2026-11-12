@@ -25,6 +25,10 @@ that's it. That's the whole story."*
   and above the atmosphere there is space, the planet below, and the Overseer.
 - **The beginning:** the Overseer beams you down, and while you look up at it in the sky it tells you: *"I have given you
   the power of free will. Do with it what you will."* That is the whole story. Everything after that is the player's.
+- **The title screen (2026-11-12):** Pressing Play opens on a title over a live fly-over of the island at golden hour
+  (clearing, beach, pier, hangar, Overseer), not an opaque Enter veil. The Hawkes Games lockup rises, then *Press any
+  key* / *Tap to start*; the first input starts the clearing theme and offers Continue (returning), New island and
+  Settings. Play swoops the camera into the player's hands, then the beginning above (or a return with no intro).
 - **The mirror (J, 2026-10-24):** the first thing a player does with free will is decide who they are. Right after the
   beginning, before anyone greets them, they stand in front of a mirror and the Overseer asks: *"What are you?"* (an
   animal, a robot, a shoe, a toaster...), *"How do you look?"* and *"What are you called?"*. It's funny on purpose, and
@@ -161,6 +165,18 @@ When Rolo's rocket settles on the pad in the Overseer's hangar (the first dockin
 6. **The tease.** Five seconds at the bay's mouth: a pale lamp lights on the far shore, blinks twice, with a thin column of light, under a low dark motif. The Overseer, one line: *"I did not light that one."* (It only hints at hint 1 of section 4: someone built before. It does not say who or why.) Control is back at once.
 
 Kept once per device (`hg_chapter_one`); the journal's Chapter One has "Replay the end of Chapter One" once it has played (works where the hangar is, else the Overseer asks for the rocket to come back to the bay). Ten new recordings (`public/play/audio/voice`, filed in `hawkes.library.json` `voiceLines`; Pip in Jessica, the rest as 5b); the music is synthesized in the engine. Playtest `chapter-one-finale`.
+
+#### 5d. Side favours (built: `src/overseer-games/favours.js`)
+
+After the pier quest (*The sea gives*), three neighbours each have one short personal favour — BotW-style: a voiced ask grown from their want and running joke, two steps that use verbs the island already has, shown by a world marker and the islander pointing (no text panel), then walk back for a voiced payoff with a reaction gesture and a gift. Unlock is quiet: once the fish quest is done, walking near Bobbin, Mrs Ember or Rolo and tapping the action button (E / phone) starts their favour. One favour at a time. Ember's boom makes Channel notice live. Barks still obey the 5-minute no-repeat rule.
+
+| Who | Want / joke | Ask (voiced) | Step 1 | Step 2 | Payoff | Gift |
+|---|---|---|---|---|---|---|
+| **Admiral Bobbin** | A proper fleet; the logbook always lists the same boat with a longer name | *The log needs a new name. Take the boat out, then catch me a fish. Salute optional.* | Take the speedboat out (drive) | Catch a fish | Salute; *Fleet of two. Logbook updated. Same boat, longer name. Carry on.* | Wardrobe: harbour medal |
+| **Mrs Ember** | Every letter reaches someone; forecasts are right and she apologises | *A letter for the beach, dear. Carry it to the chair, then a small boom so he notices. Sorry.* | Carry her letter to the beach chair | A small boom (blast the barrels) so Channel notices | Wave; *It reached him. Forecast: clear. Sorry. Take this stamp.* | Wardrobe: stamp-flower |
+| **Rolo** | Fix things; estimates in wobbles and small tuesdays | *huh. need scrap. drive the 4x4 to the barrels. then blow them. estimate: two wobbles.* | Drive the 4x4 to the barrels | Blow the barrels | Shrug; *huh. that was a small tuesday. take this. mostly fine.* | Wardrobe: antenna; 4x4 painted cyan |
+
+Journal gains a **Favours** section (done / active / locked). Events: `favour-ask`, `favour-step`, `favour-payoff`, `favour-gift`. Playtest `side-stories` (touch at 390x844). Voice clips in `public/play/audio/voice` from the cast ids in `cast.json`.
 
 #### 6. Three later chapters
 

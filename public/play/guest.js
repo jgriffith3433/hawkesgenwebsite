@@ -35,7 +35,7 @@
 // signup_open, sandbox_signup, sandbox_claimed.
 // The funnel, in order, each with `ms` (since the page loaded; track() adds it) and nothing personal (no email, name or
 // password; failures give a reason code): sandbox_open (landing page) > sandbox_scripts_ready > sandbox_world_built >
-// sandbox_first_frame > sandbox_start > sandbox_veil_shown > sandbox_veil_passed > sandbox_intro_start >
+// sandbox_first_frame > sandbox_start > sandbox_veil_shown > sandbox_veil_passed (title screen: fly-over, then Play) > sandbox_intro_start >
 // sandbox_intro_skip | sandbox_intro_end > sandbox_mirror_open > sandbox_mirror_answer {step} | sandbox_mirror_skip {step} >
 // sandbox_sheet_shown > sandbox_sheet_focus {field} > sandbox_google_popup {opened} > sandbox_signup_submit {mode} >
 // sandbox_signup_ok {mode, method} | sandbox_signup_failed {mode, reason} > sandbox_tour_start > sandbox_tour_step {step, n}
@@ -1357,6 +1357,17 @@
     async boot(o = {}) {
       const t0 = performance.now();
       const q = new URLSearchParams(location.search);
+      // Title screen "New island": wipe the local beginning and any kept island so the full intro+mirror plays again.
+      if (q.get('fresh') === '1') {
+        try {
+          localStorage.removeItem('hg_overseer_intro');
+          localStorage.removeItem(RET);
+          localStorage.removeItem(KEPT);
+        } catch { /* fine */ }
+        const keepTouch = q.get('touch');
+        history.replaceState(null, '', '/play/sandbox' + (keepTouch ? '?touch=' + keepTouch : ''));
+        q.delete('fresh');
+      }
       const intent = q.get('claim');
       if (intent) {
         history.replaceState(null, '', '/play/sandbox' + (q.get('touch') ? '?touch=' + q.get('touch') : ''));

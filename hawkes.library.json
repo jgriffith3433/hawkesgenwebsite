@@ -330,6 +330,18 @@
       "file": "public/play/sky/night-4k.webp",
       "file2k": "public/play/sky/night-2k.webp",
       "use": "painted 360 sky panorama (skypaint.js)"
+    },
+    {
+      "id": "title-logo",
+      "kind": "image",
+      "name": "Hawkes Games title lockup",
+      "asset": "a_b997991d71ac754f",
+      "source": "a_9a4305c22f4eb668",
+      "job": "j_799d1afb25a3",
+      "cutout": "j_cd3f8236d628",
+      "import": "a_467b350b8636aa11",
+      "file": "public/play/brand/hawkes-games-title.webp",
+      "use": "Island title screen lockup over the live fly-over (modules/overseer/title.js); CSS wordmark remains the fallback if the file 404s"
     }
   ],
   "voiceLines": [

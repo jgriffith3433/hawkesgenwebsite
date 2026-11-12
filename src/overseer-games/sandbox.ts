@@ -357,5 +357,5 @@ export const SANDBOX = {
   },
 };
 
-/** The guide (Pip, the rewards, the Overseer's words, music and the sea): src/overseer-games/sandbox.js; the islanders' lines: islanders.js; the journal and its lore: journal.js; the end of Chapter One in the hangar: finale.js; lasting quest marks: world-marks.js. */
-export const sandboxScript = () => ['sandbox.js', 'islanders.js', 'memories.js', 'journal.js', 'finale.js', 'world-marks.js'].map((f) => fs.readFileSync(path.join(HERE, f), 'utf8').replace(/\r\n/g, '\n')).join('\n');
+/** The guide (Pip, the rewards, the Overseer's words, music and the sea): src/overseer-games/sandbox.js; the islanders' lines: islanders.js; side favours: favours.js; the journal and its lore: journal.js; the end of Chapter One in the hangar: finale.js; lasting quest marks: world-marks.js. */
+export const sandboxScript = () => ['sandbox.js', 'islanders.js', 'favours.js', 'memories.js', 'journal.js', 'finale.js', 'world-marks.js'].map((f) => fs.readFileSync(path.join(HERE, f), 'utf8').replace(/\r\n/g, '\n')).join('\n');

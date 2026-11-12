@@ -83,10 +83,22 @@ async function oneSize(t, { w, h, label, framed }) {
     }, 120000, `${label}: the island to load`);
     t.event('world-ready', label);
 
-    const veilBtn = await until(() => $('.hp-enter button') || (win.HawkesPlay && win.HawkesPlay.game && win.HawkesPlay.game.overseer && win.HawkesPlay.game.overseer.introPlaying), 20000, `${label}: veil or intro`)
-      .then(() => $('.hp-enter button'), () => null);
-    if (veilBtn) {
-      tap(veilBtn, win);
+    const gate = await until(() =>
+      $('.hp-title [data-prompt], .hp-title [data-play], .hp-title [data-continue], .hp-enter button')
+      || (win.HawkesPlay && win.HawkesPlay.game && win.HawkesPlay.game.overseer && (win.HawkesPlay.game.overseer.titlePlaying || win.HawkesPlay.game.overseer.introPlaying)),
+    20000, `${label}: title, veil or intro`).then(() =>
+      $('.hp-title [data-prompt], .hp-title [data-play], .hp-title [data-continue], .hp-enter button'),
+    () => null);
+    if (gate && gate.closest && gate.closest('.hp-title')) {
+      const prompt = $('.hp-title [data-prompt]');
+      if (prompt && !prompt.hidden) tap(prompt, win);
+      await until(() => $('.hp-title [data-play], .hp-title [data-continue]'), 8000, `${label}: title Play`);
+      const play = $('.hp-title [data-continue], .hp-title [data-play]');
+      if (play) tap(play, win);
+      await until(() => !$('.hp-title'), 10000, `${label}: title to leave`);
+      t.event('veil-passed', label);
+    } else if (gate) {
+      tap(gate, win);
       await until(() => !$('.hp-enter'), 10000, `${label}: veil to leave`);
       t.event('veil-passed', label);
     }
