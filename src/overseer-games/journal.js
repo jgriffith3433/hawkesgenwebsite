@@ -152,6 +152,7 @@
       quests: questList(),
       done: questList().filter((q) => q.state === 'done' || q.state === 'skipped').length,
       cast: CAST.map((c) => ({ ...c, met: k.met.has(c.id) })),
+      finale: Boolean(window.__island && window.__island.finale && window.__island.finale.isDone()),
       lore: LORE.map((l) => ({ id: l.id, n: l.n, title: l.title, by: l.by, found: k.lore.has(l.id), here: Boolean(l.at), text: k.lore.has(l.id) ? l.text : null })),
     };
   };
@@ -162,7 +163,7 @@
     const found = m.lore.filter((l) => l.found).length;
     const ls = m.lore.map((l) => (l.found ? `<li class="jr-l"><i>${esc(l.title)}</i> <em>${esc(l.by)}</em><span>${l.text.map(esc).join(' ')}</span></li>` : `<li class="jr-l unfound"><i>? ${l.n}.</i> <em>Not yet found${l.here ? '' : '. It is not on this island yet.'}</em></li>`)).join('');
     return `<div class="jr-head"><b>Journal</b><button type="button" class="jr-x" aria-label="Close the journal">×</button></div><div class="jr-body">`
-      + `<h4>Chapter One: What Are You? <small>${m.done} of 8</small></h4><ul>${qs}</ul>`
+      + `<h4>Chapter One: What Are You? <small>${m.done} of 8</small></h4><ul>${qs}</ul>${m.finale ? '<button type="button" class="jr-replay">▶ Replay the end of Chapter One</button>' : ''}`
       + `<h4>Neighbours met <small>${m.cast.filter((c) => c.met).length} of ${m.cast.length}</small></h4><ul>${cs}</ul>`
       + `<h4>Lore found <small>${found} of ${m.lore.length}</small></h4><ul>${ls}</ul></div>`;
   }
@@ -182,6 +183,7 @@
       '.jr ul{list-style:none;margin:0;padding:0}.jr li{padding:5px 0;border-bottom:1px solid rgba(255,255,255,.07)}',
       '.jr i{font-style:normal;font-weight:700}.jr em{font-style:normal;color:#9fb0d0;font-size:12px}',
       '.jr-q{display:flex;gap:8px}.jr-q b{width:14px;flex:none;color:#7ee0a0}.jr-q.todo b,.jr-q.todo{color:#8a97b5}.jr-q.now b{color:#ffd84a}.jr-q span{flex:1}',
+      '.jr-replay{margin:8px 0 2px;min-height:44px;padding:8px 14px;border-radius:10px;border:1px solid rgba(255,216,74,.6);background:rgba(255,216,74,.12);color:#ffd84a;font:700 14px system-ui,sans-serif;cursor:pointer}',
       '.jr-c span,.jr-l span{display:block;color:#dbe7ff}.jr li.unmet,.jr li.unfound{color:#7d8aa8}',
     ].join('\n');
     document.head.appendChild(st);
@@ -194,7 +196,11 @@
     const b = game.ui.el('journal-btn');
     if (b && el && el.hidden) b.classList.add('new');
   }
-  function wire(el) { const x = el.querySelector && el.querySelector('.jr-x'); if (x) x.onclick = close; }
+  function wire(el) {
+    const x = el.querySelector && el.querySelector('.jr-x'); if (x) x.onclick = close;
+    const rp = el.querySelector && el.querySelector('.jr-replay');
+    if (rp) rp.onclick = () => { close(); game.after(0.3, () => { const F = window.__island && window.__island.finale; if (F) F.replay(); }); };
+  }
   function open(from) {
     const m = model();
     let el = panel();
