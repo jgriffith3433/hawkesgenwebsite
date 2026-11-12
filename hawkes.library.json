@@ -1,0 +1,10 @@
+{
+  "project": "hawkesgames",
+  "kind": "vfx-sheet",
+  "note": "Blast flipbooks: Gen image.generate stills (1024 px, black background) animated into 8x8 sheets by tools/bake-vfx.mjs (import the still with studio_gen_import to public/play/vfx/<name>-src.png first, then bake). Engine: public/play/modules/mayhem/mayhem-vfx.js useSheets.",
+  "entities": [
+    { "id": "fireball", "kind": "image", "asset": "a_aad963c8c59af567", "job": "j_b4df01a321af", "file": "public/play/vfx/fireball.webp", "grid": "8x8", "use": "additive fireball" },
+    { "id": "smoke", "kind": "image", "asset": "a_544820207fd3b335", "job": "j_13403e715c35", "file": "public/play/vfx/smoke.webp", "grid": "8x8", "use": "rolling smoke puff" },
+    { "id": "sparks", "kind": "image", "asset": "a_aa0c1241b536eef5", "job": "j_8903ff344fae", "file": "public/play/vfx/sparks.webp", "grid": "8x8", "use": "sparks and embers" }
+  ]
+}
