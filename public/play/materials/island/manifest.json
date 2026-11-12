@@ -1,19 +1,58 @@
 {
   "id": "island-pbr",
   "note": "Sandbox island PBR set: albedo + normal + roughness per surface. Gen albedos (1536 seamless) then texture.maps; imported as 2K desktop and 1K phone WebP. ready flips true once files land.",
-  "ready": false,
+  "ready": true,
   "style": "painterly-realistic Uncharted Madagascar coast / Sea of Thieves golden-hour island",
   "base": "/play/materials/island",
   "layers": {
-    "grass": { "albedo": "grass-albedo", "normal": "grass-normal", "roughness": "grass-roughness", "surface": "grass" },
-    "dirt": { "albedo": "road-albedo", "normal": "road-normal", "roughness": "road-roughness", "surface": "dirt", "use": "gravel road" },
-    "rock": { "albedo": "rock-albedo", "normal": "rock-normal", "roughness": "rock-roughness", "surface": "rock" },
-    "snow": { "albedo": "wet-sand-albedo", "normal": "wet-sand-normal", "roughness": "wet-sand-roughness", "surface": "sand", "use": "wet sand below tide (snow channel)" },
-    "sand": { "albedo": "sand-albedo", "normal": "sand-normal", "roughness": "sand-roughness", "surface": "sand" }
+    "grass": {
+      "albedo": "grass-albedo",
+      "normal": "grass-normal",
+      "roughness": "grass-roughness",
+      "surface": "grass"
+    },
+    "dirt": {
+      "albedo": "road-albedo",
+      "normal": "road-normal",
+      "roughness": "road-roughness",
+      "surface": "dirt",
+      "use": "gravel road"
+    },
+    "rock": {
+      "albedo": "rock-albedo",
+      "normal": "rock-normal",
+      "roughness": "rock-roughness",
+      "surface": "rock"
+    },
+    "snow": {
+      "albedo": "wet-sand-albedo",
+      "normal": "wet-sand-normal",
+      "roughness": "wet-sand-roughness",
+      "surface": "sand",
+      "use": "wet sand below tide (snow channel)"
+    },
+    "sand": {
+      "albedo": "sand-albedo",
+      "normal": "sand-normal",
+      "roughness": "sand-roughness",
+      "surface": "sand"
+    }
   },
   "props": {
-    "wood": { "albedo": "wood-albedo", "normal": "wood-normal", "roughness": "wood-roughness", "surface": "wood", "use": "pier planks" },
-    "metal": { "albedo": "metal-albedo", "normal": "metal-normal", "roughness": "metal-roughness", "surface": "metal", "use": "hangar interior" }
+    "wood": {
+      "albedo": "wood-albedo",
+      "normal": "wood-normal",
+      "roughness": "wood-roughness",
+      "surface": "wood",
+      "use": "pier planks"
+    },
+    "metal": {
+      "albedo": "metal-albedo",
+      "normal": "metal-normal",
+      "roughness": "metal-roughness",
+      "surface": "metal",
+      "use": "hangar interior"
+    }
   },
   "jobs": {
     "grass-albedo": "j_50bacf64e065",
@@ -25,8 +64,9 @@
     "metal-albedo": "j_cb18d40afe23"
   },
   "bytes": {
-    "phone": 0,
-    "desktop": 0,
+    "phone": 1769950,
+    "desktop": 5809556,
+    
     "phoneCap": 6291456
   }
 }
