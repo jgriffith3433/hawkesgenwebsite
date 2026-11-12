@@ -25,6 +25,10 @@ that's it. That's the whole story."*
   and above the atmosphere there is space, the planet below, and the Overseer.
 - **The beginning:** the Overseer beams you down, and while you look up at it in the sky it tells you: *"I have given you
   the power of free will. Do with it what you will."* That is the whole story. Everything after that is the player's.
+- **The title screen (2026-11-12):** Pressing Play opens on a title over a live fly-over of the island at golden hour
+  (clearing, beach, pier, hangar, Overseer), not an opaque Enter veil. The Hawkes Games lockup rises, then *Press any
+  key* / *Tap to start*; the first input starts the clearing theme and offers Continue (returning), New island and
+  Settings. Play swoops the camera into the player's hands, then the beginning above (or a return with no intro).
 - **The mirror (J, 2026-10-24):** the first thing a player does with free will is decide who they are. Right after the
   beginning, before anyone greets them, they stand in front of a mirror and the Overseer asks: *"What are you?"* (an
   animal, a robot, a shoe, a toaster...), *"How do you look?"* and *"What are you called?"*. It's funny on purpose, and

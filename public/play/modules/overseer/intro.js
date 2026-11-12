@@ -9,8 +9,9 @@
 //   - config.overseer.intro: "first" (the default: once per player, remembered on this device), "always", "short" (a friend answering an invitation: the beam and one line, about 4.5 s) or false.
 //   - The sound: a score made here (a hum, the beam's swell and whoosh, a chime, a tone under each line). The voice: a
 //     sound asset named "overseer-intro" in the game, else the Overseer's own line (overseer.js VOICES).
-//   - With sound still blocked by the browser (no click or key yet), it first shows the gateway: the Overseer's ring, one
-//     "Enter" (click, tap, Enter or Space) that unlocks the sound and starts the intro at once (game.on('gateway')).
+//   - With sound still blocked by the browser (no click or key yet), it first shows the gateway: on the sandbox, the
+//     island title screen (title.js: live fly-over, logo, Press any key / Tap to start, then Play); elsewhere the
+//     Overseer's ring and one "Enter". That gesture unlocks the sound (game.on('gateway')).
 //   - It starts only once the world has been drawn (H.worldDrawn, runtime.js whenDrawn: scene ready, three frames on screen); the loading screen stays up until then, so the bars, captions and Skip never sit over an undrawn black page.
 //   - Remembered in localStorage ("hg_overseer_intro"); a sandboxed game page (the editor's stage) asks its page,
 //     which passes it in the bundle (bundle.overseen) and is told when it has played (message "overseer-seen").
@@ -148,12 +149,15 @@
     + '@keyframes hpEnterIn{from{opacity:0}to{opacity:1}}@keyframes hpEnterOut{to{opacity:0}}@keyframes hpRing{50%{transform:scale(1.05);box-shadow:0 0 64px rgba(110,150,255,.7),inset 0 0 50px rgba(110,150,255,.35)}}'
     + '@media (prefers-reduced-motion:reduce){.hp-enter .ring{animation:none}}';
 
-  /** Browsers keep sound off until a click, tap or key. Before the intro: the gateway, the Overseer's ring and one
-   *  "Enter". That one gesture (click, tap, Enter or Space) unlocks the sound and starts the intro, and the game hears
-   *  it as game.on('gateway', { state: 'passed' }) so the island's sound starts right then. */
+  /** Browsers keep sound off until a click, tap or key. Before the intro: the sandbox title screen (title.js) when
+   *  present, else the Overseer's ring and one "Enter". That gesture unlocks the sound and the game hears
+   *  game.on('gateway', { state: 'passed' }) so the island's sound starts right then. */
   function waitForSound() {
+    if (H.hooks.codex) return Promise.resolve();
+    // Sandbox: live fly-over title (Sea of Thieves-style) instead of the opaque Enter veil.
+    if (OV.titleWanted && OV.titleWanted() && OV.titleGate) return OV.titleGate().then(() => {});
     const ctx = H.audio && H.audio.context;
-    if (!ctx || ctx.state === 'running' || H.hooks.codex) return Promise.resolve();
+    if (!ctx || ctx.state === 'running') return Promise.resolve();
     return new Promise((done) => {
       const veil = document.createElement('div');
       veil.className = 'hp-enter';
@@ -253,7 +257,7 @@
     const c = OV.position;
     if (!p || !p.alive || !c) return { skipped: true };
     playedThisPage = true;
-    const quiet = settled(w); // compiles behind the "Enter" veil
+    const quiet = settled(w); // compiles behind the title screen / Enter veil
     await waitForSound();
     // Skip is there from the moment the player has entered, over the loading screen if it is still up (a pill at once, not
     // a black wait): the camera work waits for the world to be drawn (runtime.js whenDrawn), but for at most 8 s from here,
