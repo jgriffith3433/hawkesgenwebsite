@@ -510,6 +510,11 @@
   const assetGone = (id) => Boolean(bundle && Array.isArray(bundle.gone) && bundle.gone.includes(id));
   function assetUrl(ref, hint) {
     if (/^https:\/\//.test(String(ref))) return ref;
+    // Local engine files (island PBR set under /play/materials/...): serve as-is, phone prefers *-1k.webp.
+    if (/^\/play\//.test(String(ref))) {
+      const phone = window.HawkesPlay && window.HawkesPlay.device && window.HawkesPlay.device.tier === 'phone';
+      return phone ? String(ref).replace(/(-2k)?(\.webp|\.png|\.jpg)$/i, '-1k$2') : String(ref);
+    }
     const a = assetEntry(ref);
     if (!a) throw new Error(`No asset "${ref}". Add it in the Assets panel, or check the spelling.`);
     // An image with levels of detail (Gen's) starts at the level its budget and size need; textures.js sharpens what's
@@ -776,6 +781,15 @@
         m.diffuseTexture = t;
         m.useAlphaFromDiffuseTexture = t.hasAlpha;
         if (!opts.color) m.diffuseColor = new B.Color3(1, 1, 1);
+      } catch (e) { if (!opts.lenient) throw e; }
+    }
+    if (opts.bump) {
+      try {
+        const b = new B.Texture(assetUrl(opts.bump, hint), W.scene, false, true, B.Texture.TRILINEAR_SAMPLINGMODE);
+        const tile = vec(opts.tile, [1, 1, 0]);
+        b.uScale = tile[0] || 1; b.vScale = tile[1] || 1;
+        b.level = 0.7;
+        m.bumpTexture = b;
       } catch (e) { if (!opts.lenient) throw e; }
     }
     if (opts.opacity !== undefined && opts.opacity !== null) m.alpha = Number(opts.opacity);
@@ -1076,7 +1090,7 @@
       name: spec.name || null, tag: spec.tag || null, data: clone(spec.data) || {},
       physics: spec.physics || (kindDefs.get(spec.type) && kindDefs.get(spec.type).physics) || 'static',
       position: t.position, rotation: t.rotation, scale: t.scale,
-      color: m.color, emissive: m.emissive, opacity: m.opacity, texture: m.texture, tile: m.tile,
+      color: m.color, emissive: m.emissive, opacity: m.opacity, texture: m.texture, bump: m.bump, tile: m.tile,
       zOffset: m.zOffset, // laid on a surface: polygon offset so coplanar faces do not flicker (quality rule 2)
       bounce: body.bounce, friction: body.friction, mass: body.mass, grab: body.grab,
       shadow: spec.shadow, visible: spec.visible, instanced: spec.instanced, lenient: true,

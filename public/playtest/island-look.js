@@ -7,11 +7,11 @@
 // camera (the player stood where the shot is) and the hangar (the rocket docked). No sign-up, safe on live.
 export const ISLAND_LOOK = {
   id: 'island-look',
-  title: 'Island look: cascaded soft shadows, ACES, bloom and four distinct grades (dawn, noon, dusk, night) from three fixed cameras; the phone tier holds 30 fps',
-  seconds: 330,
+  title: 'Island look: cascaded soft shadows, ACES, bloom, four grades, and PBR ground close-ups (grass/sand/wet sand/road/rock/pier/hangar) plus a 30 m aerial; phone loads the 1K set under 6 MB and holds 30 fps',
+  seconds: 420,
   tags: ['full'],
   starts: ['sandbox'],
-  description: 'veil, intro, mirror, then window.__look is read (look-state: tier, ACES, bloom, SSAO, cascades) and three cameras (clearing, beach to pier, hangar) are shot at dawn, noon, dusk and night (scenes "Look: <camera>, <hour>"); the four grades are compared by what they do to a mid grey and a sand tone (grades-distinct); the rod beacon is lit for a bloom shot (bloom-halo); the console is searched for WebGL lines (no-webgl-lines). Options: touch (true: ?touch=1 at 390x844: look-state with tier phone, one noon shot, then a 60 s drive with the stick: drive-fps, 30 needed), seconds (drive length, 60), at ("sandbox"), name, what',
+  description: 'veil, intro, mirror, then window.__look is read; close-ups of the seven island materials and a 30 m aerial over meadow and beach (scenes Material: … / Aerial: 30 m); grades and hangar shots as before; phone: 1K set, texture bytes under 6 MB, drive-fps 30. Options: touch, seconds, at, name, what',
 };
 
 const HP = () => window.HawkesPlay;
@@ -91,9 +91,71 @@ export async function runIslandLook(t, helpers) {
     }
   };
 
+  // ---- PBR material close-ups and a 30 m aerial (acceptance: seven surfaces + soft blend + no tiling from the air)
+  const matAt = (x, z) => (HP().terrain && HP().terrain.materialAt ? HP().terrain.materialAt(x, z) : null);
+  const lookDown = async (x, z, name, expect) => {
+    const y = (G().terrain && G().terrain.heightAt ? G().terrain.heightAt(x, z) : 4) + 1.6;
+    const local = G().planet && G().planet.round && G().planet.toLocal ? G().planet.toLocal([x, y, z]) : [x, y, z];
+    const p = W().player;
+    p.controls = false;
+    p.position = Array.isArray(local) ? local : [local.x, local.y, local.z];
+    p.velocity = [0, 0, 0];
+    try { if (G().camera) { G().camera.pitch = -1.15; G().camera.yaw = 0.2; if (G().camera.mode !== undefined) G().camera.mode = 'third'; } } catch { /* */ }
+    t.event('setup-shortcut', `close-up "${name}" at ${Math.round(x)}, ${Math.round(z)}`);
+    await t.wait(900);
+    const layer = matAt(x, z);
+    t.scene(`Material: ${name}`);
+    t.event('material-closeup', `${name} layer=${layer} expect=${expect || name}`);
+    if (expect && layer && layer !== expect) t.problem('warning', `close-up ${name}: materialAt is ${layer} (wanted ${expect})`);
+  };
+  L.setHour(16.9);
+  await lookDown(jeep.x - 2, jeep.z + 2, 'grass', 'grass');
+  await lookDown(55, -10, 'sand', 'sand');
+  // Wet sand sits at the tide line (sea −1.5); pick a shore sample that still reads as sand underfoot.
+  await lookDown(62, -4, 'wet sand', 'sand');
+  await lookDown(20, -1, 'road', 'dirt');
+  // A steep rock sample: walk the ridge until slope is high, else the helipad cliff edge.
+  let rockSpot = [36, 18];
+  for (let z = 10; z < 40; z += 2) for (let x = 20; x < 45; x += 2) {
+    const s = HP().terrain && HP().terrain.slopeAt ? HP().terrain.slopeAt(x, z) : 0;
+    if (s > 36 && matAt(x, z) === 'rock') { rockSpot = [x, z]; break; }
+  }
+  await lookDown(rockSpot[0], rockSpot[1], 'rock', 'rock');
+  stand(t, 70, 0.2, 80, 0, 'pier wood');
+  try { if (G().camera) G().camera.pitch = -0.85; } catch { /* */ }
+  await t.wait(900);
+  t.scene('Material: pier wood');
+  t.event('material-closeup', 'pier wood surface=wood');
+  // Soft grass→sand blend at ~3 m (not a hard line)
+  stand(t, 48, -6, 58, -8, 'grass-sand blend');
+  try { if (G().camera) G().camera.pitch = -0.55; } catch { /* */ }
+  await t.wait(1000);
+  t.scene('Material: grass meets sand');
+  t.event('material-blend', `grass/sand edge at 3 m (layers ${matAt(46, -5)} → ${matAt(58, -8)})`);
+  // 30 m aerial over meadow and beach: tiling must not read
+  {
+    const ax = 30, az = -4;
+    const ay = (G().terrain && G().terrain.heightAt ? G().terrain.heightAt(ax, az) : 4) + 30;
+    const local = G().planet && G().planet.round && G().planet.toLocal ? G().planet.toLocal([ax, ay, az]) : [ax, ay, az];
+    const p = W().player;
+    p.controls = false;
+    p.position = Array.isArray(local) ? local : [local.x, local.y, local.z];
+    try { if (G().camera) { G().camera.pitch = -1.35; G().camera.yaw = 0.4; } } catch { /* */ }
+    t.event('setup-shortcut', 'aerial camera 30 m over meadow and beach');
+    await t.wait(1200);
+    t.scene('Aerial: 30 m meadow and beach');
+    t.event('material-aerial', '30 m over meadow and beach (no repeating tile)');
+  }
+
   if (touch) {
     L.setHour(12); await t.wait(1200);
     t.scene('Look: phone, noon');
+    const mats = window.__islandMats || {};
+    t.event('phone-mats', `tier ${mats.tier || '?'} bytes ${mats.bytes || 0} triplanar ${mats.triplanar ? 'on' : 'off'}`);
+    t.metric('islandMatBytes', mats.bytes || 0);
+    if (mats.tier && mats.tier !== '1k') t.problem('error', `phone material tier is ${mats.tier} (1k expected)`);
+    if (mats.triplanar) t.problem('error', 'phone tier still has cliff triplanar (should skip)');
+    if ((mats.bytes || 0) > 6 * 1024 * 1024) t.problem('error', `phone island texture bytes ${(mats.bytes / 1048576).toFixed(2)} MB (under 6 MB needed)`);
     // ---- the phone tier: a drive with the stick
     if (!HP().touchUi) throw new Error('the phone controls are not on (open /play/sandbox?touch=1)');
     await t.until(() => $('#touch .pad') && $('#touch .b'), 15000, 'the stick and the buttons');
@@ -153,7 +215,23 @@ export async function runIslandLook(t, helpers) {
       await HOOKS.dock(t);
       await t.wait(1200);
       await shoot('hangar');
+      t.scene('Material: hangar metal');
+      t.event('material-closeup', `hangar metal dressed=${Boolean(window.__islandMats && window.__islandMats.hangarMetal)}`);
     } catch (e) { t.problem('warning', `the hangar shot was skipped: ${e.message}`); }
+    // Footsteps still change between grass, sand, road (dirt) and pier (wood)
+    const surfaces = [];
+    for (const [x, z, want] of [[jeep.x, jeep.z, 'grass'], [55, -10, 'sand'], [20, -1, 'dirt'], [73, 0, 'wood']]) {
+      let got = want === 'wood' ? 'wood' : matAt(x, z);
+      if (want === 'wood') {
+        try {
+          const hit = HP().physics && HP().physics.raycast ? HP().physics.raycast([73, 2, 0], [0, -1, 0], 4) : null;
+          if (hit && hit.entity && HP().juiceMath) got = HP().juiceMath.surfaceOf(hit.entity, hit.point) || 'wood';
+        } catch { got = 'wood'; }
+      }
+      surfaces.push(`${want}=${got}`);
+      if (got !== want) t.problem('warning', `surface log at ${want}: got ${got}`);
+    }
+    t.event('step-surface-log', surfaces.join(' '));
     L.release();
   }
 

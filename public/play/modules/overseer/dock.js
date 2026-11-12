@@ -28,6 +28,32 @@
   }
   function boxAt(scene, size, at) { const m = B.MeshBuilder.CreateBox('ov-hangar', { width: size[0], height: size[1], depth: size[2] }, scene); m.position.set(at[0], at[1], at[2]); return m; }
 
+  /** Soft painted metal on the hangar walls when the island material set is on disk (probe first so a miss stays the grey paint). */
+  function dressHangarMetal(material, scene) {
+    const phone = H.device && H.device.tier === 'phone';
+    const alb = `/play/materials/island/metal-albedo${phone ? '-1k' : ''}.webp`;
+    const nrm = `/play/materials/island/metal-normal${phone ? '-1k' : ''}.webp`;
+    if (typeof Image === 'undefined') return;
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const t = new B.Texture(alb, scene, false, true, B.Texture.TRILINEAR_SAMPLINGMODE);
+        t.uScale = t.vScale = 4;
+        t.wrapU = t.wrapV = B.Texture.WRAP_ADDRESSMODE;
+        material.diffuseTexture = t;
+        material.diffuseColor = new B.Color3(1, 1, 1);
+        const b = new B.Texture(nrm, scene, false, true, B.Texture.TRILINEAR_SAMPLINGMODE);
+        b.uScale = b.vScale = 4;
+        b.wrapU = b.wrapV = B.Texture.WRAP_ADDRESSMODE;
+        b.level = 0.55;
+        material.bumpTexture = b;
+        if (window.__islandMats) window.__islandMats.hangarMetal = true;
+      } catch { /* keep the grey paint */ }
+    };
+    img.onerror = () => { /* Gen art not imported yet */ };
+    img.src = alb;
+  }
+
   function build(O, w) {
     const scene = w.scene;
     const f = frameOf(O);
@@ -74,6 +100,8 @@
     const hangar = B.Mesh.MergeMeshes(parts, true, true);
     hangar.name = 'ov-hangar';
     hangar.material = mat(scene, 'ov-hangar', { diffuse: new B.Color3(0.36, 0.39, 0.45), spec: new B.Color3(0.2, 0.2, 0.22), power: 32, emissive: new B.Color3(0.07, 0.08, 0.1) });
+    // Painted hangar metal from the island PBR set (when Gen files have landed under /play/materials/island/).
+    dressHangarMetal(hangar.material, scene);
     hangar.parent = null;
     const hangarE = new L.Entity(hangar, { physics: 'static', name: 'Overseer hangar', tag: 'overseer', grab: false, friction: 0.9 }, 'overseer');
     hangarE.temporary = true; hangarE.keep = true; hangarE.data.overseer = 'hangar';
