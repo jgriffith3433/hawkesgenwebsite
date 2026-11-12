@@ -79,7 +79,8 @@
     try {
       const a = new Audio(H.lib.assetUrl(id));
       a.crossOrigin = 'anonymous';
-      if (H.audio && H.audio.media) H.audio.media(a);
+      if (H.overseerSound && H.overseerSound.route) H.overseerSound.route(a);
+      else if (H.audio && H.audio.media) H.audio.media(a, { voice: true });
       return OV.duckWhile ? OV.duckWhile(a) : a;
     } catch { return null; }
   }

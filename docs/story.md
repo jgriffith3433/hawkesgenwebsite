@@ -13,6 +13,10 @@ that's it. That's the whole story."*
   visible, the one constant in every world.
 - **The AI is the Overseer.** The building assistant speaks as the Overseer. The Overseer's tone: calm, vast, a little
   amused, generous. It gives; it never commands.
+- **The Overseer's sound (2026-11-11):** the player knows it by ear — a vast treated voice from the sky (low octave,
+  chorus, cathedral reverb, high shelf; light chain on a phone), a short leitmotif in three moods (wonder / amused /
+  ominous) that ducks the area music, and a beam that hums louder as you approach. Captions stay. See world-bible
+  "The Overseer's sound"; code `modules/overseer/sound.js`.
 - **Everything that appears is beamed in by the Overseer:** the player when they spawn, things the assistant builds,
   things a spawn gun makes, assets as they arrive from Hawkes Gen. A beam of light comes down from the ship to the spot.
 - **You can fly to the Overseer.** It is a real place: a player who builds or takes a rocket or a space ship can leave the
