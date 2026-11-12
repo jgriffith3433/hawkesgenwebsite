@@ -1,37 +1,4 @@
 {
- "note": "The six islanders' voices (Hawkes Gen audio.voice-design / audio.voice-save) and their re-acted lines. Voice ids are Gen voice-library ids (gv_...). Keys are the clip names in index.json (same key, .webm replaces .mp3).",
- "voices": {
-  "pip": {
-   "name": "Pip",
-   "color": "#f472b6",
-   "voiceId": "gv_563f7380cfb0dd4a"
-  },
-  "bobbin": {
-   "name": "Admiral Bobbin",
-   "color": "#facc15",
-   "voiceId": "gv_d11b25da2a8a8a60"
-  },
-  "ember": {
-   "name": "Mrs Ember",
-   "color": "#fb923c",
-   "voiceId": "gv_a3fcc5a04bf9ea6a"
-  },
-  "rolo": {
-   "name": "Rolo",
-   "color": "#22d3ee",
-   "voiceId": "gv_05b19c31d81a9d31"
-  },
-  "dolores": {
-   "name": "Dolores",
-   "color": "#4ade80",
-   "voiceId": "gv_7cfde788dea2a5cd"
-  },
-  "channel": {
-   "name": "Channel",
-   "color": "#7dd3fc",
-   "voiceId": "gv_880bf028e8ff7207"
-  }
- },
  "lines": [
   {
    "key": "pip-c5e2e4cc",
@@ -523,6 +490,86 @@
     "emotion": "quietly pleased, still under something",
     "pace": "slow",
     "delivery": "soft"
+   }
+  },
+  {
+   "key": "pip-5910e965",
+   "speaker": "pip",
+   "text": "The road kept your tracks. Look!",
+   "direction": {
+    "emotion": "delighted",
+    "pace": "fast",
+    "delivery": "cheer for the road markers after the first drive"
+   }
+  },
+  {
+   "key": "bobbin-e6f2e00a",
+   "speaker": "bobbin",
+   "text": "The lamps are lit. The harbour remembers your cast.",
+   "direction": {
+    "emotion": "proud harbourmaster",
+    "pace": "normal",
+    "delivery": "cheer for the lit pier lamps and fish mural"
+   }
+  },
+  {
+   "key": "channel-bb40559b",
+   "speaker": "channel",
+   "text": "Breaking: a blast site. Fenced. Historic. Ratings: record.",
+   "direction": {
+    "emotion": "breaking-news excitement",
+    "pace": "fast",
+    "delivery": "cheer for the fenced blast site"
+   }
+  },
+  {
+   "key": "pip-ca762325",
+   "speaker": "pip",
+   "text": "That spot glowed. The Overseer left a mark.",
+   "direction": {
+    "emotion": "awed",
+    "pace": "normal",
+    "delivery": "cheer for the glowing arrival pad"
+   }
+  },
+  {
+   "key": "ember-cb95a8e2",
+   "speaker": "ember",
+   "text": "A ribbon on the box, dear. For the new one. Sorry.",
+   "direction": {
+    "emotion": "warm apologetic",
+    "pace": "slow",
+    "delivery": "cheer for the mailbox ribbon"
+   }
+  },
+  {
+   "key": "dolores-8a6a9eec",
+   "speaker": "dolores",
+   "text": "I put a stone. I was not waiting. It is there.",
+   "direction": {
+    "emotion": "dry",
+    "pace": "slow",
+    "delivery": "cheer for the hill cairn"
+   }
+  },
+  {
+   "key": "dolores-75bf2af3",
+   "speaker": "dolores",
+   "text": "The pad lights. The windsock. Use them. Or do not.",
+   "direction": {
+    "emotion": "matter-of-fact",
+    "pace": "normal",
+    "delivery": "cheer for helipad lights and windsock"
+   }
+  },
+  {
+   "key": "rolo-31303de5",
+   "speaker": "rolo",
+   "text": "huh. a banner. the pad is lit. that is fine.",
+   "direction": {
+    "emotion": "quietly pleased",
+    "pace": "slow",
+    "delivery": "cheer for the launch banner and lights"
    }
   }
  ]

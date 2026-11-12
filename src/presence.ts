@@ -79,6 +79,8 @@ export const MEMORY = {
   firsts: ['first-drive', 'first-fish', 'first-boom', 'first-build', 'first-dock', 'first-space', 'first-race', 'first-ask', 'first-help'],
   deeds: ['fish', 'boom', 'build', 'dock', 'high', 'space', 'drive', 'ask', 'fall'],
   counts: ['fish', 'boom', 'build', 'dock', 'high', 'space', 'ask', 'fall'],
+  // Chapter One world marks (src/overseer-games/world-marks.js): lasting island changes per tour step.
+  marks: ['drive', 'fish', 'boom', 'spawn', 'ask', 'hill', 'fly', 'launch'],
   recent: 8,
 };
 function cleanFish(f: unknown) {
@@ -111,6 +113,12 @@ function cleanWish(w: any) {
   const set = Array.isArray(w?.set) ? [...new Set((w.set as unknown[]).filter((x): x is string => typeof x === 'string' && /^[a-z0-9-]{1,32}$/.test(x)))].slice(0, 8) : [];
   return { last, st, best: Math.max(st, n(w?.best, 100000)), day: dayOf(w?.day), n: n(w?.n, 1e6), set, said: w?.said ? 1 : 0 };
 }
+function cleanMarks(m: any) {
+  const done: string[] = [];
+  if (Array.isArray(m?.done)) for (const x of m.done) if (typeof x === 'string' && MEMORY.marks.includes(x) && !done.includes(x) && done.length < 8) done.push(x);
+  const last = typeof m?.last === 'string' && MEMORY.marks.includes(m.last) && done.includes(m.last) ? m.last : (done.length ? done[done.length - 1] : null);
+  return { done, last };
+}
 export function cleanMemory(v: unknown) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) throw new PortalError('overseer must be an object');
   if (JSON.stringify(v).length > MEMORY.maxBytes) throw new PortalError(`overseer is too big (${MEMORY.maxBytes} bytes at most)`, { status: 413 });
@@ -138,6 +146,8 @@ export function cleanMemory(v: unknown) {
     prog: { p: int(a.prog?.p, 1e7), f: Array.isArray(a.prog?.f) ? [...new Set((a.prog.f as unknown[]).filter((x): x is string => typeof x === 'string' && MEMORY.firsts.includes(x)))] : [], d: int(a.prog?.d, 1e9), s: Math.max(1, int(a.prog?.s, 20)) },
     // The daily wish (modules/wish): the day of the last wish done, its streak, and today's progress (days are UTC dates).
     wish: cleanWish(a.wish),
+    // Chapter One world marks (world-marks.js): lasting visible changes on the island per tour step.
+    marks: cleanMarks(a.marks),
     greet: { last: id(g.last), recent: Array.isArray(g.recent) ? g.recent.map(id).filter((x): x is string => x !== null).slice(-MEMORY.recent) : [] },
   };
 }

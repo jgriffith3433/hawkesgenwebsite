@@ -19,6 +19,7 @@
 //   H.memory.wardrobe     what the player owns to wear (the Observatory's wardrobe): get() { acc, col }, add({ acc, col }) -> true when new
 //   H.memory.progress     points, firsts and meters (modules/progress): get() { p, f, d, s }, set(next)
 //   H.memory.wish         the daily wish (modules/wish): get() { last, st, best, day, n, set, said }, set(next)
+//   H.memory.marks        Chapter One world marks (world-marks.js): get() { done, last }, add(step) -> true when new
 //   H.memory.core             the pure parts: VARIANTS, facts(), pick(), merge(), clean()
 (function () {
   'use strict';
@@ -33,7 +34,22 @@
   const RECENT = 8;
 
   // ------------------------------------------------------------------ the record
-  const blank = () => ({ v: 1, visits: 0, firstAt: 0, lastAt: 0, name: null, what: null, last: null, n: Object.fromEntries(COUNTS.map((k) => [k, 0])), driveS: 0, playS: 0, fish: {}, fishPts: 0, race: {}, met: [], lore: [], own: { acc: [], col: [] }, prog: { p: 0, f: [], d: 0, s: 1 }, wish: { last: null, st: 0, best: 0, day: null, n: 0, set: [], said: 0 }, greet: { last: null, recent: [] } });
+  // Chapter One world marks (world-marks.js): quest step ids that left a lasting change on the island.
+  const MARK_STEPS = ['drive', 'fish', 'boom', 'spawn', 'ask', 'hill', 'fly', 'launch'];
+  const cleanMarks = (m) => {
+    const done = [];
+    if (Array.isArray(m && m.done)) for (const x of m.done) if (typeof x === 'string' && MARK_STEPS.includes(x) && !done.includes(x) && done.length < 8) done.push(x);
+    const last = typeof (m && m.last) === 'string' && MARK_STEPS.includes(m.last) && done.includes(m.last) ? m.last : (done.length ? done[done.length - 1] : null);
+    return { done, last };
+  };
+  const mergeMarks = (a, b) => {
+    const done = [];
+    for (const src of [cleanMarks(a).done, cleanMarks(b).done]) for (const x of src) if (!done.includes(x) && done.length < 8) done.push(x);
+    const la = cleanMarks(a).last, lb = cleanMarks(b).last;
+    const last = (lb && done.includes(lb) ? lb : null) || (la && done.includes(la) ? la : null) || (done.length ? done[done.length - 1] : null);
+    return { done, last };
+  };
+  const blank = () => ({ v: 1, visits: 0, firstAt: 0, lastAt: 0, name: null, what: null, last: null, n: Object.fromEntries(COUNTS.map((k) => [k, 0])), driveS: 0, playS: 0, fish: {}, fishPts: 0, race: {}, met: [], lore: [], own: { acc: [], col: [] }, prog: { p: 0, f: [], d: 0, s: 1 }, wish: { last: null, st: 0, best: 0, day: null, n: 0, set: [], said: 0 }, marks: { done: [], last: null }, greet: { last: null, recent: [] } });
   const num = (x, max) => { const n = Math.floor(Number(x)); return Number.isFinite(n) && n > 0 ? Math.min(n, max) : 0; };
   // The catch log (water's fishing.js): species id -> [times caught, heaviest in grams/10 (kg x 100), longest in cm].
   const FISH_MAX = 48;
@@ -122,6 +138,7 @@
     out.own = cleanOwn(v.own);
     out.prog = cleanProg(v.prog);
     out.wish = cleanWish(v.wish);
+    out.marks = cleanMarks(v.marks);
     const g = v.greet || {};
     out.greet.last = typeof g.last === 'string' && /^[a-z0-9-]{1,32}$/.test(g.last) ? g.last : null;
     out.greet.recent = Array.isArray(g.recent) ? g.recent.filter((x) => typeof x === 'string' && /^[a-z0-9-]{1,32}$/.test(x)).slice(-RECENT) : [];
@@ -134,7 +151,8 @@
     const met = unionIds(a && a.met, b && b.met), lore = unionIds(a && a.lore, b && b.lore);
     const own = mergeOwn(a && a.own, b && b.own);
     const prog = mergeProg(a && a.prog, b && b.prog), wish = mergeWish(a && a.wish, b && b.wish);
-    const whole = (r) => { const c = clean(r); c.prog = prog; c.wish = wish; c.fish = fish; c.fishPts = pts; c.race = race; c.met = met; c.lore = lore; c.own = own; return c; };
+    const marks = mergeMarks(a && a.marks, b && b.marks);
+    const whole = (r) => { const c = clean(r); c.prog = prog; c.wish = wish; c.marks = marks; c.fish = fish; c.fishPts = pts; c.race = race; c.met = met; c.lore = lore; c.own = own; return c; };
     if (!a || !a.visits) return b && b.visits ? whole(b) : whole(a);
     if (!b || !b.visits) return whole(a);
     return whole(b.lastAt > a.lastAt ? b : a);
@@ -447,6 +465,19 @@
     wish: {
       get: () => JSON.parse(JSON.stringify(m.wish)),
       set(next) { m.wish = mergeWish(m.wish, next); save(); },
+    },
+    /** Chapter One world marks (world-marks.js): get() { done, last }; add(step) keeps one and says whether it was new. */
+    marks: {
+      get: () => JSON.parse(JSON.stringify(m.marks)),
+      add(step) {
+        const next = cleanMarks({ done: [...(m.marks && m.marks.done) || [], step], last: step });
+        const before = JSON.stringify(m.marks);
+        m.marks = mergeMarks(m.marks, next);
+        if (JSON.stringify(m.marks) === before) return false;
+        save();
+        return true;
+      },
+      set(next) { m.marks = mergeMarks(m.marks, next); save(); },
     },
     reload() { m = readLocal(); prior = null; ctx = null; begun = false; return m; },
     reset() { m = blank(); prior = null; ctx = null; begun = false; signedIn = false; store.set(KEY, ''); if (H.bundle) delete H.bundle.overseerMemory; },

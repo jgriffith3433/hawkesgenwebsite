@@ -545,7 +545,11 @@
       track('sandbox_return', { signedIn: Boolean(rec.signedIn), tour: rec.tour || null });
       const name = lookName(H) || rec.name || '';
       if (!rec.signedIn && !gated) {
-        setTimeout(() => { if (H.chat) H.chat.line({ kind: 'overseer', keep: 30, text: name ? `Welcome back, ${name}. The mirror is there if you want a new look: ${H.touchUi ? 'Controls, then My look' : 'press L'}.` : `Welcome back. The mirror is there if you want a new look: ${H.touchUi ? 'Controls, then My look' : 'press L'}.` }); }, 2600);
+        setTimeout(() => {
+          if (H.chat) H.chat.line({ kind: 'overseer', keep: 30, text: name ? `Welcome back, ${name}. The mirror is there if you want a new look: ${H.touchUi ? 'Controls, then My look' : 'press L'}.` : `Welcome back. The mirror is there if you want a new look: ${H.touchUi ? 'Controls, then My look' : 'press L'}.` });
+          // Chapter One world marks: pan the newest lasting change (world-marks.js listens).
+          try { H.game.emit('welcome-back', { name, mark: rec.mark || null }); } catch { /* fine */ }
+        }, 2600);
         gated = true;
         setTimeout(() => want('tour', 'return'), 6500);
       }
@@ -898,8 +902,11 @@
     const say = (text, action) => H.chat && H.chat.line({ kind: 'overseer', text, action, keep: 30 });
     const emit = (ev, d) => { try { H.game.emit(ev, d); } catch { /* fine */ } };
     setTimeout(() => {
-      if (!fresh) say(`${name ? `Welcome back, ${name}.` : 'Welcome back.'} Your island, as you left it${window.HawkesGuest.resumed && window.HawkesGuest.resumed !== 'done' ? ', and the tour where you stopped' : ''}. ${H.touchUi ? 'Controls has your look and everything else' : 'Press L to change how you look'}; talk to me here any time.`);
-      else if (n > 0) {
+      if (!fresh) {
+        say(`${name ? `Welcome back, ${name}.` : 'Welcome back.'} Your island, as you left it${window.HawkesGuest.resumed && window.HawkesGuest.resumed !== 'done' ? ', and the tour where you stopped' : ''}. ${H.touchUi ? 'Controls has your look and everything else' : 'Press L to change how you look'}; talk to me here any time.`);
+        // Chapter One world marks (world-marks.js): pan across the newest lasting change for 3–5 s (no panel).
+        emit('welcome-back', { name, mark: (ret.get() || {}).mark || null });
+      } else if (n > 0) {
         say(`${hi} This island is yours now. You have ${n.toLocaleString()} credits, and a message to me costs ${price}${n >= price ? `: that is ${Math.floor(n / price).toLocaleString()} ${Math.floor(n / price) === 1 ? 'ask' : 'asks'}` : ', so you are a little short'}. Nothing is spent until you send.`);
         emit('credits-told', { credits: n, price });
         if (n >= price) setTimeout(() => offerAsks(), 3500);
@@ -1329,6 +1336,8 @@
     accountFirst: true,
     /** A return (public/play/guest.js): the tour step they left on (sandbox.js picks the tour up there), and the steps it fast-forwarded. */
     resume: null, resumed: null, skipped: null,
+    /** Return record (tour step, newest world mark): world-marks.js patches `mark` so a welcome-back can pan to it. */
+    ret,
     /**
      * Playtest only: close the forced account sheet and let Pip's tour begin without Google sign-in.
      * (Cloud portal is Google-only; throwaway email accounts are gone. Named setup-shortcut in portal.js.)
