@@ -11,6 +11,8 @@ export type CatalogueGame = {
   url: string; playsHere: boolean; remix: boolean;
   /** The Overseer's templates are played at /play/t/<id>; the island at /play/sandbox. */
   captured: boolean; shots: number;
+  /** Painted covers only (16:9 / 2:3 / 1:1) without a preview clip yet. */
+  covers?: boolean;
   /** Longer text, as the gallery has always shown it. */
   blurb: string;
   /** The page address: /games/<slug>. */
@@ -23,7 +25,8 @@ export type CatalogueGame = {
 };
 
 export const CATALOGUE: CatalogueGame[] = [
-  { id: 'island', name: 'The Island', emoji: '🏝️', hook: 'You were just given free will. Take the 4x4 down to the dock.', genres: ['Sandbox', 'Adventure', 'Multiplayer'], platforms: ['web', 'phone'], url: '/play/sandbox', playsHere: true, remix: false, captured: false, shots: 5,
+  // covers: true once Gen key art is imported into public/catalogue/island/ (cover-16x9, cover-2x3, cover-1x1).
+  { id: 'island', name: 'The Island', emoji: '🏝️', hook: 'You were just given free will. Take the 4x4 down to the dock.', genres: ['Sandbox', 'Adventure', 'Multiplayer'], platforms: ['web', 'phone'], url: '/play/sandbox', playsHere: true, remix: false, captured: false, covers: false, shots: 5,
     blurb: 'The Overseer beams you onto a giant planet: an island, a 4x4, a boat, a fishing rod, barrels you should not stand near, and neighbours who are very glad you came.', slug: 'island', row: 'original', features: ['An island, a 4x4, a boat and a rocket, all yours to use', 'Talk to the Overseer and it builds what you ask, piece by piece', 'Invite a friend and walk the same island together'], controls: { keyboard: ['WASD to move, mouse to look', 'E to get in, use or pick up', 'Esc for the menu, T to talk to the Overseer'], touch: ['Left stick to move, drag to look', 'B to get in or use', 'Menu button for chat and settings'] } },
   { id: 'sickofit', name: 'Sick of It', emoji: '😈', hook: 'Chase the Overlord up 1,000 floors of Hell.', genres: ['Action', 'Platformer', 'Roguelite'], platforms: ['web', 'desktop'], url: '/play/sickofit', playsHere: true, remix: false, captured: false, shots: 5,
     blurb: 'A sarcastic nobody chases the Overlord up 1,000 floors of Hell. Dodge bullets, rewind time, free the diamonds.', slug: 'sickofit', row: 'original', features: ['1,000 floors of Hell, one sarcastic nobody', 'Dodge bullets and rewind time when it goes wrong', 'Free the diamonds and chase the Overlord to the top'], controls: { keyboard: ['A / D or arrows to run', 'Space to jump', 'R (hold) to rewind'], touch: ['Drag on the left to run', 'Tap the right to jump', 'Hold the rewind button'] } },
@@ -45,14 +48,30 @@ export const CATALOGUE: CatalogueGame[] = [
 
 const base = (id: string) => `/catalogue/${id}`;
 
-/** A game as the API answers it. Media urls only for a captured game. */
-export const catalogueEntry = (g: CatalogueGame) => ({
+const coverUrls = (id: string) => ({
+  cover: base(id) + '/cover-16x9.webp',
+  coverSquare: base(id) + '/cover-1x1.webp',
+  coverTall: base(id) + '/cover-2x3.webp',
+});
+
+export type CatalogueEntry = {
+  id: string; name: string; emoji: string; hook: string; genres: string[]; platforms: string[];
+  url: string; slug: string; page: string; row: 'original' | 'overseer'; blurb: string;
+  features: [string, string, string]; controls: { keyboard: string[]; touch: string[] };
+  playsHere: boolean; remix: boolean;
+  cover?: string; coverSquare?: string; coverTall?: string;
+  screenshots?: string[];
+  preview?: { webm: string; mp4: string; poster: string; seconds: number; muted: boolean };
+};
+
+/** A game as the API answers it. Media urls only for a captured game (or painted covers alone). */
+export const catalogueEntry = (g: CatalogueGame): CatalogueEntry => ({
   id: g.id, name: g.name, emoji: g.emoji, hook: g.hook, genres: g.genres, platforms: g.platforms, url: g.url, slug: g.slug, page: `/games/${g.slug}`, row: g.row, blurb: g.blurb, features: g.features, controls: g.controls, playsHere: g.playsHere, remix: g.remix,
   ...(g.captured ? {
-    cover: base(g.id) + '/cover-16x9.webp', coverSquare: base(g.id) + '/cover-1x1.webp',
+    ...coverUrls(g.id),
     screenshots: Array.from({ length: g.shots }, (_, i) => `${base(g.id)}/shot-${i + 1}.webp`),
     preview: { webm: base(g.id) + '/preview.webm', mp4: base(g.id) + '/preview.mp4', poster: base(g.id) + '/cover-16x9.webp', seconds: 15, muted: true },
-  } : {}),
+  } : g.covers ? coverUrls(g.id) : {}),
 });
 
 export const catalogue = () => CATALOGUE.map(catalogueEntry);

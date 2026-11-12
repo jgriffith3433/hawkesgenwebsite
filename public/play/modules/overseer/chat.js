@@ -44,13 +44,16 @@
     st.textContent = `
 .hc-chat{position:fixed;left:50%;transform:translateX(-50%);bottom:max(14px,env(safe-area-inset-bottom));z-index:24;width:min(640px,calc(100vw - 32px));display:flex;flex-direction:column;align-items:stretch;gap:6px;pointer-events:none;font-family:var(--hud,system-ui,sans-serif)}
 .hc-log{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:5px;max-height:9.6em;overflow:hidden;text-align:center;font:600 15px/1.35 var(--hud,system-ui,sans-serif);letter-spacing:.02em;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.9),0 0 1px #000;-webkit-mask-image:linear-gradient(to top,#000 0%,#000 40%,rgba(0,0,0,.45) 75%,transparent 100%);mask-image:linear-gradient(to top,#000 0%,#000 40%,rgba(0,0,0,.45) 75%,transparent 100%)}
-.hc-log p{margin:0;max-width:100%;transition:opacity .8s;overflow-wrap:anywhere;pointer-events:auto}
+.hc-log p{margin:0;max-width:100%;transition:opacity .8s;overflow-wrap:anywhere;pointer-events:auto;display:flex;align-items:flex-start;justify-content:center;gap:8px;text-align:left}
 .hc-log p.old{opacity:0}.hc-log p.old .act{pointer-events:none}
 .hc-chat.typing .hc-log p.old,.hc-chat:hover .hc-log p.old{opacity:.85}
+.hc-log .hc-port{flex:none;width:56px;height:56px;border-radius:10px;object-fit:cover;background:rgba(6,10,20,.55);box-shadow:0 0 0 2px rgba(255,255,255,.35)}
+.hc-log .hc-words{flex:1;min-width:0;max-width:100%}
 .hc-log b{font:700 11px var(--display,system-ui);letter-spacing:.14em;text-transform:uppercase;margin-right:8px}
 .hc-log p.overseer b{color:#7cc8ff;text-shadow:0 0 10px rgba(74,158,255,.8)}
 .hc-log p.overseer b i{display:inline-block;width:10px;height:10px;margin:0 6px -1px 0;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff 0,#e8f4ff 30%,#9fd8ff 70%,#4a9eff 100%);box-shadow:0 0 8px rgba(143,216,255,.9)}
 .hc-log p.npc b{color:#fde68a}.hc-log p.npc span{font-style:italic}
+@media (max-width:500px) and (orientation:portrait){.hc-log .hc-port{width:72px;height:72px;border-radius:12px}}
 .hc-log p.me b{color:#d8b4fe}
 .hc-log p.sys{color:rgba(200,225,255,.78);font-style:italic;font-weight:500;font-size:13.5px}
 .hc-log .act{border:0;cursor:pointer;display:inline-block;margin-left:8px;font:700 11px var(--display,system-ui);letter-spacing:.08em;padding:5px 9px;background:linear-gradient(90deg,#f2b33d,#ff7a45);color:#16130a;text-decoration:none;text-shadow:none}
@@ -83,7 +86,8 @@ body.pr-touch .hc-cards{align-items:flex-start}
 .hc-form input::placeholder{color:rgba(220,235,255,.6);font:700 11px var(--display,system-ui);letter-spacing:.22em;text-transform:uppercase}
 body.pr-touch .hc-chat{left:12px;transform:none;top:max(66px,env(safe-area-inset-top));bottom:auto;width:min(340px,calc(100vw - 24px));flex-direction:column-reverse}
 body.pr-touch .hc-log{align-items:flex-start;text-align:left;font-size:13.5px;max-height:8em;justify-content:flex-start;-webkit-mask-image:none;mask-image:none}
-body.pr-touch .hc-log p{background:rgba(6,10,20,.55);padding:4px 9px;border-radius:8px}
+body.pr-touch .hc-log p{background:rgba(6,10,20,.55);padding:4px 9px;border-radius:8px;justify-content:flex-start}
+body.pr-touch .hc-log .hc-port{width:72px;height:72px}
 body.pr-touch .hc-form{background:rgba(6,10,20,.8);border-radius:10px;padding:2px 10px;opacity:1}
 body.pr-touch .hc-form input{text-align:left;font-size:15px}
 body.pr-touch .hc-form:not(.on){display:none}`;
@@ -152,8 +156,9 @@ body.pr-touch .hc-form:not(.on){display:none}`;
   }
   const focusGame = () => { const c = document.getElementById('stage'); if (c && c.focus) try { c.focus(); } catch { /* fine */ } };
 
-  // The six neighbours' caption colours (same as src/overseer-games/islanders.js and public/play/audio/voice/cast.json).
-  const CAST_COLORS = { pip: '#f472b6', 'admiral bobbin': '#facc15', bobbin: '#facc15', 'mrs ember': '#fb923c', ember: '#fb923c', rolo: '#22d3ee', dolores: '#4ade80', channel: '#7dd3fc' };
+  // The six neighbours' caption colours (same as src/overseer-games/islanders.js / public/play/art/cast.json).
+  const CAST_COLORS = { pip: '#f472b6', 'admiral bobbin': '#facc15', bobbin: '#facc15', 'mrs ember': '#fb923c', ember: '#fb923c', rolo: '#22d3ee', dolores: '#4ade80', channel: '#7dd3fc', overseer: '#9fd0ff' };
+  const castColor = (who) => (H.portraits && H.portraits.color(who)) || CAST_COLORS[String(who || '').toLowerCase()] || null;
   /** A line in the chat: who said it and what (an Overseer line may carry a link to act on: { label, href }). */
   function line(m) {
     if (!m || m.text === undefined || m.text === null || String(m.text).trim() === '') return;
@@ -161,20 +166,30 @@ body.pr-touch .hc-form:not(.on){display:none}`;
     const text = String(m.text).slice(0, 600);
     if (kind === 'overseer' && !m.now && H.speech) return H.speech.say({ text, priority: m.priority, owner: m.owner, voice: m.voice, seconds: m.seconds, action: m.action, keep: m.keep, m });
     const who = kind === 'overseer' ? 'Overseer' : kind === 'me' ? 'You' : m.who || m.name || '';
-    if (embedded) { try { H.post({ type: 'chat-line', kind, who, text, color: m.color || (kind === 'npc' ? CAST_COLORS[String(who).toLowerCase()] : null) || null, action: m.action || null }); } catch { /* fine */ } return; }
+    if (embedded) { try { H.post({ type: 'chat-line', kind, who, text, color: m.color || (kind === 'npc' || kind === 'overseer' ? castColor(who) : null) || null, action: m.action || null }); } catch { /* fine */ } return; }
     if (!ensure()) return;
     const p = document.createElement('p');
     p.className = kind;
+    const words = document.createElement('span');
+    words.className = 'hc-words';
     if (kind !== 'sys') {
       const b = document.createElement('b');
       b.innerHTML = kind === 'overseer' ? '<i aria-hidden="true"></i>Overseer' : esc(`${m.friend ? '★ ' : ''}${who}`);
       if (kind === 'player' && m.color) b.style.color = m.color;
-      else if (kind === 'npc') { const c = m.color || CAST_COLORS[String(who).toLowerCase()]; if (c) { b.style.color = c; b.dataset.cast = String(who).toLowerCase(); } }
-      p.appendChild(b);
+      else if (kind === 'npc' || kind === 'overseer') {
+        const c = m.color || castColor(who);
+        if (c) { b.style.color = c; b.dataset.cast = String(who).toLowerCase(); }
+      }
+      words.appendChild(b);
     }
     const t = document.createElement('span');
     t.textContent = text;
-    p.appendChild(t);
+    words.appendChild(t);
+    p.appendChild(words);
+    // Painted portrait beside cast / Overseer captions (Hades-like; 72 px on a phone).
+    if ((kind === 'npc' || kind === 'overseer') && H.portraits) {
+      try { H.portraits.attach(p, who, { mood: m.mood || 'neutral', color: m.color || castColor(who) }); } catch { /* words only */ }
+    }
     // Its words type out over the time it takes to say them (done a tenth early, so the last word is read before it ends).
     if (kind === 'overseer' && m.reveal > 0.4) {
       let dur = Number(m.reveal), t0 = Date.now(), timer = null;

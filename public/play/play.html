@@ -338,7 +338,20 @@
       }
       // The loading wrapper (play/loadwrap.js): the hook line and the toy over the pearl screen, the same real progress.
       var wrap = null;
-      try { if (window.HawkesLoadWrap && window.parent === window) { wrap = HawkesLoadWrap.mount({ root: document.body, hook: 'The Overseer is preparing your world', accent: '#6cf0ff' }); document.body.classList.add('hlw-on'); } } catch (e) { wrap = null; }
+      try {
+        if (window.HawkesLoadWrap && window.parent === window) {
+          var path = (location.pathname || '').replace(/\/+$/, '');
+          var island = /\/play\/sandbox$/.test(path) || /[?&]template=sandbox\b/.test(location.search || '');
+          wrap = HawkesLoadWrap.mount({
+            root: document.body,
+            hook: 'The Overseer is preparing your world',
+            accent: '#6cf0ff',
+            art: island ? '/play/art/island/key-16x9.webp' : null,
+            artTall: island ? '/play/art/island/key-2x3.webp' : null,
+          });
+          document.body.classList.add('hlw-on');
+        }
+      } catch (e) { wrap = null; }
       function update(done, total) { if (total > 0 && !over) { show(Math.min(0.97, done / total)); if (wrap) wrap.progress(Math.min(0.97, done / total)); } }
       function wire() { var M = window.HawkesModules; if (M) { M.onprogress = update; if (M.progress) update(M.progress.done, M.progress.total); } }
       window.HawkesLoadScreen = {
