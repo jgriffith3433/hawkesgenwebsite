@@ -40,6 +40,7 @@ the settings; this is for scripts.
 | `'catch'` | `{ fish: { id, name, rarity, weight, length, points }, by: { id, name }, mine, entity }`: on every player's screen, for every catch (contests) |
 | `'species'` | `{ fish: { id, name, rarity, weight, length }, entity }`: this player's first catch of a species (not junk): a banner and confetti, and the Overseer notes it. `'catch'` data has `fish.first` |
 | `'cast'`, `'bite'`, `'hooked'`, `'escape'`, `'snap'` | the fishing steps, on the fisher's screen |
+| `'fishing'` | `{ name, ... }`: the showcase beats in order, `cast`, `plop`, `nibble`, `bite`, `strike`, `fight`, `leap`, `holdup` (`first`: the first catch of all), `closeup-start` / `closeup-framed` / `closeup-end` (the first catch's 2.6 s close-up: letterbox, no HUD, the whole fish on screen). `game.water.fish.events()` lists them; `game.water.fish.bobber()` gives the bobber's height against the surface and the line's bow (`sag`) |
 | `'splash'` | `{ at, size, entity }`: something went into the water (or water landed: `bucket: true`) |
 | `'soaked'` | `{ at, radius, entities, volume }`: dumped water landed |
 | `'extinguish'` | `{ at, radius, entity, entities, by }`: water put out what is there (fire listens: Mayhem) |
