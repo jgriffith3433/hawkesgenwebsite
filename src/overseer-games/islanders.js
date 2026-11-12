@@ -118,6 +118,11 @@
     return { topic: 'base', text: c.base[st.last] };
   }
 
+  /** A gesture with the line (arms and head only, never the feet: modules/presence/presence-alive.js): by the line's context, the
+   *  character's own habit and the words' length. Returns the gesture's name, or null where the body cannot (a model without the cast's rig). */
+  function gestureFor(e, ctx, text) {
+    try { return H && H.presence && H.presence.alive && e ? H.presence.alive.gesture(e, ctx, Math.min(4.5, 1.4 + String(text).length / 30)) : null; } catch { return null; }
+  }
   const SOUND_OF = { bobbin: 'duck-squeak', ember: 'toaster-pop', rolo: 'robot-chirp', dolores: 'cactus-rustle', channel: 'tv-blip' };
   const islander = (id) => { const e = game.find && game.find(id); return e && e.alive ? e : null; };
   function say(id, first) {
@@ -128,6 +133,7 @@
     if (H && H.chat && H.chat.line) H.chat.line({ kind: 'npc', who: c.who, text: l.text, color: c.color, keep: 14 });
     const e = islander(id), p = game.player;
     if (e && p && e.lookAt) { try { e.lookAt(p); } catch { /* it keeps looking where it was */ } }
+    entry.gesture = gestureFor(e, l.topic === 'hello' ? 'first' : 'any', l.text);
     // Said over their head too, in their own voice (quality rule 6: a character speaks in the world, not only in a log).
     if (e && e.say) { try { e.say(l.text, Math.min(8, 2.5 + l.text.length / 18)); } catch { /* the chat line stands */ } }
     // And a sound of what they are (the site's own: runtime.js siteSound): Bobbin's horn when the harbour first greets you.
@@ -274,13 +280,14 @@
     (heard[id] = heard[id] || { said: [], last: -1, hello: false }).hello = true;
     // Turn to the player, head and body (the routine holds them there while the player is near).
     try { e.lookAt(p); } catch { /* the routine turns them */ }
+    const gest = gestureFor(e, b.ctx, b.text);
     const want = Math.atan2(p.x - e.x, p.z - e.z);
     const turned = Boolean(e.node) && Math.abs(wrapPi((e.node.rotation.y || 0) - want)) < 0.5;
     if (H && H.chat && H.chat.line) H.chat.line({ kind: 'npc', who: c.who, text: b.text, color: c.color, keep: 14 });
     if (e.say) { try { e.say(b.text, Math.min(7, 2.5 + b.text.length / 18)); } catch { /* the chat line stands */ } }
     const clip = (H && H.lib && H.lib.recordedLine && H.lib.recordedLine(id, b.text)) || null;
     const d = Math.round(dist(e, p) * 10) / 10;
-    const entry = { id, who: c.who, ctx: b.ctx, text: b.text, clip, turned, dist: d, at: now };
+    const entry = { id, who: c.who, ctx: b.ctx, text: b.text, clip, turned, dist: d, at: now, gesture: gest };
     barkLog.push(entry);
     if (barkLog.length > 80) barkLog.shift();
     log.push({ id, who: c.who, topic: b.ctx === 'first' ? 'hello' : 'bark-' + b.ctx, text: b.text, t: Math.round(game.time * 10) / 10 });

@@ -52,6 +52,26 @@
     "overseer-motif-ominous",
     "overseer-motif-wonder",
     "overseer-presence-swell",
-    "overseer-sky-shimmer"
+    "overseer-sky-shimmer",
+    "veh-engine-high",
+    "veh-engine-idle",
+    "veh-engine-low",
+    "veh-engine-mid",
+    "veh-engine-start",
+    "veh-gear-clunk",
+    "veh-heli-rotor-full",
+    "veh-heli-rotor-low",
+    "veh-heli-start",
+    "veh-heli-stop",
+    "veh-heli-whine",
+    "veh-horn",
+    "veh-rocket-ignite",
+    "veh-rocket-roar",
+    "veh-rocket-rumble",
+    "veh-suspension-thump",
+    "veh-tyre-grass",
+    "veh-tyre-road",
+    "veh-tyre-sand",
+    "veh-tyre-water"
   ]
 }

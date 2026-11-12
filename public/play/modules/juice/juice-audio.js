@@ -177,6 +177,11 @@
     const s = M.impactSound(ma, mb, o.impulse, { speed: o.speed, mass: Number.isFinite(mass) && mass < 1e9 ? mass : 1 });
     if (!s) return null;
     const at = o.at || (a ? [a.x, a.y, a.z] : null);
+    // The impact library (juice-impact.js: Hawkes Gen clips, 4+ variants a material) plays it when it has loaded; else the old way.
+    if (H.impact && J.allowed('sounds')) {
+      const done = H.impact.hit(a, b, { speed: o.speed, impulse: o.impulse, at, t0: o.t0 });
+      if (done) { J.sound.played++; return s; }
+    }
     const key = `${(a && (a.sceneId || a.name)) || '?'}|${(b && (b.sceneId || b.name)) || '?'}`;
     play({ ...s, at, key: o.key || key, gap: 0.09, weight: o.weight || 1 });
     return s;
@@ -196,11 +201,12 @@
     if (!W()) return;
     const { a, b } = c;
     if (!a || !b || (a.physics !== 'dynamic' && b.physics !== 'dynamic')) return;
+    const t0 = performance.now();
     const speed = speedOf(c);
     if (touching.size < 300 && speed > 0.5) touching.set(pairKey(a, b), { a, b, t: 0 });
     if (speed < 1.2) return;
     const at = c.point || [(a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2];
-    const s = impact(a, b, { speed, at });
+    const s = impact(a, b, { speed, at, impulse: c.impulse, t0 });
     if (s) {
       for (const f of J.sound.hits) try { f({ a, b, at, speed, sound: s }); } catch (err) { H.report(err, 'juice'); }
     }
@@ -247,6 +253,8 @@
         const round = mover.kind === 'sphere' || mover.kind === 'cylinder' || /ball|wheel|barrel|log/.test(String(mover.name || mover.kind).toLowerCase());
         const rolling = round && Math.hypot(...spin) * (Math.PI / 180) * Math.max(...mover.half) > v * 0.5;
         // (Touching contacts are kept only while Havok says so: a bounce ends the pair.)
+        // A barrel rolling has its own clip (juice-impact.js).
+        if (rolling && H.impact && H.impact.isBarrel(mover) && H.impact.roll(mover, v, [mover.x, mover.bottom, mover.z])) continue;
         want.push({ kind: rolling ? 'roll' : 'scrape', at: [mover.x, mover.bottom, mover.z], speed: v, mat: M.materialOf(other), own: M.materialOf(mover), pri: v / (1 + d / 8), key: k });
       }
       // Skidding tires (vehicles: wheels on the ground that slip).

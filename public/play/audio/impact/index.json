@@ -1,0 +1,27 @@
+{
+  "sets": {
+    "wood-light": ["wood-light-1.mp3", "wood-light-2.mp3", "wood-light-3.mp3", "wood-light-4.mp3"],
+    "wood-heavy": ["wood-heavy-1.mp3", "wood-heavy-2.mp3", "wood-heavy-3.mp3", "wood-heavy-4.mp3"],
+    "metal-light": ["metal-light-1.mp3", "metal-light-2.mp3", "metal-light-3.mp3", "metal-light-4.mp3"],
+    "metal-heavy": ["metal-heavy-1.mp3", "metal-heavy-2.mp3", "metal-heavy-3.mp3", "metal-heavy-4.mp3"],
+    "stone-light": ["stone-light-1.mp3", "stone-light-2.mp3", "stone-light-3.mp3", "stone-light-4.mp3"],
+    "stone-heavy": ["stone-heavy-1.mp3", "stone-heavy-2.mp3", "stone-heavy-3.mp3", "stone-heavy-4.mp3"],
+    "water-light": ["water-light-1.mp3", "water-light-2.mp3", "water-light-3.mp3", "water-light-4.mp3"],
+    "water-heavy": ["water-heavy-1.mp3", "water-heavy-2.mp3", "water-heavy-3.mp3", "water-heavy-4.mp3"],
+    "sand-light": ["sand-light-1.mp3", "sand-light-2.mp3", "sand-light-3.mp3", "sand-light-4.mp3"],
+    "sand-heavy": ["sand-heavy-1.mp3", "sand-heavy-2.mp3", "sand-heavy-3.mp3", "sand-heavy-4.mp3"],
+    "glass-light": ["glass-light-1.mp3", "glass-light-2.mp3", "glass-light-3.mp3", "glass-light-4.mp3"],
+    "glass-heavy": ["glass-heavy-1.mp3", "glass-heavy-2.mp3", "glass-heavy-3.mp3", "glass-heavy-4.mp3"],
+    "barrel-bounce": ["barrel-bounce-1.mp3", "barrel-bounce-2.mp3", "barrel-bounce-3.mp3", "barrel-bounce-4.mp3"],
+    "barrel-roll": ["barrel-roll-1.mp3", "barrel-roll-2.mp3", "barrel-roll-3.mp3", "barrel-roll-4.mp3"],
+    "debris": ["debris-1.mp3", "debris-2.mp3", "debris-3.mp3", "debris-4.mp3"],
+    "explosion-near": ["explosion-near-1.mp3", "explosion-near-2.mp3", "explosion-near-3.mp3", "explosion-near-4.mp3"],
+    "explosion-far": ["explosion-far-1.mp3", "explosion-far-2.mp3", "explosion-far-3.mp3", "explosion-far-4.mp3"],
+    "fish-cast": ["fish-cast-1.mp3", "fish-cast-2.mp3"],
+    "fish-reel": ["fish-reel-1.mp3", "fish-reel-2.mp3"],
+    "fish-plop": ["fish-plop-1.mp3", "fish-plop-2.mp3"],
+    "fish-strike": ["fish-strike-1.mp3", "fish-strike-2.mp3"],
+    "fish-flap": ["fish-flap-1.mp3", "fish-flap-2.mp3"]
+  },
+  "far": ["explosion-far", "debris", "barrel-roll"]
+}

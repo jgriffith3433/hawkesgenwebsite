@@ -90,6 +90,9 @@
     const L = M.boomLayers(R, dist);
     stats.layers++;
     const a = H.audio && H.audio.context;
+    // The impact library's blast (juice-impact.js): late by distance / 343 m/s, the far version past 60 m, then the debris.
+    // A game that names its own boom sound keeps it.
+    if (!asset && H.impact && H.impact.explosion && H.impact.explosion(at, R, { k })) return L;
     // The game has its own boom: one clip, late by distance and duller by volume. Else three synthesized layers.
     if (X.hasSound('boom', asset) || !a || a.state !== 'running') {
       const play = () => X.sound('boom', { at, size: R, asset });
