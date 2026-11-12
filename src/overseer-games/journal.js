@@ -63,6 +63,7 @@
     { id: 'mirror2', n: 11, title: 'The Cracked Mirror', by: 'the hangar', at: null },
     { id: 'page', n: 12, title: 'The Blank Page', by: 'the last page of the logbook', at: null },
   ].sort((a, b) => a.n - b.n);
+  for (const l of LORE) l.art = `/play/journal/${l.id}.webp`; // the painted page (hawkes.library.json "journal-paintings")
 
   // ------------------------------------------------------------------ what is kept
   const kept = () => {
@@ -83,12 +84,16 @@
     const fresh = !kept().lore.has(id);
     KEEP.lore.add(id);
     const j = mem(); if (j) j.find(id);
-    if (H && H.chat && H.chat.line) H.chat.line({ kind: 'npc', who: l.title, text: l.text.join(' '), color: '#e5d9b8', keep: 20 });
-    // Read out where it lies, a line at a time over the thing itself, in a voice (quality rule 6: no paragraph of story).
+    // A first pickup plays as a memory on the spot (memories.js); the words live in the journal. A pickup again does nothing loud.
     const thingOf = loreThing(id);
+    const M = window.__island && window.__island.memories;
+    const spot = l.at || (thingOf ? [thingOf.x, thingOf.z] : null);
+    let remembered = false;
+    if (fresh && M && spot && !M.active()) remembered = M.play(id, spot, () => { const b = game.ui.el('journal-btn'); if (b) b.classList.add('new'); });
+    // (Objects with no memory yet are read out over the thing, a line at a time, as before.)
     const holdFor = (line) => Math.min(7, 2.5 + line.length / 18);
     let at = 0;
-    if (thingOf && thingOf.say) for (const line of l.text) { game.after(at, () => { if (thingOf.alive) thingOf.say(line, holdFor(line)); }); at += holdFor(line) + 0.3; }
+    if (fresh && !remembered && thingOf && thingOf.say) for (const line of l.text) { game.after(at, () => { if (thingOf.alive) thingOf.say(line, holdFor(line)); }); at += holdFor(line) + 0.3; }
     if (fresh) {
       funnel('sandbox_lore_found', { id, n: l.n, found: kept().lore.size });
       game.emit('lore-found', { id, n: l.n, title: l.title });
@@ -153,7 +158,7 @@
       done: questList().filter((q) => q.state === 'done' || q.state === 'skipped').length,
       cast: CAST.map((c) => ({ ...c, met: k.met.has(c.id) })),
       finale: Boolean(window.__island && window.__island.finale && window.__island.finale.isDone()),
-      lore: LORE.map((l) => ({ id: l.id, n: l.n, title: l.title, by: l.by, found: k.lore.has(l.id), here: Boolean(l.at), text: k.lore.has(l.id) ? l.text : null })),
+      lore: LORE.map((l) => ({ id: l.id, n: l.n, title: l.title, by: l.by, found: k.lore.has(l.id), here: Boolean(l.at), art: l.art, text: k.lore.has(l.id) ? l.text : null })),
     };
   };
   function html(m) {
@@ -161,11 +166,12 @@
     const qs = m.quests.map((q) => `<li class="jr-q ${q.state}"><b>${ico[q.state]}</b><span><i>${q.n}. ${esc(q.title)}</i> ${esc(q.text)}${q.state === 'skipped' ? ' (skipped)' : ''} <em>skippable</em></span></li>`).join('');
     const cs = m.cast.map((c) => (c.met ? `<li class="jr-c"><i>${esc(c.name)}</i> <em>${esc(c.what)}</em><span>${esc(c.line)}</span></li>` : `<li class="jr-c unmet"><i>?</i> <em>Not met yet</em></li>`)).join('');
     const found = m.lore.filter((l) => l.found).length;
-    const ls = m.lore.map((l) => (l.found ? `<li class="jr-l"><i>${esc(l.title)}</i> <em>${esc(l.by)}</em><span>${l.text.map(esc).join(' ')}</span></li>` : `<li class="jr-l unfound"><i>? ${l.n}.</i> <em>Not yet found${l.here ? '' : '. It is not on this island yet.'}</em></li>`)).join('');
+    const ls = m.lore.map((l) => `<li class="jr-pg ${l.found ? 'found' : 'unfound'}" data-n="${l.n}"><div class="jr-art"><img src="${esc(l.art)}" alt="" loading="lazy" draggable="false" onerror="this.style.visibility='hidden'"></div>`
+      + (l.found ? `<i>${esc(l.title)}</i> <em>${esc(l.by)}</em><span>${l.text.map(esc).join(' ')}</span>` : `<i>? ${l.n}.</i> <em>Not yet found${l.here ? '' : '. It is not on this island yet.'}</em>`) + '</li>').join('');
     return `<div class="jr-head"><b>Journal</b><button type="button" class="jr-x" aria-label="Close the journal">×</button></div><div class="jr-body">`
       + `<h4>Chapter One: What Are You? <small>${m.done} of 8</small></h4><ul>${qs}</ul>${m.finale ? '<button type="button" class="jr-replay">▶ Replay the end of Chapter One</button>' : ''}`
       + `<h4>Neighbours met <small>${m.cast.filter((c) => c.met).length} of ${m.cast.length}</small></h4><ul>${cs}</ul>`
-      + `<h4>Lore found <small>${found} of ${m.lore.length}</small></h4><ul>${ls}</ul></div>`;
+      + `<h4>Painted pages <small>${found} of ${m.lore.length} found</small><small class="jr-count">1 / ${m.lore.length}</small></h4><ul class="jr-pages">${ls}</ul></div>`;
   }
   if (typeof document !== 'undefined' && !document.getElementById('journal-style')) {
     const st = document.createElement('style');
@@ -184,6 +190,10 @@
       '.jr i{font-style:normal;font-weight:700}.jr em{font-style:normal;color:#9fb0d0;font-size:12px}',
       '.jr-q{display:flex;gap:8px}.jr-q b{width:14px;flex:none;color:#7ee0a0}.jr-q.todo b,.jr-q.todo{color:#8a97b5}.jr-q.now b{color:#ffd84a}.jr-q span{flex:1}',
       '.jr-replay{margin:8px 0 2px;min-height:44px;padding:8px 14px;border-radius:10px;border:1px solid rgba(255,216,74,.6);background:rgba(255,216,74,.12);color:#ffd84a;font:700 14px system-ui,sans-serif;cursor:pointer}',
+      '.jr-pages{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:10px;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;scrollbar-width:none}.jr-pages::-webkit-scrollbar{display:none}',
+      '.jr li.jr-pg{flex:0 0 100%;box-sizing:border-box;scroll-snap-align:center;border:1px solid rgba(229,217,184,.35);border-radius:10px;padding:8px;background:rgba(40,28,14,.5)}',
+      '.jr-art{aspect-ratio:4/3;border-radius:6px;overflow:hidden;background:#2a2014;margin-bottom:6px}.jr-art img{width:100%;height:100%;object-fit:cover;display:block;filter:sepia(.25)}',
+      '.jr-pg.unfound .jr-art img{filter:blur(7px) grayscale(1) brightness(.5)}.jr-pg span{display:block;color:#f1e6c8;font-size:15px;line-height:1.4}',
       '.jr-c span,.jr-l span{display:block;color:#dbe7ff}.jr li.unmet,.jr li.unfound{color:#7d8aa8}',
     ].join('\n');
     document.head.appendChild(st);
@@ -198,6 +208,12 @@
   }
   function wire(el) {
     const x = el.querySelector && el.querySelector('.jr-x'); if (x) x.onclick = close;
+    const pg = el.querySelector && el.querySelector('.jr-pages');
+    if (pg) pg.addEventListener('scroll', () => {
+      const n = Math.round(pg.scrollLeft / Math.max(1, pg.clientWidth + 10)) + 1;
+      const c = el.querySelector('.jr-count'); if (c) c.textContent = `${n} / ${pg.children.length}`;
+      if (pg._n !== n) { pg._n = n; game.emit('journal-page', { n, of: pg.children.length }); }
+    }, { passive: true });
     const rp = el.querySelector && el.querySelector('.jr-replay');
     if (rp) rp.onclick = () => { close(); game.after(0.3, () => { const F = window.__island && window.__island.finale; if (F) F.replay(); }); };
   }
