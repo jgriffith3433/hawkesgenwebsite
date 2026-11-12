@@ -99,8 +99,17 @@ async function oneSize(t, w, h, label) {
   };
   try {
     await until(() => win.HawkesPlay && win.HawkesPlay.world && win.HawkesPlay.world.player && win.HawkesPlay.world.player.alive, 120000, 'the island to load');
-    const veil = $('.hp-enter button');
-    if (veil) { veil.click(); await until(() => !$('.hp-enter'), 10000, 'the veil to leave'); }
+    if ($('.hp-title')) {
+      const prompt = $('.hp-title [data-prompt]');
+      if (prompt && !prompt.hidden) prompt.click();
+      await until(() => $('.hp-title [data-play], .hp-title [data-continue]'), 8000, 'title Play');
+      const play = $('.hp-title [data-continue], .hp-title [data-play]');
+      if (play) play.click();
+      await until(() => !$('.hp-title'), 10000, 'the title to leave');
+    } else {
+      const veil = $('.hp-enter button');
+      if (veil) { veil.click(); await until(() => !$('.hp-enter'), 10000, 'the veil to leave'); }
+    }
     if (!$('.mr .mr-q')) {
       await t.wait(800);
       press('Escape'); press(' ');
