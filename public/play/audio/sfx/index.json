@@ -36,6 +36,12 @@
     "ui-pickup",
     "ui-place",
     "ui-quest",
-    "ui-send"
+    "ui-send",
+    "overseer-beam-hum",
+    "overseer-motif-amused",
+    "overseer-motif-ominous",
+    "overseer-motif-wonder",
+    "overseer-presence-swell",
+    "overseer-sky-shimmer"
   ]
 }

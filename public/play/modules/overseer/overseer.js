@@ -625,7 +625,7 @@ void main(void) {
     beams.push(b);
     flare(0.7); // the emitter flares first; the shaft opens a moment later (WINDUP)
     if (opts.sound !== false) whoosh(at0, radius);
-    if (G()) G().emit('beam', { at: at0, radius, entity: ent || null });
+    if (G()) G().emit('beam', { at: at0, radius, seconds, entity: ent || null });
     return b;
   }
   /** Makes a beam mesh a cone: its top ring `k` times as wide as its bottom (each beam has its own copy). */
@@ -801,7 +801,7 @@ void main(void) {
   function say(text, seconds = 4, o = {}) {
     const t = String(text || '').trim();
     if (!t) return null;
-    if (H.speech) return H.speech.say({ text: t, seconds, priority: o.priority, owner: o.owner, voice: o.voice, external: o.external, action: o.action, onEnd: o.onEnd });
+    if (H.speech) return H.speech.say({ text: t, seconds, priority: o.priority, owner: o.owner, voice: o.voice, external: o.external, action: o.action, onEnd: o.onEnd, mood: o.mood });
     if (H.chat) H.chat.line({ kind: 'overseer', text: t, keep: Math.max(14, Number(seconds) || 0), now: true });
     return null;
   }
@@ -859,7 +859,9 @@ void main(void) {
     try {
       const a = new Audio(url);
       a.crossOrigin = 'anonymous';
-      if (H.audio && H.audio.media) H.audio.media(a, { voice: true });
+      // Sound identity: vast treated voice (sound.js); falls back to a plain voice-bus route.
+      if (H.overseerSound && H.overseerSound.route) H.overseerSound.route(a);
+      else if (H.audio && H.audio.media) H.audio.media(a, { voice: true });
       return duckWhile(a);
     } catch { return null; }
   }
