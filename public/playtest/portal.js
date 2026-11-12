@@ -54,7 +54,7 @@ import { OVERSEER_PRESENCE, runOverseerPresence } from './overseer-presence.js';
 const KEY = 'hg_playtest_run';
 const STAGES = ['landing', 'veil', 'intro', 'firstvisit', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'ovpres', 'touch', 'phoneperf', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'answer', 'progress', 'models', 'wish', 'toeditor', 'editor', 'react', 'motion', 'mirrorlayout', 'hudoverlap', 'soundscape', 'music', 'mix', 'ovsound', 'look', 'wind', 'water', 'destruction', 'fishshow', 'routines', 'islandalive', 'firstload', 'gamemenu', 'landcam', 'castvoice', 'castfaces'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'cast-voice': ['landing', 'veil', 'intro', 'mirror', 'castvoice'], 'cast-faces': ['landing', 'veil', 'intro', 'mirror', 'castfaces'], 'chapter-one-finale': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'finale'], 'character-motion': ['landing', 'veil', 'intro', 'motion'], 'landing-camera-feel': ['landing', 'veil', 'intro', 'mirror', 'landcam'], 'island-soundscape': ['landing', 'veil', 'intro', 'mirror', 'soundscape'], 'island-music': ['landing', 'veil', 'intro', 'mirror', 'music'], 'island-mix': ['landing', 'veil', 'intro', 'mirror', 'mix'], 'overseer-sound': ['landing', 'veil', 'ovsound'], 'island-look': ['landing', 'veil', 'intro', 'mirror', 'look'], 'island-wind': ['landing', 'veil', 'intro', 'mirror', 'wind'], 'island-water': ['landing', 'veil', 'intro', 'mirror', 'water'], 'island-destruction': ['landing', 'veil', 'intro', 'mirror', 'destruction'], 'fishing-showcase': ['landing', 'veil', 'intro', 'mirror', 'fishshow'], 'island-routines': ['landing', 'veil', 'intro', 'mirror', 'routines'], 'island-alive': ['landing', 'veil', 'intro', 'mirror', 'islandalive'], 'overseer-personality': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'react'], 'overseer-first-visit': ['landing', 'veil', 'firstvisit'], 'overseer-ask': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'answer'], 'gen-models-all': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-daily-wish': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wish'], 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'phone-performance': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'phoneperf'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'editor-bridge': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'toeditor', 'editor'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'overseer-presence': ['landing', 'veil', 'intro', 'mirror', 'ovpres'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'mirror-panel-layout': ['landing', 'veil', 'intro', 'mirrorlayout'], 'hud-overlap': ['landing', 'veil', 'intro', 'hudoverlap'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'], 'game-menu': ['landing', 'veil', 'intro', 'mirror', 'gamemenu'] };
+const ORDERS = { 'cast-voice': ['landing', 'veil', 'intro', 'mirror', 'castvoice'], 'cast-faces': ['landing', 'veil', 'intro', 'mirror', 'castfaces'], 'chapter-one-finale': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'finale'], 'character-motion': ['landing', 'veil', 'intro', 'motion'], 'landing-camera-feel': ['landing', 'veil', 'intro', 'mirror', 'landcam'], 'island-soundscape': ['landing', 'veil', 'intro', 'mirror', 'soundscape'], 'island-music': ['landing', 'veil', 'intro', 'mirror', 'music'], 'island-mix': ['landing', 'veil', 'intro', 'mirror', 'mix'], 'overseer-sound': ['landing', 'veil', 'ovsound'], 'island-look': ['landing', 'veil', 'intro', 'mirror', 'look'], 'island-wind': ['landing', 'veil', 'intro', 'mirror', 'wind'], 'island-water': ['landing', 'veil', 'intro', 'mirror', 'water'], 'island-destruction': ['landing', 'veil', 'intro', 'mirror', 'destruction'], 'fishing-showcase': ['landing', 'veil', 'intro', 'mirror', 'fishshow'], 'island-routines': ['landing', 'veil', 'intro', 'mirror', 'routines'], 'island-alive': ['landing', 'veil', 'intro', 'mirror', 'islandalive'], 'overseer-personality': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'react'], 'overseer-first-visit': ['landing', 'veil', 'firstvisit'], 'overseer-ask': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'answer'], 'gen-models-all': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-daily-wish': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wish'], 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'vehicle-sound': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'vsound'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'phone-performance': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'phoneperf'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'editor-bridge': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'toeditor', 'editor'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'overseer-presence': ['landing', 'veil', 'intro', 'mirror', 'ovpres'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'mirror-panel-layout': ['landing', 'veil', 'intro', 'mirrorlayout'], 'hud-overlap': ['landing', 'veil', 'intro', 'hudoverlap'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'], 'game-menu': ['landing', 'veil', 'intro', 'mirror', 'gamemenu'] };
 const SCENARIOS = [
   FIRST_LOAD, // Play click to the first frame and the first input, bytes before it, a clean WebGL console (first-load.js)
   LOADING_WRAPPER, // the loading wrapper on /play/sickofit (loading-wrapper.js)
@@ -113,6 +113,11 @@ const SCENARIOS = [
     id: 'vehicle-feel', title: 'Game feel in the 4x4: the view widens, the body leans, dust, the engine climbs, the handbrake drift squeals, a landing dips the view; then the effects by surface (road dust, sand plume and tracks, grass bits, shallows spray), headlights at dusk, and the helicopter\'s downwash over grass and sea', seconds: 480, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first-minutes path to the account sheet, then the 4x4 driven with real keys or, with touch: true, the stick (straight, bends, handbrake) and one named jump shortcut, then across road, sand, shallows and meadow (surface-switch, wheel-effect, tracks-on-sand, tracks-faded, surfaces-driven; surfaceDriveFps) with the headlights at dusk (headlights-on, brake-lights, a named clock shortcut) and, on a computer, the helicopter low over grass and sea (rotor-blur, downwash-ring-grass, spray-disc-sea); logs fov-widened, engine-pitch, dust, body-roll, drift-squeal, landing and the frame rate (driveFps). Options: touch (true: the phone controls, ?touch=1, and under 30 fps is a problem), signup (false: stop at the account sheet; always on live), watch',
+  },
+  {
+    id: 'vehicle-sound', title: 'Vehicles sound alive: the 4x4\'s four engine loops crossfade with the revs and dip at each gear shift, the tyres change loop from road to sand to the shallows, a helicopter passing the camera drops in pitch, and Rolo\'s rocket ignites, roars through the climb and rumbles after', seconds: 420, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the account sheet, then the 4x4 floored from rest (layers-crossfade, gear-shift, shift-dips, engine-follows-throttle), driven road > sand > shallows (tyre-surface, tyre-loop-change), a second helicopter flown past the player (a named setup shortcut; doppler-drop), and the rocket entered by a hook and held up then let go (rocket-ignition, rocket-roar, rocket-rumble), with audio-bytes (new veh-*.mp3 under 2 MB). Options: touch (true: 390x844, the stick is the throttle, 2 layers at most), signup (false: stop at the account sheet; always on live)',
   },
   {
     id: 'rocket-blast-feel', title: 'Game feel of the rocket launcher: recoil and muzzle flash, a smoke trail, hit-stop, shake, a shockwave, debris and embers, and ten barrels that explode in a rolling chain (30 fps on the phone tier)', seconds: 300, tags: ['full'],
@@ -3314,6 +3319,113 @@ async function flyOver(t, ctx, { jeep, driving }) {
   releaseAll();
 }
 
+
+// `vehicle-sound` (vehicles-sound.js): the 4x4 from rest to top speed (four engine layers in turn, a dip at each shift), the
+// tyre loop by ground, a second helicopter flown past the player (doppler), Rolo's rocket (ignition, roar, rumble).
+async function stageVehicleSound(t, ctx) {
+  await t.until(() => G() && G().vehicles && W().byId.get('jeep') && HP().vehicles.sound, 90000, 'the island, its 4x4 and the vehicle sound');
+  await t.wait(1500);
+  const S = () => HP().vehicles.sound.sample();
+  const jeep = () => W().byId.get('jeep');
+  const driving = () => G().player && G().player.controller === 'drive';
+  const touch = Boolean(ctx.options.touch || HP().touchUi);
+  const logged = new Set();
+  const flush = () => { for (const r of S().log) { const k = `${r.t}${r.what}`; if (logged.has(k)) continue; logged.add(k); if (r.what === 'shift') t.event('gear-shift', `${r.from} -> ${r.to} at ${r.speed} m/s`); else if (r.what === 'surface') t.event('tyre-surface', `${r.from || 'start'} -> ${r.to} (${r.ground}) at ${r.speed} m/s`); else if (r.what === 'layers') t.event('engine-layers', `active ${r.active}, gains ${r.gains.join('/')}, rpm ${r.rpm}, gear ${r.gear}`); } };
+  if (!driving()) {
+    await goTo(t, ctx, 'jeep', 3.2, 60000, 'the 4x4');
+    for (let i = 0; i < 4 && !driving(); i++) { if (touch && $('#touch .b')) await tapButton(t, $('#touch .b')); else await tap(t, 'e'); await t.wait(700); }
+    if (!driving()) { t.problem('warning', 'E did not get the player into the 4x4: the hook did'); await HOOKS.enterVehicle(t, 'jeep'); }
+    if (!driving()) throw new Error('timed out getting into the 4x4');
+  }
+  let pad = null;
+  const dr = (a, f) => { if (touch) { if (!pad) pad = stickHold(); pad.set(a, f); } else setKeys({ w: f > 0, s: f < 0, d: a > 0, a: a < 0 }); };
+  const undrive = () => { if (pad) { pad.release(); pad = null; } releaseAll(); };
+  await t.wait(1500);
+  t.scene('4x4: engine idling');
+  const everActive = new Set();
+  let maxActive = 0, followed = false;
+  // 1) rest to top speed
+  const t0 = performance.now();
+  dr(0, 1);
+  while (performance.now() - t0 < 26000) {
+    await t.wait(150);
+    const s = S();
+    s.layers.forEach((g, i) => { if (g > 0.05) everActive.add(i); });
+    maxActive = Math.max(maxActive, s.layers.filter((g) => g > 0.02).length);
+    if (touch && s.throttle > 0.5 && s.rpm > 0.4) followed = true;
+    flush();
+    if (s.shifts >= 3 && everActive.size >= 4 && s.speed > 20) break;
+  }
+  t.scene('4x4: flat out');
+  const s1 = S();
+  t.event('layers-crossfade', `layers heard in turn: ${[...everActive].sort().join(', ')}; at most ${maxActive} at once (limit ${s1.maxLayers}); rpm ${s1.rpm}, gear ${s1.gear}`);
+  if (touch) { if (followed) t.event('engine-follows-throttle', `the stick held forward: throttle ${s1.throttle}, rpm ${s1.rpm}`); else t.problem('error', 'the engine note did not follow the touch throttle'); if (maxActive > 2) t.problem('error', `a phone played ${maxActive} engine layers at once (2 allowed)`); }
+  else if (everActive.size < 4) t.problem('error', `only ${everActive.size} of the 4 engine layers were heard from rest to top speed`);
+  t.event('shift-dips', `${s1.shifts} gear shifts (each dips the volume 0.3 s and clunks)`);
+  if (s1.shifts < 2) t.problem('error', `only ${s1.shifts} gear shift(s) from rest to top speed (2 needed)`);
+  // 2) road > sand > shallows
+  const want = { road: 'road', sand: 'sand', shallows: 'water' };
+  const sw0 = S().surfaceSwitches;
+  for (const g of ['road', 'sand', 'shallows']) {
+    const to = findGround(jeep().x, jeep().z, g);
+    if (!to) { t.problem('error', `no ${g} ground near the 4x4`); continue; }
+    const tl = performance.now();
+    steer.last = null; steer.slow = 0; steer.back = 0;
+    for (;;) {
+      const r = steerAt(jeep(), to);
+      if (touch) { const d = down.has('d') ? 1 : down.has('a') ? -1 : 0, f = down.has('w') ? 1 : down.has('s') ? -1 : 0; setKeys({}); dr(d, f); }
+      flush();
+      if (S().tyre === want[g] && performance.now() - tl > 600) break;
+      if (r.dist < 3 || performance.now() - tl > 30000) break;
+      await t.wait(100);
+    }
+    flush();
+    if (S().tyre === want[g]) t.event('tyre-loop-change', `the ${want[g]} tyre loop plays on the ${g}`); else t.problem('error', `the tyre loop never became ${want[g]} on the ${g} (it was ${S().tyre})`);
+    t.scene(`4x4: ${want[g]} tyre loop`);
+  }
+  t.event('tyre-switches', `${S().surfaceSwitches - sw0} surface switches logged`);
+  undrive();
+  await t.wait(500);
+  // 3) a second helicopter flown past (named shortcut), the camera staying with the 4x4
+  const gv = G().vehicles, me = jeep();
+  const h = gv.make('helicopter', { x: me.x - 110, y: me.y + 14, z: me.z + 18 });
+  t.event('setup-shortcut', 'a second helicopter made 110 m from the player and flown past by autopilot (the camera stays with the 4x4)');
+  await t.wait(600);
+  const hv = h.vehicle;
+  const f = hv.fwd; const fl = Math.hypot(f.x, f.z) || 1;
+  const pm = jeep();
+  h.x = pm.x - (f.x / fl) * 110 + (f.z / fl) * 14; h.z = pm.z - (f.z / fl) * 110 - (f.x / fl) * 14; h.y = pm.y + 12;
+  gv.drive(h, { throttle: 1, hover: 12 });
+  const th = performance.now();
+  while (performance.now() - th < 45000 && !S().doppler) { await t.wait(200); flush(); }
+  const d = S().doppler;
+  if (d) t.event('doppler-drop', `the rotor was ${d.before}x coming and ${d.after}x going (a drop of ${d.drop}) as it passed ${d.distance} m away`); else t.problem('error', 'the helicopter passed and no doppler pitch drop was logged');
+  t.scene('Helicopter passing');
+  gv.drive(h, null);
+  // 4) Rolo's rocket: in by a hook, held up, then let go
+  if (driving()) { await tap(t, 'e'); await t.wait(800); }
+  await HOOKS.enterVehicle(t, 'rocket');
+  const R = () => S().rocket;
+  const hold = (k, on) => { if (on && !down.has(k)) { down.add(k); keyEv('keydown', k); } if (!on && down.has(k)) { down.delete(k); keyEv('keyup', k); } };
+  hold(' ', true);
+  await t.until(() => R() && R().phase === 'ignition', 12000, 'the rocket ignition sound').then(() => t.event('rocket-ignition', 'the ignition played')).catch((e) => t.problem('error', e.message));
+  await t.until(() => R() && R().phase === 'roar', 12000, 'the rocket roar').then(() => t.event('rocket-roar', `the roar follows the climb (${R().climb} m/s up, low-pass ${R().cutoff} Hz)`)).catch((e) => t.problem('error', e.message));
+  await t.wait(3500);
+  t.scene('Rolo\'s rocket: the climb');
+  hold(' ', false); hold('c', true);
+  await t.until(() => R() && R().phase === 'rumble', 20000, 'the rocket rumble tail').then(() => t.event('rocket-rumble', `the rumble tail played ${R().burned} s after ignition`)).catch((e) => t.problem('error', e.message));
+  hold('c', false);
+  flush();
+  // 5) what the sounds weigh
+  let bytes = 0, n = 0;
+  for (const r of performance.getEntriesByType('resource')) if (/\/audio\/sfx\/veh-/.test(r.name)) { bytes += r.encodedBodySize || r.transferSize || 0; n++; }
+  t.metric('vehicleAudioKB', Math.round(bytes / 1024));
+  t.event('audio-bytes', `${n} vehicle sound files, ${Math.round(bytes / 1024)} KB over the wire (2048 KB allowed)`);
+  if (bytes > 2 * 1024 * 1024) t.problem('error', 'the new vehicle audio is over 2 MB');
+  releaseAll();
+  t.progress(1);
+}
+
 // `rocket-blast-feel`: the same way in to the account, then the rocket launcher at the fuel barrels (mayhem-feel.js): the
 // launcher kicks and flashes, the rocket leaves a trail, the blast shakes, stops time for a beat, throws a ring, debris and
 // embers, and ten barrels go off one after another. Real input (walking, a click); the launcher in hand and five more
@@ -3547,7 +3659,7 @@ async function stagePhonePerf(t, ctx) {
 const RUN = {
   models: stageModels,
   hats: stageHats,
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, firstvisit: stageFirstVisit, mirror: stageMirror, mirrorlayout: stageMirrorLayout, hudoverlap: stageHudOverlap, sheet: stageSheet, asks: stageAsks, answer: stageAnswer, toeditor: stageToEditor, editor: stageEditor, pier: stagePier, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, finale: stageFinale, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, wish: stageWish, react: stageReact, alive: stageAlive, touch: stageTouch, phoneperf: stagePhonePerf, motion: runCharacterMotion, soundscape: (t, ctx) => runIslandSoundscape(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), wind: (t, ctx) => runIslandWind(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, stickHold, tapButton, $, options: ctx && ctx.options }), look: (t, ctx) => runIslandLook(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, stickHold, tapButton, $, options: ctx && ctx.options }), music: (t, ctx) => runIslandMusic(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), islandalive: (t, ctx) => runIslandAlive(t, { setKeys, lookAt, camYaw, releaseAll, stickHold, dragLook, options: ctx && ctx.options }), routines: (t, ctx) => runIslandRoutines(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), landcam: (t, ctx) => runLandingCameraFeel(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), leave: stageLeave, back: stageBack,
+  landing: stageLanding, veil: stageVeil, intro: stageIntro, firstvisit: stageFirstVisit, mirror: stageMirror, mirrorlayout: stageMirrorLayout, hudoverlap: stageHudOverlap, sheet: stageSheet, asks: stageAsks, answer: stageAnswer, toeditor: stageToEditor, editor: stageEditor, pier: stagePier, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, finale: stageFinale, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, vsound: stageVehicleSound, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, wish: stageWish, react: stageReact, alive: stageAlive, touch: stageTouch, phoneperf: stagePhonePerf, motion: runCharacterMotion, soundscape: (t, ctx) => runIslandSoundscape(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), wind: (t, ctx) => runIslandWind(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, stickHold, tapButton, $, options: ctx && ctx.options }), look: (t, ctx) => runIslandLook(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, stickHold, tapButton, $, options: ctx && ctx.options }), music: (t, ctx) => runIslandMusic(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), islandalive: (t, ctx) => runIslandAlive(t, { setKeys, lookAt, camYaw, releaseAll, stickHold, dragLook, options: ctx && ctx.options }), routines: (t, ctx) => runIslandRoutines(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), landcam: (t, ctx) => runLandingCameraFeel(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), leave: stageLeave, back: stageBack,
   castfaces: (t, ctx) => runCastFaces(t, { setKeys, lookAt, camYaw, releaseAll, stickHold, dragLook, touchEv, options: ctx && ctx.options }),
   castvoice: (t, ctx) => runCastVoice(t, { setKeys, lookAt, camYaw, releaseAll, HOOKS, touchEv, tapButton, stickHold, options: ctx && ctx.options }),
   destruction: (t, ctx) => runIslandDestruction(t, { setKeys, lookAt, camYaw, releaseAll, stickHold, tapButton, HOOKS, $, options: ctx && ctx.options }),
