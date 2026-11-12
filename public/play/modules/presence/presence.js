@@ -208,6 +208,7 @@
   function people(fresh) { if (fresh || now() - peopleAt > 200) { peopleCache = collect(); peopleAt = now(); } return peopleCache; }
   function person(key) { return people().find((x) => x.key === key) || null; }
   P.person = person;
+  P.rigOf = (e) => rigs.get(e) || null;
   /** Everyone playing (me first, then friends, then the rest): { id, name, friend, host, typing, user, muted, entity }. */
   P.players = () => people(true).filter((x) => x.kind === 'me' || x.kind === 'player' || x.kind === 'friend')
     .map((x) => ({ id: x.conn || 'me', key: x.key, me: x.kind === 'me', name: x.name, color: x.color, friend: x.kind === 'friend', host: x.host, typing: x.typing, user: x.user, verified: x.kind === 'me' ? me.signedIn : x.verified, requested: x.requested, muted: muted.has(x.key) || (x.user && muted.has(x.user)), spectating: x.spectating, entity: x.entity }))
@@ -635,6 +636,10 @@
   }
   // Walking swings arms and legs; an emote takes over the pose while it plays.
   function animate(rig, dt, pr) {
+    animateBody(rig, dt, pr);
+    if (P.alive) P.alive.after(rig, dt); // the cast's head and gestures, set over what the body just did (presence-alive.js)
+  }
+  function animateBody(rig, dt, pr) {
     const e = rig.e;
     const pos = [e.x, e.y, e.z];
     if (rig.last && dt > 0) { const v = Math.hypot(pos[0] - rig.last[0], pos[2] - rig.last[2]) / dt; rig.speed += (Math.min(12, v) - rig.speed) * Math.min(1, dt * 10); }
@@ -652,6 +657,7 @@
     r.shL.rotation.set(-swing * 0.8, 0, 0.06); r.shR.rotation.set(swing * 0.8, 0, -0.06);
     r.neck.rotation.set(0, 0, 0);
     feedFace(rig, t);
+    if (P.alive) P.alive.before(rig, dt); // the cast's voice, mouth and eyes (presence-alive.js)
     const modelOn = Boolean(rig.pm && rig.pm.on); // a Gen model has the body (presence-models.js): it moves itself, emotes included
     if (rig.person && !modelOn) P.softPerson.animate(rig, dt, em); // its own pose, springs and face (the emotes below go on top)
     if (rig.cape) rig.cape.rotation.x = 0.12 + s * 0.5;
