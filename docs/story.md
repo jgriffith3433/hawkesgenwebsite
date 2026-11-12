@@ -145,6 +145,19 @@ Five of the six neighbours stand on the sandbox island in Chapter One (Pip is th
 - **Barks (built, 2026-11-11).** Walking past, an islander within about 6 m (the routine's notice is 6 m, 7.5 m to let go) turns to the player and says one short bark in their recorded voice, captioned over their head (islanders.js `BARKS`: 8 or 9 each, by context `first`, `rod`, `drive`, `boom` (the barrels), `fish`, else `any`; the newest deed in the last 4 minutes wins; none repeats within 5 minutes; one bark per islander a minute; one voice at a time; only when the player can see the head, clear of the thumbs' corners). Every bark is a fixed line with its clip in `public/play/audio/voice` (eleven were made for this in Hawkes Gen: Russell, Sarah, River, Matilda, Daniel); the rest reuse existing clips. The first bark is the hello and passes the hill. E still gives the longer text line. Playtest `island-alive`.
 - Nobody here says why anything is as it is. The hints stay at the edge (Dolores watches the climb; Rolo's rocket "I can't say why").
 
+#### 5c. The finale: the end of Chapter One (built: `src/overseer-games/finale.js`)
+
+When Rolo's rocket settles on the pad in the Overseer's hangar (the first docking after quest 8), the chapter closes as an in-engine set piece (cinematic camera, letterbox in landscape, captions in a band at the bottom; any tap or the Skip button skips a shot):
+
+1. **The doors.** The hangar's back wall opens in two grinding slabs; warm light spills across the floor; a low rumble and a rising chord. The Overseer: *"You came. Good. Come in."* (the bay's "It is yours, if you come", answered).
+2. **The neighbours.** Beamed in at the door, they walk over and each says one line in their own voice: Pip *"Huh! That is a lot of floor. Hi, Floor!"*, Bobbin *"Carry on. That is an order. It is also a suggestion."*, Mrs Ember *"Dear, I brought you a letter. It says: well done. It has no sender. Sorry."* (the letter is the first one's mate: still no sender), Rolo *"huh. you parked it. nicely. one wobble. that is fine."*, Dolores *"I came up. I was not waiting. The view is fine."*, Channel *"Breaking: a hangar, a crowd, and the new one. Ratings: record."*
+3. **The payoff.** The Overseer closes the opening joke: *"I gave you free will, and told you a shoe would do. It would have. You did better."* (it never names what the player is: the shoe is its own example, from the first words).
+4. **The player's move (control is theirs).** *"Now, one thing. Free will is only the next thing, and it is yours. Light the sky."* A big "Light the sky" button (E, a click or a tap) is the player's own act; nothing advances until they make it.
+5. **The sky.** Fireworks over the bay's mouth, the cast cheers, *"Thank you for coming. That is all of the first part."* Then the title on the letterbox: **Chapter One complete** / *What Are You?*, under the island's chord.
+6. **The tease.** Five seconds at the bay's mouth: a pale lamp lights on the far shore, blinks twice, with a thin column of light, under a low dark motif. The Overseer, one line: *"I did not light that one."* (It only hints at hint 1 of section 4: someone built before. It does not say who or why.) Control is back at once.
+
+Kept once per device (`hg_chapter_one`); the journal's Chapter One has "Replay the end of Chapter One" once it has played (works where the hangar is, else the Overseer asks for the rocket to come back to the bay). Ten new recordings (`public/play/audio/voice`, filed in `hawkes.library.json` `voiceLines`; Pip in Jessica, the rest as 5b); the music is synthesized in the engine. Playtest `chapter-one-finale`.
+
 #### 6. Three later chapters
 
 **Chapter Two: "The Door in the Hill."** The island opens out: more of the planet's coast, a rope bridge to a second island,
