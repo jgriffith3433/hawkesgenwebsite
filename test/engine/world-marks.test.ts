@@ -51,6 +51,23 @@ test('cheer lines hash to the expected voice keys', () => {
   assert.equal(hash('This one is new. Look.'), '2550cce6');
 });
 
+test('every cheer has a voice file listed in index.json', () => {
+  const index = JSON.parse(fs.readFileSync(path.join(ROOT, 'public/play/audio/voice/index.json'), 'utf8')).clips as string[];
+  const set = new Set(index);
+  for (const [, who, text] of CHEERS) {
+    const key = `${who}-${hash(text)}`;
+    assert.ok(set.has(key), `index has ${key}`);
+    assert.ok(fs.existsSync(path.join(ROOT, 'public/play/audio/voice', `${key}.mp3`)), `file ${key}.mp3`);
+  }
+});
+
+test('cheer plays the recorded clip (not only when the islander is missing)', () => {
+  assert.match(src, /playCheerClip/);
+  assert.match(src, /new Audio\(clip\)/);
+  assert.match(src, /H\.audio\.media/);
+  assert.doesNotMatch(src, /if \(clip && H\.audio && !e\)/);
+});
+
 test('Overseer memory keeps marks (done, last)', () => {
   assert.match(mem, /H\.memory\.marks/);
   assert.match(mem, /cleanMarks/);

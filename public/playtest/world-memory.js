@@ -72,7 +72,11 @@ export async function runWorldMemory(t, helpers) {
   if (changes.filter((c) => c.first).length < 4) t.problem('error', `expected 4 first world-change events, got ${changes.filter((c) => c.first).length}`);
   const withCheer = changes.filter((c) => c.first && c.cheer && c.cheer.who);
   if (withCheer.length < 4) t.problem('error', `expected islander cheers on each mark, got ${withCheer.length}`);
-  t.event('marks-done', `done=${M().list().join(',')}; last=${M().last()}`);
+  const withClip = changes.filter((c) => c.first && c.cheer && c.cheer.clip);
+  if (withClip.length < 4) t.problem('error', `expected recorded voice clips on each cheer, got ${withClip.length}`);
+  const barkClips = cheers.filter((d) => d && d.clip);
+  if (barkClips.length < 4) t.problem('error', `expected mark-cheer bark events with clip urls, got ${barkClips.length}`);
+  t.event('marks-done', `done=${M().list().join(',')}; last=${M().last()}; cheersWithClip=${withClip.length}`);
 
   // Reload stand-in: clear built meshes, re-read memory, rebuild quietly — must still be in place.
   const before = M().list().slice();

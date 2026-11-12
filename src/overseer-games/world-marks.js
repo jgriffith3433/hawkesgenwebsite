@@ -356,6 +356,33 @@
     return state.done.slice();
   }
 
+  /** Plays a mark cheer from the islander's mouth (presence e.say only draws the bubble; speakRecorded lives on showBubble). */
+  function playCheerClip(e, who, label, text, clip, step) {
+    if (!clip || typeof Audio === 'undefined') return false;
+    try {
+      if (e && e._voiceClip) { try { e._voiceClip.pause(); } catch { /* gone */ } }
+      const a = new Audio(clip);
+      const at = () => {
+        if (e && e.node && e.node.getAbsolutePosition) {
+          const p = e.node.getAbsolutePosition();
+          return [p.x, p.y + 1.3, p.z];
+        }
+        const def = MARKS[step];
+        return def ? [def.at[0], (def.at[1] || 0) + 1.3, def.at[2]] : null;
+      };
+      if (H.audio && H.audio.media) {
+        a.volume = H.audio.spatial ? 1 : 0.9;
+        H.audio.media(a, { voice: true, at: H.audio.spatial ? at : undefined, who: label, spatial: { ref: 5, max: 60 }, analyser: true });
+      } else a.volume = 0.9;
+      if (e) { e._voiceClip = a; e._voiceAnalyser = a._analyser || null; }
+      const pr = a.play();
+      if (pr && pr.catch) pr.catch(() => {});
+      try { if (e && H.presence && H.presence.alive && H.presence.alive.spoke) H.presence.alive.spoke(e, text, Math.min(7, 2.5 + text.length / 18)); } catch { /* fine */ }
+      game.emit('voiced', { who: label, kind: 'clip', url: clip, mark: step, id: who });
+      return true;
+    } catch { return false; }
+  }
+
   function cheer(step) {
     const def = MARKS[step];
     if (!def || !def.cheer) return null;
@@ -372,13 +399,10 @@
       if (H.chat && H.chat.line) H.chat.line({ kind: 'npc', who: label, text, keep: 10 });
       if (e && e.say) try { e.say(text, Math.min(7, 2.5 + text.length / 18)); } catch { /* chat stands */ }
       const clip = (H.lib && H.lib.recordedLine && H.lib.recordedLine(who, text)) || null;
-      // Play the clip when the entity's say did not (tests and some bodies have no voice bus).
-      if (clip && H.audio && !e) {
-        try { H.audio.play(clip, { bus: 'voice', volume: 0.9 }); } catch { /* fine */ }
-      }
-      game.emit('bark', { id: who, who: label, ctx: 'mark', text, clip, turned: true, dist: 0, at: Date.now(), mark: step });
-      return { who: label, text, clip: Boolean(clip) };
-    } catch { return { who: label, text, clip: false }; }
+      const voiced = playCheerClip(e, who, label, text, clip, step);
+      game.emit('bark', { id: who, who: label, ctx: 'mark', text, clip, turned: true, dist: 0, at: Date.now(), mark: step, voiced });
+      return { who: label, text, clip: Boolean(clip), voiced };
+    } catch { return { who: label, text, clip: false, voiced: false }; }
   }
 
   function celebrate(step) {
