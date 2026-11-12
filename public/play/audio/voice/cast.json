@@ -4,32 +4,32 @@
   "pip": {
    "name": "Pip",
    "color": "#f472b6",
-   "voiceId": null
+   "voiceId": "gv_563f7380cfb0dd4a"
   },
   "bobbin": {
    "name": "Admiral Bobbin",
    "color": "#facc15",
-   "voiceId": null
+   "voiceId": "gv_d11b25da2a8a8a60"
   },
   "ember": {
    "name": "Mrs Ember",
    "color": "#fb923c",
-   "voiceId": null
+   "voiceId": "gv_a3fcc5a04bf9ea6a"
   },
   "rolo": {
    "name": "Rolo",
    "color": "#22d3ee",
-   "voiceId": null
+   "voiceId": "gv_05b19c31d81a9d31"
   },
   "dolores": {
    "name": "Dolores",
    "color": "#4ade80",
-   "voiceId": null
+   "voiceId": "gv_7cfde788dea2a5cd"
   },
   "channel": {
    "name": "Channel",
    "color": "#7dd3fc",
-   "voiceId": null
+   "voiceId": "gv_880bf028e8ff7207"
   }
  },
  "lines": [
