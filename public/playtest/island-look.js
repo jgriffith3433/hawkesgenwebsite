@@ -157,6 +157,61 @@ export async function runIslandLook(t, helpers) {
     L.release();
   }
 
+  // ---- the painted sky (modules/overseer/skypaint.js): loaded after the first frame, four different skies, a 20 s+ blend, no seam
+  await t.until(() => window.__skyPaint && window.__skyPaint.ready, 60000, 'the four painted sky textures (window.__skyPaint.ready)');
+  {
+    const sp = () => window.__skyPaint;
+    const kb = Math.round(sp().bytes / 1024);
+    t.metric('skyTextureKB', kb);
+    t.event('sky-loaded', `tier ${sp().tier}, 4 sky textures, ${kb} KB over the wire, first requested after ${sp().firstRequestAfterFrames} frames`);
+    if (sp().frames < sp().firstRequestAfterFrames) t.problem('error', 'the sky textures were asked for before the first frames');
+    if (sp().tier === '2k' && sp().bytes > 1.5 * 1024 * 1024) t.problem('error', `the phone tier's sky textures are ${kb} KB, over 1.5 MB`);
+    if (touch && sp().tier !== '2k') t.problem('error', `the phone tier loaded ${sp().tier} sky textures, not 2k`);
+    stand(t, 50, -8, 72, -6, 'sea and sky from the pier');
+    const seen = [];
+    for (const [name, h] of HOURS) {
+      L.setHour(h);
+      const idx = ['dawn', 'noon', 'dusk', 'night'].indexOf(name);
+      await t.until(() => sp().weights[idx] > 0.97, 45000, `the sky to settle at ${name}`);
+      await t.wait(600);
+      t.scene(`Sky: ${name}`);
+      const hz = sp().horizon.map((v) => v.toFixed(2)).join('/'), fg = (sp().fogColor || []).map((v) => v.toFixed(2)).join('/');
+      seen.push(sp().horizon);
+      t.event('sky-shot', `${name} (${h}): horizon ${hz}, fog ${fg}, moon at ${sp().moon.map((v) => v.toFixed(2)).join(',')}`);
+    }
+    const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+    let minD = 9; for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) minD = Math.min(minD, dist(seen[i], seen[j]));
+    t.event('skies-distinct', `the four horizons are at least ${minD.toFixed(2)} apart in colour`);
+    if (minD < 0.08) t.problem('error', 'two of the painted skies are too alike');
+    const fogOff = sp().fogColor ? dist(sp().fogColor, sp().horizon.map((v) => v * (1 - 0.35 * sp().weights[3]))) : 0;
+    t.event('sea-meets-sky', `fog colour is ${fogOff.toFixed(3)} from the sky's horizon colour (no grey band when near 0)`);
+    if (fogOff > 0.06) t.problem('error', 'the fog colour is not the sky horizon colour: a grey band at the horizon');
+    // dusk to night: the clock jumps and the sky must dissolve over 20 s or more, a little each frame
+    L.setHour(18.9); await t.until(() => sp().weights[2] > 0.97, 45000, 'dusk'); await t.wait(500);
+    window.__skyPaint.maxStep = 0;
+    const t0 = performance.now(); let tHi = null, tLo = null, worstFrame = 0, prev = sp().weights.slice(), frames2 = 0;
+    L.setHour(22.4);
+    await new Promise((res) => {
+      const tick = () => {
+        const w = sp().weights; frames2++;
+        worstFrame = Math.max(worstFrame, ...w.map((v, i) => Math.abs(v - prev[i]))); prev = w.slice();
+        if (tHi === null && w[2] < 0.9) tHi = performance.now();
+        if (tLo === null && w[3] > 0.9) { tLo = performance.now(); }
+        if (tLo !== null || performance.now() - t0 > 60000) return res();
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+    const secs = tHi !== null && tLo !== null ? (tLo - tHi) / 1000 : 0;
+    t.scene('Sky: dusk to night, blended');
+    t.metric('duskToNightBlendS', Math.round(secs * 10) / 10);
+    t.metric('skyWorstFrameStep', Math.round(worstFrame * 10000) / 10000);
+    t.event('dusk-night-blend', `the sky went from 90% dusk to 90% night in ${secs.toFixed(1)} s over ${frames2} frames, the biggest weight change in one frame ${worstFrame.toFixed(4)}`);
+    if (secs < 16) t.problem('error', `the dusk to night blend took ${secs.toFixed(1)} s, under the 20 s that stops a pop`);
+    if (worstFrame > 0.03) t.problem('error', `the sky jumped ${worstFrame.toFixed(3)} in one frame during the blend`);
+    L.release();
+  }
+
   // ---- the console since load
   const hits = (window.__hgConsole || []).filter(([, , text]) => /WebGL|GL_|WARNING|GL ERROR|INVALID_/i.test(String(text)));
   t.metric('webglLines', hits.length);
