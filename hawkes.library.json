@@ -66,6 +66,43 @@
       "about": "Overseer sound identity (modules/overseer/sound.js). Gen assets land in public/play/audio/sfx/ via studio_gen_import; loudness-normalised at Gen (normalize: true on sfx; music trimmed in play)."
     },
     {
+      "id": "impact-sounds",
+      "kind": "sound-pack",
+      "name": "Impact sound library",
+      "dir": "public/play/audio/impact",
+      "index": "public/play/audio/impact/index.json",
+      "jobs": {
+        "wood-light": "j_c8f3e0c63a34",
+        "wood-heavy": "j_bcc9f482462d",
+        "metal-light": "j_f4abe3bcbe68",
+        "metal-heavy": "j_e5ada8023329",
+        "stone-light": "j_595ad1f38a4b",
+        "stone-heavy": "j_d121b28ea7ce",
+        "water-light": "j_e96c7dd844d1",
+        "water-heavy": "j_6eecfdf9af92",
+        "sand-light": "j_11c696f68575",
+        "sand-heavy": "j_fce61c895d8c",
+        "glass-light": "j_110c276aff2a",
+        "glass-heavy": "j_a66530e3ecc2",
+        "barrel-roll": "j_a657de52d369",
+        "barrel-bounce": "j_2b68b8448ff6",
+        "debris": "j_8515c4155014",
+        "explosion-near": "j_c0e7f6a680d8",
+        "explosion-far": "j_6bc132e8a802",
+        "fish-cast": "j_fb44642d2015",
+        "fish-reel": "j_f3143351dae7",
+        "fish-plop": "j_ac5da7fec3c7",
+        "fish-strike": "j_774fc471faf3",
+        "fish-flap": "j_113a10303de7"
+      },
+      "data": {
+        "canon": "Every hit sounds like what it is: wood thunks, metal clangs, stone cracks, water splashes, sand thumps, glass tinks; barrel bounce and roll; debris patter; near blast crack+boom and far rolling boom late by distance/343; fishing cast/plop/strike/reel/flap. Four variants a set, never the same twice in a row; light/heavy by impulse; pitch +-8% gain +-2 dB; far sets stream after first frame. Player: H.impact (juice-impact.js). Playtest: island-impact.",
+        "far": ["explosion-far", "debris", "barrel-roll"],
+        "budgetKB": 3072
+      },
+      "about": "Impact library under public/play/audio/impact/ (audio.sfx open path, sampleRate 32000). Near sets load first; far tails after. Filed for modules/juice/juice-impact.js."
+    },
+    {
       "id": "vehicle-sound",
       "kind": "sound-pack",
       "name": "Vehicle engine, tyre, rotor and rocket",
