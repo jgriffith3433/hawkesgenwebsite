@@ -957,6 +957,7 @@
   // find the same clip wherever they're said. (Made in Hawkes Gen: docs/story.md "Voices".)
   const VOICE_DIR = '/play/audio/voice/';
   let voiceIndex = null;
+  let voiceWebm = new Set(); // keys re-recorded as opus/webm (index.json `webm`): same key, the .webm file replaces the .mp3
   let voiceIndexLoading = null;
   /** FNV-1a (32 bits, hex) of the words, trimmed, in lower case, spaces collapsed. */
   function lineHash(text) {
@@ -972,15 +973,25 @@
     voiceIndexLoading = fetch(VOICE_DIR + 'index.json')
       .then((r) => (r.ok ? r.json() : {}))
       .catch(() => ({}))
-      .then((j) => { voiceIndex = new Set(Array.isArray(j && j.clips) ? j.clips : []); return voiceIndex; });
+      .then((j) => { voiceWebm = new Set(Array.isArray(j && j.webm) ? j.webm : []); voiceIndex = new Set(Array.isArray(j && j.clips) ? j.clips : []);
+        // The first-heard lines (index.json `preload`) are fetched into the HTTP cache once the page is up, so they start at once.
+        if (Array.isArray(j && j.preload) && typeof setTimeout === 'function') setTimeout(() => { for (const k of j.preload.slice(0, 8)) { try { fetch(`${VOICE_DIR}${k}.${voiceWebm.has(k) ? 'webm' : 'mp3'}`, { priority: 'low' }).catch(() => {}); } catch { /* fine */ } } }, 1200);
+        return voiceIndex; });
     return voiceIndexLoading;
   }
   /** The recording of these words by this speaker, or null. index: a list of keys to use instead of the site's (tests). */
-  function recordedLine(speaker, text, index) {
+  function recordedLine(speaker, text, index, webm) {
     const set = index ? new Set(index) : voiceIndex;
     if (!speaker || !set) return null;
     const key = `${String(speaker).toLowerCase()}-${lineHash(text)}`;
-    return set.has(key) ? `${VOICE_DIR}${key}.mp3` : null;
+    if (!set.has(key)) return null;
+    const w = webm ? new Set(webm) : voiceWebm;
+    if (w.has(key)) {
+      // Opus in webm (about 48 kbps). A browser that cannot play it has no mp3 of this key: the babble stands in.
+      if (!webm && typeof Audio !== 'undefined') { try { if (!new Audio().canPlayType('audio/webm; codecs="opus"')) return null; } catch { return null; } }
+      return `${VOICE_DIR}${key}.webm`;
+    }
+    return `${VOICE_DIR}${key}.mp3`;
   }
   loadVoiceIndex();
   // The site's own sound effects (public/play/audio/sfx/<name>.mp3, listed in its index.json: duck-squeak, fish-bite...):

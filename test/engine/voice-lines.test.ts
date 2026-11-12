@@ -29,10 +29,19 @@ test('every clip the index lists is a file of the site', () => {
   const dir = 'public/play/audio/voice';
   const index = JSON.parse(fs.readFileSync(`${dir}/index.json`, 'utf8'));
   assert.ok(Array.isArray(index.clips));
+  const webm = new Set(index.webm || []);
   for (const k of index.clips) {
     assert.match(k, /^[a-z]+-[0-9a-f]{8}$/);
-    assert.ok(fs.existsSync(`${dir}/${k}.mp3`), `${k}.mp3 is missing`);
+    const f = webm.has(k) ? `${k}.webm` : `${k}.mp3`;
+    assert.ok(fs.existsSync(`${dir}/${f}`), `${f} is missing`);
   }
+  for (const k of webm) assert.ok(index.clips.includes(k), `${k} is in webm but not in clips`);
+});
+
+test('a re-recorded line (listed under webm) plays its .webm under the same key', () => {
+  const key = `pip-${L.lineHash('What a day for it!')}`;
+  assert.equal(L.recordedLine('pip', 'What a day for it!', [key], [key]), `/play/audio/voice/${key}.webm`);
+  assert.equal(L.recordedLine('pip', 'What a day for it!', [key], []), `/play/audio/voice/${key}.mp3`);
 });
 
 test('a sound the site has is played by name, and one it lacks leaves the caller to make its own', () => {
