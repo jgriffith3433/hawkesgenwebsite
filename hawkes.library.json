@@ -66,6 +66,41 @@
       "about": "Overseer sound identity (modules/overseer/sound.js). Gen assets land in public/play/audio/sfx/ via studio_gen_import; loudness-normalised at Gen (normalize: true on sfx; music trimmed in play)."
     },
     {
+      "id": "vehicle-sound",
+      "kind": "sound-pack",
+      "name": "Vehicle engine, tyre, rotor and rocket",
+      "jobs": {
+        "loops": "j_2767ae76b809",
+        "oneshots": "j_6fde121e39ec"
+      },
+      "data": {
+        "canon": "4x4 four-gear engine (idle/low/mid/high loops + start, gear clunk, horn, suspension thump), tyre loops by surface (road/sand/grass/water), helicopter rotor low/full + whine + start/stop, Rolo rocket ignite/roar/rumble. Loudness-normalised; loops equal-power crossfaded seamless; under 2 MB total.",
+        "slots": {
+          "engine/idle": { "brief": "4x4 diesel idle loop", "path": "public/play/audio/sfx/veh-engine-idle.mp3", "asset": "a_00a42475a8abb7c8" },
+          "engine/low": { "brief": "4x4 low RPM loop", "path": "public/play/audio/sfx/veh-engine-low.mp3", "asset": "a_fffb69c08c86432f" },
+          "engine/mid": { "brief": "4x4 mid RPM loop", "path": "public/play/audio/sfx/veh-engine-mid.mp3", "asset": "a_8877c9f082fb295d" },
+          "engine/high": { "brief": "4x4 high RPM loop", "path": "public/play/audio/sfx/veh-engine-high.mp3", "asset": "a_d8cde9c3184ba01d" },
+          "engine/start": { "brief": "4x4 engine start", "path": "public/play/audio/sfx/veh-engine-start.mp3", "asset": "a_491d2e94be7d9002" },
+          "engine/gear-clunk": { "brief": "Gear shift clunk", "path": "public/play/audio/sfx/veh-gear-clunk.mp3", "asset": "a_45283200f9272f84" },
+          "engine/suspension-thump": { "brief": "Suspension landing thump", "path": "public/play/audio/sfx/veh-suspension-thump.mp3", "asset": "a_5e3c3cc6cbdb0ef2" },
+          "engine/horn": { "brief": "Friendly car horn", "path": "public/play/audio/sfx/veh-horn.mp3", "asset": "a_54f94eaf7249b208" },
+          "tyre/road": { "brief": "Tyres on gravel road loop", "path": "public/play/audio/sfx/veh-tyre-road.mp3", "asset": "a_b3824e045d8fcc6d" },
+          "tyre/sand": { "brief": "Tyres on sand loop", "path": "public/play/audio/sfx/veh-tyre-sand.mp3", "asset": "a_ec0ea171d188d488" },
+          "tyre/grass": { "brief": "Tyres on grass loop", "path": "public/play/audio/sfx/veh-tyre-grass.mp3", "asset": "a_231d539bd187394e" },
+          "tyre/water": { "brief": "Tyres through shallows loop", "path": "public/play/audio/sfx/veh-tyre-water.mp3", "asset": "a_e2db471ad26f8e40" },
+          "heli/rotor-low": { "brief": "Rotor low collective loop", "path": "public/play/audio/sfx/veh-heli-rotor-low.mp3", "asset": "a_d1590549c85f151b" },
+          "heli/rotor-full": { "brief": "Rotor full collective loop", "path": "public/play/audio/sfx/veh-heli-rotor-full.mp3", "asset": "a_36dc8fe62eac514f" },
+          "heli/whine": { "brief": "Turbine whine loop", "path": "public/play/audio/sfx/veh-heli-whine.mp3", "asset": "a_b3d808674f75006d" },
+          "heli/start": { "brief": "Helicopter startup", "path": "public/play/audio/sfx/veh-heli-start.mp3", "asset": "a_8576d3df4ca9e7c7" },
+          "heli/stop": { "brief": "Helicopter shutdown", "path": "public/play/audio/sfx/veh-heli-stop.mp3", "asset": "a_eca4350b6adb7029" },
+          "rocket/ignite": { "brief": "Rocket ignition", "path": "public/play/audio/sfx/veh-rocket-ignite.mp3", "asset": "a_a18395b91bd01537" },
+          "rocket/roar": { "brief": "Rocket roar loop", "path": "public/play/audio/sfx/veh-rocket-roar.mp3", "asset": "a_1944406e72c36cf8" },
+          "rocket/rumble": { "brief": "Rocket far rumble tail", "path": "public/play/audio/sfx/veh-rocket-rumble.mp3", "asset": "a_5ec24bb729e0dfd1" }
+        }
+      },
+      "about": "Vehicle audio (modules/vehicles/vehicles-sound.js). Gen audio.sfx; loops re-crossfaded equal-power where Gen left a seam hole. Total veh-*.mp3 under 2 MB."
+    },
+    {
       "id": "island-pbr",
       "kind": "material-pack",
       "name": "Sandbox island PBR materials",
