@@ -201,3 +201,34 @@ test('terrain over a world that has a flat ground: the ground hides, the player 
   H.applyOps([{ op: 'config', patch: { terrain: null } }]);
   assert.ok(ground.visible && ground.physics === 'static', 'turned off: the ground is back');
 });
+
+test('island splat weights: wet sand below the tide still reads as sand; rock above ~35°; road paint stays dirt', () => {
+  const f = T.generate({ shape: 'island', size: 256, height: 12, seed: 3, sea: -1.5, scatter: false });
+  assert.ok(T.wetSandMode(f), 'islands without a snow line use the snow channel for wet sand');
+  // A point clearly under the tide line: wet sand dominates the snow channel but layerAt reports sand (footsteps).
+  let wet = false, dry = false, grass = false;
+  for (let z = -80; z <= 80; z += 4) for (let x = -80; x <= 80; x += 4) {
+    const h = T.heightAt(f, x, z);
+    const layer = T.layerAt(f, x, z);
+    if (h < -1.2 && layer === 'sand') wet = true;
+    if (h > 0 && h < 2.2 && layer === 'sand') dry = true;
+    if (h > 3 && layer === 'grass') grass = true;
+  }
+  assert.ok(wet, 'wet sand below the tide still names sand');
+  assert.ok(dry, 'dry sand above the tide');
+  assert.ok(grass, 'grass inland');
+  // Paint a road dab: dirt for footsteps / surface log (layer index 1).
+  T.applyEdit(f, ['paint', 5, 1, 0, 0]);
+  assert.equal(T.layerAt(f, 0, 0), 'dirt');
+  // Steep rock: a tall spike's shoulder should pick up rock weight (slope above ~35°).
+  T.applyEdit(f, ['raise', 5, 22, 40, 40]);
+  let rock = 0;
+  for (const [dx, dz] of [[3, 0], [4, 1], [5, 0], [0, 4], [-4, 0]]) {
+    const w = new Float32Array(5);
+    const ix = Math.round((40 + dx - f.x0) / f.cell), iz = Math.round((40 + dz - f.z0) / f.cell);
+    if (ix < 1 || iz < 1 || ix >= f.n - 1 || iz >= f.n - 1) continue;
+    T.weightsAt(f, ix, iz, w, 0);
+    rock = Math.max(rock, w[2]);
+  }
+  assert.ok(rock > 0.2, `rock weight on a steep shoulder (got ${rock.toFixed(2)})`);
+});
