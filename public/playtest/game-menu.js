@@ -168,8 +168,17 @@ async function phoneSize(t, { w, h, label }) {
       throw new Error(`timed out waiting for ${what}`);
     };
     await until(() => win.HawkesPlay && win.HawkesPlay.world && win.HawkesPlay.world.player, 120000, `${label}: world`);
+    const titlePrompt = doc.querySelector('.hp-title [data-prompt]');
+    const titlePlay = doc.querySelector('.hp-title [data-play], .hp-title [data-continue]');
     const veil = doc.querySelector('.hp-enter button');
-    if (veil) {
+    if (titlePrompt || titlePlay || doc.querySelector('.hp-title')) {
+      const prompt = doc.querySelector('.hp-title [data-prompt]');
+      if (prompt && !prompt.hidden) { prompt.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); prompt.click(); }
+      await until(() => doc.querySelector('.hp-title [data-play], .hp-title [data-continue]'), 8000, `${label}: title Play`);
+      const play = doc.querySelector('.hp-title [data-continue], .hp-title [data-play]');
+      if (play) { play.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); play.click(); }
+      await until(() => !doc.querySelector('.hp-title'), 10000, `${label}: title`);
+    } else if (veil) {
       veil.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
       veil.click();
       await until(() => !doc.querySelector('.hp-enter'), 10000, `${label}: veil`);
