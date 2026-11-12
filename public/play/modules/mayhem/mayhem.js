@@ -469,7 +469,7 @@
    *  the game starts over, or come back after `respawn` seconds). opts: { pieces, at, force, keep (leave the thing),
    *  color, respawn }. */
   function shatterLocal(e, o = {}) {
-    if (!e || !e.alive || e._shattered) return [];
+    if (!e || !e.alive || e._shattered || protectedProp(e)) return [];
     e._shattered = true;
     const sc = W().scene;
     const size = e.size.map((x) => Math.max(0.1, x));
@@ -477,8 +477,11 @@
     const from = o.at ? vec(o.at) : [mid[0], mid[1] - size[1] * 0.3, mid[2]];
     const force = Number(o.force) || 6;
     let want = Number(o.pieces) || (e._break && e._break.pieces) || 8;
-    if (debris.length > cfg.maxDebris * 0.7 || quality.level > 0) want = Math.min(want, quality.level > 1 ? 4 : 6);
-    const chunks = M.fracture(size, want, M.hashSeed(e.sceneId || e.name || String(e.x)));
+    if (debris.length > cfg.maxDebris * 0.7 || quality.level > 0) want = Math.min(want, quality.level > 1 ? 5 : 6);
+    // A phone breaks into at most 12 pieces (8 asked for), a desktop 24.
+    want = Math.min(want, H.touchUi ? 8 : 16);
+    const chunks = M.fracture(size, want, M.hashSeed(e.sceneId || e.name || String(e.x))).slice(0, H.touchUi ? 12 : 24);
+    const pm = M.propMaterial(e.data && e.data.prop && e.data.prop.material);
     const mat = pieceMaterial(e, o.color);
     const yaw = e.node.rotation.y, cy = Math.cos(yaw), sy = Math.sin(yaw);
     const made = [];
@@ -503,15 +506,17 @@
       launch(p, [(d[0] / l) * k + (Math.random() - 0.5) * 2, Math.abs(d[1] / l) * k * 0.6 + 2 + Math.random() * 3, (d[2] / l) * k + (Math.random() - 0.5) * 2]);
       tumble(p, 0.6 + Math.random() * 0.8);
       p._born = W().time; // game time: pieces wait while the game is paused
-      p._life = (cfg.debrisLife || 8) * (quality.level ? 0.5 : 1) * (0.8 + Math.random() * 0.4);
+      p._life = (cfg.debrisLife || 8) * (quality.level > 1 ? 0.5 : 1) * (0.8 + Math.random() * 0.4);
+      if (H.touchUi) p._life = Math.min(p._life, 7.4); // a phone's pieces are gone by 8 s, shrink included
       debris.push(p);
       made.push(p);
     });
     p_disposeWith(mat, made);
     while (debris.length > cfg.maxDebris) { const old = debris.shift(); if (old && old.alive) old.destroy(); }
     // Dust and a crash.
-    G().burst(mid, { color: o.color || (e.color || '#c8b49a'), count: q(28), speed: 4, size: 0.3, life: 0.6 });
-    smoke(mid, { count: 10, radius: Math.max(...size) * 0.4, color: '#8a8070', life: 1.6 });
+    G().burst(mid, { color: o.color || (pm ? pm.dust : e.color || '#c8b49a'), count: q(28), speed: 4, size: 0.3, life: 0.6 });
+    if (pm) G().burst(mid, { color: pm.splinter, count: q(18), speed: 7, size: 0.08, life: 0.9 }); // splinters, flung
+    smoke(mid, { count: 10, radius: Math.max(...size) * 0.4, color: pm ? pm.dust : '#8a8070', life: 1.6 });
     sound('crash', { at: mid });
     shake(mid, 0.12, 0.15);
     if (credit() || !online()) addScore('broke');
@@ -529,6 +534,11 @@
   function p_disposeWith(mat, pieces) {
     let left = pieces.length;
     for (const p of pieces) p.onDestroy(() => { if (--left <= 0) mat.dispose(); });
+  }
+  /** Quest things are never breakable: the rod, lore objects, the fuel barrels (they go off, they do not shatter). */
+  function protectedProp(e) {
+    const id = String(e.sceneId || '');
+    return Boolean(e.data && (e.data.keep || e.data.lore || e.data.barrel)) || /^(rod|lore_)/.test(id) || e.type === 'tool-pickup';
   }
   function runDebris() {
     const t = W().time;
@@ -560,9 +570,9 @@
   const breakDef = {
     title: 'Breaks into pieces',
     says: (o) => `breaks into ${o.pieces} pieces when hit at ${o.strength} m/s${o.hp ? ` or after ${o.hp} damage` : ''}${o.respawn ? `, back after ${o.respawn} s` : ''}`,
-    defaults: { strength: 12, pieces: 8, hp: 0, respawn: 0 },
+    defaults: { strength: 12, pieces: 8, hp: 0, respawn: 0, blast: 0 },
     start(e, o) {
-      e._break = { strength: Number(o.strength) || 12, pieces: Number(o.pieces) || 8, respawn: Number(o.respawn) || 0 };
+      e._break = { strength: Number(o.strength) || 12, pieces: Number(o.pieces) || 8, respawn: Number(o.respawn) || 0, blast: Number(o.blast) || 0 };
       if (Number(o.hp) > 0 && e.hp === undefined) { e.maxHp = e.hp = Number(o.hp); }
       watched.add(e);
     },
@@ -602,6 +612,8 @@
   function check(e, s, other) {
     if (!e.alive || e._shattered || e.dead || !mine(e) || H.mode === 'build') return;
     if (other && other.data && other.data.debris && s < 20) return; // pieces don't break things unless thrown hard
+    // Small props (data.prop) break for a vehicle at their strength, for anything else only when it is really fast.
+    if (e._break && e.data && e.data.prop && s >= e._break.strength && !(other && (other.vehicle || (other.data && other.data.debris))) && s < e._break.strength + 6) return;
     if (e._break && s >= e._break.strength) shatter(e, { at: other ? [other.x, other.y, other.z] : null, force: Math.min(14, s * 0.5) });
     else if (e.data && e.data.explosive && s >= e.data.explosive.strength) blowUp(e);
   }
@@ -672,7 +684,7 @@
         const dist = Math.hypot(e.x - at[0], e.y - at[1], e.z - at[2]);
         const k = M.falloff(dist, R);
         if (e.physics === 'dynamic') { tumble(e, 0.5 + k * 2); pushed++; }
-        if (e._break && !e._shattered && F * k >= e._break.strength * 0.6) shatter(e, { at, force: F * k * 0.8 });
+        if (e._break && !e._shattered && F * k >= (e._break.blast || e._break.strength * 0.6)) shatter(e, { at, force: F * k * 0.8 });
         if (d.fire && k > 0.25) ignite(e, {});
       }
       // (Creatures run from it by themselves: Living things hears the event.)
@@ -1004,7 +1016,7 @@
 
   // ------------------------------------------------------------------ the API
   H.mayhem = {
-    explode, shatter, ignite, extinguish, tumble, spawnMany, specFor, slowMotion, sound, shake, flash, smoke, sparks,
+    explode, shatter, shatterLocal, protectedProp, ignite, extinguish, tumble, spawnMany, specFor, slowMotion, sound, shake, flash, smoke, sparks,
     addScore, blowUp, panic, launch,
     // For mayhem-feel.js (and other modules): effects alive, a glow material, the noise buffer, quality-scaled counts.
     addFx, glowMat, noise, q, fxCount: () => fx.size, hasSound: (kind, own) => Boolean(soundAsset(kind, own)),
