@@ -13,7 +13,7 @@
 
 ## Landmarks
 
-- **The Clearing & Mirror**: The standing silver frame of **The Mirror** glinting against the Overseer's pearl sphere and turning rings in the sky.
+- **The Clearing & Mirror**: The standing silver frame of **The Mirror** glinting against the Overseer's pearl sphere, soft aurora-face in the clouds, and turning rings in the sky.
 - **Pip's Hut & Yard**: **Pip's timber cottage** on the raised terrace above Mrs Ember's red-flagged mailbox.
 - **Gravel Road & Ridge**: The **emerald pillars of the Ridge Run start gate** framing the crest of the dirt road.
 - **Pip's Pier & Harbour**: The **32 m wooden pier** with twin harbour street lamps at its foot and the **soft golden beacon and shimmer on the fishing rod** at its seaward tip.
@@ -24,7 +24,7 @@
 
 ## Who lives here
 
-- **The Overseer** (the sphere in the sky; a drifting pearl of light inside the Observatory): always present; greets the Newly Free in George's calm voice, narrates the Mirror, reacts to creations, blasts, falls and returns, speaks a daily wish, and sends beams from its lowest emitter whenever anything arrives.
+- **The Overseer** (the sphere in the sky; a drifting pearl of light inside the Observatory; a soft face of light and aurora in the clouds toward `OVERSEER_AT`): always present; greets the Newly Free in George's calm voice, narrates the Mirror, reacts to creations, blasts, falls and returns, speaks a daily wish, and sends beams from its lowest emitter whenever anything arrives. From the island its sky presence slowly turns its gaze to the player, brightens with its voice, and plays distinct cloud-face reactions (delight at blasts and rockets, interest at a catch, a blink when idle, awe at a first build, a squint at night), each with a voiced line from the reaction decks.
 - **Pip** (a cheerful person in amber, at the head of Gravel Road): walks up after the Mirror to welcome the player by chosen name, points east down Gravel Road as the camera flies to the pier, cheers deeds, names roads and barrels before they blow up, and challenges the player's times on the Ridge Run and Harbour Run.
 - **Admiral Bobbin** (a small proud rubber duck on Pip's Pier, voiced in Russell): keeps watch over his one-boat "fleet" with a boat horn and duck squeak, rates casts out of ten, blames missing logbook pages on a gull, and remembers fish counts across visits.
 - **Mrs Ember** (a motherly toaster by the hut's mailbox, voiced in Sarah): tends the post with a mailbox clank and letter rustle, apologises for accurate weather forecasts, and delivers the sender-less note ("Mind the third plank. It sticks.").

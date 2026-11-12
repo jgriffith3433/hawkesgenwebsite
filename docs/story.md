@@ -398,6 +398,20 @@ come down. Ask again."; never what a system did) and, when the player has been q
 "Asking the sea") that changes. Twelve or more of each, in the voice rules above (calm, no exclamation marks, never "done"),
 and never the same line twice in a row. It is amused by plans, never by a failure, and thanks the player for trying.
 
+The sky presence also draws on these decks (and four more: **delight**, **interest**, **awe**, **night**) when its face
+in the clouds reacts: a blast or rocket widens it, a catch leans its gaze in, thirty seconds of quiet is a slow blink, a
+first build is a soft swell, and night is a squint. Same shuffled decks, never the same line twice in a row.
+
+### The sky presence (built: `modules/overseer/presence.js`)
+
+The Overseer is not only a voice and a distant hull. From the island it is a **vast soft presence in the clouds** toward
+`OVERSEER_AT` — a face / eye of light and aurora (shader and billboard layers, never a hard mesh), in the style of the
+landing page's sky. It slowly turns its gaze to follow the player, brightens and pulses with the voice envelope when it
+speaks, and fades during cinematics that frame it. It sits in the sky's far layer with the ship, partially veiled by soft
+cloud wisps so it reads as behind weather. Reference: Majora's Mask's moon over Clock Town — always visible, always
+watching — without dread: calm, vast, a little amused. `window.__overseerPresence` reports visible / gaze / last reaction
+for playtests. On a phone portrait it sits in the upper third and stays cheap (under 2 ms a frame).
+
 ### The "seems good" ledger
 
 A list of what the Overseer has been seen to do, for the content to draw on. Only deeds, never reasons.

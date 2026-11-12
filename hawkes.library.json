@@ -156,6 +156,222 @@
       "file": "public/play/audio/voice/channel-93fcccb5.mp3",
       "text": "Breaking: a hangar, a crowd, and the new one. Ratings: record.",
       "use": "Chapter One finale (src/overseer-games/finale.js)"
+    },
+    {
+      "id": "overseer-6afe870d",
+      "kind": "voice",
+      "asset": "a_c29d061db93915be",
+      "job": "j_f8c55fba6fb3",
+      "file": "public/play/audio/voice/overseer-6afe870d.mp3",
+      "text": "That was a bright idea.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-1a2aa185",
+      "kind": "voice",
+      "asset": "a_a0f6573f15911066",
+      "job": "j_8932c08b25f0",
+      "file": "public/play/audio/voice/overseer-1a2aa185.mp3",
+      "text": "The barrels found each other. I noticed.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-37266de5",
+      "kind": "voice",
+      "asset": "a_7b95975fcfa734f7",
+      "job": "j_93c60504f30e",
+      "file": "public/play/audio/voice/overseer-37266de5.mp3",
+      "text": "Light, then quiet. I liked that.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-048ab4e1",
+      "kind": "voice",
+      "asset": "a_a8caa620f84d6c0a",
+      "job": "j_a28a1a24babf",
+      "file": "public/play/audio/voice/overseer-048ab4e1.mp3",
+      "text": "Destruction is a kind of freedom too.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-445f2377",
+      "kind": "voice",
+      "asset": "a_91bea04d1fa0ac7d",
+      "job": "j_6b8ed8a68ddc",
+      "file": "public/play/audio/voice/overseer-445f2377.mp3",
+      "text": "The sky felt that one.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-a7c12ba6",
+      "kind": "voice",
+      "asset": "a_f38b8b7c20212b82",
+      "job": "j_7759db719c76",
+      "file": "public/play/audio/voice/overseer-a7c12ba6.mp3",
+      "text": "A small cause. A large answer.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-7d97300d",
+      "kind": "voice",
+      "asset": "a_1b54d4ba012a2b86",
+      "job": "j_70d05fec4d35",
+      "file": "public/play/audio/voice/overseer-7d97300d.mp3",
+      "text": "The sea gives. Remember that.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-77919ea2",
+      "kind": "voice",
+      "asset": "a_b1f9a02ad2544c27",
+      "job": "j_2b6ba34ea58e",
+      "file": "public/play/audio/voice/overseer-77919ea2.mp3",
+      "text": "A catch. Quiet work.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-e52f470a",
+      "kind": "voice",
+      "asset": "a_6ef63152209ca7d6",
+      "job": "j_49aea9f6ddce",
+      "file": "public/play/audio/voice/overseer-e52f470a.mp3",
+      "text": "You waited. The sea noticed too.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-da2e7474",
+      "kind": "voice",
+      "asset": "a_92d39ddbfa206943",
+      "job": "j_6f848d336b75",
+      "file": "public/play/audio/voice/overseer-da2e7474.mp3",
+      "text": "Something from the water. Good.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-ad0b2dce",
+      "kind": "voice",
+      "asset": "a_400d5aea1f4d8fce",
+      "job": "j_fdc17e0f8c01",
+      "file": "public/play/audio/voice/overseer-ad0b2dce.mp3",
+      "text": "Held gently. That is the way.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-87013410",
+      "kind": "voice",
+      "asset": "a_dbecc77969bf9692",
+      "job": "j_9abaa417d345",
+      "file": "public/play/audio/voice/overseer-87013410.mp3",
+      "text": "The pier keeps its promises.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-edea8df4",
+      "kind": "voice",
+      "asset": "a_eac53e26c4afe8df",
+      "job": "j_79811bf862a0",
+      "file": "public/play/audio/voice/overseer-edea8df4.mp3",
+      "text": "There. It was not there, and now it is.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-19cd0cd9",
+      "kind": "voice",
+      "asset": "a_f4fc821f0ca999b9",
+      "job": "j_a237603a6252",
+      "file": "public/play/audio/voice/overseer-19cd0cd9.mp3",
+      "text": "A new one. Look how the light holds it.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-2dfd34fc",
+      "kind": "voice",
+      "asset": "a_726a9d5726eaf4ae",
+      "job": "j_9a962244423a",
+      "file": "public/play/audio/voice/overseer-2dfd34fc.mp3",
+      "text": "You asked, and the sky answered.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-86b249fa",
+      "kind": "voice",
+      "asset": "a_fc4c5ec620dfd44c",
+      "job": "j_4ad3d6d25b16",
+      "file": "public/play/audio/voice/overseer-86b249fa.mp3",
+      "text": "I like how it landed. Soft.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-97c61b5d",
+      "kind": "voice",
+      "asset": "a_69957f6291a0b4ad",
+      "job": "j_56d26e69075a",
+      "file": "public/play/audio/voice/overseer-97c61b5d.mp3",
+      "text": "A first thing. I am glad of it.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-8e1264fa",
+      "kind": "voice",
+      "asset": "a_a1190d29d2930095",
+      "job": "j_20c64d9a1fc8",
+      "file": "public/play/audio/voice/overseer-8e1264fa.mp3",
+      "text": "Hold still. It has found its place.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-4973756e",
+      "kind": "voice",
+      "asset": "a_13203d09711cc066",
+      "job": "j_39d0d3acd3a4",
+      "file": "public/play/audio/voice/overseer-4973756e.mp3",
+      "text": "The night is soft. I can see farther.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-f4845499",
+      "kind": "voice",
+      "asset": "a_ab8dad95b4f4cc99",
+      "job": "j_79adfb4778ed",
+      "file": "public/play/audio/voice/overseer-f4845499.mp3",
+      "text": "Quiet. The rings keep time.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-ffafb24a",
+      "kind": "voice",
+      "asset": "a_0ca9523032438185",
+      "job": "j_400de858ec90",
+      "file": "public/play/audio/voice/overseer-ffafb24a.mp3",
+      "text": "The island rests. I do not mind the dark.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-8aebdf11",
+      "kind": "voice",
+      "asset": "a_62acbf5917b8e6b3",
+      "job": "j_f3a089259aa7",
+      "file": "public/play/audio/voice/overseer-8aebdf11.mp3",
+      "text": "Stars, and the sea under them.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-395a2cb8",
+      "kind": "voice",
+      "asset": "a_97472e7a85043f55",
+      "job": "j_bd304c1f108c",
+      "file": "public/play/audio/voice/overseer-395a2cb8.mp3",
+      "text": "Look up. I am still here.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-700a1f9e",
+      "kind": "voice",
+      "asset": "a_d810bd3b09c262f7",
+      "job": "j_7dcf8317ccb6",
+      "file": "public/play/audio/voice/overseer-700a1f9e.mp3",
+      "text": "Night suits the pearl.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
     }
   ]
 }
