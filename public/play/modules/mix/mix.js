@@ -276,6 +276,10 @@
     get zone() { return state.zone; },
     get model() { return phone() ? 'stereo' : 'hrtf'; },
     get levels() { return A.levels; },
+    /** The reverb send (effects + voice into the rooms). Overseer sound identity on a phone routes its wet here so it
+     *  shares the one convolver with the mix (no second cathedral). Null until the graph has run once. */
+    get reverbIn() { const c = ctx(); if (c && A.effects && A.voice) setupSends(c); return send.in; },
+    get sharedConvolver() { return send.shared; },
     /** Loudness since the meter's last reset: { momentary, shortTerm, integrated, peak, clipped, blocks, makeupDb } (LUFS). */
     lufs() { const l = meter.loud; return { momentary: l.momentary(), shortTerm: l.shortTerm(), integrated: l.integrated(), peak: Math.round(l.peak * 1000) / 1000, peakDb: Math.round(M.gainToDb(l.peak) * 10) / 10, clipped: l.clipped, blocks: meter.block, makeupDb: Math.round(A.makeupDb * 10) / 10 }; },
     /** Starts (or restarts) a measurement: the integrated loudness and the peaks count from now. */

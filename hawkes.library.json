@@ -29,6 +29,41 @@
       "file": "public/play/vfx/sparks.webp",
       "grid": "8x8",
       "use": "sparks and embers"
+    },
+    {
+      "id": "overseer-sound",
+      "kind": "sound-pack",
+      "name": "Overseer sound identity",
+      "data": {
+        "canon": "Vast treated voice, three-mood leitmotif (wonder/amused/ominous), beam hum with distance, sky shimmer, presence swell.",
+        "slots": {
+          "motif/wonder": {
+            "brief": "10 s wonder leitmotif",
+            "path": "public/play/audio/sfx/overseer-motif-wonder.mp3"
+          },
+          "motif/amused": {
+            "brief": "10 s amused leitmotif",
+            "path": "public/play/audio/sfx/overseer-motif-amused.mp3"
+          },
+          "motif/ominous": {
+            "brief": "10 s ominous leitmotif",
+            "path": "public/play/audio/sfx/overseer-motif-ominous.mp3"
+          },
+          "sfx/beam-hum": {
+            "brief": "Seamless beam hum loop",
+            "path": "public/play/audio/sfx/overseer-beam-hum.mp3"
+          },
+          "sfx/sky-shimmer": {
+            "brief": "Sky shimmer on reaction",
+            "path": "public/play/audio/sfx/overseer-sky-shimmer.mp3"
+          },
+          "sfx/presence-swell": {
+            "brief": "Presence swell on intro",
+            "path": "public/play/audio/sfx/overseer-presence-swell.mp3"
+          }
+        }
+      },
+      "about": "Overseer sound identity (modules/overseer/sound.js). Gen assets land in public/play/audio/sfx/ via studio_gen_import; loudness-normalised at Gen (normalize: true on sfx; music trimmed in play)."
     }
   ],
   "voiceLines": [

@@ -118,7 +118,7 @@
     }
     if (item.noCaption && !voiced) cur.endsAt = t;
     if (cur.caption) cur.el = show(item, cur.endsAt - t);
-    emit('overseer-speech', { state: 'start', id: item.id, text: item.text, voice: item.voice || null, caption: cur.caption, voiced: cur.voiced, priority: item.pri, seconds: rec.seconds });
+    emit('overseer-speech', { state: 'start', id: item.id, text: item.text, voice: item.voice || null, caption: cur.caption, voiced: cur.voiced, priority: item.pri, seconds: rec.seconds, owner: item.owner || null, mood: item.mood || null });
   }
 
   function finish(why) {
@@ -185,7 +185,7 @@
     if (dup) { dup.pri = Math.max(dup.pri, PRI[o.priority] ?? 1); return { id: dup.id, duplicate: true }; }
     const pri = typeof o.priority === 'number' ? Math.max(0, Math.min(2, o.priority | 0)) : PRI[o.priority] ?? 1;
     if (o.voice && typeof o.voice === 'string') clips.set(key, o.voice);
-    const item = { id: ++seq, noCaption: o.caption === false, external: Boolean(o.external), text, voice: o.voice || (clips.get(key) || null), pri, owner: o.owner || null, seconds: o.seconds, keep: o.keep, action: o.action || null, onEnd: o.onEnd || null, at: desk.clock(), m: o.m || {} };
+    const item = { id: ++seq, noCaption: o.caption === false, external: Boolean(o.external), text, voice: o.voice || (clips.get(key) || null), pri, owner: o.owner || null, mood: o.mood || null, seconds: o.seconds, keep: o.keep, action: o.action || null, onEnd: o.onEnd || null, at: desk.clock(), m: o.m || {} };
     if (queue.length >= MAX_WAIT) {
       // Make room: the lowest, oldest goes (the new one may be it).
       const worst = queue.reduce((w, q) => (q.pri < w.pri || (q.pri === w.pri && q.at < w.at) ? q : w), queue[0]);

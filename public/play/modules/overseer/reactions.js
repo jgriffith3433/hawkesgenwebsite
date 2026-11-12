@@ -118,11 +118,12 @@
     const text = pick(kind);
     if (!text) return false;
     const o = H.overseer;
-    if (o && o.speak) o.speak(text, null, 6, { priority: 'normal' });
+    const mood = kind === 'fail' ? 'ominous' : 'amused';
+    if (H.game) try { H.game.emit('reaction', { kind, text, mood }); } catch (err) { if (H.report) H.report(err, 'reactions'); }
+    if (o && o.speak) o.speak(text, null, 6, { priority: 'normal', owner: 'reaction', mood });
     else if (H.chat) H.chat.line({ kind: 'overseer', text });
     history.push({ kind, text });
     if (history.length > 60) history.shift();
-    if (H.game) try { H.game.emit('reaction', { kind, text }); } catch (err) { if (H.report) H.report(err, 'reactions'); }
     touch();
     return true;
   }
