@@ -46,9 +46,10 @@
     if (!capEl) {
       const st = document.createElement('style');
       st.textContent = [
-        '.fn-cap{position:fixed;left:50%;transform:translateX(-50%);bottom:max(14px,env(safe-area-inset-bottom));z-index:9000;width:min(760px,calc(100vw - 24px));text-align:center;pointer-events:none;opacity:0;transition:opacity .35s;color:#fff;font:600 clamp(15px,2.4vw,24px)/1.3 system-ui,sans-serif;text-shadow:0 2px 10px #000,0 0 3px #000}',
-        '.fn-cap.on{opacity:1}.fn-cap b{display:block;font:800 clamp(10px,1.4vw,13px)/1.2 system-ui,sans-serif;letter-spacing:.16em;text-transform:uppercase;margin-bottom:3px}',
-        '@media (max-aspect-ratio:1/1){.fn-cap{padding:34px 8px 6px;background:linear-gradient(transparent,rgba(0,0,0,.72) 55%);width:100vw;bottom:0}}',
+        '.fn-cap{position:fixed;left:50%;transform:translateX(-50%);bottom:max(14px,env(safe-area-inset-bottom));z-index:9000;width:min(760px,calc(100vw - 24px));display:flex;align-items:flex-end;justify-content:center;gap:10px;text-align:left;pointer-events:none;opacity:0;transition:opacity .35s;color:#fff;font:600 clamp(15px,2.4vw,24px)/1.3 system-ui,sans-serif;text-shadow:0 2px 10px #000,0 0 3px #000}',
+        '.fn-cap.on{opacity:1}.fn-cap .fn-words{flex:1;min-width:0;max-width:36em}.fn-cap b{display:block;font:800 clamp(10px,1.4vw,13px)/1.2 system-ui,sans-serif;letter-spacing:.16em;text-transform:uppercase;margin-bottom:3px}',
+        '.fn-cap .hc-port{flex:none;width:64px;height:64px;border-radius:12px;object-fit:cover;box-shadow:0 0 0 2px rgba(255,255,255,.4)}',
+        '@media (max-aspect-ratio:1/1){.fn-cap{padding:34px 8px 6px;background:linear-gradient(transparent,rgba(0,0,0,.72) 55%);width:100vw;bottom:0}.fn-cap .hc-port{width:72px;height:72px}}',
         '.fn-act{position:fixed;left:50%;transform:translateX(-50%);bottom:max(210px,calc(env(safe-area-inset-bottom) + 190px));z-index:9001;min-width:min(78vw,340px);min-height:68px;padding:12px 26px;border-radius:40px;border:2px solid #fff4c4;background:linear-gradient(#ffd84a,#f59e0b);color:#2a1a00;font:800 clamp(20px,4vw,26px)/1.1 system-ui,sans-serif;letter-spacing:.03em;box-shadow:0 0 36px rgba(255,216,74,.7),0 6px 18px rgba(0,0,0,.5);cursor:pointer;touch-action:manipulation;animation:fn-pulse 1.4s ease-in-out infinite}',
         '.fn-act[hidden]{display:none}.fn-act small{display:block;font:600 12px system-ui,sans-serif;opacity:.7;margin-top:2px}',
         '@keyframes fn-pulse{50%{transform:translateX(-50%) scale(1.05)}}',
@@ -62,8 +63,13 @@
     }
     if (!text) { capEl.classList.remove('on'); return; }
     capEl.innerHTML = '';
-    const b = document.createElement('b'); b.textContent = who; b.style.color = COLORS[String(who).toLowerCase()] || '#e5d9b8';
-    capEl.appendChild(b); capEl.appendChild(document.createTextNode(text));
+    const words = document.createElement('span'); words.className = 'fn-words';
+    const b = document.createElement('b'); b.textContent = who;
+    const c = (H && H.portraits && H.portraits.color(who)) || COLORS[String(who).toLowerCase()] || '#e5d9b8';
+    b.style.color = c;
+    words.appendChild(b); words.appendChild(document.createTextNode(text));
+    capEl.appendChild(words);
+    try { if (H && H.portraits) H.portraits.attach(capEl, who, { mood: 'emotion', color: c }); } catch { /* words only */ }
     capEl.classList.add('on');
   }
 

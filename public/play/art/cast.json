@@ -1,0 +1,42 @@
+{
+  "note": "Painted cast portraits (Hades-like head-and-shoulders) and island key art. Filed from Gen into public/play/art/; captions, journal and loading read these paths. Colors match chat.js / islanders.js.",
+  "style": "soft painterly illustration, warm vinyl-toy soft-sculpture characters, rim light, Hades dialogue-portrait framing, no photorealism, no text",
+  "colors": {
+    "overseer": "#9fd0ff",
+    "pip": "#f472b6",
+    "bobbin": "#facc15",
+    "ember": "#fb923c",
+    "rolo": "#22d3ee",
+    "dolores": "#4ade80",
+    "channel": "#7dd3fc"
+  },
+  "aliases": {
+    "the overseer": "overseer",
+    "admiral bobbin": "bobbin",
+    "mrs ember": "ember"
+  },
+  "emotions": {
+    "overseer": "interest",
+    "pip": "delighted",
+    "bobbin": "proud",
+    "ember": "warm",
+    "rolo": "mild",
+    "dolores": "deadpan",
+    "channel": "urgent"
+  },
+  "portraits": {
+    "overseer": { "neutral": "/play/art/cast/overseer-neutral.webp", "emotion": "/play/art/cast/overseer-interest.webp" },
+    "pip": { "neutral": "/play/art/cast/pip-neutral.webp", "emotion": "/play/art/cast/pip-delighted.webp" },
+    "bobbin": { "neutral": "/play/art/cast/bobbin-neutral.webp", "emotion": "/play/art/cast/bobbin-proud.webp" },
+    "ember": { "neutral": "/play/art/cast/ember-neutral.webp", "emotion": "/play/art/cast/ember-warm.webp" },
+    "rolo": { "neutral": "/play/art/cast/rolo-neutral.webp", "emotion": "/play/art/cast/rolo-mild.webp" },
+    "dolores": { "neutral": "/play/art/cast/dolores-neutral.webp", "emotion": "/play/art/cast/dolores-deadpan.webp" },
+    "channel": { "neutral": "/play/art/cast/channel-neutral.webp", "emotion": "/play/art/cast/channel-urgent.webp" }
+  },
+  "keyArt": {
+    "wide": "/play/art/island/key-16x9.webp",
+    "tall": "/play/art/island/key-2x3.webp",
+    "square": "/play/art/island/key-1x1.webp",
+    "loading": "/play/art/island/key-16x9.webp"
+  }
+}
