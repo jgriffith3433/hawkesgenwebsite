@@ -285,6 +285,24 @@ whether it blinks and whether its mouth moves when it speaks. Tests: `test/engin
 `faces-and-emotes`. The emote wheel is radial on desktop and touch: the six emotes (wave, laugh, cheer, shrug, dance, point) around
 the middle, **More** for sit, sleep, clap, thumbs up and heart; emotes go through `H.sync.action('presence:emote')` to everyone.
 
+## Alive (the cast talks like someone is there)
+
+Pip and the five islanders (any `friend`) get a living face and upper body while they speak and while you are near
+(`presence-alive.js`; J, 2026-11-12: mouths follow the voice, blinks, heads turn, gestures with planted feet; reference
+Tears of the Kingdom's villagers). Pure rules are in `P.aliveCore` (`test/engine/alive.test.ts`); the runtime is
+`P.alive` / `window.__castFaces`.
+
+| Piece | What it does |
+|---|---|
+| **Lip flap** | An `AnalyserNode` on each speaking voice clip (`runtime.js` `speakRecorded` → `e._voiceAnalyser`) drives the mouth: smoothed fast open on a syllable, slower close, shut under a gate. Toy bodies move the face mesh's `open`; a Gen model with a jaw bone or mouth morph gets that driven too. No clip (babble) gets a short uneven flap while the bubble lasts. |
+| **Blinks** | The shared face system's own (`blinkStep`: 2.5 to 6 s, some double); counted for the playtest. |
+| **Look-at** | Within 6 m the head turns to the player (clamped ~60° yaw, natural pitch), layered after the walk/idle so it wins; eyes use `rig.lookTarget`. Past ~6.6 m it lets go; farther still, a glance about now and then. |
+| **Gestures** | Upper body only (`shL`, `shR`, `neck`): point, wave, shrug, laugh, salute, explain, nod — chosen by bark context and each character's habit (Bobbin salutes, Channel explains, Pip points). Hips and legs are never touched, so the feet stay planted. |
+| **Idle life** | A breath in the arms and a slow weight shift when standing still and not gesturing. |
+| **Phone** | Look-at, lip flap, gestures and idle run for the **3 nearest** friends only; whoever is speaking always counts. |
+
+Playtest `cast-faces` walks up to each of the six, holds a close-up, and logs `jaw-while-audio`, `blink-gaps`, `head-follows`, `bark-gesture` / `feet-planted`, `gesture-share`, and on touch `face-animation-limited` + `close-up-fps`.
+
 ## 8. Gen models
 
 Every body in the table of section 5 can be a **model made through Hawkes Gen** instead of the procedural stand-in. The procedural body stays: it is the

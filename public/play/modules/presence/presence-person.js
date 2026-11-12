@@ -693,13 +693,14 @@
     Hd.pitch += (clamp(-G.y / 3, -0.3, 0.3) - Hd.pitch) * Math.min(1, dt * 4);
     neck.rotation.y += Hd.yaw; neck.rotation.x += Hd.pitch;
     const blink = spec.blink ? C().blinkStep(pp.blink, t) : 0;
+    if (P.alive) P.alive.blinkSeen(rig, blink);
     if (blink > 0 && !pp.inBlink) pp.blinks = (pp.blinks || 0) + 1;
     pp.inBlink = blink > 0;
     // the expression, blended over 0.15 s
     const tgt = C().EXPRESSIONS[exprName] || C().EXPRESSIONS.neutral, cur = pp.expr, k = Math.min(1, dt / 0.15);
     for (const key of Object.keys(tgt)) cur[key] += (tgt[key] - cur[key]) * k;
     const shown = C().shape(cur, spec.gain);
-    const talk = md && md.talking() && spec.talk ? C().talkOpen(t) : 0;
+    const talk = rig.alive && rig.alive.mouthDraw != null && spec.talk ? rig.alive.mouthDraw : md && md.talking() && spec.talk ? C().talkOpen(t) : 0; // the voice's own jaw when the cast has one (presence-alive.js)
     if (!pp.faceMesh) return;
     const rest = pp.rest === 'happy' ? 0.0 : 0;
     void rest;

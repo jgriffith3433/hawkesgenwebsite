@@ -360,6 +360,8 @@
         const sp = o.at && audioApi.spatial ? audioApi.spatial(o.at, { ...(o.spatial || {}), who: o.who, bus: dest }) : null;
         if (sp) src.connect(sp.input); else src.connect(dest);
         mediaRouted.add(el);
+        // o.analyser: a small analyser on the clip, read for loudness only (a character's mouth follows it: presence-alive.js)
+        if (o.analyser && H.presence && H.presence.alive) el._analyser = H.presence.alive.analyserFor(audio, src);
         if (o.voice) {
           const key = `clip:${++clipSeq}`;
           const on = () => { if (sp && sp.start) sp.start(); audioApi.voiceDuck(key, true); };
@@ -1058,8 +1060,9 @@
       // The clip is heard from the character (HRTF, or stereo on a phone: modules/mix); the distance is the panner's.
       const heard = () => { const p = e.node && e.node.getAbsolutePosition ? e.node.getAbsolutePosition() : null; return p ? [p.x, p.y + 1.3, p.z] : [0, 0, 0]; };
       a.volume = audioApi.spatial ? 1 : Math.min(1, near);
-      audioApi.media(a, { voice: true, at: audioApi.spatial && e.node ? heard : undefined, who: e.name || (e.voice && e.voice.speaker) || e.sceneId || null, spatial: { ref: 5, max: 60 } });
+      audioApi.media(a, { voice: true, at: audioApi.spatial && e.node ? heard : undefined, who: e.name || (e.voice && e.voice.speaker) || e.sceneId || null, spatial: { ref: 5, max: 60 }, analyser: true });
       e._voiceClip = a;
+      e._voiceAnalyser = a._analyser || null;
       const pr = a.play();
       if (pr && pr.catch) pr.catch(() => { if (e._voiceClip === a) { e._voiceClip = null; babble(e, str); } });
       if (game && game.emit) game.emit('voiced', { who: e.name || null, kind: 'clip', url });
@@ -1069,6 +1072,7 @@
   function showBubble(e, str, seconds) {
     if (e._bubble) e._bubble.dispose();
     if (!speakRecorded(e, str)) babble(e, str);
+    try { if (H.presence && H.presence.alive) H.presence.alive.spoke(e, str, seconds); } catch { /* the words still show */ }
     const b = textPlane(wrapWords(str), { size: 0.32 });
     b.isPickable = false;
     b.metadata = { decor: true };
