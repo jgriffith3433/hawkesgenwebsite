@@ -64,6 +64,25 @@
         }
       },
       "about": "Overseer sound identity (modules/overseer/sound.js). Gen assets land in public/play/audio/sfx/ via studio_gen_import; loudness-normalised at Gen (normalize: true on sfx; music trimmed in play)."
+    },
+    {
+      "id": "island-pbr",
+      "kind": "material-pack",
+      "name": "Sandbox island PBR materials",
+      "note": "Seven seamless albedos (image.generate 1536) then texture.maps (free CPU) for normal+roughness; import 2K/1K WebP into public/play/materials/island/. manifest.json ready flips true when files land.",
+      "dir": "public/play/materials/island",
+      "manifest": "public/play/materials/island/manifest.json",
+      "jobs": {
+        "grass-albedo": "j_50bacf64e065",
+        "sand-albedo": "j_162577994298",
+        "wet-sand-albedo": "j_ae7abb1a3ad2",
+        "road-albedo": "j_08d30943f690",
+        "rock-albedo": "j_48119831c19c",
+        "wood-albedo": "j_3789b067d92c",
+        "metal-albedo": "j_cb18d40afe23"
+      },
+      "slots": ["grass", "sand", "wet-sand", "road", "rock", "wood", "metal"],
+      "use": "Sandbox terrain splat + pier wood + hangar metal (modules/terrain, dock.js)"
     }
   ],
   "voiceLines": [

@@ -64,8 +64,33 @@ const HELIPAD = [30, 30];
 const RIDGE: number[][] = [[46, 6], [52, 22], [34, 46], [0, 50], [-30, 42], [-52, 14], [-56, -14], [-40, -44], [-10, -52], [18, -46], [28, -26], [32, -6]];
 // Pip's hut stands on a level yard (its slope left it half buried uphill and floating downhill: quality rule 4).
 const HUT = [-20, 14];
+// Island PBR material set (public/play/materials/island): Gen albedos + maps. Until manifest.ready, splat still blends
+// by height/slope/road with distinct stand-in colours; footsteps keep grass/dirt/rock/sand names (wet sand → sand).
+const ISLAND_MATS = (() => {
+  try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'public', 'play', 'materials', 'island', 'manifest.json'), 'utf8')); }
+  catch { return { ready: false, bytes: {} }; }
+})();
+const MAT_BASE = '/play/materials/island';
+const matFile = (id: string) => `${MAT_BASE}/${id}.webp`;
 const TERRAIN = {
   shape: 'island', size: 260, height: 12, seed: 3, detail: 2,
+  // Softer tile + distance detail + macro so the meadow does not repeat from the air (Uncharted-style).
+  tile: 6,
+  macro: { tile: 56 },
+  splat: { triplanar: true, detailNear: 8, detailFar: 36, force: true, bytes: ISLAND_MATS.bytes || {} },
+  // Distinct colours while Gen textures are pending; replaced by real maps when manifest.ready.
+  colors: { grass: '#4f8a3a', dirt: '#7a6a55', rock: '#6e6a66', snow: '#8b6f4e', sand: '#d2b87a' },
+  ...(ISLAND_MATS.ready ? {
+    textures: {
+      grass: matFile('grass-albedo'), dirt: matFile('road-albedo'), rock: matFile('rock-albedo'),
+      snow: matFile('wet-sand-albedo'), sand: matFile('sand-albedo'),
+    },
+    maps: {
+      grass: { normal: matFile('grass-normal') }, dirt: { normal: matFile('road-normal') },
+      rock: { normal: matFile('rock-normal') }, snow: { normal: matFile('wet-sand-normal') },
+      sand: { normal: matFile('sand-normal') },
+    },
+  } : {}),
   scatter: { trees: 26, rocks: 8, bushes: 6, seed: 3 },
   add: [{ type: 'flat', at: HELIPAD, radius: 9, height: 6 }, { type: 'flat', at: HUT, radius: 5.5, height: 5.75 }],
   edits: [
@@ -247,7 +272,14 @@ export const SANDBOX = {
     const pierY = 0.95;
     add(thing('dock', 'zone', 'Dock', [60, groundAt(60, 0) + 1, 0], { shape: { radius: 8, height: 4 } }));
     // Pier deck gets a zOffset so its underside never flickers against the post tops (quality rule 2).
-    add(thing('pier', 'box', 'Pier', [73, pierY, 0], { shape: { size: [32, 0.3, 3.2] }, material: { color: '#efe2d0', texture: A.planks, tile: [10.7, 1], zOffset: -1 }, data: { surface: 'wood' } }));
+    // Pier wood: Gen weathered planks when the island PBR set is ready, else the community plank texture.
+    add(thing('pier', 'box', 'Pier', [73, pierY, 0], {
+      shape: { size: [32, 0.3, 3.2] },
+      material: ISLAND_MATS.ready
+        ? { color: '#efe2d0', texture: matFile('wood-albedo'), bump: matFile('wood-normal'), tile: [10.7, 1], zOffset: -1 }
+        : { color: '#efe2d0', texture: A.planks, tile: [10.7, 1], zOffset: -1 },
+      data: { surface: 'wood' },
+    }));
     // Each post from under the deck down into the sand or the seabed under it (none floats over the seabed: quality rule 4).
     // Tops sit 2 cm under the deck's underside so the faces are not coplanar.
     [64, 68, 72, 76, 80, 84, 88].forEach((x) => [-1.5, 1.5].forEach((z, j) => {

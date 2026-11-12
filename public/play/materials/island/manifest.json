@@ -1,0 +1,32 @@
+{
+  "id": "island-pbr",
+  "note": "Sandbox island PBR set: albedo + normal + roughness per surface. Gen albedos (1536 seamless) then texture.maps; imported as 2K desktop and 1K phone WebP. ready flips true once files land.",
+  "ready": false,
+  "style": "painterly-realistic Uncharted Madagascar coast / Sea of Thieves golden-hour island",
+  "base": "/play/materials/island",
+  "layers": {
+    "grass": { "albedo": "grass-albedo", "normal": "grass-normal", "roughness": "grass-roughness", "surface": "grass" },
+    "dirt": { "albedo": "road-albedo", "normal": "road-normal", "roughness": "road-roughness", "surface": "dirt", "use": "gravel road" },
+    "rock": { "albedo": "rock-albedo", "normal": "rock-normal", "roughness": "rock-roughness", "surface": "rock" },
+    "snow": { "albedo": "wet-sand-albedo", "normal": "wet-sand-normal", "roughness": "wet-sand-roughness", "surface": "sand", "use": "wet sand below tide (snow channel)" },
+    "sand": { "albedo": "sand-albedo", "normal": "sand-normal", "roughness": "sand-roughness", "surface": "sand" }
+  },
+  "props": {
+    "wood": { "albedo": "wood-albedo", "normal": "wood-normal", "roughness": "wood-roughness", "surface": "wood", "use": "pier planks" },
+    "metal": { "albedo": "metal-albedo", "normal": "metal-normal", "roughness": "metal-roughness", "surface": "metal", "use": "hangar interior" }
+  },
+  "jobs": {
+    "grass-albedo": "j_50bacf64e065",
+    "sand-albedo": "j_162577994298",
+    "wet-sand-albedo": "j_ae7abb1a3ad2",
+    "road-albedo": "j_08d30943f690",
+    "rock-albedo": "j_48119831c19c",
+    "wood-albedo": "j_3789b067d92c",
+    "metal-albedo": "j_cb18d40afe23"
+  },
+  "bytes": {
+    "phone": 0,
+    "desktop": 0,
+    "phoneCap": 6291456
+  }
+}
