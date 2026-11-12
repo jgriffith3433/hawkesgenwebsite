@@ -34,7 +34,7 @@
       "id": "journal-paintings",
       "kind": "image-pack",
       "name": "Lore journal painted pages",
-      "note": "Twelve painterly journal illustrations (image.generate 1024x768 → studio_gen_import webp). Engine: journal.js l.art. tag/chair/drawing have interim art pending retakes.",
+      "note": "Twelve painterly journal illustrations (image.generate 1024x768 → studio_gen_import webp). Engine: journal.js l.art. chair/drawing still on retake 2 (inland seat; chalk-on-wall only).",
       "dir": "public/play/journal",
       "jobs": {
         "logbook": "j_c34c76924e27",
@@ -44,16 +44,15 @@
         "receipt": "j_5fbc2da1c8b6",
         "tally": "j_7cdb1d53a5de",
         "file": "j_81d2d534cf31",
-        "tag": "j_cb70690a8790",
+        "tag": "j_e1be1874beab",
         "chair": "j_13ced1fa3969",
         "drawing": "j_363def3fd6f8",
         "mirror2": "j_174ae3870194",
         "page": "j_b67a05500408"
       },
       "retakeJobs": {
-        "tag": "j_e1be1874beab",
-        "chair": "j_c1f3632a9a6a",
-        "drawing": "j_60ba6b814ce4"
+        "chair": "j_94503bdf1bcf",
+        "drawing": "j_c8c4fbbe80a3"
       },
       "assets": {
         "logbook": "a_890cedf0dc8b3ea6",
@@ -63,7 +62,7 @@
         "receipt": "a_f2f4c2da46bc1117",
         "tally": "a_dc9287511c87c82c",
         "file": "a_25d424b47944ef7e",
-        "tag": "a_9400c2f68f44389b",
+        "tag": "a_05f671cb2f0bb5ec",
         "chair": "a_9023310957bd2a4f",
         "drawing": "a_5f6f7cb75c44db85",
         "mirror2": "a_ba017be036522ee4",
