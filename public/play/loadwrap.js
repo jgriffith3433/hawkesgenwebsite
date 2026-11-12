@@ -26,7 +26,11 @@
     box.innerHTML = '<style>' +
       '.hlw{position:absolute;inset:0;z-index:2147482000;background:#000;color:#fff;display:flex;flex-direction:column;align-items:center;font-family:Inter,system-ui,sans-serif;transition:opacity .35s ease;touch-action:none;-webkit-user-select:none;user-select:none}' +
       '.hlw.out{opacity:0;pointer-events:none}' +
+      '.hlw.has-art{background:#05080f center/cover no-repeat}' +
+      '.hlw.has-art::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.35),rgba(0,0,0,.72) 55%,rgba(0,0,0,.88));pointer-events:none}' +
+      '.hlw.has-art>*{position:relative;z-index:1}' +
       '.hlw .hk{margin:max(18px,env(safe-area-inset-top)) 18px 0;max-width:34ch;text-align:center;font-size:clamp(16px,3.6vw,22px);line-height:1.35;font-weight:600;text-shadow:0 1px 3px #000}' +
+      '@media (orientation:portrait) and (max-width:500px){.hlw.has-art{background-size:cover;background-position:center top}}' +
       '.hlw .bw{width:min(86vw,420px);margin-top:14px}' +
       '.hlw .bar{height:8px;border-radius:4px;background:rgba(255,255,255,.14);overflow:hidden}' +
       '.hlw .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#ff6a3d,' + accent + ')}' +
@@ -38,6 +42,12 @@
       '<canvas aria-label="A little game to play while this loads"></canvas>' +
       '<p class="tip">Drag to dodge &middot; hold to rewind</p>';
     box.querySelector('.hk').textContent = opts.hook || '';
+    // Painted key art behind the toy (island loading): opts.art is a URL; portrait phones prefer opts.artTall (2:3).
+    if (opts.art) {
+      var tall = opts.artTall && window.matchMedia && matchMedia('(orientation: portrait) and (max-width: 500px)').matches;
+      box.classList.add('has-art');
+      box.style.backgroundImage = 'url("' + String(tall ? opts.artTall : opts.art).replace(/"/g, '') + '")';
+    }
     root.appendChild(box);
     var cv = box.querySelector('canvas'), ctx = cv.getContext('2d'), fill = box.querySelector('.bar i'), bar = box.querySelector('.bar');
     var st = box.querySelector('.st'), tip = box.querySelector('.tip');

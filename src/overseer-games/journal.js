@@ -39,13 +39,14 @@
 
   // ------------------------------------------------------------------ the neighbours (docs/story.md section 3)
   const CAST = [
-    { id: 'pip', name: 'Pip', what: 'A person, and the island\'s guide', line: 'Wants to try everything, with company. Has never once checked the wind before a BOOM.' },
-    { id: 'bobbin', name: 'Admiral Bobbin', what: 'A rubber duck, harbourmaster of a harbour with one boat', line: 'Very small, very proud. Takes any wave personally.' },
-    { id: 'ember', name: 'Mrs Ember', what: 'A toaster who runs the post and the weather', line: 'Every forecast she gives is right, and she apologises for it each time.' },
-    { id: 'rolo', name: 'Rolo', what: 'A roll-bot, the island\'s only fixer', line: 'Will not ask for help, ever, and is always halfway under something.' },
-    { id: 'dolores', name: 'Dolores', what: 'A cactus who lives on the hill', line: 'Is not lonely. Remembers every detail of your day anyway.' },
-    { id: 'channel', name: 'Channel', what: 'A TV robot, the island\'s one reporter', line: 'Reports everything as breaking news, naps included. Ratings: record.' },
+    { id: 'pip', name: 'Pip', what: 'A person, and the island\'s guide', line: 'Wants to try everything, with company. Has never once checked the wind before a BOOM.', portrait: '/play/art/cast/pip-neutral.webp' },
+    { id: 'bobbin', name: 'Admiral Bobbin', what: 'A rubber duck, harbourmaster of a harbour with one boat', line: 'Very small, very proud. Takes any wave personally.', portrait: '/play/art/cast/bobbin-neutral.webp' },
+    { id: 'ember', name: 'Mrs Ember', what: 'A toaster who runs the post and the weather', line: 'Every forecast she gives is right, and she apologises for it each time.', portrait: '/play/art/cast/ember-neutral.webp' },
+    { id: 'rolo', name: 'Rolo', what: 'A roll-bot, the island\'s only fixer', line: 'Will not ask for help, ever, and is always halfway under something.', portrait: '/play/art/cast/rolo-neutral.webp' },
+    { id: 'dolores', name: 'Dolores', what: 'A cactus who lives on the hill', line: 'Is not lonely. Remembers every detail of your day anyway.', portrait: '/play/art/cast/dolores-neutral.webp' },
+    { id: 'channel', name: 'Channel', what: 'A TV robot, the island\'s one reporter', line: 'Reports everything as breaking news, naps included. Ratings: record.', portrait: '/play/art/cast/channel-neutral.webp' },
   ];
+  const KEY_ART = '/play/art/island/key-16x9.webp';
 
   // ------------------------------------------------------------------ the lore (docs/story.md section 7: the twelve titles)
   // `at`: where it lies, [x, z] on the island (null: not on the island yet). `text`: a few lines in the voice of whoever left it.
@@ -174,7 +175,9 @@
   function html(m) {
     const ico = { done: '✓', skipped: '↷', now: '▸', todo: '·', open: '·', active: '▸', locked: '·' };
     const qs = m.quests.map((q) => `<li class="jr-q ${q.state}"><b>${ico[q.state]}</b><span><i>${q.n}. ${esc(q.title)}</i> ${esc(q.text)}${q.state === 'skipped' ? ' (skipped)' : ''} <em>skippable</em></span></li>`).join('');
-    const cs = m.cast.map((c) => (c.met ? `<li class="jr-c"><i>${esc(c.name)}</i> <em>${esc(c.what)}</em><span>${esc(c.line)}</span></li>` : `<li class="jr-c unmet"><i>?</i> <em>Not met yet</em></li>`)).join('');
+    const cs = m.cast.map((c) => (c.met
+      ? `<li class="jr-c"><img class="jr-port" src="${esc(c.portrait)}" alt="" width="56" height="56" loading="lazy" draggable="false" onerror="this.style.visibility='hidden'"><span class="jr-cbody"><i>${esc(c.name)}</i> <em>${esc(c.what)}</em><span>${esc(c.line)}</span></span></li>`
+      : `<li class="jr-c unmet"><span class="jr-port jr-port-empty" aria-hidden="true"></span><span class="jr-cbody"><i>?</i> <em>Not met yet</em></span></li>`)).join('');
     const favs = (m.favours || []).map((f) => {
       const st = f.status === 'done' ? 'done' : f.status === 'active' ? 'now' : f.status === 'open' ? 'todo' : 'todo';
       const body = f.status === 'done' ? (f.journal || f.title) : f.status === 'locked' ? 'Opens after the pier quest.' : f.status === 'active' ? `${f.title} — step ${(f.activeStep || 0) + 1} of 2` : f.title;
@@ -185,7 +188,7 @@
       + (l.found ? `<i>${esc(l.title)}</i> <em>${esc(l.by)}</em><span>${l.text.map(esc).join(' ')}</span>` : `<i>? ${l.n}.</i> <em>Not yet found${l.here ? '' : '. It is not on this island yet.'}</em>`) + '</li>').join('');
     const favDone = (m.favours || []).filter((f) => f.status === 'done').length;
     const favTotal = (m.favours || []).length;
-    return `<div class="jr-head"><b>Journal</b><button type="button" class="jr-x" aria-label="Close the journal">×</button></div><div class="jr-body">`
+    return `<div class="jr-head"><img class="jr-key" src="${esc(KEY_ART)}" alt="" width="120" height="68" loading="lazy" draggable="false" onerror="this.style.display='none'"><b>Journal</b><button type="button" class="jr-x" aria-label="Close the journal">×</button></div><div class="jr-body">`
       + `<h4>Chapter One: What Are You? <small>${m.done} of 8</small></h4><ul>${qs}</ul>${m.finale ? '<button type="button" class="jr-replay">▶ Replay the end of Chapter One</button>' : ''}`
       + (favTotal ? `<h4>Favours <small>${favDone} of ${favTotal}</small></h4><ul>${favs}</ul>` : '')
       + `<h4>Neighbours met <small>${m.cast.filter((c) => c.met).length} of ${m.cast.length}</small></h4><ul>${cs}</ul>`
@@ -200,13 +203,15 @@
       '.jr-btn[hidden],.jr[hidden]{display:none}',
       // (the bottom 150px stay clear: the phone's stick and buttons)
       '.jr{position:fixed;left:50%;transform:translateX(-50%);top:max(10px,env(safe-area-inset-top));z-index:60;width:min(520px,calc(100vw - 20px));max-height:calc(100vh - 160px - env(safe-area-inset-top));max-height:calc(100dvh - 160px - env(safe-area-inset-top));display:flex;flex-direction:column;box-sizing:border-box;border-radius:14px;background:rgba(14,18,30,.94);border:1px solid rgba(229,217,184,.5);color:#eef2ff;font:500 14px/1.35 system-ui,sans-serif;pointer-events:auto}',
-      '.jr-head{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.14);font-size:16px;color:#e5d9b8}',
-      '.jr-x{background:none;border:0;color:#fff;font-size:26px;line-height:1;cursor:pointer;width:40px;height:36px}',
+      '.jr-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.14);font-size:16px;color:#e5d9b8}',
+      '.jr-key{width:72px;height:40px;object-fit:cover;border-radius:8px;flex:none;border:1px solid rgba(229,217,184,.45)}',
+      '.jr-head b{flex:1}.jr-x{background:none;border:0;color:#fff;font-size:26px;line-height:1;cursor:pointer;width:40px;height:36px}',
       '.jr-body{overflow-y:auto;padding:4px 14px 12px;-webkit-overflow-scrolling:touch}',
       '.jr h4{margin:12px 0 4px;font:800 11px system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#ffd84a}.jr h4 small{color:#9fb0d0;font-weight:600;margin-left:6px}',
       '.jr ul{list-style:none;margin:0;padding:0}.jr li{padding:5px 0;border-bottom:1px solid rgba(255,255,255,.07)}',
       '.jr i{font-style:normal;font-weight:700}.jr em{font-style:normal;color:#9fb0d0;font-size:12px}',
       '.jr-q{display:flex;gap:8px}.jr-q b{width:14px;flex:none;color:#7ee0a0}.jr-q.todo b,.jr-q.todo{color:#8a97b5}.jr-q.now b{color:#ffd84a}.jr-q span{flex:1}',
+      '.jr-c{display:flex;gap:10px;align-items:flex-start}.jr-port{width:56px;height:56px;border-radius:10px;object-fit:cover;flex:none;background:rgba(40,28,14,.6);border:1px solid rgba(229,217,184,.35)}.jr-port-empty{display:inline-block}.jr-cbody{flex:1;min-width:0}',
       '.jr-replay{margin:8px 0 2px;min-height:44px;padding:8px 14px;border-radius:10px;border:1px solid rgba(255,216,74,.6);background:rgba(255,216,74,.12);color:#ffd84a;font:700 14px system-ui,sans-serif;cursor:pointer}',
       '.jr-pages{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:10px;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;scrollbar-width:none}.jr-pages::-webkit-scrollbar{display:none}',
       '.jr li.jr-pg{flex:0 0 100%;box-sizing:border-box;scroll-snap-align:center;border:1px solid rgba(229,217,184,.35);border-radius:10px;padding:8px;background:rgba(40,28,14,.5)}',
