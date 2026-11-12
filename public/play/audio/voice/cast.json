@@ -464,6 +464,66 @@
     "emotion": "anchor poise cracking into honesty",
     "pace": "crisp, a pause before the last line"
    }
+  },
+  {
+   "key": "bobbin-4078969a",
+   "speaker": "bobbin",
+   "text": "The log needs a new name. Take the boat out, then catch me a fish. Salute optional.",
+   "direction": {
+    "emotion": "pompous, issuing a harbour order, a soft duck note",
+    "pace": "slow",
+    "delivery": "ceremonial"
+   }
+  },
+  {
+   "key": "bobbin-f7f3a74a",
+   "speaker": "bobbin",
+   "text": "Fleet of two. Logbook updated. Same boat, longer name. Carry on.",
+   "direction": {
+    "emotion": "swelling pride, then dry resignation on the longer name",
+    "pace": "normal",
+    "delivery": "measured, proud"
+   }
+  },
+  {
+   "key": "ember-25598a9d",
+   "speaker": "ember",
+   "text": "A letter for the beach, dear. Carry it to the chair, then a small boom so he notices. Sorry.",
+   "direction": {
+    "emotion": "warm, secretive, apologising for the boom",
+    "pace": "slow",
+    "delivery": "unhurried"
+   }
+  },
+  {
+   "key": "ember-1ac677a7",
+   "speaker": "ember",
+   "text": "It reached him. Forecast: clear. Sorry. Take this stamp.",
+   "direction": {
+    "emotion": "relieved, fond, wry on Sorry",
+    "pace": "slow",
+    "delivery": "soft, warm"
+   }
+  },
+  {
+   "key": "rolo-4ef4c332",
+   "speaker": "rolo",
+   "text": "huh. need scrap. drive the 4x4 to the barrels. then blow them. estimate: two wobbles.",
+   "direction": {
+    "emotion": "mild, matter of fact, a little shy to ask",
+    "pace": "slow",
+    "delivery": "lowercase mumble"
+   }
+  },
+  {
+   "key": "rolo-56abb2a2",
+   "speaker": "rolo",
+   "text": "huh. that was a small tuesday. take this. mostly fine.",
+   "direction": {
+    "emotion": "quietly pleased, still under something",
+    "pace": "slow",
+    "delivery": "soft"
+   }
   }
  ]
 }
