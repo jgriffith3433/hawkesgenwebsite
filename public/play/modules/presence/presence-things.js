@@ -350,9 +350,10 @@
     }
     G.x += (clamp(ax, -1.2, 1.2) - G.x) * Math.min(1, dt * 9); G.y += (clamp(ay, -0.8, 0.8) - G.y) * Math.min(1, dt * 9);
     const blink = spec.blink ? C().blinkStep(F.blink, t) : 0;
+    if (P.alive) P.alive.blinkSeen(rig, blink);
     const tgt = C().EXPRESSIONS[exprName] || C().EXPRESSIONS.neutral, cur = F.expr, k = Math.min(1, dt / 0.15);
     for (const key of Object.keys(tgt)) cur[key] += (tgt[key] - cur[key]) * k;
-    const shown = C().shape(cur, spec.gain), talk = md && md.talking() && spec.talk ? C().talkOpen(t) : 0;
+    const shown = C().shape(cur, spec.gain), talk = rig.alive && rig.alive.mouthDraw != null && spec.talk ? rig.alive.mouthDraw : md && md.talking() && spec.talk ? C().talkOpen(t) : 0;
     const st = {
       gx: clamp(G.x / 0.7, -1, 1), gy: clamp(G.y / 0.5, -1, 1), lid: Math.max(shown.lid, blink, (extra && extra.lid) || 0),
       open: shown.open + talk + ((extra && extra.open) || 0), smile: shown.smile, width: shown.width, raise: shown.raise, tilt: shown.tilt,

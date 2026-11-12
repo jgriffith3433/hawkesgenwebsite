@@ -14,7 +14,7 @@
   const BED_GAIN = { inland: 0.78, beach: 0.95, pier: 0.72 };
   const STEPS = { sand: 'step-sand', grass: 'step-grass', dirt: 'step-grass', wood: 'step-wood', stone: 'step-stone' };
   const VARIANTS = 3;
-  const bufs = new Map(), beds = {}, last = {};
+  const bufs = new Map(), beds = {}, last = {}, mask = {}; // mask: weather.js's multiplier per area bed (rain ducks them, a phone keeps two)
   let index = null, started = false;
   const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
@@ -110,7 +110,7 @@
       if (ctx.state !== 'running' || !index) return;
       if (!started) startBeds();
       const wt = weights(p.x);
-      for (const k of Object.keys(beds)) if (beds[k].g) beds[k].g.gain.setTargetAtTime(wt[k] * (BED_GAIN[k] ?? 0.8), ctx.currentTime, 0.6);
+      for (const k of Object.keys(beds)) if (beds[k].g) beds[k].g.gain.setTargetAtTime(wt[k] * (BED_GAIN[k] ?? 0.8) * (mask[k] ?? 1), ctx.currentTime, 0.6);
     } catch (err) { H.report(err, 'soundscape'); }
   });
   H.hooks.world.push({
@@ -128,5 +128,7 @@
       g.on('spawn-wheel', (d) => { if (d && (d.state === 'open' || !d.state)) ui('panel'); });
     },
   });
-  H.soundscape = { step, ui, weights, play, beds: () => Object.keys(beds).filter((k) => beds[k].g), _last: last };
+  /** The area beds' target gains for where the player stands (before the weather's mask). */
+  const targets = () => { const p = H.world && H.world.player; const wt = p ? weights(p.x) : {}; const o = {}; for (const k of Object.keys(BEDS)) o[k] = (wt[k] || 0) * (BED_GAIN[k] ?? 0.8); return o; };
+  H.soundscape = { step, ui, weights, targets, mask, play, beds: () => Object.keys(beds).filter((k) => beds[k].g), _last: last };
 })();

@@ -129,6 +129,154 @@
       "about": "Overseer sound identity (modules/overseer/sound.js). Gen assets land in public/play/audio/sfx/ via studio_gen_import; loudness-normalised at Gen (normalize: true on sfx; music trimmed in play)."
     },
     {
+      "id": "island-hours-weather",
+      "kind": "sound-pack",
+      "name": "Island hours and weather ambience",
+      "jobs": {
+        "loops": "j_28b2b53abb66",
+        "thunder": "j_893c3d58f20d"
+      },
+      "data": {
+        "canon": "Time-of-day beds (dawn chorus, midday cicadas, dusk gulls/waves, night crickets/frogs/owl) under the area beds; rain on ground/wood/metal; three thunder claps with long tails. Crossfade ≥30 s by H.sky.clock; phone ≤2 beds.",
+        "slots": {
+          "tod/dawn": {
+            "brief": "Dawn chorus seamless loop",
+            "path": "public/play/audio/sfx/tod-dawn.mp3",
+            "asset": "a_ec5a9959118cd3c0",
+            "job": "j_28b2b53abb66"
+          },
+          "tod/day": {
+            "brief": "Midday cicadas seamless loop",
+            "path": "public/play/audio/sfx/tod-day.mp3",
+            "asset": "a_51ab62f7f39a6bd5",
+            "job": "j_28b2b53abb66"
+          },
+          "tod/dusk": {
+            "brief": "Dusk gulls and waves seamless loop",
+            "path": "public/play/audio/sfx/tod-dusk.mp3",
+            "asset": "a_0b413c98827f60a8",
+            "job": "j_28b2b53abb66"
+          },
+          "tod/night": {
+            "brief": "Night crickets frogs owl seamless loop",
+            "path": "public/play/audio/sfx/tod-night.mp3",
+            "asset": "a_e1b4a9d3a13c9ab6",
+            "job": "j_28b2b53abb66"
+          },
+          "rain/ground": {
+            "brief": "Rain on open ground seamless loop",
+            "path": "public/play/audio/sfx/rain-ground.mp3",
+            "asset": "a_17f55bf002b15bd5",
+            "job": "j_28b2b53abb66"
+          },
+          "rain/wood": {
+            "brief": "Rain on pier wood seamless loop",
+            "path": "public/play/audio/sfx/rain-wood.mp3",
+            "asset": "a_b6043882355822c3",
+            "job": "j_28b2b53abb66"
+          },
+          "rain/metal": {
+            "brief": "Rain on hangar metal roof seamless loop",
+            "path": "public/play/audio/sfx/rain-metal.mp3",
+            "asset": "a_512a7434982e0f22",
+            "job": "j_28b2b53abb66"
+          },
+          "thunder/1": {
+            "brief": "Close lightning crack with long rumble",
+            "path": "public/play/audio/sfx/thunder-1.mp3",
+            "asset": "a_03090d8a91940d73",
+            "job": "j_893c3d58f20d"
+          },
+          "thunder/2": {
+            "brief": "Distant soft boom with long tail",
+            "path": "public/play/audio/sfx/thunder-2.mp3",
+            "asset": "a_58006b85aac57712",
+            "job": "j_893c3d58f20d"
+          },
+          "thunder/3": {
+            "brief": "Medium-distance crack and rumble",
+            "path": "public/play/audio/sfx/thunder-3.mp3",
+            "asset": "a_4bdd8e25c032565a",
+            "job": "j_893c3d58f20d"
+          }
+        }
+      },
+      "about": "Island hours and weather (modules/soundscape/weather.js, window.__weather). Gen audio.sfx-open; 10 clips ≈1.89 MB (under 2.5 MB phone budget)."
+    },
+    {
+      "id": "impact-sounds",
+      "kind": "sound-pack",
+      "name": "Impact sound library",
+      "dir": "public/play/audio/impact",
+      "index": "public/play/audio/impact/index.json",
+      "jobs": {
+        "wood-light": "j_c8f3e0c63a34",
+        "wood-heavy": "j_bcc9f482462d",
+        "metal-light": "j_f4abe3bcbe68",
+        "metal-heavy": "j_e5ada8023329",
+        "stone-light": "j_595ad1f38a4b",
+        "stone-heavy": "j_d121b28ea7ce",
+        "water-light": "j_e96c7dd844d1",
+        "water-heavy": "j_6eecfdf9af92",
+        "sand-light": "j_11c696f68575",
+        "sand-heavy": "j_fce61c895d8c",
+        "glass-light": "j_110c276aff2a",
+        "glass-heavy": "j_a66530e3ecc2",
+        "barrel-roll": "j_a657de52d369",
+        "barrel-bounce": "j_2b68b8448ff6",
+        "debris": "j_8515c4155014",
+        "explosion-near": "j_c0e7f6a680d8",
+        "explosion-far": "j_6bc132e8a802",
+        "fish-cast": "j_fb44642d2015",
+        "fish-reel": "j_f3143351dae7",
+        "fish-plop": "j_ac5da7fec3c7",
+        "fish-strike": "j_774fc471faf3",
+        "fish-flap": "j_113a10303de7"
+      },
+      "data": {
+        "canon": "Every hit sounds like what it is: wood thunks, metal clangs, stone cracks, water splashes, sand thumps, glass tinks; barrel bounce and roll; debris patter; near blast crack+boom and far rolling boom late by distance/343; fishing cast/plop/strike/reel/flap. Four variants a set, never the same twice in a row; light/heavy by impulse; pitch +-8% gain +-2 dB; far sets stream after first frame. Player: H.impact (juice-impact.js). Playtest: island-impact.",
+        "far": ["explosion-far", "debris", "barrel-roll"],
+        "budgetKB": 3072
+      },
+      "about": "Impact library under public/play/audio/impact/ (audio.sfx open path, sampleRate 32000). Near sets load first; far tails after. Filed for modules/juice/juice-impact.js."
+    },
+    {
+      "id": "vehicle-sound",
+      "kind": "sound-pack",
+      "name": "Vehicle engine, tyre, rotor and rocket",
+      "jobs": {
+        "loops": "j_2767ae76b809",
+        "oneshots": "j_6fde121e39ec"
+      },
+      "data": {
+        "canon": "4x4 four-gear engine (idle/low/mid/high loops + start, gear clunk, horn, suspension thump), tyre loops by surface (road/sand/grass/water), helicopter rotor low/full + whine + start/stop, Rolo rocket ignite/roar/rumble. Loudness-normalised; loops equal-power crossfaded seamless; under 2 MB total.",
+        "slots": {
+          "engine/idle": { "brief": "4x4 diesel idle loop", "path": "public/play/audio/sfx/veh-engine-idle.mp3", "asset": "a_00a42475a8abb7c8" },
+          "engine/low": { "brief": "4x4 low RPM loop", "path": "public/play/audio/sfx/veh-engine-low.mp3", "asset": "a_fffb69c08c86432f" },
+          "engine/mid": { "brief": "4x4 mid RPM loop", "path": "public/play/audio/sfx/veh-engine-mid.mp3", "asset": "a_8877c9f082fb295d" },
+          "engine/high": { "brief": "4x4 high RPM loop", "path": "public/play/audio/sfx/veh-engine-high.mp3", "asset": "a_d8cde9c3184ba01d" },
+          "engine/start": { "brief": "4x4 engine start", "path": "public/play/audio/sfx/veh-engine-start.mp3", "asset": "a_491d2e94be7d9002" },
+          "engine/gear-clunk": { "brief": "Gear shift clunk", "path": "public/play/audio/sfx/veh-gear-clunk.mp3", "asset": "a_45283200f9272f84" },
+          "engine/suspension-thump": { "brief": "Suspension landing thump", "path": "public/play/audio/sfx/veh-suspension-thump.mp3", "asset": "a_5e3c3cc6cbdb0ef2" },
+          "engine/horn": { "brief": "Friendly car horn", "path": "public/play/audio/sfx/veh-horn.mp3", "asset": "a_54f94eaf7249b208" },
+          "tyre/road": { "brief": "Tyres on gravel road loop", "path": "public/play/audio/sfx/veh-tyre-road.mp3", "asset": "a_b3824e045d8fcc6d" },
+          "tyre/sand": { "brief": "Tyres on sand loop", "path": "public/play/audio/sfx/veh-tyre-sand.mp3", "asset": "a_ec0ea171d188d488" },
+          "tyre/grass": { "brief": "Tyres on grass loop", "path": "public/play/audio/sfx/veh-tyre-grass.mp3", "asset": "a_231d539bd187394e" },
+          "tyre/water": { "brief": "Tyres through shallows loop", "path": "public/play/audio/sfx/veh-tyre-water.mp3", "asset": "a_e2db471ad26f8e40" },
+          "heli/rotor-low": { "brief": "Rotor low collective loop", "path": "public/play/audio/sfx/veh-heli-rotor-low.mp3", "asset": "a_d1590549c85f151b" },
+          "heli/rotor-full": { "brief": "Rotor full collective loop", "path": "public/play/audio/sfx/veh-heli-rotor-full.mp3", "asset": "a_36dc8fe62eac514f" },
+          "heli/whine": { "brief": "Turbine whine loop", "path": "public/play/audio/sfx/veh-heli-whine.mp3", "asset": "a_b3d808674f75006d" },
+          "heli/start": { "brief": "Helicopter startup", "path": "public/play/audio/sfx/veh-heli-start.mp3", "asset": "a_8576d3df4ca9e7c7" },
+          "heli/stop": { "brief": "Helicopter shutdown", "path": "public/play/audio/sfx/veh-heli-stop.mp3", "asset": "a_eca4350b6adb7029" },
+          "rocket/ignite": { "brief": "Rocket ignition", "path": "public/play/audio/sfx/veh-rocket-ignite.mp3", "asset": "a_a18395b91bd01537" },
+          "rocket/roar": { "brief": "Rocket roar loop", "path": "public/play/audio/sfx/veh-rocket-roar.mp3", "asset": "a_1944406e72c36cf8" },
+          "rocket/rumble": { "brief": "Rocket far rumble tail", "path": "public/play/audio/sfx/veh-rocket-rumble.mp3", "asset": "a_5ec24bb729e0dfd1" }
+        }
+      },
+      "about": "Vehicle audio (modules/vehicles/vehicles-sound.js). Gen audio.sfx; loops re-crossfaded equal-power where Gen left a seam hole. Total veh-*.mp3 under 2 MB."
+
+    },
+    {
       "id": "island-pbr",
       "kind": "material-pack",
       "name": "Sandbox island PBR materials",
