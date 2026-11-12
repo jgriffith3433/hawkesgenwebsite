@@ -108,7 +108,9 @@
     const size = sp.envSize;
     const sd = H.sky && H.sky._ ? H.sky._.sunToward(hour) : { x: 0.3, y: 0.8, z: 0.4 };
     const faces = [];
-    for (let f = 0; f < 6; f++) faces.push(C.skyFace(f, size, hour, [sd.x, sd.y, sd.z]));
+    const painted = H.skyPaint && H.skyPaint.ready;
+    for (let f = 0; f < 6; f++) faces.push((painted && H.skyPaint.face(f, size)) || C.skyFace(f, size, hour, [sd.x, sd.y, sd.z]));
+    st.envPainted = Boolean(painted);
     try {
       if (st.env && st.env._hpSize === size) {
         try { st.env.update(faces, B.Constants.TEXTUREFORMAT_RGBA, B.Constants.TEXTURETYPE_UNSIGNED_BYTE, false); st.envHour = hour; return; } catch { /* make a new one */ }
@@ -211,7 +213,7 @@
       st.bloom = Boolean(w.look.bloomEnabled);
     }
     updateGrade();
-    if (Math.abs(wrapDiff(st.hour, st.envHour)) > 0.3) makeEnv(w, st.hour);
+    if (Math.abs(wrapDiff(st.hour, st.envHour)) > 0.3 || (H.skyPaint && H.skyPaint.ready && !st.envPainted)) makeEnv(w, st.hour);
     publish();
   }
   function publish() {
