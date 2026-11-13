@@ -207,7 +207,7 @@ test("a developer's own Hawkes Net (/v1/net/me): their project, whether they may
   const page = await (await fetch(`${base}/net`)).text();
   assert.match(page, /Games on Hawkes Net/, '/net is the offering');
   assert.match(page, /https:\/\/net\.hawkesgen\.ai\//, 'its buttons open net.hawkesgen.ai');
-  assert.match(page, /sickofitgame\.com/);
+  assert.match(page, /hawkesgames\.com\/play\/sickofit/);
   assert.doesNotMatch(page, /\/net\/docs/);
 });
 
