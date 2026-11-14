@@ -529,6 +529,7 @@ body.hp-title-on .hc-chat,body.hp-title-on .tl-zone,body.hp-title-on .gs-acts,bo
           const r = await run();
           if (W() === w && w.player && w.player.alive) {
             w.player.controls = true;
+            OV.titleControls = undefined; // (nobody else will read it: a stale value must not reach a later intro)
             try { if (H.input && H.input.held) H.input.held.clear(); } catch { /* fine */ }
           }
           emit('end', r);
