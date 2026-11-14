@@ -871,7 +871,33 @@ async function stageMirror(t, ctx) {
   await t.until(() => !$('.mr'), 10000, 'the mirror to close after the last answer');
   t.event('mirror-done', `${chosen}, ${who}`);
   startFirstMinutes(t, ctx);
+  await checkFreeToMove(t, ctx);
   t.progress(0.45);
+}
+
+/** After the mirror the player is on the ground and answers input at once (the "stuck in a fall, cannot move" bug: the
+ *  title screen left the controls off, so nothing ever moved the character). Fails when, 3 s after the mirror closes, the
+ *  player is still airborne, or a move input (W, or the stick on touch) does not move them 1 m within 2 s. */
+async function checkFreeToMove(t, ctx) {
+  const p = () => W() && W().player;
+  if (!p()) return;
+  const touch = Boolean(ctx.options.touch || HP().touchUi);
+  await t.wait(3000);
+  const st = () => `grounded ${p().grounded}, vy ${Number(p().vy || 0).toFixed(2)}, controls ${p().controls}, at ${p().x.toFixed(1)}, ${p().y.toFixed(1)}, ${p().z.toFixed(1)}`;
+  const regrounds = () => (window.__regrounds || []).length;
+  const r0 = regrounds();
+  t.event('after-mirror-state', st());
+  if (!p().grounded) t.problem('error', `3 s after the mirror the player is still in the air (${st()})`);
+  if (p().controls === false) t.problem('error', `3 s after the mirror the player's controls are still off (${st()})`);
+  const x0 = p().x, z0 = p().z, tm = performance.now();
+  let stick = null;
+  if (touch) { try { stick = stickHold(); stick.set(0, 1); } catch (e) { t.problem('error', e.message); } } else setKeys({ w: true });
+  let moved = 0;
+  while (performance.now() - tm < 2000 && moved < 1) { await t.wait(100); moved = Math.hypot(p().x - x0, p().z - z0); }
+  if (stick) stick.release(); else releaseAll();
+  t.event('move-input', `${touch ? 'the stick' : 'W'} moved the player ${moved.toFixed(2)} m in ${Math.round(performance.now() - tm)} ms`);
+  if (moved < 1) t.problem('error', `a move input did not move the player 1 m within 2 s (${moved.toFixed(2)} m; ${st()})`);
+  if (regrounds() > r0) t.problem('error', 'the safety net had to re-ground the player after the mirror (an airborne state that should not happen)');
 }
 
 /** The HUD beside the mirror panel (modules/hudlayout): measured with the panel open, then closed. */

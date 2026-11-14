@@ -485,8 +485,10 @@ body.hp-title-on .hc-chat,body.hp-title-on .tl-zone,body.hp-title-on .gs-acts,bo
       dropCam(w, cam, prev || (w.camera && w.camera.cam));
       if (held && p && p.node) {
         p.node.visibility = held.vis;
-        // Intro (or play) takes controls; leave them off until then when intro wants them.
+        // Intro (or play) takes controls; leave them off until then, and tell the intro what they were: it restores
+        // what it finds, so reading our own "off" would leave the player unable to move for good.
         p.controls = false;
+        OV.titleControls = held.controls !== false;
       }
       document.body.classList.remove('hp-title-on');
       root.remove();
