@@ -279,6 +279,8 @@
     clearTimeout(timer);
     if (cancelled || W() !== w || !p.alive) {
       skipEl.remove();
+      // Skipped before it began: the title screen left the controls off for us; nobody else will turn them on.
+      if (W() === w && p.alive && OV.titleControls !== undefined) { p.controls = OV.titleControls; OV.titleControls = undefined; }
       if (cancelled && W() === w) { remember(); G().emit('intro', { state: 'end', skipped: true }); }
       return { skipped: true };
     }
@@ -290,7 +292,9 @@
     let hx = c[0] - at[0], hz = c[2] - at[2];
     const hl = Math.hypot(hx, hz) || 1; hx /= hl; hz /= hl;
     const vis = p.node.visibility;
-    const controls0 = p.controls;
+    // (The title screen turned the controls off while it showed: what they were before it is what to give back.)
+    const controls0 = OV.titleControls !== undefined ? OV.titleControls : p.controls;
+    OV.titleControls = undefined;
     p.node.visibility = 0;
     p.controls = false; // until the beam lands (about 2 s in)
     // Looking up at the Overseer over the player's shoulder: pull the third-person camera back so the body stays in frame.

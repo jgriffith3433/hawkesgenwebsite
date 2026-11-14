@@ -2088,7 +2088,36 @@
       }
     }
     contacts();
+    groundGuard(dt);
     for (const f of hooks.afterStep) f(dt);
+  }
+
+  /** Safety net: the player is never left in the air for good. Standing on ground, the spot is remembered; airborne for
+   *  GUARD_SECONDS with no real descent (nothing under them to fall to, a collider that never came, a stuck state), they
+   *  are put back on the last safe ground (else the spawn) with their movement given back, and `reground` is told to
+   *  the game, the console and analytics (window.__regrounds for the playtest). */
+  const GUARD_SECONDS = 3, GUARD_DESCENT = 1;
+  const guard = { safe: null, air: 0, ref: 0, count: 0 };
+  function groundGuard(dt) {
+    const p = W.player;
+    if (!p || !p.alive || p.remote || mode === 'build' || p.flying || p.held || p.ghost || p._fast || p._flung || p._seatedAt || p.physics !== 'dynamic') { guard.air = 0; return; }
+    if ((W.config.gravity ?? -24) >= 0 || p.gravity === 0 || (p._controller && p._controller.name !== 'walk')) { guard.air = 0; return; }
+    if (p.grounded) { guard.air = 0; guard.safe = [p.x, p.y, p.z]; return; }
+    if (guard.air === 0) guard.ref = p.y;
+    guard.air += dt;
+    if (guard.ref - p.y > GUARD_DESCENT) { guard.ref = p.y; guard.air = dt; } // really falling: the clock restarts
+    if (guard.air < GUARD_SECONDS) return;
+    const from = [p.x, p.y, p.z];
+    const at = guard.safe || (() => { const s = spawnPoint(); return [s[0], s[1] + 0.95, s[2]]; })();
+    p.position = at.slice(); p.velocity = [0, 0, 0]; p.vy = 0; p.gravity = p.baseGravity ?? 1; p._doubled = false;
+    p.controls = W.config.controls !== false;
+    if (p.wake) p.wake();
+    guard.air = 0; guard.count++;
+    const info = { from, to: at.slice(), count: guard.count, spawn: !guard.safe };
+    (window.__regrounds = window.__regrounds || []).push(info);
+    try { console.warn('[hawkes] player stuck in the air for ' + GUARD_SECONDS + ' s: re-grounded', info); } catch { /* fine */ }
+    try { game.emit('reground', info); } catch { /* fine */ }
+    try { const T = window.HawkesPlay && window.HawkesPlay.track; if (T) T('player_reground', { count: guard.count, spawn: info.spawn }); } catch { /* fine */ }
   }
 
   /** The first physics: boxes that don't turn, swept along each axis. It runs until Havok is ready (or if it can't load). */
