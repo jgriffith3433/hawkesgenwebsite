@@ -40,3 +40,10 @@ test('the runtime puts a player left in the air for 3 s back on the ground and s
   assert.match(rt, /game\.emit\('reground'/);
   assert.match(rt, /player_reground/);
 });
+
+test('the fishing close-up removes its letterbox bars however it ends, and a title that ran alone clears its hand-over', () => {
+  const fishing = read('public/play/modules/water/fishing.js');
+  assert.match(fishing, /finally \{[^}]*for \(const b of bars\) b\.remove\(\)/s);
+  const title = read('public/play/modules/overseer/title.js');
+  assert.match(title, /w\.player\.controls = true;\s*OV\.titleControls = undefined/);
+});

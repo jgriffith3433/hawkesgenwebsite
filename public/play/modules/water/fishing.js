@@ -806,6 +806,7 @@
    *  up (the whole fish across the screen, even on a portrait phone), letterbox bars, no HUD; then the player has the game back. */
   async function closeUp(s, f, p, len) {
     s.closing = true; s.closeGuard = 0;
+    let bars = [];
     try {
       if (!H.cinematic && window.HawkesModules && window.HawkesModules.ensure) await window.HawkesModules.ensure('share');
       const C = H.cinematic;
@@ -816,7 +817,6 @@
       const D = clamp(Math.max(need / 2 / th, 1.9 / 2 / tv), 1.8, 8);
       const camPos = [p.x + spot.fx * D, spot.feet + spot.h * 0.8, p.z + spot.fz * D];
       const look = [p.x + spot.fx * 0.3, spot.feet + spot.h * 0.82, p.z + spot.fz * 0.3];
-      let bars = [];
       if (portrait) {
         for (const top of [true, false]) { const b = document.createElement('div'); b.className = 'sh-keep'; b.style.cssText = `position:fixed;left:0;right:0;${top ? 'top' : 'bottom'}:0;height:7vh;background:#000;z-index:60;pointer-events:none`; document.body.appendChild(b); bars.push(b); }
       }
@@ -836,9 +836,12 @@
         } catch (e) { fx('closeup-framed', { whole: null, error: String(e && e.message || e) }); }
       }, 500);
       await done;
-      for (const b of bars) b.remove();
       fx('closeup-end');
-    } catch (e) { fx('closeup-skipped', { why: String(e && e.message || e) }); } finally { s.closing = false; }
+    } catch (e) { fx('closeup-skipped', { why: String(e && e.message || e) }); } finally {
+      // (Bars are ours: an error or a cut-short shot must never leave a black band over the phone's screen.)
+      for (const b of bars) b.remove();
+      s.closing = false;
+    }
   }
 
   // ------------------------------------------------------------------ other players' lines (online)
