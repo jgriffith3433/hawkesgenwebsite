@@ -1154,7 +1154,7 @@ $('menu').querySelector('.st-menu-list').onclick = async (e) => {
   if (act === 'advanced') { closeMenu(); openDrawer('code'); }
   if (act === 'codex') window.open('/entities', '_blank');
   if (act === 'exit') location.href = '/app';
-  if (act === 'logout') { await post('/v1/users/logout', {}).catch(() => {}); location.href = '/'; }
+  if (act === 'logout') { await post('/v1/users/logout', {}).catch(() => {}); location.href = '/home'; }
   if (act === 'invite') {
     const el = sheet('<h3>Build together</h3><p>Anyone with this link joins this game and builds with you. You\'ll see each other in the world.</p><input class="form-input" id="inviteLink" readonly><div class="row"><button class="st-menu-item primary" id="copyInvite" type="button">Copy the link</button></div><button class="st-menu-item" data-back type="button">Back</button>');
     el.querySelector('[data-back]').onclick = () => { el.hidden = true; };

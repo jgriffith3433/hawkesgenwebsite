@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
-const PAGES = ['index.html', 'gallery.html', 'games.html', 'community.html', 'reset.html', 'share.html'];
+const PAGES = ['home.html', 'gallery.html', 'games.html', 'community.html', 'reset.html', 'share.html'];
 
 const attr = (tag: string, name: string) => new RegExp(`\\s${name}(?:=("[^"]*"|'[^']*'|[^\\s>]+))?(?=[\\s/>])`, 'i').exec(tag);
 const stripScripts = (h: string) => h.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '');
@@ -61,7 +61,7 @@ test('the checks themselves catch what they should', () => {
 });
 
 test('the landing: dialog is named and modal, the form errors are announced, the sky is labelled', () => {
-  const h = read('public/index.html');
+  const h = read('public/home.html');
   assert.match(h, /role="dialog" aria-modal="true" aria-labelledby="authTitle"/);
   assert.match(h, /id="authError" role="alert"/);
   assert.match(h, /class="skip-link"/);

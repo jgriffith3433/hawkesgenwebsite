@@ -14,7 +14,7 @@
     ['/entities', 'Engine codex', 'Every kind of thing the game engine builds, live'],
     ['/avatars', 'Avatars', 'Every body a player can be, live'],
     ['/net', 'Hawkes Net', 'Multiplayer for your game'],
-    ['/#pricing', 'Pricing', 'Credits and packs'],
+    ['/home#pricing', 'Pricing', 'Credits and packs'],
   ];
   const here = location.pathname.replace(/\/+$/, '') || '/';
   for (const nav of document.querySelectorAll('[data-site-nav]')) {
@@ -27,7 +27,7 @@
       const external = /^https?:\/\//.test(href);
       if (external) { a.target = '_blank'; a.rel = 'noopener'; }
       const path = href.split('#')[0];
-      if (!external && path !== '/' && (here === path || here.startsWith(`${path}/`))) a.setAttribute('aria-current', 'page');
+      if (!external && !href.includes('#') && path !== '/' && (here === path || here.startsWith(`${path}/`))) a.setAttribute('aria-current', 'page');
       nav.append(a);
     }
     // Phones: one Menu button that opens the links as a sheet under the header.

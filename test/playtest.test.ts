@@ -28,7 +28,7 @@ test('the scenarios are the ones AGENTS.md documents', () => {
 });
 
 test('only automation loads the scenarios, on the landing page and the sandbox', () => {
-  for (const f of ['public/index.html', 'public/play/guest.js']) {
+  for (const f of ['public/home.html', 'public/play/guest.js']) {
     const s = read(f);
     assert.match(s, /navigator\.webdriver[^\n]*import\('\/playtest\/portal\.js'\)/, f);
   }

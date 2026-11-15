@@ -1,4 +1,4 @@
-// The landing page's pictures: every image or asset public/index.html points at must exist (a 404 is a broken image in
+// The landing page's pictures: every image or asset public/home.html points at must exist (a 404 is a broken image in
 // the site crawl), every <img> has alt text, and the pictures built by the page's scripts have alt and drop on error.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const PUBLIC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
-const html = fs.readFileSync(path.join(PUBLIC, 'index.html'), 'utf8');
+const html = fs.readFileSync(path.join(PUBLIC, 'home.html'), 'utf8');
 const markup = html.replace(/<script[\s\S]*?<\/script>/gi, '');
 
 /** Local files the markup refers to: img/source/poster/icon/manifest links and og/twitter images. */
@@ -21,7 +21,7 @@ export function refs(h: string): string[] {
 }
 const local = (u: string) => (u.startsWith('https://hawkesgames.com/') ? u.slice('https://hawkesgames.com'.length) : u);
 
-test('every image and asset public/index.html references exists', () => {
+test('every image and asset public/home.html references exists', () => {
   const all = refs(markup);
   assert.ok(all.length >= 10, 'found the references');
   const missing = all.map(local).filter((u) => u.startsWith('/')).filter((u) => !fs.existsSync(path.join(PUBLIC, u.split(/[?#]/)[0])));

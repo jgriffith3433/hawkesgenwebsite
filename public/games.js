@@ -371,7 +371,7 @@ async function choose(plan, btn) {
 
 function billError(e) { $('billError').textContent = e.message; $('billError').hidden = false; }
 
-$('logout').onclick = async () => { await api('/v1/users/logout', { body: {} }).catch(() => {}); location.href = '/'; };
+$('logout').onclick = async () => { await api('/v1/users/logout', { body: {} }).catch(() => {}); location.href = '/home'; };
 
 // Profile dropdown
 $('profileBtn').onclick = () => {

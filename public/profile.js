@@ -44,7 +44,7 @@ async function start() {
   const planLine = free ? 'Free plan' : `${plan.name}${sub.cancelAtPeriodEnd ? `, ends ${day(sub.periodEnd)}` : sub.periodEnd ? `, renews ${day(sub.periodEnd)}` : ''}`;
   $('stats').innerHTML = `
     <div class="pf-stat"><b>${n(me.credits)}</b><span class="k">credits</span><a class="act btn btn-secondary btn-sm" href="/credits">${Number(me.credits) > 0 ? 'Top up' : 'Get credits'}</a></div>
-    <div class="pf-stat"><b>${esc(plan?.name || 'Free')}</b><span class="k">${esc(planLine)}</span><a class="act btn btn-secondary btn-sm" href="${free ? '/#pricing' : '/credits'}">${free ? 'See plans' : 'Manage plan'}</a></div>
+    <div class="pf-stat"><b>${esc(plan?.name || 'Free')}</b><span class="k">${esc(planLine)}</span><a class="act btn btn-secondary btn-sm" href="${free ? '/home#pricing' : '/credits'}">${free ? 'See plans' : 'Manage plan'}</a></div>
     <div class="pf-stat"><b>${n(list.length)}</b><span class="k">${list.length === 1 ? 'world' : 'worlds'}</span></div>`;
 
   $('worlds').innerHTML = list.length

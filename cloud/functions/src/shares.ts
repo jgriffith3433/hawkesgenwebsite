@@ -218,7 +218,7 @@ export async function sharePage(shareId: string, res: Response) {
         <a class="btn btn-ghost" href="/s/${esc(r.id)}/media" download>Download</a>
       </div>
     </div>
-    <p class="muted sh-made">Made with <a href="/">Hawkes Games</a>: build a game with friends and AI, in your browser.</p>
+    <p class="muted sh-made">Made with <a href="/home">Hawkes Games</a>: build a game with friends and AI, in your browser.</p>
   </main>
   <script>document.getElementById('copy').onclick=function(){var b=this;try{navigator.clipboard.writeText(b.dataset.url);b.textContent='Copied';setTimeout(function(){b.textContent='Copy link'},1800)}catch(e){prompt('Copy this link',b.dataset.url)}};</script>`;
   html(res, 200, page({ title: v.title, head, body }));
@@ -261,7 +261,7 @@ function page(o: { title: string; head: string; body: string }) {
 </head>
 <body class="landing">
   <header class="bar">
-    <a class="hg-brand" href="/"><img src="/favicon.svg" alt=""><span>Hawkes Games</span></a>
+    <a class="hg-brand" href="/home"><img src="/favicon.svg" alt=""><span>Hawkes Games</span></a>
     <nav class="hg-nav-links" data-site-nav><a href="/games">Worlds</a><a href="/community">Community library</a><a href="/entities">Engine codex</a><a href="/avatars">Avatars</a><a href="/net">Hawkes Net</a><a href="/#pricing">Pricing</a></nav>
     <a class="btn btn-primary btn-sm" href="/app">Build a game</a>
   </header>

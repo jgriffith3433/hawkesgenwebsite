@@ -100,7 +100,7 @@ const redirectUri = () => `${publicUrl()}/auth/google/callback`;
 /** Only our own pages: a path, never another site. */
 const safeNext = (n: unknown) => (typeof n === 'string' && /^\/(?!\/)[^\s\\]*$/.test(n) ? n : '/app');
 const netDashboard = () => (env('PORTAL_NET_DASHBOARD') ?? 'https://net.hawkesgames.com').replace(/\/+$/, '');
-const problemPage = (next: unknown, q: string) => (safeNext(next) === '/net/back' ? `${netDashboard()}/?${q}` : `/?${q}`);
+const problemPage = (next: unknown, q: string) => (safeNext(next) === '/net/back' ? `${netDashboard()}/?${q}` : `/home?${q}`);
 
 /** Signed, short-lived state (HMAC with the portal's signing key). */
 function sign(data: unknown, ttlSec: number) {

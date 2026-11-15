@@ -219,7 +219,7 @@
     } catch (err) { H.report(err, 'gamemenu'); }
   }
   function leaveSite() {
-    try { location.href = '/'; } catch { /* fine */ }
+    try { location.href = '/home'; } catch { /* fine */ }
   }
 
   function setField(k, v) {

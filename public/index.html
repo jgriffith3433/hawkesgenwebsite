@@ -1,406 +1,78 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Hawkes Games — You were just given free will</title>
-  <meta name="description" content="A free game in your browser. Decide what you are, explore the island, meet the neighbours, blow things up and fly up to the Overseer. Bring a friend, and change anything you find.">
-  <link rel="icon" href="/favicon.ico" sizes="32x32">
-  <link rel="icon" href="/brand/favicon-16.png" type="image/png" sizes="16x16">
-  <link rel="icon" href="/brand/favicon-32.png" type="image/png" sizes="32x32">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png">
-  <link rel="manifest" href="/manifest.webmanifest">
-  <meta name="theme-color" content="#0a0e1a">
-  <meta property="og:type" content="website">
-  <meta property="og:site_name" content="Hawkes Games">
-  <meta property="og:title" content="Hawkes Games — You were just given free will">
-  <meta property="og:description" content="Decide what you are, then do with it what you will. A free game on a giant planet, in your browser.">
-  <meta property="og:url" content="https://hawkesgames.com/">
-  <meta property="og:image" content="https://hawkesgames.com/brand/og.png">
-  <meta property="og:image:width" content="1200">
-  <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="The Overseer, a glowing sphere, in its starry sky">
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Hawkes Games — You were just given free will">
-  <meta name="twitter:description" content="Decide what you are, then do with it what you will. A free game on a giant planet, in your browser.">
-  <meta name="twitter:image" content="https://hawkesgames.com/brand/og.png">
-  <link rel="stylesheet" href="/public.css?v=play2">
-  <link rel="stylesheet" href="/site.css?v=play2">
-  <link rel="stylesheet" href="/overseer-sky.css?v=play3">
-  <script>document.documentElement.classList.add("js")</script>
-  <script src="https://hawkesgen.ai/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
-  <script src="/site-analytics.js"></script>
-  <script defer src="/google-gate.js"></script>
-  <script>if("serviceWorker"in navigator&&!navigator.webdriver)addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))</script>
-  <script src="/sitenav.js" defer></script>
-  <script>/* Studio's playtest (public/playtest/portal.js): only a browser under automation loads it */
-  try { if (navigator.webdriver || /[?&]playtest=/.test(location.search) || sessionStorage.getItem('hg_playtest_run')) import('/playtest/portal.js').catch(function (e) { window.hawkesPlaytestLoadError = String(e && e.message || e); try { console.error('Hawkes playtest did not load:', window.hawkesPlaytestLoadError); } catch (x) {} }); } catch (e) {}</script>
+<script>(function(){var s=location.search,h=location.hash;if(navigator.webdriver||s.length>1||h.length>1){location.replace('/home'+s+h);}})();</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0c0f15">
+<meta name="description" content="A pen driven by circles written beneath the line it draws: z(t) is a sum of rotating terms. One period is one renewal, and each renewal is a figure never drawn before. The ink stays only where a witness is looking.">
+<title>Hawkes Games</title>
+<style>html,body{margin:0;height:100%;background:#0c0f15;overflow:hidden}canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}</style>
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/brand/favicon-16.png" type="image/png" sizes="16x16">
+<link rel="icon" href="/brand/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/brand/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Hawkes Games">
+<meta property="og:title" content="Hawkes Games — You were just given free will">
+<meta property="og:description" content="Decide what you are, then do with it what you will. A free game on a giant planet, in your browser.">
+<meta property="og:url" content="https://hawkesgames.com/">
+<meta property="og:image" content="https://hawkesgames.com/brand/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The Overseer, a glowing sphere, in its starry sky">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Hawkes Games — You were just given free will">
+<meta name="twitter:description" content="Decide what you are, then do with it what you will. A free game on a giant planet, in your browser.">
+<meta name="twitter:image" content="https://hawkesgames.com/brand/og.png">
+<script src="https://hawkesgen.ai/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
+<script src="/site-analytics.js"></script>
 </head>
-<body class="landing at-sky">
-  <a class="skip-link" href="#main">Skip to content</a>
-  <header class="hg-navbar">
-    <div class="wrap hg-navbar-inner">
-      <a href="/" class="hg-brand"><span class="wordmark">Hawkes Games</span></a>
-      <nav class="hg-nav-links" data-site-nav><a href="/games">Worlds</a><a href="/play/sickofit">Sick of It</a><a href="https://yoobalandgame.com" target="_blank" rel="noopener">Yooba Land</a><a href="https://doseofdestruction.com" target="_blank" rel="noopener">Dose of Destruction</a><a href="https://phorigins.com" target="_blank" rel="noopener">PH Origins</a><a href="https://theplacedepartment.com" target="_blank" rel="noopener">The Place Department</a><a href="/community">Community library</a><a href="/entities">Engine codex</a><a href="/#pricing">Pricing</a></nav>
-      <div class="hg-nav-actions">
-        <button type="button" class="btn btn-ghost" data-open-auth="login">Sign in</button>
-        <a class="btn btn-primary" href="/play/sandbox">Play</a>
-      </div>
-    </div>
-  </header>
-
-  <main id="main" tabindex="-1">
-    <section class="sky" data-sky aria-label="The Overseer over a planet">
-      <canvas aria-hidden="true"></canvas>
-      <div class="sky-clip" data-sky-clip aria-hidden="true"></div>
-      <div class="sky-say" data-sky-say aria-live="polite"></div>
-      <div class="sky-cards" data-sky-cards></div>
-      <div class="sky-inner">
-        <div class="sky-eyebrow">A game in your browser</div>
-        <h1>You were just<br>given <em>free will.</em></h1>
-        <p class="lede">The Overseer beams you down onto a giant planet and wishes you luck with it. First decide what you are (a shoe will do). Then there's an island, a 4x4, a boat, a fishing rod, some barrels you shouldn't stand near, and neighbours who are very glad you came.</p>
-        <div class="actions">
-          <a class="btn btn-play btn-lg" href="/play/sandbox" data-play-now>Play now</a>
-          <a class="btn btn-ghostlight btn-lg" href="/games">Games people made</a>
-        </div>
-        <form class="sky-wish" data-sky-wish autocomplete="off">
-          <input type="text" maxlength="48" aria-label="Ask the Overseer for something" enterkeyhint="send">
-          <button type="submit">Ask the sky</button>
-        </form>
-        <div class="sky-reply" data-sky-reply hidden aria-live="polite"><span></span> <a href="/play/sandbox" data-play-now-inline>Go down to the island &rarr;</a></div>
-        <div class="fine">Free to play, nothing to download. You'll sign in with Google once you've decided what you are, so your island is kept. The box is a taste of the beam: on the island the Overseer really makes what you ask for.</div>
-      </div>
-    </section>
-
-    <section class="cover-row" data-cover-row aria-label="Hawkes games" hidden><div class="cover-row-track" data-cover-track></div></section>
-
-    <section class="section descent" id="island">
-      <div class="wrap">
-        <div class="section-head beam-in">
-          <div class="label">Chapter One</div>
-          <div>
-            <h2>An island, and it's yours.</h2>
-            <p>Pip will show you around. Nobody will tell you what to do with the place. Every quest can be skipped.</p>
-          </div>
-        </div>
-        <div class="steps beam-in">
-          <div class="step"><h3>Decide what you are</h3><p>An animal, a robot, a toaster, a shoe. Pick a look and a name at the mirror. The Overseer is delighted either way, and everyone sees you as what you chose.</p></div>
-          <div class="step"><h3>Drive, fish, blow things up</h3><p>Take the 4x4 down to the dock, cast off the end of the pier, then meet the fuel barrels. Pip introduces each one by name before it goes.</p></div>
-          <div class="step"><h3>Ask the sky</h3><p>Ask the Overseer for anything. It comes down in a beam of light, and you keep it.</p></div>
-          <div class="step"><h3>Go up</h3><p>Fly the helicopter until the island is a speck. Then finish Rolo's rocket and keep climbing until you can see the whole planet, and something lit up above it.</p></div>
-        </div>
-        <p class="play-note beam-in">Come back tomorrow and the Overseer will have one small wish of you. Levels bring gifts for your wardrobe and new tools for your belt. Nothing on the island is for sale.</p>
-      </div>
-    </section>
-
-    <section class="section" id="neighbours">
-      <div class="wrap">
-        <div class="section-head beam-in">
-          <div class="label">The neighbours</div>
-          <div>
-            <h2>Everyone here chose what to be.</h2>
-            <p>And they're a little too pleased about it. They remember what you did and call you by the name you picked. Also, someone lived on this island before you, and nobody remembers who.</p>
-          </div>
-        </div>
-        <div class="cast beam-in">
-          <div class="cast-one"><h3>Pip</h3><p class="role">A person, and your guide</p><p>Wants to try everything, with company. Has never once checked the wind before a boom.</p></div>
-          <div class="cast-one"><h3>Admiral Bobbin</h3><p class="role">A rubber duck, harbourmaster</p><p>Commands a harbour with one boat. Very small, very proud. Takes any wave personally.</p></div>
-          <div class="cast-one"><h3>Mrs Ember</h3><p class="role">A toaster, runs the post and the weather</p><p>Every forecast she gives is right, and she apologises for it each time.</p></div>
-          <div class="cast-one"><h3>Rolo</h3><p class="role">A roll-bot, the only fixer</p><p>Will not ask for help, ever. Built a rocket and cannot say why.</p></div>
-          <div class="cast-one"><h3>Dolores</h3><p class="role">A cactus on the hill</p><p>Is not lonely. Remembers every detail of your day anyway.</p></div>
-          <div class="cast-one"><h3>Channel</h3><p class="role">A TV robot, the island's reporter</p><p>Reports everything as breaking news, naps included. Ratings: record.</p></div>
-        </div>
-        <p class="play-note beam-in">Keep an eye out for things left lying around: a logbook with pages missing, planks cut for a bigger hand. Your journal keeps what you find.</p>
-      </div>
-    </section>
-
-    <section class="section" id="free-will">
-      <div class="wrap">
-        <div class="section-head beam-in">
-          <div class="label">Free will</div>
-          <div>
-            <h2>Anything you see, you can change.</h2>
-            <p>There's no editor to open and nothing to learn first. You find out the way you find out anything here: by poking it.</p>
-          </div>
-        </div>
-        <div class="features">
-          <div class="feature">
-            <div class="feat-live"><b>Poke it</b><span>Hold to grab and throw. Double-click anything for its card: what it is, how it moves, its colour, its size, what it does.</span></div>
-            <h3>Change it where it stands</h3>
-            <p>A boat that's too slow, a hill in the wrong place, a barrel that should be bigger. You change it while you're standing next to it.</p>
-          </div>
-          <div class="feature">
-            <div class="feat-live"><b>Ask for it</b><span>"A lighthouse." "Rain." "Make me jump higher." The Overseer beams it down: things, sounds, music, new rules.</span></div>
-            <h3>Say what should exist</h3>
-            <p>New accounts start with free credits for asking. Every ask shows its price first, and one that fails costs nothing.</p>
-          </div>
-          <div class="feature">
-            <div class="feat-live"><b>Keep it</b><span>Your island is saved as your game. Others can come and play it while you keep changing it.</span></div>
-            <h3>Make it a game</h3>
-            <p>Start from the island, from scratch, or from one of the Overseer's games. Everything you made stays yours.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section" id="friends">
-      <div class="wrap">
-        <div class="section-head beam-in">
-          <div class="label">Friends</div>
-          <div>
-            <h2>Bring someone.</h2>
-            <p>Invite a friend from the pause menu and send them the link. They pick who they are at the mirror and the Overseer beams them down beside you.</p>
-          </div>
-        </div>
-        <div class="steps beam-in">
-          <div><div class="label">Together</div><h3>Up to 32 on one island.</h3><p>See each other, chat, wave, and change the world together while other people play in it.</p></div>
-          <div><div class="label">Moments</div><h3>Share the good bits.</h3><p>After a big explosion, a first catch, a long jump or a docking, one tap keeps the last few seconds as a link, with a line from the Overseer.</p></div>
-          <div><div class="label">Visitors</div><h3>Play theirs.</h3><p>Every game people make here is a world you can walk into, and a link is all a friend needs to follow you in.</p></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section" id="games">
-      <div class="wrap">
-        <div class="section-head beam-in">
-          <div class="label">More to play</div>
-          <div>
-            <h2>Games to jump into.</h2>
-            <p>The Overseer made a few to start with. Remix any of them and change it the way you would change the island.</p>
-          </div>
-        </div>
-        <div class="play-cards beam-in">
-          <a class="play-card" href="/play/t/fps-arena"><h3>Bot Arena</h3><p>A first-person arena on a far planet at dusk: robots beamed in by the Overseer, a shotgun, a rocket launcher on the tower, barrels that blow. Clear 25, three lives.</p><span class="go" data-live-of="fps-arena">Play</span></a>
-          <a class="play-card" href="/play/t/sky-racer"><h3>Sky Racer</h3><p>Race a starship down a sunset valley through 24 glowing gates. Each gate buys time. Boost with space and beat your best.</p><span class="go" data-live-of="sky-racer">Play</span></a>
-          <a class="play-card" href="/play/t/platform-run"><h3>Leap</h3><p>A third-person climb from a village to the Overseer's rocket before the sun sets: moving platforms, spikes, coins, gems and checkpoints.</p><span class="go" data-live-of="platform-run">Play</span></a>
-        </div>
-        <p class="play-live" data-live hidden><b data-live-n></b> <span data-live-t></span></p>
-        <div class="actions games-actions">
-          <a class="btn btn-primary btn-lg" href="/play/sandbox">Start on the island</a>
-          <a class="btn btn-secondary btn-lg" href="/games">See what players made</a>
-        </div>
-      </div>
-    </section>
-
-    <section class="section" id="pricing">
-      <div class="wrap">
-        <div class="section-head beam-in">
-          <div class="label">Plans</div>
-          <div>
-            <h2>Playing is free. Plans are for making more.</h2>
-            <p>Credits are what the Overseer spends when you ask it to make something: the art, the models, the sound, the music, the changes. Every plan adds credits each month, and unused ones roll over.</p>
-          </div>
-        </div>
-        <div class="packs" id="packs">
-          <div class="pack">
-            <div class="label">Free</div>
-            <div class="price">$0</div>
-            <div class="credits">Starter credits for asking</div>
-            <div class="per">Up to 3 games · 3 builders per game</div>
-            <button type="button" class="btn btn-secondary" data-open-auth="signup">Start for free</button>
-          </div>
-          <div class="pack featured">
-            <div class="label">Maker</div>
-            <div class="price">$15<small>/mo</small></div>
-            <div class="credits">1,500 credits every month</div>
-            <div class="per">Up to 20 games · 8 builders per game</div>
-            <button type="button" class="btn btn-primary" data-open-auth="signup">Get Maker</button>
-          </div>
-          <div class="pack">
-            <div class="label">Pro</div>
-            <div class="price">$40<small>/mo</small></div>
-            <div class="credits">4,500 credits every month</div>
-            <div class="per">Up to 100 games · 25 builders per game</div>
-            <button type="button" class="btn btn-secondary" data-open-auth="signup">Get Pro</button>
-          </div>
-        </div>
-        <div class="credit-packs" id="creditPacks" hidden></div>
-        <div class="pricing-notes">
-          <span>1 credit = $0.01</span><span>Every ask is priced before it runs</span><span>Failed or cancelled asks give their credits back</span><span>Unused credits roll over</span><span>Cancel any time</span><span>Payments by Stripe</span>
-        </div>
-      </div>
-    </section>
-
-  </main>
-
-  <footer class="footer">
-    <div class="wrap">
-      <span>© 2026 Hawkes Games</span>
-      <span>For makers: <a href="/community">Community library</a> · <a href="/entities">Engine codex</a> · <a href="/net">Hawkes Net</a> · <a href="/studio">Hawkes Studio</a></span>
-      <span><a href="/legal#terms">Terms</a> · <a href="/legal#privacy">Privacy</a> · <a href="/legal#refunds">Refunds</a> · <a href="mailto:support@hawkesgen.ai">support@hawkesgen.ai</a></span>
-    </div>
-  </footer>
-
-  <div class="hg-modal-backdrop" id="authModal" hidden>
-    <div class="hg-modal" role="dialog" aria-modal="true" aria-labelledby="authTitle" style="max-width:420px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:18px">
-        <h3 id="authTitle">Create an account</h3>
-        <button type="button" class="btn btn-ghost btn-sm" id="authClose" aria-label="Close">Close</button>
-      </div>
-      <p class="muted" id="authLede" style="margin:0 0 18px">One button for both: a new account is made the first time you continue with Google.</p>
-      <a class="btn btn-secondary btn-lg google-btn" id="googleBtn" href="/auth/google?next=/app" style="width:100%"><svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg><span>Continue with Google</span></a>
-      <div class="form-error" id="authError" role="alert" hidden style="margin-top:14px"></div>
-      <p class="muted" id="authTerms" style="margin:14px 0 0;font-size:12.5px">By continuing you agree to the <a href="/legal#terms" target="_blank">terms</a> and <a href="/legal#privacy" target="_blank">privacy policy</a>.</p>
-    </div>
-  </div>
-
-  <script type="module">
-    const modal = document.getElementById('authModal');
-    const err = document.getElementById('authError');
-    // Signing in is Google only (no email and password): the dialog says which of the two the button was, nothing more.
-    function setMode(m) {
-      document.getElementById('authTitle').textContent = m === 'signup' ? 'Create an account' : 'Sign in';
-      err.hidden = true;
+<body>
+<canvas id="v" aria-hidden="true"></canvas>
+<main class="sr"><h1>Hawkes Games</h1><p>A pen driven by circles written beneath the line it draws: z(t) is a sum of rotating terms. One period is one renewal, and each renewal is a figure never drawn before. The ink stays only where a witness is looking.</p></main>
+<script>
+(function runtime(P, F, make) {
+  var c = document.getElementById('v'), x = c.getContext('2d'), S = make(P, F), M = { x: .5, y: .5, in: false, down: false }, Wd = 0, Ht = 0, last = 0, T = 0;
+  var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function size() { var D = Math.min(2, window.devicePixelRatio || 1); Wd = window.innerWidth; Ht = window.innerHeight; c.width = Math.round(Wd * D); c.height = Math.round(Ht * D); x.setTransform(D, 0, 0, D, 0, 0); S.resize(Wd, Ht); if (still) for (var i = 0; i < 240; i++) S.frame(x, Wd, Ht, i / 30, 1 / 30, M); }
+  function frame(ms) { var dt = Math.min(.05, (ms - last) / 1000 || .016); last = ms; T += dt; S.frame(x, Wd, Ht, T, dt, M); window.requestAnimationFrame(frame); }
+  function pt(e) { M.x = e.clientX / Wd; M.y = e.clientY / Ht; M.in = true; }
+  c.addEventListener('pointermove', pt); c.addEventListener('pointerdown', function (e) { pt(e); M.down = true; });
+  window.addEventListener('pointerup', function () { M.down = false; }); c.addEventListener('pointerleave', function () { M.in = false; M.down = false; });
+  window.addEventListener('resize', size); size(); if (!still) window.requestAnimationFrame(frame);
+})({"bg":"#0c0f15","fg":"#eff2f7","dim":"#79839a","rule":"#262c3a","a":"#ffcf5c","b":"#9db4ff","a3":[255,207,92],"b3":[157,180,255],"bg3":[12,15,21]}, {"mono":"ui-monospace,SFMono-Regular,Menlo,Consolas,monospace","serif":"Georgia,\"Times New Roman\",serif","sans":"system-ui,-apple-system,\"Segoe UI\",Roboto,sans-serif"}, function scribe(P, F) {
+  let W = 0, H = 0, ink, ix, co = [], t = 0, cyc = 0, last = null, eye = [0, 0], seen = 0, total = 0;
+  const TAU = Math.PI * 2, PER = 22;
+  const fresh = () => { co = []; for (const k of [1, -1, 2, -2, 3, -3, 4, -5, 6, -7]) co.push({ k, a: (0.5 + Math.random()) / Math.pow(Math.abs(k), 1.25), p: Math.random() * TAU }); const s = co.reduce((m, c) => m + c.a, 0); co.forEach(c => c.a /= s); };
+  return {
+    resize(w, h) { W = w; H = h; ink = document.createElement('canvas'); ink.width = W; ink.height = H; ix = ink.getContext('2d'); fresh(); t = 0; last = null; },
+    frame(x, w, h, T, dt, M) {
+      t += dt; if (t > PER) { t = 0; cyc++; fresh(); last = null; seen = total = 0; ix.globalCompositeOperation = 'destination-out'; ix.fillStyle = 'rgba(0,0,0,0.88)'; ix.fillRect(0, 0, W, H); ix.globalCompositeOperation = 'source-over'; }
+      const cx = W / 2, cy = H * 0.5, A = Math.min(W, H) * 0.36, ph = t / PER * TAU, gaze = Math.min(W, H) * 0.2;
+      eye = M.in ? [M.x * W, M.y * H] : [cx + Math.cos(T * 0.23) * A * 0.75, cy + Math.sin(T * 0.31) * A * 0.6];
+      x.fillStyle = P.bg; x.fillRect(0, 0, W, H); x.drawImage(ink, 0, 0, W, H);
+      // the circles beneath the writing
+      let px = cx, py = cy; x.lineWidth = 1;
+      for (const c of co) { const nx = px + Math.cos(c.k * ph + c.p) * c.a * A, ny = py + Math.sin(c.k * ph + c.p) * c.a * A; x.strokeStyle = P.dim; x.globalAlpha = 0.35; x.beginPath(); x.arc(px, py, c.a * A, 0, TAU); x.stroke(); x.globalAlpha = 0.8; x.beginPath(); x.moveTo(px, py); x.lineTo(nx, ny); x.stroke(); px = nx; py = ny; }
+      x.globalAlpha = 1;
+      const watched = Math.hypot(px - eye[0], py - eye[1]) < gaze; total += dt; if (watched) seen += dt;
+      if (last) { ix.strokeStyle = watched ? P.fg : P.dim; ix.globalAlpha = watched ? 0.95 : 0.14; ix.lineWidth = watched ? 1.6 : 1; ix.beginPath(); ix.moveTo(last[0], last[1]); ix.lineTo(px, py); ix.stroke(); }
+      last = [px, py];
+      x.strokeStyle = P.a; x.lineWidth = 1.2; x.setLineDash([2, 6]); x.beginPath(); x.arc(eye[0], eye[1], gaze, 0, TAU); x.stroke(); x.setLineDash([]);
+      x.beginPath(); x.moveTo(eye[0] - 13, eye[1]); x.quadraticCurveTo(eye[0], eye[1] - 9, eye[0] + 13, eye[1]); x.quadraticCurveTo(eye[0], eye[1] + 9, eye[0] - 13, eye[1]); x.stroke(); x.fillStyle = P.a; x.beginPath(); x.arc(eye[0], eye[1], 2.6, 0, TAU); x.fill();
+      x.fillStyle = watched ? P.fg : P.dim; x.beginPath(); x.arc(px, py, 3.5, 0, TAU); x.fill();
+      // the period: one renewal
+      const bw = Math.min(W - 44, 420), bx = (W - bw) / 2, by = H - 44; x.fillStyle = P.rule; x.fillRect(bx, by, bw, 2); x.fillStyle = P.a; x.fillRect(bx, by, bw * t / PER, 2);
+      const big = Math.max(16, Math.min(26, W / 46)); x.fillStyle = P.fg; x.textAlign = 'left'; x.font = '600 12px ' + F.mono; x.fillText('HAWKES GAMES', 22, 30);
+      x.textAlign = 'center'; x.font = 'italic ' + big + 'px ' + F.serif; x.fillText('z(t) = Σ cₖ eⁱᵏᵚᵗ', cx, 34 + big);
+      x.font = '11px ' + F.mono; x.fillStyle = P.dim; x.fillText('sub · scribe: circles written beneath the line they draw', cx, 34 + big + 20);
+      x.fillText('renewal ' + (cyc + 1) + '    T = 2π/ω    witnessed ' + (total ? Math.round(seen / total * 100) : 0) + '% of this figure', cx, by + 22);
+      x.textAlign = 'left'; x.fillStyle = P.a; x.fillText('to scribe is to witness', Math.min(W - 180, eye[0] + gaze * 0.72), eye[1] - gaze * 0.72);
     }
-    document.querySelectorAll('[data-open-auth]').forEach((b) => b.addEventListener('click', () => { opener = b; setMode(b.dataset.openAuth); modal.hidden = false; setTimeout(() => document.getElementById('googleBtn').focus(), 0); if (b.dataset.openAuth === 'signup') window.hawkesAnalytics?.track?.('signup_open', { from: b.closest('section')?.id || 'header' }); }));
-    let opener = null;
-    const closeModal = () => { modal.hidden = true; if (opener && opener.isConnected) opener.focus(); opener = null; };
-    document.getElementById('authClose').addEventListener('click', closeModal);
-    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
-    document.addEventListener('keydown', (e) => {
-      if (modal.hidden) return;
-      if (e.key === 'Escape') { closeModal(); return; }
-      if (e.key !== 'Tab') return;
-      const f = [...modal.querySelectorAll('a[href],button,input')].filter((x) => !x.disabled && !x.closest('[hidden]') && x.getClientRects().length);
-      if (!f.length) return;
-      if (!modal.contains(document.activeElement)) { e.preventDefault(); f[0].focus(); }
-      else if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
-      else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
-    });
-    // Back from Google with a problem: say so in the sign-in dialog.
-    // Where a visitor came from: ?ref=<friend's code> and ?utm_source= are kept 30 days for the sign-up (users.ts originOf).
-    {
-      const p = new URLSearchParams(location.search);
-      const keep = (name, v) => { if (v && /^[a-z0-9_.-]{1,60}$/i.test(v)) document.cookie = `${name}=${encodeURIComponent(v)}; Max-Age=${30 * 86400}; Path=/; SameSite=Lax; Secure`; };
-      keep('hg_ref', p.get('ref'));
-      let from = null;
-      try { from = document.referrer ? new URL(document.referrer).hostname.replace(/^www\./, '') : null; } catch {}
-      if (from === location.hostname) from = null;
-      // A product site's "Powered by Hawkes Games" link (or any other site) counts as the source when nothing says otherwise.
-      if (p.get('utm_source') || p.get('ref') || (from && !document.cookie.includes('hg_src='))) keep('hg_src', p.get('utm_source') || (p.get('ref') ? 'referral' : from));
-    }
-
-    const signinError = new URLSearchParams(location.search).get('signin_error');
-    if (signinError) {
-      setMode('login');
-      modal.hidden = false;
-      err.textContent = signinError;
-      err.hidden = false;
-      history.replaceState(null, '', '/');
-    }
-    // Already signed in: swap nav buttons and hero CTA to go to the dashboard.
-    fetch('/v1/users/me?soft=1').then((r) => (r.ok ? r.json() : null)).then((d) => {
-      if (!d?.user) return;
-      const actions = document.querySelector('.hg-nav-actions');
-      actions.innerHTML = `${d.user.role === 'admin' ? '<a class="btn btn-ghost" href="/admin">Admin</a>' : ''}<a class="btn btn-primary" href="/app">My Games</a>`;
-      // Swap the sign-up buttons (the plans) to go straight to /app
-      document.querySelectorAll('[data-open-auth="signup"]').forEach(btn => {
-        const a = document.createElement('a');
-        a.className = btn.className;
-        a.href = '/app';
-        a.textContent = 'Go to my games';
-        btn.replaceWith(a);
-      });
-    }).catch(() => {});
-  </script>
-  <script src="/overseer-sky.js"></script>
-  <script>
-    (function () {
-      var els = document.querySelectorAll('.beam-in');
-      if (!('IntersectionObserver' in window)) { els.forEach(function (e) { e.classList.add('in'); }); return; }
-      var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }); }, { threshold: 0.15 });
-      els.forEach(function (e) { io.observe(e); });
-      setTimeout(function () { els.forEach(function (e) { e.classList.add('in'); }); }, 6000);
-    })();
-  </script>
-  <script src="/enter.js"></script>
-  <script>
-    // Play now: the sandbox (/play/sandbox, play/guest.js). The engine is big, so it's fetched ahead into the cache:
-    // after the page is idle on a good connection, or as soon as someone points at the button. Never before first paint.
-    (function () {
-      var btn = document.querySelector('[data-play-now]');
-      if (!btn) return;
-      btn.addEventListener('click', function () { if (window.hawkesAnalytics && window.hawkesAnalytics.track) window.hawkesAnalytics.track('sandbox_open', { from: 'hero', ms: Math.round(performance.now()) }); });
-      var started = false;
-      function prefetch() {
-        if (started) return;
-        started = true;
-        var s = document.createElement('script');
-        s.src = '/play/modules.js';
-        s.onload = function () {
-          var M = window.HawkesModules;
-          if (!M) return;
-          [].concat(M.babylon || [], M.havok ? [M.havok] : [], M.scripts || [], ['/play/guest.js?v=' + M.version, '/v1/play-template/sandbox']).forEach(function (u) {
-            var l = document.createElement('link');
-            l.rel = 'prefetch';
-            l.href = u;
-            document.head.appendChild(l);
-          });
-        };
-        document.head.appendChild(s);
-      }
-      ['pointerenter', 'touchstart', 'focus'].forEach(function (t) { btn.addEventListener(t, prefetch, { passive: true, once: true }); });
-      var c = navigator.connection || {};
-      if (!c.saveData && !/(^|-)2g$|^3g$/.test(c.effectiveType || '')) {
-        window.addEventListener('load', function () { (window.requestIdleCallback || function (f) { setTimeout(f, 1500); })(prefetch, { timeout: 4000 }); });
-      }
-    })();
-  </script>
-  <script>
-    // Live bits (nothing printed here that the portal can't show): the credit packs from
-    // billing.ts, and who is in games right now.
-    (async () => {
-      const esc = (t) => String(t).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-      const get = (u) => fetch(u).then((r) => (r.ok ? r.json() : Promise.reject(new Error(u))));
-      get('/v1/billing/packs').then((d) => {
-        const el = document.getElementById('creditPacks');
-        el.innerHTML = '<div class="label">Credit packs</div>' + d.packs.map((p) => '<div><b>$' + p.priceUsd + '</b> <span>' + p.credits.toLocaleString('en-US') + ' credits' + (p.bonusPercent ? ' · ' + p.bonusPercent + '% bonus' : '') + '</span></div>').join('')
-          + (d.firstPurchaseBonus ? '<p class="fine">Your first purchase adds ' + d.firstPurchaseBonus + '% more.</p>' : '');
-        el.hidden = false;
-      }).catch(() => {});
-
-      // The catalogue: the island's muted clip behind the hero line, and a row of game covers. Nothing is shown for a game
-      // whose media is not captured yet (the API leaves the urls out). Poster only when the browser asks to save data.
-      get('/v1/catalogue').then((d) => {
-        const games = d.games || [];
-        const isle = games.find((g) => g.id === 'island');
-        const clip = document.querySelector('[data-sky-clip]');
-        const save = navigator.connection && navigator.connection.saveData;
-        if (isle && isle.preview && clip) {
-          if (save) { clip.style.backgroundImage = 'url(' + isle.preview.poster + ')'; clip.classList.add('on'); }
-          else {
-            const v = document.createElement('video');
-            v.muted = true; v.loop = true; v.playsInline = true; v.autoplay = true; v.preload = 'auto'; v.poster = isle.preview.poster;
-            v.setAttribute('muted', ''); v.setAttribute('playsinline', '');
-            v.innerHTML = '<source src="' + isle.preview.webm + '" type="video/webm"><source src="' + isle.preview.mp4 + '" type="video/mp4">';
-            clip.appendChild(v); clip.classList.add('on');
-            v.play().catch(() => {});
-          }
-        }
-        const row = document.querySelector('[data-cover-row]'), track = document.querySelector('[data-cover-track]');
-        const shown = games.filter((g) => g.cover);
-        if (row && track && shown.length) {
-          track.innerHTML = shown.map((g) => '<a class="cover-card" href="' + esc(g.url) + '"' + (/^https?:/.test(g.url) ? ' target="_blank" rel="noopener"' : '') + '><img src="' + esc(g.cover) + '" alt="" loading="lazy" width="320" height="180"><span>' + esc(g.name) + '</span></a>').join('');
-          row.hidden = false;
-        }
-      }).catch(() => {});
-      get('/v1/gallery?limit=60').then((d) => {
-        const all = [...(d.featured || []), ...(d.games || [])];
-        const playing = all.reduce((n, g) => n + (g.playing || 0), 0), building = all.reduce((n, g) => n + (g.building || 0), 0);
-        // The Overseer's games: who is in each one now, on its card.
-        for (const f of d.featured || []) {
-          const el = document.querySelector('[data-live-of="' + f.id + '"]');
-          if (el && (f.playing || f.building)) el.textContent = 'Play · ' + [f.playing && f.playing + ' playing', f.building && f.building + ' building'].filter(Boolean).join(' · ');
-        }
-        const box = document.querySelector('[data-live]'), n = document.querySelector('[data-live-n]'), t = document.querySelector('[data-live-t]');
-        if (!box || !n || !(playing || building)) return;
-        const live = all.filter((g) => g.playing || g.building).length;
-        n.textContent = [playing && playing + ' playing', building && building + ' building'].filter(Boolean).join(' · ');
-        t.innerHTML = 'right now, across ' + esc(live) + ' game' + (live === 1 ? '' : 's') + '. <a href="/games">See them</a>';
-        box.hidden = false;
-      }).catch(() => {});
-    })();
-  </script>
+  };
+});
+</script>
 </body>
 </html>

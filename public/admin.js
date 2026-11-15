@@ -42,7 +42,7 @@ async function start() {
 
 // Signing in is Google only: the gate's one button (google-gate.js adds the referral, not that an admin needs it).
 $('gateForm').addEventListener('submit', (e) => e.preventDefault());
-$('signOut').addEventListener('click', async () => { await api('/v1/users/logout', {}).catch(() => {}); location.href = '/'; });
+$('signOut').addEventListener('click', async () => { await api('/v1/users/logout', {}).catch(() => {}); location.href = '/home'; });
 
 // ---------------------------------------------------------------- tabs
 function show(tab) {
