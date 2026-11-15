@@ -122,7 +122,9 @@
     save();
     ours = true;
     try {
-      if (o.speak) o.speak(text, def.voice || null, 8, { priority: 'normal' });
+      // Sound identity moods: boom is ominous; gifts and returns are wonder; the rest default in sound.js.
+      const mood = id === 'boom' || id === 'death' ? 'ominous' : (id === 'build' || id === 'fish' || id === 'dock' || id === 'return' || id === 'friend' ? 'wonder' : null);
+      if (o.speak) o.speak(text, def.voice || null, 8, { priority: 'normal', mood });
       else if (H.chat) H.chat.line({ kind: 'overseer', text });
     } finally { ours = false; }
     busyUntil = lines.clock() + readFor(text);

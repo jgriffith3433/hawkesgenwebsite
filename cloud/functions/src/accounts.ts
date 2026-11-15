@@ -225,6 +225,8 @@ export async function fromSession(req: Request): Promise<User | null> {
   }
   const c = cookies(req)[SESSION_COOKIE];
   if (!c || c.startsWith('g.')) return null;
+  // A beta playtest's session (testsignin.ts): read only on beta, only for the test account.
+  if (c.startsWith('t.')) return (await import('./testsignin.ts')).fromTestCookie(c, getUser);
   try {
     const d = await auth.verifySessionCookie(c);
     const map = await db.collection('logins').doc(d.uid).get();
@@ -338,7 +340,14 @@ export async function refCode(user: User): Promise<string> {
   }
 }
 
-route('GET', '/v1/users/me', async ({ req }) => profile(await requireUser(req), Boolean(await adminFrom(req))));
+route('GET', '/v1/users/me', async ({ req, url }) => {
+  // ?soft=1: a page asking who it is before sign-in gets a plain "nobody", not a 401 the browser logs as a console error
+  if (url.searchParams.get('soft')) {
+    const u = await authenticate(req);
+    return u ? profile(u, Boolean(await adminFrom(req))) : { user: null };
+  }
+  return profile(await requireUser(req), Boolean(await adminFrom(req)));
+});
 route('GET', '/v1/me', async ({ req }) => profile(await requireUser(req), Boolean(await adminFrom(req))));
 route('POST', '/v1/users/api-key', async ({ req }) => mintApiKey((await requireUser(req)).id));
 route('POST', '/v1/users/logout', async ({ req, res }) => {

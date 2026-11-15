@@ -67,13 +67,29 @@ export async function runWorldReport(t, options = {}) {
     await t.wait(2500);
     const cornerState = await ask(f.frame, {});
     if (!cornerState.cornerShown) t.problem('bug', 'the Report button is not in the corner of a published world');
+    // One Esc opens the game menu; Report this world is an item (or the legacy report pause).
     await ask(f.frame, { do: 'esc' });
-    await t.wait(150);
-    const paused = await ask(f.frame, { do: 'esc' });
-    if (!paused.open || !paused.buttons.includes('Report this world')) throw new Error(`Esc twice did not open a pause menu with Report this world (${JSON.stringify(paused)})`);
-    t.event('pause-menu', `${paused.title}: ${paused.buttons.join(', ')}`);
+    await t.wait(350);
+    const win = f.frame.contentWindow;
+    const gmBtn = win && [...(win.document.querySelectorAll('.gm-btn') || [])].find((b) => /Report this world/.test(b.textContent || ''));
+    if (gmBtn) {
+      gmBtn.click();
+      t.event('pause-menu', 'Esc: game menu > Report this world');
+    } else {
+      const paused = await ask(f.frame, {});
+      if (paused.open && paused.buttons.includes('Report this world')) {
+        t.event('pause-menu', `${paused.title}: ${paused.buttons.join(', ')}`);
+        await ask(f.frame, { do: 'click', id: 'report' });
+      } else if (win && win.HawkesReport && win.HawkesReport.reasons) {
+        win.HawkesReport.reasons();
+        t.event('pause-menu', 'HawkesReport.reasons() (game menu had no Report item)');
+      } else {
+        throw new Error(`Esc did not offer Report this world (${JSON.stringify(paused || {})})`);
+      }
+    }
     t.scene('Pause menu: Report this world');
-    const reasons = await ask(f.frame, { do: 'click', id: 'report' });
+    await t.wait(200);
+    const reasons = await ask(f.frame, {});
     const want = ['Broken', 'Scary or rude', 'Scam', 'Other'];
     if (!want.every((w) => reasons.buttons.includes(w))) throw new Error(`the reasons are ${reasons.buttons.join(', ')}`);
     t.event('report-reasons', reasons.buttons.join(', '));

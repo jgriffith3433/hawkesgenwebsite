@@ -37,6 +37,10 @@ async function nextSeq(gameId: string) {
     return n;
   });
 }
+/** Whether the Overseer holds the game's lock (gameai.ts `lock`: locks/thinking:<game> with the time it lets go). */
+async function thinkingNow(gameId: string) {
+  try { const l = await db.collection('locks').doc(`thinking:${gameId}`).get(); return l.exists && Number(l.get('until')) > Date.now(); } catch { return false; }
+}
 const currentSeq = async (gameId: string) => Number((await db.collection('liveSeq').doc(gameId).get()).get('n') ?? 0);
 
 /** Tells everyone with the game open (every stream, on every instance). */
@@ -90,7 +94,9 @@ export async function join(gameId: string, user: { id: string; name: string | nu
     raw(`${n ? `id: ${max}\n` : ''}event: ${event}\ndata: ${typeof data === 'string' ? data : JSON.stringify(data)}\n\n`);
   };
   raw(`retry: ${RETRY_MS}\n\n`);
-  write('hello', { conn, proc: 'cloud', color, presence: await presence(gameId), resumed: !!last });
+  // `thinking`: whether the Overseer is working on a message now (its lock, gameai.ts). The `thinking` event is state and is
+  // never replayed, so a stream that came back after the answer ended learns it here and the page stops showing "thinking".
+  write('hello', { conn, proc: 'cloud', color, presence: await presence(gameId), resumed: !!last, thinking: await thinkingNow(gameId) });
   void announce(gameId);
 
   // What it missed (a stream that came back).

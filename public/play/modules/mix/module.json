@@ -1,0 +1,6 @@
+{
+  "title": "Mix: buses, voice ducking, 3D placement, reverb zones, a loudness pass (H.mix, window.__mix)",
+  "order": 85,
+  "scripts": ["mix-math.js", "mix.js"],
+  "kinds": []
+}

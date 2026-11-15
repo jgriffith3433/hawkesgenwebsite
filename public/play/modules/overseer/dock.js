@@ -28,6 +28,32 @@
   }
   function boxAt(scene, size, at) { const m = B.MeshBuilder.CreateBox('ov-hangar', { width: size[0], height: size[1], depth: size[2] }, scene); m.position.set(at[0], at[1], at[2]); return m; }
 
+  /** Soft painted metal on the hangar walls when the island material set is on disk (probe first so a miss stays the grey paint). */
+  function dressHangarMetal(material, scene) {
+    const phone = H.device && H.device.tier === 'phone';
+    const alb = `/play/materials/island/metal-albedo${phone ? '-1k' : ''}.webp`;
+    const nrm = `/play/materials/island/metal-normal${phone ? '-1k' : ''}.webp`;
+    if (typeof Image === 'undefined') return;
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const t = new B.Texture(alb, scene, false, true, B.Texture.TRILINEAR_SAMPLINGMODE);
+        t.uScale = t.vScale = 4;
+        t.wrapU = t.wrapV = B.Texture.WRAP_ADDRESSMODE;
+        material.diffuseTexture = t;
+        material.diffuseColor = new B.Color3(1, 1, 1);
+        const b = new B.Texture(nrm, scene, false, true, B.Texture.TRILINEAR_SAMPLINGMODE);
+        b.uScale = b.vScale = 4;
+        b.wrapU = b.wrapV = B.Texture.WRAP_ADDRESSMODE;
+        b.level = 0.55;
+        material.bumpTexture = b;
+        if (window.__islandMats) window.__islandMats.hangarMetal = true;
+      } catch { /* keep the grey paint */ }
+    };
+    img.onerror = () => { /* Gen art not imported yet */ };
+    img.src = alb;
+  }
+
   function build(O, w) {
     const scene = w.scene;
     const f = frameOf(O);
@@ -74,6 +100,8 @@
     const hangar = B.Mesh.MergeMeshes(parts, true, true);
     hangar.name = 'ov-hangar';
     hangar.material = mat(scene, 'ov-hangar', { diffuse: new B.Color3(0.36, 0.39, 0.45), spec: new B.Color3(0.2, 0.2, 0.22), power: 32, emissive: new B.Color3(0.07, 0.08, 0.1) });
+    // Painted hangar metal from the island PBR set (when Gen files have landed under /play/materials/island/).
+    dressHangarMetal(hangar.material, scene);
     hangar.parent = null;
     const hangarE = new L.Entity(hangar, { physics: 'static', name: 'Overseer hangar', tag: 'overseer', grab: false, friction: 0.9 }, 'overseer');
     hangarE.temporary = true; hangarE.keep = true; hangarE.data.overseer = 'hangar';
@@ -84,17 +112,19 @@
     for (let i = 0; i < 5; i++) { const z = f.back + 10 + i * (f.front - f.back - 20) / 4; warm.push(boxAt(scene, [f.halfW * 1.6, 0.4, 1.4], [0, f.top - 0.3, z])); }
     for (const s of [-1, 1]) warm.push(boxAt(scene, [1.6, f.top - f.floor, 1.6], [s * (f.halfW - 0.8), (f.top + f.floor) / 2, f.front - 0.6]));
     warm.push(boxAt(scene, [f.halfW * 2, 1.6, 1.6], [0, f.top - 0.8, f.front - 0.6]));
+    // Pad markings sit a few cm above the hangar floor; material zOffset keeps them from flickering against it.
     const padRing = B.MeshBuilder.CreateTorus('ov-pad', { diameter: f.padR * 2, thickness: 0.7, tessellation: 64 }, scene);
-    padRing.position.set(0, f.floor + 0.08, f.padZ);
+    padRing.position.set(0, f.floor + 0.1, f.padZ);
     cyan.push(padRing);
     const inner = B.MeshBuilder.CreateTorus('ov-pad', { diameter: f.padR * 1.1, thickness: 0.35, tessellation: 48 }, scene);
-    inner.position.set(0, f.floor + 0.08, f.padZ);
+    inner.position.set(0, f.floor + 0.1, f.padZ);
     cyan.push(inner);
-    cyan.push(boxAt(scene, [0.5, 0.12, f.padR * 1.6], [0, f.floor + 0.07, f.padZ]), boxAt(scene, [f.padR * 1.6, 0.12, 0.5], [0, f.floor + 0.07, f.padZ]));
-    for (let i = 0; i < 8; i++) for (const s of [-1, 1]) cyan.push(boxAt(scene, [1, 0.2, 1], [s * (f.halfW - 6), f.floor + 0.1, f.padZ + f.padR + 6 + i * ((f.front + f.apron - f.padZ - f.padR - 8) / 8)]));
+    cyan.push(boxAt(scene, [0.5, 0.12, f.padR * 1.6], [0, f.floor + 0.09, f.padZ]), boxAt(scene, [f.padR * 1.6, 0.12, 0.5], [0, f.floor + 0.09, f.padZ]));
+    for (let i = 0; i < 8; i++) for (const s of [-1, 1]) cyan.push(boxAt(scene, [1, 0.2, 1], [s * (f.halfW - 6), f.floor + 0.12, f.padZ + f.padR + 6 + i * ((f.front + f.apron - f.padZ - f.padR - 8) / 8)]));
     const warmM = B.Mesh.MergeMeshes(warm, true, true), cyanM = B.Mesh.MergeMeshes(cyan, true, true);
     warmM.material = mat(scene, 'ov-light', { emissive: new B.Color3(1, 0.88, 0.66), unlit: true });
     cyanM.material = mat(scene, 'ov-pad', { emissive: L.hex(O.cfg.glow, '#8fd8ff'), unlit: true });
+    cyanM.material.zOffset = -2;
     for (const m of [warmM, cyanM]) { m.parent = node; m.isPickable = false; m.metadata = { decor: true, overseer: true }; }
     node.position.set(c[0], c[1], c[2]);
     node.rotation.y = f.yaw;
@@ -164,7 +194,7 @@
       const ac = H.audio && H.audio.context;
       if (!ac || ac.state !== 'running') return;
       const t0 = ac.currentTime;
-      const out = ac.createGain(); out.gain.value = 0.0001; out.connect(H.audio.master);
+      const out = ac.createGain(); out.gain.value = 0.0001; out.connect(H.audio.effects || H.audio.master);
       out.gain.exponentialRampToValueAtTime(0.12, t0 + 0.05); out.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.8);
       [523.25, 659.25, 783.99].forEach((fq, i) => { const o = ac.createOscillator(); o.type = 'sine'; o.frequency.value = fq; o.connect(out); o.start(t0 + i * 0.12); o.stop(t0 + 1.8); });
     } catch { /* no sound */ }

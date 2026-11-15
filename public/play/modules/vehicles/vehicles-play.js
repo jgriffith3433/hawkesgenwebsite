@@ -598,7 +598,7 @@ body.veh-touching #veh-hud .hint{display:none}
       if (!ac) return;
       master = ac.createGain();
       master.gain.value = 0.32;
-      master.connect(H.audio.master);
+      master.connect(H.audio.effects || H.audio.master);
     } catch { ac = null; }
   }
   /** The game's sound for this vehicle (an asset id or name): shape.sounds.<what>, else its word ("car engine", then
@@ -681,7 +681,7 @@ body.veh-touching #veh-hud .hint{display:none}
     if (!cam) return;
     const live = new Set();
     // The nearest few running engines are heard (yours always), quieter farther away.
-    const running = V.list().filter((e) => { const v = e.vehicle; return !v.wrecked && (v.seats[0].who || v.autopilot) && (v.type !== 'bicycle' || v.horn); })
+    const running = V.list().filter((e) => { const v = e.vehicle; return !v.wrecked && (v.seats[0].who || v.autopilot) && (v.type !== 'bicycle' || v.horn) && !(V.sound && V.sound.owns(v)); })
       .map((e) => ({ e, d: B.Vector3.Distance(cam.position, e.node.position) }))
       .filter((x) => x.d < 70 || (local && local.v.e === x.e))
       .sort((a, b) => a.d - b.d).slice(0, 4);

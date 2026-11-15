@@ -208,6 +208,7 @@
   function people(fresh) { if (fresh || now() - peopleAt > 200) { peopleCache = collect(); peopleAt = now(); } return peopleCache; }
   function person(key) { return people().find((x) => x.key === key) || null; }
   P.person = person;
+  P.rigOf = (e) => rigs.get(e) || null;
   /** Everyone playing (me first, then friends, then the rest): { id, name, friend, host, typing, user, muted, entity }. */
   P.players = () => people(true).filter((x) => x.kind === 'me' || x.kind === 'player' || x.kind === 'friend')
     .map((x) => ({ id: x.conn || 'me', key: x.key, me: x.kind === 'me', name: x.name, color: x.color, friend: x.kind === 'friend', host: x.host, typing: x.typing, user: x.user, verified: x.kind === 'me' ? me.signedIn : x.verified, requested: x.requested, muted: muted.has(x.key) || (x.user && muted.has(x.user)), spectating: x.spectating, entity: x.entity }))
@@ -635,6 +636,10 @@
   }
   // Walking swings arms and legs; an emote takes over the pose while it plays.
   function animate(rig, dt, pr) {
+    animateBody(rig, dt, pr);
+    if (P.alive) P.alive.after(rig, dt); // the cast's head and gestures, set over what the body just did (presence-alive.js)
+  }
+  function animateBody(rig, dt, pr) {
     const e = rig.e;
     const pos = [e.x, e.y, e.z];
     if (rig.last && dt > 0) { const v = Math.hypot(pos[0] - rig.last[0], pos[2] - rig.last[2]) / dt; rig.speed += (Math.min(12, v) - rig.speed) * Math.min(1, dt * 10); }
@@ -652,6 +657,7 @@
     r.shL.rotation.set(-swing * 0.8, 0, 0.06); r.shR.rotation.set(swing * 0.8, 0, -0.06);
     r.neck.rotation.set(0, 0, 0);
     feedFace(rig, t);
+    if (P.alive) P.alive.before(rig, dt); // the cast's voice, mouth and eyes (presence-alive.js)
     const modelOn = Boolean(rig.pm && rig.pm.on); // a Gen model has the body (presence-models.js): it moves itself, emotes included
     if (rig.person && !modelOn) P.softPerson.animate(rig, dt, em); // its own pose, springs and face (the emotes below go on top)
     if (rig.cape) rig.cape.rotation.x = 0.12 + s * 0.5;
@@ -731,6 +737,66 @@
     const cur = pp && pp.expr;
     return { mood: f || null, emote: rig.emote && rig.emote.def ? rig.emote.def.name : null, shows: f || em || (pp && pp.rest) || 'neutral', talking: Boolean(rig.mood && rig.mood.talking()), gaze: (rig.person && rig.person.gazeKind) || null, blinks: (rig.person && rig.person.blinks) || 0, open: cur ? cur.open : null };
   };
+  /** How a body moves now, for the playtest's trace and tools: { what, grounded, airborne, landing, speed, role, take, gait,
+   *  feet }. For the person, `feet` is each sole in the world and whether it is in its stance (planted) this frame. */
+  P.motion = (who) => {
+    const p = who || (W() && W().player), rig = p && rigs.get(p);
+    if (!rig) return null;
+    const pp = rig.person, A = rig.pm && rig.pm.anim;
+    const out = { what: rig.what, grounded: p.grounded !== false, speed: rig.speed || 0, airborne: null, landing: null, role: null, take: null, gait: null, feet: null };
+    if (A) { out.role = A.role || null; out.take = A.take ? A.take.name || A.take : null; if (A.gait) out.gait = { lo: A.gait.lo, hi: A.gait.hi, w: A.gait.w, cps: A.gait.cps }; }
+    if (pp && rig.hipL && rig.hipR && !rig.model) {
+      out.airborne = Boolean(pp.airborne); out.landing = pp.air ? pp.air.landT < 0.25 : null;
+      if (pp.air) { out.landT = pp.air.landT; out.landDepth = pp.air.depth; }
+      const down = typeof pp.soleY === 'number' ? pp.soleY : -0.52, duty = pp.duty || 0.5; // (the sole in the hip's own space: the hip's matrix scales it)
+      const sole = (hip, ph) => { hip.computeWorldMatrix(true); const v = B.Vector3.TransformCoordinates(new B.Vector3(0, down, 0), hip.getWorldMatrix()); return { x: v.x, y: v.y, z: v.z, down: Boolean(C.strideDown && C.strideDown(ph, duty)) && !pp.airborne, via: 'sole' }; };
+      out.feet = [sole(rig.hipL, pp.ph || 0), sole(rig.hipR, (pp.ph || 0) + Math.PI)];
+    } else if (rig.pm && rig.pm.on && rig.pm.cur) {
+      // a Gen model (presence-models.js): what it draws, and where its feet are after the last render (the playtest's trace)
+      const pm = rig.pm;
+      out.model = true; out.driven = Boolean(A && A.player);
+      out.airborne = Boolean(pm.air && pm.air.was); out.landing = pm.air ? pm.air.landT < 0.25 : null;
+      if (pm.air) { out.landT = pm.air.landT; out.landDepth = pm.air.depth; }
+      try { out.feet = modelFeet(rig, pm); } catch (err) { out.feet = null; out.feetError = String(err && err.message || err); }
+    } else if (rig.pm && rig.pm.air) {
+      out.landT = rig.pm.air.landT; out.landDepth = rig.pm.air.depth; out.landing = rig.pm.air.landT < 0.25;
+    }
+    return out;
+  };
+  /** The foot nodes of a model's drawn level: Mixamo's feet, or the template rigs' leg tips (dinosaur, dog); none: the lowest vertices instead. */
+  const FOOT_NODE = [/^(mixamorig\d*[:_])?(Left|Right)Foot$/, /^Leg[LR]Tip$/, /^Leg[FB][LR]Tip$/];
+  function modelFeet(rig, pm) {
+    const lvl = pm.cur;
+    if (!pm.footN || pm.footN.lvl !== lvl) {
+      const nodes = [];
+      for (const r of lvl.roots) for (const n of [r, ...r.getDescendants(false)]) if (typeof n.getTotalIndices !== 'function' && FOOT_NODE.some((re) => re.test(n.name)) && !nodes.some((x) => x.name === n.name)) nodes.push(n);
+      nodes.sort((a, b) => (a.name < b.name ? -1 : 1));
+      const meshes = [];
+      for (const r of lvl.roots) for (const m of [r, ...r.getChildMeshes(false)]) if (typeof m.getTotalIndices === 'function' && m.getTotalVertices() > 0 && m.isEnabled()) meshes.push(m);
+      pm.footN = { lvl, nodes, meshes, data: new Map() };
+    }
+    const F = pm.footN;
+    if (F.nodes.length) {
+      return F.nodes.map((n) => { n.computeWorldMatrix(true); const v = n.getAbsolutePosition(); return { x: v.x, y: v.y, z: v.z, down: null, via: 'bone', part: n.name }; });
+    }
+    // no feet to follow (a toaster): the lowest vertex on each side of the body, from the vertices as they are drawn now
+    rig.root.computeWorldMatrix(true);
+    const inv = rig.root.getWorldMatrix().clone().invert(), low = [null, null], tmp = new B.Vector3(), loc = new B.Vector3();
+    for (const m of F.meshes) {
+      let pos = F.data.get(m);
+      if (!pos) F.data.set(m, (pos = m.getVerticesData(B.VertexBuffer.PositionKind) || []));
+      m.computeWorldMatrix(true);
+      const wm = m.getWorldMatrix();
+      for (let i = 0; i + 2 < pos.length; i += 3) {
+        tmp.set(pos[i], pos[i + 1], pos[i + 2]);
+        B.Vector3.TransformCoordinatesToRef(tmp, wm, tmp);
+        B.Vector3.TransformCoordinatesToRef(tmp, inv, loc);
+        const side = loc.x >= 0 ? 0 : 1;
+        if (!low[side] || tmp.y < low[side].y) low[side] = { x: tmp.x, y: tmp.y, z: tmp.z, down: null, via: 'vertex' };
+      }
+    }
+    return low.filter(Boolean);
+  }
   const nearestRigs = (pos, radius) => { const out = []; for (const [e, rig] of rigs) { const d = Math.hypot(e.x - pos[0], e.y - pos[1], e.z - pos[2]); if (d <= radius) out.push({ rig, dist: d }); } return out; };
   function wireFeelings() {
     const g = H.game;

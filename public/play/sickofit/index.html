@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <script>window.HAWKES_BUILD_URL = "https://sites.hawkesgen.ai/builds/o/j-studio-4f12/sick-of-it-unity/b/web/163/";</script>
+  <meta charset="utf-8">
+  <!-- Hosted game (docs/hosted-games.md): Studio's sick-of-it-unity publish points this page at each new build by writing
+       build.json here and window.HAWKES_BUILD_URL at the top of <head>. The Unity files stay on Studio's public builds
+       host (open CORS, Brotli served with its Content-Encoding), so nothing big goes into Firebase Hosting. -->
+  <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Sick of It · Play free on Hawkes Games</title>
+  <meta name="description" content="A sarcastic nobody chases the Overlord up 1,000 floors of Hell. Dodge bullets, rewind time, free the diamonds. Play free in your browser on Hawkes Games.">
+  <link rel="canonical" href="https://hawkesgames.com/play/sickofit">
+  <meta property="og:title" content="Sick of It">
+  <meta property="og:description" content="1,000 floors of Hell. One rewind button. Play free in your browser.">
+  <meta property="og:url" content="https://hawkesgames.com/play/sickofit">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://hawkesgames.com/brand/og.png">
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png">
+  <script>
+    // Which Hawkes Net the game's ghost lobby talks to: beta pages use beta Net (its test rooms allow this site), live
+    // pages the live service. The Unity build reads window.HAWKES_NET_ENDPOINT when it connects.
+    (function () {
+      var h = location.hostname;
+      var beta = h === 'beta.hawkesgames.com' || /^hawkes-staging\./.test(h) || h === 'localhost' || h === '127.0.0.1';
+      window.HAWKES_GAMES_BETA = beta;
+      window.HAWKES_NET_ENDPOINT = window.HAWKES_NET_ENDPOINT || (beta ? 'https://hawkesnet.hawkesgen.ai' : 'https://net.hawkesgen.ai');
+    })();
+  </script>
+  <script src="https://hawkesgen.ai/sdk/analytics@1.js" data-product="sickofit" data-hawkes-analytics="page" defer></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; position: fixed; overscroll-behavior: none; touch-action: none; }
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; color: #e4e4ec; }
+    #unity-container { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; background: #000; }
+    #unity-canvas { width: 100%; height: 100%; display: block; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+    /* The loader is only a thin bar along the top edge, above the "Tap to play" prompt (hawkes-sound.js: fixed, opaque,
+       z-index 8000, its logo, button and caption centred). Nothing of ours is drawn in the middle, so the loader can never
+       sit over that prompt. The big title shows only if the prompt could not load (body.no-prompt). */
+    #loading { position: absolute; inset: 0; z-index: 9000; pointer-events: none; transition: opacity .5s ease; }
+    #loading.done { opacity: 0; }
+    #loading h1 { display: none; position: absolute; left: 0; right: 0; top: 40%; text-align: center; font-size: clamp(34px, 8vw, 72px); letter-spacing: .08em; font-weight: 900; color: #fff; text-shadow: 0 0 24px rgba(255,60,30,.55); }
+    #loading { display: none; } /* replaced by the loading wrapper (play/loadwrap.js) */
+    body.no-prompt #loading { background: radial-gradient(ellipse at 50% 70%, rgba(150,20,10,0.35), transparent 60%), #000; }
+    body.no-prompt #loading h1 { display: block; }
+    #bar { position: absolute; top: env(safe-area-inset-top); left: 0; right: 0; height: 4px; background: rgba(255,255,255,.12); overflow: hidden; }
+    #bar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ff6a3d, #ffb13d); transition: width .3s ease; }
+    #unity-warning { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 3000; max-width: 80%; }
+    #unity-warning > div { background: rgba(220,40,40,.92); color: #fff; padding: 10px 18px; border-radius: 6px; margin: 5px 0; font-size: 14px; }
+    #unity-warning > div.warning { background: rgba(251,191,36,.92); color: #000; }
+    /* The Hawkes Games chips: back to the site and the story. They fade once the game is running and come back when the
+       pointer is near the top or the screen is touched at the top edge. */
+    #hg { position: fixed; top: max(8px, env(safe-area-inset-top)); left: max(8px, env(safe-area-inset-left)); z-index: 4000; display: flex; gap: 6px; transition: opacity .4s ease; }
+    #hg.quiet { opacity: 0; pointer-events: none; visibility: hidden; }
+    #hg a, #hg button { font: 600 12px/1 'Inter', system-ui, sans-serif; color: #fff; text-decoration: none; background: rgba(10,10,15,.72); border: 1px solid rgba(255,255,255,.18);
+      border-radius: 999px; padding: 7px 11px; cursor: pointer; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+    #hg a:hover, #hg button:hover { border-color: rgba(255,255,255,.4); }
+    #about { position: fixed; inset: 0; z-index: 4500; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.72); padding: 16px; touch-action: auto; }
+    #about.open { display: flex; }
+    #about .card { max-width: 440px; width: 100%; max-height: 90%; overflow: auto; background: #111118; border: 1px solid rgba(255,255,255,.14); border-radius: 12px; padding: 22px; line-height: 1.55; font-size: 14px; }
+    #about h2 { color: #fff; font-size: 20px; margin-bottom: 8px; }
+    #about p { margin: 0 0 10px; color: rgba(228,228,236,.9); }
+    #about .quote { font-style: italic; color: #ffb13d; }
+    #about .meta { font-size: 12px; color: rgba(228,228,236,.55); }
+    #about button { margin-top: 6px; font: 600 14px 'Inter', system-ui, sans-serif; color: #000; background: #ffb13d; border: 0; border-radius: 8px; padding: 9px 16px; cursor: pointer; }
+    /* Before the game starts: the premise and a controls guide, a compact panel pinned to the bottom, the top layer of the
+       page (hawkes-sound.js's Tap to play prompt is fixed, opaque, z-index 8000; this sits above it in its own stacking
+       context, on a solid dark backing so the prompt's gradient never dims it). It never takes taps (pointer-events none),
+       so Tap to play works. It is display:none, not just faded, from the first tap or key, and again when the game runs, so
+       it can never sit over the in-game weapon and rewind buttons. */
+    #pre { position: fixed; left: 0; right: 0; bottom: 0; z-index: 2147483000; isolation: isolate; display: flex; flex-direction: column; align-items: center; gap: 6px;
+      padding: 12px 14px max(12px, env(safe-area-inset-bottom)); text-align: center; pointer-events: none; opacity: 1;
+      background: linear-gradient(to top, rgba(0,0,0,.96) 70%, rgba(0,0,0,0)); }
+    #pre.gone, body.hlw-on #pre { display: none; }
+    #pre .premise { font-size: 15px; line-height: 1.4; font-weight: 500; color: #fff; max-width: 36ch; text-shadow: 0 1px 2px #000; }
+    #pre .keys { font-size: 14px; line-height: 1.4; color: #f1f1f6; max-width: 40ch; text-shadow: 0 1px 2px #000; }
+    #pre .keys b { color: #ffc15a; font-weight: 700; }
+    #pre .touch { display: none; }
+    body.touch #pre .kbd { display: none; }
+    body.touch #pre .touch { display: block; }
+    @media (max-height: 420px) { #pre .premise { display: none; } }
+  </style>
+</head>
+<body>
+  <div id="unity-container">
+    <canvas id="unity-canvas" tabindex="-1"></canvas>
+    <div id="loading" aria-live="polite">
+      <h1>SICK OF IT</h1>
+      <div id="bar"><i></i></div>
+    </div>
+    <div id="unity-warning"></div>
+  </div>
+  <script src="/play/loadwrap.js"></script>
+  <script>
+    // Playing within 2 s: the hook line, the toy and the bar are up before the build is even picked.
+    document.body.classList.add('hlw-on');
+    window.hlw = HawkesLoadWrap.mount({ root: document.body, hook: 'Hell is repetition. You\u2019re just better at it.', accent: '#ffb13d', onFirstTap: function () { if (window.hawkesSound && window.hawkesSound.tap) window.hawkesSound.tap(); } });
+  </script>
+  <nav id="hg" class="quiet" aria-label="Hawkes Games">
+    <a href="/" title="Hawkes Games">&larr; Hawkes Games</a>
+    <button type="button" id="aboutBtn" aria-haspopup="dialog">The story</button>
+  </nav>
+  <div id="about" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
+    <div class="card">
+      <h2 id="aboutTitle">Sick of It</h2>
+      <p>A sarcastic nobody chases the Overlord up 1,000 floors of Hell. Dodge the bullets, rewind time when it goes wrong, and free the diamonds to buy upgrades.</p>
+      <p>Hell is repetition. You're just better at it.</p>
+      <p class="quote">"Fine. Up, then."</p>
+      <p>Free in your browser, no download. Other climbers on your floor show up as ghosts.</p>
+      <p class="meta" id="buildLine"></p>
+      <button type="button" id="aboutClose">Back to Hell</button>
+    </div>
+  </div>
+  <div id="pre" aria-label="How to play">
+    <p class="premise">Nobody asked me to chase the Overlord up 1,000 floors of Hell. Rewinding time is the only part that's fun.</p>
+    <p class="keys kbd"><b>A D</b> or arrows to move &middot; hold <b>R</b> to rewind</p>
+    <p class="keys touch">Drag to move &middot; hold to rewind</p>
+  </div>
+  <noscript><p style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;background:#000">Sick of It needs JavaScript to play.</p></noscript>
+  <script>
+    (function () {
+      var DEFAULT_BASE = 'https://sites.hawkesgen.ai/builds/sickofit/v272/';
+      var DEFAULT_VERSION = 'v272';
+      var gameName = 'SickOfIt';
+      var canvas = document.getElementById('unity-canvas');
+      var container = document.getElementById('unity-container');
+      var loading = document.getElementById('loading');
+      var barFill = document.querySelector('#bar > i');
+      var hg = document.getElementById('hg');
+      var about = document.getElementById('about');
+      var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      var isMobile = isIOS || /Android/i.test(navigator.userAgent) || ('ontouchstart' in window);
+      // Which guide to show is a question of the main pointer, not of whether touch events exist: a desktop browser (or a
+      // test browser with touch emulation) has 'ontouchstart' and must still read "A D or arrows", not "Drag to move".
+      var coarse = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
+      var wantTouch = /[?&]touch=1/.test(location.search) || (!/[?&]touch=0/.test(location.search) && (isIOS || /Android/i.test(navigator.userAgent) || coarse));
+
+      var pre = document.getElementById('pre');
+      if (wantTouch) document.body.classList.add('touch');
+      function hidePre() { if (document.body.classList.contains('hlw-on')) return; pre.classList.add('gone'); }
+      // The site chips stay out of reach until the game runs (or the prompt failed): a tap meant for Tap to play, made before
+      // the prompt is up, must never land on the "Hawkes Games" link and take the player to the landing page.
+      function showChips() { hg.classList.remove('quiet'); }
+      // Capture phase: the Tap to play prompt stops Enter and Space before they bubble, and a script click has no pointerdown.
+      // (While the loading wrapper is up its toy takes those taps and keys, which must not put the guide away.)
+      ['pointerdown', 'click', 'touchend', 'keydown'].forEach(function (n) {
+        var h = function () { if (document.body.classList.contains('hlw-on')) return; hidePre(); window.removeEventListener(n, h, true); };
+        window.addEventListener(n, h, true);
+      });
+
+      // Until the game runs, no link on the page takes a tap anywhere: if hawkes-sound.js's prompt has a logo or wordmark that
+      // is a link, a tap on it only starts the game (the prompt's own handler still runs; we only cancel the navigation).
+      window.addEventListener('click', function (e) {
+        if (window.unityInstance || document.body.classList.contains('no-prompt')) return;
+        var a = e.target && e.target.closest && e.target.closest('a[href]');
+        if (a) e.preventDefault();
+      }, true);
+
+      function banner(msg, type) {
+        var box = document.getElementById('unity-warning');
+        var div = document.createElement('div');
+        div.textContent = String(msg);
+        if (type === 'warning') div.className = 'warning';
+        box.appendChild(div);
+        if (type !== 'error') setTimeout(function () { if (box.contains(div)) box.removeChild(div); }, 5000);
+      }
+
+      // Chips: quiet while playing, back near the top edge.
+      var quietTimer = null;
+      function wake() { hg.classList.remove('quiet'); clearTimeout(quietTimer); if (window.unityInstance) quietTimer = setTimeout(function () { hg.classList.add('quiet'); }, 4000); }
+      window.addEventListener('mousemove', function (e) { if (e.clientY < 70) wake(); });
+      window.addEventListener('touchstart', function (e) { var t = e.touches && e.touches[0]; if (t && t.clientY < 60) wake(); }, { passive: true });
+      document.getElementById('aboutBtn').addEventListener('click', function () { about.classList.add('open'); });
+      document.getElementById('aboutClose').addEventListener('click', function () { about.classList.remove('open'); canvas.focus(); });
+      about.addEventListener('click', function (e) { if (e.target === about) about.classList.remove('open'); });
+
+      // Safari evicts Unity's bundle cache after 7 days without a visit; persist() after a gesture opts out.
+      window.addEventListener('pointerdown', function () { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); }, { once: true });
+
+      if (isMobile) {
+        document.addEventListener('touchmove', function (e) { if (e.target === canvas || e.target === container) e.preventDefault(); }, { passive: false });
+        window.addEventListener('scroll', function () { window.scrollTo(0, 0); }, { passive: true });
+      }
+      // Only the CSS size is set here: Unity sizes the drawing buffer itself (resizing it from the page broke the GL
+      // context after rotations on the game's own site).
+      var resizeTimer = null;
+      function resizeCanvas() {
+        var w = window.innerWidth, h = window.innerHeight;
+        if (isMobile && window.visualViewport) { w = window.visualViewport.width; h = window.visualViewport.height; }
+        canvas.style.width = w + 'px';
+        canvas.style.height = h + 'px';
+      }
+      function scheduleResize() { clearTimeout(resizeTimer); resizeTimer = setTimeout(function () { window.scrollTo(0, 0); resizeCanvas(); }, 150); }
+      window.addEventListener('resize', scheduleResize);
+      window.addEventListener('orientationchange', scheduleResize);
+      if (isMobile && window.visualViewport) window.visualViewport.addEventListener('resize', scheduleResize);
+      resizeCanvas();
+
+      function loadScript(src) {
+        return new Promise(function (ok, fail) {
+          var s = document.createElement('script');
+          s.src = src;
+          s.onload = ok;
+          s.onerror = function () { fail(new Error('could not load ' + src)); };
+          document.body.appendChild(s);
+        });
+      }
+
+      // The build to play: build.json (Studio rewrites it on every publish), else the address Studio put at the top of
+      // <head>, else the one this page shipped with.
+      function pickBuild() {
+        var fallback = { base: window.HAWKES_BUILD_URL || DEFAULT_BASE, version: DEFAULT_VERSION };
+        if (!window.fetch) return Promise.resolve(fallback);
+        return fetch('/play/sickofit/build.json', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (b) {
+          if (b && b.base && b.version && /^https:\/\//.test(b.base)) return { base: b.base, version: 'v' + String(b.version).replace(/^v/, '') };
+          return fallback;
+        }).catch(function () { return fallback; });
+      }
+
+      // Bytes received so far, from the browser's resource timings of the three build files (an observer: an event per file
+      // finished, nothing polled; a file served from cache counts what its entry says).
+      var seenBytes = {};
+      try {
+        new PerformanceObserver(function (l) {
+          l.getEntries().forEach(function (e) { if (/\.(data|framework\.js|wasm)\.unityweb/.test(e.name)) seenBytes[e.name] = e.encodedBodySize || e.transferSize || 0; });
+        }).observe({ type: 'resource', buffered: true });
+      } catch (e) { /* no timings: the bar still follows Unity's callback */ }
+      function buildBytes() { var n = 0; for (var k in seenBytes) n += seenBytes[k]; return n; }
+
+      function start(build) {
+        var base = build.base.replace(/\/?$/, '/');
+        var v = build.version;
+        window.HAWKES_BUILD = { version: v };
+        document.getElementById('buildLine').textContent = 'Build ' + v.replace(/^v/, '') + (window.HAWKES_GAMES_BETA ? ' (beta)' : '');
+        var buildUrl = base + gameName + '/Build/' + gameName;
+        var config = {
+          arguments: [],
+          dataUrl: buildUrl + '.data.unityweb?v=' + v,
+          frameworkUrl: buildUrl + '.framework.js.unityweb?v=' + v,
+          codeUrl: buildUrl + '.wasm.unityweb?v=' + v,
+          streamingAssetsUrl: base + gameName + '/StreamingAssets',
+          companyName: 'DefaultCompany',
+          productName: 'Sick Of It',
+          // Unity drops every cached bundle when productVersion changes; bundle names carry a content hash already.
+          productVersion: ['v', '101'].join(''),
+          cacheControl: function (url) {
+            if (url.indexOf('.bundle') !== -1) return 'immutable';
+            if (url.indexOf('.data') !== -1) return 'must-revalidate';
+            return 'no-store';
+          },
+          showBanner: banner,
+          errorHandler: function (message, filename, lineno) { console.error('Unity Error:', message, filename || '', lineno || ''); return true; }
+        };
+        // The sound prompt ("Tap to play", audio unlock) must run before Unity's loader makes its AudioContext.
+        return loadScript(base + 'hawkes-sound.js').catch(function (e) { console.warn('[Game] sound prompt not loaded', e); document.body.classList.add('no-prompt'); showChips(); })
+          .then(function () { return loadScript(buildUrl + '.loader.js?v=' + v); })
+          .then(function () {
+            // Unity's own progress is bytes received: 0 to 0.9 while the data, framework and wasm download, then 1 once the
+            // game is instantiated. The bar is the download (100% = the last byte in); then the label says it is starting.
+            return createUnityInstance(canvas, config, function (p) {
+              barFill.style.width = Math.round(100 * p) + '%';
+              if (p >= 0.9) window.hlw.downloaded(buildBytes()); else window.hlw.progress(p / 0.9, { bytes: buildBytes() });
+            });
+          })
+          .then(function (unityInstance) {
+            window.unityInstance = unityInstance;
+            window.hlw.downloaded(buildBytes());
+            document.body.classList.remove('hlw-on');
+            window.hlw.finish();
+            document.documentElement.setAttribute('data-game', 'running');
+            loading.classList.add('done');
+            setTimeout(function () { loading.style.display = 'none'; }, 600);
+            wake();
+          });
+      }
+
+      pickBuild().then(start).catch(function (e) {
+        console.error('[Game] failed to start', e);
+        window.HAWKES_GAME_ERROR = String((e && e.message) || e);
+        document.body.classList.add('no-prompt');
+        document.body.classList.remove('hlw-on');
+        window.hlw.finish();
+        pre.classList.add('gone');
+        showChips();
+        banner('Sick of It could not load (' + window.HAWKES_GAME_ERROR.slice(0, 160) + '). Check your connection and try again.', 'error');
+      });
+
+      window.addEventListener('unhandledrejection', function (e) {
+        if (e.reason && e.reason.name === 'NotAllowedError' && /Pointer Lock/.test(String(e.reason.message))) e.preventDefault();
+      });
+    })();
+  </script>
+</body>
+</html>

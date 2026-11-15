@@ -64,13 +64,16 @@
       // Facing where you walk when you can see yourself.
       if (p._view !== 'first' && Math.hypot(a.x, a.z) > 0.1) { const want = Math.atan2(a.x, a.z); let d = want - p.node.rotation.y; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; p.node.rotation.y += d * Math.min(1, dt * 12); }
       if (p.grounded) p._doubled = false;
-      if (input.pressed('space')) {
+      // Jump buffer ~0.1 s: press a hair early and still jump on landing; coyote time is on Entity.jump (~0.1 s).
+      if (input.pressed('space')) p._jumpBuf = 0.1;
+      p._jumpBuf = Math.max(0, (p._jumpBuf || 0) - dt);
+      if (p._jumpBuf > 0 || input.pressed('space')) {
         const g = Math.abs(H.world.config.gravity ?? 24) * (p.gravity || 1);
         const speed = Math.sqrt(2 * g * (p.jumpHeight || 1.5)) || 8.5;
-        if (p.jump(speed)) { /* jumped */ }
-        else if (p.doubleJump && !p._doubled) { p._doubled = true; p.vy = speed; game.burst([p.x, p.bottom, p.z], { color: '#c8d8ff', count: 10, speed: 2 }); }
-        else if ((building || p.canFly) && performance.now() - (p._lastJump || 0) < 300) { p.flying = true; game.ui.message('Flying: you go where you look, space up, C down, F lands', 1.4); }
-        p._lastJump = performance.now();
+        if (p.jump(speed)) { p._jumpBuf = 0; p._lastJump = performance.now(); }
+        else if (input.pressed('space') && p.doubleJump && !p._doubled) { p._doubled = true; p._jumpBuf = 0; p.vy = speed; game.burst([p.x, p.bottom, p.z], { color: '#c8d8ff', count: 10, speed: 2 }); p._lastJump = performance.now(); }
+        else if (input.pressed('space') && (building || p.canFly) && performance.now() - (p._lastJump || 0) < 300) { p.flying = true; p._jumpBuf = 0; game.ui.message('Flying: you go where you look, space up, C down, F lands', 1.4); p._lastJump = performance.now(); }
+        else if (input.pressed('space')) p._lastJump = performance.now();
       }
     },
   });

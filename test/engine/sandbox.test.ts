@@ -28,7 +28,7 @@ const Guest = sandboxCtx.window.HawkesGuestCore;
 function start() {
   errors.length = 0;
   // (What the script keeps on window across a hot reload is a fresh page's here.)
-  for (const k of ['__islandEarly', '__islandNudged', '__islandRescue', '__islandPlayed', '__islandAsked', '__islandJourney', '__islandNoticed', '__islandFuelled', '__islanderDid', '__islanderHeard', '__islanderLog', '__islanderListening', '__islandJournal', '__island']) delete g.window[k];
+  for (const k of ['__islandEarly', '__islandNudged', '__islandRescue', '__islandPlayed', '__islandAsked', '__islandJourney', '__islandNoticed', '__islandFuelled', '__islanderDid', '__islanderHeard', '__islanderLog', '__islanderListening', '__islanderBarks', '__islanderBarkState', '__islandJournal', '__island']) delete g.window[k];
   run(H, { ...scene, config: { ...scene.config, look: false, shadows: false } }, { mode: 'play', scripts: { 'scripts/main.js': bundle.files['scripts/main.js'] } });
   return H.game;
 }
@@ -352,10 +352,27 @@ const islanderLines = () => {
   H.chat = { ...(H.chat || {}), line: (m: any) => { chat.push(m); } };
   return chat;
 };
-const resetIslanders = () => { for (const k of ['__islanderDid', '__islanderHeard', '__islanderLog', '__islanderListening', '__islanders']) delete g.window[k]; };
+const resetIslanders = () => { for (const k of ['__islanderDid', '__islanderHeard', '__islanderLog', '__islanderListening', '__islanderBarks', '__islanderBarkState', '__islanders']) delete g.window[k]; g.window.__islanderBarkAnyView = true; };
 // (The harness has no intro to end, so the mirror stays "about to open"; here it has been answered.)
 const mirrorDone = (game: any) => { try { game.mirror.close(); } catch { /* none open */ } Object.defineProperty(game, 'mirror', { value: { pending: false }, configurable: true }); H.tick(0.3); };
-const stand = (game: any, id: string, d = 1.8) => { const e = H.world.byId.get(id); game.player.position = [e.x - d, e.y + 0.5, e.z]; H.tick(0.7); return e; };
+// Place the player next to an islander. Routines walk them around the island, so hold their AI (same pause as when
+// the player is within ~4 m) and snap beside their current place before E. Also clear blast slow-mo's controls=false
+// so H.use.act can run (it refuses when controls are off).
+const stand = (game: any, id: string, d = 1.8) => {
+  const e = H.world.byId.get(id);
+  const r = e && e.living;
+  if (r) {
+    r.goal = null; r.path = null; r.act = 'idle'; r.state = 'idle';
+    r.until = (H.world.time || 0) + 20;
+    if (r.routine) r.routine.facing = true;
+  }
+  game.player.controls = true;
+  game.player.position = [e.x - d, e.y + 0.5, e.z];
+  H.tick(0.5);
+  game.player.position = [e.x - d, e.y + 0.5, e.z];
+  H.tick(0.2);
+  return e;
+};
 const BODY_WORDS = /\b(toaster|duck|cactus|roll-?bot|robot|television|shoe|potato|banana|teapot|mushroom|cone|dog|cat|fox|pig|bear|rabbit|penguin|chicken|cow|sheep|horse|dinosaur|person|human)\b/i;
 
 test('sandbox islanders: five named neighbours stand on the island, in the mirror\'s bodies, with talk in the chat only', () => {
@@ -376,6 +393,12 @@ test('sandbox islanders: five named neighbours stand on the island, in the mirro
   // The tag they carry is their name; none of the scene's voice lines or assets are new.
   assert.deepEqual(CAST_IDS.map((id) => H.world.byId.get(id).name), ['Admiral Bobbin', 'Mrs Ember', 'Rolo', 'Dolores', 'Channel']);
   assert.ok(!Object.keys(bundle.files).some((f) => /islander|bobbin|ember|rolo|dolores|channel/i.test(f) && /\.(mp3|wav|ogg)$/.test(f)), 'no voice files');
+  for (const id of CAST_IDS) {
+    const r = H.world.byId.get(id).living;
+    assert.ok(r.stays, `${id} stays (no random wander)`);
+    assert.ok(r.routine && r.routine.spots.length >= 2, `${id} has a clock routine of two or more spots`);
+  }
+  assert.ok(H.world.byId.get('pip').living.stays && !H.world.byId.get('pip').living.routine, 'Pip stays put with no routine');
   assert.deepEqual(clean(), []);
 });
 
@@ -416,7 +439,7 @@ test('sandbox islanders: what the player did changes what at least four of them 
   const said = (id: string) => { stand(game, id); const n = chat.length; H.use.act(); return chat.slice(n).map((c: any) => c.text).join(' | '); };
   const topic = (id: string) => g.window.__islanderLog.filter((l: any) => l.id === id).map((l: any) => l.topic);
   // Before doing anything: hellos (they come by themselves when you walk up) and ordinary lines.
-  for (const id of CAST_IDS) { stand(game, id); }
+  for (const id of CAST_IDS) { stand(game, id); H.tick(4); } // (one voice at a time: the next bark waits 3.5 s)
   for (const id of CAST_IDS) assert.equal(topic(id)[0], 'hello', `${id} greets`);
   // The deeds: a fish, a blast, a flight.
   game.emit('catch', { fish: 'tuna', mine: true });
@@ -706,10 +729,99 @@ test('a return: no intro or mirror, welcomed by name, the tour resumes where it 
   assert.match(guestSrc, /ret\.patch\(\{ tour: STEPS\[i \+ 1\] \|\| 'done' \}\)/, 'the tour step is kept as it moves');
   assert.match(guestSrc, /Welcome back, \$\{name\}/);
   assert.match(guestSrc, /want\('tour', 'return'\)/, 'a guest without an account still meets the sheet: the gate does not move');
-  assert.match(guestSrc, /label: 'Change my look', onClick: look/, 'the look is the mirror: L, or the pause menu');
+  assert.match(guestSrc, /HawkesGuest\.look = look/, 'the look is the mirror: L, or the game menu');
   assert.doesNotMatch(guestSrc, /data-intent="assistant"/, 'no Ask the Overseer button: the chat is that');
   const sb = fs.readFileSync(path.join(ROOT, 'src', 'overseer-games', 'sandbox.js'), 'utf8');
   assert.match(sb, /HawkesGuest\.resume|GU\.resume/);
   assert.match(sb, /for \(const s of before\) played\.add\(s\)/, 'no moment is told again');
   assert.match(sb, /q\.advance\('tour'\)/);
+});
+
+test('sandbox story (quality rule 6): every beat of chapter one is heard and seen in the world, never text alone', () => {
+  const { game, q } = tourOn();
+  mirrorDone(game);
+  let now = 0;
+  const tick = (s: number) => { H.tick(s); now += s; };
+  const log: { t: number; kind: 'sound' | 'world' | 'spoken' | 'text'; what: string }[] = [];
+  const note = (kind: any, what: string) => log.push({ t: now, kind, what });
+  // What the player hears and sees, from the engine's own calls (the script reads `game` at call time).
+  game.hasAsset = () => true; // (no files here: every sound the script asks for is counted as played)
+  game.sound = (n: string) => { note('sound', n); return null; };
+  const burst = game.burst.bind(game); game.burst = (...a: any[]) => { note('world', 'burst'); return burst(...a); };
+  const shake = game.camera.shake.bind(game.camera); game.camera.shake = (...a: any[]) => { note('world', 'shake'); return shake(...a); };
+  const O = game.overseer;
+  const unvoiced: string[] = [];
+  const speak = O.speak.bind(O); O.speak = (t: string, ...a: any[]) => { note('spoken', 'Overseer: ' + t); return speak(t, ...a); };
+  const osay = O.say.bind(O); O.say = (t: string, ...a: any[]) => { note('text', 'Overseer: ' + t); unvoiced.push(t); return osay(t, ...a); };
+  const HO = (H as any).overseer;
+  for (const k of ['beam', 'flare', 'attend']) if (HO && typeof HO[k] === 'function') { const f = HO[k].bind(HO); HO[k] = (...a: any[]) => { note('world', k); return f(...a); }; }
+  const proto = Object.getPrototypeOf(game.all('Pip')[0]);
+  const esay = proto.say;
+  proto.say = function (this: any, t: string, ...a: any[]) { note('spoken', `${this.name}: ${t}`); return esay.call(this, t, ...a); };
+  const chat = islanderLines();
+  const line = H.chat.line; H.chat.line = (m: any) => { note('text', `${m.who}: ${m.text}`); return line(m); };
+  const beats: { step: string; t: number }[] = [];
+  game.on('tour', (d: any) => beats.push({ step: d.step, t: now }));
+  try {
+    stand(game, 'dolores', 3);
+    game.player.position = [60, 3, 0];
+    tick(0.7);
+    game.emit('pickup', { gives: 'tool', tool: 'rod' });
+    game.emit('catch', { fish: 'tuna', mine: true });
+    game.emit('explosion', { at: [50, 1, -18] });
+    game.emit('spawned', { what: 'cow', count: 1 });
+    game.emit('asked', { skipped: true });
+    game.emit('sandbox-high', { height: 300, mine: true });
+    game.emit('sandbox-planet', { height: 1200, mine: true });
+    for (let i = 0; i < 160 && q.state('tour') === 'active'; i++) tick(0.25);
+    tick(6);
+  } finally { proto.say = esay; }
+  assert.ok(beats.length >= 6, `the chapter's beats (${beats.map((b) => b.step).join(', ')})`);
+  const textOnly: string[] = [];
+  for (const b of beats) {
+    const near = log.filter((x) => x.t >= b.t && x.t <= b.t + 6);
+    const has = (k: string) => near.some((x) => x.kind === k);
+    const lacks = ['sound', 'world', 'spoken'].filter((k) => !has(k));
+    if (lacks.length) textOnly.push(`${b.step}: no ${lacks.join(', no ')} (${near.map((x) => x.what).join(' | ') || 'nothing'})`);
+  }
+  assert.deepEqual(textOnly, [], 'a beat with only words on the screen');
+  // One short line at a time: no paragraph on the screen, from anyone.
+  const long = log.filter((x) => (x.kind === 'text' || x.kind === 'spoken') && x.what.replace(/^[^:]+: /, '').length > 110).map((x) => x.what);
+  assert.deepEqual(long, [], 'a line too long to read at a glance');
+  // Every line a neighbour types in the chat, they also say over their own head when the player is near (sandbox.js npc).
+  assert.ok(chat.length > 0);
+  if (process.env.STORY_PRINT) console.log(`beats ${beats.length}; Overseer lines still without a voice clip: ${unvoiced.length}\n${unvoiced.join('\n')}`);
+  assert.deepEqual(clean(), []);
+});
+
+// ------------------------------------------------------------------ barks: they turn to you and speak as you pass
+test('sandbox islanders: within 6 m each one turns and barks in a recorded voice, by context, never the same bark within 5 minutes', () => {
+  resetIslanders();
+  const game = start();
+  H.tick(2);
+  mirrorDone(game);
+  const B = g.window.__islanders.BARKS;
+  const index = new Set(JSON.parse(fs.readFileSync(path.join(ROOT, 'public', 'play', 'audio', 'voice', 'index.json'), 'utf8')).clips);
+  const hash = (t: string) => { const s = t.trim().toLowerCase().replace(/\s+/g, ' '); let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, '0'); };
+  for (const id of CAST_IDS) {
+    assert.ok(B[id].length >= 3, `${id} has at least three barks`);
+    for (const [ctx, text] of B[id]) assert.ok(index.has(`${id}-${hash(text)}`), `${id} ${ctx} bark has a recording: ${text}`);
+  }
+  const heard: any[] = [];
+  game.on('bark', (d: any) => heard.push(d));
+  for (const id of CAST_IDS) { stand(game, id, 5); H.tick(4); }
+  assert.equal(heard.length, 5, 'each of the five barked');
+  for (const d of heard) { assert.equal(d.ctx, 'first'); assert.ok(d.turned, `${d.id} turned to the player`); assert.ok(d.dist <= 6.01); }
+  // A deed changes the context; later barks never repeat one said within five minutes.
+  game.emit('explosion', { at: [50, 1, -18] });
+  const all: Record<string, number[]> = {};
+  for (let i = 0; i < 7; i++) {
+    for (const id of CAST_IDS) { stand(game, id, 5); H.tick(4); }
+    H.tick(62);
+  }
+  const t5 = 5 * 60 * 1000;
+  for (const d of g.window.__islanderBarks) { (all[d.id + d.text] ||= []).push(d.at); }
+  for (const [k, ts] of Object.entries(all)) for (let i = 1; i < ts.length; i++) assert.ok(ts[i] - ts[i - 1] >= t5, `no repeat within 5 minutes: ${k}`);
+  assert.ok(g.window.__islanderBarks.some((d: any) => d.ctx === 'boom'), 'the blast is answered');
+  assert.deepEqual(clean(), []);
 });

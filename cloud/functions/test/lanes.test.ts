@@ -14,7 +14,7 @@ const host = (env: Record<string, string>, k: string, fallback: string) => new U
 
 test('beta (hawkes-staging) uses gen-beta, beta Net and its own customers', () => {
   const env = read('hawkes-staging');
-  assert.equal(host(env, 'HAWKESGEN_URL', 'https://hawkesgen.ai'), 'beta.hawkesgen.ai');
+  assert.equal(host(env, 'HAWKESGEN_URL', 'https://hawkesgen.ai'), 'gen-beta-388576319982.us-central1.run.app', 'gen-beta direct, not through the Cloudflare Worker');
   assert.equal(host(env, 'PORTAL_NET_URL', 'https://net.hawkesgen.ai'), 'hawkesnet.hawkesgen.ai');
   assert.equal(host(env, 'PORTAL_NET_DASHBOARD', 'https://net.hawkesgames.com'), 'net-beta.hawkesgames.com');
   assert.equal(host(env, 'PUBLIC_URL', 'https://hawkesgames.com'), 'beta.hawkesgames.com');
@@ -52,7 +52,7 @@ test("admin is J's address on both lanes (accounts.ts adminEmails: unset means p
 
 test('live (hawkes-prod) uses live Gen and live Net, never a beta one', () => {
   const env = read('hawkes-prod');
-  assert.equal(host(env, 'HAWKESGEN_URL', 'https://hawkesgen.ai'), 'hawkesgen.ai');
+  assert.equal(host(env, 'HAWKESGEN_URL', 'https://hawkesgen.ai'), 'gen-f6ruen5wfa-uk.a.run.app', 'live Gen direct, not through the Cloudflare Worker');
   assert.equal(host(env, 'PORTAL_NET_URL', 'https://net.hawkesgen.ai'), 'net.hawkesgen.ai');
   assert.equal(host(env, 'PORTAL_NET_DASHBOARD', 'https://net.hawkesgames.com'), 'net.hawkesgames.com');
   // The platform plans (indie, team, studio) are offered on beta first; live keeps free, maker and pro until J sets the

@@ -18,6 +18,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
 type Things = Record<string, any>;
 const r2 = (n: number) => Math.round(n * 100) / 100;
+/** Where the Overseer hangs for this island (config + mirror placement must agree). */
+const OVERSEER_AT = [9700, 4200, -3000] as const;
 
 /** The community things the island uses (name -> id): its scripts and the engine find them by these names' words. */
 const A = {
@@ -58,15 +60,45 @@ const PLANET = { sphere: true, radius: 50000, biome: 'earth', seabed: -20 };
 // helipad and the barrels' beach cleared.
 const path_ = (from: number[], to: number[], step = 4) => { const out: number[] = []; const n = Math.ceil(Math.hypot(to[0] - from[0], to[1] - from[1]) / step); for (let i = 0; i <= n; i++) out.push(r2(from[0] + ((to[0] - from[0]) * i) / n), r2(from[1] + ((to[1] - from[1]) * i) / n)); return out; };
 const HELIPAD = [30, 30];
+// The Ridge Run's gates (the race, below): the scatter keeps its trees off them (painted ground gets none).
+const RIDGE: number[][] = [[46, 6], [52, 22], [34, 46], [0, 50], [-30, 42], [-52, 14], [-56, -14], [-40, -44], [-10, -52], [18, -46], [28, -26], [32, -6]];
+// Pip's hut stands on a level yard (its slope left it half buried uphill and floating downhill: quality rule 4).
+const HUT = [-20, 14];
+// Island PBR material set (public/play/materials/island): Gen albedos + maps. Until manifest.ready, splat still blends
+// by height/slope/road with distinct stand-in colours; footsteps keep grass/dirt/rock/sand names (wet sand → sand).
+const ISLAND_MATS = (() => {
+  try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'public', 'play', 'materials', 'island', 'manifest.json'), 'utf8')); }
+  catch { return { ready: false, bytes: {} }; }
+})();
+const MAT_BASE = '/play/materials/island';
+const matFile = (id: string) => `${MAT_BASE}/${id}.webp`;
 const TERRAIN = {
   shape: 'island', size: 260, height: 12, seed: 3, detail: 2,
+  // Softer tile + distance detail + macro so the meadow does not repeat from the air (Uncharted-style).
+  tile: 6,
+  macro: { tile: 56 },
+  splat: { triplanar: true, detailNear: 8, detailFar: 36, force: true, bytes: ISLAND_MATS.bytes || {} },
+  // Distinct colours while Gen textures are pending; replaced by real maps when manifest.ready.
+  colors: { grass: '#4f8a3a', dirt: '#7a6a55', rock: '#6e6a66', snow: '#8b6f4e', sand: '#d2b87a' },
+  ...(ISLAND_MATS.ready ? {
+    textures: {
+      grass: matFile('grass-albedo'), dirt: matFile('road-albedo'), rock: matFile('rock-albedo'),
+      snow: matFile('wet-sand-albedo'), sand: matFile('sand-albedo'),
+    },
+    maps: {
+      grass: { normal: matFile('grass-normal') }, dirt: { normal: matFile('road-normal') },
+      rock: { normal: matFile('rock-normal') }, snow: { normal: matFile('wet-sand-normal') },
+      sand: { normal: matFile('sand-normal') },
+    },
+  } : {}),
   scatter: { trees: 26, rocks: 8, bushes: 6, seed: 3 },
-  add: [{ type: 'flat', at: HELIPAD, radius: 9, height: 6 }],
+  add: [{ type: 'flat', at: HELIPAD, radius: 9, height: 6 }, { type: 'flat', at: HUT, radius: 5.5, height: 5.75 }],
   edits: [
     ['paint', 2.4, 1, ...path_([2, 0], [24, -2]), ...path_([24, -2], [44, 2]), ...path_([44, 2], [60, 0])],
     ['paint', 2.2, 1, ...path_([14, -1], [28, 22])],
     ['paint', 6, 1, -20, 14],
     ['paint', 7, 1, ...HELIPAD],
+    ['paint', 5, 1, ...RIDGE.flat()],
   ],
 };
 let core: any = null;
@@ -92,10 +124,17 @@ function model(id: string, name: string, asset: string, x: number, z: number, si
   return thing(id, 'model', name, [x, groundAt(x, z) + lift + size / 2, z], { ...(still ? { body: { shape: 'box' } } : {}), ...more, shape: { asset, size, ...(more.shape ?? {}) } });
 }
 const yaw = (deg: number) => ({ rotation: [0, deg, 0] });
+/** A small prop that breaks into pieces under a 4x4 (strength m/s) or a blast, topples in a weaker blast and is rebuilt out
+ *  of view after `rebuild` seconds (modules/mayhem: mayhem-props.js). Quest things never get this. */
+const smash = (material: string, color: string, o: { strength?: number; pieces?: number; blast?: number; with?: string[] } = {}) => ({
+  behaviors: [{ use: 'breakable', strength: o.strength ?? 4, pieces: o.pieces ?? 6, blast: o.blast ?? 14 }],
+  data: { color, prop: { material, rebuild: 120, ...(o.with ? { with: o.with } : {}) } },
+});
 
 // ------------------------------------------------------------------ the quest line: Pip shows the island
 const QUEST = {
-  id: 'tour', title: 'The island', giver: 'Pip', auto: false,
+  // quiet: Pip, the arrow and the tracker tell it; no quest banner or step toast on top (quality rule 6).
+  id: 'tour', title: 'The island', giver: 'Pip', auto: false, quiet: true,
   text: "Hi, I'm Pip! The Overseer just beamed you onto the best island on the whole planet. Want the tour? It's mostly things that go fast and things that go boom.",
   lines: { accept: "Follow the arrow! I'll wait right here.", progress: 'Keep going, the arrow knows the way!', done: 'You saw everything. Now the planet is yours.', decline: 'Explore first, then come back to me!' },
   steps: [
@@ -121,7 +160,6 @@ const QUEST = {
 // the sea's level (water), so the pillars stand on it. Pip's `par` is the time to beat until you have your own.
 // (Lengths: Ridge Run ~330 m a lap in the 4x4 (top 32 m/s, bends and hills: ~21 s a lap); Harbour Run ~600 m a lap in the
 // speedboat (top 26 m/s: ~33 s a lap).)
-const RIDGE: number[][] = [[46, 6], [52, 22], [34, 46], [0, 50], [-30, 42], [-52, 14], [-56, -14], [-40, -44], [-10, -52], [18, -46], [28, -26], [32, -6]];
 const HARBOUR: number[][] = [[108, 0], [95, 46], [58, 80], [8, 92], [-42, 80], [-79, 46], [-92, 0], [-79, -46], [-42, -80], [8, -92], [58, -80], [95, -46]];
 const SEA_LEVEL = -1.5;
 export const RACES = {
@@ -137,13 +175,22 @@ export const RACES = {
  *  at y 4 within ~14 m of the start; the path runs east to the dock (the beach at x ~62, the pier out to x 82). */
 export const SANDBOX = {
   config: {
-    background: '#74b9ea', ambient: 0.78, sun: 1, gravity: -24, time: 'afternoon', motes: '#fff3d6',
+    // Clock runs for islander routines (living.js); light stays fixed so the island keeps its afternoon look.
+    background: '#74b9ea', ambient: 0.78, sun: 1, gravity: -24, time: { hour: 15.5, day: 120, light: false }, motes: '#fff3d6',
+    // The light stack (modules/lighting): a low golden sun, cascaded soft shadows, sky reflections, ACES, bloom and the grade of the hour.
+    lighting: { hour: 16.9 },
+    // The painted sky (modules/overseer/skypaint.js): four panoramas crossfaded by the clock, loaded after the first frame.
+    skyPaint: true,
+    // The island moves on its own (modules/wind): gusts across the meadow, grass pushed aside, petals; gulls over the beach that scatter,
+    // butterflies in the clearing by day, fireflies there at night, a fish that jumps off the pier.
+    wind: true,
+    wildlife: { gulls: [68, -2], clearing: [-4, 0, 12], pier: [80, 0] },
     fog: { color: '#a9d4f2', start: 260, end: 2200 },
     planet: PLANET,
     // (The start faces east, down the path to the dock: the Overseer hangs ahead of it, about 15 degrees wide.)
-    overseer: { intro: 'always', position: [9700, 4200, -3000], cascade: ['pip', 'hut', 'jeep', 'boat', 'heli', 'rocket'] },
+    overseer: { intro: 'always', position: [...OVERSEER_AT], cascade: ['pip', 'hut', 'jeep', 'boat', 'heli', 'rocket'] },
     terrain: TERRAIN,
-    water: { level: -1.5, waves: 0.15, color: '#1b86b8', fish: 'salt' },
+    water: { level: -1.5, waves: 0.3, color: '#1b86b8', fish: 'salt' },
     // Tools come with the tour: none at first (the rocket launcher at the barrels, the rest when it's done).
     player: { view: 'third', tools: [] },
     mayhem: { slowmo: true },
@@ -162,73 +209,142 @@ export const SANDBOX = {
     add(thing('start', 'spawn', 'Player start', [-6, groundAt(-6, 0) + 0.2, 0], { data: { role: 'player' }, transform: yaw(90) }));
     // The mirror (modules/mirror): after the Overseer's intro it opens by itself and asks "What are you?", "How do you
     // look?", "What are you called?"; then Pip comes over (sandbox.js). E at it, any time after. It stands on the
-    // Overseer's side of the start, facing back: the intro looks past you at the ship from the other side (the mirror
-    // is out of that shot until its end, where it's in front of you), and it's where the mirror stands you anyway, so
-    // the camera glides from the intro's last shot to the reflection without moving you.
-    const ship = [-2600 - -6, 8200 - 0]; // the Overseer's default place (overseer.js), from the start
-    const sl = Math.hypot(ship[0], ship[1]);
+    // Overseer's side of the start, facing back. On landscape the look-up crops it out; on portrait intro.js hides it
+    // for the sky look so its grey frame cannot fill the shot, then shows it again when the camera settles on it.
+    const ship = [OVERSEER_AT[0] - -6, OVERSEER_AT[2] - 0]; // same place as config.overseer.position, from the start
+    const sl = Math.hypot(ship[0], ship[1]) || 1;
     const mx = -6 + (ship[0] / sl) * 2.3, mz = (ship[1] / sl) * 2.3;
     add(thing('mirror', 'mirror', 'The mirror', [r2(mx), r2(groundAt(mx, mz) + 1.28), r2(mz)], { shape: { width: 1.5, height: 2.4, character: { steps: ['what', 'look', 'name'], start: 'always', voice: true } }, transform: yaw(Math.round(Math.atan2(-ship[0], -ship[1]) * 180 / Math.PI)) }));
     add({ id: 'pip', type: 'friend', name: 'Pip', shape: { personality: 'a cheerful island guide who loves explosions and fishing', species: 'person', color: '#f59e0b', follow: false, stays: true, lines: ['What a day for it!', 'The 4x4 is right there: walk up and press E.', 'Those fuel barrels on the beach go BOOM.', 'The pier is east, down the path. The rod is at the end of it.', 'There is a helicopter on the hill. From up there you can see the whole planet!'] }, physics: 'dynamic', transform: { position: [-1, r2(groundAt(-1, 2.2) + 0.6), 2.2], rotation: [0, -110, 0] } });
-    // The islanders (islanders.js talks for them): friends that stay at their posts, in the mirror's own bodies, text in the chat only.
-    const islander = (id: string, name: string, personality: string, what: string, body: string, accent: string, head: string, x: number, z: number, face: number, lift = 0) => add({
+    // The islanders (islanders.js talks for them): friends that stay on the island, in the mirror's own bodies, with a
+    // clock-driven routine of named spots (living.js think; shape.stays still blocks random wander). Offsets stagger
+    // their walks so they do not meet on the same path.
+    const islander = (id: string, name: string, personality: string, what: string, body: string, accent: string, head: string, x: number, z: number, face: number, routine: { spots: { id: string; at: number[]; do: string; face?: number }[]; offset?: number }, lift = 0) => add({
       id, type: 'friend', name, physics: 'dynamic', transform: { position: [x, r2(groundAt(x, z) + 1 + lift), z], rotation: [0, face, 0] },
-      shape: { personality, species: 'person', follow: false, stays: true, talk: false, look: { what, name, body, accent, head } },
+      shape: { personality, species: 'person', follow: false, stays: true, talk: false, look: { what, name, body, accent, head }, routine: { notice: 6, leave: 7.5, ...routine } },
     });
-    islander('bobbin', 'Admiral Bobbin', 'a very small, very proud rubber duck, harbourmaster of a harbour with one boat', 'duck', '#facc15', '#f97316', '#111827', 66, -1, 180, 1.2);
-    islander('ember', 'Mrs Ember', 'a dry, motherly toaster who runs the post and the weather', 'toaster', '#b8bfcc', '#d9a35f', '#2b2f3a', -10.5, 15, 110);
-    islander('rolo', 'Rolo', 'a mild, kind roll-bot who fixes things and will not ask for help', 'rollbot', '#f4c430', '#22d3ee', '#3a3f4b', -34, -27, 200);
-    islander('dolores', 'Dolores', 'a blunt, deadpan cactus on the hill who asks for nothing', 'cactus', '#3f9a4a', '#f472b6', '#c2703d', 36, 24, 230);
-    islander('channel', 'Channel', 'a fast-talking TV robot, the island\'s one reporter', 'tvbot', '#3a3f4b', '#7dd3fc', '#e5e7eb', 55, -12, 90);
+    islander('bobbin', 'Admiral Bobbin', 'a very small, very proud rubber duck, harbourmaster of a harbour with one boat', 'duck', '#facc15', '#f97316', '#111827', 66, -1, 180, {
+      offset: 0,
+      spots: [
+        { id: 'pier-end', at: [84, -0.5], do: 'fish', face: 90 },
+        { id: 'harbour-desk', at: [63, 4.8], do: 'sit', face: 0 },
+        { id: 'dock', at: [58, -1.2], do: 'wave', face: 180 },
+      ],
+    }, 1.2);
+    islander('ember', 'Mrs Ember', 'a dry, motherly toaster who runs the post and the weather', 'toaster', '#b8bfcc', '#d9a35f', '#2b2f3a', -10.5, 15, 110, {
+      offset: 4,
+      spots: [
+        { id: 'mailbox', at: [-11, 16], do: 'idle', face: 100 },
+        { id: 'garden', at: [-14, 21.5], do: 'tend', face: 40 },
+        { id: 'bench', at: [-12.5, 9.5], do: 'sit', face: 130 },
+      ],
+    });
+    islander('rolo', 'Rolo', 'a mild, kind roll-bot who fixes things and will not ask for help', 'rollbot', '#f4c430', '#22d3ee', '#3a3f4b', -34, -27, 200, {
+      offset: 8,
+      spots: [
+        { id: 'rocket', at: [-36, -28], do: 'tend', face: 200 },
+        { id: 'slip', at: [-37.5, -22.5], do: 'sit', face: 20 },
+        { id: 'pad-side', at: [-30.5, -26], do: 'wave', face: 90 },
+      ],
+    });
+    islander('dolores', 'Dolores', 'a blunt, deadpan cactus on the hill who asks for nothing', 'cactus', '#3f9a4a', '#f472b6', '#c2703d', 36, 24, 230, {
+      offset: 12,
+      spots: [
+        { id: 'hill', at: [36, 24], do: 'sit', face: 230 },
+        { id: 'tally-rock', at: [39.5, 27.5], do: 'idle', face: 30 },
+        { id: 'pad-edge', at: [24.5, 28], do: 'wave', face: 200 },
+      ],
+    });
+    islander('channel', 'Channel', 'a fast-talking TV robot, the island\'s one reporter', 'tvbot', '#3a3f4b', '#7dd3fc', '#e5e7eb', 55, -12, 90, {
+      offset: 16,
+      spots: [
+        { id: 'beach', at: [55, -12], do: 'wave', face: 90 },
+        { id: 'chair', at: [52.5, -5.5], do: 'sit', face: 270 },
+        { id: 'barrels', at: [48, -16], do: 'idle', face: 200 },
+      ],
+    });
     // The 4x4, ready on the path.
     add({ id: 'jeep', type: 'truck', name: '4x4', shape: { model: A.truck }, material: { color: '#3f7d3a' }, transform: { position: [4, r2(groundAt(4, 6.5) + 1.4), 6.5], rotation: [0, 90, 0] } });
     // Pip's hut and yard, up the slope behind the start.
     // (20 m from the start: its light copy shows there, the full one comes within 12 m, so the first view doesn't download it.)
-    add(model('hut', "Pip's hut", A.cottage, -20, 14, 6.5, { transform: yaw(125), shape: { lod: { distance: 12 } } }, -0.2));
+    add(model('hut', "Pip's hut", A.cottage, HUT[0], HUT[1], 6.5, { transform: yaw(125), shape: { lod: { distance: 12 } } }, -0.05));
     // (Small things show their light copy until you're close: lod.distance.)
     // (And cast no shadow: little things, a phone's shadow map has better things to draw.)
     const near = { lod: { distance: 7 } };
     add(model('bench', 'Bench', A.bench, -13, 9, 0.9, { transform: yaw(130), shape: near, shadow: false }));
     add(model('mailbox', 'Mailbox', A.mailbox, -12.5, 17, 1.3, { transform: yaw(100), shape: near, shadow: false }));
     [[-27, 6], [-14, 22]].forEach(([x, z], i) => add(model(`flowers_${i}`, 'Flowers', A.flowers, x, z, 0.7, { physics: 'none', shape: near, shadow: false })));
-    [[-28, 10, 70], [-27.3, 13.6, 82]].forEach(([x, z, r], i) => add(model(`fence_${i}`, 'Fence', A.fence, x, z, 1.1, { transform: yaw(r), shape: near, shadow: false })));
+    [[-28, 10, 70], [-27.3, 13.6, 82]].forEach(([x, z, r], i) => add(model(`fence_${i}`, 'Fence', A.fence, x, z, 1.1, { transform: yaw(r), shape: near, shadow: false, ...smash('wood', '#b08a5a') })));
+    // A fence line along the road's north side (x 28 to 40): drive the 4x4 into it and it bursts into planks.
+    [28, 31.2, 34.4, 37.6].forEach((x, i) => add(model(`fence_line_${i}`, 'Fence', A.fence, x, 5.5, 1.1, { transform: yaw(0), shape: near, shadow: false, ...smash('wood', '#b08a5a') })));
+    // Signposts by the road, and a stack of crates beside it.
+    const signpost = (id: string, x: number, z: number, words: string, face: number) => {
+      const gy = groundAt(x, z);
+      add(thing(`${id}_post`, 'cylinder', 'Signpost', [x, gy + 0.75, z], { shape: { radius: 0.07, height: 1.5 }, material: { color: '#6b4a2f', texture: A.oldWood }, ...smash('wood', '#6b4a2f', { strength: 4, pieces: 5, with: [`${id}_board`, `${id}_text`] }) }));
+      add(thing(`${id}_board`, 'box', 'Sign', [x, gy + 1.45, z], { shape: { size: [1.3, 0.55, 0.08] }, material: { color: '#d8b48a', texture: A.planks, tile: [1, 1] }, transform: yaw(face) }));
+      const o = 0.06, a = (face * Math.PI) / 180;
+      add(thing(`${id}_text`, 'text', 'Sign words', [x + Math.sin(a) * o, gy + 1.45, z + Math.cos(a) * o], { shape: { text: words, size: 0.15, billboard: false, color: '#3a2614', background: false, zOffset: -2 }, transform: yaw(face + 180) }));
+    };
+    signpost('sign_road_a', 22, -5.2, 'DOCK →', 0);
+    signpost('sign_road_b', 42, 5.2, 'BEACH ↓', 0);
+    [[36.2, -7.5, 0, 0.02], [37.3, -7.5, 8, 0.02], [36.7, -7.5, 4, 1.04]].forEach(([x, z, r, lift], i) => add(model(`crate_stack_${i + 1}`, 'Crate', A.crate, x, z, 1, { physics: 'dynamic', body: { shape: { type: 'box', size: [1, 1, 1] } }, transform: yaw(r), ...smash('crate', '#a8896a', { strength: 4, pieces: 8, blast: 12 }) }, lift)));
     // The dock: a zone at the foot of the pier (the quest's "Dock"), the pier of planks on posts, lamps, the boat and the rod.
     // The pier runs x 57 to 89: its landward end is buried in the beach (the sand passes its top at x ~59.7), so you walk up onto it.
     const pierY = 0.95;
     add(thing('dock', 'zone', 'Dock', [60, groundAt(60, 0) + 1, 0], { shape: { radius: 8, height: 4 } }));
-    add(thing('pier', 'box', 'Pier', [73, pierY, 0], { shape: { size: [32, 0.3, 3.2] }, material: { color: '#efe2d0', texture: A.planks, tile: [10.7, 1] }, data: { surface: 'wood' } }));
-    [64, 68, 72, 76, 80, 84, 88].forEach((x) => [-1.5, 1.5].forEach((z, j) => add(thing(`post_${x}_${j}`, 'cylinder', 'Pier post', [x, pierY - 1.9, z], { shape: { radius: 0.16, height: 3.6 }, material: { color: '#8a6a4a', texture: A.oldWood, tile: [1, 2] }, instanced: true }))));
+    // Pier deck gets a zOffset so its underside never flickers against the post tops (quality rule 2).
+    // Pier wood: Gen weathered planks when the island PBR set is ready, else the community plank texture.
+    add(thing('pier', 'box', 'Pier', [73, pierY, 0], {
+      shape: { size: [32, 0.3, 3.2] },
+      material: ISLAND_MATS.ready
+        ? { color: '#efe2d0', texture: matFile('wood-albedo'), bump: matFile('wood-normal'), tile: [10.7, 1], zOffset: -1 }
+        : { color: '#efe2d0', texture: A.planks, tile: [10.7, 1], zOffset: -1 },
+      data: { surface: 'wood' },
+    }));
+    // Each post from under the deck down into the sand or the seabed under it (none floats over the seabed: quality rule 4).
+    // Tops sit 2 cm under the deck's underside so the faces are not coplanar.
+    [64, 68, 72, 76, 80, 84, 88].forEach((x) => [-1.5, 1.5].forEach((z, j) => {
+      const top = pierY - 0.17, bottom = Math.min(top - 0.5, groundAt(x, z) - 0.4), h = r2(top - bottom);
+      add(thing(`post_${x}_${j}`, 'cylinder', 'Pier post', [x, (top + bottom) / 2, z], { shape: { radius: 0.16, height: h }, material: { color: '#8a6a4a', texture: A.oldWood, tile: [1, Math.max(1, Math.round(h / 1.8))] }, instanced: true }));
+    }));
     add(model('lamp_a', 'Street lamp', A.lamp, 61, -2.4, 3.4, { transform: yaw(90) }));
     add(model('lamp_b', 'Street lamp', A.lamp, 61, 2.4, 3.4, { transform: yaw(90) }));
     add(thing('lantern', 'model', 'Lantern', [87.6, pierY + 0.45, 1.3], { shape: { asset: A.lantern, size: 0.6 }, body: { shape: 'box' }, shadow: false }));
     add(thing('sign_board', 'box', 'Sign', [58.5, groundAt(58.5, -3.6) + 1.5, -3.6], { shape: { size: [1.9, 0.75, 0.08] }, material: { color: '#d8b48a', texture: A.planks, tile: [1, 1] }, transform: yaw(-90) }));
-    add(thing('sign_post', 'cylinder', 'Sign post', [58.5, groundAt(58.5, -3.6) + 0.6, -3.66], { shape: { radius: 0.07, height: 1.25 }, material: { color: '#6b4a2f', texture: A.oldWood } }));
-    add(thing('sign_text', 'text', 'Sign words', [58.44, groundAt(58.5, -3.6) + 1.5, -3.6], { shape: { text: "PIP'S PIER\nfishing · boats", size: 0.2, billboard: false, color: '#3a2614' }, transform: yaw(90) }));
+    add(thing('sign_post', 'cylinder', 'Sign post', [58.62, groundAt(58.62, -3.6) + 0.75, -3.6], { shape: { radius: 0.07, height: 1.5 }, material: { color: '#6b4a2f', texture: A.oldWood }, ...smash('wood', '#6b4a2f', { strength: 4, pieces: 5, with: ['sign_board', 'sign_text'] }) }));
+    add(thing('sign_text', 'text', 'Sign words', [58.44, groundAt(58.5, -3.6) + 1.5, -3.6], { shape: { text: "PIP'S PIER\nfishing · boats", size: 0.2, billboard: false, color: '#3a2614', background: false, zOffset: -2 }, transform: yaw(90) }));
     // The catch board at Pip's pier: it lists your best catches (water's fishing.js), and E there opens the catch log.
     add(thing('catch_board', 'box', 'Catch board', [58.5, groundAt(58.5, 3.6) + 1.5, 3.6], { shape: { size: [1.9, 1.05, 0.08] }, material: { color: '#6b4a2f', texture: A.oldWood, tile: [1, 1] }, transform: yaw(-90), data: { catchBoard: true } }));
     // Chapter One's small things to notice (sandbox.js: E near them): the pier's hand-cut planks and the harbour desk's logbook.
-    add(thing('harbour_desk', 'box', "Harbour desk", [62.5, groundAt(62.5, 5.6) + 0.45, 5.6], { shape: { size: [1.3, 0.9, 0.75] }, material: { color: '#8a6a4a', texture: A.oldWood, tile: [1, 1] }, transform: yaw(90) }));
-    add(thing('logbook', 'box', 'Logbook', [62.5, groundAt(62.5, 5.6) + 0.95, 5.6], { shape: { size: [0.4, 0.07, 0.3] }, material: { color: '#3b2a1c' }, transform: yaw(90), shadow: false }));
+    add(thing('harbour_desk', 'box', "Harbour desk", [62.5, groundAt(62.5, 5.6) + 0.37, 5.6], { shape: { size: [1.3, 0.9, 0.75] }, material: { color: '#8a6a4a', texture: A.oldWood, tile: [1, 1] }, transform: yaw(90) }));
+    add(thing('logbook', 'box', 'Logbook', [62.5, groundAt(62.5, 5.6) + 0.855, 5.6], { shape: { size: [0.4, 0.07, 0.3] }, material: { color: '#3b2a1c' }, transform: yaw(90), shadow: false }));
     // The lore to find (journal.js: E near each; docs/story.md section 7): small objects, a few lines each, in the voice of whoever left them.
-    add(thing('lore_rock', 'box', 'Scratched rock', [40.5, groundAt(40.5, 28) + 0.3, 28], { shape: { size: [0.9, 0.6, 0.7] }, material: { color: '#8b8f96' }, transform: yaw(30), shadow: false }));
-    add(thing('lore_slip', 'box', 'Repair slip', [-38, groundAt(-38, -22) + 0.02, -22], { shape: { size: [0.3, 0.02, 0.42] }, material: { color: '#f1ead7' }, transform: yaw(20), shadow: false }));
-    add(thing('lore_chair', 'box', 'Beach chair', [53, groundAt(53, -5) + 0.3, -5], { shape: { size: [0.7, 0.12, 0.7] }, material: { color: '#e8c15a' }, transform: yaw(90), shadow: false }));
-    add(thing('lore_chair_back', 'box', 'Beach chair back', [53.3, groundAt(53, -5) + 0.7, -5], { shape: { size: [0.1, 0.8, 0.7] }, material: { color: '#e8c15a' }, transform: yaw(90), shadow: false }));
-    add(thing('lore_drawing', 'box', 'Faded drawing', [48.4, groundAt(48.4, -15.4) + 0.45, -15.4], { shape: { size: [0.06, 0.8, 0.6] }, material: { color: '#d8c9a3' }, transform: yaw(-20), shadow: false }));
-    add(thing('catch_board_post', 'cylinder', 'Board post', [58.5, groundAt(58.5, 3.6) + 0.5, 3.66], { shape: { radius: 0.07, height: 1.1 }, material: { color: '#6b4a2f', texture: A.oldWood } }));
+    add(thing('lore_rock', 'box', 'Scratched rock', [40.5, groundAt(40.5, 28) + 0.2, 28], { shape: { size: [0.9, 1, 0.7] }, material: { color: '#8b8f96' }, transform: yaw(30), shadow: false }));
+    add(thing('lore_slip', 'box', 'Repair slip', [-38, groundAt(-38, -22) + 0.04, -22], { shape: { size: [0.3, 0.02, 0.42] }, material: { color: '#f1ead7', zOffset: -2 }, transform: yaw(20), shadow: false }));
+        // A low lounger on the sand, its back on the sea side (it faces the land), the back resting on the seat.
+    add(thing('lore_chair', 'box', 'Beach chair', [53, groundAt(53, -5) + 0.02, -5], { shape: { size: [0.7, 0.12, 0.7] }, material: { color: '#e8c15a' }, shadow: false }));
+    add(thing('lore_chair_back', 'box', 'Beach chair back', [53.3, groundAt(53, -5) + 0.48, -5], { shape: { size: [0.1, 0.8, 0.7] }, material: { color: '#e8c15a' }, shadow: false }));
+    add(thing('lore_drawing', 'box', 'Faded drawing', [48.4, groundAt(48.4, -15.4) + 0.4, -15.4], { shape: { size: [0.06, 0.8, 0.6] }, material: { color: '#d8c9a3' }, transform: yaw(-20), shadow: false }));
+    add(thing('catch_board_post', 'cylinder', 'Board post', [58.62, groundAt(58.62, 3.6) + 0.75, 3.6], { shape: { radius: 0.07, height: 1.5 }, material: { color: '#6b4a2f', texture: A.oldWood } }));
     // The race board: the best times of the Ridge Run and Harbour Run on this device (modules/race: E reads it, the sign shows the top).
     add(thing('race_board', 'box', 'Race board', [58.5, groundAt(58.5, 7.6) + 1.5, 7.6], { shape: { size: [1.9, 1.05, 0.08] }, material: { color: '#6b4a2f', texture: A.oldWood, tile: [1, 1] }, transform: yaw(-90), data: { raceBoard: 'ridge' } }));
-    add(thing('race_board_post', 'cylinder', 'Board post', [58.5, groundAt(58.5, 7.6) + 0.5, 7.66], { shape: { radius: 0.07, height: 1.1 }, material: { color: '#6b4a2f', texture: A.oldWood } }));
+    add(thing('race_board_post', 'cylinder', 'Board post', [58.62, groundAt(58.62, 7.6) + 0.75, 7.6], { shape: { radius: 0.07, height: 1.5 }, material: { color: '#6b4a2f', texture: A.oldWood } }));
     add({ id: 'rod', type: 'tool-pickup', name: 'Fishing rod', shape: { tool: 'rod', respawn: 5 }, transform: { position: [86.5, pierY + 0.2, -0.4] } });
     add({ id: 'boat', type: 'boat', name: 'Speedboat', shape: { model: A.speedboat }, material: { color: '#e5e7eb' }, transform: { position: [73, -1.2, 4.4], rotation: [0, 90, 0] } });
     add(thing('duck', 'model', 'Rubber duck', [77, -1.35, -4], { shape: { asset: A.duck, size: 0.45 }, physics: 'dynamic', data: { density: 0.3 } }));
     // The fuel dump on the beach north of the dock: oil barrels close enough to chain, and crates to smash.
     [[50, -18], [51.2, -18.4], [50.5, -19.5], [51.7, -17.2], [49.6, -16.9]].forEach(([x, z], i) => add(model(`barrel_${i + 1}`, 'Fuel barrel', A.barrel, x, z, 1.15, { physics: 'dynamic', body: { shape: { type: 'cylinder', radius: 0.4, height: 1.15 } }, behaviors: [{ use: 'explosive', radius: 6, force: 22, damage: 60 }], data: { barrel: true } }, 0.05)));
     [[46.5, -21.5, 0], [47.6, -21.6, 20], [47.1, -21.4, 10]].forEach(([x, z, r], i) => add(model(`crate_${i + 1}`, 'Crate', A.crate, x, z, 1, { physics: 'dynamic', body: { shape: { type: 'box', size: [1, 1, 1] } }, transform: yaw(r), behaviors: [{ use: 'breakable', strength: 10, pieces: 8 }] }, i === 2 ? 1.02 : 0.02)));
+    // The pier's loose things: wooden barrels and lobster pots on the deck (they break under a 4x4, topple in a blast and go into
+    // the sea: a splash, then wood floats), and one fuel barrel to blow them with. The planks' top is at pierY + 0.15.
+    const deck = pierY + 0.15;
+    [[66.5, 1.0], [69.5, -1.0], [80.5, 1.0]].forEach(([x, z], i) => add(thing(`lobster_pot_${i + 1}`, 'box', 'Lobster pot', [x, deck + 0.26, z], { shape: { size: [0.7, 0.5, 0.5] }, material: { color: '#8a6a4a', texture: A.oldWood, tile: [1, 1] }, physics: 'dynamic', transform: yaw(i * 40), ...smash('pot', '#8a6a4a', { strength: 4, pieces: 6, blast: 10 }) })));
+    [[74.5, -1.0], [77.5, 1.1]].forEach(([x, z], i) => add(thing(`pier_cask_${i + 1}`, 'cylinder', 'Wooden barrel', [x, deck + 0.46, z], { shape: { radius: 0.34, height: 0.92 }, material: { color: '#7a5a3a', texture: A.oldWood, tile: [1, 1] }, physics: 'dynamic', ...smash('wood', '#7a5a3a', { strength: 4, pieces: 6, blast: 12 }) })));
+    add(model('barrel_pier', 'Fuel barrel', A.barrel, 72, 0.6, 1.15, { physics: 'dynamic', body: { shape: { type: 'cylinder', radius: 0.4, height: 1.15 } }, behaviors: [{ use: 'explosive', radius: 6, force: 22, damage: 60 }], data: { barrel: true } }, pierY + 0.2));
     // The helipad on the hill, with the helicopter on it.
     const padY = groundAt(HELIPAD[0], HELIPAD[1]);
-    add(thing('helipad', 'cylinder', 'Helipad', [HELIPAD[0], padY + 0.08, HELIPAD[1]], { shape: { radius: 5, height: 0.16 }, material: { color: '#9aa3ad', texture: A.plate, tile: [3, 3] }, data: { surface: 'metal' } }));
-    add(thing('helipad_h', 'text', 'Helipad mark', [HELIPAD[0], padY + 0.17, HELIPAD[1]], { shape: { text: 'H', size: 2.2, billboard: false, color: '#f4c430' }, transform: { rotation: [90, 90, 0] } }));
+    add(thing('helipad', 'cylinder', 'Helipad', [HELIPAD[0], padY + 0.08, HELIPAD[1]], { shape: { radius: 5, height: 0.16 }, material: { color: '#9aa3ad', texture: A.plate, tile: [3, 3], zOffset: -1 }, data: { surface: 'metal' } }));
+    add(thing('helipad_h', 'text', 'Helipad mark', [HELIPAD[0], padY + 0.22, HELIPAD[1]], { shape: { text: 'H', size: 2.2, billboard: false, color: '#f4c430', background: false, zOffset: -3 }, transform: { rotation: [90, 90, 0] } }));
     add({ id: 'heli', type: 'helicopter', name: 'Helicopter', shape: { model: A.heli, modelLength: 10 }, material: { color: '#2b5fd9' }, transform: { position: [HELIPAD[0], r2(padY + 1.55), HELIPAD[1]], rotation: [0, 200, 0] } });
     // The rocket on its pad across the island (a toy for later: it reaches the Overseer).
     const rx = -38, rz = -30, ry = groundAt(rx, rz);
@@ -241,5 +357,5 @@ export const SANDBOX = {
   },
 };
 
-/** The guide (Pip, the rewards, the Overseer's words, music and the sea): src/overseer-games/sandbox.js; the islanders' lines: islanders.js; the journal and its lore: journal.js. */
-export const sandboxScript = () => ['sandbox.js', 'islanders.js', 'journal.js'].map((f) => fs.readFileSync(path.join(HERE, f), 'utf8').replace(/\r\n/g, '\n')).join('\n');
+/** The guide (Pip, the rewards, the Overseer's words, music and the sea): src/overseer-games/sandbox.js; the islanders' lines: islanders.js; side favours: favours.js; the journal and its lore: journal.js; the end of Chapter One in the hangar: finale.js; lasting quest marks: world-marks.js. */
+export const sandboxScript = () => ['sandbox.js', 'islanders.js', 'favours.js', 'memories.js', 'journal.js', 'finale.js', 'world-marks.js'].map((f) => fs.readFileSync(path.join(HERE, f), 'utf8').replace(/\r\n/g, '\n')).join('\n');

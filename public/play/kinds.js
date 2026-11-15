@@ -38,6 +38,8 @@
       box.material = m;
       box.parent = root;
       box.metadata = { entity: e };
+      // Only a builder sees the stand-in (it carries the "Make it with AI" card); a player never sees a wireframe box.
+      if (H.mode !== 'build') { box.isVisible = false; box.isPickable = false; }
       e._loaded = true;
       e.measure();
       return e;
@@ -71,7 +73,12 @@
       root.computeWorldMatrix(true);
       if (opts.color) for (const m of r.meshes) if (m.material && m.material.albedoColor) m.material.albedoColor = hex(opts.color);
       if (W.shadows && opts.shadow !== false) for (const m of r.meshes) if (m.getTotalVertices() > 0) { W.shadows.addShadowCaster(m); (e._casters ||= new Set()).add(m); m.receiveShadows = true; }
-      for (const m of r.meshes) m.metadata = { entity: e };
+      for (const m of r.meshes) {
+        m.metadata = { entity: e };
+        // Quality rule 3: one-sided, normals out. The finish module flips winding when a closed mesh is inside out.
+        if (m.material) m.material.backFaceCulling = true;
+        if (H.finish && H.finish.fixMesh) try { H.finish.fixMesh(m); } catch { /* keep the model */ }
+      }
       const groups = r.animationGroups || [];
       for (const a of groups) a.stop();
       return { holder, r, groups };
@@ -81,7 +88,7 @@
       e.animations = groups;
       if (opts.animation && !e.play(opts.animation)) { if (groups[0]) groups[0].start(true); } else if (!opts.animation && opts.autoplay !== false && groups[0]) groups[0].start(true);
     };
-    const fail = (err) => { H.report(new Error(`Could not load ${name}: ${err.message || err}`)); return e; };
+    const fail = (err) => { e._broken = name; H.report(new Error(`Could not load ${name}: ${err.message || err}`)); return e; };
     if (!lowName) {
       e.ready = load(name, false).then((x) => { if (!x) return e; animate(x.groups); ready(); e.measure(); return e; }).catch(fail);
       return e;
@@ -209,17 +216,18 @@
 
   function sprite(name, opts = {}) {
     const height = Number(opts.size) || 1;
-    const plane = B.MeshBuilder.CreatePlane(`sprite:${name}`, { width: 1, height: 1, sideOrientation: B.Mesh.DOUBLESIDE }, W.scene);
+    const plane = B.MeshBuilder.CreatePlane(`sprite:${name}`, { width: 1, height: 1, sideOrientation: B.Mesh.DOUBLESIDE, frontUVs: new B.Vector4(0, 0, 1, 1), backUVs: new B.Vector4(1, 0, 0, 1) }, W.scene);
     const e = new Entity(plane, { physics: 'none', ...opts }, 'sprite');
     const m = new B.StandardMaterial('sprite', W.scene);
     let t = null;
     const at = opts.position ? vec(opts.position) : [Number(opts.x) || 0, Number(opts.y) || 0, Number(opts.z) || 0];
     try { t = new B.Texture(assetUrl(name, { at, size: height }), W.scene, false, true, W.pixelated || opts.pixel ? B.Texture.NEAREST_SAMPLINGMODE : B.Texture.TRILINEAR_SAMPLINGMODE); } catch (err) { if (!opts.lenient) throw err; e._waiting = name; }
     if (t) { t.hasAlpha = true; m.diffuseTexture = t; m.useAlphaFromDiffuseTexture = true; }
-    else { m.wireframe = true; }
+    else if (H.mode === 'build') { m.wireframe = true; }
+    else { plane.isVisible = false; } // not made yet: nothing to see while playing
     m.emissiveColor = new B.Color3(1, 1, 1);
     m.disableLighting = true;
-    m.backFaceCulling = false;
+    m.backFaceCulling = true; // the plane is two-sided already; both drawn at once, its mirrored back fights the front
     if (opts.color) m.emissiveColor = hex(opts.color);
     plane.material = e._mat = m;
     e._tex = t;
@@ -364,7 +372,7 @@
   /** A screen playing a video asset (muted until clicked: browsers only allow sound after a click). */
   function screen(sh, o) {
     const w = Number(sh.width) || 3.2, h = Number(sh.height) || w * 9 / 16;
-    const plane = B.MeshBuilder.CreatePlane('video', { width: w, height: h, sideOrientation: B.Mesh.DOUBLESIDE }, W.scene);
+    const plane = B.MeshBuilder.CreatePlane('video', { width: w, height: h, sideOrientation: B.Mesh.DOUBLESIDE, frontUVs: new B.Vector4(0, 0, 1, 1), backUVs: new B.Vector4(1, 0, 0, 1) }, W.scene);
     const mat = new B.StandardMaterial('video', W.scene);
     mat.disableLighting = true;
     mat.emissiveColor = new B.Color3(1, 1, 1);
@@ -372,7 +380,7 @@
     const e = new Entity(plane, o, 'video');
     e._mat = mat;
     let url = null;
-    try { url = assetUrl(sh.asset || ''); } catch { e._waiting = sh.asset || null; mat.wireframe = true; }
+    try { url = assetUrl(sh.asset || ''); } catch { e._waiting = sh.asset || null; if (H.mode === 'build') mat.wireframe = true; else plane.isVisible = false; }
     if (url) {
       const vt = new B.VideoTexture('video', url, W.scene, true, false, B.Texture.TRILINEAR_SAMPLINGMODE, { autoPlay: true, loop: sh.loop !== false, muted: true, autoUpdateTexture: true });
       mat.diffuseTexture = vt;
@@ -429,7 +437,8 @@
       surface.computeWorldMatrix(true);
       const n = B.Vector3.TransformNormal(new B.Vector3(0, 0, -1), surface.getWorldMatrix()).normalize();
       tex.mirrorPlane = B.Plane.FromPositionAndNormal(surface.getAbsolutePosition(), n.scale(-1));
-      const all = W.scene.meshes.filter((x) => x !== surface && x.isEnabled() && x.isVisible);
+      // (Not the words: bubbles and names face the player's camera, so the glass would only show their backs, mirrored: quality rule 1.)
+      const all = W.scene.meshes.filter((x) => x !== surface && x.name !== 'text' && x.isEnabled() && x.isVisible);
       if (!e._mirrorFast) { tex.renderList = all; return; }
       const c = surface.getAbsolutePosition(), reach = phone ? 12 : 24;
       tex.renderList = all.filter((x) => { const bs = x.getBoundingInfo && x.getBoundingInfo().boundingSphere; return !bs || B.Vector3.Distance(bs.centerWorld, c) - bs.radiusWorld < reach; });
@@ -588,7 +597,7 @@
   H.kinds.register('text', {
     physics: 'none',
     maker: (str, o = {}) => text(str, o),
-    build: (sh, o, spec) => text(sh.text ?? (spec && spec.name) ?? 'Text', { ...o, size: Number(sh.size) || 0.5, color: spec ? spec.material && spec.material.color : o.color, billboard: sh.billboard, background: sh.background }),
+    build: (sh, o, spec) => text(sh.text ?? (spec && spec.name) ?? 'Text', { ...o, size: Number(sh.size) || 0.5, color: (spec && spec.material && spec.material.color) || sh.color || o.color, billboard: sh.billboard, background: sh.background, zOffset: sh.zOffset }),
     editor: { word: 'a sign', lift: () => 1.2, hotbar: [{ order: 80, icon: 'T', label: 'Sign', make: () => ({ type: 'text', name: 'Sign', shape: { text: 'Hello!', size: 0.5 } }) }] },
     codex: {
       group: 'World', what: 'A floating sign. Instructions, names, scores, jokes.',

@@ -49,6 +49,23 @@
     });
   }
   S.useLibrary = useLibrary;
+  /**
+   * A base stand-in for a library thing that can't be fetched (the row is listed but its file isn't in Gen, the editor
+   * didn't answer...): the player is never shown a "not in your library" error. Each kind gets a plain shape of the
+   * same sort, tinted, named for the thing, marked `data.standIn` so it can be swapped for the real one later.
+   * Pure (tests use it): { spec } for a thing, { config } for a sky.
+   */
+  function standInFor(lib, toward) {
+    const kind = (lib && lib.kind) || 'model';
+    const title = String((lib && lib.title) || 'Thing').slice(0, 40);
+    const data = { standIn: true, wanted: lib && lib.id };
+    if (kind === 'sky') return { config: { sky: '#8fb8e8' }, label: 'the sky', said: 'The sky is now a clear blue' };
+    if (kind === 'texture') return { spec: { type: 'box', name: `${title} wall`, shape: { size: [4, 3, 0.3] }, material: { color: '#a9a39a' }, physics: 'static', transform: { rotation: [0, toward || 0, 0] }, data } };
+    if (kind === 'music' || kind === 'ambience' || kind === 'sfx' || kind === 'voice' || kind === 'audio') return { spec: { type: 'cylinder', name: `${title} speaker`, shape: { radius: 0.35, height: 0.8 }, material: { color: '#6c7a99' }, physics: 'static', data } };
+    if (kind === 'sprite' || kind === 'image' || kind === 'video') return { spec: { type: 'box', name: title, shape: { size: [2, 1.5, 0.1] }, material: { color: '#c9d3e6' }, physics: 'static', transform: { rotation: [0, toward || 0, 0] }, data } };
+    return { spec: { type: 'box', name: title, shape: { size: 1.2 }, material: { color: '#8da4c4' }, physics: 'dynamic', data } };
+  }
+  S.standInFor = standInFor;
   /** Waits (briefly) for an asset to be in the game's bundle: the editor sends the new list just before it answers. */
   async function arrived(name) {
     for (let i = 0; i < 40; i++) { if (H.assets.get(name)) return true; await new Promise((r) => setTimeout(r, 50)); }
@@ -79,8 +96,13 @@
     if (it.lib) {
       if (H.mode !== 'build') return { error: 'Library things come in while building' };
       const r = await S.useLibrary(it.lib, it.libOpts || {});
-      if (!r.ok) return { error: r.error || 'That didn\'t work' };
-      const name = r.asset && r.asset.name;
+      // Not fetchable (listed but not in Gen, or no answer): a base stand-in, quietly; the developers get the log.
+      if (!r.ok || r.missing || !(r.asset && r.asset.name)) {
+        try { console.warn(`[spawn] library thing ${it.lib.id} "${it.lib.title}" could not be fetched (${r.error || 'not in Gen'}): placing a stand-in`); } catch { /* no console */ }
+        const f = standInFor(it.lib, toward);
+        return f.config ? f : { spec: f.spec, word: r.word };
+      }
+      const name = r.asset.name;
       await arrived(name);
       if (it.lib.kind === 'sky') return { config: { sky: name }, label: 'the sky', said: `The sky is now ${it.name}` };
       const spec = specOfAsset(name, it.lib.kind, it.lib.title, toward);

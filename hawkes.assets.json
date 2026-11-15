@@ -1,0 +1,2488 @@
+{
+ "about": "Base assets the game should always have (the starter pack, community/starter.mjs). Nothing here is generated yet: no GPU budget approved. Price: node tools/starter.mjs estimate <kind>.",
+ "project": "usr_00000000000000c0",
+ "generated": 0,
+ "estimate": null,
+ "items": [
+  {
+   "type": "model",
+   "category": "props",
+   "name": "Wooden crate",
+   "prompt": "a sturdy wooden crate with iron corner brackets",
+   "words": "box container wood",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "props",
+   "name": "Oil barrel",
+   "prompt": "a red metal oil barrel with dented ribs",
+   "words": "drum metal container",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "props",
+   "name": "Treasure chest",
+   "prompt": "an old iron-banded wooden treasure chest, closed",
+   "words": "loot box chest",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "props",
+   "name": "Brass lantern",
+   "prompt": "a brass lantern with glass panes and a top ring handle, standing upright",
+   "words": "lamp light",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "props",
+   "name": "Wooden barrel",
+   "prompt": "a wooden barrel with metal hoops, standing upright",
+   "words": "cask keg container",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "nature",
+   "name": "Oak tree",
+   "prompt": "a stylized leafy oak tree with a thick trunk",
+   "words": "tree forest plant",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "nature",
+   "name": "Pine tree",
+   "prompt": "a tall stylized pine tree",
+   "words": "tree conifer forest",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "nature",
+   "name": "Bush",
+   "prompt": "a round green leafy bush",
+   "words": "shrub plant hedge",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "nature",
+   "name": "Mushroom",
+   "prompt": "a big red spotted toadstool mushroom",
+   "words": "fungus forest",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "nature",
+   "name": "Flower patch",
+   "prompt": "a small clump of colorful wildflowers",
+   "words": "plants garden",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "rocks",
+   "name": "Boulder",
+   "prompt": "a large rounded grey boulder",
+   "words": "rock stone",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "rocks",
+   "name": "Rock cluster",
+   "prompt": "a cluster of three jagged grey rocks",
+   "words": "stones terrain",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "rocks",
+   "name": "Crystal cluster",
+   "prompt": "a cluster of glowing blue crystals growing from a rock",
+   "words": "gem magic cave",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "rocks",
+   "name": "Stone pillar",
+   "prompt": "a weathered ancient stone pillar, slightly broken at the top",
+   "words": "column ruin",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "rocks",
+   "name": "Log",
+   "prompt": "a fallen mossy tree log",
+   "words": "wood forest",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "buildings",
+   "name": "Cottage",
+   "prompt": "a small cozy cottage with a thatched roof",
+   "words": "house home village",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "buildings",
+   "name": "Watchtower",
+   "prompt": "a wooden watchtower on stilts with a roof",
+   "words": "tower lookout",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "buildings",
+   "name": "Market stall",
+   "prompt": "a wooden market stall with a striped cloth awning",
+   "words": "shop booth",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "buildings",
+   "name": "Well",
+   "prompt": "a round stone well with a little wooden roof and bucket",
+   "words": "village water",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "buildings",
+   "name": "Sci-fi hut",
+   "prompt": "a small futuristic dome habitat with a round door",
+   "words": "base house space",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "furniture",
+   "name": "Wooden chair",
+   "prompt": "a simple wooden chair",
+   "words": "seat",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "furniture",
+   "name": "Table",
+   "prompt": "a sturdy wooden table",
+   "words": "desk",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "furniture",
+   "name": "Bookshelf",
+   "prompt": "a tall wooden bookshelf full of books",
+   "words": "library shelf",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "furniture",
+   "name": "Bed",
+   "prompt": "a single bed with a blanket and pillow",
+   "words": "bedroom",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "furniture",
+   "name": "Sofa",
+   "prompt": "a comfy two-seat sofa",
+   "words": "couch living room",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "scifi",
+   "name": "Sci-fi crate",
+   "prompt": "a futuristic metal cargo crate with glowing cyan strips",
+   "words": "box container space",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "scifi",
+   "name": "Robot",
+   "prompt": "a small friendly boxy robot standing",
+   "words": "bot droid",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "scifi",
+   "name": "Console",
+   "prompt": "a sci-fi computer console with screens and buttons",
+   "words": "terminal computer",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "scifi",
+   "name": "Energy core",
+   "prompt": "a glowing energy reactor core in a metal frame",
+   "words": "power battery",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "scifi",
+   "name": "Satellite dish",
+   "prompt": "a sci-fi satellite dish on a base",
+   "words": "antenna radar",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "fantasy",
+   "name": "Magic staff",
+   "prompt": "a wizard staff with a glowing gem on top",
+   "words": "wand weapon magic",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "fantasy",
+   "name": "Potion bottle",
+   "prompt": "a round glass potion bottle with glowing pink liquid and a cork",
+   "words": "flask magic",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "fantasy",
+   "name": "Spell book",
+   "prompt": "a thick old spell book with a gold clasp, closed",
+   "words": "tome magic",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "fantasy",
+   "name": "Cauldron",
+   "prompt": "a black iron witch cauldron on three legs",
+   "words": "pot magic",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "fantasy",
+   "name": "Rune stone",
+   "prompt": "a standing stone carved with glowing runes",
+   "words": "magic monolith",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "vehicles",
+   "name": "Car",
+   "prompt": "a cute stylized compact car",
+   "words": "auto drive",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "vehicles",
+   "name": "Go-kart",
+   "prompt": "a small racing go-kart",
+   "words": "kart racing",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "vehicles",
+   "name": "Hover bike",
+   "prompt": "a futuristic hover bike with no wheels",
+   "words": "bike scifi",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "vehicles",
+   "name": "Rowboat",
+   "prompt": "a small wooden rowboat",
+   "words": "boat water",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "vehicles",
+   "name": "Spaceship",
+   "prompt": "a small stylized fighter spaceship",
+   "words": "ship space jet",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "food",
+   "name": "Apple",
+   "prompt": "a shiny red apple",
+   "words": "fruit",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "food",
+   "name": "Burger",
+   "prompt": "a big cheeseburger",
+   "words": "food snack",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "food",
+   "name": "Pizza",
+   "prompt": "a whole pepperoni pizza",
+   "words": "food",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "food",
+   "name": "Cake",
+   "prompt": "a strawberry layer cake",
+   "words": "dessert",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "food",
+   "name": "Donut",
+   "prompt": "a pink frosted donut with sprinkles",
+   "words": "doughnut dessert",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "weapons",
+   "name": "Sword",
+   "prompt": "a knight longsword",
+   "words": "blade melee",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "weapons",
+   "name": "Shield",
+   "prompt": "a round wooden shield with a metal rim",
+   "words": "armor",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "weapons",
+   "name": "Bow",
+   "prompt": "a wooden recurve bow",
+   "words": "archery",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "weapons",
+   "name": "Blaster",
+   "prompt": "a chunky sci-fi blaster pistol",
+   "words": "gun laser",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "weapons",
+   "name": "Hammer",
+   "prompt": "a heavy war hammer",
+   "words": "mace melee",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "toys",
+   "name": "Ball",
+   "prompt": "a red and white beach ball",
+   "words": "sphere bouncy",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "toys",
+   "name": "Soccer ball",
+   "prompt": "a classic black and white soccer ball",
+   "words": "football sport ball",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "toys",
+   "name": "Basketball",
+   "prompt": "an orange basketball",
+   "words": "sport ball",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "toys",
+   "name": "Rubber duck",
+   "prompt": "a yellow rubber duck",
+   "words": "duck toy",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "toys",
+   "name": "Toy blocks",
+   "prompt": "a small stack of colorful wooden toy blocks",
+   "words": "cubes",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "story",
+   "name": "The Overseer",
+   "prompt": "a huge smooth pearl-white ceramic sphere spaceship with slowly glowing rings of light around it, thin glowing seams and a bright light emitter at its lowest point, no trench, no dish, no guns",
+   "words": "overseer mothership sphere ship ufo",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "story",
+   "name": "Rocket",
+   "prompt": "a tall white and red rocket standing upright on its fins, ready to launch",
+   "words": "spacecraft launch",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "story",
+   "name": "Launch pad",
+   "prompt": "a round concrete rocket launch pad with a metal service tower",
+   "words": "launchpad spaceport",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "story",
+   "name": "Space capsule",
+   "prompt": "a cone-shaped space capsule with a round hatch and small windows",
+   "words": "pod spacecraft",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "story",
+   "name": "Lunar lander",
+   "prompt": "a four-legged lunar lander with gold foil and a ladder",
+   "words": "lander spacecraft moon",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "space",
+   "name": "Asteroid",
+   "prompt": "a big lumpy grey asteroid covered in craters",
+   "words": "space rock meteor",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "space",
+   "name": "Space station",
+   "prompt": "a modular space station with solar panel wings",
+   "words": "orbit station",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "space",
+   "name": "Satellite",
+   "prompt": "a small satellite with two solar panels and an antenna",
+   "words": "orbit probe",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "space",
+   "name": "Meteor",
+   "prompt": "a glowing hot meteor rock with cracks of orange lava",
+   "words": "meteorite fireball",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "space",
+   "name": "Alien plant",
+   "prompt": "a strange glowing alien plant with purple bulbs",
+   "words": "plant alien flora",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "aircraft",
+   "name": "Helicopter",
+   "prompt": "a small two-seat helicopter with a main rotor and a tail rotor",
+   "words": "heli chopper aircraft",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "aircraft",
+   "name": "Airplane",
+   "prompt": "a small single-propeller airplane with high wings",
+   "words": "plane aircraft propeller",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "aircraft",
+   "name": "Jet",
+   "prompt": "a sleek white private jet",
+   "words": "plane aircraft jet",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "aircraft",
+   "name": "Hot air balloon",
+   "prompt": "a striped hot air balloon with a wicker basket",
+   "words": "balloon aircraft",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "aircraft",
+   "name": "Glider",
+   "prompt": "a long-winged white glider plane",
+   "words": "sailplane aircraft",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "offroad",
+   "name": "4x4 truck",
+   "prompt": "a rugged off-road 4x4 pickup truck with big knobby tires",
+   "words": "truck jeep offroad car",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "offroad",
+   "name": "Motorbike",
+   "prompt": "a dirt motorbike",
+   "words": "motorcycle bike dirtbike",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "offroad",
+   "name": "Bicycle",
+   "prompt": "a simple city bicycle",
+   "words": "bike cycle",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "offroad",
+   "name": "Quad bike",
+   "prompt": "a four-wheeled quad bike ATV",
+   "words": "atv quad",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "offroad",
+   "name": "Tractor",
+   "prompt": "a small red farm tractor",
+   "words": "farm vehicle",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "boats",
+   "name": "Speedboat",
+   "prompt": "a white speedboat with a windshield",
+   "words": "boat motorboat",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "boats",
+   "name": "Submarine",
+   "prompt": "a small yellow submarine with round portholes and a propeller",
+   "words": "sub underwater",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "boats",
+   "name": "Sailboat",
+   "prompt": "a small sailboat with one white sail",
+   "words": "boat sail yacht",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "boats",
+   "name": "Jet ski",
+   "prompt": "a jet ski personal watercraft",
+   "words": "watercraft",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "boats",
+   "name": "Canoe",
+   "prompt": "a wooden canoe with a paddle inside",
+   "words": "boat kayak",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "tools",
+   "name": "Rocket launcher",
+   "prompt": "a chunky green shoulder rocket launcher tube",
+   "words": "bazooka weapon",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "tools",
+   "name": "Grenade",
+   "prompt": "a round green hand grenade with a pin",
+   "words": "bomb explosive",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "tools",
+   "name": "Spawn gun",
+   "prompt": "a playful sci-fi ray gun with a glowing white beam emitter",
+   "words": "ray gun spawner",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "tools",
+   "name": "Gravity gun",
+   "prompt": "a sci-fi gravity gun with orange claw prongs at the front",
+   "words": "physics gun",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "tools",
+   "name": "Lasso",
+   "prompt": "a coiled rope lasso",
+   "words": "rope",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "gear",
+   "name": "Shovel",
+   "prompt": "a garden shovel with a wooden handle",
+   "words": "spade dig",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "gear",
+   "name": "Water bucket",
+   "prompt": "a metal bucket full of water",
+   "words": "bucket pail",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "gear",
+   "name": "Fishing rod",
+   "prompt": "a fishing rod with a reel",
+   "words": "rod pole fishing",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "gear",
+   "name": "Flamethrower",
+   "prompt": "a chunky flamethrower with a fuel tank",
+   "words": "fire weapon",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "gear",
+   "name": "Sticky bomb",
+   "prompt": "a round sticky bomb with a blinking light",
+   "words": "bomb explosive",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "gadgets",
+   "name": "Detonator",
+   "prompt": "a plunger-style detonator box",
+   "words": "trigger explosive",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "gadgets",
+   "name": "TV remote",
+   "prompt": "a black TV remote control",
+   "words": "remote control",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "gadgets",
+   "name": "Phone",
+   "prompt": "a modern smartphone",
+   "words": "mobile cell",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "gadgets",
+   "name": "Box of matches",
+   "prompt": "a small open box of matches",
+   "words": "matches fire",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "gadgets",
+   "name": "Walkie-talkie",
+   "prompt": "a yellow walkie-talkie radio",
+   "words": "radio handheld",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "mayhem",
+   "name": "Exploding barrel",
+   "prompt": "a red barrel with a warning symbol for explosives",
+   "words": "barrel explosive",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "mayhem",
+   "name": "Traffic cone",
+   "prompt": "an orange traffic cone with white stripes",
+   "words": "cone road",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "mayhem",
+   "name": "Propane tank",
+   "prompt": "a white propane gas tank",
+   "words": "gas tank explosive",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "mayhem",
+   "name": "Glass vase",
+   "prompt": "a tall blue glass vase",
+   "words": "vase breakable",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "mayhem",
+   "name": "Watermelon",
+   "prompt": "a whole green watermelon",
+   "words": "fruit melon",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "kitchen",
+   "name": "Fridge",
+   "prompt": "a white kitchen fridge with two doors",
+   "words": "refrigerator",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "kitchen",
+   "name": "Oven",
+   "prompt": "a kitchen oven with a stovetop",
+   "words": "stove cooker",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "kitchen",
+   "name": "Kitchen sink",
+   "prompt": "a kitchen sink in a counter with a tap",
+   "words": "sink tap",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "kitchen",
+   "name": "Kitchen counter",
+   "prompt": "a kitchen counter with cupboard doors below",
+   "words": "counter worktop",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "kitchen",
+   "name": "Cupboard",
+   "prompt": "a tall wooden cupboard with two doors",
+   "words": "cabinet wardrobe",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "bathroom",
+   "name": "Bathtub",
+   "prompt": "a white bathtub with a tap",
+   "words": "bath tub",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "bathroom",
+   "name": "Toilet",
+   "prompt": "a white toilet",
+   "words": "loo wc",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "bathroom",
+   "name": "Shower",
+   "prompt": "a glass shower cubicle with a shower head",
+   "words": "shower cabin",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "bathroom",
+   "name": "Bathroom sink",
+   "prompt": "a white bathroom sink on a pedestal",
+   "words": "basin sink",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "bathroom",
+   "name": "Mirror",
+   "prompt": "a tall standing mirror with a wooden frame",
+   "words": "looking glass",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "electronics",
+   "name": "TV",
+   "prompt": "a flat-screen television on a small stand",
+   "words": "television screen",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "electronics",
+   "name": "Computer",
+   "prompt": "a desktop computer with a monitor and keyboard",
+   "words": "pc screen",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "electronics",
+   "name": "Radio",
+   "prompt": "a retro radio with a speaker grille and knobs",
+   "words": "speaker music",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "electronics",
+   "name": "Projector",
+   "prompt": "a small video projector",
+   "words": "cinema screen",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "electronics",
+   "name": "Security camera",
+   "prompt": "a white wall-mounted security camera",
+   "words": "cctv camera",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "decor",
+   "name": "Lamp",
+   "prompt": "a floor lamp with a fabric shade",
+   "words": "light",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "decor",
+   "name": "Rug",
+   "prompt": "a rectangular patterned rug",
+   "words": "carpet mat",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "decor",
+   "name": "Clock",
+   "prompt": "a round wall clock",
+   "words": "time",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "decor",
+   "name": "Picture frame",
+   "prompt": "a framed painting of a landscape",
+   "words": "picture painting",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "decor",
+   "name": "Potted plant",
+   "prompt": "a leafy green plant in a clay pot",
+   "words": "plant houseplant",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "fixtures",
+   "name": "Door",
+   "prompt": "a wooden door in its frame",
+   "words": "doorway",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "fixtures",
+   "name": "Piano",
+   "prompt": "an upright piano",
+   "words": "instrument music",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "fixtures",
+   "name": "Desk",
+   "prompt": "a wooden desk with a drawer",
+   "words": "table office",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "fixtures",
+   "name": "Fireplace",
+   "prompt": "a brick fireplace with a mantel",
+   "words": "hearth fire",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "fixtures",
+   "name": "Light switch",
+   "prompt": "a white wall light switch on a small plate",
+   "words": "switch",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "outdoor",
+   "name": "Signpost",
+   "prompt": "a wooden signpost with two arrow boards",
+   "words": "sign",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "outdoor",
+   "name": "Fence",
+   "prompt": "a short section of white picket fence",
+   "words": "picket",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "outdoor",
+   "name": "Bench",
+   "prompt": "a wooden park bench",
+   "words": "seat park",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "outdoor",
+   "name": "Street lamp",
+   "prompt": "an old-fashioned street lamp post",
+   "words": "lamppost light",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "outdoor",
+   "name": "Mailbox",
+   "prompt": "a red mailbox on a post",
+   "words": "postbox",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "freshwater",
+   "name": "Minnow",
+   "prompt": "a small silver minnow fish, side on",
+   "words": "fish",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "freshwater",
+   "name": "Perch",
+   "prompt": "a striped green and yellow perch fish, side on",
+   "words": "fish",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "freshwater",
+   "name": "Bluegill",
+   "prompt": "a bluegill sunfish, side on",
+   "words": "fish sunfish",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "freshwater",
+   "name": "Carp",
+   "prompt": "a bronze carp fish, side on",
+   "words": "fish",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "freshwater",
+   "name": "Rainbow trout",
+   "prompt": "a rainbow trout fish with a pink stripe, side on",
+   "words": "fish trout",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "lake",
+   "name": "Largemouth bass",
+   "prompt": "a largemouth bass fish, side on",
+   "words": "fish bass",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "lake",
+   "name": "Catfish",
+   "prompt": "a catfish with long whiskers, side on",
+   "words": "fish",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "lake",
+   "name": "Pike",
+   "prompt": "a long green pike fish, side on",
+   "words": "fish",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "lake",
+   "name": "Koi",
+   "prompt": "an orange and white koi fish, side on",
+   "words": "fish",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "lake",
+   "name": "Golden carp",
+   "prompt": "a shining golden carp fish, side on",
+   "words": "fish gold",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "sea",
+   "name": "Sardine",
+   "prompt": "a small silver sardine fish, side on",
+   "words": "fish",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "sea",
+   "name": "Mackerel",
+   "prompt": "a striped blue mackerel fish, side on",
+   "words": "fish",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "sea",
+   "name": "Red snapper",
+   "prompt": "a red snapper fish, side on",
+   "words": "fish snapper",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "sea",
+   "name": "Salmon",
+   "prompt": "a silver salmon fish, side on",
+   "words": "fish",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "sea",
+   "name": "Bluefin tuna",
+   "prompt": "a big bluefin tuna fish, side on",
+   "words": "fish tuna",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "catch",
+   "name": "Old Whiskers",
+   "prompt": "a giant ancient catfish with very long whiskers, side on",
+   "words": "fish catfish legendary",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "catch",
+   "name": "Swordfish",
+   "prompt": "a swordfish with a long bill, side on",
+   "words": "fish",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "catch",
+   "name": "Moonfish",
+   "prompt": "a round silvery glowing moonfish, side on",
+   "words": "fish legendary",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "catch",
+   "name": "Old boot",
+   "prompt": "an old soggy leather boot",
+   "words": "junk shoe",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "model",
+   "category": "catch",
+   "name": "Tin can",
+   "prompt": "a rusty dented tin can",
+   "words": "junk can",
+   "recipe": "community/starter.mjs paramsFor('model')"
+  },
+  {
+   "type": "texture",
+   "category": "stone",
+   "name": "Cobblestone",
+   "prompt": "grey cobblestone street",
+   "words": "road paving",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "stone",
+   "name": "Stone bricks",
+   "prompt": "castle stone brick wall",
+   "words": "wall brick",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "stone",
+   "name": "Slate tiles",
+   "prompt": "dark slate floor tiles",
+   "words": "floor tile",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "stone",
+   "name": "Marble",
+   "prompt": "white veined marble",
+   "words": "floor polished",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "stone",
+   "name": "Rough rock",
+   "prompt": "rough grey cliff rock",
+   "words": "cliff terrain",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "wood",
+   "name": "Wood planks",
+   "prompt": "warm wooden floor planks",
+   "words": "floor boards",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "wood",
+   "name": "Old wood",
+   "prompt": "weathered grey old wood boards",
+   "words": "barn fence",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "wood",
+   "name": "Bark",
+   "prompt": "tree bark",
+   "words": "tree",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "wood",
+   "name": "Parquet",
+   "prompt": "herringbone parquet floor",
+   "words": "floor",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "wood",
+   "name": "Crate wood",
+   "prompt": "rough pine crate boards",
+   "words": "pallet",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "ground",
+   "name": "Grass",
+   "prompt": "lush green grass",
+   "words": "lawn field",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "ground",
+   "name": "Dirt",
+   "prompt": "brown dirt ground with small pebbles",
+   "words": "soil mud path",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "ground",
+   "name": "Sand",
+   "prompt": "rippled desert sand",
+   "words": "beach desert",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "ground",
+   "name": "Snow",
+   "prompt": "fresh white snow",
+   "words": "winter ice",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "ground",
+   "name": "Lava",
+   "prompt": "glowing cracked lava rock",
+   "words": "magma fire",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "metal",
+   "name": "Steel plate",
+   "prompt": "brushed steel plate with rivets",
+   "words": "iron",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "metal",
+   "name": "Diamond plate",
+   "prompt": "diamond tread metal floor plate",
+   "words": "floor industrial",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "metal",
+   "name": "Rusty metal",
+   "prompt": "rusty corroded metal",
+   "words": "rust old",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "metal",
+   "name": "Gold",
+   "prompt": "polished hammered gold",
+   "words": "treasure",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "metal",
+   "name": "Copper",
+   "prompt": "copper sheet with green patina",
+   "words": "patina",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "scifi",
+   "name": "Sci-fi panels",
+   "prompt": "futuristic grey hull panels with seams",
+   "words": "spaceship hull",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "scifi",
+   "name": "Neon grid",
+   "prompt": "black floor with a glowing cyan neon grid",
+   "words": "tron floor",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "scifi",
+   "name": "Circuit board",
+   "prompt": "green circuit board traces",
+   "words": "tech computer",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "scifi",
+   "name": "Hex pattern",
+   "prompt": "dark hexagon tech pattern with soft glow",
+   "words": "honeycomb",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "scifi",
+   "name": "Carbon fiber",
+   "prompt": "carbon fiber weave",
+   "words": "tech",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "fabric",
+   "name": "Red carpet",
+   "prompt": "plush red carpet",
+   "words": "rug floor",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "fabric",
+   "name": "Denim",
+   "prompt": "blue denim fabric",
+   "words": "cloth jeans",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "fabric",
+   "name": "Checkered",
+   "prompt": "red and white checkered picnic cloth",
+   "words": "pattern tablecloth",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "fabric",
+   "name": "Leather",
+   "prompt": "brown leather",
+   "words": "hide",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "texture",
+   "category": "fabric",
+   "name": "Knit wool",
+   "prompt": "cozy knitted wool",
+   "words": "sweater",
+   "recipe": "community/starter.mjs paramsFor('texture')"
+  },
+  {
+   "type": "sky",
+   "category": "day",
+   "name": "Sunny day",
+   "prompt": "a bright blue sky with fluffy white clouds over green hills",
+   "words": "clear blue",
+   "recipe": "community/starter.mjs paramsFor('sky')"
+  },
+  {
+   "type": "sky",
+   "category": "day",
+   "name": "Sunset",
+   "prompt": "a warm orange and pink sunset sky over the sea",
+   "words": "evening dusk",
+   "recipe": "community/starter.mjs paramsFor('sky')"
+  },
+  {
+   "type": "sky",
+   "category": "day",
+   "name": "Storm",
+   "prompt": "a dark stormy sky with heavy clouds and distant lightning",
+   "words": "rain thunder",
+   "recipe": "community/starter.mjs paramsFor('sky')"
+  },
+  {
+   "type": "sky",
+   "category": "day",
+   "name": "Overcast",
+   "prompt": "a soft grey overcast sky over rolling fields",
+   "words": "cloudy grey",
+   "recipe": "community/starter.mjs paramsFor('sky')"
+  },
+  {
+   "type": "sky",
+   "category": "day",
+   "name": "Desert dusk",
+   "prompt": "a hazy golden dusk sky over desert dunes",
+   "words": "desert evening",
+   "recipe": "community/starter.mjs paramsFor('sky')"
+  },
+  {
+   "type": "sky",
+   "category": "night",
+   "name": "Starry night",
+   "prompt": "a deep blue night sky full of stars and a crescent moon",
+   "words": "stars moon",
+   "recipe": "community/starter.mjs paramsFor('sky')"
+  },
+  {
+   "type": "sky",
+   "category": "night",
+   "name": "Deep space",
+   "prompt": "outer space with colorful nebulas and distant stars",
+   "words": "space nebula",
+   "recipe": "community/starter.mjs paramsFor('sky')"
+  },
+  {
+   "type": "sky",
+   "category": "night",
+   "name": "Aurora",
+   "prompt": "green and purple northern lights over snowy mountains at night",
+   "words": "northern lights snow",
+   "recipe": "community/starter.mjs paramsFor('sky')"
+  },
+  {
+   "type": "sky",
+   "category": "night",
+   "name": "Moonlit clouds",
+   "prompt": "a full moon lighting silver clouds at night",
+   "words": "moon clouds",
+   "recipe": "community/starter.mjs paramsFor('sky')"
+  },
+  {
+   "type": "sky",
+   "category": "night",
+   "name": "Alien world",
+   "prompt": "an alien planet sky with two moons and a ringed planet",
+   "words": "scifi planet moons",
+   "recipe": "community/starter.mjs paramsFor('sky')"
+  },
+  {
+   "type": "sprite",
+   "category": "icons",
+   "name": "Gold coin",
+   "prompt": "a shiny gold coin game icon",
+   "words": "money pickup",
+   "recipe": "community/starter.mjs paramsFor('sprite')"
+  },
+  {
+   "type": "sprite",
+   "category": "icons",
+   "name": "Heart",
+   "prompt": "a glossy red heart game icon",
+   "words": "health life",
+   "recipe": "community/starter.mjs paramsFor('sprite')"
+  },
+  {
+   "type": "sprite",
+   "category": "icons",
+   "name": "Key",
+   "prompt": "a golden key game icon",
+   "words": "unlock",
+   "recipe": "community/starter.mjs paramsFor('sprite')"
+  },
+  {
+   "type": "sprite",
+   "category": "icons",
+   "name": "Gem",
+   "prompt": "a sparkling blue gem game icon",
+   "words": "diamond jewel",
+   "recipe": "community/starter.mjs paramsFor('sprite')"
+  },
+  {
+   "type": "sprite",
+   "category": "icons",
+   "name": "Star",
+   "prompt": "a shiny yellow star game icon",
+   "words": "score bonus",
+   "recipe": "community/starter.mjs paramsFor('sprite')"
+  },
+  {
+   "type": "sprite",
+   "category": "effects",
+   "name": "Explosion",
+   "prompt": "a cartoon fiery explosion burst",
+   "words": "boom blast",
+   "recipe": "community/starter.mjs paramsFor('sprite')"
+  },
+  {
+   "type": "sprite",
+   "category": "effects",
+   "name": "Smoke puff",
+   "prompt": "a soft grey cartoon smoke puff",
+   "words": "dust cloud",
+   "recipe": "community/starter.mjs paramsFor('sprite')"
+  },
+  {
+   "type": "sprite",
+   "category": "effects",
+   "name": "Sparkle",
+   "prompt": "a bright magic sparkle burst",
+   "words": "shine twinkle",
+   "recipe": "community/starter.mjs paramsFor('sprite')"
+  },
+  {
+   "type": "sprite",
+   "category": "effects",
+   "name": "Lightning bolt",
+   "prompt": "a glowing yellow lightning bolt",
+   "words": "electric zap",
+   "recipe": "community/starter.mjs paramsFor('sprite')"
+  },
+  {
+   "type": "sprite",
+   "category": "effects",
+   "name": "Fireball",
+   "prompt": "a blazing fireball",
+   "words": "fire magic",
+   "recipe": "community/starter.mjs paramsFor('sprite')"
+  },
+  {
+   "type": "music",
+   "category": "action",
+   "name": "Battle drive",
+   "prompt": "driving electronic action music with punchy drums, loopable",
+   "words": "combat fight",
+   "recipe": "community/starter.mjs paramsFor('music')"
+  },
+  {
+   "type": "music",
+   "category": "action",
+   "name": "Chase",
+   "prompt": "fast tense chase music with pulsing synths, loopable",
+   "words": "race",
+   "recipe": "community/starter.mjs paramsFor('music')"
+  },
+  {
+   "type": "music",
+   "category": "action",
+   "name": "Arena rock",
+   "prompt": "energetic rock with heavy guitars for a fight, loopable",
+   "words": "rock",
+   "recipe": "community/starter.mjs paramsFor('music')"
+  },
+  {
+   "type": "music",
+   "category": "action",
+   "name": "Boss fight",
+   "prompt": "epic orchestral boss battle music with choir, loopable",
+   "words": "epic boss",
+   "recipe": "community/starter.mjs paramsFor('music')"
+  },
+  {
+   "type": "music",
+   "category": "action",
+   "name": "Speed run",
+   "prompt": "upbeat drum and bass for racing, loopable",
+   "words": "race fast",
+   "recipe": "community/starter.mjs paramsFor('music')"
+  },
+  {
+   "type": "music",
+   "category": "calm",
+   "name": "Meadow",
+   "prompt": "gentle acoustic guitar and flute exploration music, loopable",
+   "words": "explore peaceful",
+   "recipe": "community/starter.mjs paramsFor('music')"
+  },
+  {
+   "type": "music",
+   "category": "calm",
+   "name": "Lo-fi",
+   "prompt": "relaxed lo-fi hip hop beat, loopable",
+   "words": "chill",
+   "recipe": "community/starter.mjs paramsFor('music')"
+  },
+  {
+   "type": "music",
+   "category": "calm",
+   "name": "Village",
+   "prompt": "cozy folk village music with strings, loopable",
+   "words": "town",
+   "recipe": "community/starter.mjs paramsFor('music')"
+  },
+  {
+   "type": "music",
+   "category": "calm",
+   "name": "Ocean drift",
+   "prompt": "calm ambient synth pads, loopable",
+   "words": "ambient",
+   "recipe": "community/starter.mjs paramsFor('music')"
+  },
+  {
+   "type": "music",
+   "category": "calm",
+   "name": "Piano",
+   "prompt": "soft thoughtful piano, loopable",
+   "words": "sad emotional",
+   "recipe": "community/starter.mjs paramsFor('music')"
+  },
+  {
+   "type": "music",
+   "category": "spooky",
+   "name": "Haunted",
+   "prompt": "creepy haunted house music with music box and drones, loopable",
+   "words": "horror ghost",
+   "recipe": "community/starter.mjs paramsFor('music')"
+  },
+  {
+   "type": "music",
+   "category": "spooky",
+   "name": "Dungeon",
+   "prompt": "dark dungeon ambience music with low strings, loopable",
+   "words": "cave",
+   "recipe": "community/starter.mjs paramsFor('music')"
+  },
+  {
+   "type": "music",
+   "category": "spooky",
+   "name": "Tension",
+   "prompt": "suspenseful stealth music, loopable",
+   "words": "stealth sneaky",
+   "recipe": "community/starter.mjs paramsFor('music')"
+  },
+  {
+   "type": "music",
+   "category": "spooky",
+   "name": "Graveyard",
+   "prompt": "spooky halloween music with organ, loopable",
+   "words": "halloween",
+   "recipe": "community/starter.mjs paramsFor('music')"
+  },
+  {
+   "type": "music",
+   "category": "spooky",
+   "name": "Deep dark",
+   "prompt": "ominous dark ambient soundtrack, loopable",
+   "words": "ambient horror",
+   "recipe": "community/starter.mjs paramsFor('music')"
+  },
+  {
+   "type": "music",
+   "category": "retro",
+   "name": "Chiptune hero",
+   "prompt": "upbeat 8-bit chiptune adventure music, loopable",
+   "words": "8bit arcade",
+   "recipe": "community/starter.mjs paramsFor('music')"
+  },
+  {
+   "type": "music",
+   "category": "retro",
+   "name": "Synthwave",
+   "prompt": "retro 80s synthwave with driving bass, loopable",
+   "words": "80s neon",
+   "recipe": "community/starter.mjs paramsFor('music')"
+  },
+  {
+   "type": "music",
+   "category": "retro",
+   "name": "Arcade",
+   "prompt": "bouncy arcade game music, loopable",
+   "words": "platformer",
+   "recipe": "community/starter.mjs paramsFor('music')"
+  },
+  {
+   "type": "music",
+   "category": "retro",
+   "name": "Pixel castle",
+   "prompt": "16-bit style castle level music, loopable",
+   "words": "16bit",
+   "recipe": "community/starter.mjs paramsFor('music')"
+  },
+  {
+   "type": "music",
+   "category": "retro",
+   "name": "Title theme",
+   "prompt": "catchy retro game title screen theme, loopable",
+   "words": "menu",
+   "recipe": "community/starter.mjs paramsFor('music')"
+  },
+  {
+   "type": "music",
+   "category": "menu",
+   "name": "Main menu",
+   "prompt": "inviting cinematic main menu music, loopable",
+   "words": "title",
+   "recipe": "community/starter.mjs paramsFor('music')"
+  },
+  {
+   "type": "music",
+   "category": "menu",
+   "name": "Victory",
+   "prompt": "short triumphant victory fanfare",
+   "words": "win",
+   "recipe": "community/starter.mjs paramsFor('music')"
+  },
+  {
+   "type": "music",
+   "category": "menu",
+   "name": "Game over",
+   "prompt": "short sad game over jingle",
+   "words": "lose",
+   "recipe": "community/starter.mjs paramsFor('music')"
+  },
+  {
+   "type": "music",
+   "category": "menu",
+   "name": "Shop",
+   "prompt": "jazzy relaxed shop music, loopable",
+   "words": "store",
+   "recipe": "community/starter.mjs paramsFor('music')"
+  },
+  {
+   "type": "music",
+   "category": "menu",
+   "name": "Credits",
+   "prompt": "warm uplifting credits music, loopable",
+   "words": "ending",
+   "recipe": "community/starter.mjs paramsFor('music')"
+  },
+  {
+   "type": "ambience",
+   "category": "nature",
+   "name": "Forest",
+   "prompt": "forest ambience with birds and light wind, seamless loop",
+   "words": "birds trees",
+   "recipe": "community/starter.mjs paramsFor('ambience')"
+  },
+  {
+   "type": "ambience",
+   "category": "nature",
+   "name": "Rain",
+   "prompt": "steady rain on leaves with soft thunder, seamless loop",
+   "words": "weather storm",
+   "recipe": "community/starter.mjs paramsFor('ambience')"
+  },
+  {
+   "type": "ambience",
+   "category": "nature",
+   "name": "Ocean waves",
+   "prompt": "ocean waves on a beach with seagulls, seamless loop",
+   "words": "beach sea",
+   "recipe": "community/starter.mjs paramsFor('ambience')"
+  },
+  {
+   "type": "ambience",
+   "category": "nature",
+   "name": "Campfire",
+   "prompt": "crackling campfire at night with crickets, seamless loop",
+   "words": "fire night",
+   "recipe": "community/starter.mjs paramsFor('ambience')"
+  },
+  {
+   "type": "ambience",
+   "category": "nature",
+   "name": "Wind",
+   "prompt": "howling wind on a mountain, seamless loop",
+   "words": "mountain snow",
+   "recipe": "community/starter.mjs paramsFor('ambience')"
+  },
+  {
+   "type": "ambience",
+   "category": "places",
+   "name": "City",
+   "prompt": "busy city street ambience with traffic and people, seamless loop",
+   "words": "urban street",
+   "recipe": "community/starter.mjs paramsFor('ambience')"
+  },
+  {
+   "type": "ambience",
+   "category": "places",
+   "name": "Cave",
+   "prompt": "dripping cave ambience with distant echoes, seamless loop",
+   "words": "dungeon",
+   "recipe": "community/starter.mjs paramsFor('ambience')"
+  },
+  {
+   "type": "ambience",
+   "category": "places",
+   "name": "Spaceship",
+   "prompt": "spaceship interior hum with soft beeps, seamless loop",
+   "words": "scifi engine",
+   "recipe": "community/starter.mjs paramsFor('ambience')"
+  },
+  {
+   "type": "ambience",
+   "category": "places",
+   "name": "Tavern",
+   "prompt": "busy medieval tavern chatter and clinks, seamless loop",
+   "words": "inn crowd",
+   "recipe": "community/starter.mjs paramsFor('ambience')"
+  },
+  {
+   "type": "ambience",
+   "category": "places",
+   "name": "Factory",
+   "prompt": "industrial factory machines, seamless loop",
+   "words": "machines",
+   "recipe": "community/starter.mjs paramsFor('ambience')"
+  },
+  {
+   "type": "sfx",
+   "category": "weapons",
+   "name": "Laser shot",
+   "prompt": "sci-fi laser blaster shot",
+   "words": "gun pew",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "weapons",
+   "name": "Gunshot",
+   "prompt": "punchy pistol gunshot",
+   "words": "gun",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "weapons",
+   "name": "Sword swing",
+   "prompt": "sword swinging whoosh",
+   "words": "melee slash",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "weapons",
+   "name": "Bow shot",
+   "prompt": "arrow released from a bow",
+   "words": "arrow",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "weapons",
+   "name": "Reload",
+   "prompt": "gun reload click and slide",
+   "words": "gun ammo",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "impacts",
+   "name": "Explosion",
+   "prompt": "big explosion boom",
+   "words": "blast",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "impacts",
+   "name": "Punch",
+   "prompt": "heavy punch hit",
+   "words": "hit fight",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "impacts",
+   "name": "Wood break",
+   "prompt": "wooden crate smashing",
+   "words": "crash",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "impacts",
+   "name": "Metal clang",
+   "prompt": "metal clang hit",
+   "words": "hit",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "impacts",
+   "name": "Glass shatter",
+   "prompt": "glass shattering",
+   "words": "break",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "pickups",
+   "name": "Coin",
+   "prompt": "bright coin pickup chime",
+   "words": "collect money",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "pickups",
+   "name": "Power-up",
+   "prompt": "rising magical power-up sound",
+   "words": "upgrade",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "pickups",
+   "name": "Heal",
+   "prompt": "soft sparkling heal sound",
+   "words": "health",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "pickups",
+   "name": "Gem",
+   "prompt": "crystal gem collect sound",
+   "words": "collect",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "pickups",
+   "name": "Level up",
+   "prompt": "triumphant level up jingle",
+   "words": "win",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "ui",
+   "name": "Click",
+   "prompt": "clean UI button click",
+   "words": "button",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "ui",
+   "name": "Hover",
+   "prompt": "soft UI hover tick",
+   "words": "button",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "ui",
+   "name": "Confirm",
+   "prompt": "positive UI confirm chime",
+   "words": "ok",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "ui",
+   "name": "Error",
+   "prompt": "short UI error buzz",
+   "words": "wrong",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "ui",
+   "name": "Menu open",
+   "prompt": "futuristic menu open whoosh",
+   "words": "whoosh",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "movement",
+   "name": "Jump",
+   "prompt": "cartoon jump boing",
+   "words": "hop",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "movement",
+   "name": "Footsteps",
+   "prompt": "footsteps on gravel",
+   "words": "walk",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "movement",
+   "name": "Land",
+   "prompt": "landing thud",
+   "words": "fall",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "movement",
+   "name": "Dash",
+   "prompt": "quick dash whoosh",
+   "words": "speed",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "movement",
+   "name": "Splash",
+   "prompt": "splash into water",
+   "words": "water",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "world",
+   "name": "Door open",
+   "prompt": "creaky wooden door opening",
+   "words": "door",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "world",
+   "name": "Switch",
+   "prompt": "mechanical lever switch",
+   "words": "button lever",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "world",
+   "name": "Alarm",
+   "prompt": "sci-fi alarm siren",
+   "words": "warning",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "world",
+   "name": "Teleport",
+   "prompt": "sci-fi teleport warp",
+   "words": "portal",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "world",
+   "name": "Magic spell",
+   "prompt": "magic spell cast shimmer",
+   "words": "magic",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "creatures",
+   "name": "Monster growl",
+   "prompt": "deep monster growl",
+   "words": "roar enemy",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "creatures",
+   "name": "Robot beep",
+   "prompt": "cute robot beeps",
+   "words": "bot",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "creatures",
+   "name": "Slime",
+   "prompt": "squishy slime squelch",
+   "words": "goo",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "creatures",
+   "name": "Bird chirp",
+   "prompt": "small bird chirping",
+   "words": "bird",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "sfx",
+   "category": "creatures",
+   "name": "Zombie groan",
+   "prompt": "zombie groan",
+   "words": "undead",
+   "recipe": "community/starter.mjs paramsFor('sfx')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer intro",
+   "prompt": "[slowly, warmly, vast] I have given you the power of free will. [long pause] Do with it what you will.",
+   "words": "overseer intro beginning free will",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer you found your way",
+   "prompt": "[calm, approving] You found your way. Good.",
+   "words": "overseer guide dock",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer the sea gives",
+   "prompt": "[softly] The sea gives. [pause] Remember that.",
+   "words": "overseer guide fish",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer destruction",
+   "prompt": "[a little amused] Destruction is a kind of freedom too.",
+   "words": "overseer guide explosion",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer ask and I will send it",
+   "prompt": "[generous] Ask, [pause] and I will send it down.",
+   "words": "overseer guide spawn",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer your world",
+   "prompt": "[slowly, proud] That is your world. [pause] All of it.",
+   "words": "overseer guide planet",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer mirror open",
+   "prompt": "[warm, slow] Before you go anywhere: look. [pause] That is you. [amused] For now.",
+   "words": "overseer mirror beginning",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer mirror what",
+   "prompt": "[curious] First question. [pause] What are you?",
+   "words": "overseer mirror what",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer mirror look",
+   "prompt": "[warm] Now. [pause] How do you look?",
+   "words": "overseer mirror look",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer mirror name",
+   "prompt": "[gently] And what are you called?",
+   "words": "overseer mirror name",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer mirror view",
+   "prompt": "[calm] How will you see the world? [pause] Through your own eyes, or over your shoulder?",
+   "words": "overseer mirror view",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer mirror done",
+   "prompt": "[pleased] I will remember that. [pause] Go on, then.",
+   "words": "overseer mirror done",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is person",
+   "prompt": "[amused] A person. Classic. Nobody will suspect a thing.",
+   "words": "overseer mirror person",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is robot",
+   "prompt": "[amused] A robot. Beep. I will assume that means hello.",
+   "words": "overseer mirror robot",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is tvbot",
+   "prompt": "[amused] A television with legs. Finally, something worth watching.",
+   "words": "overseer mirror tvbot",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is rollbot",
+   "prompt": "[amused] A ball with ambitions. Roll with it.",
+   "words": "overseer mirror rollbot",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is dog",
+   "prompt": "[warm, amused] Who is a good dog? You are. Obviously.",
+   "words": "overseer mirror dog",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is cat",
+   "prompt": "[warm, amused] A cat. You were going to ignore me anyway.",
+   "words": "overseer mirror cat",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is fox",
+   "prompt": "[warm, amused] A fox. Clever. Suspiciously clever.",
+   "words": "overseer mirror fox",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is pig",
+   "prompt": "[warm, amused] A pig. Clean, clever, and deeply misunderstood.",
+   "words": "overseer mirror pig",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is bear",
+   "prompt": "[warm, amused] A bear. Please do not eat Pip.",
+   "words": "overseer mirror bear",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is rabbit",
+   "prompt": "[warm, amused] A bunny. Hop responsibly.",
+   "words": "overseer mirror rabbit",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is penguin",
+   "prompt": "[warm, amused] A penguin. Dressed for a party that has not started yet.",
+   "words": "overseer mirror penguin",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is chicken",
+   "prompt": "[warm, amused] A chicken. Brave of you, all things considered.",
+   "words": "overseer mirror chicken",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is cow",
+   "prompt": "[warm, amused] A cow. Moo is a complete sentence.",
+   "words": "overseer mirror cow",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is sheep",
+   "prompt": "[warm, amused] A sheep. Fluffy, and following no one.",
+   "words": "overseer mirror sheep",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is horse",
+   "prompt": "[warm, amused] A horse. Neigh-ver change.",
+   "words": "overseer mirror horse",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is dinosaur",
+   "prompt": "[warm, amused] A dinosaur. Extinction was only ever a rumor.",
+   "words": "overseer mirror dinosaur",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is fish",
+   "prompt": "[warm, amused] A fish. On land. Bold. Very bold.",
+   "words": "overseer mirror fish",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is shoe",
+   "prompt": "[dry, amused] A shoe. Bold. The universe has never seen a shoe with ambition.",
+   "words": "overseer mirror shoe",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is toaster",
+   "prompt": "[dry, amused] A toaster. Warm, reliable, and never allowed near the bath.",
+   "words": "overseer mirror toaster",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is cactus",
+   "prompt": "[dry, amused] A cactus. Hugs are off the table, then.",
+   "words": "overseer mirror cactus",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is cone",
+   "prompt": "[dry, amused] A traffic cone. You will direct traffic. Or stand there. Either way.",
+   "words": "overseer mirror cone",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is teapot",
+   "prompt": "[dry, amused] A teapot. Short and stout, I am told.",
+   "words": "overseer mirror teapot",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is banana",
+   "prompt": "[dry, amused] A banana. Please, nobody slip.",
+   "words": "overseer mirror banana",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is mushroom",
+   "prompt": "[dry, amused] A mushroom. A fun guy, I hear.",
+   "words": "overseer mirror mushroom",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is potato",
+   "prompt": "[dry, amused] A potato. Humble. Versatile. Mashed, eventually.",
+   "words": "overseer mirror potato",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer is duck",
+   "prompt": "[dry, amused] A rubber duck. Squeak with purpose.",
+   "words": "overseer mirror duck",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer welcome aboard",
+   "prompt": "[warm, vast] Welcome aboard.",
+   "words": "overseer dock ship",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  },
+  {
+   "type": "voice",
+   "category": "overseer",
+   "name": "Overseer a new one",
+   "prompt": "[generous] A new one, [pause] from me.",
+   "words": "overseer guide helicopter",
+   "recipe": "community/starter.mjs paramsFor('voice')"
+  }
+ ]
+}

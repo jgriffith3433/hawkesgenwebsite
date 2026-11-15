@@ -48,39 +48,162 @@
   // Assets by id or name, and by word (H.assets): the ground's textures and the scatter's models.
   const isImage = (ref) => { const a = H.assets.get(ref); return Boolean(a && a.type === 'image'); };
   const isMesh = (ref) => { const a = H.assets.get(ref); return Boolean(a && a.type === 'model'); };
-  /** The asset each ground layer uses, if the game has one: config.terrain.textures.<layer> (an id or a name), or the
-   *  game's image for "terrain <layer>" / "<layer>" ("grass", "sand"...). */
+  const isUrl = (ref) => typeof ref === 'string' && (/^\/play\//.test(ref) || /^https?:\/\//.test(ref));
+  /** Resolve a texture ref: a local /play path, an https URL, or a game asset id/name. */
+  function texUrl(ref, hint) {
+    if (!ref) return null;
+    if (isUrl(ref)) return String(ref);
+    try { return L.assetUrl(ref, hint); } catch { return null; }
+  }
+  /** Phone tier loads the 1K set (`foo-1k.webp` beside `foo.webp`); desktop prefers the 2K file. */
+  function tierUrl(ref) {
+    if (!ref || !isUrl(ref)) return ref;
+    const phone = H.device && H.device.tier === 'phone';
+    if (!phone) return ref;
+    return String(ref).replace(/(-2k)?(\.webp|\.png|\.jpg)$/i, '-1k$2');
+  }
+  /** The asset each ground layer uses, if the game has one: config.terrain.textures.<layer> (an id, name or /play URL),
+   *  or the game's image for "terrain <layer>" / "<layer>" ("grass", "sand"...). */
   function layerAssets(cfg) {
     const out = {};
-    for (const l of T.LAYERS) { const n = (cfg.textures[l] && isImage(cfg.textures[l]) ? cfg.textures[l] : null) || H.assets.pick(`terrain ${l}`, { kind: 'image' }); if (n) out[l] = n; }
+    for (const l of T.LAYERS) {
+      const raw = cfg.textures[l];
+      const n = (raw && (isUrl(raw) || isImage(raw)) ? raw : null) || H.assets.pick(`terrain ${l}`, { kind: 'image' });
+      if (n) out[l] = n;
+    }
     return out;
   }
+  function loadTex(scene, ref, name) {
+    const url = texUrl(tierUrl(ref));
+    if (!url) return null;
+    try {
+      const tx = new B.Texture(url, scene, false, true, B.Texture.TRILINEAR_SAMPLINGMODE);
+      tx.wrapU = tx.wrapV = B.Texture.WRAP_ADDRESSMODE;
+      tx.name = name || url;
+      return tx;
+    } catch { return null; }
+  }
+  /** Soft large-scale macro variation (code-made): kills obvious tiling from the air without another Gen file. */
+  function macroTexture(scene) {
+    const S = 256;
+    const tex = new B.DynamicTexture('terrain-macro', { width: S, height: S }, scene, true);
+    const ctx = tex.getContext();
+    const img = ctx.createImageData(S, S);
+    if (!img || !img.data) return tex;
+    const nz = T.makeNoise(91);
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const u = x / S, v = y / S;
+      const n = (fx, fy) => 0.55 * nz(fx * 2, fy * 2) + 0.3 * nz(fx * 5 + 2, fy * 5 + 1) + 0.15 * nz(fx * 11, fy * 11);
+      const val = n(u, v) * (1 - u) * (1 - v) + n(u - 1, v) * u * (1 - v) + n(u, v - 1) * (1 - u) * v + n(u - 1, v - 1) * u * v;
+      const k = Math.max(0, Math.min(1, 0.72 + val * 0.55));
+      const i = (y * S + x) * 4;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = Math.round(255 * k); img.data[i + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    tex.update();
+    tex.wrapU = tex.wrapV = B.Texture.WRAP_ADDRESSMODE;
+    return tex;
+  }
 
-  /** Blends real textures by the ground weights (a StandardMaterial plugin: lights, shadows and fog still work). */
+  /** Blends real textures by the ground weights (a StandardMaterial plugin: lights, shadows and fog still work).
+   *  Adds macro tint, distance detail blending, optional normals, and triplanar rock on desktop. */
   class SplatPlugin extends B.MaterialPluginBase {
-    constructor(material, textures, tile) {
+    constructor(material, o) {
       super(material, 'TerrainSplat', 200, { TERRAIN_SPLAT: false });
-      this.textures = textures; this.tile = tile;
+      this.albedos = o.albedos; this.normals = o.normals || []; this.macro = o.macro || null;
+      this.tile = o.tile; this.macroTile = o.macroTile || 48; this.triplanar = !!o.triplanar;
+      this.detailNear = o.detailNear || 6; this.detailFar = o.detailFar || 28;
       this._enable(true);
     }
     getClassName() { return 'TerrainSplatPlugin'; }
-    prepareDefines(defines) { defines.TERRAIN_SPLAT = true; }
-    isReadyForSubMesh() { return this.textures.every((t) => !t || t.isReady()); }
+    prepareDefines(defines) {
+      defines.TERRAIN_SPLAT = true;
+      defines.TERRAIN_MACRO = !!this.macro;
+      defines.TERRAIN_NORMALS = this.normals.some(Boolean);
+      defines.TERRAIN_TRIPLANAR = this.triplanar;
+    }
+    isReadyForSubMesh() {
+      const list = [...this.albedos, ...this.normals, this.macro];
+      return list.every((t) => !t || t.isReady());
+    }
     getAttributes(attributes) { attributes.push('splatA', 'splatB'); }
-    getSamplers(samplers) { for (let i = 0; i < 5; i++) samplers.push(`tSplat${i}`); }
-    getUniforms() { return { ubo: [{ name: 'terrainTile', size: 1, type: 'float' }], fragment: '#ifdef TERRAIN_SPLAT\nuniform float terrainTile;\n#endif\n' }; }
+    getSamplers(samplers) {
+      for (let i = 0; i < 5; i++) samplers.push(`tSplat${i}`);
+      for (let i = 0; i < 5; i++) samplers.push(`tNorm${i}`);
+      samplers.push('tMacro');
+    }
+    getUniforms() {
+      return {
+        ubo: [
+          { name: 'terrainTile', size: 1, type: 'float' },
+          { name: 'macroTile', size: 1, type: 'float' },
+          { name: 'detailNear', size: 1, type: 'float' },
+          { name: 'detailFar', size: 1, type: 'float' },
+          { name: 'camXZ', size: 2, type: 'vec2' },
+        ],
+        fragment: '#ifdef TERRAIN_SPLAT\nuniform float terrainTile;\nuniform float macroTile;\nuniform float detailNear;\nuniform float detailFar;\nuniform vec2 camXZ;\n#endif\n',
+      };
+    }
     bindForSubMesh(ubo) {
       ubo.updateFloat('terrainTile', this.tile);
-      for (let i = 0; i < 5; i++) ubo.setTexture(`tSplat${i}`, this.textures[i]);
+      ubo.updateFloat('macroTile', this.macroTile);
+      ubo.updateFloat('detailNear', this.detailNear);
+      ubo.updateFloat('detailFar', this.detailFar);
+      const p = H.world && H.world.player;
+      ubo.updateFloat2('camXZ', p ? p.x : 0, p ? p.z : 0);
+      for (let i = 0; i < 5; i++) ubo.setTexture(`tSplat${i}`, this.albedos[i]);
+      for (let i = 0; i < 5; i++) ubo.setTexture(`tNorm${i}`, this.normals[i] || this.albedos[i]);
+      if (this.macro) ubo.setTexture('tMacro', this.macro);
     }
     getCustomCode(type) {
       if (type === 'vertex') return {
-        CUSTOM_VERTEX_DEFINITIONS: '#ifdef TERRAIN_SPLAT\nattribute vec4 splatA;\nattribute vec4 splatB;\nvarying vec4 vSplatA;\nvarying vec4 vSplatB;\nvarying vec2 vTerrainXZ;\n#endif\n',
-        CUSTOM_VERTEX_MAIN_END: '#ifdef TERRAIN_SPLAT\nvSplatA = splatA;\nvSplatB = splatB;\nvTerrainXZ = worldPos.xz;\n#endif\n',
+        CUSTOM_VERTEX_DEFINITIONS: '#ifdef TERRAIN_SPLAT\nattribute vec4 splatA;\nattribute vec4 splatB;\nvarying vec4 vSplatA;\nvarying vec4 vSplatB;\nvarying vec2 vTerrainXZ;\nvarying vec3 vTerrainN;\nvarying vec3 vTerrainPos;\n#endif\n',
+        CUSTOM_VERTEX_MAIN_END: '#ifdef TERRAIN_SPLAT\nvSplatA = splatA;\nvSplatB = splatB;\nvTerrainXZ = worldPos.xz;\nvTerrainPos = worldPos.xyz;\nvTerrainN = normalize(mat3(world) * normalUpdated);\n#endif\n',
       };
       if (type === 'fragment') return {
-        CUSTOM_FRAGMENT_DEFINITIONS: '#ifdef TERRAIN_SPLAT\nvarying vec4 vSplatA;\nvarying vec4 vSplatB;\nvarying vec2 vTerrainXZ;\nuniform sampler2D tSplat0;\nuniform sampler2D tSplat1;\nuniform sampler2D tSplat2;\nuniform sampler2D tSplat3;\nuniform sampler2D tSplat4;\n#endif\n',
-        CUSTOM_FRAGMENT_UPDATE_DIFFUSE: '#ifdef TERRAIN_SPLAT\nvec2 tUV = vTerrainXZ / terrainTile;\nbaseColor.rgb = texture2D(tSplat0, tUV).rgb * vSplatA.x + texture2D(tSplat1, tUV).rgb * vSplatA.y + texture2D(tSplat2, tUV).rgb * vSplatA.z + texture2D(tSplat3, tUV).rgb * vSplatA.w + texture2D(tSplat4, tUV).rgb * vSplatB.x;\n#endif\n',
+        CUSTOM_FRAGMENT_DEFINITIONS: [
+          '#ifdef TERRAIN_SPLAT',
+          'varying vec4 vSplatA; varying vec4 vSplatB; varying vec2 vTerrainXZ; varying vec3 vTerrainN; varying vec3 vTerrainPos;',
+          'uniform sampler2D tSplat0; uniform sampler2D tSplat1; uniform sampler2D tSplat2; uniform sampler2D tSplat3; uniform sampler2D tSplat4;',
+          'uniform sampler2D tNorm0; uniform sampler2D tNorm1; uniform sampler2D tNorm2; uniform sampler2D tNorm3; uniform sampler2D tNorm4;',
+          'uniform sampler2D tMacro;',
+          'vec3 hpSplatAlb(vec2 uv) {',
+          '  return texture2D(tSplat0, uv).rgb * vSplatA.x + texture2D(tSplat1, uv).rgb * vSplatA.y + texture2D(tSplat2, uv).rgb * vSplatA.z + texture2D(tSplat3, uv).rgb * vSplatA.w + texture2D(tSplat4, uv).rgb * vSplatB.x;',
+          '}',
+          'vec3 hpSplatNrm(vec2 uv) {',
+          '  return texture2D(tNorm0, uv).xyz * vSplatA.x + texture2D(tNorm1, uv).xyz * vSplatA.y + texture2D(tNorm2, uv).xyz * vSplatA.z + texture2D(tNorm3, uv).xyz * vSplatA.w + texture2D(tNorm4, uv).xyz * vSplatB.x;',
+          '}',
+          '#endif',
+        ].join('\n'),
+        CUSTOM_FRAGMENT_UPDATE_DIFFUSE: [
+          '#ifdef TERRAIN_SPLAT',
+          'float hpDist = length(vTerrainXZ - camXZ);',
+          'float hpBlend = clamp((hpDist - detailNear) / max(0.01, detailFar - detailNear), 0.0, 1.0);',
+          'vec2 uvNear = vTerrainXZ / terrainTile;',
+          'vec2 uvFar = vTerrainXZ / (terrainTile * 4.0);',
+          'vec3 alb = mix(hpSplatAlb(uvNear), hpSplatAlb(uvFar), hpBlend);',
+          '#ifdef TERRAIN_TRIPLANAR',
+          'if (vSplatA.z > 0.45) {',
+          '  vec3 n = abs(normalize(vTerrainN)); n = max(n, vec3(0.001)); n /= (n.x + n.y + n.z);',
+          '  vec3 tp = texture2D(tSplat2, vTerrainPos.yz / terrainTile).rgb * n.x + texture2D(tSplat2, vTerrainPos.xz / terrainTile).rgb * n.y + texture2D(tSplat2, vTerrainPos.xy / terrainTile).rgb * n.z;',
+          '  alb = mix(alb, tp, clamp((vSplatA.z - 0.45) / 0.4, 0.0, 1.0));',
+          '}',
+          '#endif',
+          '#ifdef TERRAIN_MACRO',
+          'alb *= mix(vec3(1.0), texture2D(tMacro, vTerrainXZ / macroTile).rgb, 0.35);',
+          '#endif',
+          'baseColor.rgb = alb;',
+          '#endif',
+        ].join('\n'),
+        CUSTOM_FRAGMENT_BEFORE_LIGHTS: [
+          '#ifdef TERRAIN_SPLAT',
+          '#ifdef TERRAIN_NORMALS',
+          'vec2 uvN = mix(vTerrainXZ / terrainTile, vTerrainXZ / (terrainTile * 4.0), clamp((length(vTerrainXZ - camXZ) - detailNear) / max(0.01, detailFar - detailNear), 0.0, 1.0));',
+          'vec3 nTex = hpSplatNrm(uvN) * 2.0 - 1.0;',
+          'normalW = normalize(normalW + vec3(nTex.x, 0.0, nTex.y) * 0.55);',
+          '#endif',
+          '#endif',
+        ].join('\n'),
       };
       return null;
     }
@@ -92,21 +215,51 @@
     m.specularColor = new B.Color3(0.04, 0.04, 0.04);
     t.textures = [];
     const assets = layerAssets(cfg);
-    t.splat = Object.keys(assets).length > 0;
+    const maps = cfg.maps || {};
+    const phone = H.device && H.device.tier === 'phone';
+    const forceSplat = cfg.splat && cfg.splat.force;
+    t.splat = Object.keys(assets).length > 0 || forceSplat;
+    const bytes = { albedo: 0, normal: 0, total: 0, tier: phone ? '1k' : '2k', triplanar: !phone, ready: false };
     if (t.splat) {
-      // Real textures where the game has them, a colored stand-in for the other layers.
-      const list = T.LAYERS.map((l, i) => {
-        if (assets[l]) { try { const tx = new B.Texture(L.assetUrl(assets[l]), scene, false, true, B.Texture.TRILINEAR_SAMPLINGMODE); tx.wrapU = tx.wrapV = B.Texture.WRAP_ADDRESSMODE; return tx; } catch { /* stand-in below */ } }
+      const albedos = T.LAYERS.map((l, i) => {
+        const tx = assets[l] ? loadTex(scene, assets[l], `terrain-${l}`) : null;
+        if (tx) { bytes.ready = true; return tx; }
         return noiseTexture(scene, `terrain-${l}`, cfg.colors[l] || T.COLORS[l], 11 + i);
       });
-      t.textures = list;
-      try { t.plugin = new SplatPlugin(m, list, cfg.tile); } catch (err) { H.report(err, 'terrain'); t.splat = false; }
+      const normals = T.LAYERS.map((l, i) => {
+        const ref = maps[l] && (maps[l].normal || maps[l]);
+        return ref ? loadTex(scene, ref, `terrain-n-${l}`) : null;
+      });
+      if (normals.some(Boolean)) bytes.ready = true;
+      const macro = cfg.macro === false ? null : macroTexture(scene);
+      t.textures = albedos.slice();
+      if (macro) t.textures.push(macro);
+      try {
+        t.plugin = new SplatPlugin(m, {
+          albedos, normals, macro, tile: cfg.tile,
+          macroTile: (cfg.macro && cfg.macro.tile) || 56,
+          triplanar: !phone && cfg.splat && cfg.splat.triplanar !== false,
+          detailNear: (cfg.splat && cfg.splat.detailNear) || 8,
+          detailFar: (cfg.splat && cfg.splat.detailFar) || 36,
+        });
+      } catch (err) { H.report(err, 'terrain'); t.splat = false; }
     }
     if (!t.splat) {
       const d = noiseTexture(scene, 'terrain-detail', null, 7);
       m.diffuseTexture = d;
       t.textures.push(d);
     }
+    // Playtest / monitor: what the island materials loaded (bytes filled once Gen files land via manifest).
+    const known = (cfg.splat && cfg.splat.bytes) || {};
+    bytes.total = phone ? (known.phone || 0) : (known.desktop || 0);
+    bytes.albedo = phone ? (known.phoneAlbedo || bytes.total) : (known.desktopAlbedo || bytes.total);
+    t.matInfo = bytes;
+    try {
+      window.__islandMats = {
+        tier: bytes.tier, bytes: bytes.total, triplanar: !phone && !!(t.plugin && t.plugin.triplanar),
+        ready: bytes.ready, layers: T.LAYERS.slice(), wetSand: T.wetSandMode(t.f || { cfg, max: 0 }),
+      };
+    } catch { /* tests */ }
     return m;
   }
 
@@ -270,15 +423,15 @@
     if (!plan) return;
     const scene = t.scene;
     const mat = (name, color) => { const m = new B.StandardMaterial(name, scene); m.diffuseColor = L.hex(color); m.specularColor = new B.Color3(0.03, 0.03, 0.03); return m; };
-    const part = (mesh, material, offset) => { mesh.material = material; mesh.isPickable = false; mesh.metadata = { decor: true }; mesh.receiveShadows = true; mesh.parent = t.root; return { mesh, offset }; };
+    const part = (mesh, material, offset, wind) => { mesh.material = material; mesh.isPickable = false; mesh.metadata = wind ? { decor: true, wind } : { decor: true }; mesh.receiveShadows = true; mesh.parent = t.root; return { mesh, offset }; };
     const kinds = {
       trees: () => [
-        part(B.MeshBuilder.CreateCylinder('tree-trunk', { diameterTop: 0.35, diameterBottom: 0.55, height: 2.6, tessellation: 6 }, scene), mat('tree-trunk', '#6b4a2f'), 1.3),
-        part(B.MeshBuilder.CreateCylinder('tree-crown', { diameterTop: 0, diameterBottom: 3.6, height: 4.6, tessellation: 7 }, scene), mat('tree-crown', '#3d6b35'), 4.2),
-        part(B.MeshBuilder.CreateCylinder('tree-crown2', { diameterTop: 0, diameterBottom: 2.6, height: 3.2, tessellation: 7 }, scene), mat('tree-crown2', '#4a7d3f'), 6.1),
+        part(B.MeshBuilder.CreateCylinder('tree-trunk', { diameterTop: 0.35, diameterBottom: 0.55, height: 2.6, tessellation: 6 }, scene), mat('tree-trunk', '#6b4a2f'), 1.3, 'tree'),
+        part(B.MeshBuilder.CreateCylinder('tree-crown', { diameterTop: 0, diameterBottom: 3.6, height: 4.6, tessellation: 7 }, scene), mat('tree-crown', '#3d6b35'), 4.2, 'tree'),
+        part(B.MeshBuilder.CreateCylinder('tree-crown2', { diameterTop: 0, diameterBottom: 2.6, height: 3.2, tessellation: 7 }, scene), mat('tree-crown2', '#4a7d3f'), 6.1, 'tree'),
       ],
       rocks: () => [part(B.MeshBuilder.CreateIcoSphere('rock', { radius: 0.8, subdivisions: 1, flat: true }, scene), mat('rock', '#8b8780'), 0.25)],
-      bushes: () => [part(B.MeshBuilder.CreateIcoSphere('bush', { radius: 0.7, subdivisions: 1, flat: true }, scene), mat('bush', '#557f3a'), 0.35)],
+      bushes: () => [part(B.MeshBuilder.CreateIcoSphere('bush', { radius: 0.7, subdivisions: 1, flat: true }, scene), mat('bush', '#557f3a'), 0.35, 'bush')],
     };
     for (const kind of ['trees', 'rocks', 'bushes']) {
       if (!plan[kind]) continue;
@@ -321,7 +474,30 @@
           const y = T.heightAt(t.f, p[0], p[1]) ?? 0;
           const s = group.alive[i] ? p[2] : 0;
           const sy = group.kind === 'rocks' ? s * (0.5 + p[4] * 0.5) : s;
-          B.Matrix.ComposeToRef(new B.Vector3(s, sy, s), B.Quaternion.RotationYawPitchRoll(p[3], group.kind === 'rocks' ? p[4] * 0.5 : 0, 0), new B.Vector3(p[0] - cx, y + part.offset * sy - (group.kind === 'trees' ? 0.15 : 0), p[1] - cz), tmp);
+          // Trees dig a little; rocks and bushes tip with the slope (capped ~15°) and sink so the base never shows air.
+          const nrm = T.normalAt(t.f, p[0], p[1]) || [0, 1, 0];
+          const maxTilt = group.kind === 'rocks' ? 15 : group.kind === 'bushes' ? 10 : 0;
+          let pitch = 0, roll = 0;
+          if (maxTilt) {
+            const maxC = Math.cos(maxTilt * Math.PI / 180);
+            let nx = nrm[0], ny = nrm[1], nz = nrm[2];
+            const L = Math.hypot(nx, ny, nz) || 1;
+            nx /= L; ny /= L; nz /= L;
+            if (ny < maxC) {
+              const flat = Math.hypot(nx, nz) || 1e-9;
+              const k = Math.sin(maxTilt * Math.PI / 180) / flat;
+              nx *= k; nz *= k; ny = maxC;
+              const L2 = Math.hypot(nx, ny, nz) || 1;
+              nx /= L2; ny /= L2; nz /= L2;
+            }
+            pitch = Math.atan2(nz, ny);
+            roll = -Math.atan2(nx, ny);
+          } else if (group.kind === 'rocks') {
+            pitch = p[4] * 0.35;
+          }
+          // Dig stays within 5 cm so the world-quality ground rule and scatter agree.
+          const dig = group.kind === 'trees' ? 0.05 : group.kind === 'rocks' ? 0.05 : group.kind === 'bushes' ? 0.04 : 0;
+          B.Matrix.ComposeToRef(new B.Vector3(s, sy, s), B.Quaternion.RotationYawPitchRoll(p[3], pitch, roll), new B.Vector3(p[0] - cx, y + part.offset * sy - dig, p[1] - cz), tmp);
           tmp.copyToArray(buf, j * 16);
         });
         part.buf = buf;
@@ -363,7 +539,7 @@
       merged.scaling.setAll(k);
       merged.position.y = -bb.minimum.y * k;
       merged.bakeCurrentTransformIntoVertices();
-      merged.isPickable = false; merged.metadata = { decor: true }; merged.receiveShadows = true;
+      merged.isPickable = false; merged.metadata = group.kind === 'rocks' ? { decor: true } : { decor: true, wind: group.kind === 'trees' ? 'tree' : 'bush' }; merged.receiveShadows = true;
       merged.parent = t.root; // (with the ground: a round world's frame moves it)
       // (The stand-ins stay for the far copies.)
       group.far = group.parts;
@@ -1077,7 +1253,7 @@
       }
       // The Overseer reshaping the ground (H.work.active): the new shape rises and sinks in steps under its beams, not a
       // snap, when only the land's shape changed (same grid, same look: colors, textures, scatter, sea, roads).
-      const look = (c) => JSON.stringify([c.colors, c.textures, c.tile, c.scatter, c.sea, c.road, c.home]);
+      const look = (c) => JSON.stringify([c.colors, c.textures, c.maps, c.tile, c.macro, c.splat, c.scatter, c.sea, c.road, c.home]);
       if (t && H.work && H.work.active && look(a) === look(b) && H.arrive && H.arrive.quake && growTo(t, value, { steps: 4, seconds: 8 })) return;
       if (t && prefix && strip(a) === strip(b)) {
         // Only new edits (the brush): apply what isn't already showing.

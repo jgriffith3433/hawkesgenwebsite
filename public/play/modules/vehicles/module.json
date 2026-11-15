@@ -1,7 +1,7 @@
 {
   "title": "Vehicles",
   "order": 50,
-  "scripts": ["vehicles-types.js", "vehicles.js", "vehicles-play.js", "vehicles-feel.js"],
+  "scripts": ["vehicles-types.js", "vehicles.js", "vehicles-play.js", "vehicles-feel.js", "vehicles-vfx.js", "vehicles-sound.js"],
   "kinds": ["car", "truck", "bicycle", "motorbike", "boat", "submarine", "airplane", "helicopter", "rocket", "spaceship", "vehicle"],
   "lazy": true,
   "words": ["vehicles", "vehicle", "drive"]

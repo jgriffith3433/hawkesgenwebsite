@@ -27,16 +27,20 @@ onto the ground: the terrain's height is `game.terrain.heightAt(x, z)`).
 | `snow` | the snow line height, or `false` | high peaks get snow |
 | `home` | `false`: don't flatten the area around the start (0, 0) | true |
 | `colors` | `{ "grass": "#5f8f3e", "dirt": ..., "rock": ..., "snow": ..., "sand": ... }` stand-in colors | |
-| `textures` | `{ "grass": "<asset>", ... }`: image assets (ids) per ground layer (also used automatically: the game's images for "terrain grass", "terrain rock", ... by word) | |
+| `textures` | `{ "grass": "<asset or /play/... url>", ... }`: image assets (ids) or local `/play/` paths per ground layer (also by word: "terrain grass"...). On islands without snow, the `snow` slot is **wet sand** below the tide (footsteps still say `sand`) | |
+| `maps` | `{ "grass": { "normal": "<url>" }, ... }`: optional normal maps per layer for bumps in the light | |
+| `macro` | `{ "tile": 56 }` large-scale tint so tiling does not read from the air, or `false` | on when textures are set |
+| `splat` | `{ "triplanar": true, "detailNear": 8, "detailFar": 36, "force": true }`: distance detail blend; cliff triplanar (desktop only; phones skip it) | |
 | `tile` | meters one texture repeat covers | 4 |
 | `scatter` | `{ "trees": 260, "rocks": 120, "bushes": 220, "seed": 3, "models": { "tree": "<asset>", "rock": "<asset>" } }` or `false`. Models also by word: "terrain tree"/"tree", "terrain rock"/"rock", "terrain bush"/"bush" (`config.assets.tree` picks which one). Scatter draws that one model hundreds of times from its lowest level of detail (Gen's), so keep counts in the hundreds | by shape |
 | `add` | extra shapes placed on top: `[{ "type": "mountain", "at": [x, z], "radius": 100, "height": 60, "road": true }]`. Types: `mountain`, `volcano`, `hill`, `plateau` (`height`), `crater`, `hole`, `lake` (a bowl, `depth`), `flat` (level an area at `height`), `ridge` (`at`, `to`, `width`, `height`) | |
 | `edits` | the brush's strokes, in order (the editor writes these): `[op, radius, amount, x1, z1, x2, z2, ...]`, op one of `raise`, `lower`, `dig`, `hole`, `crater` (amount = depth), `flatten` (amount = height), `smooth` (0-1), `paint` (0 grass, 1 dirt, 2 rock, 3 snow, 4 sand, -1 erase) | |
 | `craters` | `false`: explosions don't mark the ground | true |
 
-Ground layers blend by themselves: grass on gentle ground, dirt on slopes, rock on cliffs, snow up high, sand by the
-sea. Roads and dug holes are painted dirt. The terrain's own thing is `game.terrain.entity` (tag `terrain`): rays and
-the crosshair hit it, so `hit.entity.isTerrain` tells you it's the ground.
+Ground layers blend by themselves: grass inland, dirt on mid slopes and painted roads, rock on cliffs above ~35°,
+snow up high (or **wet sand** below the tide on sea islands), dry sand on the shore. Roads and dug holes are painted
+dirt. Footstep surface names stay `grass` / `dirt` / `rock`→`stone` / `sand` / `wood`. The terrain's own thing is
+`game.terrain.entity` (tag `terrain`): rays and the crosshair hit it, so `hit.entity.isTerrain` tells you it's the ground.
 
 Playing together: what players dig, and craters, are shared (the host decides, late joiners catch up). Brush strokes
 are saved in the game. The terrain should be about 120 KB of edits at most (the brush says how full it is).

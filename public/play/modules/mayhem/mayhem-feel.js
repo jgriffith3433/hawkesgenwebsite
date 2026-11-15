@@ -90,6 +90,9 @@
     const L = M.boomLayers(R, dist);
     stats.layers++;
     const a = H.audio && H.audio.context;
+    // The impact library's blast (juice-impact.js): late by distance / 343 m/s, the far version past 60 m, then the debris.
+    // A game that names its own boom sound keeps it.
+    if (!asset && H.impact && H.impact.explosion && H.impact.explosion(at, R, { k })) return L;
     // The game has its own boom: one clip, late by distance and duller by volume. Else three synthesized layers.
     if (X.hasSound('boom', asset) || !a || a.state !== 'running') {
       const play = () => X.sound('boom', { at, size: R, asset });
@@ -98,13 +101,16 @@
     }
     const t0 = a.currentTime, noise = X.noise();
     if (!noise) return L;
+    // Heard from where it went off: placed (pan and HRTF) but with no second distance gain or filter, as the layers have theirs.
+    const sp = H.audio.spatial ? H.audio.spatial(at, { rolloff: 0, muffle: 0, who: 'explosion' }) : null;
+    const out = sp ? sp.input : (H.audio.effects || H.audio.master);
     const layer = (cfg, type, f0, f1, seconds, peak) => {
       if (cfg.gain < 0.02) return;
       const t = t0 + cfg.delay;
       const src = a.createBufferSource(); src.buffer = noise; src.start(t, Math.random(), seconds + 0.05); src.stop(t + seconds + 0.05);
       const f = a.createBiquadFilter(); f.type = type; f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(40, Math.min(f1, cfg.cutoff)), t + seconds);
       const g = a.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak * cfg.gain), t + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t + seconds);
-      src.connect(f).connect(g).connect(H.audio.master);
+      src.connect(f).connect(g).connect(out);
     };
     layer(L.crack, 'highpass', 1800, 900, 0.22, 0.7 * k + 0.2);
     layer(L.boom, 'lowpass', Math.min(2400, L.boom.cutoff), 70, L.boom.seconds, 0.9);
@@ -114,7 +120,7 @@
       const t = t0 + L.boom.delay;
       const os = a.createOscillator(); os.type = 'sine'; os.frequency.setValueAtTime(110, t); os.frequency.exponentialRampToValueAtTime(28, t + 0.6);
       const og = a.createGain(); og.gain.setValueAtTime(0.8 * L.boom.gain, t); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
-      os.connect(og).connect(H.audio.master); os.start(t); os.stop(t + 0.75);
+      os.connect(og).connect(out); os.start(t); os.stop(t + 0.75);
     }
     return L;
   }
@@ -151,7 +157,7 @@
 
   X.feel = {
     math: M, chain, note, embers, boomSound, muzzle, flush,
-    sample: () => ({ ...stats, live: live(), cap: cap(), pending: pending.length }),
-    reset: () => { Object.assign(stats, { chains: 0, rolled: 0, firstGap: 0, maxLive: 0, embers: 0, muzzle: 0, layers: 0, lastDelays: [] }); },
+    sample: () => ({ ...stats, live: live(), cap: cap(), pending: pending.length, vfx: X.vfx ? X.vfx.sample() : null }),
+    reset: () => { if (X.vfx) X.vfx.reset(); Object.assign(stats, { chains: 0, rolled: 0, firstGap: 0, maxLive: 0, embers: 0, muzzle: 0, layers: 0, lastDelays: [] }); },
   };
 })();

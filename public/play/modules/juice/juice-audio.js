@@ -1,8 +1,8 @@
 // Juice: sound everywhere, from the physics. Impacts by the two materials and how hard they met (the game's sound for
 // the word when it has one, "metal crash", "wood hit"..., else synthesized), footsteps by surface for you, the nearest
 // creatures and other players, rolling and scraping loops for things that roll and slide, tire squeal, wind at speed,
-// whooshes for things that fly past. Every sound is placed in the world (a panner) and goes through H.audio.master;
-// a voice budget with priorities keeps it to a few dozen at once however many cows there are.
+// whooshes for things that fly past. Every sound is placed in the world (a panner) and goes through H.audio.effects
+// (falling back to master); a voice budget with priorities keeps it to a few dozen at once however many cows there are.
 //   H.juice.sound.impact(a, b, { speed, at })   H.juice.sound.play(material | words, { at, loudness, size })
 //   H.juice.sound.footstep(surface, { at, loudness })   H.juice.sound.whoosh(at, speed)
 /* global HawkesPlay, BABYLON */
@@ -15,7 +15,8 @@
   const W = () => H.world;
   const clamp = M.clamp;
   const ctx = () => H.audio.context;
-  const live = () => { const a = ctx(); return a && a.state === 'running' && H.audio.master ? a : null; };
+  const bus = () => H.audio.effects || H.audio.master;
+  const live = () => { const a = ctx(); return a && a.state === 'running' && bus() ? a : null; };
   const camPos = () => { const w = W(); const c = w && w.scene && w.scene.activeCamera; return c ? c.globalPosition || c.position : null; };
   const distTo = (at) => { const c = camPos(); return c && at ? Math.hypot(at[0] - c.x, at[1] - c.y, at[2] - c.z) : 0; };
 
@@ -33,25 +34,33 @@
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     return noiseBuf;
   }
-  /** Where a sound goes: a panner at `at` (or straight to the master for sounds at your own ears), then the master. */
+  /** Where a sound goes: a panner at `at` (or straight for sounds at your own ears), then the effects bus. */
   function outFor(a, at, gain) {
+    const dest = bus();
     const g = a.createGain();
     g.gain.value = gain;
+    if (at && H.audio.spatial) {
+      // modules/mix: HRTF and a distance low-pass on a desktop, equal-power stereo on a phone; one listener.
+      const sp = H.audio.spatial(at, { ref: 3, max: 150, rolloff: 1.1, bus: dest, who: 'juice' });
+      if (sp) { g.connect(sp.input); return { g, p: sp }; }
+    }
     if (at) {
       const p = a.createPanner();
       p.panningModel = 'equalpower'; p.distanceModel = 'inverse'; p.refDistance = 3; p.maxDistance = 150; p.rolloffFactor = 1.1;
       setPos(p, at);
-      g.connect(p).connect(H.audio.master);
+      g.connect(p).connect(dest);
       return { g, p };
     }
-    g.connect(H.audio.master);
+    g.connect(dest);
     return { g, p: null };
   }
   function setPos(p, at) {
+    if (p.set && p.input) { p.set(at); return; }
     if (p.positionX) { p.positionX.value = at[0]; p.positionY.value = at[1]; p.positionZ.value = at[2]; } else p.setPosition(at[0], at[1], at[2]);
   }
   // The listener is the camera (every frame).
   function listen() {
+    if (H.audio.listen) { H.audio.listen(); return; } // (the mix owns the listener: it mirrors x for Babylon's left hand)
     const a = live();
     const w = W();
     const c = w && w.scene && w.scene.activeCamera;
@@ -168,6 +177,11 @@
     const s = M.impactSound(ma, mb, o.impulse, { speed: o.speed, mass: Number.isFinite(mass) && mass < 1e9 ? mass : 1 });
     if (!s) return null;
     const at = o.at || (a ? [a.x, a.y, a.z] : null);
+    // The impact library (juice-impact.js: Hawkes Gen clips, 4+ variants a material) plays it when it has loaded; else the old way.
+    if (H.impact && J.allowed('sounds')) {
+      const done = H.impact.hit(a, b, { speed: o.speed, impulse: o.impulse, at, t0: o.t0 });
+      if (done) { J.sound.played++; return s; }
+    }
     const key = `${(a && (a.sceneId || a.name)) || '?'}|${(b && (b.sceneId || b.name)) || '?'}`;
     play({ ...s, at, key: o.key || key, gap: 0.09, weight: o.weight || 1 });
     return s;
@@ -187,11 +201,12 @@
     if (!W()) return;
     const { a, b } = c;
     if (!a || !b || (a.physics !== 'dynamic' && b.physics !== 'dynamic')) return;
+    const t0 = performance.now();
     const speed = speedOf(c);
     if (touching.size < 300 && speed > 0.5) touching.set(pairKey(a, b), { a, b, t: 0 });
     if (speed < 1.2) return;
     const at = c.point || [(a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2];
-    const s = impact(a, b, { speed, at });
+    const s = impact(a, b, { speed, at, impulse: c.impulse, t0 });
     if (s) {
       for (const f of J.sound.hits) try { f({ a, b, at, speed, sound: s }); } catch (err) { H.report(err, 'juice'); }
     }
@@ -238,6 +253,8 @@
         const round = mover.kind === 'sphere' || mover.kind === 'cylinder' || /ball|wheel|barrel|log/.test(String(mover.name || mover.kind).toLowerCase());
         const rolling = round && Math.hypot(...spin) * (Math.PI / 180) * Math.max(...mover.half) > v * 0.5;
         // (Touching contacts are kept only while Havok says so: a bounce ends the pair.)
+        // A barrel rolling has its own clip (juice-impact.js).
+        if (rolling && H.impact && H.impact.isBarrel(mover) && H.impact.roll(mover, v, [mover.x, mover.bottom, mover.z])) continue;
         want.push({ kind: rolling ? 'roll' : 'scrape', at: [mover.x, mover.bottom, mover.z], speed: v, mat: M.materialOf(other), own: M.materialOf(mover), pri: v / (1 + d / 8), key: k });
       }
       // Skidding tires (vehicles: wheels on the ground that slip).
@@ -301,6 +318,7 @@
   function footstep(surface, o = {}) {
     const sf = STEP_VOICE[surface] ? surface : 'dirt';
     if (!J.allowed('sounds') || !J.allowed('footsteps')) return false;
+    if (o.mine && H.soundscape && H.soundscape.step(sf, o)) { J.sound.steps++; return true; }
     const a = live();
     const at = o.at || null;
     const d = o.mine ? 0 : distTo(at);

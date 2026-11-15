@@ -46,12 +46,18 @@
     #error { position: fixed; left: 12px; right: 12px; bottom: 12px; background: #2a0d0d; color: #ffd9d9; border: 1px solid var(--bad); padding: 10px 12px; font: 12px/1.45 var(--mono); max-height: 30%; overflow: auto; z-index: 9; white-space: pre-wrap; border-radius: 8px; }
     html { background: #0a0a0f; }
     #loading { position: fixed; inset: 0; z-index: 20; display: grid; place-content: center; justify-items: center; gap: 22px; padding: 0 20px; box-sizing: border-box; background: radial-gradient(ellipse at 50% 42%, #0f1a2c 0%, #0a0a0f 70%); color: #cfe6ff; font: 14px var(--mono); letter-spacing: .08em; text-align: center; transition: opacity .7s ease; }
-    #loading.fade { opacity: 0; pointer-events: none; }
+    #loading.fade, body.hlw-on #loading:not(.ld-fail) { opacity: 0; pointer-events: none; }
     #loading[hidden], #error[hidden] { display: none; }
     #loading canvas { width: min(46vw, 220px); height: min(46vw, 220px); display: block; }
     #loading .ld-words { font: 600 15px/1.35 var(--sans, system-ui, sans-serif); letter-spacing: .04em; color: #e8f3ff; max-width: 300px; }
     #loading .ld-bar { width: min(72vw, 280px); height: 3px; border-radius: 3px; background: rgba(160,210,255,.18); overflow: hidden; }
     #loading .ld-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #6cf0ff, #cdeaff); box-shadow: 0 0 10px rgba(108,240,255,.7); transition: width .35s ease; }
+    #loading.ld-fail .ld-bar { display: none; }
+    #loading .ld-acts { display: none; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 4px; }
+    #loading.ld-fail .ld-acts { display: flex; }
+    #loading .ld-acts a, #loading .ld-acts button { font: 600 14px/1 var(--sans, system-ui, sans-serif); letter-spacing: .02em; color: #e8f3ff; background: rgba(160,210,255,.12); border: 1px solid rgba(160,210,255,.35); padding: 12px 18px; border-radius: 10px; text-decoration: none; cursor: pointer; min-height: 44px; }
+    #loading .ld-acts a:hover, #loading .ld-acts button:hover, #loading .ld-acts a:focus-visible, #loading .ld-acts button:focus-visible { border-color: #6cf0ff; outline: none; }
+    #loading .ld-acts button.primary { background: linear-gradient(90deg, #4a9eff, #6cf0ff); color: #061018; border-color: transparent; }
     @media (prefers-reduced-motion: reduce) { #loading, #loading .ld-bar i { transition: none; } }
     .corner { position: fixed; right: 10px; bottom: 10px; display: flex; gap: 6px; z-index: 6; }
     .corner[hidden] { display: none; }
@@ -278,6 +284,10 @@
     <canvas id="ldPearl" width="440" height="440" aria-hidden="true"></canvas>
     <div class="ld-words" id="ldWords">The Overseer is preparing your world</div>
     <div class="ld-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="ldFill"></i></div>
+    <div class="ld-acts" id="ldActs" hidden>
+      <button type="button" class="primary" id="ldRetry">Try again</button>
+      <a id="ldBack" href="/">Back to Hawkes Games</a>
+    </div>
   </div>
   <script>
     // The loading screen: the Overseer's pearl with two turning rings (the idea of overseer-sky.js, canvas 2D), the words,
@@ -285,6 +295,7 @@
     // HawkesLoadScreen.done() (runtime.js run) fades it out as the world becomes playable and the intro begins.
     (function () {
       var box = document.getElementById('loading'), cv = document.getElementById('ldPearl'), fill = document.getElementById('ldFill');
+      requestAnimationFrame(function () { try { performance.mark('hg-loading-shown'); } catch (e) { /* only for the first-load playtest */ } });
       var bar = box.querySelector('.ld-bar'), ctx = cv.getContext('2d'), TAU = Math.PI * 2;
       var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
       var shown = 0, over = false, raf = 0;
@@ -325,12 +336,30 @@
         v = Math.max(shown, Math.min(1, v)); shown = v;
         fill.style.width = (v * 100).toFixed(1) + '%'; bar.setAttribute('aria-valuenow', String(Math.round(v * 100)));
       }
-      function update(done, total) { if (total > 0 && !over) show(Math.min(0.97, done / total)); }
+      // The loading wrapper (play/loadwrap.js): the hook line and the toy over the pearl screen, the same real progress.
+      var wrap = null;
+      try {
+        if (window.HawkesLoadWrap && window.parent === window) {
+          var path = (location.pathname || '').replace(/\/+$/, '');
+          var island = /\/play\/sandbox$/.test(path) || /[?&]template=sandbox\b/.test(location.search || '');
+          wrap = HawkesLoadWrap.mount({
+            root: document.body,
+            hook: 'The Overseer is preparing your world',
+            accent: '#6cf0ff',
+            art: island ? '/play/art/island/key-16x9.webp' : null,
+            artTall: island ? '/play/art/island/key-2x3.webp' : null,
+          });
+          document.body.classList.add('hlw-on');
+        }
+      } catch (e) { wrap = null; }
+      function update(done, total) { if (total > 0 && !over) { show(Math.min(0.97, done / total)); if (wrap) wrap.progress(Math.min(0.97, done / total)); } }
       function wire() { var M = window.HawkesModules; if (M) { M.onprogress = update; if (M.progress) update(M.progress.done, M.progress.total); } }
       window.HawkesLoadScreen = {
-        progress: function (v) { show(Math.min(0.97, v)); },
+        progress: function (v) { show(Math.min(0.97, v)); if (wrap) wrap.progress(Math.min(0.97, v)); },
+        fail: function () { document.body.classList.remove('hlw-on'); if (wrap) { wrap.finish(); wrap = null; } },
         done: function () {
           if (over) return; over = true; show(1);
+          if (wrap) { wrap.downloaded(); document.body.classList.remove('hlw-on'); wrap.finish(); wrap = null; }
           box.classList.add('fade');
           setTimeout(function () { box.hidden = true; cancelAnimationFrame(raf); }, reduce ? 0 : 750);
         },
@@ -361,6 +390,7 @@
       }, true);
     });
   </script>
+  <script src="/play/loadwrap.js"></script>
   <script src="/play/modules.js"></script>
   <script>HawkesLoadScreen.wire();</script>
   <script>
@@ -383,7 +413,56 @@
       var slug = parts[2];
       var loading = document.getElementById('loading');
       var words = document.getElementById('ldWords');
-      var failed = function (e) { loading.hidden = false; loading.classList.remove('fade'); words.textContent = (e && e.message) || 'The game engine did not load'; };
+      var acts = document.getElementById('ldActs');
+      var failed = function (e) {
+        var detail = (e && e.message) || 'The game engine did not load';
+        try { console.error(detail); } catch (err) { /* fine */ }
+        if (window.HawkesLoadScreen && HawkesLoadScreen.fail) HawkesLoadScreen.fail();
+        loading.hidden = false;
+        loading.classList.remove('fade');
+        loading.classList.add('ld-fail');
+        words.textContent = 'Something went wrong loading this world. Try again, or go back to the home page.';
+        if (acts) {
+          acts.hidden = false;
+          var retry = document.getElementById('ldRetry');
+          if (retry && !retry._wired) {
+            retry._wired = true;
+            retry.addEventListener('click', function () { location.reload(); });
+          }
+        }
+      };
+      // Studio's world-quality playtest (public/playtest/world-quality.js) asks this page for the world audit (public/play/
+      // world-audit.js: words the right way round, no faces fighting, nothing inside out, nothing floating or sunk), the same
+      // one the repo's tests run. Set up before any branch below returns, so /play/sandbox (the guest island) answers too. Like the report bridge above: only a browser under automation, only to its parent, read only.
+      if (navigator.webdriver && window.parent !== window) window.addEventListener('message', function (e) {
+        var m = e.data;
+        if (e.source !== window.parent || !m) return;
+        // Orbit the camera for the eight-angle back-face stills (world-quality playtest).
+        if (m.hawkesPlaytest === 'look') {
+          try {
+            var H = window.HawkesPlay, W = H && H.world, cam = W && W.scene && W.scene.activeCamera;
+            if (!cam) return window.parent.postMessage({ hawkesPlaytest: 'look-state', error: 'no camera' }, '*');
+            var at = m.at || [0, 8, 0], look = m.look || [0, 4, 0];
+            cam.position.set(at[0], at[1], at[2]);
+            if (cam.setTarget) cam.setTarget(new BABYLON.Vector3(look[0], look[1], look[2]));
+            W.scene.render();
+            window.parent.postMessage({ hawkesPlaytest: 'look-state', ok: true }, '*');
+          } catch (err) { window.parent.postMessage({ hawkesPlaytest: 'look-state', error: String((err && err.message) || err) }, '*'); }
+          return;
+        }
+        if (m.hawkesPlaytest !== 'audit') return;
+        var answer = function (r) { window.parent.postMessage({ hawkesPlaytest: 'audit-state', result: r }, '*'); };
+        var go = function () {
+          try { answer(window.HawkesPlay && window.HawkesPlay.world ? window.HawkesWorldAudit.audit(window.HawkesPlay, m.options || {}) : { error: 'no world yet' }); }
+          catch (err) { answer({ error: String((err && err.message) || err) }); }
+        };
+        if (window.HawkesWorldAudit) return go();
+        var s = document.createElement('script');
+        s.src = '/play/world-audit.js';
+        s.onload = go;
+        s.onerror = function () { answer({ error: 'the audit did not load' }); };
+        document.head.appendChild(s);
+      });
       if (slug === '_draft') {
         HawkesModules.load('editor').then(function () { window.parent.postMessage({ source: 'hawkes-play', type: 'ready' }, '*'); }, failed);
         window.addEventListener('message', function (e) {
@@ -440,7 +519,7 @@
       var v = parts[3] === 'v' ? '?v=' + encodeURIComponent(parts[4]) : '';
       // Beamed here from the Observatory's travel board (?from=observatory): arrive out of the dark as the character they
       // made (the look and name come in the address: this page is sandboxed, with no storage), and always have the way back
-      // (the button here, and the pause menu: Esc twice). The game's own script is not touched.
+      // (the button here, and the game menu on Esc). The game's own script is not touched.
       var fromObs = tpl && q.get('from') === 'observatory';
       if (fromObs) (function () {
         var sheet = document.createElement('div');
@@ -462,16 +541,7 @@
         rb.hidden = false;
         rb.onclick = goBack;
         window.HawkesObservatoryReturn = goBack;
-        var last = 0;
-        document.addEventListener('keydown', function (e) {
-          if (e.key !== 'Escape' || back) return;
-          var now = Date.now();
-          if (now - last < 700) {
-            last = 0;
-            var G = window.HawkesPlay && window.HawkesPlay.game;
-            if (G && G.ui && G.ui.menu) G.ui.menu('pause', { title: 'Paused', items: [{ label: 'Resume' }, { label: 'Return to the Observatory', onClick: goBack }] });
-          } else last = now;
-        }, true);
+        // Esc is owned by modules/gamemenu; it picks up HawkesObservatoryReturn as a menu item.
         // Who they are: the look from the address, applied when the platform's presence has loaded.
         var look = null;
         try { look = JSON.parse(q.get('look') || 'null'); } catch (e) { look = null; }
@@ -483,7 +553,7 @@
         };
         window.__obsFadeUp = function () { fadeUp(); apply(); };
       })();
-      // Reporting a world (src/games.ts reportGame): the page's own pause menu (Esc twice) and a corner button, for any
+      // Reporting a world (src/games.ts reportGame): the game menu on Esc (Report this world) and a corner button, for any
       // published game. This page is ours, not the game's, so a game's scripts cannot take the way out away. The report is
       // a text/plain POST (a simple request: this page is sandboxed, with no origin).
       if (!tpl && slug !== 'sandbox' && window.parent === window) (function () {
@@ -493,7 +563,6 @@
         var items = document.getElementById('rbItems');
         var rbtn = document.getElementById('reportBtn');
         var open = false;
-        var last = 0;
         var show = function (t, p, buttons) {
           open = true;
           box.hidden = false;
@@ -545,11 +614,10 @@
           var scripts = Array.prototype.map.call(document.scripts, function (x) { return x.src; }).filter(Boolean);
           window.parent.postMessage({ hawkesPlaytest: 'report-state', open: open, title: title.textContent, text: text.textContent, buttons: Array.prototype.map.call(items.children, function (x) { return x.textContent; }), cornerShown: !rbtn.hidden, reported: window.HawkesReported || null, scripts: scripts.length }, '*');
         });
+        // Esc opens the game menu (Report this world is an item). Esc closes the report dialog while it is open.
         document.addEventListener('keydown', function (e) {
           if (e.key !== 'Escape') { if (open) e.stopPropagation(); return; }
-          if (open) { close(); e.stopPropagation(); return; }
-          var now = Date.now();
-          if (now - last < 700) { last = 0; pause(); } else last = now;
+          if (open) { close(); e.stopPropagation(); }
         }, true);
       })();
       // The game and the engine at once; the engine brings only the modules this game uses (the rest come after).

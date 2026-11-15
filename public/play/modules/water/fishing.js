@@ -380,6 +380,47 @@
     s.line.setEnabled(true);
   }
 
+  // The line is a verlet rope (J, 2026-11-12): a dozen points pinned at the rod tip and the bobber, each segment as long as
+  // the line left out, so slack sags under gravity and a taut line straightens. `slack` is the extra length (0.02 taut, 0.2 slack).
+  const GRAV = -9;
+  function ropeStep(s, a, b, dt, slack) {
+    const pts = s.linePts, n = pts.length - 1;
+    dt = Math.min(dt, 1 / 30);
+    let r = s.rope;
+    if (!r || r.n !== n) {
+      r = s.rope = { n, p: pts.map((_, i) => ({ x: a.x + (b.x - a.x) * i / n, y: a.y + (b.y - a.y) * i / n, z: a.z + (b.z - a.z) * i / n })), q: null };
+      r.q = r.p.map((v) => ({ ...v }));
+    }
+    const rest = Math.max(0.02, B.Vector3.Distance(a, b) * (1 + slack) / n);
+    for (let i = 1; i < n; i++) {
+      const c = r.p[i], o = r.q[i];
+      const vx = (c.x - o.x) * 0.97, vy = (c.y - o.y) * 0.97, vz = (c.z - o.z) * 0.97;
+      o.x = c.x; o.y = c.y; o.z = c.z;
+      c.x += vx; c.y += vy + GRAV * dt * dt; c.z += vz;
+    }
+    for (let it = 0; it < 8; it++) {
+      r.p[0].x = a.x; r.p[0].y = a.y; r.p[0].z = a.z; r.p[n].x = b.x; r.p[n].y = b.y; r.p[n].z = b.z;
+      for (let i = 0; i < n; i++) {
+        const u = r.p[i], v = r.p[i + 1];
+        const dx = v.x - u.x, dy = v.y - u.y, dz = v.z - u.z, d = Math.hypot(dx, dy, dz) || 1e-6;
+        if (d <= rest) continue;
+        const k = (d - rest) / d * 0.5;
+        if (i > 0) { u.x += dx * k; u.y += dy * k; u.z += dz * k; }
+        if (i + 1 < n) { v.x -= dx * k; v.y -= dy * k; v.z -= dz * k; }
+      }
+    }
+    for (let i = 0; i <= n; i++) pts[i].set(r.p[i].x, r.p[i].y, r.p[i].z);
+    B.MeshBuilder.CreateLines('fishing-line', { points: pts, instance: s.line });
+    s.line.setEnabled(true);
+  }
+  /** The log the playtest reads (window.__fishing.events, in order) and a 'fishing' game event: cast, plop, nibble, bite, strike, fight, leap, holdup, closeup-*. */
+  function fx(name, d = {}) {
+    const log = (window.__fishing = window.__fishing || { events: [] });
+    log.events.push({ name, t: Math.round(performance.now()), ...d });
+    if (log.events.length > 200) log.events.shift();
+    try { if (G()) G().emit('fishing', { name, ...d }); } catch { /* the log stands */ }
+  }
+
   function hud(s) {
     if (s.hud && s.hud.isConnected) return s.hud;
     X.overlay();
@@ -391,7 +432,7 @@
   }
   function setHud(s, html) { const el = hud(s); if (el._html !== html) { el.innerHTML = html; el._html = html; } return el; }
   function clearHud(s) { if (s.hud) { s.hud.remove(); s.hud = null; } }
-  const LINE_OUT = new Set(['flying', 'waiting', 'bite', 'reel', 'retract']);
+  const LINE_OUT = new Set(['flying', 'waiting', 'bite', 'reel', 'retract', 'leap']);
   const verb = () => (H.touchUi ? 'Tap 🎣' : 'Click');
   const holdVerb = () => (H.touchUi ? 'Hold 🎣' : 'Hold the mouse');
 
@@ -445,7 +486,8 @@
     unequip(ctx) {
       const s = ctx.state;
       if (ctx.player) ctx.player._holdStill = false;
-      for (const m of [s.mesh, s.bobber, s.line, s.shown]) if (m) m.dispose();
+      for (const m of [s.mesh, s.bobber, s.line, s.shown, s.drops]) if (m) m.dispose();
+      s.leap = null; s.closing = false;
       if (s.button) s.button.remove();
       if (s.logButton) s.logButton.remove();
       clearHud(s);
@@ -476,8 +518,9 @@
             s.bob.copyFrom(tipPos(s));
             const sp = 6 + s.power * 16;
             s.vel.set(f.x * sp, f.y * sp + 3 + s.power * 2, f.z * sp);
-            s.phase = 'flying'; s.flight = 0;
+            s.phase = 'flying'; s.flight = 0; s.rope = null; s.strikeT = 0;
             s.bobber.setEnabled(true);
+            fx('cast', { power: Math.round(s.power * 100) / 100 });
             H.water.sound('cast', { volume: 0.6 });
             g.emit('cast', { entity: p, power: s.power });
           }
@@ -502,8 +545,12 @@
             // A longer cast reaches deeper water (to the bottom of this one): what bites depends on it.
             const tp0 = tipPos(s), reach = Math.hypot(next.x - tp0.x, next.z - tp0.z);
             s.lineDepth = Math.min(wa.surface - X.bottomOf(wa.body), 1.2 + reach * 0.3);
-            H.water.splash([next.x, wa.surface, next.z], 0.25, { sound: false });
+            H.water.splash([next.x, wa.surface, next.z], 0.45, { sound: false });
             H.water.sound('plop', { at: [next.x, wa.surface, next.z] });
+            // Rings go out one after another from the plop.
+            setTimeout(() => H.water.ripple(next.x, next.z, 0.9), 140);
+            setTimeout(() => H.water.ripple(next.x, next.z, 1.3), 320);
+            fx('plop', { x: Math.round(next.x * 10) / 10, z: Math.round(next.z * 10) / 10, rings: 3 });
             s.phase = 'waiting';
             s.easy = easyNow(ctx);
             newWait(s, ctx);
@@ -519,10 +566,12 @@
           if (s.body.current) { s.anchor[0] += s.body.current[0] * dt * 0.6; s.anchor[1] += s.body.current[1] * dt * 0.6; }
           if (!X.contains(s.body, s.anchor[0], s.anchor[1])) { s.phase = 'retract'; break; }
           s.dip = (s.dip || 0) * Math.max(0, 1 - dt * 6);
+          // The bobber drifts a little, never far from where it landed.
+          s.anchor[0] += Math.cos(s.t * 0.31 + 1) * 0.06 * dt; s.anchor[1] += Math.sin(s.t * 0.23) * 0.06 * dt;
           s.waited += dt;
           if (s.phase === 'waiting') {
             lure.at = s.waited > s.wait * 0.5 ? [s.anchor[0], X.surfaceOf(s.body, s.anchor[0], s.anchor[1]), s.anchor[1]] : null;
-            while (s.nibbles.length && s.waited >= s.nibbles[0]) { s.nibbles.shift(); s.dip = -0.09; H.water.ripple(s.anchor[0], s.anchor[1], 0.15); H.water.sound('plop', { at: s.bob, volume: 0.35 }); }
+            while (s.nibbles.length && s.waited >= s.nibbles[0]) { s.nibbles.shift(); s.dip = -0.09; H.water.ripple(s.anchor[0], s.anchor[1], 0.15); setTimeout(() => H.water.ripple(s.anchor[0], s.anchor[1], 0.25), 180); H.water.sound('plop', { at: s.bob, volume: 0.35 }); fx('nibble'); }
             if (s.waited >= s.wait) {
               s.fish = (s.easy && rollFirst(s.body)) || roll(s.body, { ...ctx.opts, depth: s.lineDepth });
               if (!s.fish) { s.wait = Infinity; break; }
@@ -532,6 +581,7 @@
               H.water.splash(s.bob, 0.3, { sound: false });
               H.water.sound('bite', { volume: 0.9 });
               g.emit('bite', { entity: p });
+              fx('bite', { fish: s.fish.name, rarity: s.fish.rarity });
             } else if (BK.using()) { s.phase = 'retract'; break; }
             setHud(s, `<div>Waiting for a bite… ${verb()} to reel in</div>`);
           } else {
@@ -542,6 +592,10 @@
               s.phase = 'reel';
               s.reel = { progress: 1, tension: 0.35, pull: 0, pullTo: 0.6, surge: 0.5, slack: 0, from: [s.anchor[0], s.anchor[1]], click: 0 };
               g.emit('hooked', { entity: p, rarity: s.fish.rarity });
+              // The strike: the bobber is yanked under with a splash, the line snaps taut and the rod bends.
+              s.strikeT = 0.6; s.dip = -0.4; s.fought = false;
+              H.water.splash(s.bob, 0.7, { sound: true });
+              fx('strike', { rarity: s.fish.rarity });
             } else if (s.biteLeft <= 0) {
               g.ui.message('It got away…', 1.2);
               g.emit('escape', { entity: p, fish: s.fish && s.fish.name });
@@ -551,7 +605,8 @@
           s.bob.set(s.anchor[0], X.surfaceOf(s.body, s.anchor[0], s.anchor[1]) + 0.03 + (s.dip || 0), s.anchor[1]);
           break;
         }
-        case 'reel': reelStep(s, dt, ctx); break;
+        case 'reel': s.strikeT = Math.max(0, (s.strikeT || 0) - dt); reelStep(s, dt, ctx); break;
+        case 'leap': leapStep(s, dt, ctx); break;
         case 'retract': {
           const tp = tipPos(s);
           const d = tp.subtract(s.bob);
@@ -563,9 +618,11 @@
           break;
         }
         case 'show':
-          s.showT -= dt;
-          if (s.shown) { s.shown.rotation.z = Math.sin(s.t * 14) * 0.35 * Math.min(1, s.showT); }
-          if (s.showT <= 0) { if (s.shown) s.shown.dispose(); s.shown = null; reset(s); }
+          if (!s.closing) s.showT -= dt;
+          if (s.shown && s.heldCam) { s.shown.rotation.z = Math.sin(s.t * 14) * 0.35 * Math.min(1, s.showT); }
+          if (s.closing) { s.closeGuard = (s.closeGuard || 0) + dt; if (s.closeGuard > 8) s.closing = false; break; }
+          if (s.shown && !s.heldCam) holdPose(s, p);
+          if (s.showT <= 0) { if (s.shown) s.shown.dispose(); s.shown = null; if (s.drops) { s.drops.dispose(); s.drops = null; } reset(s); }
           break;
       }
     },
@@ -577,28 +634,40 @@
       if (first) {
         s.mesh.parent = w.scene.activeCamera;
         s.mesh.position.set(0.3, -0.42, 0.55);
-        const bend = s.phase === 'charge' ? -s.power * 0.5 : s.phase === 'reel' ? 0.15 + (s.reel ? s.reel.tension * 0.25 : 0) : 0;
-        s.mesh.rotation.set(0.75 + bend, -0.15, -0.1);
+        s.mesh.rotation.set(0.75 + rodBend(s), -0.15, -0.1);
       } else if (p) {
         s.mesh.parent = p.node;
         s.mesh.position.set(0.32, 0.1, 0.25);
-        s.mesh.rotation.set(0.9, 0, -0.1);
+        s.mesh.rotation.set(0.9 + rodBend(s), 0, -0.1);
       }
       if (s.reelMesh) s.reelMesh.rotation.x += (s.phase === 'reel' && BK.using(true)) || s.phase === 'retract' ? dt * 20 : 0;
-      const out = ['flying', 'waiting', 'bite', 'reel', 'retract'].includes(s.phase);
-      s.bobber.setEnabled(out);
+      const out = ['flying', 'waiting', 'bite', 'reel', 'retract', 'leap'].includes(s.phase);
+      s.bobber.setEnabled(out && s.phase !== 'leap');
       if (out) {
         s.bobber.position.copyFrom(s.bob);
+        // The bobber leans with the wave under it.
+        if (s.body && (s.phase === 'waiting' || s.phase === 'bite')) {
+          const y0 = X.surfaceOf(s.body, s.bob.x, s.bob.z), sx = X.surfaceOf(s.body, s.bob.x + 0.3, s.bob.z) - y0, sz = X.surfaceOf(s.body, s.bob.x, s.bob.z + 0.3) - y0;
+          s.bobber.rotation.set(sz * 1.5 + Math.sin(s.t * 1.7) * 0.03, 0, -sx * 1.5);
+        } else s.bobber.rotation.set(0, 0, 0);
         const tension = s.reel ? s.reel.tension : 0;
-        const slack = s.phase === 'flying' ? 0 : Math.max(0, 0.6 - tension * 0.6) * Math.min(1, B.Vector3.Distance(s.bob, tipPos(s)) / 8);
-        drawLine(s, tipPos(s), s.bob, slack);
-      } else s.line.setEnabled(false);
+        // Flying: a curve that sags; waiting: a little slack; a strike snaps it taut; reeling follows the tension.
+        const slack = s.phase === 'flying' ? 0.2 : s.phase === 'leap' ? 0.03 : s.phase === 'reel' ? ((s.strikeT || 0) > 0 ? 0.015 : 0.02 + Math.max(0, 0.7 - tension) * 0.12) : s.phase === 'retract' ? 0.03 : 0.12;
+        ropeStep(s, tipPos(s), s.bob, dt, slack);
+      } else { s.line.setEnabled(false); s.rope = null; }
       s.sendT = (s.sendT || 0) + dt;
       if (s.sendT > 0.12) { s.sendT = 0; sendRod(out ? s.bob : null, tipPos(s)); }
     },
   });
   { const { name, ...rodDef } = H.tools.get('rod'); void name; H.tools.register('fishing-rod', rodDef); }
 
+  /** How far the rod bends (radians, added to its tilt): back to cast, a snap and then the fish's pull while reeling. */
+  function rodBend(s) {
+    if (s.phase === 'charge') return -s.power * 0.5;
+    if (s.phase === 'reel') return 0.15 + (s.reel ? s.reel.tension * 0.25 : 0) + (s.strikeT || 0) * 0.5 + (s.reel ? s.reel.pull * 0.12 * Math.sin(s.t * 18) : 0);
+    if (s.phase === 'leap') return 0.3;
+    return 0;
+  }
   function reelStep(s, dt, ctx) {
     const g = ctx.game, p = ctx.player, r = s.reel, f = s.fish;
     const str = clamp((f.species.strength ?? 0.5) * (0.75 + f.big * 0.5), 0.05, 1.5) / Math.max(0.3, Number(ctx.opts.strength) || 1);
@@ -617,13 +686,16 @@
     // The bobber comes in toward you; the fish fights (splashes, side to side).
     const k = 0.06 + 0.94 * clamp(r.progress, 0, 1);
     const tx = p.x + (r.from[0] - p.x) * k, tz = p.z + (r.from[1] - p.z) * k;
-    const side = Math.sin(s.t * 3.1) * r.pull * 0.6;
+    const side = Math.sin(s.t * 3.1) * r.pull * 1.3;
     const ax = tx + side * Math.cos(Math.atan2(tz - p.z, tx - p.x) + Math.PI / 2), az = tz + side * Math.sin(Math.atan2(tz - p.z, tx - p.x) + Math.PI / 2);
     const sy = H.water.surfaceAt(ax, az);
     if (sy !== null) { s.anchor = [ax, az]; s.lastY = sy; }
     s.bob.set(s.anchor[0], (s.lastY ?? s.bob.y) - 0.05 - r.pull * 0.1, s.anchor[1]);
     s.thrash = (s.thrash || 0) - dt;
-    if (r.pull > 0.55 && s.thrash <= 0) { s.thrash = 0.3; H.water.splash(s.bob, 0.25 + f.big * 0.4, { sound: Math.random() < 0.5 }); }
+    if (r.pull > 0.3 && s.thrash <= 0) {
+      s.thrash = 0.3 + (1 - r.pull) * 0.3; H.water.splash(s.bob, 0.2 + r.pull * 0.2 + f.big * 0.3, { sound: Math.random() < 0.5 });
+      if (!s.fought) { s.fought = true; fx('fight', { fish: f.name, pull: Math.round(r.pull * 100) / 100 }); }
+    }
     const big = f.big > 0.7 || f.rarity === 'legendary' ? '<div>Something big!</div>' : '';
     setHud(s, `${big}<div>${holdVerb()} to reel · keep it in the green</div><div class="row">Tension</div><div class="track"><div class="zone" style="left:30%;width:50%"></div><div class="mark" style="left:${Math.round(clamp(r.tension, 0, 1) * 100)}%;background:${r.tension > 0.9 ? '#f87171' : '#fff'}"></div></div><div class="row">Line out</div><div class="track"><div class="fill" style="width:${Math.round(clamp(r.progress, 0, 1) * 100)}%;background:#7dd3fc"></div></div>`);
     if (r.tension >= 1) { lose(s, g, p, 'The line snapped!', 'snap'); H.water.sound('snap'); return; }
@@ -636,25 +708,140 @@
     s.fish = null; s.reel = null;
     if (ev === 'snap') { s.bobber.setEnabled(false); reset(s); } else s.phase = 'retract';
   }
+  // ------------------------------------------------------------------ the landing: the fish leaps, then is held up
+  /** Where the player holds a fish: in front of the chest, up high (world coordinates), and which way is forward. */
+  function holdSpot(p) {
+    let feet = p.y, h = 1.7;
+    try { const bx = p.box(); feet = bx.min[1]; h = bx.max[1] - bx.min[1]; } catch { /* the entity's own y */ }
+    const a = p.node ? p.node.rotation.y : 0, fx_ = Math.sin(a), fz = Math.cos(a);
+    return { x: p.x + fx_ * 0.5, y: feet + h * 0.95, z: p.z + fz * 0.5, fx: fx_, fz, feet, h };
+  }
+  function holdPose(s, p) {
+    const spot = holdSpot(p), n = s.shown;
+    n.position.set(spot.x, spot.y + Math.sin(s.t * 3) * 0.02, spot.z);
+    // Nose to the player's right, so the whole fish shows side on to a camera in front of them; it still twitches.
+    n.rotation.set(0, Math.atan2(spot.fz, -spot.fx) + 0, Math.sin(s.t * 12) * 0.25 * Math.min(1, s.showT));
+    const tail = n.metadata && n.metadata.tail;
+    if (tail) tail.rotation.x = Math.sin(s.t * 14) * 0.5;
+  }
+  function dropsFor(node, rate) {
+    const w = W(), ps = new B.ParticleSystem('fish-drops', PHONE ? 60 : 140, w.scene);
+    ps.particleTexture = w.dot; ps.emitter = node; ps.minEmitBox = new B.Vector3(-0.1, -0.05, -0.1); ps.maxEmitBox = new B.Vector3(0.1, 0.1, 0.1);
+    ps.color1 = new B.Color4(0.9, 0.97, 1, 0.9); ps.color2 = new B.Color4(0.7, 0.9, 1, 0.7); ps.colorDead = new B.Color4(0.8, 0.95, 1, 0);
+    ps.minSize = 0.025; ps.maxSize = 0.06; ps.minLifeTime = 0.35; ps.maxLifeTime = 0.8;
+    ps.emitRate = rate; ps.minEmitPower = 0.3; ps.maxEmitPower = 1.2;
+    ps.direction1 = new B.Vector3(-1, 0.2, -1); ps.direction2 = new B.Vector3(1, 1, 1); ps.gravity = new B.Vector3(0, -9, 0);
+    ps.start();
+    return ps;
+  }
+  /** A flash of light at a point: one big soft white particle that fades in 0.35 s. */
+  function glint(at, size) {
+    const w = W(), ps = new B.ParticleSystem('fish-glint', 2, w.scene);
+    ps.particleTexture = w.dot; ps.emitter = new B.Vector3(at.x, at.y, at.z);
+    ps.color1 = new B.Color4(1, 1, 0.9, 1); ps.color2 = new B.Color4(1, 0.95, 0.7, 1); ps.colorDead = new B.Color4(1, 1, 1, 0);
+    ps.minSize = size; ps.maxSize = size * 1.3; ps.minLifeTime = 0.3; ps.maxLifeTime = 0.4;
+    ps.manualEmitCount = 2; ps.minEmitPower = 0; ps.maxEmitPower = 0.01; ps.blendMode = B.ParticleSystem.BLENDMODE_ADD;
+    ps.disposeOnStop = true; ps.targetStopDuration = 0.5; ps.start();
+  }
   function caught(s, g, p) {
     const f = s.fish;
-    const r = landed(f);
-    H.water.sound('catch');
-    H.water.splash(s.bob, 0.5, { sound: false });
-    card(f, r);
-    // Holding it up for a look.
     const len = clamp(f.length / 100, 0.12, 1.1);
-    const shown = fishMesh(f.species, len, 1);
-    shown.parent = W().scene.activeCamera;
-    shown.position.set(0, -0.08, 0.75 + len * 0.45);
-    shown.rotation.y = Math.PI / 2;
-    s.shown = shown;
-    s.showT = 2.4;
-    s.phase = 'show';
-    if (s.bobber) s.bobber.setEnabled(false);
-    if (s.line) s.line.setEnabled(false);
+    const node = fishMesh(f.species, len, 0);
+    const spot = holdSpot(p);
+    node.position.copyFrom(s.bob);
+    s.leap = { t: 0, dur: 0.95, from: s.bob.clone(), to: new B.Vector3(spot.x, spot.y, spot.z), apex: 1.3 + len * 0.8, node, len, glint: false };
+    s.shown = node;
+    s.drops = dropsFor(node, PHONE ? 60 : 130);
+    s.phase = 'leap';
+    // It breaks the surface: a splash, spray and a rising drum of water.
+    H.water.splash(s.bob, 0.8, { sound: true });
+    fx('leap', { fish: f.name, rarity: f.rarity, apex: Math.round(s.leap.apex * 10) / 10 });
     clearHud(s);
     lure.at = null;
+  }
+  function leapStep(s, dt) {
+    const L = s.leap;
+    if (!L || !L.node || L.node.isDisposed()) { reset(s); return; }
+    L.t += dt;
+    const k = Math.min(1, L.t / L.dur), up = 4 * L.apex * k * (1 - k);
+    const x = L.from.x + (L.to.x - L.from.x) * k, z = L.from.z + (L.to.z - L.from.z) * k, y = L.from.y + (L.to.y - L.from.y) * k + up;
+    L.node.position.set(x, y, z);
+    s.bob.set(x, y, z);
+    const dx = L.to.x - L.from.x, dz = L.to.z - L.from.z;
+    // Nose along the arc (up, then down), thrashing side to side.
+    L.node.rotation.set(-(1 - 2 * k) * 0.9, Math.atan2(dx, dz) + Math.sin(L.t * 26) * 0.35, Math.sin(L.t * 34) * 0.7);
+    const tail = L.node.metadata && L.node.metadata.tail;
+    if (tail) tail.rotation.x = Math.sin(L.t * 40) * 0.8;
+    if (!L.glint && k > 0.42) { L.glint = true; glint({ x, y: y + 0.05, z }, 0.7 + L.len * 0.6); H.water.sound('plop', { at: [x, y, z], volume: 0.4 }); }
+    if (k >= 1) holdUp(s, W().player);
+  }
+  function holdUp(s, p) {
+    const f = s.fish, g = G();
+    const len = s.leap.len;
+    s.leap = null;
+    const r = landed(f);
+    H.water.sound('catch');
+    card(f, r);
+    s.heldCam = false;
+    s.showT = 2.4;
+    s.phase = 'show';
+    s.fish = null; s.reel = null;
+    if (s.bobber) s.bobber.setEnabled(false);
+    if (s.line) s.line.setEnabled(false);
+    if (s.drops) s.drops.emitRate = 20;
+    try { if (H.presence && H.presence.emote) H.presence.emote('cheer'); } catch { /* the pose is a flourish */ }
+    fx('holdup', { fish: f.name, rarity: f.rarity, first: r.firstEver, length: f.length });
+    if (r.firstEver) closeUp(s, f, p, len);
+    else if (p._view === 'first') {
+      // First person: the fish is held up in front of the camera, as it always was.
+      s.heldCam = true;
+      s.shown.parent = W().scene.activeCamera;
+      s.shown.position.set(0, -0.08, 0.75 + len * 0.45);
+      s.shown.rotation.set(0, Math.PI / 2, 0);
+      for (const m of s.shown.getChildMeshes()) m.renderingGroupId = 1;
+    }
+    void g;
+  }
+  /** The first catch: a 2.6 s close-up. The camera stands in front of the player over the water and frames them holding the fish
+   *  up (the whole fish across the screen, even on a portrait phone), letterbox bars, no HUD; then the player has the game back. */
+  async function closeUp(s, f, p, len) {
+    s.closing = true; s.closeGuard = 0;
+    let bars = [];
+    try {
+      if (!H.cinematic && window.HawkesModules && window.HawkesModules.ensure) await window.HawkesModules.ensure('share');
+      const C = H.cinematic;
+      if (!C) { fx('closeup-skipped', { why: 'no cinematic camera' }); return; }
+      const spot = holdSpot(p), aspect = window.innerWidth / Math.max(1, window.innerHeight), portrait = aspect < 1;
+      const vfov = portrait ? 50 : 38, tv = Math.tan(vfov * Math.PI / 360), th = tv * aspect;
+      const need = Math.max(len * 1.35, 1.3);
+      const D = clamp(Math.max(need / 2 / th, 1.9 / 2 / tv), 1.8, 8);
+      const camPos = [p.x + spot.fx * D, spot.feet + spot.h * 0.8, p.z + spot.fz * D];
+      const look = [p.x + spot.fx * 0.3, spot.feet + spot.h * 0.82, p.z + spot.fz * 0.3];
+      if (portrait) {
+        for (const top of [true, false]) { const b = document.createElement('div'); b.className = 'sh-keep'; b.style.cssText = `position:fixed;left:0;right:0;${top ? 'top' : 'bottom'}:0;height:7vh;background:#000;z-index:60;pointer-events:none`; document.body.appendChild(b); bars.push(b); }
+      }
+      const done = C.fixed(camPos, look, { seconds: 2.6, fov: vfov, letterbox: !portrait, skippable: false, controls: false, smooth: 1 });
+      fx('closeup-start', { seconds: 2.6, portrait, distance: Math.round(D * 10) / 10 });
+      // Is the whole fish on screen? Measured from the camera that is showing it, a moment in.
+      setTimeout(() => {
+        try {
+          const w = W(), cam = w.scene.activeCamera, eng = w.scene.getEngine();
+          const { min, max } = s.shown.getHierarchyBoundingVectors(true);
+          const vp = cam.viewport.toGlobal(eng.getRenderWidth(), eng.getRenderHeight()), tm = w.scene.getTransformMatrix();
+          const pr = [min, max, new B.Vector3(min.x, max.y, max.z), new B.Vector3(max.x, min.y, min.z)].map((v) => B.Vector3.Project(v, B.Matrix.Identity(), tm, vp));
+          const xs = pr.map((v) => v.x / vp.width), ys = pr.map((v) => v.y / vp.height);
+          const box = { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+          const bar = portrait ? 0.07 : 0;
+          fx('closeup-framed', { whole: box.x0 >= 0 && box.x1 <= 1 && box.y0 >= bar && box.y1 <= 1 - bar, box: Object.fromEntries(Object.entries(box).map(([k, v]) => [k, Math.round(v * 100) / 100])) });
+        } catch (e) { fx('closeup-framed', { whole: null, error: String(e && e.message || e) }); }
+      }, 500);
+      await done;
+      fx('closeup-end');
+    } catch (e) { fx('closeup-skipped', { why: String(e && e.message || e) }); } finally {
+      // (Bars are ours: an error or a cut-short shot must never leave a black band over the phone's screen.)
+      for (const b of bars) b.remove();
+      s.closing = false;
+    }
   }
 
   // ------------------------------------------------------------------ other players' lines (online)
@@ -779,7 +966,7 @@
      *  every time; assist(false) goes back to the normal tables. Without an argument it says whether it is on. A player with
      *  no catch yet gets the same help without calling it. */
     assist(on) { if (on !== undefined) assisted = Boolean(on); return assisted; },
-    /** Where the rod is: 'ready', 'charge', 'flying', 'waiting', 'bite', 'reel', 'retract', 'show', or null with no rod in hand. */
+    /** Where the rod is: 'ready', 'charge', 'flying', 'waiting', 'bite', 'reel', 'retract', 'leap', 'show', or null with no rod in hand. */
     phase() { const h = H.tools.held; return h && h.ctx && h.ctx.state && (h.name === 'rod' || h.name === 'fishing-rod') ? h.ctx.state.phase || null : null; },
     /** Opens or closes the catch log on screen (log(true), log(false), or log() to toggle). */
     log: (open) => showLog(open),
@@ -787,6 +974,11 @@
     /** Rewrites the boards by the hut (a thing with data.catchBoard) from the log. */
     board: () => refreshBoards(),
     rarities: RARITY,
+    /** For the playtest: the bobber's height against the sea's surface under it and how far the line bows from straight, in metres ({ y, surface, sag, phase }), or null with the line in. */
+    bobber() { const h = H.tools.held, st = h && h.ctx && h.ctx.state; if (!st || !st.body || !LINE_OUT.has(st.phase)) return null; let sag = 0; if (st.rope) { const P = st.rope.p, A = P[0], Z = P[P.length - 1], L = Math.hypot(Z.x - A.x, Z.y - A.y, Z.z - A.z) || 1; for (const q of P) { const t = ((q.x - A.x) * (Z.x - A.x) + (q.y - A.y) * (Z.y - A.y) + (q.z - A.z) * (Z.z - A.z)) / (L * L); sag = Math.max(sag, Math.hypot(q.x - (A.x + (Z.x - A.x) * t), q.y - (A.y + (Z.y - A.y) * t), q.z - (A.z + (Z.z - A.z) * t))); } }
+      return { phase: st.phase, x: st.bob.x, y: st.bob.y, z: st.bob.z, surface: X.surfaceOf(st.body, st.bob.x, st.bob.z), sag }; },
+    /** The cast, bite, strike, leap and hold-up events so far, in order: [{ name, t, ... }]. */
+    events: () => ((window.__fishing && window.__fishing.events) || []).slice(),
   };
   // J opens the log for anyone holding a rod (the tool handles it); a script may want it any time.
   // J opens the log without a rod in hand too (nothing else in the engine uses it); the board by the hut opens it with E.

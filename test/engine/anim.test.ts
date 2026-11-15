@@ -661,17 +661,19 @@ test('the dog plays every role from the set: walk, trot and run by speed, jump, 
     let out: any = null;
     for (let i = 0; i < seconds * 60; i++) out = A.drive(rig, pm, lvl, { dt: 1 / 60, role, em, speed, glb: false, glbEmote: false, took: false, landed: false, stride: pm.ent.stride });
     const top = pm.anim.player.loops[pm.anim.player.loops.length - 1];
-    return { out, loop: top && top.name, rate: top && top.rate, shot: pm.anim.player.shots.map((s: any) => s.name) };
+    // (the walk, trot and run are one layer, LOCO: which gait it shows is the one that weighs most)
+    const g = pm.anim.gait, gait = top && top.name === A.LOCO && g ? (g.w > 0.5 ? g.hi : g.lo) : top && top.name;
+    return { out, loop: gait, rate: top && top.rate, shot: pm.anim.player.shots.map((s: any) => s.name) };
   };
   assert.equal(play('idle').loop, 'idle');
-  assert.equal(play('walk', 1.4).loop, 'walk', 'a walking pace walks');
-  assert.equal(play('walk', 3.0).loop, 'trot', 'a quicker one trots');
+  assert.equal(play('walk', 1.0).loop, 'walk', 'a walking pace walks');
+  assert.equal(play('walk', 2.0).loop, 'trot', 'a quicker one trots');
   assert.equal(play('run', 6).loop, 'run');
   assert.equal(play('jump', 2).loop, 'jump');
   assert.equal(play('fall', 2).loop, 'fall');
   assert.equal(play('swim', 1).loop, 'swim');
   assert.equal(play('drive', 0).loop, 'drive');
-  assert.ok(play('walk', 3.0).rate > 0.4 && play('walk', 3.0).rate <= 2.5, 'the cycle follows the speed');
+  { const slow = play('walk', 1.0).rate, quick = play('walk', 2.0).rate; assert.ok(slow > 0.2 && quick > slow && quick < 6, `the cycle follows the speed (${slow}, ${quick} cycles a second)`); }
   for (const name of ['sit', 'sleep', 'wave', 'dance', 'cheer', 'laugh', 'point', 'clap', 'thumbsup', 'heart', 'shrug']) {
     const r = play('idle', 0, { def: { name } }, 0.5);
     assert.ok(r.out && r.out.driven && r.out.emote, `${name}: played from the set as an emote`);
@@ -914,4 +916,42 @@ test('a model whose clips have not loaded is never drawn in its rest pose: an or
     assert.ok(!p.rig.orb, 'and is gone');
     P.showcase.dispose(p.rig); p.node.dispose();
   } finally { (globalThis as any).fetch = realFetch; for (const [cls, f] of Object.entries(FILES)) A.setData(cls, f); }
+});
+
+test('a landing is a moment: walking or running on ends it, and walk to run is one layer on one clock (no out-of-step cross-fade)', () => {
+  A.setData('mixamo', readJson('public/play/anim/mixamo.json'));
+  try {
+    const pm: any = { ent: { rig: 'mixamo', form: 'biped', h: 1.8, stride: { walk: 1.6, run: 4.5 } }, k: 1, anim: { cls: 'mixamo', player: null, binds: new Map(), state: 'loading', events: [] } };
+    const lvl = { roots: puppetRoots() }, rig: any = {};
+    const step = (role: string, speed: number, o: any = {}) => A.drive(rig, pm, lvl, { dt: 1 / 60, role, em: null, speed, glb: false, glbEmote: false, took: false, landed: false, stride: pm.ent.stride, ...o });
+    for (let i = 0; i < 30; i++) step('fall', 0);
+    // lands running: the landing shows, then the run takes the body back within LAND_HOLD and a fade
+    step('run', 6, { landed: true });
+    assert.ok(pm.anim.take && pm.anim.take.name === 'land', 'the landing plays');
+    let gone = -1;
+    for (let i = 1; i < 90; i++) { step('run', 6); if (gone < 0 && !pm.anim.player.shots.length) gone = i / 60; }
+    assert.ok(gone > 0 && gone <= A.LAND_HOLD + A.FADE + 0.05, `running on ends the landing (${gone.toFixed(2)} s; its clip is ${A.setOf('mixamo').clips.land.seconds} s)`);
+    // lands standing still: the whole landing plays
+    for (let i = 0; i < 30; i++) step('fall', 0);
+    step('idle', 0, { landed: true });
+    for (let i = 0; i < 30; i++) step('idle', 0);
+    assert.ok(pm.anim.take && pm.anim.take.name === 'land', 'standing, the landing plays on');
+    // from a walk to a run and back: always the one LOCO layer, its clock turning with the speed
+    for (let i = 0; i < 60; i++) step('walk', 1.6);
+    let layers = 0, rates: number[] = [];
+    for (let i = 0; i < 180; i++) {
+      const sp = 1.6 + (i / 180) * 5;
+      step(sp > 3.6 ? 'run' : 'walk', sp);
+      layers = Math.max(layers, pm.anim.player.loops.filter((L: any) => L.w > 0.01).length);
+      rates.push(pm.anim.player.loops[pm.anim.player.loops.length - 1].rate);
+    }
+    assert.equal(pm.anim.player.loops[pm.anim.player.loops.length - 1].name, A.LOCO);
+    assert.equal(layers, 1, 'one gait layer the whole way (the walk and the run blended inside it)');
+    assert.ok(rates.every((r, i) => i === 0 || r >= rates[i - 1] - 1e-6), 'the cycle never slows while speeding up');
+    assert.ok(pm.anim.gait.lo === 'run' || pm.anim.gait.w > 0.9, 'at 6.6 m/s it is running');
+    // the run's and the walk's left feet come down together on the shared clock (their footstep events)
+    const set = A.setOf('mixamo');
+    assert.equal(A.footfall(set.clips.walk), 0);
+    assert.ok(Math.abs(A.footfall(set.clips.run) - 0.2857) < 1e-3);
+  } finally { A.setData('mixamo', FILES.mixamo); }
 });

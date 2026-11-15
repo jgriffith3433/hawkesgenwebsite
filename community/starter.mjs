@@ -481,7 +481,7 @@ export function stepsFor(kind, what) {
       { tool: 'image.generate', params: { prompt: `${what}, single object, straight front view, centered, whole object in frame, plain flat light grey background, even light, no shadow, ${STYLE}`, width: 1024, height: 1024, count: 1 }, save: 'front' },
       { tool: 'image.remove-background', inputs: { image: '$prev' }, save: 'cutout' },
       { tool: 'image.viewsheet', inputs: { image: '$step2:cutout' }, params: { form: 'prop', cell: 1024, retries: 4, look: what }, save: 'views' },
-      { tool: 'mesh.views3d', inputs: { front: '$step3:front', back: '$step3:back', left: '$step3:left', right: '$step3:right' }, save: 'raw' },
+      { tool: 'mesh.views3d', inputs: { front: '$step3:front', back: '$step3:back', left: '$step3:left', right: '$step3:right' }, params: { resolution: '1024' }, save: 'raw' },
       { tool: 'blender.character', inputs: { files: ['$step4:mesh'] }, params: { ops: [{ op: 'import', file: 0, clips: false }, { op: 'fix', shards: 0.02, holes: 24 }, { op: 'retopo', faces: 12000 }, { op: 'bake', size: 2048 }, { op: 'lod', levels: [0.15], compress: 'draco', textures: 'webp' }, { op: 'export', format: 'glb', title: 'high', compress: 'draco', textures: 'webp' }] }, save: 'model' },
     ];
     case 'texture': return [{ tool: 'image.generate', params: { prompt: `${what}, seamless tileable texture, top-down, flat even lighting, no shadows, ${STYLE}`, width: 1024, height: 1024, seamless: true, count: 1 }, save: 'texture' }];
@@ -499,3 +499,15 @@ export function stepsFor(kind, what) {
 }
 
 export const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+/** Bump to remake the whole pack (a new look, a new recipe); the portal replaces each thing's row with its newest. */
+export const KEY_VERSION = 'v3';
+/** A kind remade on its own (models: v4, the fixed image-to-3D chain); keep cloud/functions/src/community.ts MIN_REV in step. */
+export const KIND_VERSION = { model: 'v4' };
+export const versionOf = (kind) => KIND_VERSION[kind] ?? KEY_VERSION;
+/** Every thing in the pack, one entry each: { kind, tag, name, what, words, item } (item: the library row's `kind/slug`). */
+export const packItems = () => STARTER.flatMap((g) => g.items.map(([name, what, words]) => ({ kind: g.kind, tag: g.tag, name, what, words, item: `${g.kind}/${slug(name)}` })));
+/** Gen's job key for a thing: the same key hands back the same job while it is made or under way (never paid twice). */
+export const keyOf = (it) => `starter/${it.kind}/${slug(it.name)}/${versionOf(it.kind)}`;
+/** The labels the portal's starter sync reads (cloud/functions/src/community.ts syncStarterPack). */
+export const labelsOf = (it) => ({ pack: 'starter', community: true, kind: it.kind, tag: it.tag, tags: [it.tag, ...it.words.split(/\s+/)].join(' '), name: it.name, item: slug(it.name), rev: versionOf(it.kind) });

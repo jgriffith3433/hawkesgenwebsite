@@ -4,15 +4,17 @@
 //
 // Who you are, then an account (J, 2026-10-24): the Overseer's intro and the mirror are a guest's; when the mirror's
 // questions are done (a name or none), the account sheet opens and can't be put away (sign up, sign in, or Google; an
-// email that already has an account is asked to sign in; "Forgot your password?" mails a link). Signed in, the island
-// becomes their game (claim 'tour') and Pip's tour carries on in the editor, where the Overseer is the chat and what it
-// makes is paid from their credits. Until then Pip waits (HawkesGuest.accountFirst: src/overseer-games/sandbox.js).
+// email that already has an account is asked to sign in; "Forgot your password?" mails a link). Until then Pip waits
+// (HawkesGuest.accountFirst: src/overseer-games/sandbox.js). Signed in already: the tour goes on here without creating
+// a game (POST /v1/games only when they choose Save / Build / Invite); if they already have an island it is reused so
+// the Overseer chat can talk, otherwise they play the guest sandbox until they keep it.
 //
 // When they want more ("Save this world", "Build your own", "Invite a friend"), the world as it is
 // now is snapshotted (HawkesGuestCore.snapshot: every thing from scene.json still there, where it is now, and the
 // things they spawned; terrain they dug) into localStorage, and the sign-up sheet opens (email, or Google, which comes
 // back to /play/sandbox?claim=<intent>). Signed in, the snapshot becomes their first game: POST /v1/games (template
-// 'sandbox') and the difference as scene ops (POST /v1/games/:id/scene), then the editor (/app/g/<id>).
+// 'sandbox') and the difference as scene ops (POST /v1/games/:id/scene), then the editor (/app/g/<id>). A plan that is
+// full answers 402 with a toast, never a sheet that covers the play view.
 //
 // Coming back (J, 2026-10-25): a second visit does not repeat the beginning. `hg_sandbox_return` (the `ret` record: the
 // character's name, the tour step they are on, who they were signed in as) is written when the mirror is done and as the
@@ -20,8 +22,8 @@
 // mirror (config as in the Observatory's return), is beamed in, is welcomed back by name, and the tour resumes on the step
 // they left (sandbox.js reads HawkesGuest.resume and fast-forwards Pip's quest silently). L or "Change my look" opens the
 // mirror's questions anywhere. Storage cleared: no record, no intro flag, the full beginning.
-// Invitations (J, 2026-10-25; src/invites.ts, docs/story.md "Visitors"): "Invite a friend" (the button, and the pause menu on
-// Esc twice) needs no account. It asks POST /v1/island-invite for a link, puts this player in the island's room
+// Invitations (J, 2026-10-25; src/invites.ts, docs/story.md "Visitors"): "Invite a friend" (the button, and the game menu on
+// Esc) needs no account. It asks POST /v1/island-invite for a link, puts this player in the island's room
 // (play:t/sandbox:<code>, HawkesNet) and shares the link (the native share sheet on phones, else copied). A friend who opens
 // /play/sandbox?invite=<token> is checked first (GET /v1/island-invite/<token>: closed, full, expired and unreadable links get
 // a plain message and "Start my own island"), then gets the same loading screen, a short intro (config.overseer.intro
@@ -33,7 +35,7 @@
 // signup_open, sandbox_signup, sandbox_claimed.
 // The funnel, in order, each with `ms` (since the page loaded; track() adds it) and nothing personal (no email, name or
 // password; failures give a reason code): sandbox_open (landing page) > sandbox_scripts_ready > sandbox_world_built >
-// sandbox_first_frame > sandbox_start > sandbox_veil_shown > sandbox_veil_passed > sandbox_intro_start >
+// sandbox_first_frame > sandbox_start > sandbox_veil_shown > sandbox_veil_passed (title screen: fly-over, then Play) > sandbox_intro_start >
 // sandbox_intro_skip | sandbox_intro_end > sandbox_mirror_open > sandbox_mirror_answer {step} | sandbox_mirror_skip {step} >
 // sandbox_sheet_shown > sandbox_sheet_focus {field} > sandbox_google_popup {opened} > sandbox_signup_submit {mode} >
 // sandbox_signup_ok {mode, method} | sandbox_signup_failed {mode, reason} > sandbox_tour_start > sandbox_tour_step {step, n}
@@ -116,9 +118,43 @@
       return { icon: (w && w.icon) || '🧍', label: (w && w.label) || 'A person', name: (look && look.name) || '', color };
     },
     chunks(list, n) { const out = []; for (let i = 0; i < list.length; i += n) out.push(list.slice(i, i + n)); return out; },
+    /** One ask's watch (J, 2026-11-10: "it just thinks forever"): one timer at a time, no polling. start() when the ask
+     *  went out; alive() on every sign of life from the server (its work, its heartbeat every ~10 s, the thinking state);
+     *  stop() when the answer came. Quiet for quietMs, or past capMs in all, and onFail(reason: 'quiet' | 'cap') runs once:
+     *  the page stops waiting and says so plainly, with Retry. (o.setTimeout/clearTimeout/now: the tests' clock.) */
+    askWatch(o) {
+      const set = o.setTimeout || setTimeout, clear = o.clearTimeout || clearTimeout, now = o.now || Date.now;
+      const quietMs = o.quietMs || 60_000, capMs = o.capMs || 6.5 * 60_000;
+      let timer = null, started = 0, on = false;
+      const stop = () => { clear(timer); timer = null; on = false; };
+      const arm = (ms) => {
+        clear(timer);
+        const left = capMs - (now() - started);
+        const wait = Math.max(0, Math.min(ms || quietMs, left));
+        const why = left <= (ms || quietMs) ? 'cap' : 'quiet';
+        timer = set(() => { if (!on) return; stop(); o.onFail(why); }, wait);
+      };
+      return {
+        start() { started = now(); on = true; arm(); },
+        alive(ms) { if (on) arm(ms); },
+        stop,
+        get running() { return on; },
+      };
+    },
   };
   window.HawkesGuestCore = Core;
   if (typeof document === 'undefined') return;
+  // Under automation only: the console is kept from the first line (the first-load playtest lists the WebGL ones; the playtest module, loaded below, would miss what came before it).
+  try {
+    if ((navigator.webdriver || /[?&]playtest=/.test(location.search) || sessionStorage.getItem('hg_playtest_run')) && !window.__hgConsole) {
+      var hgCap = window.__hgConsole = [];
+      ['log', 'info', 'warn', 'error', 'debug'].forEach(function (level) {
+        var orig = console[level];
+        console[level] = function () { try { hgCap.push([Math.round(performance.now()), level, [].map.call(arguments, function (a) { return (a && a.message) || (typeof a === 'object' ? JSON.stringify(a) : a); }).join(' ').slice(0, 400)]); } catch (e) { /* never breaks the game */ } return orig.apply(this, arguments); };
+      });
+      window.addEventListener('error', function (e) { hgCap.push([Math.round(performance.now()), 'pageerror', String(e.message).slice(0, 400)]); });
+    }
+  } catch { /* never breaks the game */ }
   // Studio's playtest (public/playtest/portal.js): only a browser under automation loads it.
   try { if (navigator.webdriver || /[?&]playtest=/.test(location.search) || sessionStorage.getItem('hg_playtest_run')) import('/playtest/portal.js').catch(function () {}); } catch { /* never breaks the game */ }
 
@@ -149,8 +185,16 @@
   };
   const api = async (method, url, body, o = {}) => {
     let r;
-    try { r = await fetch(url, { method, headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(o.headers || {}) }, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin', keepalive: Boolean(o.keepalive) }); }
-    catch { const e = new Error("Couldn't reach Hawkes Games. Check your connection and try again."); e.status = 0; throw e; }
+    // (o.timeout: a request that may never come back, like a message to the Overseer, is given up after that long.)
+    // (An AbortController, so the network log shows the request cancelled when the time is up; o.signal ends it early too.)
+    const ctl = o.timeout || o.signal ? new AbortController() : null;
+    let timedOut = false;
+    const timer = o.timeout ? setTimeout(() => { timedOut = true; ctl.abort(); }, o.timeout) : null;
+    if (o.signal) { if (o.signal.aborted) ctl.abort(); else o.signal.addEventListener('abort', () => { timedOut = timedOut || Boolean(o.signal.timedOut); ctl.abort(); }, { once: true }); }
+    const signal = ctl ? ctl.signal : undefined;
+    try { r = await fetch(url, { method, headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(o.headers || {}) }, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin', keepalive: Boolean(o.keepalive), signal }); }
+    catch (err) { clearTimeout(timer); const e = new Error(timedOut ? 'Hawkes Games took too long to answer. Try again.' : "Couldn't reach Hawkes Games. Check your connection and try again."); e.status = 0; e.timedOut = timedOut; throw e; }
+    clearTimeout(timer);
     const d = await r.json().catch(() => ({}));
     if (!r.ok) {
       const e = new Error(d.error || `That did not work (${r.status})`); e.status = r.status;
@@ -160,7 +204,15 @@
     }
     return d;
   };
-  const me = () => fetch('/v1/users/me?soft=1', { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null)).then((d) => (d && d.user) || null).catch(() => null);
+  // Who is signed in. Remembered in session.user, so a tap on Save knows without asking the network (and a dead network
+  // never makes a signed-in player look like a guest); a request that never answers is given up after 8 s.
+  const me = () => {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 8000);
+    return fetch('/v1/users/me?soft=1', { credentials: 'same-origin', signal: ctl.signal })
+      .then((r) => (r.ok ? r.json() : null)).then((d) => { const u = (d && d.user) || null; session.user = u; return u; })
+      .catch(() => null).finally(() => clearTimeout(timer));
+  };
 
   const isTouch = () => { try { return Boolean(window.HawkesPlay && window.HawkesPlay.touchUi); } catch { return false; } };
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -182,12 +234,14 @@
 .gs-acts button.glow::after{content:attr(data-tip);position:absolute;right:0;top:calc(100% + 8px);width:max-content;max-width:260px;font:600 13px/1.35 var(--hud);letter-spacing:0;text-align:left;color:#16130a;background:#ffd84a;border-radius:10px;padding:8px 11px;box-shadow:0 6px 20px rgba(0,0,0,.4);pointer-events:none}
 @keyframes gsGlow{0%,100%{box-shadow:0 0 0 0 rgba(255,216,74,.0),0 0 12px rgba(255,216,74,.35)}50%{box-shadow:0 0 0 6px rgba(255,216,74,.18),0 0 26px rgba(255,216,74,.7)}}
 .gs-acts button.primary{background:linear-gradient(90deg,#4a9eff,#a855f7);border-color:transparent;color:#fff}
-.gs-acts .more{display:none}
+.gs-acts .more{display:none} /* shown by hudlayout on phone compact (body.hl-compact) */
+.gs-acts .more[aria-expanded=true]{border-color:#4a9eff}
 .gs-toast{right:12px;top:62px;padding:12px 14px;display:flex;gap:12px;align-items:center;font:600 15px var(--hud);pointer-events:auto;max-width:calc(100vw - 24px)}
-.gs-toast button{font:700 14px var(--hud);border-radius:9px;padding:8px 12px;cursor:pointer;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);color:#e8ecf6;min-height:44px}
-.gs-toast button.primary{background:linear-gradient(90deg,#4a9eff,#a855f7);border-color:transparent;color:#fff}
-.gs-veil{inset:0;z-index:60;background:rgba(4,6,12,.66);display:grid;place-items:center;padding:16px;pointer-events:auto}
-.gs-sheet{width:min(420px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:22px 22px 18px;font-family:var(--sans)}
+.gs-toast button,.gs-toast a.primary{font:700 14px var(--hud);border-radius:9px;padding:8px 12px;cursor:pointer;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);color:#e8ecf6;min-height:44px;text-decoration:none;display:inline-flex;align-items:center;box-sizing:border-box}
+.gs-toast button.primary,.gs-toast a.primary{background:linear-gradient(90deg,#4a9eff,#a855f7);border-color:transparent;color:#fff}
+.gs-veil{inset:0;z-index:60;background:rgba(4,6,12,.66);display:grid;place-items:center;padding:16px;pointer-events:auto;box-sizing:border-box}
+.gs-sheet{width:min(420px,calc(100vw - 32px));max-width:calc(100vw - 32px);box-sizing:border-box;max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow:auto;overflow-x:hidden;padding:22px 22px 18px;font-family:var(--sans)}
+.gs-sheet .go,.gs-sheet .google,.gs-sheet a.go{width:100%;max-width:100%;box-sizing:border-box}
 .gs-who{display:flex;align-items:center;gap:14px;margin:0 0 14px}
 .gs-who .face{flex:none;width:68px;height:68px;border-radius:50%;display:grid;place-items:center;font-size:36px;background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.35),transparent 55%),var(--c,#4a9eff);box-shadow:0 0 0 2px rgba(255,255,255,.2),0 0 22px var(--c,#4a9eff)}
 .gs-who .who{min-width:0}.gs-who b{display:block;font:700 17px var(--display);letter-spacing:.04em;color:#fff;overflow-wrap:anywhere}.gs-who small{color:#a5acc2;font:13px var(--sans)}
@@ -245,7 +299,7 @@
   const TRIES = ['drive', 'boom', 'fish', 'talk', 'spawn', 'fly'];
 
   // What the signed-in part needs from the running island (startUi sets it).
-  const session = { H: null, base: null, edits: null, acts: null, friend: null, invited: false };
+  const session = { H: null, base: null, edits: null, acts: null, friend: null, invited: false, user: null };
   function startUi(H, base, t0) {
     style();
     const touch = isTouch();
@@ -265,9 +319,18 @@
     // (While Pip's tour runs, the nudge waits for its end.)
     const touring = () => { try { return H.game.events.quests.state('tour') === 'active'; } catch { return false; } };
 
-    // The buttons that open the account side.
-    const acts = el(`<button type="button" class="primary" data-intent="save">Save this world</button><button type="button" class="opt" data-intent="build">Build your own</button><button type="button" class="opt" data-intent="invite">Invite a friend</button>`, 'gs-acts');
-    acts.querySelectorAll('[data-intent]').forEach((b) => { b.onclick = () => { acts.classList.remove('open'); want(b.dataset.intent, 'button'); }; });
+    // The buttons that open the account side. On a phone (hudlayout body.hl-compact) the ☰ opens the game menu.
+    // Phone compact: the ☰ opens the game menu (gamemenu.js). Save / Build / Invite stay as desktop intents and for
+    // signed-in flows; Invite is also a game-menu item.
+    const acts = el(`<button type="button" class="more" data-menu aria-label="Menu" aria-expanded="false" title="Menu">☰</button><button type="button" class="primary" data-intent="save">Save this world</button><button type="button" class="opt" data-intent="build">Build your own</button><button type="button" class="opt" data-intent="invite" title="Make a link to your island and copy it">Copy invite link</button>`, 'gs-acts');
+    const menu = acts.querySelector('[data-menu]');
+    const setOpen = (on) => { acts.classList.toggle('open', on); if (menu) menu.setAttribute('aria-expanded', on ? 'true' : 'false'); };
+    if (menu) menu.onclick = (e) => {
+      e.stopPropagation();
+      if (H.gameMenu) { H.gameMenu.toggle(); setOpen(false); return; }
+      setOpen(!acts.classList.contains('open'));
+    };
+    acts.querySelectorAll('[data-intent]').forEach((b) => { b.onclick = () => { setOpen(false); want(b.dataset.intent, 'button'); }; });
     session.acts = acts;
 
     // One gentle nudge, once: after two things tried, at the end of the tour, or after four minutes.
@@ -382,8 +445,8 @@
       try { if (document.pointerLockElement) document.exitPointerLock(); } catch { /* fine */ }
       if (!invited) {
         let r;
-        try { r = await api('POST', '/v1/island-invite', { name: myName() }); }
-        catch (err) { flash(err.message || 'Could not make a link. Try again.'); return; }
+        try { r = await api('POST', '/v1/island-invite', { name: myName() }, { timeout: SAVE_MS }); }
+        catch { flash("Couldn't make the link just now. Try again."); return; }
         invited = { link: r.link, room: r.room };
         session.invited = true;
         // Our room: the friend comes to us here. (A signed-in player's editor room is left for it; their island is saved as ever.)
@@ -394,6 +457,12 @@
           // normal line queued behind a chatty island went stale or was dropped, and the second one never showed).
           say('Someone is coming.', 'important');
           say(`${d && d.name ? d.name : 'A friend'} is here.`, 'important');
+          // The welcome moment, seen as well as read: a card with their name, for a few seconds (once per arrival).
+          const who = d && d.name ? d.name : 'A friend';
+          const w = el(`<span>👋</span><b>${esc(who)} joined your island</b><span>They are beside you now.</span><button type="button" data-x aria-label="Close">✕</button>`, 'gs-glass gs-toast');
+          w.dataset.invite = 'welcome';
+          w.querySelector('[data-x]').onclick = () => w.remove();
+          setTimeout(() => w.remove(), 8000);
         });
       }
       shareLink(invited.link);
@@ -420,15 +489,19 @@
       t.querySelector('[data-x]').onclick = () => t.remove();
       setTimeout(() => t.remove(), 60000);
     }
-    // The pause menu: Esc twice (like the Observatory's way back); the friend's invitation is in it.
-    let escAt = 0;
-    window.addEventListener('keydown', (e) => {
-      if (e.key !== 'Escape' || e.repeat || document.body.dataset.gsSheet) return;
-      const now = Date.now();
-      if (now - escAt > 700) { escAt = now; return; }
-      escAt = 0;
-      try { H.game.ui.menu('pause', { title: 'Paused', items: [{ label: 'Resume' }, { label: 'Invite a friend', onClick: () => invite('pause') }, { label: 'Change my look', onClick: look }] }); } catch { /* no menus in this build */ }
-    }, true);
+    // The game menu (modules/gamemenu): one Esc or the phone ☰. Invite and Change my look live there.
+    const bindMenu = () => {
+      if (!H.gameMenu || H.gameMenu._guestBound) return;
+      H.gameMenu._guestBound = true;
+      try {
+        window.HawkesGuest = window.HawkesGuest || {};
+        HawkesGuest.invite = (from) => invite(from || 'menu');
+        HawkesGuest.look = look;
+        if (session && session.user) HawkesGuest.user = session.user;
+      } catch { /* fine */ }
+    };
+    bindMenu();
+    try { H.hooks.world.push({ enter: bindMenu }); } catch { bindMenu(); }
 
     // A friend who opened an invitation: at the mirror's end (or, for a return, once beamed in) they join the inviter's room.
     const inv = session.friend;
@@ -472,7 +545,11 @@
       track('sandbox_return', { signedIn: Boolean(rec.signedIn), tour: rec.tour || null });
       const name = lookName(H) || rec.name || '';
       if (!rec.signedIn && !gated) {
-        setTimeout(() => { if (H.chat) H.chat.line({ kind: 'overseer', keep: 30, text: name ? `Welcome back, ${name}. The mirror is there if you want a new look: ${H.touchUi ? 'Controls, then My look' : 'press L'}.` : `Welcome back. The mirror is there if you want a new look: ${H.touchUi ? 'Controls, then My look' : 'press L'}.` }); }, 2600);
+        setTimeout(() => {
+          if (H.chat) H.chat.line({ kind: 'overseer', keep: 30, text: name ? `Welcome back, ${name}. The mirror is there if you want a new look: ${H.touchUi ? 'Controls, then My look' : 'press L'}.` : `Welcome back. The mirror is there if you want a new look: ${H.touchUi ? 'Controls, then My look' : 'press L'}.` });
+          // Chapter One world marks: pan the newest lasting change (world-marks.js listens).
+          try { H.game.emit('welcome-back', { name, mark: rec.mark || null }); } catch { /* fine */ }
+        }, 2600);
         gated = true;
         setTimeout(() => want('tour', 'return'), 6500);
       }
@@ -496,7 +573,7 @@
       if (intent === 'invite') return invite(from); // (no account: the friend does not need one, and neither does the inviter)
       // Kept already (signed in): Save saves now, Build and Invite open the editor, Ask opens the chat.
       if (island) {
-        if (intent === 'save') return saveNow(false).then(flashSaved);
+        if (intent === 'save') return saveExplicit();
         if (intent === 'build' || intent === 'invite') return toEditor();
         if (intent === 'assistant') return void (H.chat && H.chat.open());
         return;
@@ -507,6 +584,15 @@
       let look = null;
       try { look = H.presence && H.presence.look ? JSON.parse(JSON.stringify(H.presence.look)) : null; } catch { look = null; }
       store.set({ v: 1, at: Date.now(), intent, scene: snap || base, base, look });
+      if (intent !== 'tour') {
+        // A tap on Save / Build / Ask / Share: signed in (known already), the request runs behind its timeouts; a guest gets
+        // the account sheet at once, before any network call. (A player whose sign-in this page has not heard of yet: the
+        // sheet closes by itself when the answer says so.)
+        if (session.user) return signedIn(intent, session.user);
+        const sheet = openSheet(intent, { name: lookName(H) });
+        me().then((u) => { if (u && sheet && sheet.isOpen()) { sheet.close(); signedIn(intent, u); } });
+        return;
+      }
       const user = await me();
       if (user) return signedIn(intent, user);
       openSheet(intent, { forced: intent === 'tour', name: lookName(H) });
@@ -565,7 +651,7 @@
       <p class="err" id="gsErr" role="alert" hidden></p>
       <p class="note" id="gsNote" hidden></p>
       <p class="fine" id="gsTerms">New here? The same button makes your account. By continuing you agree to the <a href="/legal#terms" target="_blank">terms</a> and <a href="/legal#privacy" target="_blank">privacy policy</a>.</p>
-      ${forced ? '<a class="back" href="/" data-leave>Leave the island</a>' : '<button type="button" class="back" data-back>Keep playing</button>'}
+      <button type="button" class="back" data-back>${forced ? 'Keep playing as a guest' : 'Keep playing'}</button>
     </div>`, 'gs-veil');
     const $ = (id) => veil.querySelector('#' + id);
     const note = (text) => { $('gsNote').textContent = text; $('gsNote').hidden = false; $('gsErr').hidden = true; };
@@ -594,15 +680,23 @@
         track('sandbox_login', { intent, method: 'google' });
         track('sandbox_signup_ok', { mode: 'google', method: 'google', intent });
         close();
-        await signedIn(intent, u);
+        // The sheet is "Keep this island": they chose to keep it, so Save/create still runs (unlike the automatic
+        // post-mirror path for someone already signed in).
+        await signedIn(intent, u, { fromSheet: true });
       };
       addEventListener('message', onMsg);
     });
     const unlock = lockGame(veil);
     const opener = document.activeElement;
-    const close = () => { unlock(); veil.remove(); try { opener && opener.focus && opener.isConnected && opener.focus(); } catch { /* fine */ } };
-    // Keyboard: focus goes into the sheet and Tab turns round inside it (the page behind is frozen), so even the forced
-    // sheet always has a next control, including "leave"; Escape closes it only when it is not forced.
+    const close = () => {
+      unlock(); veil.remove();
+      try { if (window.HawkesGuest && window.HawkesGuest._dismissSheet === close) window.HawkesGuest._dismissSheet = null; } catch { /* fine */ }
+      try { opener && opener.focus && opener.isConnected && opener.focus(); } catch { /* fine */ }
+    };
+    // Playtests (Google-only sign-up) call HawkesGuest.playtestContinue() to close the forced sheet and let Pip's tour run.
+    try { if (window.HawkesGuest) window.HawkesGuest._dismissSheet = close; } catch { /* fine */ }
+    // Keyboard: focus goes into the sheet and Tab turns round inside it (the page behind is frozen), so the sheet
+    // always has a next control; Escape or "Keep playing" closes it.
     veil.addEventListener('keydown', (e) => {
       if (e.key !== 'Tab') return;
       const f = [...veil.querySelectorAll('a[href],button,input,select,textarea,[tabindex]:not([tabindex="-1"])')].filter((x) => !x.disabled && !x.closest('[hidden]') && x.getClientRects().length);
@@ -612,13 +706,18 @@
       else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
       else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
     });
-    // (Forced: it can't be put away: the way out is leaving the island.)
-    const dismiss = () => { close(); if (o.onCancel) o.onCancel(); };
-    if (!forced) veil.querySelector('[data-back]').onclick = dismiss;
-    else veil.querySelector('[data-leave]').onclick = () => track('sandbox_gate_leave', {});
-    veil.addEventListener('pointerdown', (e) => { e.stopPropagation(); if (!forced && e.target === veil) dismiss(); });
-    veil.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !forced) dismiss(); });
+    // (The first sheet, after the mirror, can be put away too: a guest plays on and Pip's tour begins. The account is
+    // asked for again when they save, build, invite, share or ask the Overseer.)
+    const dismiss = () => {
+      close();
+      if (forced) { track('sandbox_gate_guest', {}); try { window.HawkesGuest.accountFirst = false; } catch { /* fine */ } }
+      if (o.onCancel) o.onCancel();
+    };
+    veil.querySelector('[data-back]').onclick = dismiss;
+    veil.addEventListener('pointerdown', (e) => { e.stopPropagation(); if (e.target === veil) dismiss(); });
+    veil.addEventListener('keydown', (e) => { if (e.key === 'Escape') dismiss(); });
     setTimeout(() => { const t = $('gsGoogle'); if (t && !veil.contains(document.activeElement)) t.focus({ preventScroll: true }); }, 50);
+    return { close, isOpen: () => veil.isConnected };
   }
   /** /auth/google with where to go after, and where the visitor came from (the hg_ref / hg_src cookies the landing page
    *  and invitations keep: Firebase Hosting forwards only __session, so they ride as ?ref= and ?src=). */
@@ -634,10 +733,9 @@
 
   // ------------------------------------------------------------------ signed in, without leaving: the island is kept here
   // (J, 2026-10-24: "I wanted sign in and registration to be seamless".) Signing in closes the sheet and the same world
-  // plays on: it becomes their game in the background (POST /v1/games + the changes so far as ops), joins that game's
-  // room (the Overseer's world changes arrive like any builder's, live) and its feed (the Overseer's answers, what it
-  // makes, new assets), the chat talks to the Overseer (H.chat, modules/overseer/chat.js), Pip's tour goes on, and what
-  // they do is saved every 20 s and on leaving. Building (the editor) is a page of its own, when they choose it.
+  // plays on. Saving (an explicit tap) makes it their game in the background (POST /v1/games + the changes so far as
+  // ops), joins that game's room and its feed, and the chat talks to the Overseer. After the mirror alone we never
+  // create a game: an existing island is reused, or they play on until they Save. Building is a page of its own.
   const RET = 'hg_sandbox_return';
   const ret = {
     get() { try { const v = JSON.parse(localStorage.getItem(RET) || 'null'); return v && v.v === 1 ? v : null; } catch { return null; } },
@@ -657,47 +755,116 @@
     clear() { try { localStorage.removeItem(KEPT); } catch { /* fine */ } },
   };
   let island = null; // { id, base, user }
-  /** After signing in: Build and Invite open the editor (a page of their own); the rest stays on the island. */
-  function signedIn(intent, user) {
+  /** After signing in: Build and Invite open the editor (a page of their own); the rest stays on the island.
+   *  o.fromSheet: they just finished the account sheet (Keep this island), so create/keep is OK; without it, a tour
+   *  intent only reuses an existing island or plays on (never POST /v1/games by itself after the mirror). */
+  function signedIn(intent, user, o = {}) {
     if (intent === 'share') return island ? afterKeep(intent) : keep(intent, user); // (the moment waits for this: afterKeep hands it on)
     if (intent === 'build' || intent === 'invite') return island ? toEditor() : claim(intent, user);
+    if (intent === 'tour' && !o.fromSheet) return continueTour(user);
     return keep(intent, user);
+  }
+  /** The look (and Overseer memory) from this visit into the account, without making a game. */
+  async function saveLook(user) {
+    const H = session.H;
+    if (!H) return;
+    let look = null;
+    try { look = H.presence && H.presence.look ? JSON.parse(JSON.stringify(H.presence.look)) : null; } catch { look = null; }
+    if (look) await api('POST', '/v1/users/me/avatar', { avatar: look }).catch((e) => console.warn('sandbox: look not saved', e));
+    try { if (H.memory) await H.memory.sync(); } catch { /* fine */ }
+    ret.patch({ user: user.id, name: lookName(H) || (ret.get() || {}).name || null });
+  }
+  /** An island this account already owns: the one kept on this device, else their newest owned game. */
+  async function findExistingIsland(user) {
+    const was = kept.get();
+    if (was && was.id && was.user === user.id) {
+      try { await api('GET', `/v1/games/${was.id}/bundle`); return was.id; }
+      catch (x) { if (x.status === 404 || x.status === 403) kept.clear(); }
+    }
+    try {
+      const list = await api('GET', '/v1/games');
+      const owned = (list.games || []).filter((g) => g && g.id && g.role === 'owner');
+      if (owned.length) return owned[0].id; // listGames sorts by updated desc
+    } catch { /* fine */ }
+    return null;
+  }
+  /** Mirror / return for someone already signed in: attach an existing island, or just let Pip's tour run. */
+  async function continueTour(user) {
+    if (island) { window.HawkesGuest.accountFirst = false; return afterKeep('tour'); }
+    const H = session.H;
+    if (!H || !H.world) { window.HawkesGuest.accountFirst = false; return; }
+    const id = await findExistingIsland(user);
+    if (id) {
+      await saveLook(user);
+      const snap = Core.snapshot(H, { edits: session.edits });
+      island = { id, base: snap, user: user.id };
+      store.clear();
+      kept.set({ id, user: user.id });
+      track('sandbox_claimed', { intent: 'tour', reused: true, user: 'yes', seamless: true });
+      await goLive(user, false);
+      return afterKeep('tour');
+    }
+    await saveLook(user);
+    window.HawkesGuest.accountFirst = false;
+    track('sandbox_tour_guest', { signedIn: true, kept: false });
+  }
+  // Every tap on Save ends in one visible thing within 15 s (J, 2026-11-11, finding f_a02d45284afc): the account sheet (a
+  // guest), "Saved", or one plain sentence with Try again. Each request is behind its own 15 s AbortController timeout, and
+  // the whole keep has one more (`all`), so no step can leave "Keeping your island…" on the screen.
+  const SAVE_MS = 15000;
+  /** The same as `Promise.race` with a time: a step that is not a request (the Overseer's memory) cannot hold the toast either. */
+  const within = (p, ms = SAVE_MS) => Promise.race([Promise.resolve(p).catch(() => {}), new Promise((res) => setTimeout(res, ms))]);
+  /** A short note over the island (it takes itself away); `text` is ours, never an error's own words. */
+  function note(text, ms = 3200) { const t = toast(text); t.dataset.saveNote = '1'; setTimeout(() => t.remove(), ms); return t; }
+  /** One plain sentence and Try again. `retry` runs the same save again. */
+  function saveFailed(retry, o = {}) {
+    track('sandbox_save_failed', { timedOut: Boolean(o.timedOut) });
+    const sheet = el(`<div class="gs-glass gs-sheet" data-save-failed="1" role="alertdialog" aria-label="Save"><h3>Your island wasn't kept yet</h3><p>${o.timedOut ? 'Hawkes Games took too long to answer.' : "Couldn't reach Hawkes Games."} Check your connection and try again.</p><button type="button" class="go" data-retry>Try again</button><button type="button" class="back" data-back>Keep playing</button></div>`, 'gs-veil');
+    sheet.querySelector('[data-retry]').onclick = () => { sheet.remove(); retry(); };
+    sheet.querySelector('[data-back]').onclick = () => sheet.remove();
   }
   async function keep(intent, user) {
     const H = session.H;
     if (!H || !H.world) return claim(intent, user);
     if (island) return afterKeep(intent);
     const busy = toast('Keeping your island…');
+    busy.dataset.saveBusy = '1';
+    const all = new AbortController(); // (the whole keep: its requests end with it)
+    const stop = setTimeout(() => { all.signal.timedOut = true; all.abort(); }, SAVE_MS);
+    const req = (method, url, body) => api(method, url, body, { timeout: SAVE_MS, signal: all.signal });
+    let live = true;
     try {
       const snap = Core.snapshot(H, { edits: session.edits });
       const name = lookName(H);
       let look = null;
       try { look = H.presence && H.presence.look ? JSON.parse(JSON.stringify(H.presence.look)) : null; } catch { look = null; }
       let game;
-      try { game = await api('POST', '/v1/games', { title: name ? `${name}'s island` : 'My island', template: 'sandbox' }); }
-      catch (x) { busy.remove(); if (x.status === 402) return gamesFull(el('', 'gs-veil'), x.message, intent); throw x; }
+      try { game = await req('POST', '/v1/games', { title: name ? `${name}'s island` : 'My island', template: 'sandbox' }); }
+      catch (x) { if (x.status === 402) { busy.remove(); return gamesFull(x.message, intent); } throw x; }
       // The look they made at the mirror is theirs now (it replaces what the account had: they just chose it).
-      if (look) await api('POST', '/v1/users/me/avatar', { avatar: look }).catch((e) => console.warn('sandbox: look not saved', e));
+      if (look) await req('POST', '/v1/users/me/avatar', { avatar: look }).catch((e) => console.warn('sandbox: look not saved', e));
       // What the Overseer remembered of them on this device goes into the account (the newer record wins).
-      try { if (H.memory) await H.memory.sync(); } catch { /* fine */ }
+      try { if (H.memory) await within(H.memory.sync()); } catch { /* fine */ }
       const ops = Core.toOps(session.base || { config: {}, entities: {} }, snap);
-      for (const part of Core.chunks(ops, 200)) await api('POST', `/v1/games/${game.id}/scene`, { ops: part });
+      for (const part of Core.chunks(ops, 200)) await req('POST', `/v1/games/${game.id}/scene`, { ops: part });
       // Their island: no Overseer's beginning or mirror again (they've seen them; the mirror is still there to use).
-      await api('POST', `/v1/games/${game.id}/scene`, { ops: [{ op: 'config', patch: { overseer: { intro: false } } }, { op: 'update', id: 'mirror', patch: { shape: { character: { start: false } } } }] }).catch(() => {});
+      await req('POST', `/v1/games/${game.id}/scene`, { ops: [{ op: 'config', patch: { overseer: { intro: false } } }, { op: 'update', id: 'mirror', patch: { shape: { character: { start: false } } } }] }).catch(() => {});
       island = { id: game.id, base: snap, user: user.id };
       store.clear();
       kept.set({ id: game.id, user: user.id });
       track('sandbox_claimed', { intent, changes: ops.length, user: 'yes', seamless: true });
+      clearTimeout(stop);
       busy.remove();
-      await goLive(user, true);
+      // Saved is the news; the room is a bonus (a missing one is told in one short line, not an error).
+      live = (await goLive(user, true)) !== false;
+      note(live ? 'Saved' : "Saved. Friends can't join right now.");
+      flashSaved();
       afterKeep(intent);
     } catch (x) {
+      clearTimeout(stop);
       busy.remove();
-      const forced = intent === 'tour';
-      const sheet = el(`<div class="gs-glass gs-sheet"><h3>Your island wasn't kept yet</h3><p>${esc(x.message)}</p><button type="button" class="go" data-retry>Try again</button>${forced ? '<a class="back" href="/app">Go to my games</a>' : '<button type="button" class="back" data-back>Keep playing</button>'}</div>`, 'gs-veil');
-      sheet.querySelector('[data-retry]').onclick = () => { sheet.remove(); keep(intent, user); };
-      const back = sheet.querySelector('[data-back]');
-      if (back) back.onclick = () => sheet.remove();
+      console.warn('sandbox: not kept', x);
+      saveFailed(() => keep(intent, user), { timedOut: Boolean(x && (x.timedOut || all.signal.timedOut)) });
     }
   }
   function afterKeep(intent) {
@@ -710,13 +877,14 @@
     const id = island.id;
     takeSeat(user && user.id);
     window.HawkesGuest.accountFirst = false; // (Pip's tour, here)
+    let live = true;
     try {
-      const b = await api('GET', `/v1/games/${id}/bundle`);
+      const b = await api('GET', `/v1/games/${id}/bundle`, undefined, { timeout: SAVE_MS });
       // Our room connection: saves carry it so the server doesn't send our own changes back to us (applied again, they
       // rebuilt what they touched: you were thrown out of the car and the camera reset on every save).
       if (!session.hooked && H.hooks && H.hooks.world) { session.hooked = true; H.hooks.world.push({ net: (st, info) => { if (info && info.me) session.conn = info.me; } }); }
       if (b.net && b.net.token && window.HawkesNet && !session.friend && !session.invited) window.HawkesNet.connect({ token: b.net.token });
-    } catch (x) { console.warn('sandbox: no live room', x); }
+    } catch (x) { live = false; console.warn('sandbox: no live room', x); }
     feed(id, user);
     if (H.chat) H.chat.attach({ send: (t) => ask(id, t), placeholder: isTouch() ? 'Talk to the Overseer…' : 'Press Enter to talk to the Overseer' });
     // What the Observatory's wardrobe asks the Overseer with (modules/overseer/wardrobe.js): the price first, then the same paid message the chat sends.
@@ -734,8 +902,11 @@
     const say = (text, action) => H.chat && H.chat.line({ kind: 'overseer', text, action, keep: 30 });
     const emit = (ev, d) => { try { H.game.emit(ev, d); } catch { /* fine */ } };
     setTimeout(() => {
-      if (!fresh) say(`${name ? `Welcome back, ${name}.` : 'Welcome back.'} Your island, as you left it${window.HawkesGuest.resumed && window.HawkesGuest.resumed !== 'done' ? ', and the tour where you stopped' : ''}. ${H.touchUi ? 'Controls has your look and everything else' : 'Press L to change how you look'}; talk to me here any time.`);
-      else if (n > 0) {
+      if (!fresh) {
+        say(`${name ? `Welcome back, ${name}.` : 'Welcome back.'} Your island, as you left it${window.HawkesGuest.resumed && window.HawkesGuest.resumed !== 'done' ? ', and the tour where you stopped' : ''}. ${H.touchUi ? 'Controls has your look and everything else' : 'Press L to change how you look'}; talk to me here any time.`);
+        // Chapter One world marks (world-marks.js): pan across the newest lasting change for 3–5 s (no panel).
+        emit('welcome-back', { name, mark: (ret.get() || {}).mark || null });
+      } else if (n > 0) {
         say(`${hi} This island is yours now. You have ${n.toLocaleString()} credits, and a message to me costs ${price}${n >= price ? `: that is ${Math.floor(n / price).toLocaleString()} ${Math.floor(n / price) === 1 ? 'ask' : 'asks'}` : ', so you are a little short'}. Nothing is spent until you send.`);
         emit('credits-told', { credits: n, price });
         if (n >= price) setTimeout(() => offerAsks(), 3500);
@@ -746,6 +917,7 @@
     }, 1200);
     // The tour's ask step teaches the same three asks again, when it is reached (spawn done).
     H.game.on('tour', (d) => { if (d && d.step === 'spawn') offerAsks(true); });
+    return live; // (false: saved, but no live room to be in)
   }
   /** What a message to the Overseer costs now (Gen's quote through the portal; the portal's floor if it can't be had). */
   async function askPrice(id) {
@@ -812,7 +984,14 @@
       seen.add(m.id);
       if (!firstTime) return;
       if (m.role === 'ai') {
-        H.chat.line({ kind: 'overseer', text: m.text, keep: 30 });
+        clearAskWatch();
+        // A failed answer is a plain message with Retry (the server refunded it), never silence.
+        const failed = m.data && m.data.error && m.data.retry;
+        // The answer is here: nothing may keep "thinking" (the `thinking` and `end` events are state, not replayed after a
+        // stream came back, so the answer itself ends them).
+        H.chat.status(null);
+        try { if (H.work && H.work.active) H.work.end(failed ? { ok: false, why: 'Stopped.' } : { ok: true }); } catch { /* fine */ }
+        H.chat.line({ kind: 'overseer', text: m.text, keep: failed ? 120 : 30, ...(failed ? { action: { label: 'Retry', onclick: (btn) => { if (btn) { btn.disabled = true; btn.textContent = 'Asking…'; } ask(id, String(m.data.retry)).catch((x) => H.chat.line({ kind: 'sys', text: x.message })); } } } : {}) });
         // A whole game built over several answers (project.json): the next step is one tap.
         const pj = m.data && m.data.project;
         if (pj && pj.left) H.chat.line({ kind: 'sys', text: `${pj.title}: next, ${String(pj.next).slice(0, 70)} (${pj.total - pj.left} of ${pj.total} done).`, keep: 120, action: { label: 'Keep building', onclick: () => ask(id, `Keep building the project: ${pj.next}`) } });
@@ -824,9 +1003,14 @@
       } else if (m.role === 'system') H.chat.line({ kind: 'sys', text: m.text });
       else H.chat.line({ kind: m.user_id && m.user_id === user.id ? 'me' : 'player', who: m.name || 'Someone', text: m.text });
     });
-    on('thinking', (e) => { let d = {}; try { d = JSON.parse(e.data); } catch { /* fine */ } if (H.chat) H.chat.status(d.on ? 'The Overseer is thinking…' : null); });
-    // The Overseer at work (src/overseer-lines.ts): where, the beats, its words, things arriving, the end.
-    on('overseer', (e) => { let d; try { d = JSON.parse(e.data); } catch { return; } if (H.work) H.work.handle(d); });
+    // (The answer itself, a chat line, stops the watch: `thinking` off can come a moment before it.)
+    on('thinking', (e) => { let d = {}; try { d = JSON.parse(e.data); } catch { /* fine */ } if (d.on) askWatch.alive(); else askWatch.alive(ASK_AFTER_MS); if (H.chat) H.chat.status(d.on ? 'The Overseer is thinking…' : null); });
+    // A stream that (re)opened says whether the Overseer is working now: an answer that ended while the stream was away is
+    // replayed right after this (chat is history), so a short wait is enough before the page says it lost track.
+    on('hello', (e) => { let d = {}; try { d = JSON.parse(e.data); } catch { /* fine */ } if (d.thinking) askWatch.alive(); else { if (H.chat) H.chat.status(null); askWatch.alive(ASK_AFTER_MS); } });
+    // The Overseer at work (src/overseer-lines.ts): where, the beats, its words, things arriving, the end. Each one (and its
+    // heartbeat, `alive`, every ~10 s) is a sign of life for the ask's watch.
+    on('overseer', (e) => { let d; try { d = JSON.parse(e.data); } catch { return; } askWatch.alive(); if (d && d.k === 'alive') return; if (H.work) H.work.handle(d); });
     on('gen', (e) => {
       let r; try { r = JSON.parse(e.data); } catch { return; }
       if (r && H.looks) H.looks.onGen(r); // (a new look being made for a thing takes its place when done)
@@ -855,6 +1039,36 @@
     on('deleted', () => { gone = true; clearTimeout(timer); es && es.close(); if (H.chat) { H.chat.detach(); H.chat.line({ kind: 'sys', text: 'This island was deleted.' }); } island = null; kept.clear(); });
     open();
   }
+  /** One ask's watch (Core.askWatch; no polling): when nothing comes from the server for ASK_QUIET_MS (the feed died, or the
+   *  run never started), or the whole ask passes ASK_WATCH_MS, the island stops waiting, says so and offers Retry. The
+   *  server's own watchdog fails a stuck run and gives the credits back. */
+  const ASK_QUIET_MS = 60_000;
+  const ASK_AFTER_MS = 15_000; // the Overseer is done (thinking off, or a stream came back with it not working): the answer is due
+  const ASK_WATCH_MS = 6.5 * 60_000;
+  const ASK_POST_MS = 45_000;
+  let asking = null; // { id, text } of the ask being watched
+  const askWatch = Core.askWatch({
+    quietMs: ASK_QUIET_MS, capMs: ASK_WATCH_MS,
+    onFail: (why) => {
+      const a = asking; asking = null;
+      if (!a) return;
+      track('assistant_hung', { why, where: 'sandbox' });
+      askFailed(a.id, a.text, why === 'cap'
+        ? "I haven't heard back from my side for a while, so I've stopped waiting. If you were charged, the credits come back on their own. Retry?"
+        : "I lost track of that one: nothing came back from my side for a minute. If you were charged, the credits come back on their own, and if the answer turns up after all it shows here. Retry?");
+    },
+  });
+  function clearAskWatch() { askWatch.stop(); asking = null; }
+  /** A failed ask: the work indicator ends, and the chat says so plainly with a Retry button. */
+  function askFailed(id, text, why) {
+    const H = session.H;
+    try { if (H.work) H.work.end({ ok: false, why: 'Stopped.' }); } catch { /* fine */ }
+    if (H.chat) {
+      H.chat.status(null);
+      H.chat.line({ kind: 'overseer', priority: 'important', keep: 120, text: why, action: { label: 'Retry', onclick: (btn) => { if (btn) { btn.disabled = true; btn.textContent = 'Asking…'; } ask(id, text).catch((x) => H.chat.line({ kind: 'sys', text: x.message })); } } });
+    }
+    track('assistant_failed', { where: 'sandbox' });
+  }
   /** A message to the Overseer, with what the player sees (the editor sends the same: build.js context()). */
   async function ask(id, text) {
     const H = session.H;
@@ -872,15 +1086,18 @@
     const work = H.work;
     if (work) work.begin({ text });
     try {
-      await api('POST', `/v1/games/${id}/ai`, { message: text, context: worldContext(H) || undefined });
+      await api('POST', `/v1/games/${id}/ai`, { message: text, context: worldContext(H) || undefined }, { timeout: ASK_POST_MS });
+      asking = { id, text };
+      askWatch.start();
       track('assistant_ask', { chars: text.length, where: 'sandbox' });
       me().then((u) => { if (u) session.credits = Number(u.credits) || 0; });
       try { H.game.emit('asked', { chars: text.length }); } catch { /* fine */ }
     } catch (x) {
       if (work) work.end({ ok: false, why: x.status === 402 ? 'Out of credits.' : x.status === 429 ? 'Still working on the last one.' : "I couldn't hear you." });
       if (x.status === 402) return outOfCredits(x.message);
-      if (x.status === 429) throw new Error("I'm still working on the last request. Ask again when it's done.");
-      if (!x.status || x.status >= 500) throw new Error("I couldn't hear you just now. Nothing was charged; try again in a moment.");
+      // Everything else is a plain line with Retry (the server's own words when it has them; Gen's raw errors never reach here).
+      if (x.status === 429) return askFailed(id, text, "I'm still working on the last request. Retry in a moment; I'll be free as soon as I'm done or have given up.");
+      if (!x.status || x.status >= 500 || x.status === 401 || x.status === 403) return askFailed(id, text, x.status === 503 && x.message ? x.message : "I couldn't hear you just now. Any credits held for it come back on their own. Retry in a moment.");
       throw x;
     }
   }
@@ -934,7 +1151,7 @@
   let saving = false, saveTimer = null, rebaseT = null;
   const savedRevs = new Set(); // scene.json revisions our saves made (their feed events are ours, nothing to do)
   async function saveNow(keepalive) {
-    if (!island || saving || !session.H || !session.H.world || (seat && seat.aside)) return;
+    if (!island || saving || !session.H || !session.H.world || (seat && seat.aside)) return undefined;
     saving = true;
     try {
       const now = Core.snapshot(session.H, { edits: session.edits });
@@ -946,12 +1163,20 @@
       }
       const ops = Core.toOps(island.base, now);
       for (const part of Core.chunks(ops, 200)) {
-        const r = await api('POST', `/v1/games/${island.id}/scene`, { ops: part }, { keepalive, headers: session.conn ? { 'X-Room-Conn': session.conn } : undefined });
+        const r = await api('POST', `/v1/games/${island.id}/scene`, { ops: part }, { keepalive, timeout: keepalive ? 0 : SAVE_MS, headers: session.conn ? { 'X-Room-Conn': session.conn } : undefined });
         if (r && r.rev) { savedRevs.add(r.rev); if (savedRevs.size > 50) savedRevs.delete(savedRevs.values().next().value); }
       }
       island.base = now;
       if (ops.length) flashSaved();
-    } catch (x) { console.warn('sandbox: not saved yet', x); } finally { saving = false; }
+      return true;
+    } catch (x) { console.warn('sandbox: not saved yet', x); return false; } finally { saving = false; }
+  }
+  /** The Save tap on a kept island: "Saved", or one plain sentence with Try again (never a button that only blinks). */
+  async function saveExplicit() {
+    const ok = await saveNow(false);
+    if (ok === false) return saveFailed(saveExplicit);
+    note('Saved');
+    flashSaved();
   }
   /** The Overseer (or a builder) changed the world: save ours first, then count theirs as already there. */
   function rebase() {
@@ -990,20 +1215,21 @@
     el.querySelector('button').addEventListener('click', () => location.reload());
     document.body.appendChild(el);
   }
-  /** Signed in: Save shows it's kept (and saves now), Build and Invite open the editor, Ask opens the chat. */
+  /** Signed in: Save stays in the actions menu (phone fold counts on every intent), Build opens the editor. */
   function signedInButtons() {
     const acts = session.acts;
     if (!acts) return;
     const b = (k) => acts.querySelector(`[data-intent="${k}"]`);
-    if (b('save')) b('save').remove(); // (signed in, the island saves itself)
+    if (b('save')) { b('save').textContent = 'Save now'; b('save').dataset.tip = 'Your island saves itself; tap to save now.'; }
     if (b('build')) { b('build').textContent = 'Build'; b('build').classList.add('primary'); }
   }
   function flashSaved() {
     const s = session.acts && session.acts.querySelector('[data-intent="save"]');
-    if (!s) return; // (signed in there's no Save button: it saves itself)
+    if (!s) return;
+    const was = s.textContent;
     s.textContent = 'Saved ✓';
     s.classList.add('glow');
-    setTimeout(() => s.classList.remove('glow'), 1200);
+    setTimeout(() => { s.classList.remove('glow'); if (s.textContent === 'Saved ✓') s.textContent = was || 'Save now'; }, 1200);
   }
   function toast(text) { return el(`<span>${esc(text)}</span>`, 'gs-glass gs-toast'); }
 
@@ -1019,14 +1245,14 @@
       if (!saved && !tour) throw new Error('Nothing to save: this browser has no island from the sandbox.');
       const name = saved && saved.look && saved.look.name ? String(saved.look.name).slice(0, 40) : '';
       let game;
-      try { game = await api('POST', '/v1/games', { title: name ? `${name}'s island` : 'My island', template: 'sandbox' }); }
-      catch (x) { if (x.status === 402) return gamesFull(busy, x.message, intent); throw x; }
+      try { game = await api('POST', '/v1/games', { title: name ? `${name}'s island` : 'My island', template: 'sandbox' }, { timeout: SAVE_MS }); }
+      catch (x) { if (x.status === 402) { busy.remove(); return gamesFull(x.message, intent); } throw x; }
       // The look they made at the mirror is theirs now (it replaces what the account had: they just chose it).
       if (saved && saved.look) await api('POST', '/v1/users/me/avatar', { avatar: saved.look }).catch((e) => console.warn('sandbox: look not saved', e));
       const ops = saved ? Core.toOps(saved.base || { config: {}, entities: {} }, saved.scene) : [];
       const notApplied = [];
       for (const part of Core.chunks(ops, 200)) {
-        const r = await api('POST', `/v1/games/${game.id}/scene`, { ops: part });
+        const r = await api('POST', `/v1/games/${game.id}/scene`, { ops: part }, { timeout: SAVE_MS });
         if (r && r.errors && r.errors.length) notApplied.push(...r.errors);
       }
       // Their island, from now on: the Overseer's beginning and the mirror only the first time (they've seen them here);
@@ -1039,21 +1265,21 @@
       // (The tour: playing, Pip's tour, the Overseer in the chat. Otherwise the editor's short building tour.)
       location.replace(tour ? `/app/g/${game.id}?tour=1` : `/app/g/${game.id}?welcome=build`);
     } catch (x) {
-      busy.innerHTML = `<div class="gs-glass gs-sheet"><h3>That did not work</h3><p>${esc(x.message)}</p><button type="button" class="go" data-retry>Try again</button><a class="back" style="display:block;text-align:center" href="/app">Go to my games</a>${tour ? '' : '<button type="button" class="back" data-back>Back to the island</button>'}</div>`;
+      busy.innerHTML = `<div class="gs-glass gs-sheet"><h3>That did not work</h3><p>${x.status === 0 ? esc(x.message) : "That did not work. Try again in a moment."}</p><button type="button" class="go" data-retry>Try again</button><a class="back" style="display:block;text-align:center" href="/app">Go to my games</a>${tour ? '' : '<button type="button" class="back" data-back>Back to the island</button>'}</div>`;
       busy.querySelector('[data-retry]').onclick = () => { busy.remove(); claim(intent, user); };
       const back = busy.querySelector('[data-back]');
       if (back) back.onclick = () => { busy.remove(); if (!window.HawkesPlay || !window.HawkesPlay.world) location.replace('/play/sandbox'); };
     }
   }
-  /** Signed in, but their plan has no room for another game: their games, or the island as a guest (not kept). */
-  function gamesFull(busy, message, intent) {
+  /** Signed in, but their plan has no room for another game: a toast (never a sheet over the play view). */
+  function gamesFull(message, intent) {
     track('sandbox_games_full', { intent });
-    busy.innerHTML = `<div class="gs-glass gs-sheet"><h3>No room for another game</h3><p>${esc(message)}</p><a class="go" style="display:block;text-align:center;text-decoration:none" href="/app">Go to my games</a><button type="button" class="back" data-back>Play the island without keeping it</button></div>`;
-    busy.querySelector('[data-back]').onclick = () => {
-      busy.remove();
-      if (!window.HawkesPlay || !window.HawkesPlay.world) return location.replace('/play/sandbox');
-      window.HawkesGuest.accountFirst = false; // (Pip's tour, here)
-    };
+    window.HawkesGuest.accountFirst = false; // (Pip's tour, here)
+    const text = message || 'Your plan has no room for another game.';
+    const t = el(`<span><b>No room for another game.</b> ${esc(text)}</span><a class="primary" href="/app">My games</a><button type="button" data-x aria-label="Close">✕</button>`, 'gs-glass gs-toast');
+    t.dataset.gamesFull = '1';
+    t.querySelector('[data-x]').onclick = () => t.remove();
+    setTimeout(() => t.remove(), 12000);
   }
 
   /** An invitation that cannot be used (closed, full, expired, unreadable): the reason, in plain words, and their own island. */
@@ -1085,6 +1311,7 @@
     async useLibrary(item) {
       try {
         const r = await api('POST', `/v1/games/${island.id}/community`, { id: item.id, mode: 'variant' });
+        if (r.missing || !r.asset) return { ok: false, missing: true, error: 'Not available right now' };
         const b = await api('GET', `/v1/games/${island.id}/bundle`);
         if (b.assets) session.H.setAssets(b.assets);
         return { ok: true, asset: r.asset };
@@ -1109,9 +1336,38 @@
     accountFirst: true,
     /** A return (public/play/guest.js): the tour step they left on (sandbox.js picks the tour up there), and the steps it fast-forwarded. */
     resume: null, resumed: null, skipped: null,
+    /** Return record (tour step, newest world mark): world-marks.js patches `mark` so a welcome-back can pan to it. */
+    ret,
+    /**
+     * Playtest only: close the forced account sheet and let Pip's tour begin without Google sign-in.
+     * (Cloud portal is Google-only; throwaway email accounts are gone. Named setup-shortcut in portal.js.)
+     */
+    playtestContinue() {
+      window.HawkesGuest.accountFirst = false;
+      try { if (typeof window.HawkesGuest._dismissSheet === 'function') window.HawkesGuest._dismissSheet(); } catch { /* fine */ }
+    },
+    /** Playtests only (automation: navigator.webdriver or ?playtest=): act as signed in, as if the page had heard from
+     *  /v1/users/me (Google sign-in cannot be scripted), so Save runs its signed-in path. Refused on a live site. */
+    playtestSignedIn(user) {
+      if (!(navigator.webdriver || /[?&]playtest=/.test(location.search) || sessionStorage.getItem('hg_playtest_run'))) return false;
+      if (/^(www\.)?(hawkesgames\.com|hawkesgen\.ai)$/.test(location.hostname)) return false;
+      session.user = { id: 'usr_playtest', credits: 0, ...(user || {}) };
+      return true;
+    },
     async boot(o = {}) {
       const t0 = performance.now();
       const q = new URLSearchParams(location.search);
+      // Title screen "New island": wipe the local beginning and any kept island so the full intro+mirror plays again.
+      if (q.get('fresh') === '1') {
+        try {
+          localStorage.removeItem('hg_overseer_intro');
+          localStorage.removeItem(RET);
+          localStorage.removeItem(KEPT);
+        } catch { /* fine */ }
+        const keepTouch = q.get('touch');
+        history.replaceState(null, '', '/play/sandbox' + (keepTouch ? '?touch=' + keepTouch : ''));
+        q.delete('fresh');
+      }
       const intent = q.get('claim');
       if (intent) {
         history.replaceState(null, '', '/play/sandbox' + (q.get('touch') ? '?touch=' + q.get('touch') : ''));
@@ -1187,7 +1443,7 @@
         if (comingBack && q.get('return') !== 'observatory') session.returning = { ...ret.get(), signedIn: false };
         window.HawkesPlay.run(b, { mode: 'play' });
         track('sandbox_world_built', {});
-        requestAnimationFrame(() => requestAnimationFrame(() => track('sandbox_first_frame', {})));
+        requestAnimationFrame(() => requestAnimationFrame(() => { try { performance.mark('hg-first-frame'); } catch { /* a mark is only for the first-load playtest */ } track('sandbox_first_frame', {}); }));
         startUi(window.HawkesPlay, base, t0);
       } catch (e) {
         if (o.failed) o.failed(e);

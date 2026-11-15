@@ -15,9 +15,10 @@ export type Manifest = {
   havok: string;
   scripts: string[];
   eager: string[];
+  optional: string[];
   editor: string[];
   kinds: string[];
-  modules: { name: string; title: string; kinds: string[]; lazy: boolean; config: string[]; tools: string[]; words: string[]; needs: string[]; scripts: string[] }[];
+  modules: { name: string; title: string; kinds: string[]; lazy: boolean; optional: boolean; config: string[]; tools: string[]; words: string[]; needs: string[]; scripts: string[] }[];
 };
 
 const cache = new Map<string, string>();

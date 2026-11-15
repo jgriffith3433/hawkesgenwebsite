@@ -20,15 +20,20 @@ import { db, FieldValue, users } from './store.ts';
 import { gen, genFetch } from './gen.ts';
 import { requireUser, requireAdmin, adminFrom, type User } from './accounts.ts';
 import { PortalError, route } from './http.ts';
-import { SECRETS } from './config.ts';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { PROJECT_PREFIX, SECRETS, isLive } from './config.ts';
+import { ASSETS } from './engine.ts';
 import { known, levelUrls, rememberAsset, rememberMany, type GenLods } from './lods.ts';
 
 /** The Gen project Hawkes' own starter pack lives in (the same for every copy of the portal). */
-export const STARTER_PROJECT = 'usr_00000000000000c0';
+export const STARTER_PROJECT = `${PROJECT_PREFIX}00000000000000c0`;
 export const COMMUNITY_KINDS = ['model', 'texture', 'image', 'sprite', 'sky', 'music', 'ambience', 'sfx', 'voice', 'video'] as const;
 const SEARCH_CAP = 3000;
 
-export type Row = { id: string; project: string; kind: string; mime: string | null; title: string; tags: string; category: string; item: string | null; low: string | null; thumb: string | null; by_user: string | null; source: string; uses: number; likes: number; created: number; hidden: number; words?: string[] };
+export type Row = { id: string; project: string; kind: string; mime: string | null; title: string; tags: string; category: string; item: string | null; low: string | null; thumb: string | null; by_user: string | null; source: string; uses: number; likes: number; created: number; hidden: number; words?: string[]; gone?: Record<string, number>; seen?: Record<string, number> };
 
 export const assets = () => db.collection('communityAssets');
 const uses = () => db.collection('communityUses');
@@ -48,8 +53,12 @@ export function wordsField(r: { title: string; category?: string; tags?: string 
   return [...all].slice(0, 200);
 }
 
+/** How long a file Gen said it lacks stays out of the listing (beta's Gen may get the starter pack later). */
+const GONE_FOR = 6 * 3600_000;
 const IMAGE_KINDS = ['texture', 'image', 'sprite', 'sky'];
 type Ctx = { lods: Record<string, GenLods>; cdn: Record<string, string>; names: Map<string, string | null> };
+/** A thing whose own file Gen lately answered 404 for: it is not listed or counted (an empty card would read as broken). */
+export const fileLost = (r: { id?: string; gone?: Record<string, number> }) => Boolean(r.id && Date.now() - Number(r.gone?.[r.id] ?? 0) < GONE_FOR);
 const thumbIdOf = (r: Row) => r.thumb ?? (IMAGE_KINDS.includes(r.kind) ? r.id : null);
 
 /** Everything the views of these rows need, read at once (levels, CDN links, sharers' names). */
@@ -67,15 +76,39 @@ function view(r: Row, c: Ctx) {
   const thumbId = thumbIdOf(r);
   const mine = IMAGE_KINDS.includes(r.kind) || r.kind === 'model' ? c.lods[r.id] : undefined;
   const t = thumbId ? c.lods[thumbId] : null;
-  const file = (x: string | null) => (x ? c.cdn[x] ?? proxy(x) : null);
+  // A file Gen answered 404 for lately (`file()` notes it) is not offered again: the page shows a placeholder, no request.
+  const lost = (x: string | null) => Boolean(x && Date.now() - Number(r.gone?.[x] ?? 0) < GONE_FOR);
+  const file = (x: string | null) => (x && !lost(x) ? c.cdn[x] ?? proxy(x) : null);
   const small = t ? [...t.levels].reverse().find((l) => l.level <= 256) ?? t.levels[0] : null;
-  const thumb = small ? levelUrls({ ...t!, levels: [small] }, proxy(thumbId)!, { cdn: true }).levels[0].url : file(thumbId);
+  const thumb = lost(thumbId) ? null : small ? levelUrls({ ...t!, levels: [small] }, proxy(thumbId)!, { cdn: true }).levels[0].url : file(thumbId);
   return {
     id: r.id, kind: r.kind, mime: r.mime ?? null, title: r.title, category: r.category || null, tags: r.tags ? r.tags.split(' ') : [], file: file(r.id),
     thumb, thumbFull: file(thumbId),
     ...(mine ? { lods: levelUrls(mine, proxy(r.id)!, { cdn: true }) } : {}),
+    ...(lost(r.id) ? { gone: true } : {}),
     low: Boolean(r.low) || Boolean(mine?.levels.some((l) => l.role === 'low')), by: r.by_user ? c.names.get(r.by_user) ?? 'A player' : 'Hawkes', source: r.source, uses: r.uses ?? 0, likes: r.likes ?? 0, created: r.created,
   };
+}
+/**
+ * Before a page of the library is listed: ask Gen once a day whether each thing's own file and its thumbnail exist, so
+ * the page never offers one that is not there (a 404 is a console error, and a sound that won't play reads as broken).
+ * Thumbnails only, before 2026-11-09: the starter pack's sounds and voices stayed listed after Gen lost them.
+ */
+const SEEN_FOR = 24 * 3600_000;
+const filesToProbe = (r: Row) => [...new Set([r.id, thumbIdOf(r)].filter((x): x is string => Boolean(x)))];
+async function probe(rows: Row[]) {
+  const todo = rows.flatMap((r) => filesToProbe(r).filter((id) => Date.now() - Number(r.gone?.[id] ?? 0) >= GONE_FOR && Date.now() - Number(r.seen?.[id] ?? 0) >= SEEN_FOR).map((id) => ({ r, id })));
+  for (let i = 0; i < todo.length; i += 12) {
+    await Promise.all(todo.slice(i, i + 12).map(async ({ r, id }) => {
+      try {
+        // The file itself (one byte), not just the record: a record without its file is what the page would 404 on.
+        const g = await genFetch(`/v1/assets/${id}/file`, { as: r.project, headers: { Range: 'bytes=0-0' }, signal: AbortSignal.timeout(8000) });
+        await g.body?.cancel().catch(() => {});
+        if (g.status === 404) { r.gone = { ...r.gone, [id]: Date.now() }; await assets().doc(r.id).update({ [`gone.${id}`]: Date.now() }); }
+        else if (g.ok) { r.seen = { ...r.seen, [id]: Date.now() }; await assets().doc(r.id).update({ [`seen.${id}`]: Date.now() }); }
+      } catch { /* Gen unreachable: list as it is */ }
+    }));
+  }
 }
 export async function views(rows: Row[]) {
   const c = await context(rows);
@@ -85,7 +118,7 @@ export async function views(rows: Row[]) {
 const RELATED: Record<string, string[]> = { image: ['image', 'sprite', 'texture'], sprite: ['sprite', 'image'], sfx: ['sfx', 'ambience'], ambience: ['ambience', 'sfx'] };
 
 /** Searches the library: how well it matches (tags and title words), then 'liked' (default), 'new', 'fresh' or 'name'. */
-export async function search(o: { q?: unknown; kind?: unknown; tag?: unknown; category?: unknown; limit?: unknown; offset?: unknown; sort?: unknown; exact?: unknown } = {}) {
+export async function search(o: { q?: unknown; kind?: unknown; tag?: unknown; category?: unknown; limit?: unknown; offset?: unknown; sort?: unknown; exact?: unknown; probe?: boolean } = {}) {
   const sort = ['new', 'fresh', 'name'].includes(String(o.sort)) ? String(o.sort) : 'liked';
   const kind = String(o.kind ?? '');
   const kinds = kind ? (o.exact ? [kind] : RELATED[kind] ?? [kind]) : null;
@@ -106,7 +139,7 @@ export async function search(o: { q?: unknown; kind?: unknown; tag?: unknown; ca
   }
   const rows = (await query.limit(SEARCH_CAP).get()).docs.map(rowOf);
   const scored = rows
-    .filter((r) => (!kinds || kinds.includes(r.kind)) && (!category || r.category === category) && (!tag || r.category === tag || r.tags.split(' ').includes(tag)))
+    .filter((r) => !fileLost(r) && (!kinds || kinds.includes(r.kind)) && (!category || r.category === category) && (!tag || r.category === tag || r.tags.split(' ').includes(tag)))
     .map((r) => {
       const tags = [...r.tags.split(' '), ...(r.category ? [r.category] : [])];
       const title = words(r.title);
@@ -120,14 +153,19 @@ export async function search(o: { q?: unknown; kind?: unknown; tag?: unknown; ca
     })
     .filter((x) => !q.length || x.s >= 1)
     .sort((a, b) => Math.round(b.s) - Math.round(a.s) || (sort === 'new' ? b.r.created - a.r.created : sort === 'fresh' ? (a.r.likes ?? 0) - (b.r.likes ?? 0) || b.r.created - a.r.created : sort === 'name' ? a.r.title.localeCompare(b.r.title) : (b.r.likes ?? 0) - (a.r.likes ?? 0) || (b.r.uses ?? 0) - (a.r.uses ?? 0)) || b.s - a.s);
-  return { items: await views(scored.slice(offset, offset + limit).map((x) => x.r)), total: scored.length };
+  const page = scored.slice(offset, offset + limit).map((x) => x.r);
+  // (The Overseer passes probe: false: a player is waiting on its answer, and the listing pages probe for it.)
+  if (o.probe !== false) await probe(page);
+  // A thing the probe just found gone is left out now, not shown as an empty card until the next listing.
+  const shown = page.filter((r) => !fileLost(r));
+  return { items: await views(shown), total: scored.length - (page.length - shown.length) };
 }
 
 /** Listed rows' kind, category and tags only (shelves and tag counts read the whole list; select keeps it small). */
 const listedFields = async (kind?: string) => {
   let q: FirebaseFirestore.Query = assets().where('hidden', '==', 0);
   if (kind) q = q.where('kind', '==', kind);
-  return (await q.select('kind', 'category', 'tags').get()).docs.map((d) => d.data() as { kind: string; category?: string; tags?: string });
+  return (await q.select('kind', 'category', 'tags', 'gone').get()).docs.map((d) => ({ id: d.id, ...(d.data() as { kind: string; category?: string; tags?: string; gone?: Record<string, number> }) })).filter((r) => !fileLost(r));
 };
 
 /** The shelves: every kind with its categories and how many things each has. */
@@ -209,6 +247,18 @@ export async function listedRow(assetId: string): Promise<Row | null> {
 export const viewOne = async (r: Row) => (await views([r]))[0];
 
 /**
+ * The row to use for a row someone names by id: itself while it is listed and its file is there; for a starter thing that
+ * was hidden or lost (Gen lost the pack with the AWS box, 2026-11), the listed row of the same thing (`item`) made since.
+ * Null: hidden with nothing in its place. (Templates, the sandbox's voice lines and older games name starter things by id.)
+ */
+export async function currentOf(r: Row): Promise<Row | null> {
+  if ((!r.hidden && !fileLost(r)) || !r.item || r.source !== 'starter') return r.hidden ? null : r;
+  const s = await assets().where('item', '==', r.item).where('hidden', '==', 0).limit(5).get();
+  const alt = s.docs.map(rowOf).find((x) => x.id !== r.id && x.source === 'starter' && !fileLost(x));
+  return alt ?? (r.hidden ? null : r);
+}
+
+/**
  * Someone put a community thing in a game: one more use, and a like when it is someone else's (once per account).
  * The games area calls this from POST /v1/games/:id/community (the part of src/community.ts useInGame that is the library's).
  */
@@ -239,20 +289,26 @@ export async function streamFrom(gr: globalThis.Response, res: Response, method:
 
 /** A community file (a listed thing, its thumb or low copy), from its owner's project; `lod` and `v` ask for a level. */
 export async function file(assetId: string, o: { lod?: number; v?: string | null; etag?: string } = {}) {
-  let r: { project: string } | null = null;
+  let r: { project: string; ref: FirebaseFirestore.DocumentReference } | null = null;
   const own = await assets().doc(assetId).get();
-  if (own.exists && !own.get('hidden')) r = { project: own.get('project') };
+  // A starter thing that was made again has a new id; games and engine code that name the old one get the new one's file.
+  const now = own.exists ? await currentOf(rowOf(own)) : null;
+  if (now && now.id !== assetId) assetId = now.id;
+  if (now) r = { project: now.project, ref: assets().doc(now.id) };
   if (!r) {
     for (const field of ['thumb', 'low']) {
       const s = await assets().where(field, '==', assetId).where('hidden', '==', 0).limit(1).get();
-      if (!s.empty) { r = { project: s.docs[0].get('project') }; break; }
+      if (!s.empty) { r = { project: s.docs[0].get('project'), ref: s.docs[0].ref }; break; }
     }
   }
   if (!r) throw new PortalError('No such file', { status: 404 });
   const q = new URLSearchParams();
   if (o.lod && o.lod > 0) q.set('lod', String(Math.round(o.lod)));
   if (o.v && /^[0-9a-f]{8,64}$/.test(o.v)) q.set('v', o.v);
-  return genFetch(`/v1/assets/${assetId}/file${q.size ? `?${q}` : ''}`, { as: r.project, headers: o.etag ? { 'If-None-Match': o.etag } : {}, signal: AbortSignal.timeout(120_000) });
+  const gr = await genFetch(`/v1/assets/${assetId}/file${q.size ? `?${q}` : ''}`, { as: r.project, headers: o.etag ? { 'If-None-Match': o.etag } : {}, signal: AbortSignal.timeout(120_000) });
+  // Listed but not in Gen (beta's Gen lacks the live starter pack): remember it, so the listing stops pointing at it.
+  if (gr.status === 404) await r.ref.update({ [`gone.${assetId}`]: Date.now() }).catch(() => {});
+  return gr;
 }
 
 // ------------------------------------------------------------ the starter pack
@@ -330,11 +386,16 @@ export async function syncStarterPack() {
   }
   // Retire: an older row of the same thing, and starter rows of a kind with a minimum recipe that aren't this round's.
   let withdrawn = 0;
+  let lost = 0;
+  const inGen = new Set(all.map((a) => String(a.id)));
   for (const was of existing.values()) {
     if (was.hidden || keepIds.has(was.id)) continue;
     const replaced = was.item && [...best.values()].some((r) => r.item === was.item);
     const belowRev = was.kind in MIN_REV;
-    if (replaced || belowRev) { writes.push([was.id, { hidden: 1 }, false]); if (belowRev) withdrawn++; }
+    if (replaced || belowRev) { writes.push([was.id, { hidden: 1 }, false]); if (belowRev) withdrawn++; continue; }
+    // Listed, but Gen no longer has it in the starter project at all (Gen lost the pack with the AWS box, 2026-11): not
+    // offered (fileLost) until it comes back or is made again; the probe would only find it one page at a time.
+    if (!inGen.has(was.id) && !fileLost(was)) { writes.push([was.id, { [`gone.${was.id}`]: Date.now() }, false]); lost++; }
   }
   for (let i = 0; i < writes.length; i += 450) {
     const batch = db.batch();
@@ -343,12 +404,377 @@ export async function syncStarterPack() {
   }
   // Each thing's levels of detail came with Gen's list: kept for the library and bundles.
   await rememberMany([...best.values()].flatMap((r) => [r.main, r.thumb, r.low].filter(Boolean).map((a: any) => ({ asset: a.id, lods: a.lods ?? null, cdn: a.cdn }))));
-  return { jobs: byJob.size, things: best.size, added, unusable, withdrawn, written: writes.length };
+  return { jobs: byJob.size, things: best.size, added, unusable, withdrawn, lost, written: writes.length };
 }
 
-/** Keeps the starter pack current; a Gen hiccup just waits for the next round. */
+// ------------------------------------------------------------ the pack as defined, what is missing, and remaking it
+
+type PackItem = { kind: string; tag: string; name: string; what: string; words: string; item: string };
+type PackModule = { packItems: () => PackItem[]; paramsFor: (kind: string, what: string) => any; keyOf: (it: PackItem) => string; labelsOf: (it: PackItem) => Record<string, unknown> };
+/** One lane's order to remake missing things (community/restore.json): J's yes, quoted; the kinds; a dollar cap. */
+export type RestoreOrder = { approved: string; kinds: string[]; budgetUsd: number; first: string[]; copyFrom: string | null };
+
+let packP: Promise<PackModule> | null = null;
+/** community/starter.mjs as the function has it (tools/prebuild.mjs copies it into assets/). */
+export function starterPack(): Promise<PackModule> {
+  packP ??= (async () => {
+    const file = path.join(ASSETS, 'community', 'starter.mjs');
+    if (!fs.existsSync(file)) throw new PortalError('The starter pack is not on this server yet (run cloud/functions/tools/prebuild.mjs before deploying)', { status: 503 });
+    return (await import(pathToFileURL(file).href)) as PackModule;
+  })();
+  packP.catch(() => { packP = null; });
+  return packP;
+}
+
+/** This lane's restore order, if J gave one (community/restore.json `live` / `beta`). */
+export function restoreOrder(): RestoreOrder | null {
+  try {
+    const all = JSON.parse(fs.readFileSync(path.join(ASSETS, 'community', 'restore.json'), 'utf8'));
+    const o = all?.[isLive() ? 'live' : 'beta'];
+    if (!o || typeof o.approved !== 'string' || !o.approved.trim() || !Array.isArray(o.kinds) || !(Number(o.budgetUsd) > 0)) return null;
+    return { approved: o.approved, kinds: o.kinds.map(String).filter((k: string) => COMMUNITY_KINDS.includes(k as any)), budgetUsd: Math.min(200, Number(o.budgetUsd)), first: Array.isArray(o.first) ? o.first.map(String) : [], copyFrom: copySource(o.copyFrom) };
+  } catch { return null; }
+}
+
+/**
+ * The pack against the library: how many things community/starter.mjs defines, how many are listed with their file in
+ * Gen, and which are missing, per kind (GET /v1/community/health; the community-library playtest fails on a missing one).
+ */
+export async function packHealth(o: { jobs?: boolean } = {}) {
+  const { packItems } = await starterPack();
+  const pack = packItems();
+  const listed = new Set((await assets().where('source', '==', 'starter').where('hidden', '==', 0).select('item', 'gone').get()).docs
+    .map((d) => ({ id: d.id, item: d.get('item') as string | null, gone: d.get('gone') as Record<string, number> | undefined }))
+    .filter((r) => r.item && !fileLost(r)).map((r) => r.item!));
+  const byKind: Record<string, { pack: number; listed: number }> = {};
+  const missing: string[] = [];
+  for (const it of pack) {
+    const k = (byKind[it.kind] ??= { pack: 0, listed: 0 });
+    k.pack++;
+    if (listed.has(it.item)) k.listed++;
+    else missing.push(it.item);
+  }
+  const r = restoreOrder();
+  // What remaking has cost so far (every order on this lane, as estimated when queued) and where this order stands.
+  const orders = (await restores().get()).docs.map((d) => d.data());
+  const spentUsd = Math.round(orders.reduce((s, o) => s + (Number(o.spentUsd) || 0), 0) * 100) / 100;
+  const cur = r ? orders.find((o) => o.approved === r.approved) : undefined;
+  const tries: Record<string, number> = cur?.tries ?? {};
+  const missingSet = new Set(missing);
+  const progress = cur ? { spentUsd: Number(cur.spentUsd) || 0, queued: Object.keys(tries).length, stillMissingAfterTwoTries: Object.entries(tries).filter(([it, n]) => n >= 2 && missingSet.has(it)).map(([it]) => it) } : null;
+  return { pack: pack.length, listed: pack.length - missing.length, missing: missing.length, byKind, missingItems: missing, spentUsd, restore: r ? { approved: r.approved, kinds: r.kinds, budgetUsd: r.budgetUsd, ...(r.copyFrom ? { copyFrom: r.copyFrom } : {}), ...progress, ...(o.jobs ? { jobs: await remakeJobs() } : {}) } : null };
+}
+
+/** Where Gen stands on the remake jobs (?jobs=1 on the health check): counts by status, and the newest few failures. */
+/** The Gen tools a starter model is made of (community/starter.mjs stepsFor('model')). */
+export const STEP_TOOLS = ['image.generate', 'image.remove-background', 'image.viewsheet', 'image.edit', 'mesh.views3d', 'blender.character'];
+/** One tool's finished jobs as GPU seconds: how many, the median and the total, and how long they took start to end. */
+export function stepCost(jobs: any[]) {
+  const done = jobs.filter((j) => j.status === 'done' && j.started && j.finished);
+  const med = (xs: number[]) => { if (!xs.length) return null; const s = [...xs].sort((a, b) => a - b); return Math.round(s[Math.floor(s.length / 2)] * 10) / 10; };
+  const gpu = done.map((j) => Number(j.gpu_seconds) || 0);
+  return { done: done.length, failed: jobs.filter((j) => j.status === 'failed').length, gpuSecondsMedian: med(gpu), gpuSecondsTotal: Math.round(gpu.reduce((a, b) => a + b, 0)), wallSecondsMedian: med(done.map((j) => (j.finished - j.started) / 1000)) };
+}
+
+async function remakeJobs() {
+  try {
+    const { jobs } = await gen<{ jobs: any[] }>(`/v1/jobs?project=${STARTER_PROJECT}&tool=asset.make&limit=300`, { as: STARTER_PROJECT });
+    const mine = (jobs ?? []).filter((j) => typeof j.key === 'string' && j.key.includes('/remake/'));
+    const byStatus: Record<string, number> = {};
+    for (const j of mine) byStatus[j.status] = (byStatus[j.status] ?? 0) + 1;
+    const line = (j: any) => ({ item: `${j.labels?.kind}/${j.labels?.item}`, status: j.status, detail: String(j.detail ?? '').slice(0, 160), error: j.error ? String(j.error).slice(0, 300) : null, server: j.server ?? null, created: j.created, started: j.started ?? null, finished: j.finished ?? null });
+    // The 3D step on its own (the model chain's mesh.views3d jobs): why the newest few ended, with Gen's last log lines.
+    const mesh = await gen<{ jobs: any[] }>(`/v1/jobs?project=${STARTER_PROJECT}&tool=mesh.views3d&limit=5`, { as: STARTER_PROJECT })
+      .then((r) => (r.jobs ?? []).map((j) => ({ status: j.status, error: j.error ? String(j.error).slice(0, 300) : null, created: j.created, finished: j.finished ?? null, log: (Array.isArray(j.log) ? j.log : []).slice(-6).map((l: unknown) => String(l).slice(0, 400)) })), (e) => [{ error: String(e?.message ?? e) }]);
+    // Gen's GPU providers (the order, each one's cooldown and last error): why the 3D step finds no GPU.
+    // This page is public: no hosts, prices or balance, only each provider's state.
+    const gpu = await gen<any>('/v1/gpu/providers', { as: STARTER_PROJECT })
+      .then((g) => ({
+        order: g.order, familyOrder: g.familyOrder,
+        providers: (g.providers ?? []).map((p: any) => ({ id: p.id, families: p.families, enabled: p.enabled, ready: p.ready, problem: p.problem ? String(p.problem).slice(0, 200) : null, down: p.health?.down ?? null, reason: p.health?.reason ? String(p.health.reason).slice(0, 200) : null, lastError: p.health?.lastError ? String(typeof p.health.lastError === 'string' ? p.health.lastError : JSON.stringify(p.health.lastError)).slice(0, 200) : null })),
+      }), (e) => ({ error: String(e?.message ?? e).slice(0, 200) }));
+    // What each step of a model costs in GPU time (Gen's own gpu_seconds), from the newest finished jobs of each tool: where
+    // a model's money goes. No prices here (the page is public), only seconds.
+    const steps: Record<string, unknown> = {};
+    await Promise.all(STEP_TOOLS.map(async (tool) => {
+      steps[tool] = await gen<{ jobs: any[] }>(`/v1/jobs?project=${STARTER_PROJECT}&tool=${encodeURIComponent(tool)}&limit=60`, { as: STARTER_PROJECT })
+        .then((r) => stepCost(r.jobs ?? []), (e) => ({ error: String(e?.message ?? e).slice(0, 200) }));
+    }));
+    return { byStatus, failed: mine.filter((j) => j.status === 'failed').slice(0, 8).map(line), open: mine.filter((j) => j.status === 'queued' || j.status === 'running').slice(0, 8).map(line), mesh, gpu, steps };
+  } catch (e: any) { return { error: e.message }; }
+}
+
+const restores = () => db.collection('communityRestore');
+/** Gen's words for a job it turned away without making anything: too many at once, Claude busy or at its limit, no GPU free,
+ * or a GPU provider's account switched off (Modal's gateway: "modal-http: workspace ... is disabled", Gen #195). */
+export const wasTurnedAway = (text: string) => /a lot at once|wait \d+ seconds?, then try again|throttl|rate.?limit|\b429\b|overloaded|no gpu is available|nothing was charged|modal-http/i.test(text);
+/**
+ * How long a thing waits after a try Gen turned away without running anything (no GPU, too many at once): 30 minutes,
+ * doubling with each such try in a row, up to 4 hours. While RunPod is empty this keeps the 10-minute sync from re-queueing
+ * the same things all night.
+ */
+export const turnedAwayWait = (inARow: number) => (inARow > 0 ? Math.min(4 * 3600_000, 30 * 60_000 * 2 ** (inARow - 1)) : 0);
+/** A run Gen's RunPod worker stopped at its old 300 s graph limit (fixed in Gen #189), or one whose GLB was too big to hand
+ * back (HTTP 413, fixed in Gen #190): Gen's fault, and the try kept nothing of its own. */
+export const stoppedAtGenLimit = (text: string) => /runpod: ran past this service's 300 s limit|runpod: HTTP Error 413/i.test(text);
+const REMAKE_SCHEME = 2;
+/**
+ * Gen's key for one try at remaking a pack thing. Never the pack's own key: Gen hands back the job that key first made
+ * (done, its files lost with the AWS box), so nothing would be made. One key per order and try: a repeat of the same
+ * try gets the same job back, a second try is new work.
+ */
+export const remakeKey = (packKey: string, order: string, tryNo: number) =>
+  `${packKey}/remake/${crypto.createHash('sha256').update(order).digest('hex').slice(0, 10)}/${tryNo}`;
+/**
+ * Another lane's portal to copy finished starter things from instead of making them again (restore.json `copyFrom`, e.g.
+ * live copying beta): its own https origin, and only a hawkesgames.com one. Null: this lane makes its own.
+ */
+export function copySource(v: unknown): string | null {
+  try {
+    const u = new URL(String(v ?? ''));
+    return u.protocol === 'https:' && (u.hostname === 'hawkesgames.com' || u.hostname.endsWith('.hawkesgames.com')) && !u.username && !u.password ? u.origin : null;
+  } catch { return null; }
+}
+type SourceRow = { id: string; kind: string; title: string; thumb: string | null };
+/** The source lane's listed starter things of these kinds (its public library), by kind and name. */
+async function sourceRows(origin: string, kinds: string[]): Promise<Map<string, SourceRow>> {
+  const out = new Map<string, SourceRow>();
+  for (const kind of kinds) {
+    for (let offset = 0; offset < 2000; offset += 120) {
+      const r = await fetch(`${origin}/v1/community?kind=${encodeURIComponent(kind)}&limit=120&offset=${offset}&sort=new`, { signal: AbortSignal.timeout(30_000) });
+      if (!r.ok) throw new PortalError(`${origin} answered ${r.status} for its ${kind} list`, { status: 502 });
+      const page: any = await r.json();
+      for (const it of page.items ?? []) {
+        if (it.source !== 'starter' || it.gone || !/^a_[0-9a-f]+$/.test(String(it.id))) continue;
+        const thumb = String(it.thumbFull ?? '').match(/\/v1\/community\/(a_[0-9a-f]+)\/file/)?.[1] ?? null;
+        const k = sourceKey(it.kind, it.title);
+        if (!out.has(k)) out.set(k, { id: it.id, kind: it.kind, title: it.title, thumb });
+      }
+      if ((page.items ?? []).length < 120) break;
+    }
+  }
+  return out;
+}
+export const sourceKey = (kind: string, name: string) => `${kind}/${String(name).trim().toLowerCase()}`;
+const EXT_OF: Record<string, string> = { 'model/gltf-binary': '.glb', 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'audio/mpeg': '.mp3', 'audio/ogg': '.ogg', 'audio/wav': '.wav', 'audio/x-wav': '.wav', 'audio/webm': '.webm', 'audio/mp4': '.m4a' };
+/** One of the source lane's files, put into this lane's Gen as a blob: "blob:<sha>", named so Gen keeps its type. */
+async function copyBlob(origin: string, assetId: string, name: string): Promise<string> {
+  const r = await fetch(`${origin}/v1/community/${assetId}/file`, { signal: AbortSignal.timeout(120_000) });
+  if (!r.ok) throw new PortalError(`${origin} answered ${r.status} for ${assetId}`, { status: 502 });
+  const mime = String(r.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
+  const ext = EXT_OF[mime];
+  if (!ext) throw new PortalError(`${assetId} came back as ${mime || 'no type'}`, { status: 502 });
+  const body = Buffer.from(await r.arrayBuffer());
+  const up = await genFetch('/v1/blobs', { method: 'POST', as: STARTER_PROJECT, rawBody: body, headers: { 'Content-Type': 'application/octet-stream', 'X-Filename': `${name}${ext}` }, signal: AbortSignal.timeout(120_000) });
+  const data: any = await up.json().catch(() => ({}));
+  if (!up.ok || !String(data.blob ?? '').startsWith('blob:')) throw new PortalError(data?.error ?? `Gen answered ${up.status} for a blob`, { status: 502 });
+  return data.blob;
+}
+/** The asset.make steps that put a copied thing into this lane's library as the recipe's own outputs (no GPU, nothing paid). */
+export function copySteps(kind: string, main: string, thumb: string | null) {
+  const steps: any[] = [{ tool: 'file.import', inputs: { file: main }, params: { title: kind }, save: kind }];
+  if (kind === 'model' && thumb) steps.push({ tool: 'file.import', inputs: { file: thumb }, params: { title: 'cutout' }, save: 'cutout' });
+  return { steps };
+}
+
+/**
+ * Whether a starter thing gets its next try: tries left, and its last try is over (failed, or no open Gen job and queued
+ * over 2 hours ago). A last try still queued or running in Gen is never repeated; when Gen's open jobs can't be read
+ * (lastOpen true), nothing is repeated that round. A failed try waits waitAfterFail (a try Gen turned away without running
+ * anything backs off) before the next.
+ */
+export function tryDue(t: { tries: number; allowed: number; lastFailed: boolean; lastOpen: boolean; queuedAt: number; waitAfterFail?: number }, now = Date.now()) {
+  if (t.tries >= t.allowed) return false;
+  if (t.tries === 0) return true;
+  if (t.lastFailed) return now - t.queuedAt >= (t.waitAfterFail ?? 0);
+  return !t.lastOpen && now - t.queuedAt > 2 * 3600_000;
+}
+
+/**
+ * Remakes what the pack is missing, within this lane's restore order: the missing things of its kinds go to Gen as the
+ * same asset.make jobs tools/starter.mjs queues (same key and labels, in this lane's starter project), priced by Gen's
+ * estimate first, until what was queued under the order reaches its budget. A thing is tried at most twice (a failed job
+ * frees its key in Gen). The next syncs list each one as it finishes. Nothing happens without an order: it spends money.
+ */
+export async function restoreStarter() {
+  const order = restoreOrder();
+  if (!order) return { order: false };
+  const { packItems, paramsFor, keyOf, labelsOf } = await starterPack();
+  const health = await packHealth();
+  const missing = new Set(health.missingItems);
+  const ref = restores().doc(order.approved.replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 120) || 'order');
+  // Tries kept before remakes had keys of their own (scheme 2) never reached Gen as new work: the pack's own key handed
+  // back the original job, finished long ago with its files gone (beta, 2026-11-10). They count for nothing.
+  const kept = (await ref.get()).data() ?? {};
+  const state = kept.scheme === REMAKE_SCHEME ? kept : {};
+  const tries: Record<string, number> = state.tries ?? {};
+  const queuedAt: Record<string, number> = state.queuedAt ?? {};
+  let spent = Number(state.spentUsd) || 0;
+  // A thing queued in the last 2 hours is still being made (it lists when it finishes); after that it gets a second try
+  // under a key of its own (each try's key hands back that try's job, so a repeat never pays twice).
+  // The cheap kinds first, 3D models (most of the cost) last.
+  // Things the worlds use (order.first) come before the rest of their kind.
+  const rank = (it: { item: string; kind: string }) => Number(it.kind === 'model') * 2 + Number(!order.first.includes(it.item));
+  // A try whose Gen job already failed is over: the second try needn't wait out the 2 hours.
+  const failedJobs = await gen<{ jobs: any[] }>(`/v1/jobs?project=${STARTER_PROJECT}&tool=asset.make&status=failed&limit=500`, { as: STARTER_PROJECT })
+    .then((r) => r.jobs ?? [], () => [] as any[]);
+  const failedKeys = new Set(failedJobs.map((j) => String(j.key ?? '')));
+  // A try Gen turned away for coming too fast (or Claude being busy) made nothing: it doesn't count as one of the two.
+  // So is a 3D try Gen stopped at RunPod's old 300 s graph limit (Gen #189, 2026-11-10): Gen's limit, not the model.
+  const madeNothing = new Set(failedJobs.filter((j) => wasTurnedAway(`${j.detail ?? ''} ${j.error ?? ''}`)).map((j) => String(j.key ?? '')));
+  const turnedAway = new Set([...madeNothing, ...failedJobs.filter((j) => stoppedAtGenLimit(`${j.detail ?? ''} ${j.error ?? ''}`)).map((j) => String(j.key ?? ''))]);
+  // What a try was priced at when it was queued, and the tries already handed back: a try Gen turned away without running
+  // anything charged nothing, so its price goes back to the budget (once). A try that ran on a GPU keeps its price.
+  const paid: Record<string, number> = state.paid ?? {};
+  const refunded = new Set<string>(state.refunded ?? []);
+  const toRefund: { key: string; kind: string }[] = [];
+  for (const it of packItems()) {
+    for (let t = 1; t <= (tries[it.item] ?? 0); t++) {
+      const key = remakeKey(keyOf(it as any), ref.id, t);
+      if (madeNothing.has(key) && !refunded.has(key)) toRefund.push({ key, kind: it.kind });
+    }
+  }
+  // A try Gen turned away without running anything (no GPU, too many at once, a provider switched off) says nothing about
+  // the thing: it never uses up a try, however many there are, and the next try backs off instead (turnedAwayWait). Such
+  // tries are remembered in the state (nothingRan), not only read from Gen's failed jobs: Gen lists the newest 500, and
+  // older ones dropped out of sight (beta 2026-11-11: RunPod sat empty for 8 hours, the sync kept re-queueing, and 20
+  // models looked like they had used up all their tries without a GPU ever running them).
+  const nothingRan = new Set<string>([...(state.nothingRan ?? []), ...refunded, ...madeNothing]);
+  const genLimit = new Set(failedJobs.filter((j) => stoppedAtGenLimit(`${j.detail ?? ''} ${j.error ?? ''}`)).map((j) => String(j.key ?? '')));
+  const turnedAwayInARow = (it: { item: string; kind: string; name: string }) => {
+    let n = 0;
+    for (let t = tries[it.item] ?? 0; t >= 1 && nothingRan.has(remakeKey(keyOf(it as any), ref.id, t)); t--) n++;
+    return n;
+  };
+  const allowed = (it: { item: string; kind: string; name: string }) => {
+    let free = 0;
+    let ranNothing = 0;
+    for (let t = 1; t <= (tries[it.item] ?? 0); t++) {
+      const key = remakeKey(keyOf(it as any), ref.id, t);
+      if (nothingRan.has(key)) ranNothing++;
+      else if (genLimit.has(key)) free++;
+    }
+    // Up to 14 tries Gen stopped at its own limits are free too: the model gate stops after a broken 3D path. The crate
+    // used 5 before Gen let a 3D run outlast RunPod's 300 s cap (Gen #188, 2026-11-10) and 1 more on a GLB too big to hand
+    // back (Gen #190).
+    return 2 + Math.min(free, 14) + ranNothing;
+  };
+  const lastFailed = (it: { item: string; kind: string; name: string }) => {
+    const key = remakeKey(keyOf(it as any), ref.id, tries[it.item] ?? 0);
+    return (tries[it.item] ?? 0) > 0 && (failedKeys.has(key) || nothingRan.has(key));
+  };
+  // A try whose Gen job is still queued or running is still being made, however long the GPU line is: a second try then
+  // would pay for the same model twice and lengthen the line (beta 2026-11-10: the line passed 2 hours and 21 models got a
+  // second try while their first was still running). The 2 hours only covers a try Gen has no open job for.
+  const openJobs = await gen<{ jobs: any[] }>(`/v1/jobs?project=${STARTER_PROJECT}&tool=asset.make&status=queued,running&limit=500`, { as: STARTER_PROJECT })
+    .then((r) => r.jobs ?? [], () => null);
+  const openKeys = new Set((openJobs ?? []).map((j) => String(j.key ?? '')));
+  const due = (it: { item: string; kind: string; name: string }) => tryDue({
+    tries: tries[it.item] ?? 0,
+    allowed: allowed(it),
+    lastFailed: lastFailed(it),
+    lastOpen: openJobs === null || ((tries[it.item] ?? 0) > 0 && openKeys.has(remakeKey(keyOf(it as any), ref.id, tries[it.item]))),
+    queuedAt: queuedAt[it.item] ?? 0,
+    waitAfterFail: turnedAwayWait(turnedAwayInARow(it)),
+  });
+  let todo = packItems().filter((it) => missing.has(it.item) && order.kinds.includes(it.kind) && due(it)).sort((a, b) => rank(a) - rank(b));
+  // Copying from another lane (live from beta): what the source has listed is copied, free; what it hasn't made yet waits
+  // for it (each thing is made once, on the source, and the lanes don't pay twice).
+  if (order.copyFrom) {
+    // Copies are counted on their own (copies), under keys of their own, and only once Gen took the job: a copy is free,
+    // and this lane's own make tries from before it copied must not stop it (live 2026-11-11: 41 models it had tried to
+    // make itself, or whose copy Gen turned away before taking it, were never copied once beta had them). Up to 3 copies a
+    // thing, 30 minutes apart unless the last one failed.
+    const copies: Record<string, number> = state.copies ?? {};
+    const copyKey = (it: { item: string; kind: string; name: string }, n: number) => remakeKey(keyOf(it as any), `${ref.id}/copy`, n);
+    const copyDue = (it: { item: string; kind: string; name: string }) => {
+      const n = copies[it.item] ?? 0;
+      if (n >= 3) return false;
+      if (n === 0) return true;
+      const key = copyKey(it, n);
+      if (openJobs === null || openKeys.has(key)) return false;
+      return failedKeys.has(key) || Date.now() - (queuedAt[it.item] ?? 0) > 30 * 60_000;
+    };
+    const wanted = packItems().filter((it) => missing.has(it.item) && order.kinds.includes(it.kind) && copyDue(it)).sort((a, b) => rank(a) - rank(b));
+    const src = await sourceRows(order.copyFrom, [...new Set(wanted.map((it) => it.kind))]);
+    let copied = 0;
+    const failed: string[] = [];
+    for (const it of wanted.filter((x) => src.has(sourceKey(x.kind, x.name))).slice(0, 10)) {
+      const row = src.get(sourceKey(it.kind, it.name))!;
+      try {
+        const main = await copyBlob(order.copyFrom, row.id, it.kind);
+        const thumb = it.kind === 'model' && row.thumb ? await copyBlob(order.copyFrom, row.thumb, 'cutout') : null;
+        const n = (copies[it.item] ?? 0) + 1;
+        const key = copyKey(it, n);
+        await gen('/v1/jobs', { method: 'POST', as: STARTER_PROJECT, body: { tool: 'asset.make', project: STARTER_PROJECT, params: copySteps(it.kind, main, thumb), labels: { ...labelsOf(it), copiedFrom: order.copyFrom }, key, reuse: true } });
+        copies[it.item] = n;
+        queuedAt[it.item] = Date.now();
+        paid[key] = 0;
+        copied++;
+      } catch (e: any) { failed.push(`${it.item}: ${String(e.message).slice(0, 160)}`); }
+    }
+    if (failed.length) console.warn(`[portal] starter restore: copies that failed: ${failed.join('; ')}`);
+    await ref.set({ scheme: REMAKE_SCHEME, approved: order.approved, kinds: order.kinds, budgetUsd: order.budgetUsd, spentUsd: Math.round(spent * 100) / 100, tries, copies, queuedAt, paid, refunded: [...refunded], nothingRan: [...nothingRan], updated: Date.now() });
+    return { order: true, copyFrom: order.copyFrom, copied, waitingOnSource: wanted.filter((x) => !src.has(sourceKey(x.kind, x.name))).length, spentUsd: Math.round(spent * 100) / 100, budgetUsd: order.budgetUsd };
+  }
+  // 3D models are most of the cost and the longest recipe: until one has listed in this lane, one at a time; and none at
+  // all once one has failed both its tries with none listed (Gen's 3D path is broken: nothing more is spent on it).
+  if (!(health.byKind.model?.listed > 0)) {
+    const models = packItems().filter((it) => it.kind === 'model' && missing.has(it.item));
+    // Dead: a model whose tries are used up and whose last one failed (one still being made isn't).
+    const dead = models.some((it) => (tries[it.item] ?? 0) >= allowed(it) && lastFailed(it));
+    const making = models.some((it) => (tries[it.item] ?? 0) > 0 && !due(it));
+    let room = dead || making ? 0 : 1;
+    todo = todo.filter((it) => it.kind !== 'model' || room-- > 0);
+  }
+  // A few at a time: Gen turns away a burst, and each round is 10 minutes apart anyway.
+  todo = todo.slice(0, 20);
+  const save = () => ref.set({ scheme: REMAKE_SCHEME, approved: order.approved, kinds: order.kinds, budgetUsd: order.budgetUsd, spentUsd: Math.round(spent * 100) / 100, tries, copies: state.copies ?? {}, queuedAt, paid, refunded: [...refunded], nothingRan: [...nothingRan], updated: Date.now() });
+  // Refunds priced when queued go back now; older tries (queued before prices were kept) take their kind's price today.
+  const refund = (price: Record<string, number>) => {
+    for (const r of toRefund) {
+      const amount = paid[r.key] ?? price[r.kind];
+      if (refunded.has(r.key) || !(amount >= 0)) continue;
+      spent = Math.max(0, spent - amount);
+      refunded.add(r.key);
+    }
+  };
+  refund({});
+  if (!todo.length) {
+    if (toRefund.length) await save();
+    return { order: true, queued: 0, spentUsd: Math.round(spent * 100) / 100, budgetUsd: order.budgetUsd };
+  }
+  // Priced per kind by Gen (each batch's own boots and model loads; the idle tail, once per server, is in the budget's
+  // margin), then queued in order while the running total stays within the budget.
+  const price: Record<string, number> = {};
+  for (const kind of new Set(todo.map((it) => it.kind))) {
+    const of = todo.filter((it) => it.kind === kind);
+    const est: any = await gen('/v1/estimate', { method: 'POST', as: STARTER_PROJECT, body: { project: STARTER_PROJECT, items: of.map((it) => ({ tool: 'asset.make', params: paramsFor(it.kind, it.what), count: 1, label: it.item })) } });
+    const total = Number(est?.cost?.total);
+    if (!(total >= 0)) throw new PortalError(`Gen gave no price for ${kind}`, { status: 502 });
+    price[kind] = total / of.length;
+  }
+  refund(price);
+  let queued = 0;
+  for (const it of todo) {
+    if (spent + price[it.kind] > order.budgetUsd) break;
+    tries[it.item] = (tries[it.item] ?? 0) + 1;
+    queuedAt[it.item] = Date.now();
+    paid[remakeKey(keyOf(it), ref.id, tries[it.item])] = price[it.kind];
+    try {
+      await gen('/v1/jobs', { method: 'POST', as: STARTER_PROJECT, body: { tool: 'asset.make', project: STARTER_PROJECT, params: paramsFor(it.kind, it.what), labels: labelsOf(it), key: remakeKey(keyOf(it), ref.id, tries[it.item]), reuse: true } });
+      spent += price[it.kind];
+      queued++;
+    } catch (e: any) { console.warn(`[portal] starter restore: ${it.item}: ${e.message}`); }
+  }
+  await save();
+  return { order: true, queued, spentUsd: Math.round(spent * 100) / 100, budgetUsd: order.budgetUsd };
+}
+
+/** Keeps the starter pack current (and remakes what is missing when J ordered it); a Gen hiccup waits for the next round. */
 export const syncStarter = onSchedule({ schedule: 'every 10 minutes', secrets: [SECRETS.genKey], timeoutSeconds: 300 }, async () => {
   try { console.log('[portal] starter pack:', JSON.stringify(await syncStarterPack())); } catch (e: any) { console.warn('[portal] starter pack:', e.message); }
+  try { const r = await restoreStarter(); if (r.order) console.log('[portal] starter restore:', JSON.stringify(r)); } catch (e: any) { console.warn('[portal] starter restore:', e.message); }
 });
 
 // ------------------------------------------------------------ routes
@@ -362,6 +788,8 @@ route('GET', '/v1/community', async ({ res, url }) => {
   return search({ q: p('q'), kind: p('kind'), tag: p('tag'), category: p('category'), limit: p('limit'), offset: p('offset'), sort: p('sort'), exact: p('exact') === '1' });
 });
 route('GET', '/v1/community/categories', async ({ res }) => { open(res); return categories(); });
+// How complete the starter pack is (the community-library playtest fails while any of it is missing).
+route('GET', '/v1/community/health', async ({ res, url }) => { open(res); res.set('Cache-Control', 'no-store'); return packHealth({ jobs: url.searchParams.get('jobs') === '1' }); });
 route('GET', '/v1/community/tags', async ({ res, url }) => { open(res); return { tags: await tagCounts(url.searchParams.get('kind') ?? undefined) }; });
 route('GET', /^\/v1\/community\/(a_[0-9a-f]+)\/file$/, async ({ req, res, url, params, method }) => {
   open(res);
@@ -377,5 +805,6 @@ route('DELETE', /^\/v1\/community\/(a_[0-9a-f]+)$/, async ({ req, params }) => u
 // An admin runs the starter sync now (anyone else: 403, like every admin route).
 route('POST', '/v1/admin/community/sync', async ({ req }) => {
   await requireAdmin(req);
-  return syncStarterPack();
+  const sync = await syncStarterPack();
+  return { ...sync, restore: await restoreStarter() };
 });

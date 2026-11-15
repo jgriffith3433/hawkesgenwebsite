@@ -305,6 +305,62 @@ own GLB clips.
 - **Cost:** a bone is three quaternion products; ten walking characters are about 0.3 ms of animation a frame in Node, out of
   view nothing is sampled, and the data adds no draw calls or triangles (`test/engine/anim.test.ts`).
 
+### Landing and strides (feet that stay put)
+
+J, 2026-11-08: "when jumping and landing on slopes it never understands to go to the landed state and go back to walking", and
+walks into runs "look like they are sliding on the ground".
+- **On the ground, on a slope** (`public/play/physics.js` `stepCharacter`): the controller is supported when Havok says so and
+  the body's vertical speed is no more than the slope asks for at that horizontal speed (walking uphill rises by
+  `-(n.x vx + n.z vz) / n.y`, so it never reads as still in the air). Walking off a crest or down a steep slope, a short shape cast
+  (`snapDown`, 0.35 m) finds walkable ground under the feet, so the body stays grounded and the step's downward glue takes it there
+  through the controller (never moved there directly, which would sink the feet below the controller's rest height). A jump within 0.15 s of leaving the ground without
+  jumping still jumps (`runtime.js` `jump`, the coyote time).
+- **Landing is a moment** (`presence-anim.js`): the `land` one-shot (1.27 s in the Mixamo set) ends after `LAND_HOLD` (0.18 s)
+  once the body is walking or running (over `LAND_MOVING`, 0.6 m/s) or leaves the ground again; standing, it plays out.
+- **One gait layer** (`LOCO`): walk, trot and run play as one loop, the two gaits either side of the speed blended by weight, on
+  one cycle that runs at the speed the registry stride says (`gaitsOf`, `locoLoop`; each clip starts at its first left
+  footfall, `footfall`), so the feet of both gaits land together and the cycle never jumps. Rate clamped to `LOCO_MAX_RATE`.
+- **The procedural person** (`presence-person.js`, `presence-core.js` `strideHz`, `strideAngle`, `strideAmp`): the legs swing
+  about the vertical (the body's lean is taken off them) on their own clock. In the stance, sin(hip angle) falls in a straight
+  line, so the foot goes back under the body at exactly the ground speed; the cycle is as quick as that needs (`strideHz`), a
+  walk keeps a foot down half the time and a run 0.35. The leg's reach is measured along the stride (`legLength`), so a short,
+  tall, wide or tiny body strides by its own legs; a short leg may beat quicker (`strideMaxHz`, as 1 / sqrt(length)) and open
+  wider (`strideAmp`, up to `STRIDE.maxAmp`) before its foot would skate.
+- **Seen by:** `P.motion()` (what the body shows: airborne, landing, the clip role and gait, each sole and whether it is planted),
+  the engine tests (`runtime.test.ts` "landing from a jump on a slope", "walking down a steep slope"; `person.test.ts` "the
+  planted foot stays put" for every shape; `anim.test.ts` "a landing is a moment"), and the playtest `character-motion`.
+
+### Tracing every body's feet (`character-motion`)
+
+J, 2026-11-11: whatever the player chose at the mirror, landing on a slope and speeding up from a walk must read right.
+The playtest `character-motion` now runs its slope landings (10/20/30/40 degrees, up, down, onto) and its walk, speed-up,
+run, slow-down for five bodies, each set through `P.setLook({ what })`: the procedural person, the Mixamo-skeleton `robot`
+(`person.glb` is not wired to the mirror while `PERSON_USE_MODEL` is false, so the robot stands for the Mixamo person), the
+`dinosaur`, the `dog` and the `toaster`. `P.motion()` gives `feet` for each (`presence.js` `modelFeet`, after the last render):
+the procedural sole (`via: 'sole'`, planted from its stride phase), a foot bone (`via: 'bone'`: Mixamo `LeftFoot`/`RightFoot`,
+the template tips `LegLTip`/`LegRTip` of the dinosaur, `LegFLTip` and the other three of the dog; the ankle's height standing
+still is measured first and taken off), or the lowest vertex on each side of the body (`via: 'vertex'`, the toaster). **Planted =
+within 3 cm of the ground for two frames in a row;** a planted foot may move at most max(0.12 m/s, 15% of the body's speed).
+Airborne (drawn in the air while physics has it grounded) may last 0.3 s at most. A body whose feet are not found is a bug in
+the report ("feet not traced"), never skipped.
+
+**Strides and states** (`presence-anim.js`): past the run the cycle grows instead of the clip racing: `gaitsOf` adds a `sprint`
+gait, the run clip at `stride.sprint` m/s (a row's own, else `SPRINT_OVER` = 1.7 times the run's); `LOCO_MAX_RATE` is 4, a
+safety. A landing ends after `LAND_HOLD` when walking or running, and at the latest after `LAND_MAX` (0.7 s) while the body is
+going anywhere at all.
+
+| Body | Feet | Worst airborne near ground | Drawn airborne on ground | Planted foot slip (% of speed) |
+|---|---|---|---|---|
+| procedural person | 2 (sole) | first beta run | first beta run | first beta run |
+| Mixamo-skeleton (robot) | 2 (bone) | first beta run | first beta run | first beta run |
+| dinosaur | 2 (bone) | first beta run | first beta run | first beta run |
+| dog | 4 (bone) | first beta run | first beta run | first beta run |
+| toaster | 2 (vertex) | first beta run | first beta run | first beta run |
+
+The numbers are the run's metrics `<body>.airborneNearGround`, `<body>.drawnAirborneOnGround`, `<body>.plantedFootSlipPct`;
+fill the table from the first beta run at 1280x720 and 390x844 touch. Not done yet: each clip's travel speed measured into its
+row's `stride`, and the two-bone foot IK on slopes for the humanoid and the dinosaur.
+
 ### Never in the rest pose (the orb)
 
 A model is built the moment its GLB is in, but its class's file (`anim/<class>.json`) is a separate fetch. A body is never drawn between

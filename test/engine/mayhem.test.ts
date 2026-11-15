@@ -338,3 +338,14 @@ test('a ten-barrel row goes off one after another, inside the effects budget', (
   assert.ok(s.chains >= 1 && s.rolled >= 2, JSON.stringify(s));
   assert.ok(s.maxLive <= s.cap + 12, `effects alive stayed bounded (${s.maxLive} vs ${s.cap})`);
 });
+
+test('the layers of a blast: a phone makes half, no ripple, 512 px sheets; smoke lingers 6 to 8 s; the flash is 0.15 s', () => {
+  const d = M.vfxPlan(6, 1, 'desktop', 0), p = M.vfxPlan(6, 1, 'phone', 0);
+  assert.ok(p.fire <= Math.ceil(d.fire / 2) + 1 && p.smoke <= Math.ceil(d.smoke / 2) + 1 && p.sparks <= Math.ceil(d.sparks / 2) + 1, 'half the particles on a phone');
+  assert.equal(p.sheet, 512); assert.equal(d.sheet, 1024);
+  assert.equal(p.distortion, false); assert.equal(d.distortion, true);
+  assert.equal(M.vfxPlan(6, 1, 'desktop', 1).distortion, false, 'only the first blast of a chain ripples');
+  for (const R of [1, 5, 12, 40]) { const v = M.vfxPlan(R, 1, 'desktop'); assert.ok(v.smokeLife >= 6 && v.smokeLife <= 8); assert.equal(v.flash, 0.15); assert.equal(v.scorchSeconds, 60); }
+  assert.deepEqual(['S', 'M', 'L'], [M.vfxPlan(2).size, M.vfxPlan(6).size, M.vfxPlan(12).size], 'scaled by the blast size');
+  assert.ok(M.vfxPlan(6, 0.3, 'desktop').fire < d.fire, 'later blasts of a chain make less');
+});

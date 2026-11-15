@@ -53,6 +53,10 @@
   function clearErrors() { reported = 0; const box = $('error'); if (box) { box.innerHTML = ''; box.hidden = true; } }
 
   // (The engine tests run this file in Node with Babylon's NullEngine: window.HawkesEngineFactory makes it.)
+  // Babylon announces every engine on the console ("Babylon.js v7.x - WebGL2": a message level line, not a problem). The
+  // engine's log levels are the setting for that: warnings and errors still reach the console, so every real WebGL
+  // complaint stays visible and the first-load playtest's list of lines with WebGL, GL_ or WARNING means something.
+  try { if (B.Logger) B.Logger.LogLevels = B.Logger.WarningLogLevel | B.Logger.ErrorLogLevel; } catch { /* the engine's own default */ }
   const engine = window.HawkesEngineFactory ? window.HawkesEngineFactory(canvas) : new B.Engine(canvas, true, { preserveDrawingBuffer: false, stencil: true, disableWebGL2Support: false }, true);
   engine.enableOfflineSupport = false;
   window.addEventListener('resize', () => engine.resize());
@@ -267,16 +271,24 @@
   }
   // H.audio: one output every sound goes through (the engine's, every module's, music), so a module can change how
   // everything sounds (water muffles it all under water). master (a gain) -> effects (in name order) -> speakers.
-  let masterNode = null, outputNode = null, links = [];
+  let masterNode = null, outputNode = null, links = [], clipSeq = 0;
   // H.audio.hold(owner): while held, everything but the background (music, ambience) is silent (a sheet over the game).
   let gateNode = null;
   const holds = new Set();
   // The background (music, ambience: media({ background: true })) has its own level into the master, which ducks
   // (H.audio.duck) while something must be heard over it: the Overseer speaking.
-  let bedNode = null;
+  let bedNode = null, musicBus = null, ambBus = null, uiBus = null;
   const ducks = new Map();
+  // The mix (modules/mix): buses music, voice, sfx (effects), ambience and ui into master -> effects -> makeup -> compressor
+  // -> limiter -> a soft ceiling -> speakers. A voice line ducks music by 8 dB and ambience by 4 dB (150 ms attack, 600 ms release).
+  let makeupNode = null, compNode = null, limitNode = null, ceilNode = null;
+  const voiceDucks = new Set();
+  const DUCK_MUSIC_DB = 8, DUCK_AMB_DB = 4, DUCK_ATTACK = 0.15, DUCK_RELEASE = 0.6;
+  const dbToGain = (db) => Math.pow(10, db / 20);
+  let duckNow = 0; // how deep the voices hold the music down now, in dB (0 when none speaks)
   // The Overseer's voice has its own level into the master, and the music its own level (the player's settings), apart from each other.
-  let voiceNode = null, musicLevel = 1, voiceLevel = 1;
+  // SFX (footsteps, explosions, UI) go through effectsGain into the master, so Effects 0 keeps the Overseer's voice.
+  let voiceNode = null, musicLevel = 1, voiceLevel = 1, effectsGain = null, effectsLevel = 1;
   const effects = new Map();
   const mediaRouted = new WeakSet();
   // Only the chain's own links are undone when it changes: whatever else listens to the master or the output (a clip
@@ -284,7 +296,7 @@
   function wire() {
     if (!masterNode) return;
     for (const [a, b] of links) { try { a.disconnect(b); } catch { /* gone */ } }
-    const chain = [masterNode, gateNode, ...[...effects.keys()].sort().map((k) => effects.get(k)), outputNode];
+    const chain = [masterNode, gateNode, ...[...effects.keys()].sort().map((k) => effects.get(k)), makeupNode, compNode, limitNode, ceilNode, outputNode].filter(Boolean);
     links = [];
     for (let i = 0; i < chain.length - 1; i++) { chain[i].connect(chain[i + 1]); links.push([chain[i], chain[i + 1]]); }
     gateNode.gain.value = holds.size ? 0 : 1;
@@ -305,6 +317,18 @@
       gateNode = audio.createGain();
       outputNode = audio.createGain();
       outputNode.connect(audio.destination);
+      // Makeup gain (the loudness leveler in modules/mix moves it), a compressor that glues the mix, a limiter and a soft
+      // ceiling under 0 dBFS so nothing ever clips.
+      makeupNode = audio.createGain();
+      makeupNode.gain.value = dbToGain(3);
+      compNode = audio.createDynamicsCompressor();
+      compNode.threshold.value = -20; compNode.knee.value = 12; compNode.ratio.value = 3; compNode.attack.value = 0.012; compNode.release.value = 0.25;
+      limitNode = audio.createDynamicsCompressor();
+      limitNode.threshold.value = -3; limitNode.knee.value = 0; limitNode.ratio.value = 20; limitNode.attack.value = 0.001; limitNode.release.value = 0.09;
+      ceilNode = audio.createWaveShaper();
+      const curve = new Float32Array(2049);
+      for (let i = 0; i < curve.length; i++) { const x = (i / 1024) - 1, a = Math.abs(x); curve[i] = a < 0.8 ? x : Math.sign(x) * (0.8 + 0.17 * Math.tanh((a - 0.8) / 0.17)); }
+      ceilNode.curve = curve;
       wire();
       return masterNode;
     },
@@ -330,10 +354,55 @@
       if (!el || mediaRouted.has(el) || !audioApi.master) return el;
       try {
         if (new URL(el.src, location.href).origin !== location.origin) return el;
-        audio.createMediaElementSource(el).connect(o.background ? audioApi.background : o.voice ? audioApi.voice : masterNode);
+        const src = audio.createMediaElementSource(el);
+        const dest = o.background ? (o.ambience ? audioApi.ambience : audioApi.background) : o.voice ? audioApi.voice : o.ui ? audioApi.ui : o.sfx ? audioApi.effects : masterNode;
+        // o.at (a place, or a function giving one): the clip is heard from there (modules/mix: HRTF, or stereo on a phone).
+        const sp = o.at && audioApi.spatial ? audioApi.spatial(o.at, { ...(o.spatial || {}), who: o.who, bus: dest }) : null;
+        if (sp) src.connect(sp.input); else src.connect(dest);
         mediaRouted.add(el);
+        // o.analyser: a small analyser on the clip, read for loudness only (a character's mouth follows it: presence-alive.js)
+        if (o.analyser && H.presence && H.presence.alive) el._analyser = H.presence.alive.analyserFor(audio, src);
+        if (o.voice) {
+          const key = `clip:${++clipSeq}`;
+          const on = () => { if (sp && sp.start) sp.start(); audioApi.voiceDuck(key, true); };
+          const off = () => { if (sp && sp.stop) sp.stop(); audioApi.voiceDuck(key, false); };
+          el.addEventListener('playing', on);
+          for (const ev of ['ended', 'pause', 'error', 'emptied']) el.addEventListener(ev, off);
+        }
       } catch { /* plays directly */ }
       return el;
+    },
+    /** A voice is speaking (voiceDuck(owner, true)) or has stopped (false): while any does, the music is held 8 dB down and
+     *  the ambience 4 dB (150 ms to get there, 600 ms back). The one rule for every voice: the Overseer, Pip, islanders. */
+    voiceDuck(owner, on) {
+      const o = String(owner || 'voice');
+      const before = voiceDucks.size;
+      if (on) voiceDucks.add(o); else voiceDucks.delete(o);
+      if (before === voiceDucks.size && !on) return voiceDucks.size > 0;
+      applyBeds();
+      return voiceDucks.size > 0;
+    },
+    /** The levels now: { music, ambience, voice, sfx, ui } bus gains, the duck's depth in dB and the voices that hold it. */
+    get levels() {
+      const g = (n) => (n ? Math.round(n.gain.value * 1000) / 1000 : null);
+      return { music: g(musicBus), ambience: g(ambBus), voice: g(voiceNode), sfx: g(effectsGain), ui: g(uiBus), master: g(masterNode), makeup: g(makeupNode), duckDb: voiceDucks.size ? DUCK_MUSIC_DB : 0, ducking: [...voiceDucks], musicSetting: musicLevel, effectsSetting: effectsLevel, voiceSetting: voiceLevel, compReduction: compNode ? Math.round(compNode.reduction * 10) / 10 : 0, limitReduction: limitNode ? Math.round(limitNode.reduction * 10) / 10 : 0 };
+    },
+    /** The makeup gain in dB (the loudness leveler's). */
+    get makeupDb() { return makeupNode ? 20 * Math.log10(Math.max(1e-6, makeupNode.gain.value)) : 0; },
+    set makeupDb(db) { if (makeupNode) makeupNode.gain.setTargetAtTime(dbToGain(Math.max(-12, Math.min(12, Number(db) || 0))), audio.currentTime, 0.5); },
+    /** Ambience loops (the sea, the birds, the beds): their own bus, under the music slider, ducked 4 dB under a voice. */
+    get ambience() {
+      if (ambBus) return ambBus;
+      if (!audioApi.background) return null;
+      return ambBus;
+    },
+    /** Interface sounds: their own bus into the master (the effects slider does not touch them). */
+    get ui() {
+      if (uiBus) return uiBus;
+      if (!audioApi.master) return null;
+      uiBus = audio.createGain();
+      uiBus.connect(masterNode);
+      return uiBus;
     },
     /** The Overseer's voice (a gain into the master): media(el, { voice: true }) sends a clip through it. */
     get voice() {
@@ -350,14 +419,29 @@
     /** How loud the music and ambience are, 0 to 1 (the player's setting), under whatever ducks them. */
     get musicVolume() { return musicLevel; },
     set musicVolume(v) { musicLevel = Math.max(0, Math.min(1, Number(v))); if (!Number.isFinite(musicLevel)) musicLevel = 1; audioApi.duck('music-level', null); },
-    /** The background's level (a gain into the master): what music and ambience go through. */
+    /** Footsteps, explosions and UI (into the master; the Overseer's voice and music stay on their own gains). */
+    get effects() {
+      if (effectsGain) return effectsGain;
+      if (!audioApi.master) return null;
+      effectsGain = audio.createGain();
+      effectsGain.gain.value = effectsLevel;
+      effectsGain.connect(masterNode);
+      return effectsGain;
+    },
+    /** How loud world SFX are, 0 to 1 (the player's setting); 0 silences footsteps and blasts, not voice. */
+    get effectsVolume() { return effectsLevel; },
+    set effectsVolume(v) { effectsLevel = Math.max(0, Math.min(1, Number(v))); if (!Number.isFinite(effectsLevel)) effectsLevel = 1; if (effectsGain) effectsGain.gain.value = effectsLevel; },
+    /** The music's level (a gain into the master via the background): what music goes through. */
     get background() {
-      if (bedNode) return bedNode;
+      if (musicBus) return musicBus;
       if (!audioApi.master) return null;
       bedNode = audio.createGain();
-      bedNode.gain.value = musicLevel;
+      musicBus = audio.createGain();
+      ambBus = audio.createGain();
+      musicBus.gain.value = musicLevel; ambBus.gain.value = musicLevel;
+      musicBus.connect(bedNode); ambBus.connect(bedNode);
       wire();
-      return bedNode;
+      return musicBus;
     },
     /** Silences every sound but the background (music, ambience) while `owner` holds; hold(owner, false) lets go. */
     hold(owner, on = true) {
@@ -370,15 +454,25 @@
     duck(owner, level) {
       const o = String(owner || 'default');
       if (level === null || level === undefined || Number(level) >= 1) ducks.delete(o); else ducks.set(o, Math.max(0, Number(level) || 0));
-      const bed = audioApi.background;
-      if (!bed) return 1;
-      let k = 1;
-      for (const v of ducks.values()) k = Math.min(k, v);
-      k *= musicLevel;
-      try { bed.gain.cancelScheduledValues(audio.currentTime); bed.gain.setTargetAtTime(k, audio.currentTime, k < bed.gain.value ? 0.08 : 0.35); } catch { bed.gain.value = k; }
-      return k;
+      return applyBeds();
     },
   };
+  /** Sets the music and ambience buses: the player's setting, the lowest asked duck, and the voices' duck on top. */
+  function applyBeds() {
+    if (!musicBus || !ambBus) return 1;
+    let k = 1;
+    for (const v of ducks.values()) k = Math.min(k, v);
+    const speaking = voiceDucks.size > 0;
+    const t = audio.currentTime;
+    const music = k * musicLevel * (speaking ? dbToGain(-DUCK_MUSIC_DB) : 1);
+    const amb = musicLevel * (speaking ? dbToGain(-DUCK_AMB_DB) : 1);
+    // Down in 150 ms and up in 600 ms (a time constant is a third of the time to settle).
+    for (const [bus, v] of [[musicBus, music], [ambBus, amb]]) {
+      try { bus.gain.cancelScheduledValues(t); bus.gain.setTargetAtTime(v, t, v < bus.gain.value ? DUCK_ATTACK / 3 : DUCK_RELEASE / 3); } catch { bus.gain.value = v; }
+    }
+    duckNow = speaking ? DUCK_MUSIC_DB : 0;
+    return music;
+  }
   const soundFails = new Set(); // sounds already reported as failing (once each, not on every play)
   async function loadBuffer(url) {
     if (!buffers.has(url)) {
@@ -414,8 +508,15 @@
     return n ? { name: n, ...assets[n] } : null;
   }
   const hasAsset = (ref) => Boolean(assetEntry(ref));
+  /** A community id the bundle's template lists but the library no longer has (the server says so: `gone`). */
+  const assetGone = (id) => Boolean(bundle && Array.isArray(bundle.gone) && bundle.gone.includes(id));
   function assetUrl(ref, hint) {
     if (/^https:\/\//.test(String(ref))) return ref;
+    // Local engine files (island PBR set under /play/materials/...): serve as-is, phone prefers *-1k.webp.
+    if (/^\/play\//.test(String(ref))) {
+      const phone = window.HawkesPlay && window.HawkesPlay.device && window.HawkesPlay.device.tier === 'phone';
+      return phone ? String(ref).replace(/(-2k)?(\.webp|\.png|\.jpg)$/i, '-1k$2') : String(ref);
+    }
     const a = assetEntry(ref);
     if (!a) throw new Error(`No asset "${ref}". Add it in the Assets panel, or check the spelling.`);
     // An image with levels of detail (Gen's) starts at the level its budget and size need; textures.js sharpens what's
@@ -603,7 +704,8 @@
       else if (len > 0.01) this.wake();
       return this;
     }
-    jump(speed = 7) { if (!this.grounded) return false; this.vy = speed; this.grounded = false; this.standing = null; this.wake(); return true; }
+    // (A character that left the ground a moment ago without jumping, off a crest or an edge, may still jump: ~0.1 s coyote.)
+    jump(speed = 7) { if (!this.grounded && !(this._cc && this._cc.airT > 0 && this._cc.airT < 0.1 && this.vy <= 0.5)) return false; this.vy = speed; this.grounded = false; this.standing = null; this.wake(); return true; }
     push(v) { const p = vec(v); this.vx += p[0]; this.vy += p[1]; this.vz += p[2]; this.grounded = false; this.wake(); return this; }
     lookAt(t) { const p = posOf(t); this.node.rotation.y = Math.atan2(p[0] - this.x, p[2] - this.z); return this; }
     distanceTo(t) { const p = posOf(t); return Math.hypot(p[0] - this.x, p[1] - this.y, p[2] - this.z); }
@@ -665,7 +767,7 @@
   /** A material for a look. Plain looks (a color, a glow, an opacity: no texture) are shared by everything that has
    *  them, so a world of a thousand crates has a few materials; changing one thing's look gives it its own (ownMaterial). */
   function material(opts, name, hint) {
-    const key = !opts.texture && opts.share !== false ? `${hex(opts.color, '#cfcfcf').toHexString()}|${opts.emissive ? hex(opts.emissive).toHexString() : ''}|${opts.opacity ?? ''}` : null;
+    const key = !opts.texture && opts.share !== false ? `${hex(opts.color, '#cfcfcf').toHexString()}|${opts.emissive ? hex(opts.emissive).toHexString() : ''}|${opts.opacity ?? ''}|${opts.zOffset || 0}` : null;
     if (key && W.mats && W.mats.has(key)) return W.mats.get(key);
     const m = new B.StandardMaterial(name || 'm', W.scene);
     if (key && W.mats) { m._shared = true; W.mats.set(key, m); }
@@ -683,7 +785,17 @@
         if (!opts.color) m.diffuseColor = new B.Color3(1, 1, 1);
       } catch (e) { if (!opts.lenient) throw e; }
     }
+    if (opts.bump) {
+      try {
+        const b = new B.Texture(assetUrl(opts.bump, hint), W.scene, false, true, B.Texture.TRILINEAR_SAMPLINGMODE);
+        const tile = vec(opts.tile, [1, 1, 0]);
+        b.uScale = tile[0] || 1; b.vScale = tile[1] || 1;
+        b.level = 0.7;
+        m.bumpTexture = b;
+      } catch (e) { if (!opts.lenient) throw e; }
+    }
     if (opts.opacity !== undefined && opts.opacity !== null) m.alpha = Number(opts.opacity);
+    if (opts.zOffset) m.zOffset = Number(opts.zOffset) || 0;
     cutout(m);
     return m;
   }
@@ -779,17 +891,189 @@
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     lines.forEach((l, i) => ctx.fillText(l, w / 2, px * 0.25 + px * 1.25 * (i + 0.5) + px * 0.1));
     tex.update();
-    const plane = B.MeshBuilder.CreatePlane('text', { width: (w / px) * size, height: (h / px) * size, sideOrientation: B.Mesh.DOUBLESIDE }, W.scene);
+    // The back carries the words mirrored back (backUVs), so a flat sign reads right from either side (quality rule 1).
+    const plane = B.MeshBuilder.CreatePlane('text', { width: (w / px) * size, height: (h / px) * size, sideOrientation: B.Mesh.DOUBLESIDE, frontUVs: new B.Vector4(0, 0, 1, 1), backUVs: new B.Vector4(1, 0, 0, 1) }, W.scene);
     const m = new B.StandardMaterial('text', W.scene);
-    m.diffuseTexture = tex; m.useAlphaFromDiffuseTexture = true; m.emissiveColor = new B.Color3(1, 1, 1); m.disableLighting = true; m.backFaceCulling = false;
+    m.diffuseTexture = tex; m.useAlphaFromDiffuseTexture = true; m.emissiveColor = new B.Color3(1, 1, 1); m.disableLighting = true;
+    m.backFaceCulling = true; // each side draws only its own triangles (with both, the mirrored back fights the front)
+    if (o.zOffset) m.zOffset = Number(o.zOffset) || 0; // laid on a surface: drawn just in front of it (quality rule 2)
     plane.material = m;
     if (o.billboard !== false) plane.billboardMode = B.Mesh.BILLBOARDMODE_ALL;
     return plane;
   }
   function roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  /** Breaks a line into lines of about `max` characters at spaces (a speech bubble stays a bubble, not a 10 m banner). */
+  function wrapWords(str, max = 30) {
+    const out = [];
+    for (const para of String(str).split('\n')) {
+      let cur = '';
+      for (const word of para.split(/\s+/).filter(Boolean)) {
+        if (cur && cur.length + 1 + word.length > max) { out.push(cur); cur = word; } else cur = cur ? `${cur} ${word}` : word;
+      }
+      out.push(cur);
+    }
+    return out.join('\n');
+  }
+  /** A speaker's voice with no recording (quality rule 6: no silent character lines): a short babble, one blip per
+   *  syllable, its pitch and timbre this speaker's own (e.voice { pitch, wave, rate }, else picked from its name),
+   *  through the game's sound. Quiet when sound isn't running, the entity is `quiet`, or the player turned voices off. */
+  const VOICE_WAVES = ['triangle', 'sine', 'square', 'sawtooth'];
+  function babble(e, str) {
+    try {
+      if (!e || e.quiet || !audio || audio.state !== 'running') return 0;
+      const vol = H.speech && H.speech.settings ? Number(H.speech.settings.voice) : 1;
+      if (!(vol > 0)) return 0;
+      // Heard from where it is: full within 6 m of the view, gone past 36 m.
+      let near = 1;
+      const cam = W && W.scene && W.scene.activeCamera;
+      if (cam && e.node && e.node.getAbsolutePosition) near = Math.max(0, Math.min(1, 1 - (B.Vector3.Distance(cam.globalPosition || cam.position, e.node.getAbsolutePosition()) - 6) / 30));
+      if (!(near > 0)) return 0;
+      const out = audioApi.master;
+      if (!out) return 0;
+      let h = 0;
+      for (const ch of String(e.name || e.type || 'x')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+      const v = e.voice || {};
+      const pitch = Number(v.pitch) || 180 + (h % 9) * 35; // 180..460 Hz
+      const wave = VOICE_WAVES.includes(v.wave) ? v.wave : VOICE_WAVES[(h >> 4) % 2]; // soft by default
+      const rate = Number(v.rate) || 1;
+      const syl = Math.max(1, Math.min(14, (String(str).match(/[aeiouy]+/gi) || []).length));
+      const step = 0.085 / rate;
+      const t0 = audio.currentTime + 0.02;
+      const g = audio.createGain();
+      const f = audio.createBiquadFilter();
+      f.type = 'lowpass'; f.frequency.value = 2200;
+      g.gain.value = 0.07 * Math.min(1, vol) * near;
+      f.connect(g); g.connect(out);
+      let seed = h || 1;
+      const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+      const asks = /\?\s*$/.test(str);
+      for (let i = 0; i < syl; i++) {
+        const o = audio.createOscillator();
+        const env = audio.createGain();
+        o.type = wave;
+        const s = t0 + i * step;
+        const p = pitch * (0.85 + rnd() * 0.3) * (asks && i === syl - 1 ? 1.25 : 1);
+        o.frequency.setValueAtTime(p, s);
+        o.frequency.linearRampToValueAtTime(p * (0.9 + rnd() * 0.15), s + step * 0.8);
+        env.gain.setValueAtTime(0, s);
+        env.gain.linearRampToValueAtTime(1, s + 0.012);
+        env.gain.linearRampToValueAtTime(0, s + step * 0.8);
+        o.connect(env); env.connect(f);
+        o.start(s); o.stop(s + step);
+      }
+      setTimeout(() => { try { g.disconnect(); } catch { /* gone */ } }, (syl * step + 0.3) * 1000);
+      if (game && game.emit) game.emit('voiced', { who: e.name || null, kind: 'babble', syllables: syl });
+      return syl;
+    } catch { return 0; }
+  }
+  // ------------------------------------------------------------------ recorded lines
+  // A character's line in its own recorded voice when there is one, else the babble. The clips are files of the site
+  // (public/play/audio/voice/<speaker>-<hash>.mp3, listed in index.json): the speaker is the character's id in the
+  // world (pip, bobbin, ember...; the Overseer's is overseer) and the hash is lineHash of the words, so the same words
+  // find the same clip wherever they're said. (Made in Hawkes Gen: docs/story.md "Voices".)
+  const VOICE_DIR = '/play/audio/voice/';
+  let voiceIndex = null;
+  let voiceWebm = new Set(); // keys re-recorded as opus/webm (index.json `webm`): same key, the .webm file replaces the .mp3
+  let voiceIndexLoading = null;
+  /** FNV-1a (32 bits, hex) of the words, trimmed, in lower case, spaces collapsed. */
+  function lineHash(text) {
+    const s = String(text || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    let h = 0x811c9dc5;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return h.toString(16).padStart(8, '0');
+  }
+  /** Loads the list of clips once (only on a web page: tests and files have none). */
+  function loadVoiceIndex() {
+    if (voiceIndex || voiceIndexLoading) return voiceIndexLoading;
+    if (typeof fetch !== 'function' || typeof location === 'undefined' || !/^https?:$/.test(location.protocol)) return null;
+    voiceIndexLoading = fetch(VOICE_DIR + 'index.json')
+      .then((r) => (r.ok ? r.json() : {}))
+      .catch(() => ({}))
+      .then((j) => { voiceWebm = new Set(Array.isArray(j && j.webm) ? j.webm : []); voiceIndex = new Set(Array.isArray(j && j.clips) ? j.clips : []);
+        // The first-heard lines (index.json `preload`) are fetched into the HTTP cache once the page is up, so they start at once.
+        if (Array.isArray(j && j.preload) && typeof setTimeout === 'function') setTimeout(() => { for (const k of j.preload.slice(0, 8)) { try { fetch(`${VOICE_DIR}${k}.${voiceWebm.has(k) ? 'webm' : 'mp3'}`, { priority: 'low' }).catch(() => {}); } catch { /* fine */ } } }, 1200);
+        return voiceIndex; });
+    return voiceIndexLoading;
+  }
+  /** The recording of these words by this speaker, or null. index: a list of keys to use instead of the site's (tests). */
+  function recordedLine(speaker, text, index, webm) {
+    const set = index ? new Set(index) : voiceIndex;
+    if (!speaker || !set) return null;
+    const key = `${String(speaker).toLowerCase()}-${lineHash(text)}`;
+    if (!set.has(key)) return null;
+    const w = webm ? new Set(webm) : voiceWebm;
+    if (w.has(key)) {
+      // Opus in webm (about 48 kbps). A browser that cannot play it has no mp3 of this key: the babble stands in.
+      if (!webm && typeof Audio !== 'undefined') { try { if (!new Audio().canPlayType('audio/webm; codecs="opus"')) return null; } catch { return null; } }
+      return `${VOICE_DIR}${key}.webm`;
+    }
+    return `${VOICE_DIR}${key}.mp3`;
+  }
+  loadVoiceIndex();
+  // The site's own sound effects (public/play/audio/sfx/<name>.mp3, listed in its index.json: duck-squeak, fish-bite...):
+  // siteSound(name) plays one if the site has it and says so (false: the caller makes its own sound instead).
+  const SFX_DIR = '/play/audio/sfx/';
+  let sfxIndex = null;
+  if (typeof fetch === 'function' && typeof location !== 'undefined' && /^https?:$/.test(location.protocol)) {
+    fetch(SFX_DIR + 'index.json').then((r) => (r.ok ? r.json() : {})).catch(() => ({})).then((j) => { sfxIndex = new Set(Array.isArray(j && j.sounds) ? j.sounds : []); });
+  }
+  const sfxBuffers = new Map();
+  /** o: { volume, at (a place: quieter far from the view), rate, index (a list of names instead of the site's: tests) }. */
+  function siteSound(name, o = {}) {
+    const set = o.index ? new Set(o.index) : sfxIndex;
+    if (!set || !set.has(String(name))) return false;
+    if (o.index) return true;
+    if (!audio || audio.state !== 'running') return true; // it would have played: no stand-in either
+    let vol = o.volume ?? 1;
+    const cam = W && W.scene && W.scene.activeCamera;
+    const placed = o.at && audioApi.spatial ? audioApi.spatial(posOf(o.at), { who: name, ref: 4, max: 120 }) : null;
+    if (!placed && o.at && cam) { const p = posOf(o.at); const c = cam.globalPosition || cam.position; vol *= 1 / (1 + Math.hypot(c.x - p[0], c.y - p[1], c.z - p[2]) / 12); }
+    if (vol < 0.02) return true;
+    const url = `${SFX_DIR}${name}.mp3`;
+    let buf = sfxBuffers.get(url);
+    if (!buf) { buf = loadBuffer(url); sfxBuffers.set(url, buf); }
+    buf.then((b) => {
+      const src = audio.createBufferSource();
+      src.buffer = b;
+      if (o.rate) src.playbackRate.value = o.rate;
+      const gn = audio.createGain();
+      gn.gain.value = Math.max(0, Math.min(1, vol));
+      src.connect(gn).connect(placed ? placed.input : audioApi.effects || audioApi.master || audio.destination);
+      src.start();
+    }).catch(() => { sfxBuffers.delete(url); });
+    return true;
+  }
+  /** Plays a character's recorded line from where it is (as loud as the babble would be there): true when it plays. */
+  function speakRecorded(e, str) {
+    try {
+      if (!e || e.quiet || !audio || audio.state !== 'running' || typeof Audio === 'undefined') return false;
+      const url = recordedLine((e.voice && e.voice.speaker) || e.sceneId, str);
+      if (!url) return false;
+      const vol = H.speech && H.speech.settings ? Number(H.speech.settings.voice) : 1;
+      if (!(vol > 0)) return true; // voices are off: no babble either
+      let near = 1;
+      const cam = W && W.scene && W.scene.activeCamera;
+      if (cam && e.node && e.node.getAbsolutePosition) near = Math.max(0, Math.min(1, 1 - (B.Vector3.Distance(cam.globalPosition || cam.position, e.node.getAbsolutePosition()) - 6) / 30));
+      if (!(near > 0)) return true;
+      if (e._voiceClip) { try { e._voiceClip.pause(); } catch { /* gone */ } }
+      const a = new Audio(url);
+      // The clip is heard from the character (HRTF, or stereo on a phone: modules/mix); the distance is the panner's.
+      const heard = () => { const p = e.node && e.node.getAbsolutePosition ? e.node.getAbsolutePosition() : null; return p ? [p.x, p.y + 1.3, p.z] : [0, 0, 0]; };
+      a.volume = audioApi.spatial ? 1 : Math.min(1, near);
+      audioApi.media(a, { voice: true, at: audioApi.spatial && e.node ? heard : undefined, who: e.name || (e.voice && e.voice.speaker) || e.sceneId || null, spatial: { ref: 5, max: 60 }, analyser: true });
+      e._voiceClip = a;
+      e._voiceAnalyser = a._analyser || null;
+      const pr = a.play();
+      if (pr && pr.catch) pr.catch(() => { if (e._voiceClip === a) { e._voiceClip = null; babble(e, str); } });
+      if (game && game.emit) game.emit('voiced', { who: e.name || null, kind: 'clip', url });
+      return true;
+    } catch { return false; }
+  }
   function showBubble(e, str, seconds) {
     if (e._bubble) e._bubble.dispose();
-    const b = textPlane(str, { size: 0.32 });
+    if (!speakRecorded(e, str)) babble(e, str);
+    try { if (H.presence && H.presence.alive) H.presence.alive.spoke(e, str, seconds); } catch { /* the words still show */ }
+    const b = textPlane(wrapWords(str), { size: 0.32 });
     b.isPickable = false;
     b.metadata = { decor: true };
     b.parent = e.node;
@@ -810,7 +1094,8 @@
       name: spec.name || null, tag: spec.tag || null, data: clone(spec.data) || {},
       physics: spec.physics || (kindDefs.get(spec.type) && kindDefs.get(spec.type).physics) || 'static',
       position: t.position, rotation: t.rotation, scale: t.scale,
-      color: m.color, emissive: m.emissive, opacity: m.opacity, texture: m.texture, tile: m.tile,
+      color: m.color, emissive: m.emissive, opacity: m.opacity, texture: m.texture, bump: m.bump, tile: m.tile,
+      zOffset: m.zOffset, // laid on a surface: polygon offset so coplanar faces do not flicker (quality rule 2)
       bounce: body.bounce, friction: body.friction, mass: body.mass, grab: body.grab,
       shadow: spec.shadow, visible: spec.visible, instanced: spec.instanced, lenient: true,
     };
@@ -962,7 +1247,7 @@
   function makeCamera() {
     const cam = new B.UniversalCamera('cam', new B.Vector3(0, 8, -14), W.scene);
     cam.setTarget(B.Vector3.Zero());
-    cam.minZ = 0.05;
+    cam.minZ = 0.1; // (set each frame by the height: state.update)
     cam.maxZ = 2000;
     cam.fov = 1.0;
     cam.inputs.clear();
@@ -974,6 +1259,14 @@
     };
     const state = { mode: 'fixed', target: null, opts: {}, cam, arc: null, shake: 0, shakeTime: 0, yaw: 0, pitch: 0, claimed: false };
     const claim = () => { if (!internal) state.claimed = true; };
+    /** Player look feel from the game menu (sensitivity multiplier and invert Y), else the camera's own opts. */
+    const lookFeel = () => {
+      const base = Number(state.opts && state.opts.sensitivity) || 0.15;
+      const HP = window.HawkesPlay;
+      const S = HP && HP.gameMenu && HP.gameMenu.settings;
+      const mult = S && Number.isFinite(Number(S.sensitivity)) ? Math.max(0.25, Math.min(2, Number(S.sensitivity))) : 1;
+      return { sensitivity: base * mult, invert: S && S.invertY ? -1 : 1 };
+    };
     const api = {
       get target() { return state.target; },
       set target(v) { state.target = v; },
@@ -989,7 +1282,7 @@
       orbit(t, o = {}) {
         claim();
         const p = t && t.__entity ? t.position : vec(t);
-        if (!state.arc) { state.arc = new B.ArcRotateCamera('orbit', -Math.PI / 2, 1.1, o.distance || 12, new B.Vector3(p[0], p[1], p[2]), W.scene); state.arc.minZ = 0.05; state.arc.wheelPrecision = 20; state.arc.lowerRadiusLimit = 1; }
+        if (!state.arc) { state.arc = new B.ArcRotateCamera('orbit', -Math.PI / 2, 1.1, o.distance || 12, new B.Vector3(p[0], p[1], p[2]), W.scene); state.arc.minZ = 0.1; state.arc.wheelPrecision = 20; state.arc.lowerRadiusLimit = 1; }
         state.arc.radius = o.distance || state.arc.radius;
         state.arc.attachControl(canvas, true);
         W.scene.activeCamera = state.arc;
@@ -1017,8 +1310,9 @@
       if (state.mode === 'orbit') { if (state.target && state.target.alive) state.arc.target.set(state.target.x, state.target.y, state.target.z); }
       else if (state.mode === 'fps') {
         const t = state.target;
-        state.yaw += mouse.dx * state.opts.sensitivity * RAD;
-        state.pitch = Math.max(-1.5, Math.min(1.5, state.pitch + mouse.dy * state.opts.sensitivity * RAD));
+        const look = lookFeel();
+        state.yaw += mouse.dx * look.sensitivity * RAD;
+        state.pitch = Math.max(-1.5, Math.min(1.5, state.pitch + mouse.dy * look.invert * look.sensitivity * RAD));
         if (t && t.alive) {
           t.node.rotation.y = state.yaw;
           const eye = t === W.player ? t.bottom + state.opts.height : t.y + state.opts.height;
@@ -1044,23 +1338,73 @@
         cam.setTarget(state.focus);
       } else if (state.mode === 'third') {
         const t = state.target, o = state.opts;
-        state.yaw += mouse.dx * o.sensitivity * RAD;
-        state.pitch = Math.max(-0.4, Math.min(1.2, state.pitch + mouse.dy * o.sensitivity * RAD));
+        const look = lookFeel();
+        state.yaw += mouse.dx * look.sensitivity * RAD;
+        state.pitch = Math.max(-0.4, Math.min(1.2, state.pitch + mouse.dy * look.invert * look.sensitivity * RAD));
+        const nowMs = performance.now();
+        // Idle recenter only when the player is not looking (mouse or phone look-drag) and not steering.
+        const ax = game.input && game.input.axis ? game.input.axis() : { x: 0, y: 0 };
+        const steering = Math.hypot(ax.x || 0, ax.y || 0) > 0.12;
+        if (mouse.dx || mouse.dy || steering || state.idleSince === undefined) state.idleSince = nowMs;
         if (t && t.alive) {
+          // After about 2 s idle (no look, no steer), the camera swings back behind the player. Never while they steer
+          // or look-drag (phone look must not fight the recenter).
+          if (nowMs - state.idleSince > 2000 && t.node) {
+            const k = 1 - Math.exp(-dt * 2.5);
+            let dy = (t.node.rotation.y - state.yaw) % (Math.PI * 2);
+            if (dy > Math.PI) dy -= Math.PI * 2; else if (dy < -Math.PI) dy += Math.PI * 2;
+            state.yaw += dy * k; state.pitch += (0.32 - state.pitch) * k;
+          }
           // The head, with small bumps smoothed (a slope's steps, a landing); never trailing when falling or flying.
           state.headY = smoothBump(state.headY, t === W.player ? t.bottom + 1.5 : t.y + o.height, dt, 14, 0.3);
           const head = new B.Vector3(t.x, state.headY, t.z);
           const back = new B.Vector3(-Math.sin(state.yaw) * Math.cos(state.pitch), Math.sin(state.pitch), -Math.cos(state.yaw) * Math.cos(state.pitch));
-          // Walls between you and the camera pull it in, so it never looks through them.
-          let dist = o.distance;
-          const hit = W.scene.pickWithRay(new B.Ray(head, back, o.distance), (m) => { const en = entityOf(m); return Boolean(en && en !== t && en.solid && !(m.metadata && m.metadata.decor)); });
-          if (hit && hit.hit) dist = Math.max(0.8, hit.distance - 0.3);
-          // Fixed to the head at its distance (no trailing: fast falls and rides don't wobble); a wall pulls it in at
-          // once, and it eases back out.
-          state.dist = state.dist === undefined || dist < state.dist ? dist : state.dist + (dist - state.dist) * Math.min(1, dt * 5);
+          // A sphere cast (the centre ray and four round it, 0.3 m out) pulls the camera in before any wall or prop.
+          const RADIUS = 0.3;
+          const right = new B.Vector3(Math.cos(state.yaw), 0, -Math.sin(state.yaw));
+          const upv = B.Vector3.Cross(back, right).normalize();
+          const solid = (m) => { const en = entityOf(m); return Boolean(en && en !== t && en.solid && !(m.metadata && m.metadata.decor)); };
+          let hard = o.distance;
+          for (const [rx, ry] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            const origin = head.add(right.scale(rx * RADIUS)).add(upv.scale(ry * RADIUS));
+            const hit = W.scene.pickWithRay(new B.Ray(origin, back, o.distance + RADIUS), solid);
+            if (hit && hit.hit) hard = Math.min(hard, hit.distance - RADIUS);
+          }
+          // The terrain too: the camera stays above the ground.
+          try {
+            const T = H.terrain;
+            if (T && T.active && T.heightAt) {
+              for (let d = 0.5; d <= hard; d += 0.5) {
+                const g = T.heightAt(head.x + back.x * d, head.z + back.z * d);
+                if (Number.isFinite(g) && head.y + back.y * d < g + RADIUS) { hard = Math.max(0.5, d - 0.5); break; }
+              }
+            }
+          } catch { /* flat world */ }
+          hard = Math.max(0.5, hard);
+          // Damped both ways, but never past what is clear: it eases in and out, and never ends up inside something.
+          const rate = state.dist === undefined ? 1 : Math.min(1, dt * (hard < state.dist ? 16 : 4));
+          state.dist = state.dist === undefined ? hard : state.dist + (hard - state.dist) * rate;
+          state.dist = Math.min(state.dist, hard);
           cam.position.copyFrom(head.add(back.scale(state.dist)));
           if (cam.upVector.x || cam.upVector.z || cam.upVector.y !== 1) cam.upVector.set(0, 1, 0);
           cam.setTarget(head);
+          // FOV stays between 60 and 75 degrees, unless a shot sets opts.fov (the intro on portrait).
+          if (Number(o.fov) > 0) cam.fov = Math.max(50 * RAD, Math.min(90 * RAD, Number(o.fov)));
+          else cam.fov = Math.max(60 * RAD, Math.min(75 * RAD, cam.fov));
+          // Count the frames the camera is inside a solid mesh (a playtest fails on this number).
+          const stats = (window.hawkesCameraStats = window.hawkesCameraStats || { frames: 0, inGeometry: 0, last: null });
+          stats.frames++;
+          let inside = null;
+          for (const m of W.scene.meshes) {
+            if (!m.isEnabled() || !m.isVisible || m.isPickable === false || !solid(m)) continue;
+            const bs = m.getBoundingInfo().boundingSphere;
+            if (B.Vector3.DistanceSquared(bs.centerWorld, cam.position) > (bs.radiusWorld + 1) ** 2) continue;
+            if (m.getBoundingInfo().boundingBox.intersectsPoint(cam.position)) { inside = m; break; }
+          }
+          if (inside) {
+            stats.inGeometry++; stats.last = inside.name;
+            game.emit('camera-in-geometry', { mesh: inside.name, count: stats.inGeometry, frame: stats.frames });
+          }
         }
       } else if (state.mode === 'follow' || state.mode === 'top') {
         const w = want();
@@ -1069,6 +1413,20 @@
           cam.position.x += (w.pos[0] - cam.position.x) * k; cam.position.y += (w.pos[1] - cam.position.y) * k; cam.position.z += (w.pos[2] - cam.position.z) * k;
           cam.setTarget(new B.Vector3(...w.look));
         }
+      }
+      // The near plane follows the height (quality rule 2: depth precision is ~d²/near, so a near plane fit for walking
+      // left the shore, the pier and the pad flickering from the helicopter): 0.1 m on foot, up to 2 m high in the air,
+      // never more than a quarter of the way to what it follows.
+      if (W.scene.activeCamera === cam) {
+        let near = 0.1;
+        if (state.mode !== 'fps') {
+          let ground = 0;
+          try { const T = H.terrain; const g = T && T.active && T.heightAt ? T.heightAt(cam.position.x, cam.position.z) : null; if (Number.isFinite(g)) ground = g; } catch { /* flat world */ }
+          const t = state.target;
+          const gap = t && t.alive ? Math.hypot(cam.position.x - t.x, cam.position.y - t.y, cam.position.z - t.z) : 40;
+          near = Math.max(0.1, Math.min((cam.position.y - ground) * 0.004, 2, gap * 0.25));
+        }
+        cam.minZ = near;
       }
       if (state.shakeTime > 0) {
         state.shakeTime -= dt;
@@ -1601,7 +1959,9 @@
           if (o.rate) src.playbackRate.value = o.rate;
           const gn = audio.createGain();
           gn.gain.value = o.volume ?? 1;
-          src.connect(gn).connect(audioApi.master || audio.destination);
+          // A sound with a place (o.at) is heard from there; every one is an effect (the effects slider), not the bare master.
+          const sp = o.at && audioApi.spatial ? audioApi.spatial(posOf(o.at), { who: name, muffle: o.muffle ?? 1.4 }) : null;
+          src.connect(gn).connect(sp ? sp.input : audioApi.effects || audioApi.master || audio.destination);
           src.start();
         }).catch((e) => { if (!soundFails.has(name)) { soundFails.add(name); report(new Error(`Could not play ${name}: ${e.message || e}`)); } });
       },
@@ -1728,7 +2088,36 @@
       }
     }
     contacts();
+    groundGuard(dt);
     for (const f of hooks.afterStep) f(dt);
+  }
+
+  /** Safety net: the player is never left in the air for good. Standing on ground, the spot is remembered; airborne for
+   *  GUARD_SECONDS with no real descent (nothing under them to fall to, a collider that never came, a stuck state), they
+   *  are put back on the last safe ground (else the spawn) with their movement given back, and `reground` is told to
+   *  the game, the console and analytics (window.__regrounds for the playtest). */
+  const GUARD_SECONDS = 3, GUARD_DESCENT = 1;
+  const guard = { safe: null, air: 0, ref: 0, count: 0 };
+  function groundGuard(dt) {
+    const p = W.player;
+    if (!p || !p.alive || p.remote || mode === 'build' || p.flying || p.held || p.ghost || p._fast || p._flung || p._seatedAt || p.physics !== 'dynamic') { guard.air = 0; return; }
+    if ((W.config.gravity ?? -24) >= 0 || p.gravity === 0 || (p._controller && p._controller.name !== 'walk')) { guard.air = 0; return; }
+    if (p.grounded) { guard.air = 0; guard.safe = [p.x, p.y, p.z]; return; }
+    if (guard.air === 0) guard.ref = p.y;
+    guard.air += dt;
+    if (guard.ref - p.y > GUARD_DESCENT) { guard.ref = p.y; guard.air = dt; } // really falling: the clock restarts
+    if (guard.air < GUARD_SECONDS) return;
+    const from = [p.x, p.y, p.z];
+    const at = guard.safe || (() => { const s = spawnPoint(); return [s[0], s[1] + 0.95, s[2]]; })();
+    p.position = at.slice(); p.velocity = [0, 0, 0]; p.vy = 0; p.gravity = p.baseGravity ?? 1; p._doubled = false;
+    p.controls = W.config.controls !== false;
+    if (p.wake) p.wake();
+    guard.air = 0; guard.count++;
+    const info = { from, to: at.slice(), count: guard.count, spawn: !guard.safe };
+    (window.__regrounds = window.__regrounds || []).push(info);
+    try { console.warn('[hawkes] player stuck in the air for ' + GUARD_SECONDS + ' s: re-grounded', info); } catch { /* fine */ }
+    try { game.emit('reground', info); } catch { /* fine */ }
+    try { const T = window.HawkesPlay && window.HawkesPlay.track; if (T) T('player_reground', { count: guard.count, spawn: info.spawn }); } catch { /* fine */ }
   }
 
   /** The first physics: boxes that don't turn, swept along each axis. It runs until Havok is ready (or if it can't load). */
@@ -2201,15 +2590,46 @@
   }
 
   let looping = false;
+  let worldDrawn = Promise.resolve();
+  /** Resolves when the first frames are really on screen, so the loading cover lifts as soon as the sky, the ground near
+   *  the start and the player are drawn: the scene's own "ready" (every shader and texture of the whole island, which on a
+   *  phone is seconds) is not waited for. Babylon draws what is ready (with KHR_parallel_shader_compile the rest compiles
+   *  off the main thread and joins frame by frame) and textures.js / kinds.js already start with the lowest levels. Needs
+   *  the scene ready, or four frames drawn with at least 1.2 s of them behind us, then two more drawn frames; never hangs:
+   *  at 8 s the cover lifts whatever is happening. No screen (the engine tests): at once. */
+  function whenDrawn(scene) {
+    if (!scene || engine instanceof B.NullEngine) return Promise.resolve();
+    return new Promise((res) => {
+      const t0 = performance.now();
+      let after = 0, any = 0, ready = false, obs = null;
+      const finish = () => { clearTimeout(cap); if (obs) scene.onAfterRenderObservable.remove(obs); res(); };
+      const cap = setTimeout(finish, 8000);
+      const frames = () => {
+        ready = true;
+        if (scene.isDisposed()) finish();
+      };
+      obs = scene.onAfterRenderObservable.add(() => {
+        any++;
+        if (!ready && any >= 4 && performance.now() - t0 > 1200) ready = true; // (the near world is drawn; the rest streams in)
+        if (ready) after++;
+        if (after >= 2) finish();
+      });
+      try { scene.whenReadyAsync().then(frames, frames); } catch { frames(); }
+    });
+  }
   function run(b, o = {}) {
     bundle = b;
     if (o.mode) mode = o.mode;
     document.title = b.title ? `${b.title} · Hawkes Play` : 'Hawkes Play';
     const loading = $('loading');
-    if (loading) { if (window.HawkesLoadScreen) window.HawkesLoadScreen.done(); else loading.hidden = true; }
     // Warm the sound cache so the first effect plays on time.
     for (const [, a] of Object.entries(b.assets || {})) if (/^audio\//.test(a.mime || '') && a.url) fetch(a.url).catch(() => {});
     try { start({ newScene: true }); } catch (e) { report(e); } // a new bundle: its own world
+    // The loading screen stays until the world has really been drawn (its shaders and textures ready, a few frames on
+    // screen), not just built: a page with nothing drawn yet is the page's dark background, and the intro waits for this.
+    const shown = () => { if (loading) { if (window.HawkesLoadScreen) window.HawkesLoadScreen.done(); else loading.hidden = true; } };
+    worldDrawn = whenDrawn(W && W.scene);
+    worldDrawn.then(shown, shown);
     if (!looping && o.loop !== false) {
       looping = true;
       engine.runRenderLoop(() => { try { advance(true); } catch (e) { report(e); if (W) W.paused = true; } });
@@ -2248,7 +2668,7 @@
   }
 
   window.HawkesPlay = {
-    run, reload, setAssets, setMode, applyOps, respawn: () => respawn(false),
+    run, reload, setAssets, get worldDrawn() { return worldDrawn; }, setMode, applyOps, respawn: () => respawn(false),
     restart: () => { if (W) W.restartAsked = true; },
     behavior: (name, def) => defineBehavior(name, def, true),
     behaviorDef: (name) => findDef(name),
@@ -2296,7 +2716,7 @@
       mouse.dx = 0; mouse.dy = 0; mouse.wheel = 0;
     },
     /** The engine's building blocks, for modules that make kinds of things (kinds.js uses them). */
-    lib: { Entity, shape, place, material, size3, hex, vec, clone, assetUrl, hasAsset, assetEntry, setFrame, showBubble, roundRect, posOf, attachBehaviors, runBehaviorHit, applyPlayerSettings, useController, effectiveConfig, STEP, RAD, get clockOffset() { return clockOffset; } },
+    lib: { Entity, shape, place, material, size3, hex, vec, clone, assetUrl, hasAsset, assetGone, assetEntry, setFrame, showBubble, lineHash, recordedLine, loadVoiceIndex, siteSound, roundRect, posOf, attachBehaviors, runBehaviorHit, applyPlayerSettings, useController, effectiveConfig, STEP, RAD, get clockOffset() { return clockOffset; } },
   };
   window.addEventListener('error', (e) => report(e.error || e.message, null, true));
   window.addEventListener('unhandledrejection', (e) => report(e.reason, null, true));

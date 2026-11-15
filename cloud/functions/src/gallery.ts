@@ -8,26 +8,27 @@
 import { db, users } from './store.ts';
 import { route } from './http.ts';
 import { cdnOf } from './lods.ts';
+import { CATALOGUE, catalogueEntry } from './catalogue.ts';
 
 export type Live = { playing: number; building: number };
 /** Who is playing and building each game (ids: g_..., or t:<template> for the Overseer's games). Replaced by presence. */
 export const liveCounts: { of: (ids: string[]) => Promise<Record<string, Live>> } = { of: async () => ({}) };
 
-/** The Overseer's featured games (src/templates.ts featured(), in TEMPLATES order). */
-const FEATURED = [
-  { id: 'fps-arena', name: 'Bot Arena', emoji: '🎯', blurb: 'A first-person arena on a far planet at dusk: robots beamed in by the Overseer, a shotgun, a rocket launcher on the tower, barrels that blow. Clear 25, three lives.' },
-  { id: 'sky-racer', name: 'Sky Racer', emoji: '🛩️', blurb: 'Race a starship down a sunset valley through 24 glowing gates. Each gate buys time; boost with space, beat your best.' },
-  { id: 'platform-run', name: 'Leap', emoji: '🏃', blurb: 'A third-person climb from a village to the Overseer\'s rocket before the sun sets: moving platforms, spikes, coins, gems and checkpoints.' },
-];
-export const featured = () => FEATURED.map((t) => ({ id: t.id, name: t.name, blurb: t.blurb, emoji: t.emoji, url: `/play/t/${t.id}` }));
+/** The Overseer's featured games: the catalogue's ones that play on this site (catalogue.ts), in its order. */
+export const featured = () => CATALOGUE.filter((g) => g.playsHere && g.id !== 'island').map((g) => ({ id: g.id, name: g.name, blurb: g.blurb, emoji: g.emoji, url: g.url, ...(catalogueEntry(g).cover ? { cover: catalogueEntry(g).cover } : g.id === 'sickofit' ? { cover: '/play/sickofit/cover.svg' } : {}), remix: g.remix }));
+
+/** Test and placeholder islands never make the page (a name like "test", "untitled", "playtest-..."), nor do worlds nobody has played. */
+export const isTestName = (title: unknown) => /^\s*(test|testing|tests|untitled|asdf+|qwerty|playtest|qa|demo|new (game|world|island)|my (first )?(game|world|island)|game \d*|world \d*)\b|playtest|\btest\b/i.test(String(title ?? '')) || !String(title ?? '').trim();
 
 const liveAssetUrl = (slug: string, name: string) => `/play-asset/${slug}/live/${encodeURIComponent(name)}`;
 
 /** The public games, all live: most people in them right now first (then most played), or newest, or most played. */
 export async function gallery(sort: 'live' | 'popular' | 'new' = 'live', limit = 60) {
   const s = await db.collection('games').where('visibility', '==', 'public').where('hidden', '==', 0).orderBy(sort === 'new' ? 'updated' : 'plays', 'desc').limit(500).get();
-  const rows = s.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+  const rows = s.docs.map((d) => ({ id: d.id, ...(d.data() as any) })).filter((g) => (g.plays ?? 0) > 0 && !isTestName(g.title));
   const live = await liveCounts.of([...featured().map((t) => `t:${t.id}`), ...rows.map((g) => g.id)]).catch(() => ({} as Record<string, Live>));
+  // While nothing reports presence (liveCounts.of answers {}), no count is sent at all: pages show no live badge.
+  const liveKnown = Object.keys(live).length > 0;
   const counts = (key: string): Live => ({ playing: live[key]?.playing ?? 0, building: live[key]?.building ?? 0 });
   const list = rows.map((g) => ({ g, slug: g.slug, title: g.title, description: g.description ?? '', plays: g.plays ?? 0, updated: g.updated, url: `/play/${g.slug}`, visitors: g.visitors ?? 'play', ...counts(g.id) }));
   if (sort === 'live') list.sort((a, b) => b.playing + b.building - (a.playing + a.building) || b.plays - a.plays);
@@ -43,6 +44,7 @@ export async function gallery(sort: 'live' | 'popular' | 'new' = 'live', limit =
   }));
   const cdn = await cdnOf([...covers.values()]);
   return {
+    liveKnown,
     featured: featured().map((t) => ({ ...t, ...counts(`t:${t.id}`) })),
     games: top.map(({ g, ...x }) => {
       const asset = covers.get(g.id);

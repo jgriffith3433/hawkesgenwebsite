@@ -223,7 +223,7 @@ test('the intro: never on its own without a screen, off with intro: false; the l
   world(H, sceneOf({ floor, start }));
   H.tick(0.2);
   assert.equal(H.overseer.introWanted(), false, 'no screen (tests): no intro');
-  assert.deepEqual(H.overseer.INTRO_LINES, ['I have given you the power of free will.', 'Do with it what you will.']);
+  assert.deepEqual(H.overseer.INTRO_LINES, ['You found your way. Good.', 'I have given you the power of free will.', 'Do with it what you will.', 'Ask, and I will send it down.']);
   world(H, sceneOf({ floor, start }, { overseer: { intro: false } }));
   H.tick(0.2);
   assert.equal(H.overseer.config.intro, false);

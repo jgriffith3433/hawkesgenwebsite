@@ -17,7 +17,7 @@ import { ROOT } from './config.ts';
 export const PLAY_DIR = path.join(ROOT, 'public', 'play');
 const MODULES_DIR = path.join(PLAY_DIR, 'modules');
 
-export type EngineModule = { name: string; title: string; order: number; scripts: string[]; editor: string[]; kinds: string[]; dir: string; lazy: boolean; config: string[]; tools: string[]; words: string[]; needs: string[] };
+export type EngineModule = { name: string; title: string; order: number; scripts: string[]; editor: string[]; kinds: string[]; dir: string; lazy: boolean; optional: boolean; config: string[]; tools: string[]; words: string[]; needs: string[] };
 export type Manifest = {
   /** One cache-busting version for every engine file: a hash of their contents. */
   version: string;
@@ -27,10 +27,12 @@ export type Manifest = {
   scripts: string[];
   /** What a game page loads first: the core and every module that isn't lazy (the lazy ones: modules[].scripts). */
   eager: string[];
+  /** Eager scripts that may fail without blocking the world (ambience and similar): still loaded first, soft on error. */
+  optional: string[];
   /** The editor's in-world tools (loaded only in the editor's sandbox), with ?v=version. */
   editor: string[];
   kinds: string[];
-  modules: { name: string; title: string; kinds: string[]; lazy: boolean; config: string[]; tools: string[]; words: string[]; needs: string[]; scripts: string[] }[];
+  modules: { name: string; title: string; kinds: string[]; lazy: boolean; optional: boolean; config: string[]; tools: string[]; words: string[]; needs: string[]; scripts: string[] }[];
 };
 
 const readJson = (file: string) => JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -51,7 +53,7 @@ export function engineModules(): EngineModule[] {
       const m = readJson(file);
       const scripts = list(m.scripts).filter((s) => SAFE_FILE.test(s) && !s.includes('..') && fs.existsSync(path.join(dir, s)));
       const editor = list(m.editor).filter((s) => SAFE_FILE.test(s) && !s.includes('..') && fs.existsSync(path.join(dir, s)));
-      out.push({ name, title: String(m.title || name), order: Number(m.order) || 50, scripts, editor, kinds: list(m.kinds), dir, lazy: m.lazy === true, config: list(m.config), tools: list(m.tools), words: list(m.words), needs: list(m.needs) });
+      out.push({ name, title: String(m.title || name), order: Number(m.order) || 50, scripts, editor, kinds: list(m.kinds), dir, lazy: m.lazy === true, optional: m.optional === true, config: list(m.config), tools: list(m.tools), words: list(m.words), needs: list(m.needs) });
     } catch { /* a broken module.json: left out */ }
   }
   return out.sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
@@ -64,10 +66,10 @@ export function manifest(): Manifest {
   const core = readJson(path.join(PLAY_DIR, 'engine.json'));
   const mods = engineModules();
   const files = [
-    ...list(core.core).map((f) => ({ url: `/play/${f}`, file: path.join(PLAY_DIR, f), editor: false, lazy: null as string | null })),
-    ...mods.flatMap((m) => m.scripts.map((f) => ({ url: `/play/modules/${m.name}/${f}`, file: path.join(m.dir, f), editor: false, lazy: m.lazy ? m.name : null }))),
-    ...list(core.editor).map((f) => ({ url: `/play/${f}`, file: path.join(PLAY_DIR, f), editor: true, lazy: null })),
-    ...mods.flatMap((m) => m.editor.map((f) => ({ url: `/play/modules/${m.name}/${f}`, file: path.join(m.dir, f), editor: true, lazy: null }))),
+    ...list(core.core).map((f) => ({ url: `/play/${f}`, file: path.join(PLAY_DIR, f), editor: false, lazy: null as string | null, optional: false })),
+    ...mods.flatMap((m) => m.scripts.map((f) => ({ url: `/play/modules/${m.name}/${f}`, file: path.join(m.dir, f), editor: false, lazy: m.lazy ? m.name : null, optional: m.optional }))),
+    ...list(core.editor).map((f) => ({ url: `/play/${f}`, file: path.join(PLAY_DIR, f), editor: true, lazy: null, optional: false })),
+    ...mods.flatMap((m) => m.editor.map((f) => ({ url: `/play/modules/${m.name}/${f}`, file: path.join(m.dir, f), editor: true, lazy: null, optional: false }))),
   ];
   const h = crypto.createHash('sha1');
   for (const f of files) { h.update(f.url); try { h.update(fs.readFileSync(f.file)); } catch {} }
@@ -81,9 +83,10 @@ export function manifest(): Manifest {
     havok: String(core.havok || ''),
     scripts: files.filter((f) => !f.editor).map((f) => `${f.url}?v=${version}`),
     eager: files.filter((f) => !f.editor && !f.lazy).map((f) => `${f.url}?v=${version}`),
+    optional: files.filter((f) => !f.editor && !f.lazy && f.optional).map((f) => `${f.url}?v=${version}`),
     editor: files.filter((f) => f.editor).map((f) => `${f.url}?v=${version}`),
     kinds,
-    modules: mods.map((x) => ({ name: x.name, title: x.title, kinds: x.kinds, lazy: x.lazy, config: x.config, tools: x.tools, words: x.words, needs: x.needs, scripts: x.scripts.map((f) => `/play/modules/${x.name}/${f}?v=${version}`) })),
+    modules: mods.map((x) => ({ name: x.name, title: x.title, kinds: x.kinds, lazy: x.lazy, optional: x.optional, config: x.config, tools: x.tools, words: x.words, needs: x.needs, scripts: x.scripts.map((f) => `/play/modules/${x.name}/${f}?v=${version}`) })),
   };
   cache = { at: Date.now(), m };
   return m;

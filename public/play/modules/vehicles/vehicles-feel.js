@@ -96,7 +96,7 @@
         const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
         skidFilter = ac.createBiquadFilter(); skidFilter.type = 'bandpass'; skidFilter.Q.value = 4;
         skidGain = ac.createGain(); skidGain.gain.value = 0;
-        src.connect(skidFilter).connect(skidGain).connect(H.audio.master);
+        src.connect(skidFilter).connect(skidGain).connect(H.audio.effects || H.audio.master);
         src.start();
       }
       const loose = /dirt|sand|snow|grass/.test(surface);
@@ -162,7 +162,7 @@
         if (w) {
           const at = wheelPoint(w), surface = surfaceAt(w, at);
           const amount = math.dustAmount(surface, speed, { slip, throttle: Math.abs(v.throttleNow || 0) > 0.3 });
-          if (amount > 0.08 && J() && J().fx) { J().fx.dust(at, { amount: amount * Math.min(1, sh + 0.2), surface }); sense.puffs++; sense.dust = amount; }
+          if (amount > 0.08 && J() && J().fx) { if (!(V.vfx && V.vfx.handles)) J().fx.dust(at, { amount: amount * Math.min(1, sh + 0.2), surface }); /* (vehicles-vfx.js kicks the wheels' dust by surface) */ sense.puffs++; sense.dust = amount; }
         }
       }
       // Bumps: a wheel's spring squashed fast at speed.

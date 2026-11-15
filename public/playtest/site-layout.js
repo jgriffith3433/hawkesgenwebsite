@@ -9,12 +9,12 @@
 // Checks it makes itself (a failing one is a problem, and any horizontal scroll ends the run as an error): see "The
 // landing page checklist" in AGENTS.md. Screenshots and the review judge the rest (contrast, overlaps, how it looks).
 export const SITE_LAYOUT = {
-  id: 'site-layout', title: 'The landing page at 390x844, 768x1024 and 1440x900: the sky, a wish and its card, then the steps, pricing and API sections, with a screenshot at each stage and a check for horizontal scroll', seconds: 150, tags: ['full'],
-  description: 'no sign-up, no game. For each size: the hero (scene "Site WxH: hero"), a wish typed with real key events and sent (the card: "Site WxH: wish card"), then scrolling to #how-it-works ("steps") and #pricing, a scene each. The checklist (AGENTS.md "The landing page checklist") is measured: headline readable, the Overseer not covered, the wish box usable, the header legible, no horizontal scroll (any, at any size, ends the run as an error). options: sizes (default ["390x844","768x1024","1440x900"]), wish (text), frames (false: play in the browser\'s own window instead of an iframe per size)',
+  id: 'site-layout', title: 'The landing page at 390x844, 844x390 (a phone held sideways), 768x1024 and 1440x900: the sky, a wish and its card, then the island, games and pricing sections, with a screenshot at each stage and a check for horizontal scroll', seconds: 150, tags: ['full'],
+  description: 'no sign-up, no game. For each size: the hero (scene "Site WxH: hero"), a wish typed with real key events and sent (the card: "Site WxH: wish card"), then scrolling to #island ("island"), #games ("games") and #pricing, a scene each. The checklist (AGENTS.md "The landing page checklist") is measured: headline readable, the Overseer not covered, the wish box usable, the header legible, no horizontal scroll (any, at any size, ends the run as an error). options: sizes (default ["390x844","844x390","768x1024","1440x900"]), wish (text), pages (false: skip Games, Library and Profile), frames (false: play in the browser\'s own window instead of an iframe per size)',
 };
 
-const SIZES = ['390x844', '768x1024', '1440x900'];
-const SECTIONS = [['steps', '#how-it-works'], ['pricing', '#pricing']];
+const SIZES = ['390x844', '844x390', '768x1024', '1440x900'];
+const SECTIONS = [['island', '#island'], ['games', '#games'], ['pricing', '#pricing']];
 
 export async function runSiteLayout(t, options = {}) {
   const sizes = (Array.isArray(options.sizes) && options.sizes.length ? options.sizes : SIZES).map(String);
@@ -30,14 +30,93 @@ export async function runSiteLayout(t, options = {}) {
     if (horizontal.length) failed.push(`${sizes[i]}: ${horizontal.join('; ')}`);
     t.progress(0.05 + 0.95 * ((i + 1) / sizes.length));
   }
+  if (options.pages !== false) {
+    for (let i = 0; i < sizes.length; i++) {
+      const [w, h] = sizes[i].split('x').map(Number);
+      const bad = await pagesAtSize(t, { w, h, label: sizes[i], framed });
+      if (bad.length) failed.push(`${sizes[i]} pages: ${bad.join('; ')}`);
+    }
+  }
   document.getElementById('pt-site-stage')?.remove();
   if (failed.length) {
     t.event('layout-failed', failed.join(' | '));
     throw new Error(`layout: ${failed.join(' | ')}`);
   }
+  if (options.pages !== false) await catalogueFiles(t);
   t.event('no-horizontal-scroll', `none at ${sizes.join(', ')}`);
+  if (options.pages !== false) t.event('pages-ok', `Games, Library and Profile answer 200 and fit at ${sizes.join(', ')}`);
   t.event('layout-ok', `header whole, card on the first screen, the Overseer clear of the text at ${sizes.join(', ')}`);
   t.finish('done');
+}
+
+/** Every public/catalogue/ file the catalogue names answers 200: a 404 is a bug. */
+async function catalogueFiles(t) {
+  const list = await fetch('/v1/catalogue', { cache: 'no-store' }).then((r) => r.json(), () => null);
+  const games = (list && (list.games || list)) || [];
+  const urls = new Set();
+  const walk = (v) => { if (typeof v === 'string') { if (v.startsWith('/catalogue/')) urls.add(v); } else if (v && typeof v === 'object') Object.values(v).forEach(walk); };
+  walk(games);
+  const missing = [];
+  for (const u of urls) { const s = await fetch(u, { method: 'HEAD', cache: 'no-store' }).then((r) => r.status, () => 0); if (s !== 200) missing.push(`${u} ${s}`); }
+  for (const m of missing) t.problem('bug', `catalogue file 404: ${m}`);
+  t.event('catalogue-files', `${urls.size} files under /catalogue/, ${missing.length} not 200`);
+}
+
+const PAGES = [['/games', 'Games'], ['/community', 'Library'], ['/profile', 'Profile']];
+
+/** The other pages every visitor meets: each answers 200 and, at this size, nothing scrolls sideways, the header's buttons are whole and apart, and nothing fixed sits over the content. */
+async function pagesAtSize(t, { w, h, label, framed }) {
+  const bad = [];
+  let stage = null, frame = null;
+  if (framed) {
+    document.getElementById('pt-site-stage')?.remove();
+    stage = document.createElement('div');
+    stage.id = 'pt-site-stage';
+    stage.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:#14151c;overflow:hidden';
+    frame = document.createElement('iframe');
+    const scale = Math.min(1, innerWidth / w, (innerHeight - 24) / h);
+    frame.style.cssText = `position:absolute;left:${Math.round((innerWidth - w * scale) / 2)}px;top:24px;width:${w}px;height:${h}px;border:0;background:#fff;transform:scale(${scale});transform-origin:0 0`;
+    stage.append(frame);
+    document.body.appendChild(stage);
+  }
+  for (const [path, name] of PAGES) {
+    const status = await fetch(path, { cache: 'no-store' }).then((r) => r.status, () => 0);
+    if (status !== 200) { bad.push(`${name} (${path}) answered ${status}`); t.problem('bug', `${label}: ${path} answered ${status}`); continue; }
+    t.event('page-status', `${path} 200 at ${label}`);
+    if (!frame) continue;
+    await new Promise((res, rej) => { frame.onload = res; frame.onerror = () => rej(new Error(`${path} did not load`)); frame.src = path; });
+    const win = frame.contentWindow, doc = win.document;
+    await t.until(() => doc.readyState === 'complete', 20000, `${name} at ${label}`);
+    if (doc.fonts && doc.fonts.ready) await Promise.race([doc.fonts.ready, t.wait(3000)]);
+    await t.wait(1800); // its data arrives
+    t.scene(`Page ${label}: ${name}`);
+    const sw = overflowX(win, doc);
+    if (sw) bad.push(`${name}: ${sw}`);
+    const vw = doc.documentElement.clientWidth;
+    const head = doc.querySelector('.hg-navbar, header.bar');
+    if (!head) bad.push(`${name}: no header`);
+    else {
+      const shown = [...head.querySelectorAll('a,button')].filter((e) => e.getBoundingClientRect().width > 0);
+      for (const e of shown) {
+        const q = e.getBoundingClientRect(), nm = (e.textContent || '').trim().slice(0, 20);
+        if (q.right > vw + 1 || q.left < -1) bad.push(`${name}: header "${nm}" cut off (${Math.round(q.left)}..${Math.round(q.right)} of ${vw})`);
+        if (e.scrollWidth > e.clientWidth + 1) bad.push(`${name}: header "${nm}" clipped`);
+      }
+      for (let a = 0; a < shown.length; a++) for (let b = a + 1; b < shown.length; b++) {
+        if (hits(shown[a].getBoundingClientRect(), shown[b].getBoundingClientRect())) bad.push(`${name}: header "${(shown[a].textContent || '').trim().slice(0, 16)}" and "${(shown[b].textContent || '').trim().slice(0, 16)}" overlap`);
+      }
+    }
+    // a fixed button (the engine's Controls pill) over the page's own text
+    for (const e of doc.body.querySelectorAll('button, a, div')) {
+      if (e.closest('header') || getComputedStyle(e).position !== 'fixed') continue;
+      const r = e.getBoundingClientRect();
+      if (r.width < 8 || r.height < 8 || getComputedStyle(e).display === 'none' || getComputedStyle(e).visibility === 'hidden') continue;
+      if (e.classList.contains('ct-btn')) bad.push(`${name}: the Controls pill is on the page`);
+    }
+    if (!sw) t.event('page-fits', `${name} at ${label}: no sideways scroll, header whole`);
+  }
+  stage?.remove();
+  return bad;
 }
 
 /** Returns what scrolled sideways (empty when nothing did). Every other finding is a problem on the report. */
@@ -79,6 +158,7 @@ async function oneSize(t, { w, h, label, wish, framed }) {
   t.scene(tag('hero'));
   t.event('hero-shown', `${label}, ${size().w}x${size().h}`);
   checkHero(win, doc, problem, t);
+  await tapChecks(t, win, doc, problem, label);
   const sideways = [];
   const sideways0 = overflowX(win, doc); if (sideways0) sideways.push(`hero ${sideways0}`);
 
@@ -126,6 +206,38 @@ async function oneSize(t, { w, h, label, wish, framed }) {
   const end = overflowX(win, doc); if (end) sideways.push(`top again ${end}`);
   if (stage) stage.remove();
   return sideways.concat(hard);
+}
+
+/** Touch: Play and the Menu are big enough, nothing covers them, and a touch tap on the Menu opens it (a real pointer sequence, then the click a browser makes). */
+async function tapChecks(t, win, doc, problem, label) {
+  const touch = (e, type) => { const r = e.getBoundingClientRect(), o = { bubbles: true, cancelable: true, pointerType: 'touch', pointerId: 7, isPrimary: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }; e.dispatchEvent(new win.PointerEvent(type, o)); };
+  const vw = doc.documentElement.clientWidth, vh = win.innerHeight;
+  const play = doc.querySelector('[data-play-now]');
+  if (!play) problem('bug', 'no Play button in the hero', true);
+  else {
+    const r = play.getBoundingClientRect(), top = doc.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    if (r.height < 44 || r.width < 44) problem('bug', `Play is ${Math.round(r.width)}x${Math.round(r.height)}: too small to tap`, true);
+    if (r.bottom > vh + 1 || r.right > vw + 1) problem('bug', `Play is off the first screen (${Math.round(r.bottom)} of ${vh})`, true);
+    else if (top && top !== play && !play.contains(top)) problem('bug', `something covers Play (${top.tagName.toLowerCase()})`, true);
+    else t.event('tap-play-reachable', `Play ${Math.round(r.width)}x${Math.round(r.height)} at ${label}, nothing over it`);
+  }
+  const menu = doc.querySelector('.site-menu-btn');
+  if (menu && menu.getBoundingClientRect().width > 0) {
+    const links = doc.querySelector('.hg-nav-links');
+    touch(menu, 'pointerdown'); touch(menu, 'pointerup'); menu.click();
+    await t.wait(300);
+    if (!links || !links.classList.contains('open')) problem('bug', 'a tap on Menu did not open it', true);
+    else {
+      t.event('tap-menu', `the Menu opened on a tap at ${label}`);
+      t.scene(`Site ${label}: menu open`);
+      for (const a of links.querySelectorAll('a')) {
+        const r = a.getBoundingClientRect();
+        if (r.height < 40) problem('bug', `menu link "${(a.textContent || '').trim()}" is ${Math.round(r.height)}px tall`, true);
+        if (r.bottom > vh + 1) { problem('warning', `the open menu runs past the screen's bottom at ${label} (${Math.round(r.bottom)} of ${vh}); it scrolls`); break; }
+      }
+      menu.click(); await t.wait(250);
+    }
+  }
 }
 
 /** Scrolls in steps (so the page's scroll-triggered reveals fire as they do for a person) until `el` is under the header. */

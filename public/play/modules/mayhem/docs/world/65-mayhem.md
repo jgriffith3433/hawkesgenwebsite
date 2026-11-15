@@ -78,3 +78,7 @@ uses the game's tree models (mixed, when `config.assets.tree` mixes).
 - "Spawn 100 cows" while playing → a script: `game.spawnMany('cow', 100)` (API.md: Mayhem): they are Living things'
   creatures, thrown and tumbling in blasts. To keep them in the world, a `herd` of 100 (Living things).
 - "Slow motion on big explosions" → `config` `mayhem: { "slowmo": true }`.
+
+### Small props (`data.prop`)
+
+A thing with `breakable` and `"data": { "prop": { "material": "wood", "rebuild": 120, "with": ["other_id"] } }` is a prop: `material` (`wood`, `crate`, `pot`, `metal`, `stone`) picks the dust and splinter colour and whether its pieces float; a vehicle breaks it at the behavior's `strength` (4 m/s), a blast at `blast` (force x falloff); a blast that does not break it topples it (it turns dynamic and rolls); `rebuild` seconds later, once the player is not looking at its spot, it is back at home and planted; `with` lists things that go with it (a signpost's board and words). Pieces per break: 4 to 12 on a phone, 24 on a desktop. The rod, `lore_*` things, `tool-pickup`s and `data.barrel` things never break. `window.__props` has the log (`break`, `topple`, `splash`, `restore`).

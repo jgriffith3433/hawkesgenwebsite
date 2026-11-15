@@ -477,7 +477,7 @@
     const airborne = !seated && !swim && !grounded && A.t > (fm ? 0 : 0.1);
     if (airborne) A.peak = Math.max(A.peak, -vy);
     if (airborne && !A.was) A.takeT = 0;
-    if (!airborne && A.was && !swim) { A.landT = 0; A.depth = lerp(0.9, 0.8, clamp(A.peak / 10, 0, 1)); }
+    if (!airborne && A.was && !swim) { A.landT = 0; A.depth = lerp(0.94, 0.72, clamp(A.peak / 12, 0, 1)); }
     if (!airborne && A.was) A.peak = 0;
     const took = airborne && !A.was, landed = !airborne && A.was && !swim;
     A.was = airborne; A.takeT += dt; A.landT += dt;

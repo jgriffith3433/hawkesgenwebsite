@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Your profile · Hawkes Games</title>
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/public.css">
+  <link rel="stylesheet" href="/site.css">
+  <link rel="stylesheet" href="/builder.css">
+  <script src="https://hawkesgen.ai/sdk/analytics@1.js" data-product="hawkesgen" defer></script>
+  <script src="/site-analytics.js"></script>
+  <script src="/sitenav.js" defer></script>
+  <style>
+    .pf-main { max-width: 1040px; margin: 0 auto; padding: 32px 20px 80px; }
+    .pf-hero { display: flex; flex-wrap: wrap; align-items: center; gap: 24px; padding: 24px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); }
+    .pf-avatar { width: 112px; height: 112px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--border); display: grid; place-items: end center; overflow: hidden; flex: none; position: relative; }
+    .pf-avatar .fig { width: 54px; height: 76px; border-radius: 26px 26px 6px 6px; position: relative; margin-bottom: -6px; }
+    .pf-avatar .fig i { position: absolute; left: 50%; top: -26px; width: 38px; height: 38px; margin-left: -19px; border-radius: 50%; border: 2px solid rgba(0,0,0,.08); }
+    .pf-avatar .letter { font: 700 44px/1 var(--sans); color: var(--fg-3); align-self: center; }
+    .pf-who { flex: 1 1 260px; min-width: 0; }
+    .pf-who h1 { margin: 0; font: 700 32px/1.1 var(--sans); color: var(--heading); overflow-wrap: anywhere; }
+    .pf-who .sub { margin: 6px 0 0; color: var(--fg-2); font-size: 14px; overflow-wrap: anywhere; }
+    .pf-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+    .pf-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-top: 18px; }
+    .pf-stat { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--bg); padding: 16px 18px; display: grid; gap: 6px; align-content: start; }
+    .pf-stat b { font: 700 28px/1 var(--sans); color: var(--heading); font-variant-numeric: tabular-nums; }
+    .pf-stat .k { font-size: 13px; color: var(--fg-3); }
+    .pf-stat .act { margin-top: 6px; }
+    .pf-sec { margin-top: 36px; }
+    .pf-sec h2 { font: 600 20px var(--sans); color: var(--heading); margin: 0 0 6px; }
+    .pf-sec > p { margin: 0 0 16px; color: var(--fg-2); font-size: 14px; max-width: 70ch; }
+    .pf-empty { border: 1px dashed var(--border); border-radius: var(--r-lg); padding: 24px; display: grid; gap: 10px; justify-items: start; background: var(--bg); }
+    .pf-empty h3 { margin: 0; font: 600 16px var(--sans); color: var(--heading); }
+    .pf-empty p { margin: 0; color: var(--fg-2); font-size: 14px; max-width: 60ch; }
+    .pf-friend { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--fg-2); padding: 4px 0; }
+    .pf-friend .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+    .pf-gate { max-width: 460px; margin: 80px auto; text-align: center; display: grid; gap: 16px; justify-items: center; }
+    .pf-gate[hidden] { display: none; }
+    .pf-gate h1, .pf-gate p { margin: 0; }
+    .bar > .btn { flex: none; white-space: nowrap; }
+  </style>
+</head>
+<body class="landing">
+  <header class="bar">
+    <a class="hg-brand" href="/"><img src="/favicon.svg" alt=""><span>Hawkes Games</span></a>
+    <nav class="hg-nav-links" data-site-nav><a href="/games">Worlds</a><a href="/play/sickofit">Sick of It</a><a href="https://yoobalandgame.com" target="_blank" rel="noopener">Yooba Land</a><a href="https://doseofdestruction.com" target="_blank" rel="noopener">Dose of Destruction</a><a href="https://phorigins.com" target="_blank" rel="noopener">PH Origins</a><a href="https://theplacedepartment.com" target="_blank" rel="noopener">The Place Department</a><a href="/community">Community library</a><a href="/entities">Engine codex</a><a href="/#pricing">Pricing</a></nav>
+    <a class="btn btn-secondary btn-sm" href="/app">Your games</a>
+  </header>
+
+  <main class="pf-main" id="pfMain" data-state="loading">
+    <div class="pf-gate" id="gate" hidden>
+      <h1 style="font:700 30px var(--sans);color:var(--heading)">Your profile</h1>
+      <p class="muted">Sign in to see who you are here: your look, your worlds, your credits and your plan.</p>
+      <a class="btn btn-primary" id="gateBtn" href="/auth/google?next=/profile">Continue with Google</a>
+    </div>
+
+    <div id="page" hidden>
+      <section class="pf-hero" id="hero" aria-label="You">
+        <div class="pf-avatar" id="avatar" aria-hidden="true"></div>
+        <div class="pf-who">
+          <h1 id="name">You</h1>
+          <p class="sub" id="sub"></p>
+          <div class="pf-chips" id="chips"></div>
+        </div>
+      </section>
+
+      <div class="pf-stats" id="stats"></div>
+
+      <section class="pf-sec" id="worldsSec">
+        <h2>Your worlds</h2>
+        <p>The worlds you built or were invited to build.</p>
+        <div id="worlds"></div>
+      </section>
+
+      <section class="pf-sec" id="friendsSec">
+        <h2>Friends</h2>
+        <div id="friends"></div>
+      </section>
+    </div>
+  </main>
+  <script src="/profile.js"></script>
+</body>
+</html>

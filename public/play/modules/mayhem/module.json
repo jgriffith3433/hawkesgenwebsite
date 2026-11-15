@@ -1,6 +1,6 @@
 {
   "title": "Mayhem",
   "order": 60,
-  "scripts": ["mayhem-math.js", "mayhem.js", "mayhem-tools.js", "mayhem-kinds.js", "mayhem-feel.js"],
+  "scripts": ["mayhem-math.js", "mayhem.js", "mayhem-tools.js", "mayhem-kinds.js", "mayhem-feel.js", "mayhem-vfx.js", "mayhem-props.js"],
   "kinds": ["barrel", "crate", "tool-pickup"]
 }

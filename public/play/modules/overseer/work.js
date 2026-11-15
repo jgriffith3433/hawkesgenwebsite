@@ -120,7 +120,7 @@
     const a = ac();
     if (!a || hum) return;
     try {
-      const out = a.createGain(); out.gain.value = 0; out.connect(H.audio.master);
+      const out = a.createGain(); out.gain.value = 0; out.connect(H.audio.effects || H.audio.master);
       const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; lp.connect(out);
       const o1 = a.createOscillator(); o1.type = 'sine'; o1.frequency.value = 196;
       const o2 = a.createOscillator(); o2.type = 'triangle'; o2.frequency.value = 293.7;
@@ -150,7 +150,7 @@
         const o = a.createOscillator(); o.type = 'sine'; o.frequency.value = f;
         const g = a.createGain(); const t0 = t + i * (kind === 'done' ? 0.09 : 0.07);
         g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(gain, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + (kind === 'done' ? 1.4 : 0.6));
-        o.connect(g).connect(H.audio.master); o.start(t0); o.stop(t0 + 1.6);
+        o.connect(g).connect(H.audio.effects || H.audio.master); o.start(t0); o.stop(t0 + 1.6);
       });
     } catch { /* no sound */ }
   }
@@ -405,6 +405,8 @@
     const p = s.pill;
     if (p) {
       const sec = Math.floor(s.wall);
+      // While it thinks (no beat to show yet) the headline changes every few seconds: it is a character at work, not a spinner.
+      if (!s.ended && H.reactions && sec !== p.shownSec && (sec === 0 || (sec % 4 === 0 && !s.beats.length))) p.t.textContent = `${H.reactions.think()}…`;
       if (sec !== p.shownSec) { p.shownSec = sec; p.sec.textContent = `${sec}s`; }
       const cam = w && w.scene && w.scene.activeCamera;
       if (cam) {
@@ -457,7 +459,7 @@
     /** True while the Overseer is working on a request (the ground reshapes in steps then: terrain.js). */
     get active() { return Boolean(S && !S.ended); },
     /** A sample for tests and the playtest: where, how big, beams, the pill's text, beats, things arrived. */
-    state() { return S ? { at: S.at.slice(), radius: S.radius, area: S.area, beams: S.beams.length, beat: S.beat, beats: S.beats.slice(), plan: S.plan, ops: S.ops, ended: S.ended, pill: S.pill ? S.pill.b.textContent : null } : null; },
+    state() { return S ? { at: S.at.slice(), radius: S.radius, area: S.area, beams: S.beams.length, beat: S.beat, beats: S.beats.slice(), plan: S.plan, ops: S.ops, ended: S.ended, pill: S.pill ? S.pill.b.textContent : null, headline: S.pill ? S.pill.t.textContent : null } : null; },
     /** A pulse from elsewhere (the terrain's steps). */
     pulse(k = 1) { if (!S) return; S.sel.burst = Math.max(S.sel.burst, k); for (const b of S.beams) if (b && b.pulse) b.pulse(k); if (H.overseer && H.overseer.flare) H.overseer.flare(0.4 * k); },
   };

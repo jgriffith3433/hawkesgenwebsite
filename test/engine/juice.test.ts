@@ -401,3 +401,66 @@ test('on the codex (hooks.codex) nothing freezes, slows or flashes; the juice pa
   const f = H.features.get('juice');
   assert.ok(f.codex && f.codex.what && f.codex.value && f.codex.fields.length > 10);
 });
+
+test('a landing over 0.5 m: dust, a surface step sound and a camera dip that settles within 0.3 s; a tiny hop is quiet', () => {
+  const sand = { type: 'box', name: 'Beach', shape: { size: [20, 1, 20] }, transform: { position: [0, -0.5, 40] }, data: { surface: 'sand' } };
+  const wood = { type: 'box', name: 'Pier', shape: { size: [20, 1, 20] }, transform: { position: [40, -0.5, 40] }, data: { surface: 'wood' } };
+  const g = play({ sand, wood });
+  const p = g.player;
+  J.feel.always = true;
+  // Tiny hop under 0.5 m: no land event.
+  const lands0 = J.feel.lands || 0;
+  p.position = [0, 1.15, 40];
+  p.velocity = [0, 0, 0];
+  H.tick(1.2);
+  assert.equal(J.feel.lands || 0, lands0, 'a sub-0.5 m hop is nothing');
+  // ~2 m onto sand.
+  let land: any = null;
+  const off = J.feel.on('land', (d: any) => { land = d; });
+  const bursts0 = J.fx.bursts;
+  const steps0 = J.sound.steps;
+  p.position = [0, 3.2, 40];
+  p.velocity = [0, 0, 0];
+  for (let i = 0; i < 120 && !land; i++) H.tick(1 / 60);
+  off();
+  assert.ok(land && land.height >= 0.5, `sand land height ${land && land.height}`);
+  assert.equal(land.surface, 'sand');
+  assert.ok(J.fx.bursts > bursts0 || land.dust, 'dust puff on sand');
+  assert.ok(J.sound.steps > steps0 || land.sound, 'landing sound on sand');
+  // Dip settles under 0.3 s.
+  for (let i = 0; i < 30; i++) H.tick(1 / 60);
+  const dipMs = (J.feel.lastLand && J.feel.lastLand.dipMs) || J.feel.settleMs || 999;
+  assert.ok(dipMs <= 300, `dip settled in ${dipMs} ms`);
+  // Onto wood: a different surface.
+  land = null;
+  const off2 = J.feel.on('land', (d: any) => { land = d; });
+  p.position = [40, 3.2, 40];
+  p.velocity = [0, 0, 0];
+  for (let i = 0; i < 120 && !land; i++) H.tick(1 / 60);
+  off2();
+  assert.ok(land && land.surface === 'wood', `wood land surface ${land && land.surface}`);
+  J.feel.always = false;
+});
+
+test('a hard landing is judged by the speed into the ground: a jump down a steep hill lands on its feet, a long fall still goes limp', () => {
+  const deg = 40, r = deg * Math.PI / 180, len = 30;
+  const ramp = { type: 'box', name: 'Hill', shape: { size: [8, 0.4, len] }, transform: { position: [0, Math.sin(r) * len / 2 - 0.2 * Math.cos(r), Math.cos(r) * len / 2], rotation: [-deg, 0, 0] } };
+  const g = play({ ramp });
+  const p = g.player;
+  p.controls = false;
+  p.position = [0, Math.tan(r) * 12 + 1.45, 12];
+  H.tick(2);
+  // Running down the 40° hill at 6 m/s and jumping: it falls about 18 m/s, but the hill falls away under it as it goes.
+  let time = 0, jumped = false, limp = false;
+  g.onUpdate(() => { time += 1 / 60; if (time < 1.6) { p.walk({ x: 0, z: -1 }, 6); if (!jumped && time > 0.1) jumped = p.jump(8.5); } else p.walk({ x: 0, z: 0 }, 0); });
+  for (let i = 0; i < 150; i++) { H.tick(1 / 60); limp = limp || J.ragdoll.is(p); }
+  assert.ok(jumped, 'jumped');
+  assert.equal(limp, false, 'landed on its feet, not limp');
+  assert.ok(p.grounded, 'on the ground');
+  // Dropped 10 m onto the flat floor: about 22 m/s straight into it, a fall.
+  time = 99;
+  p.position = [0, 10.95, -20];
+  p.velocity = [0, 0, 0];
+  for (let i = 0; i < 90; i++) { H.tick(1 / 60); limp = limp || J.ragdoll.is(p); }
+  assert.ok(limp, 'a long fall onto flat ground still goes limp');
+});

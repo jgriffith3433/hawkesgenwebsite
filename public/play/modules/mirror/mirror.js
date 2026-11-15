@@ -163,7 +163,7 @@
       }
       const feet = p.y - 0.9;
       const dist = 1.5 + Math.max(h * 1.05, deep * 1.2);
-      const lean = window.innerWidth < 700 ? 0 : 0.3 + dist * 0.12;
+      const lean = window.innerWidth < 760 ? 0 : 0.3 + dist * 0.12; // 760: same phone cut as hudlayout sheet/menu
       shot([p.x + f[0] * dist, feet + h * 0.8 + 0.4, p.z + f[1] * dist], [p.x - Math.cos(yaw) * lean, feet + h * 0.5, p.z + Math.sin(yaw) * lean], glide);
       return;
     }
@@ -174,8 +174,11 @@
     f.normalize();
     const right = new B.Vector3(f.z, 0, -f.x);
     const m = e.node.getAbsolutePosition();
-    const ground = m.y - (e._mirrorH || 3) / 2;
     const stand = m.add(f.scale(2.3));
+    // The ground where they stand, not under the glass (the mirror sits a little above it: they were put 0.13 m in the
+    // air: quality rule 4). The terrain's, when it is the floor here (within a meter of the glass's foot).
+    let ground = m.y - (e._mirrorH || 3) / 2;
+    try { const g = H.terrain && H.terrain.active && H.terrain.heightAt ? H.terrain.heightAt(stand.x, stand.z) : null; if (Number.isFinite(g) && Math.abs(g - ground) < 1) ground = g; } catch { /* the glass's foot */ }
     p.position = [stand.x, ground + 0.95, stand.z];
     p.velocity = [0, 0, 0];
     const yaw = Math.atan2(-f.x, -f.z); // facing the mirror
@@ -183,12 +186,24 @@
     p.node.rotation.y = yaw;
     // Over the shoulder, far enough to see all of you and all of the glass. The questions sit on the right (at the
     // bottom on a phone), so the picture leans the other way to keep the reflection clear of them.
-    const phone = typeof window !== 'undefined' && window.innerWidth < 700;
+    const phone = typeof window !== 'undefined' && window.innerWidth < 760;
     const side = phone ? 0.35 : 0.8, aim = phone ? 0.15 : 1.0;
     // Each question has its own distance (ZOOM): the camera eases in as they get to the details, and to the face.
     const k = ZOOM[step || (session && session.steps[session.i])] || 1;
     if (session) session.geo = { f, right, stand, ground, m };
-    const cam = stand.add(f.scale((phone ? 3.9 : 3.3) * k)).add(right.scale(side * k));
+    // Never closer than the body as drawn needs, hat and accessories included (the name step's zoom put the camera
+    // inside a big top hat): the bounding box of the whole rig sets a floor under the step's distance.
+    let need = 0;
+    try {
+      const rig = PR() && PR()._internal && PR()._internal.rigs.get(p);
+      if (rig && rig.root) {
+        const bb = rig.root.getHierarchyBoundingVectors(true);
+        const h = bb.max.y - bb.min.y, deep = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z);
+        if (Number.isFinite(h) && Number.isFinite(deep)) need = 1.5 + Math.max(h * 1.05, deep * 1.2);
+      }
+    } catch { /* the step's own distance */ }
+    const back = Math.max((phone ? 3.9 : 3.3) * k, need);
+    const cam = stand.add(f.scale(back)).add(right.scale(side * k));
     // (On a phone the questions take the bottom: the camera looks down a little more, so the glass sits up top.)
     shot([cam.x, ground + (phone ? 2.6 : 2.25) * (0.55 + 0.45 * k), cam.z], [m.x + right.x * aim * k, ground + (phone ? -0.35 : 1.1) + (1 - k) * 0.7, m.z + right.z * aim * k], glide, glide === 'dolly' ? 900 : 1500);
   }
@@ -409,12 +424,14 @@
     .mr-btn.go{margin-left:auto;background:var(--accent,#4a9eff);border-color:transparent;color:#05101f}.mr-btn:disabled{opacity:.4;cursor:default}
     .mr-dice{margin-top:10px}.mr-top-dice{display:flex;gap:8px;margin:0 0 4px}.mr-chip.go{background:var(--accent,#4a9eff);border-color:transparent;color:#05101f;font-weight:600}
     .mr-car{display:flex;flex-direction:column;gap:10px;align-items:flex-start}.mr-car-n{color:var(--fg-2,#a5acc2);font-size:13px}
-    @media (max-width:700px){.mr{top:auto;bottom:max(10px,env(safe-area-inset-bottom));transform:none;max-height:46vh;right:10px;width:calc(100vw - 20px);animation:none}.mr-grid{grid-template-columns:repeat(4,1fr)}.mr-q{font-size:21px}}`;
+    /* Phone sheet placement (bottom / short-landscape side) lives in modules/hudlayout: clears the quest and the stick. */
+    @media (max-width:759px){.mr-grid{grid-template-columns:repeat(4,1fr)}.mr-q{font-size:21px}}`;
   function show() {
     if (typeof document === 'undefined' || !document.body) return;
     if (!document.getElementById('mr-style')) { const st = document.createElement('style'); st.id = 'mr-style'; st.textContent = CSS; document.head.appendChild(st); }
     root = document.createElement('div');
     root.className = 'mr';
+    root.setAttribute('data-hud-panel', '');
     root.setAttribute('role', 'dialog');
     root.setAttribute('aria-label', 'Who you are');
     // The game doesn't get the keys or clicks meant for these questions.
@@ -656,6 +673,7 @@
     let cfg = MC.cleanConfig(raw);
     const el = (setEl = document.createElement('div'));
     el.className = 'mr';
+    el.setAttribute('data-hud-panel', '');
     for (const ev of ['keydown', 'keyup', 'pointerdown', 'wheel', 'mousedown']) el.addEventListener(ev, (x) => x.stopPropagation());
     document.body.appendChild(el);
     const save = (label) => {

@@ -21,31 +21,183 @@
   const num = (v, d) => (v === undefined || v === null || v === '' || !isFinite(Number(v)) ? d : Number(v));
 
   // ------------------------------------------------------------------ waves: one formula for the shader and for floating
-  // Three directional sine waves. The shader below uses the same numbers, so things bob on the waves you see.
-  const WAVES = [[1, 0.3, 1, 1], [-0.4, 1, 0.57, 0.5], [0.7, -0.8, 0.31, 0.25]].map(([x, z, l, a]) => { const n = Math.hypot(x, z); return { x: x / n, z: z / n, l, a }; });
-  function waveHeight(b, x, z, t) {
-    if (!b.amp) return 0;
-    let h = 0;
-    for (const w of WAVES) {
-      const k = (2 * Math.PI) / (b.len * w.l);
-      const om = Math.sqrt(9.8 * k) * b.speed;
-      h += b.amp * w.a * Math.sin(k * (w.x * x + w.z * z) - om * t);
-    }
-    return h;
+  // Four summed Gerstner waves (two on a phone), the first running with the wind (H.wind.dir, the ambience's wind) and
+  // the others turned off it, shorter and smaller. A Gerstner wave moves a point sideways as well as up, so a crest is
+  // sharp and a trough broad. The shader moves each grid point p to p + D(p) and lifts it by h(p); `waveEval` finds the p
+  // that lands under (x, z) (three fixed-point steps) and returns the same h: barrels, the bobber and boats ride the
+  // surface you see. The shader's distance fade (160 m and out) is the only difference, and nothing floats that far.
+  const WAVE_SPEC = [[0, 1, 1], [0.55, 0.62, 0.5], [-0.8, 0.4, 0.25], [1.35, 0.27, 0.12]];
+  const windDir = () => {
+    const d = H.wind && H.wind.dir;
+    if (d && isFinite(d[0]) && isFinite(d[1]) && Math.hypot(d[0], d[1]) > 1e-3) { const n = Math.hypot(d[0], d[1]); return [d[0] / n, d[1] / n]; }
+    return [0.93, 0.37];
+  };
+  /** The waves of a body now: [{ x, z, k, om, a, e }] (direction, wavenumber, angular speed, height, sideways swing). */
+  function waveSet(b) {
+    if (!b.amp) return [];
+    const d = windDir(), n = PHONE ? 2 : 4;
+    const key = `${d[0].toFixed(3)},${d[1].toFixed(3)},${b.amp},${b.len},${b.speed},${n}`;
+    if (b._wsKey === key) return b._ws;
+    const ws = WAVE_SPEC.slice(0, n).map(([rot, lf, af]) => {
+      const c = Math.cos(rot), s = Math.sin(rot);
+      const k = (2 * Math.PI) / (b.len * lf), a = b.amp * af;
+      const q = Math.min(1, 0.45 / (k * a * n));
+      return { x: d[0] * c - d[1] * s, z: d[0] * s + d[1] * c, k, om: Math.sqrt(9.8 * k) * b.speed, a, e: q * a };
+    });
+    b._wsKey = key; b._ws = ws; b._wsum = ws.reduce((u, w) => u + w.a, 0);
+    return ws;
   }
-  /** The slope of the waves at a point ([dh/dx, dh/dz]): things drift down it a little. */
-  function waveSlope(b, x, z, t) {
-    if (!b.amp) return [0, 0];
-    let dx = 0, dz = 0;
-    for (const w of WAVES) {
-      const k = (2 * Math.PI) / (b.len * w.l);
-      const om = Math.sqrt(9.8 * k) * b.speed;
-      const c = b.amp * w.a * k * Math.cos(k * (w.x * x + w.z * z) - om * t);
+  /** Height and slope of the surface over (x, z) at time t. */
+  function waveEval(b, x, z, t) {
+    const ws = waveSet(b);
+    if (!ws.length) return { h: 0, dx: 0, dz: 0 };
+    let px = x, pz = z;
+    for (let i = 0; i < 3; i++) {
+      let sx = 0, sz = 0;
+      for (const w of ws) { const c = w.e * Math.cos(w.k * (w.x * px + w.z * pz) - w.om * t); sx += w.x * c; sz += w.z * c; }
+      px = x - sx; pz = z - sz;
+    }
+    let h = 0, dx = 0, dz = 0;
+    for (const w of ws) {
+      const ph = w.k * (w.x * px + w.z * pz) - w.om * t;
+      h += w.a * Math.sin(ph);
+      const c = w.a * w.k * Math.cos(ph);
       dx += c * w.x; dz += c * w.z;
     }
-    return [dx, dz];
+    return { h, dx, dz };
   }
+  const waveHeight = (b, x, z, t) => (b.amp ? waveEval(b, x, z, t).h : 0);
+  /** The slope of the waves at a point ([dh/dx, dh/dz]): things drift down it a little. */
+  const waveSlope = (b, x, z, t) => { if (!b.amp) return [0, 0]; const r = waveEval(b, x, z, t); return [r.dx, r.dz]; };
   const now = () => (W() ? W().time : 0);
+
+  // ------------------------------------------------------------------ the colour of the sea by depth (shader and CPU agree)
+  // Pale turquoise over sand, the body's own blue a few metres out, deep blue past about 12 m.
+  const SHALLOW = [0.42, 0.95, 0.86];
+  function rampColors(b) {
+    const base = colorsOf(b.color);
+    return { shallow: B.Color3.Lerp(base.base, new B.Color3(...SHALLOW), 0.7), mid: base.base, deep: base.deep };
+  }
+  const sstep = (a, c, v) => { const t = clamp((v - a) / (c - a), 0, 1); return t * t * (3 - 2 * t); };
+  /** The sea's colour (r, g, b 0 to 1) where the water is `depth` metres deep. */
+  function rampAt(b, depth) {
+    const r = rampColors(b);
+    const t1 = sstep(0.2, 3, depth), t2 = sstep(2.5, 14, depth);
+    const m = (p, q, t) => p + (q - p) * t;
+    return [0, 1, 2].map((i) => { const ch = ['r', 'g', 'b'][i]; return m(m(r.shallow[ch], r.mid[ch], t1), r.deep[ch], t2); });
+  }
+
+  // ------------------------------------------------------------------ procedural foam and water-normal textures
+  // Tileable, made in code (no files): ridged noise for lacy foam, a smooth noise's slopes for the ripple normals.
+  function periodicNoise(N, cells, seed) {
+    const g = new Float32Array(cells * cells);
+    let s = seed >>> 0 || 1;
+    for (let i = 0; i < g.length; i++) { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; g[i] = s / 4294967296; }
+    const out = new Float32Array(N * N);
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const fx = (x / N) * cells, fy = (y / N) * cells, x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
+      const ux = tx * tx * (3 - 2 * tx), uy = ty * ty * (3 - 2 * ty);
+      const a = g[(y0 % cells) * cells + (x0 % cells)], b2 = g[(y0 % cells) * cells + ((x0 + 1) % cells)];
+      const c = g[((y0 + 1) % cells) * cells + (x0 % cells)], d = g[((y0 + 1) % cells) * cells + ((x0 + 1) % cells)];
+      out[y * N + x] = a + (b2 - a) * ux + (c - a) * uy + (a - b2 - c + d) * ux * uy;
+    }
+    return out;
+  }
+  const texCache = new WeakMap();
+  function seaTextures(sc) {
+    if (texCache.has(sc)) return texCache.get(sc);
+    const N = PHONE ? 128 : 256, f = new Uint8Array(N * N * 4), nm = new Uint8Array(N * N * 4);
+    const o1 = periodicNoise(N, 6, 11), o2 = periodicNoise(N, 12, 23), o3 = periodicNoise(N, 24, 37), o4 = periodicNoise(N, 48, 51);
+    const hgt = new Float32Array(N * N);
+    for (let i = 0; i < N * N; i++) {
+      const n = (o1[i] * 0.5 + o2[i] * 0.3 + o3[i] * 0.15 + o4[i] * 0.05);
+      const ridge = 1 - Math.abs(2 * n - 1);
+      const v = Math.pow(ridge, 3.2);
+      f[i * 4] = f[i * 4 + 1] = f[i * 4 + 2] = Math.round(clamp(v * 1.15, 0, 1) * 255); f[i * 4 + 3] = 255;
+      hgt[i] = o2[i] * 0.55 + o3[i] * 0.3 + o4[i] * 0.15;
+    }
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const i = y * N + x;
+      const dx = hgt[y * N + ((x + 1) % N)] - hgt[y * N + ((x + N - 1) % N)], dy = hgt[((y + 1) % N) * N + x] - hgt[((y + N - 1) % N) * N + x];
+      const nx = -dx * 5, ny = -dy * 5, l = Math.hypot(nx, ny, 1);
+      nm[i * 4] = Math.round((nx / l * 0.5 + 0.5) * 255); nm[i * 4 + 1] = Math.round((ny / l * 0.5 + 0.5) * 255); nm[i * 4 + 2] = Math.round((1 / l * 0.5 + 0.5) * 255); nm[i * 4 + 3] = 255;
+    }
+    const make = (data, name) => {
+      const t = B.RawTexture.CreateRGBATexture(data, N, N, sc, true, false, B.Texture.TRILINEAR_SAMPLINGMODE);
+      t.wrapU = t.wrapV = B.Texture.WRAP_ADDRESSMODE; t.name = name;
+      return t;
+    };
+    const out = { foam: make(f, 'sea-foam'), normal: make(nm, 'sea-normal'), size: N };
+    texCache.set(sc, out);
+    return out;
+  }
+
+  // ------------------------------------------------------------------ the sea's depth map: how deep the water is round you
+  // Sampled from the terrain's height once, into a small texture round the camera (R: the ground's height under the surface,
+  // G: foam round things that stand in the water: pier posts, rocks, a wreck). The fragment reads it, so foam and colour
+  // follow the real shore at texel size, not at the size of the mesh's triangles.
+  const DEPTH_N = PHONE ? 128 : 256, DEPTH_SPAN = PHONE ? 192 : 256;
+  function obstacleBoxes(b) {
+    const w = W(), out = [];
+    if (!w) return out;
+    for (const e of w.entities) {
+      if (!e.alive || e.isPlayer || e.remotePlayer || e.physics === 'dynamic' || e.data.waterPart || e.data.water || e.tag === 'seabed') continue;
+      let bx;
+      try { bx = e.box(); } catch { continue; }
+      if (!bx || bx.min[1] > b.level + 0.5 || bx.max[1] < b.level - 0.3) continue;
+      if (bx.max[0] - bx.min[0] > 24 || bx.max[2] - bx.min[2] > 24) continue;
+      out.push(bx);
+    }
+    return out;
+  }
+  function depthMapFor(b, cam) {
+    const sc = W().scene;
+    let d = b._depth;
+    const world = W();
+    const need = !d || d.world !== world || Math.abs(cam.x - d.cx) > DEPTH_SPAN * 0.25 || Math.abs(cam.z - d.cz) > DEPTH_SPAN * 0.25;
+    if (need) {
+      if (d && d.tex) d.tex.dispose();
+      const cx = Math.round(cam.x / 32) * 32, cz = Math.round(cam.z / 32) * 32, N = DEPTH_N, span = DEPTH_SPAN, ref = b.level;
+      const ground = new Uint8Array(N * N);
+      const hasT = H.terrain && typeof H.terrain.heightAt === 'function';
+      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+        let g = null;
+        if (hasT) { try { g = H.terrain.heightAt(cx - span / 2 + (c + 0.5) * span / N, cz - span / 2 + (r + 0.5) * span / N); } catch { g = null; } }
+        ground[r * N + c] = g === null || g === undefined || !isFinite(g) ? 0 : Math.round(clamp((g - ref + 12) / 15, 0, 1) * 255);
+      }
+      const data = new Uint8Array(N * N * 4);
+      const tex = B.RawTexture.CreateRGBATexture(data, N, N, sc, false, false, B.Texture.BILINEAR_SAMPLINGMODE);
+      tex.wrapU = tex.wrapV = B.Texture.CLAMP_ADDRESSMODE;
+      d = b._depth = { world, tex, data, ground, cx, cz, N, span, ref, ents: -1 };
+    }
+    const ents = W().entities.length;
+    if (need || ents !== d.ents) {
+      d.ents = ents;
+      const { N, span, data, ground } = d, texel = span / N, boxes = obstacleBoxes(b);
+      const obs = new Uint8Array(N * N);
+      for (const bx of boxes) {
+        const c0 = Math.max(0, Math.floor((bx.min[0] - 1.2 - (d.cx - span / 2)) / texel)), c1 = Math.min(N - 1, Math.ceil((bx.max[0] + 1.2 - (d.cx - span / 2)) / texel));
+        const r0 = Math.max(0, Math.floor((bx.min[2] - 1.2 - (d.cz - span / 2)) / texel)), r1 = Math.min(N - 1, Math.ceil((bx.max[2] + 1.2 - (d.cz - span / 2)) / texel));
+        for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+          const x = d.cx - span / 2 + (c + 0.5) * texel, z = d.cz - span / 2 + (r + 0.5) * texel;
+          const dx = Math.max(bx.min[0] - x, 0, x - bx.max[0]), dz = Math.max(bx.min[2] - z, 0, z - bx.max[2]);
+          const v = Math.round(clamp(1 - Math.hypot(dx, dz) / 1.1, 0, 1) * 255);
+          if (v > obs[r * N + c]) obs[r * N + c] = v;
+        }
+      }
+      for (let i = 0; i < N * N; i++) { data[i * 4] = ground[i]; data[i * 4 + 1] = obs[i]; data[i * 4 + 3] = 255; }
+      d.tex.update(data);
+      d.posts = boxes.length;
+    }
+    return d;
+  }
+  /** How deep the sea is at (x, z), from the terrain (metres under the level, no waves); null with no terrain. */
+  function depthOfSea(b, x, z) {
+    if (!(H.terrain && typeof H.terrain.heightAt === 'function')) return null;
+    let g = null;
+    try { g = H.terrain.heightAt(x, z); } catch { g = null; }
+    return g === null || g === undefined || !isFinite(g) ? null : b.level - g;
+  }
 
   B.Effect.ShadersStore.hawkesWaterVertexShader = `
 precision highp float;
@@ -54,40 +206,40 @@ attribute float shore;
 uniform mat4 world;
 uniform mat4 viewProjection;
 uniform float time;
-uniform vec3 wave;
+uniform float nw;
+uniform float wsum;
+uniform vec4 wA[4];
+uniform vec2 wB[4];
 uniform vec3 curve;
 uniform vec3 camPos;
 varying vec3 vW;
 varying vec3 vN;
 varying float vH;
 varying float vShore;
-void wv(vec2 dir, float lf, float af, vec2 p, inout float h, inout vec2 d) {
-  float k = 6.2831853 / (wave.y * lf);
-  float om = sqrt(9.8 * k) * wave.z;
-  float ph = k * dot(dir, p) - om * time;
-  float a = wave.x * af;
-  h += a * sin(ph);
-  d += a * k * cos(ph) * dir;
-}
 void main(void) {
   vec4 wp = world * vec4(position, 1.0);
+  vec2 p = wp.xz;
   float h = 0.0;
   vec2 d = vec2(0.0);
-  if (wave.x > 0.0) {
-    wv(vec2(${WAVES[0].x.toFixed(6)}, ${WAVES[0].z.toFixed(6)}), 1.0, 1.0, wp.xz, h, d);
-    wv(vec2(${WAVES[1].x.toFixed(6)}, ${WAVES[1].z.toFixed(6)}), 0.57, 0.5, wp.xz, h, d);
-    wv(vec2(${WAVES[2].x.toFixed(6)}, ${WAVES[2].z.toFixed(6)}), 0.31, 0.25, wp.xz, h, d);
+  vec2 s = vec2(0.0);
+  for (int i = 0; i < 4; i++) {
+    if (float(i) >= nw) break;
+    float ph = wA[i].z * dot(wA[i].xy, p) - wB[i].x * time;
+    h += wA[i].w * sin(ph);
+    d += wA[i].w * wA[i].z * cos(ph) * wA[i].xy;
+    s += wB[i].y * cos(ph) * wA[i].xy;
   }
   // Waves far from you are smaller than the grid can draw (and than a pixel): they fade out instead of aliasing.
   float fade = 1.0 - smoothstep(160.0, 700.0, length(wp.xyz - camPos));
-  h *= fade; d *= fade;
+  h *= fade; d *= fade; s *= fade;
   wp.y += h;
+  wp.xz += s;
   vW = wp.xyz;
   // The planet's curve (H.planet): far water sinks below the horizon.
   vec2 cd = wp.xz - curve.xy;
   wp.y -= dot(cd, cd) * curve.z;
   vN = normalize(vec3(-d.x, 1.0, -d.y));
-  vH = wave.x > 0.0 ? h / (wave.x * 1.75) : 0.0;
+  vH = wsum > 0.0 ? h / wsum : 0.0;
   vShore = shore;
   gl_Position = viewProjection * wp;
 }`;
@@ -99,35 +251,86 @@ varying float vH;
 varying float vShore;
 uniform vec3 camPos;
 uniform vec3 deep;
+uniform vec3 mid;
 uniform vec3 shallow;
 uniform vec3 skyCol;
 uniform vec3 sunDir;
 uniform float alpha;
 uniform float time;
 uniform float foam;
+uniform float hq;
+uniform float useMap;
+uniform float level;
+uniform float boxDepth;
+uniform vec4 mapA;
+uniform vec2 mapB;
+uniform vec2 windDir;
 uniform vec4 fog;
 uniform vec3 fogCol;
+uniform sampler2D depthMap;
+uniform sampler2D foamTex;
+uniform sampler2D normTex;
 void main(void) {
-  vec3 N = normalize(vN);
   vec3 V = normalize(camPos - vW);
-  float under = camPos.y < vW.y ? 1.0 : 0.0;
-  // Far away (and seen from high up) the waves are smaller than a pixel: the surface calms to one sheen instead of
-  // shimmering noise, and the foam goes.
-  float calm = clamp((length(camPos - vW) - 80.0) / 520.0, 0.0, 1.0);
-  N = normalize(mix(N, vec3(0.0, 1.0, 0.0), calm * 0.85));
-  if (under > 0.5) N = -N;
-  float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 4.0);
-  vec3 col = mix(deep, shallow, clamp(0.4 + vH * 0.45, 0.0, 1.0));
-  col = mix(col, skyCol, fres * 0.45 * (1.0 - under));
-  vec3 R = reflect(-sunDir, N);
-  float sp = pow(max(dot(R, V), 0.0), 90.0) * (1.0 - under);
-  col += vec3(1.0, 0.97, 0.9) * sp * 0.8;
-  float pat = 0.5 + 0.5 * sin(vW.x * 1.7 + time * 1.3) * sin(vW.z * 1.9 - time * 1.1);
-  float f = foam * (smoothstep(0.55, 0.95, vH) * pat * 0.8 * (1.0 - calm) + smoothstep(0.0, 1.0, vShore) * (0.45 + 0.55 * pat) * (1.0 - calm * 0.9));
-  col = mix(col, vec3(0.95, 0.98, 1.0), clamp(f, 0.0, 0.9));
-  float a = mix(alpha, 1.0, max(fres * 0.7, clamp(f, 0.0, 1.0)));
-  if (under > 0.5) { col = mix(col, shallow * 1.3 + vec3(0.15), 0.35); a = 0.75; }
   float dist = length(camPos - vW);
+  float under = camPos.y < vW.y ? 1.0 : 0.0;
+  // How deep the water is here, from the depth map (the sea) or the box's own depth (pools and ponds).
+  float depth = boxDepth;
+  float ob = 0.0;
+  float shoreNear = vShore;
+  if (useMap > 0.5) {
+    vec2 uv = (vW.xz - mapA.xy) / mapA.z;
+    vec4 m = texture2D(depthMap, uv);
+    float edge = min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y));
+    float win = smoothstep(0.0, 0.05, edge);
+    depth = mix(30.0, level - (mapB.x + m.r * 15.0 - 12.0), win);
+    ob = m.g * win;
+    shoreNear = 0.0;
+  }
+  // Far away (and seen from high up) the waves are smaller than a pixel: the surface calms to one sheen instead of
+  // shimmering noise, and the foam thins.
+  float calm = clamp((dist - 80.0) / 520.0, 0.0, 1.0);
+  vec2 fp = vW.xz;
+  float fm = texture2D(foamTex, fp * 0.21 + windDir * time * 0.035).r;
+  float fm2 = texture2D(foamTex, fp * 0.37 - windDir * time * 0.05 + vec2(0.37, 0.61)).r;
+  vec3 N = normalize(vN);
+  vec3 n1 = texture2D(normTex, fp * 0.16 + windDir * time * 0.045).rgb * 2.0 - 1.0;
+  vec3 nrm = n1;
+  if (hq > 0.5) { vec3 n2 = texture2D(normTex, fp * 0.43 - windDir * time * 0.07 + vec2(0.5, 0.2)).rgb * 2.0 - 1.0; nrm = normalize(n1 + n2); }
+  N = normalize(N + vec3(nrm.x, 0.0, nrm.y) * (0.5 - 0.3 * calm));
+  N = normalize(mix(N, vec3(0.0, 1.0, 0.0), calm * 0.8));
+  if (under > 0.5) N = -N;
+  // Colour by depth: pale turquoise over the sand, the sea's blue a few metres out, deep blue beyond.
+  vec3 col = mix(shallow, mid, smoothstep(0.2, 3.0, depth));
+  col = mix(col, deep, smoothstep(2.5, 14.0, depth));
+  // Fresnel: more of the sky (a gradient from the horizon to the zenith, warmed toward the sun) at a low angle.
+  float cosv = clamp(dot(N, V), 0.0, 1.0);
+  float fres = 0.03 + 0.97 * pow(1.0 - cosv, 5.0);
+  vec3 R = reflect(-V, N);
+  vec3 zenith = skyCol * vec3(0.55, 0.72, 1.05);
+  vec3 sky = mix(skyCol, zenith, clamp(R.y * 1.6, 0.0, 1.0));
+  sky += vec3(1.0, 0.82, 0.55) * pow(max(dot(R, sunDir), 0.0), 6.0) * 0.35;
+  col = mix(col, sky, clamp(fres * 1.15, 0.0, 0.85) * (1.0 - under));
+  // Sun glints: the sun's mirror image in the small ripples.
+  vec3 Hh = normalize(V + sunDir);
+  float sp = pow(max(dot(N, Hh), 0.0), 220.0) * 1.6 + pow(max(dot(N, Hh), 0.0), 40.0) * 0.18;
+  col += vec3(1.0, 0.95, 0.82) * sp * (1.0 - under) * (1.0 - calm * 0.5);
+  // Foam: a surge line running up the beach and back, lacy foam where it is shallow, a ring round every post and rock,
+  // and the white tops of the crests.
+  float sh = (1.0 - smoothstep(0.0, 1.0, depth)) * step(-0.6, depth);
+  sh = max(sh, shoreNear);
+  float surge = 0.5 + 0.5 * sin(time * 1.1 - depth * 3.2 + fm * 4.0);
+  float line = smoothstep(0.62, 1.0, sin(depth * 6.5 - time * 1.6 + fm * 3.0)) * (1.0 - smoothstep(0.0, 1.6, depth));
+  float shoreFoam = clamp(sh * smoothstep(0.3, 0.75, fm * 0.8 + fm2 * 0.4 + sh * 0.35 * surge + 0.1) + line * 0.7 * (0.4 + 0.6 * surge), 0.0, 1.0);
+  float ringPulse = 0.5 + 0.5 * sin(time * 2.2 - ob * 9.0 + fm * 5.0);
+  float obFoam = ob * smoothstep(0.25, 0.6, fm * 0.7 + fm2 * 0.5 + ob * 0.45 + ringPulse * 0.15);
+  float crest = smoothstep(0.55, 1.0, vH) * smoothstep(0.35, 0.8, fm2) * 0.8;
+  float f = clamp((shoreFoam + obFoam + crest) * foam * (1.0 - calm * 0.85), 0.0, 1.0);
+  col = mix(col, vec3(0.96, 0.99, 1.0), f * 0.92);
+  // See-through over the sand (the sea bed shows, bent by the ripples), solid when deep, solid in foam and at a low angle.
+  float clear = mix(0.42, alpha, smoothstep(0.0, 2.5, depth));
+  float a = mix(clear, 1.0, max(fres * 0.7, f));
+  if (under > 0.5) { col = mix(col, shallow * 1.3 + vec3(0.15), 0.35); a = 0.75; }
   float ff = 1.0;
   if (fog.x == 1.0) ff = exp(-dist * fog.w);
   else if (fog.x == 2.0) ff = exp(-pow(dist * fog.w, 2.0));
@@ -153,22 +356,31 @@ void main(void) {
     const sc = W().scene;
     const m = new B.ShaderMaterial('water-surface', sc, { vertex: 'hawkesWater', fragment: 'hawkesWater' }, {
       attributes: ['position', 'shore'],
-      uniforms: ['world', 'viewProjection', 'time', 'wave', 'camPos', 'deep', 'shallow', 'skyCol', 'sunDir', 'alpha', 'foam', 'fog', 'fogCol', 'curve'],
+      uniforms: ['world', 'viewProjection', 'time', 'nw', 'wsum', 'wA', 'wB', 'camPos', 'deep', 'mid', 'shallow', 'skyCol', 'sunDir', 'alpha', 'foam', 'hq', 'useMap', 'level', 'boxDepth', 'mapA', 'mapB', 'windDir', 'fog', 'fogCol', 'curve'],
+      samplers: ['depthMap', 'foamTex', 'normTex'],
       needAlphaBlending: true,
     });
     m.backFaceCulling = false;
+    const wA = new Float32Array(16), wB = new Float32Array(8);
     m.onBindObservable.add(() => {
       const e = m.getEffect();
       if (!e) return;
       const s = W().scene, cam = s.activeCamera;
-      const cl = colorsOf(b.color);
+      const cl = rampColors(b);
+      const ws = waveSet(b);
+      wA.fill(0); wB.fill(0);
+      ws.forEach((w, i) => { wA.set([w.x, w.z, w.k, w.a], i * 4); wB.set([w.om, w.e], i * 2); });
       e.setFloat('time', now());
-      e.setFloat3('wave', b.amp, b.len, b.speed);
+      e.setFloat('nw', ws.length);
+      e.setFloat('wsum', b._wsum || 0);
+      e.setArray4('wA', wA);
+      e.setArray2('wB', wB);
       if (cam) e.setFloat3('camPos', cam.globalPosition.x, cam.globalPosition.y, cam.globalPosition.z);
       // (A round world's sea is a ball round its middle, under the frame's origin; elsewhere the curve is from you.)
       const round = Boolean(H.planet && H.planet.round);
       e.setFloat3('curve', cam && !round ? cam.globalPosition.x : 0, cam && !round ? cam.globalPosition.z : 0, H.planet && H.planet.on ? 1 / (2 * (H.planet.radius + (round ? b.level : 0))) : 0);
       e.setColor3('deep', cl.deep);
+      e.setColor3('mid', cl.mid);
       e.setColor3('shallow', cl.shallow);
       const cc = s.clearColor;
       e.setFloat3('skyCol', Math.min(1, cc.r * 1.1 + 0.08), Math.min(1, cc.g * 1.1 + 0.08), Math.min(1, cc.b * 1.1 + 0.08));
@@ -177,6 +389,28 @@ void main(void) {
       e.setFloat3('sunDir', sd.x, sd.y, sd.z);
       e.setFloat('alpha', b.alpha);
       e.setFloat('foam', b.foam ? 1 : 0);
+      e.setFloat('hq', PHONE ? 0 : 1);
+      const wd = windDir();
+      e.setFloat2('windDir', wd[0], wd[1]);
+      const tx = seaTextures(s);
+      e.setTexture('foamTex', tx.foam);
+      e.setTexture('normTex', tx.normal);
+      if (b.kind === 'ocean' && cam) {
+        const d = depthMapFor(b, cam.globalPosition);
+        e.setTexture('depthMap', d.tex);
+        e.setFloat('useMap', 1);
+        e.setFloat('level', b.level);
+        e.setFloat4('mapA', d.cx - d.span / 2, d.cz - d.span / 2, d.span, 0);
+        e.setFloat2('mapB', d.ref, 0);
+        e.setFloat('boxDepth', 30);
+      } else {
+        e.setTexture('depthMap', tx.normal);
+        e.setFloat('useMap', 0);
+        e.setFloat('level', b.level || 0);
+        e.setFloat4('mapA', 0, 0, 1, 0);
+        e.setFloat2('mapB', 0, 0);
+        e.setFloat('boxDepth', b.size ? b.size[1] : 2);
+      }
       e.setFloat4('fog', s.fogMode, s.fogStart, s.fogEnd, s.fogDensity);
       e.setColor3('fogCol', s.fogColor || new B.Color3(0.6, 0.8, 0.9));
     });
@@ -251,7 +485,7 @@ void main(void) {
     const s = onOceanPlanet(readSea(v));
     const b = { id: 'sea', kind: 'ocean', world: W(), ...s, alpha: s.alpha };
     const size = H.planet && H.planet.round && H.planet.seabed < 0 && H.planet.frame.reach ? 2 * H.planet.frame.reach : 1600;
-    b.surface = gridMesh('sea', size, size, PHONE ? 56 : 104, PHONE ? 56 : 104, size > 1600 ? 2.6 : 2.2);
+    b.surface = gridMesh('sea', size, size, PHONE ? 72 : 150, PHONE ? 72 : 150, size > 1600 ? 2.6 : 2.2);
     b.size = size;
     b.oceanPlanet = size > 1600;
     b.surface.material = surfaceMaterial(b);
@@ -615,7 +849,7 @@ void main(void) {
   // between the master and the speakers muffles everything (the engine's sounds, music and every module's).
   let noise = null, muffle = null;
   const audioCtx = () => H.audio.context;
-  const out = () => H.audio.master;
+  const out = () => H.audio.effects || H.audio.master;
   function setMuffle(on) {
     const ctx = audioCtx();
     if (!ctx) return;
@@ -639,8 +873,22 @@ void main(void) {
     let vol = o.volume ?? 1;
     if (o.at && g && W() && W().scene.activeCamera) { const c = W().scene.activeCamera.globalPosition; const p = posOf(o.at); vol *= 1 / (1 + Math.hypot(c.x - p[0], c.y - p[1], c.z - p[2]) / 10); }
     if (vol < 0.03) return;
+    // The impact library's fishing set and splashes (modules/juice/juice-impact.js), before a game's own words or the synth.
+    if (H.impact) {
+      try {
+        if (name === 'splash' && H.impact.splash(o.at ? posOf(o.at) : null, o.size ?? 1, { volume: o.volume })) return;
+        if (name === 'cast' && H.impact.fish('cast', { volume: o.volume })) return;
+        if (name === 'plop' && H.impact.fish('plop', { at: o.at ? posOf(o.at) : null, volume: o.volume })) return;
+        if (name === 'bite' && H.impact.fish('strike', { volume: o.volume })) return;
+        if (name === 'reel' && H.impact.fish('reel', { volume: o.volume })) return;
+        if (name === 'catch') H.impact.fish('flap', { volume: o.volume }); // (the catch chime plays on top)
+      } catch { /* the old sounds */ }
+    }
     const asset = assetNamed(name);
     if (asset && g) { g.sound(asset, { volume: clamp(vol, 0, 1), rate: o.rate }); return; }
+    // The site's own recordings of the fishing sounds (runtime.js siteSound), before the synthesized ones.
+    const SITE = { cast: 'fishing-cast', bite: 'fish-bite', catch: 'fish-catch', reel: 'fishing-reel' };
+    try { if (SITE[name] && H.lib && H.lib.siteSound && H.lib.siteSound(SITE[name], { volume: clamp(vol, 0, 1) })) return; } catch { /* the synth */ }
     const ctx = audioCtx();
     if (!ctx || ctx.state !== 'running') return;
     const t0 = ctx.currentTime, size = clamp(o.size ?? 1, 0.1, 4);
@@ -686,8 +934,9 @@ void main(void) {
       e._wIn = isIn;
       if (isIn === wasIn) continue;
       const vy = (bot - prev) / Math.max(dt, 1e-4);
-      if (isIn && vy < -2.5) {
-        const vol = e.size[0] * e.size[1] * e.size[2];
+      if (isIn && vy < -1.8) {
+        // Sized by mass (a barrel against a splinter), by volume where a thing has none set.
+        const vol = Math.max(e.size[0] * e.size[1] * e.size[2], (e.mass > 1 ? e.mass : 0) / 500);
         const size = clamp((-vy / 10) * Math.cbrt(Math.max(0.01, vol)) * (e.isPlayer || e.remotePlayer ? 1.4 : 1), 0.2, 3.5);
         splash([e.x, s, e.z], size);
         G().emit('splash', { at: [e.x, s, e.z], size, entity: e });
@@ -821,7 +1070,7 @@ void main(void) {
         }
       }
       if (b.kind === 'box') placeBasin(b);
-      if (H.terrain && b.foam && w.time - (b.shoreAt || -99) > (b.kind === 'ocean' ? 0.6 : 3)) {
+      if (H.terrain && b.foam && b.kind !== 'ocean' && w.time - (b.shoreAt || -99) > 3) {
         const key = b.kind === 'ocean' ? `${b.surface.position.x},${b.surface.position.z},${b.level}` : `${b.entity.x},${b.entity.y},${b.entity.z}`;
         if (key !== b.shoreKey || w.time - (b.shoreAt || -99) > 6) { b.shoreKey = key; updateShore(b); }
         b.shoreAt = w.time;
@@ -858,6 +1107,19 @@ void main(void) {
   function water(o = {}) { return buildBox(o, { ...o, color: o.color, opacity: o.opacity, lenient: true }); }
   // (Descriptors, not Object.assign: the getters below must stay getters.)
   Object.defineProperties(water, Object.getOwnPropertyDescriptors({
+    /** The one wave function (shader and floating agree): the height of the waves alone, over the level, at (x, z) and time t (default now). */
+    waveAt: (x, z, t) => { const b = sea(); return b ? waveHeight(b, Number(x) || 0, Number(z) || 0, t === undefined ? now() : Number(t)) : 0; },
+    /** How deep the sea is at (x, z) from the terrain (m under its level), or null. */
+    seaDepthAt: (x, z) => { const b = sea(); return b ? depthOfSea(b, Number(x) || 0, Number(z) || 0) : null; },
+    /** The colour [r, g, b] the sea shows over `depth` metres of water. */
+    colorAtDepth: (depth) => { const b = sea(); return b ? rampAt(b, Number(depth) || 0) : null; },
+    /** What the sea is drawing with (for the playtest): waves, tier, depth map, textures. */
+    stats() {
+      const b = sea();
+      if (!b) return null;
+      const d = b._depth, ws = waveSet(b);
+      return { waves: ws.length, phone: PHONE, wind: windDir(), amp: b.amp, len: b.len, level: b.level, foam: Boolean(b.foam), depthMap: d ? { size: d.N, span: d.span, obstacles: d.posts || 0 } : null, textures: Boolean(texCache.has(W().scene)), grid: b.surface && b.surface.getTotalVertices() };
+    },
     surfaceAt, inWater, depthAt, buoyancy, splash, ripple, sound, rise, densityOf,
     /** The water at a point: { body, surface, depth } (body: { id, kind, salt, fish, clarity, ... }) or null. */
     at: (pos) => { const p = posOf(pos); return waterAt(p[0], p[2], p[1]); },
@@ -867,7 +1129,7 @@ void main(void) {
     get level() { const s = sea(); return s ? s.level : null; },
     set level(v) { const s = sea(); if (s) { s.level = Number(v) || 0; s.surface.position.y = s.level; seaFloor(s); } },
     get underwater() { return under.on; },
-    _: { waveHeight, waveSlope, surfaceOf, contains, bottomOf, baseLevel, waterAt, assetNamed, overlay, posOf, live, PHONE, clamp, num, readSea, readBox, audioCtx, noiseBuffer, restoreFog, colorsOf },
+    _: { waveHeight, waveSlope, waveEval, waveSet, rampAt, depthOfSea, depthMapFor, seaTextures, surfaceOf, contains, bottomOf, baseLevel, waterAt, assetNamed, overlay, posOf, live, PHONE, clamp, num, readSea, readBox, audioCtx, noiseBuffer, restoreFog, colorsOf },
   }));
   H.water = water;
 

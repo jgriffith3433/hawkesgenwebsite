@@ -1,0 +1,911 @@
+{
+  "project": "hawkesgames",
+  "kind": "vfx-sheet",
+  "note": "Blast flipbooks: Gen image.generate stills (1024 px, black background) animated into 8x8 sheets by tools/bake-vfx.mjs (import the still with studio_gen_import to public/play/vfx/<name>-src.png first, then bake). Engine: public/play/modules/mayhem/mayhem-vfx.js useSheets.",
+  "entities": [
+    {
+      "id": "fireball",
+      "kind": "image",
+      "asset": "a_aad963c8c59af567",
+      "job": "j_b4df01a321af",
+      "file": "public/play/vfx/fireball.webp",
+      "grid": "8x8",
+      "use": "additive fireball"
+    },
+    {
+      "id": "smoke",
+      "kind": "image",
+      "asset": "a_544820207fd3b335",
+      "job": "j_13403e715c35",
+      "file": "public/play/vfx/smoke.webp",
+      "grid": "8x8",
+      "use": "rolling smoke puff"
+    },
+    {
+      "id": "sparks",
+      "kind": "image",
+      "asset": "a_aa0c1241b536eef5",
+      "job": "j_8903ff344fae",
+      "file": "public/play/vfx/sparks.webp",
+      "grid": "8x8",
+      "use": "sparks and embers"
+    },
+    {
+      "id": "journal-paintings",
+      "kind": "image-pack",
+      "name": "Lore journal painted pages",
+      "note": "Twelve painterly journal illustrations (image.generate 1024x768 \u2192 studio_gen_import webp). Engine: journal.js l.art. All twelve landed; drawing is chalk graffiti on wall only (retake 3 edit j_bfc85693a401).",
+      "dir": "public/play/journal",
+      "jobs": {
+        "logbook": "j_c34c76924e27",
+        "planks": "j_67acd373ae05",
+        "letter": "j_05954456a883",
+        "lamp": "j_cddbb5e8e2e5",
+        "receipt": "j_5fbc2da1c8b6",
+        "tally": "j_7cdb1d53a5de",
+        "file": "j_81d2d534cf31",
+        "tag": "j_e1be1874beab",
+        "chair": "j_94503bdf1bcf",
+        "drawing": "j_bfc85693a401",
+        "mirror2": "j_174ae3870194",
+        "page": "j_b67a05500408"
+      },
+      "assets": {
+        "logbook": "a_890cedf0dc8b3ea6",
+        "planks": "a_68b07c201d8b79ea",
+        "letter": "a_78c4afa9d6da549f",
+        "lamp": "a_fc0a516df9d4c8c5",
+        "receipt": "a_f2f4c2da46bc1117",
+        "tally": "a_dc9287511c87c82c",
+        "file": "a_25d424b47944ef7e",
+        "tag": "a_05f671cb2f0bb5ec",
+        "chair": "a_0caabf23e8f4ac0e",
+        "drawing": "a_6ea48de920156750",
+        "mirror2": "a_ba017be036522ee4",
+        "page": "a_db039b843468dc57"
+      },
+      "files": {
+        "logbook": "public/play/journal/logbook.webp",
+        "planks": "public/play/journal/planks.webp",
+        "letter": "public/play/journal/letter.webp",
+        "lamp": "public/play/journal/lamp.webp",
+        "receipt": "public/play/journal/receipt.webp",
+        "tally": "public/play/journal/tally.webp",
+        "file": "public/play/journal/file.webp",
+        "tag": "public/play/journal/tag.webp",
+        "chair": "public/play/journal/chair.webp",
+        "drawing": "public/play/journal/drawing.webp",
+        "mirror2": "public/play/journal/mirror2.webp",
+        "page": "public/play/journal/page.webp"
+      },
+      "pages": [
+        "logbook",
+        "planks",
+        "letter",
+        "lamp",
+        "receipt",
+        "tally",
+        "file",
+        "tag",
+        "chair",
+        "drawing",
+        "mirror2",
+        "page"
+      ]
+    },
+    {
+      "id": "overseer-sound",
+      "kind": "sound-pack",
+      "name": "Overseer sound identity",
+      "data": {
+        "canon": "Vast treated voice, three-mood leitmotif (wonder/amused/ominous), beam hum with distance, sky shimmer, presence swell.",
+        "slots": {
+          "motif/wonder": {
+            "brief": "10 s wonder leitmotif",
+            "path": "public/play/audio/sfx/overseer-motif-wonder.mp3"
+          },
+          "motif/amused": {
+            "brief": "10 s amused leitmotif",
+            "path": "public/play/audio/sfx/overseer-motif-amused.mp3"
+          },
+          "motif/ominous": {
+            "brief": "10 s ominous leitmotif",
+            "path": "public/play/audio/sfx/overseer-motif-ominous.mp3"
+          },
+          "sfx/beam-hum": {
+            "brief": "Seamless beam hum loop",
+            "path": "public/play/audio/sfx/overseer-beam-hum.mp3"
+          },
+          "sfx/sky-shimmer": {
+            "brief": "Sky shimmer on reaction",
+            "path": "public/play/audio/sfx/overseer-sky-shimmer.mp3"
+          },
+          "sfx/presence-swell": {
+            "brief": "Presence swell on intro",
+            "path": "public/play/audio/sfx/overseer-presence-swell.mp3"
+          }
+        }
+      },
+      "about": "Overseer sound identity (modules/overseer/sound.js). Gen assets land in public/play/audio/sfx/ via studio_gen_import; loudness-normalised at Gen (normalize: true on sfx; music trimmed in play)."
+    },
+    {
+      "id": "island-hours-weather",
+      "kind": "sound-pack",
+      "name": "Island hours and weather ambience",
+      "jobs": {
+        "loops": "j_28b2b53abb66",
+        "thunder": "j_893c3d58f20d"
+      },
+      "data": {
+        "canon": "Time-of-day beds (dawn chorus, midday cicadas, dusk gulls/waves, night crickets/frogs/owl) under the area beds; rain on ground/wood/metal; three thunder claps with long tails. Crossfade \u226530 s by H.sky.clock; phone \u22642 beds.",
+        "slots": {
+          "tod/dawn": {
+            "brief": "Dawn chorus seamless loop",
+            "path": "public/play/audio/sfx/tod-dawn.mp3",
+            "asset": "a_ec5a9959118cd3c0",
+            "job": "j_28b2b53abb66"
+          },
+          "tod/day": {
+            "brief": "Midday cicadas seamless loop",
+            "path": "public/play/audio/sfx/tod-day.mp3",
+            "asset": "a_51ab62f7f39a6bd5",
+            "job": "j_28b2b53abb66"
+          },
+          "tod/dusk": {
+            "brief": "Dusk gulls and waves seamless loop",
+            "path": "public/play/audio/sfx/tod-dusk.mp3",
+            "asset": "a_0b413c98827f60a8",
+            "job": "j_28b2b53abb66"
+          },
+          "tod/night": {
+            "brief": "Night crickets frogs owl seamless loop",
+            "path": "public/play/audio/sfx/tod-night.mp3",
+            "asset": "a_e1b4a9d3a13c9ab6",
+            "job": "j_28b2b53abb66"
+          },
+          "rain/ground": {
+            "brief": "Rain on open ground seamless loop",
+            "path": "public/play/audio/sfx/rain-ground.mp3",
+            "asset": "a_17f55bf002b15bd5",
+            "job": "j_28b2b53abb66"
+          },
+          "rain/wood": {
+            "brief": "Rain on pier wood seamless loop",
+            "path": "public/play/audio/sfx/rain-wood.mp3",
+            "asset": "a_b6043882355822c3",
+            "job": "j_28b2b53abb66"
+          },
+          "rain/metal": {
+            "brief": "Rain on hangar metal roof seamless loop",
+            "path": "public/play/audio/sfx/rain-metal.mp3",
+            "asset": "a_512a7434982e0f22",
+            "job": "j_28b2b53abb66"
+          },
+          "thunder/1": {
+            "brief": "Close lightning crack with long rumble",
+            "path": "public/play/audio/sfx/thunder-1.mp3",
+            "asset": "a_03090d8a91940d73",
+            "job": "j_893c3d58f20d"
+          },
+          "thunder/2": {
+            "brief": "Distant soft boom with long tail",
+            "path": "public/play/audio/sfx/thunder-2.mp3",
+            "asset": "a_58006b85aac57712",
+            "job": "j_893c3d58f20d"
+          },
+          "thunder/3": {
+            "brief": "Medium-distance crack and rumble",
+            "path": "public/play/audio/sfx/thunder-3.mp3",
+            "asset": "a_4bdd8e25c032565a",
+            "job": "j_893c3d58f20d"
+          }
+        }
+      },
+      "about": "Island hours and weather (modules/soundscape/weather.js, window.__weather). Gen audio.sfx-open; 10 clips \u22481.89 MB (under 2.5 MB phone budget)."
+    },
+    {
+      "id": "impact-sounds",
+      "kind": "sound-pack",
+      "name": "Impact sound library",
+      "dir": "public/play/audio/impact",
+      "index": "public/play/audio/impact/index.json",
+      "jobs": {
+        "wood-light": "j_c8f3e0c63a34",
+        "wood-heavy": "j_bcc9f482462d",
+        "metal-light": "j_f4abe3bcbe68",
+        "metal-heavy": "j_e5ada8023329",
+        "stone-light": "j_595ad1f38a4b",
+        "stone-heavy": "j_d121b28ea7ce",
+        "water-light": "j_e96c7dd844d1",
+        "water-heavy": "j_6eecfdf9af92",
+        "sand-light": "j_11c696f68575",
+        "sand-heavy": "j_fce61c895d8c",
+        "glass-light": "j_110c276aff2a",
+        "glass-heavy": "j_a66530e3ecc2",
+        "barrel-roll": "j_a657de52d369",
+        "barrel-bounce": "j_2b68b8448ff6",
+        "debris": "j_8515c4155014",
+        "explosion-near": "j_c0e7f6a680d8",
+        "explosion-far": "j_6bc132e8a802",
+        "fish-cast": "j_fb44642d2015",
+        "fish-reel": "j_f3143351dae7",
+        "fish-plop": "j_ac5da7fec3c7",
+        "fish-strike": "j_774fc471faf3",
+        "fish-flap": "j_113a10303de7"
+      },
+      "data": {
+        "canon": "Every hit sounds like what it is: wood thunks, metal clangs, stone cracks, water splashes, sand thumps, glass tinks; barrel bounce and roll; debris patter; near blast crack+boom and far rolling boom late by distance/343; fishing cast/plop/strike/reel/flap. Four variants a set, never the same twice in a row; light/heavy by impulse; pitch +-8% gain +-2 dB; far sets stream after first frame. Player: H.impact (juice-impact.js). Playtest: island-impact.",
+        "far": [
+          "explosion-far",
+          "debris",
+          "barrel-roll"
+        ],
+        "budgetKB": 3072
+      },
+      "about": "Impact library under public/play/audio/impact/ (audio.sfx open path, sampleRate 32000). Near sets load first; far tails after. Filed for modules/juice/juice-impact.js."
+    },
+    {
+      "id": "vehicle-sound",
+      "kind": "sound-pack",
+      "name": "Vehicle engine, tyre, rotor and rocket",
+      "jobs": {
+        "loops": "j_2767ae76b809",
+        "oneshots": "j_6fde121e39ec"
+      },
+      "data": {
+        "canon": "4x4 four-gear engine (idle/low/mid/high loops + start, gear clunk, horn, suspension thump), tyre loops by surface (road/sand/grass/water), helicopter rotor low/full + whine + start/stop, Rolo rocket ignite/roar/rumble. Loudness-normalised; loops equal-power crossfaded seamless; under 2 MB total.",
+        "slots": {
+          "engine/idle": {
+            "brief": "4x4 diesel idle loop",
+            "path": "public/play/audio/sfx/veh-engine-idle.mp3",
+            "asset": "a_00a42475a8abb7c8"
+          },
+          "engine/low": {
+            "brief": "4x4 low RPM loop",
+            "path": "public/play/audio/sfx/veh-engine-low.mp3",
+            "asset": "a_fffb69c08c86432f"
+          },
+          "engine/mid": {
+            "brief": "4x4 mid RPM loop",
+            "path": "public/play/audio/sfx/veh-engine-mid.mp3",
+            "asset": "a_8877c9f082fb295d"
+          },
+          "engine/high": {
+            "brief": "4x4 high RPM loop",
+            "path": "public/play/audio/sfx/veh-engine-high.mp3",
+            "asset": "a_d8cde9c3184ba01d"
+          },
+          "engine/start": {
+            "brief": "4x4 engine start",
+            "path": "public/play/audio/sfx/veh-engine-start.mp3",
+            "asset": "a_491d2e94be7d9002"
+          },
+          "engine/gear-clunk": {
+            "brief": "Gear shift clunk",
+            "path": "public/play/audio/sfx/veh-gear-clunk.mp3",
+            "asset": "a_45283200f9272f84"
+          },
+          "engine/suspension-thump": {
+            "brief": "Suspension landing thump",
+            "path": "public/play/audio/sfx/veh-suspension-thump.mp3",
+            "asset": "a_5e3c3cc6cbdb0ef2"
+          },
+          "engine/horn": {
+            "brief": "Friendly car horn",
+            "path": "public/play/audio/sfx/veh-horn.mp3",
+            "asset": "a_54f94eaf7249b208"
+          },
+          "tyre/road": {
+            "brief": "Tyres on gravel road loop",
+            "path": "public/play/audio/sfx/veh-tyre-road.mp3",
+            "asset": "a_b3824e045d8fcc6d"
+          },
+          "tyre/sand": {
+            "brief": "Tyres on sand loop",
+            "path": "public/play/audio/sfx/veh-tyre-sand.mp3",
+            "asset": "a_ec0ea171d188d488"
+          },
+          "tyre/grass": {
+            "brief": "Tyres on grass loop",
+            "path": "public/play/audio/sfx/veh-tyre-grass.mp3",
+            "asset": "a_231d539bd187394e"
+          },
+          "tyre/water": {
+            "brief": "Tyres through shallows loop",
+            "path": "public/play/audio/sfx/veh-tyre-water.mp3",
+            "asset": "a_e2db471ad26f8e40"
+          },
+          "heli/rotor-low": {
+            "brief": "Rotor low collective loop",
+            "path": "public/play/audio/sfx/veh-heli-rotor-low.mp3",
+            "asset": "a_d1590549c85f151b"
+          },
+          "heli/rotor-full": {
+            "brief": "Rotor full collective loop",
+            "path": "public/play/audio/sfx/veh-heli-rotor-full.mp3",
+            "asset": "a_36dc8fe62eac514f"
+          },
+          "heli/whine": {
+            "brief": "Turbine whine loop",
+            "path": "public/play/audio/sfx/veh-heli-whine.mp3",
+            "asset": "a_b3d808674f75006d"
+          },
+          "heli/start": {
+            "brief": "Helicopter startup",
+            "path": "public/play/audio/sfx/veh-heli-start.mp3",
+            "asset": "a_8576d3df4ca9e7c7"
+          },
+          "heli/stop": {
+            "brief": "Helicopter shutdown",
+            "path": "public/play/audio/sfx/veh-heli-stop.mp3",
+            "asset": "a_eca4350b6adb7029"
+          },
+          "rocket/ignite": {
+            "brief": "Rocket ignition",
+            "path": "public/play/audio/sfx/veh-rocket-ignite.mp3",
+            "asset": "a_a18395b91bd01537"
+          },
+          "rocket/roar": {
+            "brief": "Rocket roar loop",
+            "path": "public/play/audio/sfx/veh-rocket-roar.mp3",
+            "asset": "a_1944406e72c36cf8"
+          },
+          "rocket/rumble": {
+            "brief": "Rocket far rumble tail",
+            "path": "public/play/audio/sfx/veh-rocket-rumble.mp3",
+            "asset": "a_5ec24bb729e0dfd1"
+          }
+        }
+      },
+      "about": "Vehicle audio (modules/vehicles/vehicles-sound.js). Gen audio.sfx; loops re-crossfaded equal-power where Gen left a seam hole. Total veh-*.mp3 under 2 MB."
+    },
+    {
+      "id": "island-pbr",
+      "kind": "material-pack",
+      "name": "Sandbox island PBR materials",
+      "note": "Seven seamless albedos (image.generate 1536) then texture.maps (free CPU) for normal+roughness; import 2K/1K WebP into public/play/materials/island/. manifest.json ready flips true when files land.",
+      "dir": "public/play/materials/island",
+      "manifest": "public/play/materials/island/manifest.json",
+      "jobs": {
+        "grass-albedo": "j_50bacf64e065",
+        "sand-albedo": "j_162577994298",
+        "wet-sand-albedo": "j_ae7abb1a3ad2",
+        "road-albedo": "j_08d30943f690",
+        "rock-albedo": "j_48119831c19c",
+        "wood-albedo": "j_3789b067d92c",
+        "metal-albedo": "j_cb18d40afe23"
+      },
+      "slots": [
+        "grass",
+        "sand",
+        "wet-sand",
+        "road",
+        "rock",
+        "wood",
+        "metal"
+      ],
+      "use": "Sandbox terrain splat + pier wood + hangar metal (modules/terrain, dock.js)"
+    },
+    {
+      "id": "sky-dawn",
+      "kind": "image",
+      "asset": "a_20eaa6cdb7ff8f4f",
+      "job": "j_fed7a0c8cb98",
+      "file": "public/play/sky/dawn-4k.webp",
+      "file2k": "public/play/sky/dawn-2k.webp",
+      "use": "painted 360 sky panorama (skypaint.js)"
+    },
+    {
+      "id": "sky-noon",
+      "kind": "image",
+      "asset": "a_64f123008c75115d",
+      "job": "j_d7c76e85b43d",
+      "file": "public/play/sky/noon-4k.webp",
+      "file2k": "public/play/sky/noon-2k.webp",
+      "use": "painted 360 sky panorama (skypaint.js)"
+    },
+    {
+      "id": "sky-dusk",
+      "kind": "image",
+      "asset": "a_9ac459bdec666d5d",
+      "job": "j_486c408f1fed",
+      "file": "public/play/sky/dusk-4k.webp",
+      "file2k": "public/play/sky/dusk-2k.webp",
+      "use": "painted 360 sky panorama (skypaint.js)"
+    },
+    {
+      "id": "sky-night",
+      "kind": "image",
+      "asset": "a_ff5274f9027c751a",
+      "job": "j_22e28acf922c",
+      "file": "public/play/sky/night-4k.webp",
+      "file2k": "public/play/sky/night-2k.webp",
+      "use": "painted 360 sky panorama (skypaint.js)"
+    },
+    {
+      "id": "title-logo",
+      "kind": "image",
+      "name": "Hawkes Games title lockup",
+      "asset": "a_b997991d71ac754f",
+      "source": "a_9a4305c22f4eb668",
+      "job": "j_799d1afb25a3",
+      "cutout": "j_cd3f8236d628",
+      "import": "a_467b350b8636aa11",
+      "file": "public/play/brand/hawkes-games-title.webp",
+      "use": "Island title screen lockup over the live fly-over (modules/overseer/title.js); CSS wordmark remains the fallback if the file 404s"
+    },
+    {
+      "id": "island-painted-art",
+      "kind": "image-pack",
+      "name": "Island painted key art and cast portraits",
+      "note": "Hades-like painted portraits + island key art (image.generate best-of-2). Engine: portraits.js, chat captions, journal, loadwrap, catalogue covers. Bobbin baked 2026-11-12; other pieces requeued after first-batch GPU timeouts / off-model takes.",
+      "dir": "public/play/art",
+      "jobs": {
+        "key-16x9": "j_5bedb5b5bf43",
+        "pip-neutral": "j_3d133f649251",
+        "pip-delighted": "j_0e529b8377df",
+        "bobbin-neutral": "j_5ece63bf46ae",
+        "bobbin-proud": "j_1a92ca9a8859",
+        "ember-neutral": "j_19da8939e6b1",
+        "ember-warm": "j_7f3f5f2d84ad",
+        "rolo-neutral": "j_9e283e5a20ef",
+        "rolo-mild": "j_0bd4184c082b",
+        "dolores-neutral": "j_816cf39c818c",
+        "dolores-deadpan": "j_a047afc5f03f",
+        "channel-neutral": "j_a00fd2d25378",
+        "channel-urgent": "j_08d6efb64a77",
+        "overseer-neutral": "j_88bb0d646c06",
+        "overseer-interest": "j_e44bb91ddd81"
+      },
+      "assets": {
+        "bobbin-neutral": "a_b2e055bf9ff0ce13",
+        "bobbin-proud": "a_63d5b398d0c418bb"
+      },
+      "files": {
+        "key-16x9": "public/play/art/island/key-16x9.webp",
+        "key-2x3": "public/play/art/island/key-2x3.webp",
+        "key-1x1": "public/play/art/island/key-1x1.webp",
+        "overseer-neutral": "public/play/art/cast/overseer-neutral.webp",
+        "overseer-interest": "public/play/art/cast/overseer-interest.webp",
+        "pip-neutral": "public/play/art/cast/pip-neutral.webp",
+        "pip-delighted": "public/play/art/cast/pip-delighted.webp",
+        "bobbin-neutral": "public/play/art/cast/bobbin-neutral.webp",
+        "bobbin-proud": "public/play/art/cast/bobbin-proud.webp",
+        "ember-neutral": "public/play/art/cast/ember-neutral.webp",
+        "ember-warm": "public/play/art/cast/ember-warm.webp",
+        "rolo-neutral": "public/play/art/cast/rolo-neutral.webp",
+        "rolo-mild": "public/play/art/cast/rolo-mild.webp",
+        "dolores-neutral": "public/play/art/cast/dolores-neutral.webp",
+        "dolores-deadpan": "public/play/art/cast/dolores-deadpan.webp",
+        "channel-neutral": "public/play/art/cast/channel-neutral.webp",
+        "channel-urgent": "public/play/art/cast/channel-urgent.webp"
+      }
+    }
+  ],
+  "voiceLines": [
+    {
+      "id": "overseer-550dbd44",
+      "kind": "voice",
+      "asset": "a_fec006ee454f620f",
+      "job": "j_e95671ec69c2",
+      "file": "public/play/audio/voice/overseer-550dbd44.mp3",
+      "text": "You came. Good. Come in.",
+      "use": "Chapter One finale (src/overseer-games/finale.js)"
+    },
+    {
+      "id": "overseer-b103bae5",
+      "kind": "voice",
+      "asset": "a_73a5ec24eaaf894c",
+      "job": "j_f5517a61ce85",
+      "file": "public/play/audio/voice/overseer-b103bae5.mp3",
+      "text": "I gave you free will, and told you a shoe would do. It would have. You did better.",
+      "use": "Chapter One finale (src/overseer-games/finale.js)"
+    },
+    {
+      "id": "overseer-c42a3451",
+      "kind": "voice",
+      "asset": "a_b21f852d35ba8e21",
+      "job": "j_d0463312364b",
+      "file": "public/play/audio/voice/overseer-c42a3451.mp3",
+      "text": "Now, one thing. Free will is only the next thing, and it is yours. Light the sky.",
+      "use": "Chapter One finale (src/overseer-games/finale.js)"
+    },
+    {
+      "id": "overseer-ddc6e639",
+      "kind": "voice",
+      "asset": "a_802b09dbd08f6475",
+      "job": "j_720fbedff2e8",
+      "file": "public/play/audio/voice/overseer-ddc6e639.mp3",
+      "text": "Thank you for coming. That is all of the first part.",
+      "use": "Chapter One finale (src/overseer-games/finale.js)"
+    },
+    {
+      "id": "overseer-adb94bd9",
+      "kind": "voice",
+      "asset": "a_561702d7411bbb21",
+      "job": "j_1b37c7b287b3",
+      "file": "public/play/audio/voice/overseer-adb94bd9.mp3",
+      "text": "I did not light that one.",
+      "use": "Chapter One finale (src/overseer-games/finale.js)"
+    },
+    {
+      "id": "pip-18c2cad9",
+      "kind": "voice",
+      "asset": "a_81a3c2a60275a880",
+      "job": "j_0675b94a33d8",
+      "file": "public/play/audio/voice/pip-18c2cad9.mp3",
+      "text": "Huh! That is a lot of floor. Hi, Floor!",
+      "use": "Chapter One finale (src/overseer-games/finale.js)"
+    },
+    {
+      "id": "ember-9cc6ffba",
+      "kind": "voice",
+      "asset": "a_411b110d2d46139a",
+      "job": "j_f35d3d8e86d5",
+      "file": "public/play/audio/voice/ember-9cc6ffba.mp3",
+      "text": "Dear, I brought you a letter. It says: well done. It has no sender. Sorry.",
+      "use": "Chapter One finale (src/overseer-games/finale.js)"
+    },
+    {
+      "id": "rolo-f6eef3d5",
+      "kind": "voice",
+      "asset": "a_925d50171a8e545e",
+      "job": "j_e35c9757c766",
+      "file": "public/play/audio/voice/rolo-f6eef3d5.mp3",
+      "text": "huh. you parked it. nicely. one wobble. that is fine.",
+      "use": "Chapter One finale (src/overseer-games/finale.js)"
+    },
+    {
+      "id": "dolores-509373d5",
+      "kind": "voice",
+      "asset": "a_623f4fe495321786",
+      "job": "j_383414d6b075",
+      "file": "public/play/audio/voice/dolores-509373d5.mp3",
+      "text": "I came up. I was not waiting. The view is fine.",
+      "use": "Chapter One finale (src/overseer-games/finale.js)"
+    },
+    {
+      "id": "channel-93fcccb5",
+      "kind": "voice",
+      "asset": "a_b2f62fb53c779038",
+      "job": "j_6a9de4708b28",
+      "file": "public/play/audio/voice/channel-93fcccb5.mp3",
+      "text": "Breaking: a hangar, a crowd, and the new one. Ratings: record.",
+      "use": "Chapter One finale (src/overseer-games/finale.js)"
+    },
+    {
+      "id": "overseer-6afe870d",
+      "kind": "voice",
+      "asset": "a_c29d061db93915be",
+      "job": "j_f8c55fba6fb3",
+      "file": "public/play/audio/voice/overseer-6afe870d.mp3",
+      "text": "That was a bright idea.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-1a2aa185",
+      "kind": "voice",
+      "asset": "a_a0f6573f15911066",
+      "job": "j_8932c08b25f0",
+      "file": "public/play/audio/voice/overseer-1a2aa185.mp3",
+      "text": "The barrels found each other. I noticed.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-37266de5",
+      "kind": "voice",
+      "asset": "a_7b95975fcfa734f7",
+      "job": "j_93c60504f30e",
+      "file": "public/play/audio/voice/overseer-37266de5.mp3",
+      "text": "Light, then quiet. I liked that.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-048ab4e1",
+      "kind": "voice",
+      "asset": "a_a8caa620f84d6c0a",
+      "job": "j_a28a1a24babf",
+      "file": "public/play/audio/voice/overseer-048ab4e1.mp3",
+      "text": "Destruction is a kind of freedom too.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-445f2377",
+      "kind": "voice",
+      "asset": "a_91bea04d1fa0ac7d",
+      "job": "j_6b8ed8a68ddc",
+      "file": "public/play/audio/voice/overseer-445f2377.mp3",
+      "text": "The sky felt that one.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-a7c12ba6",
+      "kind": "voice",
+      "asset": "a_f38b8b7c20212b82",
+      "job": "j_7759db719c76",
+      "file": "public/play/audio/voice/overseer-a7c12ba6.mp3",
+      "text": "A small cause. A large answer.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-7d97300d",
+      "kind": "voice",
+      "asset": "a_1b54d4ba012a2b86",
+      "job": "j_70d05fec4d35",
+      "file": "public/play/audio/voice/overseer-7d97300d.mp3",
+      "text": "The sea gives. Remember that.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-77919ea2",
+      "kind": "voice",
+      "asset": "a_b1f9a02ad2544c27",
+      "job": "j_2b6ba34ea58e",
+      "file": "public/play/audio/voice/overseer-77919ea2.mp3",
+      "text": "A catch. Quiet work.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-e52f470a",
+      "kind": "voice",
+      "asset": "a_6ef63152209ca7d6",
+      "job": "j_49aea9f6ddce",
+      "file": "public/play/audio/voice/overseer-e52f470a.mp3",
+      "text": "You waited. The sea noticed too.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-da2e7474",
+      "kind": "voice",
+      "asset": "a_92d39ddbfa206943",
+      "job": "j_6f848d336b75",
+      "file": "public/play/audio/voice/overseer-da2e7474.mp3",
+      "text": "Something from the water. Good.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-ad0b2dce",
+      "kind": "voice",
+      "asset": "a_400d5aea1f4d8fce",
+      "job": "j_fdc17e0f8c01",
+      "file": "public/play/audio/voice/overseer-ad0b2dce.mp3",
+      "text": "Held gently. That is the way.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-87013410",
+      "kind": "voice",
+      "asset": "a_dbecc77969bf9692",
+      "job": "j_9abaa417d345",
+      "file": "public/play/audio/voice/overseer-87013410.mp3",
+      "text": "The pier keeps its promises.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-edea8df4",
+      "kind": "voice",
+      "asset": "a_eac53e26c4afe8df",
+      "job": "j_79811bf862a0",
+      "file": "public/play/audio/voice/overseer-edea8df4.mp3",
+      "text": "There. It was not there, and now it is.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-19cd0cd9",
+      "kind": "voice",
+      "asset": "a_f4fc821f0ca999b9",
+      "job": "j_a237603a6252",
+      "file": "public/play/audio/voice/overseer-19cd0cd9.mp3",
+      "text": "A new one. Look how the light holds it.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-2dfd34fc",
+      "kind": "voice",
+      "asset": "a_726a9d5726eaf4ae",
+      "job": "j_9a962244423a",
+      "file": "public/play/audio/voice/overseer-2dfd34fc.mp3",
+      "text": "You asked, and the sky answered.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-86b249fa",
+      "kind": "voice",
+      "asset": "a_fc4c5ec620dfd44c",
+      "job": "j_4ad3d6d25b16",
+      "file": "public/play/audio/voice/overseer-86b249fa.mp3",
+      "text": "I like how it landed. Soft.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-97c61b5d",
+      "kind": "voice",
+      "asset": "a_69957f6291a0b4ad",
+      "job": "j_56d26e69075a",
+      "file": "public/play/audio/voice/overseer-97c61b5d.mp3",
+      "text": "A first thing. I am glad of it.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-8e1264fa",
+      "kind": "voice",
+      "asset": "a_a1190d29d2930095",
+      "job": "j_20c64d9a1fc8",
+      "file": "public/play/audio/voice/overseer-8e1264fa.mp3",
+      "text": "Hold still. It has found its place.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-4973756e",
+      "kind": "voice",
+      "asset": "a_13203d09711cc066",
+      "job": "j_39d0d3acd3a4",
+      "file": "public/play/audio/voice/overseer-4973756e.mp3",
+      "text": "The night is soft. I can see farther.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-f4845499",
+      "kind": "voice",
+      "asset": "a_ab8dad95b4f4cc99",
+      "job": "j_79adfb4778ed",
+      "file": "public/play/audio/voice/overseer-f4845499.mp3",
+      "text": "Quiet. The rings keep time.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-ffafb24a",
+      "kind": "voice",
+      "asset": "a_0ca9523032438185",
+      "job": "j_400de858ec90",
+      "file": "public/play/audio/voice/overseer-ffafb24a.mp3",
+      "text": "The island rests. I do not mind the dark.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-8aebdf11",
+      "kind": "voice",
+      "asset": "a_62acbf5917b8e6b3",
+      "job": "j_f3a089259aa7",
+      "file": "public/play/audio/voice/overseer-8aebdf11.mp3",
+      "text": "Stars, and the sea under them.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-395a2cb8",
+      "kind": "voice",
+      "asset": "a_97472e7a85043f55",
+      "job": "j_bd304c1f108c",
+      "file": "public/play/audio/voice/overseer-395a2cb8.mp3",
+      "text": "Look up. I am still here.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-700a1f9e",
+      "kind": "voice",
+      "asset": "a_d810bd3b09c262f7",
+      "job": "j_7dcf8317ccb6",
+      "file": "public/play/audio/voice/overseer-700a1f9e.mp3",
+      "text": "Night suits the pearl.",
+      "use": "Overseer sky presence reactions (modules/overseer/presence.js)"
+    },
+    {
+      "id": "overseer-71c75ee1",
+      "kind": "voice",
+      "asset": "a_3c255482b87c457d",
+      "file": "public/play/audio/voice/overseer-71c75ee1.mp3",
+      "text": "Someone sat here and wrote down every ship that came. Then someone took three pages, and was careful about it.",
+      "use": "Lore memory: logbook (memories.js)"
+    },
+    {
+      "id": "overseer-23f68443",
+      "kind": "voice",
+      "asset": "a_65336c6de123211c",
+      "file": "public/play/audio/voice/overseer-23f68443.mp3",
+      "text": "The third plank sticks. It was left that way, so you would notice.",
+      "use": "Lore memory: planks (memories.js)"
+    },
+    {
+      "id": "overseer-fb2804c6",
+      "kind": "voice",
+      "asset": "a_54b46ad64510cfa9",
+      "file": "public/play/audio/voice/overseer-fb2804c6.mp3",
+      "text": "A letter climbed this path before anyone lived here to read it.",
+      "use": "Lore memory: letter (memories.js)"
+    },
+    {
+      "id": "overseer-653fc008",
+      "kind": "voice",
+      "asset": "a_050173012ec353c6",
+      "file": "public/play/audio/voice/overseer-653fc008.mp3",
+      "text": "Someone lit this lamp the first evening. It has never needed more.",
+      "use": "Lore memory: lamp (memories.js)"
+    },
+    {
+      "id": "overseer-d00d0144",
+      "kind": "voice",
+      "asset": "a_5763991f29caef80",
+      "file": "public/play/audio/voice/overseer-d00d0144.mp3",
+      "text": "A door was mended here. The hand forgot. The door remembers.",
+      "use": "Lore memory: receipt (memories.js)"
+    },
+    {
+      "id": "overseer-3ce1dc22",
+      "kind": "voice",
+      "asset": "a_350e01ff537036ad",
+      "file": "public/play/audio/voice/overseer-3ce1dc22.mp3",
+      "text": "Someone counted the turns, in fives, long after anyone was watching.",
+      "use": "Lore memory: tally (memories.js)"
+    },
+    {
+      "id": "overseer-47c6d94d",
+      "kind": "voice",
+      "asset": "a_e556dd7886301e33",
+      "file": "public/play/audio/voice/overseer-47c6d94d.mp3",
+      "text": "Someone sat here, facing the land, waiting for something to arrive.",
+      "use": "Lore memory: chair (memories.js)"
+    },
+    {
+      "id": "overseer-24c65706",
+      "kind": "voice",
+      "asset": "a_22f45cd165420b07",
+      "file": "public/play/audio/voice/overseer-24c65706.mp3",
+      "text": "A small hand drew a barrel a smile, and called it a friend.",
+      "use": "Lore memory: drawing (memories.js)"
+    },
+    {
+      "id": "ember-cb95a8e2",
+      "kind": "voice",
+      "asset": "a_181345a0a66f251c",
+      "job": "j_beeb4231dd4c",
+      "file": "public/play/audio/voice/ember-cb95a8e2.mp3",
+      "text": "A ribbon on the box, dear. For the new one. Sorry.",
+      "use": "Chapter One world mark cheer: ask / mailbox ribbon (world-marks.js)"
+    },
+    {
+      "id": "dolores-8a6a9eec",
+      "kind": "voice",
+      "asset": "a_f5946ff3d0a3d428",
+      "job": "j_1e8830e82ae8",
+      "file": "public/play/audio/voice/dolores-8a6a9eec.mp3",
+      "text": "I put a stone. I was not waiting. It is there.",
+      "use": "Chapter One world mark cheer: hill cairn (world-marks.js)"
+    },
+    {
+      "id": "dolores-75bf2af3",
+      "kind": "voice",
+      "asset": "a_a2d0809900c111a4",
+      "job": "j_96110011f9a9",
+      "file": "public/play/audio/voice/dolores-75bf2af3.mp3",
+      "text": "The pad lights. The windsock. Use them. Or do not.",
+      "use": "Chapter One world mark cheer: fly / helipad (world-marks.js)"
+    },
+    {
+      "id": "rolo-31303de5",
+      "kind": "voice",
+      "asset": "a_129959e9f1e1fdc6",
+      "job": "j_646f6f194c09",
+      "file": "public/play/audio/voice/rolo-31303de5.mp3",
+      "text": "huh. a banner. the pad is lit. that is fine.",
+      "use": "Chapter One world mark cheer: launch banner (world-marks.js)"
+    },
+    {
+      "id": "pip-5910e965",
+      "kind": "voice",
+      "asset": "a_da5612e78ad79c9f",
+      "job": "j_e775398007f1",
+      "file": "public/play/audio/voice/pip-5910e965.mp3",
+      "text": "The road kept your tracks. Look!",
+      "use": "Chapter One world mark cheer: drive / road markers (world-marks.js)"
+    },
+    {
+      "id": "pip-ca762325",
+      "kind": "voice",
+      "asset": "a_ea6ba16ff0ed97ba",
+      "job": "j_0e87898bab25",
+      "file": "public/play/audio/voice/pip-ca762325.mp3",
+      "text": "That spot glowed. The Overseer left a mark.",
+      "use": "Chapter One world mark cheer: spawn pad (world-marks.js)"
+    }
+  ]
+}

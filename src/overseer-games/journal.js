@@ -39,13 +39,14 @@
 
   // ------------------------------------------------------------------ the neighbours (docs/story.md section 3)
   const CAST = [
-    { id: 'pip', name: 'Pip', what: 'A person, and the island\'s guide', line: 'Wants to try everything, with company. Has never once checked the wind before a BOOM.' },
-    { id: 'bobbin', name: 'Admiral Bobbin', what: 'A rubber duck, harbourmaster of a harbour with one boat', line: 'Very small, very proud. Takes any wave personally.' },
-    { id: 'ember', name: 'Mrs Ember', what: 'A toaster who runs the post and the weather', line: 'Every forecast she gives is right, and she apologises for it each time.' },
-    { id: 'rolo', name: 'Rolo', what: 'A roll-bot, the island\'s only fixer', line: 'Will not ask for help, ever, and is always halfway under something.' },
-    { id: 'dolores', name: 'Dolores', what: 'A cactus who lives on the hill', line: 'Is not lonely. Remembers every detail of your day anyway.' },
-    { id: 'channel', name: 'Channel', what: 'A TV robot, the island\'s one reporter', line: 'Reports everything as breaking news, naps included. Ratings: record.' },
+    { id: 'pip', name: 'Pip', what: 'A person, and the island\'s guide', line: 'Wants to try everything, with company. Has never once checked the wind before a BOOM.', portrait: '/play/art/cast/pip-neutral.webp' },
+    { id: 'bobbin', name: 'Admiral Bobbin', what: 'A rubber duck, harbourmaster of a harbour with one boat', line: 'Very small, very proud. Takes any wave personally.', portrait: '/play/art/cast/bobbin-neutral.webp' },
+    { id: 'ember', name: 'Mrs Ember', what: 'A toaster who runs the post and the weather', line: 'Every forecast she gives is right, and she apologises for it each time.', portrait: '/play/art/cast/ember-neutral.webp' },
+    { id: 'rolo', name: 'Rolo', what: 'A roll-bot, the island\'s only fixer', line: 'Will not ask for help, ever, and is always halfway under something.', portrait: '/play/art/cast/rolo-neutral.webp' },
+    { id: 'dolores', name: 'Dolores', what: 'A cactus who lives on the hill', line: 'Is not lonely. Remembers every detail of your day anyway.', portrait: '/play/art/cast/dolores-neutral.webp' },
+    { id: 'channel', name: 'Channel', what: 'A TV robot, the island\'s one reporter', line: 'Reports everything as breaking news, naps included. Ratings: record.', portrait: '/play/art/cast/channel-neutral.webp' },
   ];
+  const KEY_ART = '/play/art/island/key-16x9.webp';
 
   // ------------------------------------------------------------------ the lore (docs/story.md section 7: the twelve titles)
   // `at`: where it lies, [x, z] on the island (null: not on the island yet). `text`: a few lines in the voice of whoever left it.
@@ -58,11 +59,12 @@
     { id: 'tally', n: 6, title: "Dolores's Tally of Turns", by: 'Dolores', at: [40.5, 28], text: ['Scratched into the rock, in fives: the rings, turning. The marks go back further than I have been here.', 'I was not counting. It is just a rock.'] },
     { id: 'chair', n: 9, title: 'The Beach Chair Facing Away From the Sea', by: 'Channel', at: [53, -5], text: ['Breaking: one chair. It faces the land, not the sea.', 'The seat is warm. It is always warm. Source of the warmth: unconfirmed. Ratings: record.'] },
     { id: 'drawing', n: 10, title: "Pip's First Drawing", by: 'Pip', at: [48.4, -15.4], text: ['A barrel with a face! Is that mine? I think it is mine!', 'It is very faded. Older than me, I think. I would remember drawing it. Hello, Barrel.'] },
-    { id: 'file', n: 7, title: "Channel's Dead-End File", by: 'Channel', at: null },
-    { id: 'tag', n: 8, title: 'A Fish Tag in an Unknown Number', by: 'the first fish', at: null },
-    { id: 'mirror2', n: 11, title: 'The Cracked Mirror', by: 'the hangar', at: null },
-    { id: 'page', n: 12, title: 'The Blank Page', by: 'the last page of the logbook', at: null },
+    { id: 'file', n: 7, title: "Channel's Dead-End File", by: 'Channel', at: null, text: ['Breaking: a tape of the "Who Was Here?" series. Every episode ends mid-sentence.', 'Source of the cut: unconfirmed. Ratings: still climbing.'] },
+    { id: 'tag', n: 8, title: 'A Fish Tag in an Unknown Number', by: 'the first fish', at: null, text: ['A small silver tag, no name, no number that means anything to anyone here.', 'It was inside a fish. The fish did not put it there.'] },
+    { id: 'mirror2', n: 11, title: 'The Cracked Mirror', by: 'the hangar', at: null, text: ['A standing mirror, cracked once down the middle. The hangar keeps it.', 'Nobody can say who stood in it. The glass does not answer.'] },
+    { id: 'page', n: 12, title: 'The Blank Page', by: 'the last page of the logbook', at: null, text: ['The last page of the logbook. Blank, until someone writes on it.', 'Then the island remembers what was written. That is all it says for now.'] },
   ].sort((a, b) => a.n - b.n);
+  for (const l of LORE) l.art = `/play/journal/${l.id}.webp`; // the painted page (hawkes.library.json "journal-paintings")
 
   // ------------------------------------------------------------------ what is kept
   const kept = () => {
@@ -83,17 +85,47 @@
     const fresh = !kept().lore.has(id);
     KEEP.lore.add(id);
     const j = mem(); if (j) j.find(id);
-    if (H && H.chat && H.chat.line) H.chat.line({ kind: 'npc', who: l.title, text: l.text.join(' '), color: '#e5d9b8', keep: 20 });
+    // A first pickup plays as a memory on the spot (memories.js); the words live in the journal. A pickup again does nothing loud.
+    const thingOf = loreThing(id);
+    const M = window.__island && window.__island.memories;
+    const spot = l.at || (thingOf ? [thingOf.x, thingOf.z] : null);
+    let remembered = false;
+    if (fresh && M && spot && !M.active()) remembered = M.play(id, spot, () => { const b = game.ui.el('journal-btn'); if (b) b.classList.add('new'); });
+    // (Objects with no memory yet are read out over the thing, a line at a time, as before.)
+    const holdFor = (line) => Math.min(7, 2.5 + line.length / 18);
+    let at = 0;
+    if (fresh && !remembered && thingOf && thingOf.say) for (const line of l.text) { game.after(at, () => { if (thingOf.alive) thingOf.say(line, holdFor(line)); }); at += holdFor(line) + 0.3; }
     if (fresh) {
       funnel('sandbox_lore_found', { id, n: l.n, found: kept().lore.size });
       game.emit('lore-found', { id, n: l.n, title: l.title });
-      if (game.hasAsset && game.hasAsset('confirm.mp3')) game.sound('confirm.mp3', { volume: 0.4 });
+      if (!(H && H.lib && H.lib.siteSound && H.lib.siteSound('lore-glint', { volume: 0.6 })) && game.hasAsset && game.hasAsset('confirm.mp3')) game.sound('confirm.mp3', { volume: 0.4 });
+      // The Overseer noticed: a thin beam on what was found.
+      try { if (thingOf && H && H.overseer && H.overseer.beam) H.overseer.beam(thingOf, { radius: 0.8, seconds: 1.4 }); } catch { /* fine */ }
       const p = game.player;
       if (p) game.burst([p.x, p.y + 1.5, p.z], { color: '#e5d9b8', count: 18, speed: 3, size: 0.16 });
       refresh();
     }
     return fresh;
   }
+  // The thing in the world each piece of lore is (sandbox.ts), so it can be seen and heard there.
+  const LORE_THING = { logbook: 'logbook', lamp: 'lamp_a', tally: 'lore_rock', receipt: 'lore_slip', chair: 'lore_chair', drawing: 'lore_drawing' };
+  function loreThing(id) {
+    const e = game.find ? game.find(LORE_THING[id] || `lore_${id}`) : null;
+    return e && e.alive ? e : null;
+  }
+  // What hasn't been found yet glints now and then, so it is found by looking, not by reading a list (quality rule 6).
+  game.every(2.5, () => {
+    if (game.mode !== 'play') return;
+    const p = game.player;
+    if (!p) return;
+    const k = kept().lore;
+    for (const l of LORE) {
+      if (!l.at || k.has(l.id)) continue;
+      const e = loreThing(l.id);
+      if (!e || Math.hypot(e.x - p.x, e.z - p.z) > 40) continue;
+      game.burst([e.x, e.y + 0.4, e.z], { color: '#fff2b0', count: 5, speed: 0.8, size: 0.09 });
+    }
+  });
   game.on('islander', (d) => { if (d && d.id) { meet(d.id); } });
   game.on('notice', (d) => { if (d && (d.id === 'planks' || d.id === 'logbook')) find(d.id); });
   game.every(1, () => {
@@ -119,6 +151,15 @@
     });
   }
 
+  // ------------------------------------------------------------------ side favours (favours.js; docs/story.md 5d)
+  function favourList() {
+    try {
+      const api = window.__islandFavours;
+      if (api && typeof api.list === 'function') return api.list();
+    } catch { /* none yet */ }
+    return [];
+  }
+
   // ------------------------------------------------------------------ the panel
   const model = () => {
     const k = kept();
@@ -126,19 +167,32 @@
       quests: questList(),
       done: questList().filter((q) => q.state === 'done' || q.state === 'skipped').length,
       cast: CAST.map((c) => ({ ...c, met: k.met.has(c.id) })),
-      lore: LORE.map((l) => ({ id: l.id, n: l.n, title: l.title, by: l.by, found: k.lore.has(l.id), here: Boolean(l.at), text: k.lore.has(l.id) ? l.text : null })),
+      favours: favourList(),
+      finale: Boolean(window.__island && window.__island.finale && window.__island.finale.isDone()),
+      lore: LORE.map((l) => ({ id: l.id, n: l.n, title: l.title, by: l.by, found: k.lore.has(l.id), here: Boolean(l.at), art: l.art, text: k.lore.has(l.id) ? l.text : null })),
     };
   };
   function html(m) {
-    const ico = { done: '✓', skipped: '↷', now: '▸', todo: '·' };
+    const ico = { done: '✓', skipped: '↷', now: '▸', todo: '·', open: '·', active: '▸', locked: '·' };
     const qs = m.quests.map((q) => `<li class="jr-q ${q.state}"><b>${ico[q.state]}</b><span><i>${q.n}. ${esc(q.title)}</i> ${esc(q.text)}${q.state === 'skipped' ? ' (skipped)' : ''} <em>skippable</em></span></li>`).join('');
-    const cs = m.cast.map((c) => (c.met ? `<li class="jr-c"><i>${esc(c.name)}</i> <em>${esc(c.what)}</em><span>${esc(c.line)}</span></li>` : `<li class="jr-c unmet"><i>?</i> <em>Not met yet</em></li>`)).join('');
+    const cs = m.cast.map((c) => (c.met
+      ? `<li class="jr-c"><img class="jr-port" src="${esc(c.portrait)}" alt="" width="56" height="56" loading="lazy" draggable="false" onerror="this.style.visibility='hidden'"><span class="jr-cbody"><i>${esc(c.name)}</i> <em>${esc(c.what)}</em><span>${esc(c.line)}</span></span></li>`
+      : `<li class="jr-c unmet"><span class="jr-port jr-port-empty" aria-hidden="true"></span><span class="jr-cbody"><i>?</i> <em>Not met yet</em></span></li>`)).join('');
+    const favs = (m.favours || []).map((f) => {
+      const st = f.status === 'done' ? 'done' : f.status === 'active' ? 'now' : f.status === 'open' ? 'todo' : 'todo';
+      const body = f.status === 'done' ? (f.journal || f.title) : f.status === 'locked' ? 'Opens after the pier quest.' : f.status === 'active' ? `${f.title} — step ${(f.activeStep || 0) + 1} of 2` : f.title;
+      return `<li class="jr-q ${st}"><b>${ico[st]}</b><span><i>${esc(f.who)}</i> ${esc(body)}</span></li>`;
+    }).join('');
     const found = m.lore.filter((l) => l.found).length;
-    const ls = m.lore.map((l) => (l.found ? `<li class="jr-l"><i>${esc(l.title)}</i> <em>${esc(l.by)}</em><span>${l.text.map(esc).join(' ')}</span></li>` : `<li class="jr-l unfound"><i>? ${l.n}.</i> <em>Not yet found${l.here ? '' : '. It is not on this island yet.'}</em></li>`)).join('');
-    return `<div class="jr-head"><b>Journal</b><button type="button" class="jr-x" aria-label="Close the journal">×</button></div><div class="jr-body">`
-      + `<h4>Chapter One: What Are You? <small>${m.done} of 8</small></h4><ul>${qs}</ul>`
+    const ls = m.lore.map((l) => `<li class="jr-pg ${l.found ? 'found' : 'unfound'}" data-n="${l.n}"><div class="jr-art"><img src="${esc(l.art)}" alt="" loading="lazy" draggable="false" onerror="this.style.visibility='hidden'"></div>`
+      + (l.found ? `<i>${esc(l.title)}</i> <em>${esc(l.by)}</em><span>${l.text.map(esc).join(' ')}</span>` : `<i>? ${l.n}.</i> <em>Not yet found${l.here ? '' : '. It is not on this island yet.'}</em>`) + '</li>').join('');
+    const favDone = (m.favours || []).filter((f) => f.status === 'done').length;
+    const favTotal = (m.favours || []).length;
+    return `<div class="jr-head"><img class="jr-key" src="${esc(KEY_ART)}" alt="" width="120" height="68" loading="lazy" draggable="false" onerror="this.style.display='none'"><b>Journal</b><button type="button" class="jr-x" aria-label="Close the journal">×</button></div><div class="jr-body">`
+      + `<h4>Chapter One: What Are You? <small>${m.done} of 8</small></h4><ul>${qs}</ul>${m.finale ? '<button type="button" class="jr-replay">▶ Replay the end of Chapter One</button>' : ''}`
+      + (favTotal ? `<h4>Favours <small>${favDone} of ${favTotal}</small></h4><ul>${favs}</ul>` : '')
       + `<h4>Neighbours met <small>${m.cast.filter((c) => c.met).length} of ${m.cast.length}</small></h4><ul>${cs}</ul>`
-      + `<h4>Lore found <small>${found} of ${m.lore.length}</small></h4><ul>${ls}</ul></div>`;
+      + `<h4>Painted pages <small>${found} of ${m.lore.length} found</small><small class="jr-count">1 / ${m.lore.length}</small></h4><ul class="jr-pages">${ls}</ul></div>`;
   }
   if (typeof document !== 'undefined' && !document.getElementById('journal-style')) {
     const st = document.createElement('style');
@@ -149,13 +203,20 @@
       '.jr-btn[hidden],.jr[hidden]{display:none}',
       // (the bottom 150px stay clear: the phone's stick and buttons)
       '.jr{position:fixed;left:50%;transform:translateX(-50%);top:max(10px,env(safe-area-inset-top));z-index:60;width:min(520px,calc(100vw - 20px));max-height:calc(100vh - 160px - env(safe-area-inset-top));max-height:calc(100dvh - 160px - env(safe-area-inset-top));display:flex;flex-direction:column;box-sizing:border-box;border-radius:14px;background:rgba(14,18,30,.94);border:1px solid rgba(229,217,184,.5);color:#eef2ff;font:500 14px/1.35 system-ui,sans-serif;pointer-events:auto}',
-      '.jr-head{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.14);font-size:16px;color:#e5d9b8}',
-      '.jr-x{background:none;border:0;color:#fff;font-size:26px;line-height:1;cursor:pointer;width:40px;height:36px}',
+      '.jr-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.14);font-size:16px;color:#e5d9b8}',
+      '.jr-key{width:72px;height:40px;object-fit:cover;border-radius:8px;flex:none;border:1px solid rgba(229,217,184,.45)}',
+      '.jr-head b{flex:1}.jr-x{background:none;border:0;color:#fff;font-size:26px;line-height:1;cursor:pointer;width:40px;height:36px}',
       '.jr-body{overflow-y:auto;padding:4px 14px 12px;-webkit-overflow-scrolling:touch}',
       '.jr h4{margin:12px 0 4px;font:800 11px system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#ffd84a}.jr h4 small{color:#9fb0d0;font-weight:600;margin-left:6px}',
       '.jr ul{list-style:none;margin:0;padding:0}.jr li{padding:5px 0;border-bottom:1px solid rgba(255,255,255,.07)}',
       '.jr i{font-style:normal;font-weight:700}.jr em{font-style:normal;color:#9fb0d0;font-size:12px}',
       '.jr-q{display:flex;gap:8px}.jr-q b{width:14px;flex:none;color:#7ee0a0}.jr-q.todo b,.jr-q.todo{color:#8a97b5}.jr-q.now b{color:#ffd84a}.jr-q span{flex:1}',
+      '.jr-c{display:flex;gap:10px;align-items:flex-start}.jr-port{width:56px;height:56px;border-radius:10px;object-fit:cover;flex:none;background:rgba(40,28,14,.6);border:1px solid rgba(229,217,184,.35)}.jr-port-empty{display:inline-block}.jr-cbody{flex:1;min-width:0}',
+      '.jr-replay{margin:8px 0 2px;min-height:44px;padding:8px 14px;border-radius:10px;border:1px solid rgba(255,216,74,.6);background:rgba(255,216,74,.12);color:#ffd84a;font:700 14px system-ui,sans-serif;cursor:pointer}',
+      '.jr-pages{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:10px;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;scrollbar-width:none}.jr-pages::-webkit-scrollbar{display:none}',
+      '.jr li.jr-pg{flex:0 0 100%;box-sizing:border-box;scroll-snap-align:center;border:1px solid rgba(229,217,184,.35);border-radius:10px;padding:8px;background:rgba(40,28,14,.5)}',
+      '.jr-art{aspect-ratio:4/3;border-radius:6px;overflow:hidden;background:#2a2014;margin-bottom:6px}.jr-art img{width:100%;height:100%;object-fit:cover;display:block;filter:sepia(.25)}',
+      '.jr-pg.unfound .jr-art img{filter:blur(7px) grayscale(1) brightness(.5)}.jr-pg span{display:block;color:#f1e6c8;font-size:15px;line-height:1.4}',
       '.jr-c span,.jr-l span{display:block;color:#dbe7ff}.jr li.unmet,.jr li.unfound{color:#7d8aa8}',
     ].join('\n');
     document.head.appendChild(st);
@@ -168,7 +229,17 @@
     const b = game.ui.el('journal-btn');
     if (b && el && el.hidden) b.classList.add('new');
   }
-  function wire(el) { const x = el.querySelector && el.querySelector('.jr-x'); if (x) x.onclick = close; }
+  function wire(el) {
+    const x = el.querySelector && el.querySelector('.jr-x'); if (x) x.onclick = close;
+    const pg = el.querySelector && el.querySelector('.jr-pages');
+    if (pg) pg.addEventListener('scroll', () => {
+      const n = Math.round(pg.scrollLeft / Math.max(1, pg.clientWidth + 10)) + 1;
+      const c = el.querySelector('.jr-count'); if (c) c.textContent = `${n} / ${pg.children.length}`;
+      if (pg._n !== n) { pg._n = n; game.emit('journal-page', { n, of: pg.children.length }); }
+    }, { passive: true });
+    const rp = el.querySelector && el.querySelector('.jr-replay');
+    if (rp) rp.onclick = () => { close(); game.after(0.3, () => { const F = window.__island && window.__island.finale; if (F) F.replay(); }); };
+  }
   function open(from) {
     const m = model();
     let el = panel();
@@ -177,6 +248,7 @@
     el.hidden = false;
     wire(el);
     const b = game.ui.el('journal-btn'); if (b) b.classList.remove('new');
+    try { if (H && H.lib && H.lib.siteSound) H.lib.siteSound('page-turn', { volume: 0.5 }); } catch { /* quiet */ }
     if (!paused && !game.paused) { paused = true; try { game.pause(); } catch { paused = false; } }
     funnel('sandbox_journal_open', { from: from || 'button', quests: m.done, met: m.cast.filter((c) => c.met).length, lore: m.lore.filter((l) => l.found).length });
     game.emit('journal', { open: true, from: from || 'button' });
@@ -210,5 +282,5 @@
     window.addEventListener('message', window.__islandJournalMsg);
   }
 
-  window.__island = Object.assign(window.__island || {}, { journal: { open, close, isOpen, model, find, meet, LORE, CAST, QUESTS } });
+  window.__island = Object.assign(window.__island || {}, { journal: { open, close, isOpen, model, find, meet, LORE, CAST, QUESTS, favours: favourList } });
 })();

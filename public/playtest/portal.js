@@ -22,23 +22,101 @@
 import { installPlaytest } from './hawkes-playtest.js';
 import { SITE_LAYOUT, runSiteLayout } from './site-layout.js';
 import { AVATAR_ANIMATIONS, runAvatarAnimations } from './avatar-animations.js';
+import { COMMUNITY_LIBRARY, runCommunityLibrary } from './community-library.js';
+import { STORE_PAGES, runStorePages } from './store-pages.js';
+import { PROFILE_PAGE, runProfilePage } from './profile-page.js';
+import { SICKOFIT_PAGE, runSickofitPage } from './sickofit-page.js';
+import { LOADING_WRAPPER, runLoadingWrapper } from './loading-wrapper.js';
 import { WORLD_REPORT, runWorldReport } from './world-report.js';
 import { SERVER_LIMITS, runServerLimits } from './server-limits.js';
+import { CHARACTER_MOTION, runCharacterMotion } from './character-motion.js';
+import { WORLD_QUALITY, runWorldQuality } from './world-quality.js';
+import { PHONE_HUD_LAYOUT, runPhoneHudLayout } from './phone-hud-layout.js';
+import { GAME_MENU, runGameMenu } from './game-menu.js';
+import { runHudOverlap } from './hud-overlap.js';
+import { ISLAND_SOUNDSCAPE, runIslandSoundscape } from './island-soundscape.js';
+import { ISLAND_MUSIC, runIslandMusic } from './island-music.js';
+import { ISLAND_MIX, runIslandMix } from './island-mix.js';
+import { CAST_VOICE, runCastVoice } from './cast-voice.js';
+import { CAST_FACES, runCastFaces } from './cast-faces.js';
+import { PAINTED_ISLAND_ART, runPaintedIslandArt } from './painted-island-art.js';
+import { OVERSEER_SOUND, runOverseerSound } from './overseer-sound.js';
+import { ISLAND_LOOK, runIslandLook } from './island-look.js';
+import { ISLAND_WIND, runIslandWind } from './island-wind.js';
+import { ISLAND_HOURS, runIslandHours } from './island-hours.js';
+import { ISLAND_IMPACT, runIslandImpact } from './island-impact.js';
+import { ISLAND_WATER, runIslandWater } from './island-water.js';
+import { ISLAND_DESTRUCTION, runIslandDestruction } from './island-destruction.js';
+import { FISHING_SHOWCASE, runFishingShowcase } from './fishing-showcase.js';
+import { ISLAND_ROUTINES, runIslandRoutines } from './island-routines.js';
+import { ISLAND_ALIVE, runIslandAlive } from './island-alive.js';
+import { SIDE_STORIES, runSideStories } from './side-stories.js';
+import { LANDING_CAMERA_FEEL, runLandingCameraFeel } from './landing-camera-feel.js';
+import { FIRST_LOAD, markPlayClick, runFirstLoad } from './first-load.js';
+import { OVERSEER_PRESENCE, runOverseerPresence } from './overseer-presence.js';
+import { WORLD_MEMORY, runWorldMemory } from './world-memory.js';
 
 const KEY = 'hg_playtest_run';
-const STAGES = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'faces', 'alive', 'touch', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'progress', 'models', 'wish', 'toeditor', 'editor'];
+const STAGES = ['landing', 'veil', 'intro', 'firstvisit', 'mirror', 'sheet', 'drive', 'fish', 'chapter', 'presence', 'observatory', 'wardrobe', 'race', 'board', 'journal', 'memories', 'faces', 'alive', 'ovpres', 'touch', 'phoneperf', 'feel', 'blast', 'leave', 'back', 'introc', 'arrivals', 'back2', 'asks', 'answer', 'progress', 'worldmem', 'models', 'wish', 'toeditor', 'editor', 'react', 'motion', 'mirrorlayout', 'hudoverlap', 'soundscape', 'hours', 'music', 'mix', 'ovsound', 'look', 'wind', 'water', 'destruction', 'impact', 'fishshow', 'routines', 'islandalive', 'sidestories', 'firstload', 'gamemenu', 'landcam', 'castvoice', 'castfaces', 'paintedart', 'title'];
 // A scenario that is not simply the stages in order names its own (presence-who: the account, then the shared-world stage).
-const ORDERS = { 'gen-models-all': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-daily-wish': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wish'], 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'editor-bridge': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'toeditor', 'editor'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'] };
+const ORDERS = { 'sandbox-title': ['landing', 'veil', 'title'], 'cast-voice': ['landing', 'veil', 'intro', 'mirror', 'castvoice'], 'cast-faces': ['landing', 'veil', 'intro', 'mirror', 'castfaces'], 'painted-island-art': ['landing', 'veil', 'intro', 'mirror', 'paintedart'], 'chapter-one-finale': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'finale'], 'character-motion': ['landing', 'veil', 'intro', 'motion'], 'landing-camera-feel': ['landing', 'veil', 'intro', 'mirror', 'landcam'], 'island-soundscape': ['landing', 'veil', 'intro', 'mirror', 'soundscape'], 'island-hours': ['landing', 'veil', 'intro', 'mirror', 'hours'], 'island-music': ['landing', 'veil', 'intro', 'mirror', 'music'], 'island-mix': ['landing', 'veil', 'intro', 'mirror', 'mix'], 'overseer-sound': ['landing', 'veil', 'ovsound'], 'island-look': ['landing', 'veil', 'intro', 'mirror', 'look'], 'island-wind': ['landing', 'veil', 'intro', 'mirror', 'wind'], 'island-impact': ['landing', 'veil', 'intro', 'mirror', 'impact'], 'island-water': ['landing', 'veil', 'intro', 'mirror', 'water'], 'island-destruction': ['landing', 'veil', 'intro', 'mirror', 'destruction'], 'fishing-showcase': ['landing', 'veil', 'intro', 'mirror', 'fishshow'], 'island-routines': ['landing', 'veil', 'intro', 'mirror', 'routines'], 'island-alive': ['landing', 'veil', 'intro', 'mirror', 'islandalive'], 'side-stories': ['landing', 'veil', 'intro', 'mirror', 'sidestories'], 'overseer-personality': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'react'], 'overseer-first-visit': ['landing', 'veil', 'firstvisit'], 'overseer-ask': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'answer'], 'gen-models-all': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-daily-wish': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wish'], 'gen-hats': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'hats'], 'gen-models-pilot': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'models'], 'sandbox-progress': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'progress'], 'world-memory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'worldmem'], 'observatory-wardrobe': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'wardrobe'], 'sandbox-observatory': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'observatory'], 'sandbox-travel-board': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'board'], 'presence-who': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'presence'], 'island-race': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'race'], 'vehicle-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'feel'], 'vehicle-sound': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'vsound'], 'rocket-blast-feel': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'blast'], 'island-journal': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'journal'], 'lore-memories': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'memories'], 'phone-performance': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'phoneperf'], 'touch-controls': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'touch'], 'faces-and-emotes': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'faces'], 'ask-the-overseer': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'asks'], 'editor-bridge': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'toeditor', 'editor'], 'overseer-alive': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'alive'], 'overseer-presence': ['landing', 'veil', 'intro', 'mirror', 'ovpres'], 'sandbox-return': ['landing', 'veil', 'intro', 'mirror', 'sheet', 'drive', 'leave', 'back'], 'mirror-panel-layout': ['landing', 'veil', 'intro', 'mirrorlayout'], 'hud-overlap': ['landing', 'veil', 'intro', 'hudoverlap'], 'island-arrivals': ['landing', 'veil', 'introc', 'mirror', 'sheet', 'arrivals', 'leave', 'back2'], 'game-menu': ['landing', 'veil', 'intro', 'mirror', 'gamemenu'] };
 const SCENARIOS = [
+  FIRST_LOAD, // Play click to the first frame and the first input, bytes before it, a clean WebGL console (first-load.js)
+  LOADING_WRAPPER, // the loading wrapper on /play/sickofit (loading-wrapper.js)
+  SICKOFIT_PAGE, // Sick of It's page before play (sickofit-page.js)
   SITE_LAYOUT, // the landing page at three sizes (site-layout.js)
+  PHONE_HUD_LAYOUT, // phone HUD fold + mirror sheet at 390x844 and 844x390 (phone-hud-layout.js)
+  GAME_MENU, // one Esc / one tap game menu with settings (game-menu.js)
   AVATAR_ANIMATIONS, // clips as data on /avatars (avatar-animations.js)
+  STORE_PAGES, // the games page and store pages (store-pages.js)
+  COMMUNITY_LIBRARY, // the library: cards, loading, empty, 390px, no timer fetch (community-library.js)
+  PROFILE_PAGE, // the profile page: avatar, worlds, plan, empty states (profile-page.js)
   WORLD_REPORT, // report a world from its pause menu; a closed world loads nothing (world-report.js)
   SERVER_LIMITS, // sign-ins off the event loop, one play per reloads, the connection cap (server-limits.js)
+  CHARACTER_MOTION, // jumps onto slopes and a walk to a run, traced frame by frame (character-motion.js)
+  ISLAND_MUSIC, // area music, stingers, ducking (island-music.js)
+  CAST_FACES, // mouths follow the voice, blinks, head look-at within 6 m, gestures with planted feet (cast-faces.js)
+  PAINTED_ISLAND_ART, // painted portraits beside captions + key art on loading / store (painted-island-art.js)
+  CAST_VOICE, // the six saved voices, 48 re-acted clips at -16 LUFS, coloured captions (cast-voice.js)
+  ISLAND_MIX, // the mix: buses, voice ducking, 3D placement, reverb zones, sliders, -16 LUFS (island-mix.js)
+  OVERSEER_SOUND, // Overseer sound identity: treated voice, three motifs, beam hum rise (overseer-sound.js)
+  FISHING_SHOWCASE, // the first catch: arc, plop, waves, strike, leap, close-up (fishing-showcase.js)
+  ISLAND_DESTRUCTION, // the small props: the 4x4 smashes fences, crates and signs; blasts topple; splashes; rebuilt in 2 min (island-destruction.js)
+  ISLAND_WATER, // the sea: waves, foam, depth colour, floating props within 10 cm, the phone tier (island-water.js)
+  ISLAND_HOURS, // the island's hours and weather: four ambience beds, a rain shower with thunder, rain by surface (island-hours.js)
+  ISLAND_IMPACT, // the impact sound library: variants per material, blasts late by distance, the fishing set (island-impact.js)
+  ISLAND_WIND, // the wind and wildlife: gusts, gulls that scatter, fireflies at night, the phone tier (island-wind.js)
+  ISLAND_LOOK, // the light stack: cascaded shadows, ACES, bloom, four grades, phone fps (island-look.js)
+  ISLAND_SOUNDSCAPE, // ambience beds, footsteps by surface, interaction SFX, mute (island-soundscape.js)
+  LANDING_CAMERA_FEEL, // landing dust/squash/sound/dip + camera-in-geometry walk (landing-camera-feel.js)
+  ISLAND_ALIVE, // barks within 6 m, no 10 s of quiet on a beach-path-pier walk (island-alive.js)
+  SIDE_STORIES, // Bobbin/Ember/Rolo two-step favours after the pier (side-stories.js)
+  ISLAND_ROUTINES, // clock-driven islander spots, face the player, no clip (island-routines.js)
+  WORLD_QUALITY, // quality rules 1 to 4 on a world: ground contact, backwards words, z-fighting, inside out (world-quality.js)
+  {
+    id: 'overseer-first-visit', title: 'The Overseer\'s first-visit introduction: the player moves within 5 s, captioned voiced lines, a tap or key skips it, a guest ends at the mirror; a return skips it', seconds: 90, tags: ['full'], starts: ['sandbox'],
+    description: 'options: touch (true: ?touch=1 and at: "sandbox"; the stick and a tap), skipAfter (seconds before the skip, 8.5). Landing, Play click, the click-to-enter veil, then the first move (first-move: real W or stick input, within 5000 ms of intro-start; control-given), each line captioned with the Overseer\'s name in the letterbox bar or on a phone plate (intro-caption, clear of the controls) and voiced (intro-voice), one key or tap skipping the rest (skip-control-back: control and the camera behind the player), a guest then at the mirror with no first-thing card (mirror-open-after-intro, no-ask-card); signed in, the card that starts building (build-prompt-shown, build-prompt-used). The old scenario watched to the end with no key pressed: the Overseer\'s lines (overseer-said, greeting-lines needs three or more), then the card that starts building (build-prompt-shown) and a real click on it opens the chat to the Overseer (build-prompt-used); the intro\'s flag is kept and the intro is no longer wanted (return-skips-intro). Sign-in and credits are not touched. Never signs up.',
+  },
   { id: 'smoke', title: 'Landing, Play click, the veil, the intro skipped', seconds: 50, tags: ['smoke'], description: 'options: none' },
+  {
+    id: 'sandbox-title', title: 'Island title screen: fly-over, logo, first input starts the theme, Play swoops to control', seconds: 90, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'options: touch (true: 390x844, ?touch=1). Landing or at:sandbox, then the title fly-over (logo within 3 s), first key/tap starts the theme and shows Play/Continue within 1 s, Play swoops to the intro or control within 3 s. Phone: logo top third, Tap to start bottom third, fly-over ≥30 fps. Metrics titleLogoMs, titleThemeMs, titlePlayMs, titleFlyFps.',
+  },
+  {
+    id: 'overseer-ask', title: 'Ask the Overseer: an answer shows in the chat within 90 s; a failed or silent ask is a plain message with Retry and no spinner; the next ask works at once', seconds: 480, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the account sheet (a browser already signed in to Google: the sheet is Google only), then a question typed in the chat (answer-shown, work-ended), one ask answered 503 by a named shortcut (failure-plain-message, retry-shown, no-spinner), one ask the server never hears of (a named shortcut: the page is told 200 and nothing ever comes back) that must end in a plain message with Retry within 75 s, nothing spinning (silent-ask-ends; J 2026-11-10: "it just thinks forever"), and a real click on Retry (next-ask-immediate, retry-answered). Every answer must come within 90 s (answer-time), or the run fails. First, a build request ("add a red cube") must add a new thing to the world (world-changed), not only a chat message. Options: watch (seconds of intro to watch), name, what',
+  },
   {
     id: 'sandbox-first-minutes', title: 'Play /play/sandbox as a new player: veil, intro, mirror, sign-up, drive to the dock, fish', seconds: 210, tags: ['full'],
     starts: ['sandbox'],
     description: 'options: to (veil, intro, mirror, sheet, drive, fish), signup (false: never sign up; always off on live), fish ("strict": a fishing failure fails the run), watch (seconds of intro to watch), at ("sandbox")',
+  },
+  {
+    id: 'sandbox-pier-marker', title: 'Pip shows the pier: cinematic fly to the rod, glowing marker from the beach, pickup clears it', seconds: 180, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'veil, intro, mirror, then a named setup shortcut lifts the account gate (Google-only sign-up cannot finish a throwaway account); Pip\'s pier beat plays: one short line, the camera flies from Pip along Gravel Road and holds on the rod (pier-cinematic, scene Pier: cinematic hold), the glowing marker stays on (rod-marker on); from the beach the marker is visible (scene Pier: marker from beach, and with touch:1 the phone frame); walking out the pier and picking up the rod clears the marker with a sound and burst (rod-marker off, pier-show cleared). Options: touch (true: ?touch=1), watch',
   },
   {
     id: 'island-race', title: 'The Ridge Run: through the start gate, the countdown, every gate in order, the finish and best time, then the ghost of the best run', seconds: 330, tags: ['full'],
@@ -46,14 +124,24 @@ const SCENARIOS = [
     description: 'options: laps (default 1; the world has 3), touch (true: the phone controls, ?touch=1, and the frame rate is measured), ghost (false: one run only), signup (false: stop at the account sheet; always on live), watch (seconds of intro to watch), name, what',
   },
   {
-    id: 'vehicle-feel', title: 'Game feel in the 4x4: the view widens, the body leans, dust, the engine climbs, the handbrake drift squeals, and a landing dips the view with dust and a thud', seconds: 240, tags: ['full'],
+    id: 'vehicle-feel', title: 'Game feel in the 4x4: the view widens, the body leans, dust, the engine climbs, the handbrake drift squeals, a landing dips the view; then the effects by surface (road dust, sand plume and tracks, grass bits, shallows spray), headlights at dusk, and the helicopter\'s downwash over grass and sea', seconds: 480, tags: ['full'],
     starts: ['sandbox'],
-    description: 'the first-minutes path to the account sheet, then the 4x4 driven with real keys (straight, bends, handbrake) and one named jump shortcut; logs fov-widened, engine-pitch, dust, body-roll, drift-squeal, landing and the frame rate (driveFps). Options: touch (true: the phone controls, ?touch=1, and under 30 fps is a problem), signup (false: stop at the account sheet; always on live), watch',
+    description: 'the first-minutes path to the account sheet, then the 4x4 driven with real keys or, with touch: true, the stick (straight, bends, handbrake) and one named jump shortcut, then across road, sand, shallows and meadow (surface-switch, wheel-effect, tracks-on-sand, tracks-faded, surfaces-driven; surfaceDriveFps) with the headlights at dusk (headlights-on, brake-lights, a named clock shortcut) and, on a computer, the helicopter low over grass and sea (rotor-blur, downwash-ring-grass, spray-disc-sea); logs fov-widened, engine-pitch, dust, body-roll, drift-squeal, landing and the frame rate (driveFps). Options: touch (true: the phone controls, ?touch=1, and under 30 fps is a problem), signup (false: stop at the account sheet; always on live), watch',
+  },
+  {
+    id: 'vehicle-sound', title: 'Vehicles sound alive: the 4x4\'s four engine loops crossfade with the revs and dip at each gear shift, the tyres change loop from road to sand to the shallows, a helicopter passing the camera drops in pitch, and Rolo\'s rocket ignites, roars through the climb and rumbles after', seconds: 420, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the account sheet, then the 4x4 floored from rest (layers-crossfade, gear-shift, shift-dips, engine-follows-throttle), driven road > sand > shallows (tyre-surface, tyre-loop-change), a second helicopter flown past the player (a named setup shortcut; doppler-drop), and the rocket entered by a hook and held up then let go (rocket-ignition, rocket-roar, rocket-rumble), with audio-bytes (new veh-*.mp3 under 2 MB). Options: touch (true: 390x844, the stick is the throttle, 2 layers at most), signup (false: stop at the account sheet; always on live)',
   },
   {
     id: 'rocket-blast-feel', title: 'Game feel of the rocket launcher: recoil and muzzle flash, a smoke trail, hit-stop, shake, a shockwave, debris and embers, and ten barrels that explode in a rolling chain (30 fps on the phone tier)', seconds: 300, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first-minutes path to the account sheet, then the rocket launcher fired with a real click at the fuel barrels on the beach (five more spawned beside them by one named shortcut, so ten), walking closer and firing again until they go; logs launcher-recoil, rocket-trail, blast-effects (hit-stop, shake, shockwave, debris, embers), chain-rolling (the gaps between the ten explosions: not all at once) and chain-fps (metric chainFps, chainWorstFrameMs). Options: touch (true: the phone controls, ?touch=1, and under 30 fps is a problem), signup (false: stop at the account sheet; always on live), watch',
+  },
+  {
+    id: 'phone-performance', title: 'Phone performance: driving and ten exploding barrels on the island hold 30 fps with touch controls, no long freeze, and the stick and buttons answer throughout', seconds: 300, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'opens /play/sandbox?touch=1, plays the first minutes to the account sheet, then with touch pointers only: the stick walks to the 4x4, B gets in, the stick steers and A brakes while frames are counted (driveFps, driveWorstFrameMs, driveFreezes; the 4x4 must move and turn: touch-steer-responds, touch-brake-responds); then the rocket launcher is put in hand and five more barrels spawned (one named setup-shortcut), the drag turns the camera to the barrels, the stick walks near, FIRE is tapped until the chain goes (touch-fire-responds) while frames are counted (blastFps, blastWorstFrameMs, blastFreezes). Under 30 fps average, or any frame over 500 ms, is an error. Run at 390x844 (and 844x390). Options: signup (false: stop at the account sheet; always on live)',
   },
   {
     id: 'touch-controls', title: 'Every tour action with touch alone (stick, look drag, jump, B, steer, brake, fish, tools, spawn wheel, helicopter and rocket flight, Stuck?, hide the HUD): no overlaps, buttons 48 px or more, inside the safe area', seconds: 420, tags: ['full'],
@@ -71,14 +159,30 @@ const SCENARIOS = [
     description: 'the first-minutes path through the throwaway sign-up (never on live), then, in the chat with no reload: the Overseer\'s line carries the balance /v1/users/me reports; three example asks are offered, each with its price (the quote) and a Send; nothing is spent before a click; a real click sends one. The empty balance is a named setup shortcut (the game told the balance is 0): the Overseer says so with a Get credits link and no request is made. options as sandbox-first-minutes',
   },
   {
+    id: 'hud-overlap', title: 'No HUD control overlaps another, leaves the screen or is too small to tap, with the mirror panel and the Overseer chat opened and closed', seconds: 120, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the intro is skipped, then at each step (mirror open, mirror closed, chat open, chat closed) every visible HUD control (buttons, links, inputs) is measured after the open/close transition ends (transitionend, no polling) and a screenshot is taken. Events hud-no-overlap, hud-in-viewport and hud-tap-targets pass or fail per step; a failure names the two controls (or the one). Runs itself at 1280x720, 390x844 and 844x390 (an iframe of each size, a screenshot per step)',
+  },
+  {
+    id: 'mirror-panel-layout', title: 'The HUD makes room for the mirror panel: the quest banner and the action row stay whole beside it, and glide back when it closes', seconds: 120, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the landing page, the veil and the intro (skipped), then the mirror opens by itself: with it open the quest banner, its buttons and the top-right actions (Save this world, Build your own, Copy invite link...) are measured whole, on screen, clear of the panel and not covered; a screenshot; the mirror is closed with Esc and they must be back where they were, moving there by a transition (a mid-way sample), not a jump. Screenshots at the window size (1280x720 and 1440x900 are the sizes to run). No timers in the page: the layout reacts to the panel and to resize only',
+  },
+  {
     id: 'sandbox-progress', title: 'Progress: points in the HUD for driving, a level with the Overseer\'s moment, the unlocks in the wardrobe and on the tool belt, kept after a return', seconds: 300, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first-minutes path to the account sheet, then real input: walk to the 4x4, E, W held (points for the first drive and the meters in the HUD); the points of a few quests are earned by a named setup shortcut (the same table), a level-up gives goggles and a color (the wardrobe) and at level 4 the grenades (the tool belt), each with the Overseer\'s moment; the Overseer\'s memory re-read from the device (a named shortcut) shows them kept. options as sandbox-first-minutes',
   },
+  WORLD_MEMORY,
   {
     id: 'sandbox-daily-wish', title: 'The daily wish: one wish a day in the HUD and spoken once, points and a line when done, a streak across days that resets quietly after a missed one', seconds: 240, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first-minutes path to the account sheet, then the Overseer\'s wish for today (the same for everyone: chosen by the UTC date): it is in the HUD and was spoken once (wish-hud, wish-spoken); finishing it is a named setup shortcut (the events that wish names are fed to the game), then the points and the Overseer\'s short line (wish-done, overseer-said) and the streak at 1. Days passing is a named setup shortcut (the wish\'s clock moved one day, then three): the next day shows the streak at 2 once the wish is done; after the skipped days the streak is gone from the HUD with nothing said about it (streak-reset-quiet) and the next wish begins it again at 1. options as sandbox-first-minutes',
+  },
+  {
+    id: 'lore-memories', title: 'Lore as memory: picking up a lore object tints the world sepia and replays a moment with glowing figures while the Overseer says one voiced line (6 to 12 s, one tap skips, never replays); the journal shows 12 painted pages that swipe', seconds: 300, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the account sheet, then three lore objects picked up (walk, E; touch: a named shortcut): memory-start, memory-line, memory-end with their length, the sepia veil, one tap skipping the first, no replay on a second pickup, then the journal with 12 painted pages and a sideways swipe. options as sandbox-first-minutes, plus touch (true: 390x844 touch pointers, ?touch=1)',
   },
   {
     id: 'island-journal', title: 'The journal: opened from its button (desktop, or the phone at 390x844), the eight quests, the neighbours met, four lore items found on the island and read in it, and kept after a return', seconds: 300, tags: ['full'],
@@ -89,6 +193,11 @@ const SCENARIOS = [
     id: 'sandbox-chapter-one', title: 'Chapter One "What Are You?": the eight quests to the launch pad, the lit bay and the two closing lines', seconds: 420, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first-minutes path, then quests 6 (walk up to Dolores) and 8 (Rolo\'s rocket) with real input; quests 4, 5 and 7 are named setup shortcuts (the quest line advanced); options as sandbox-first-minutes, plus rocket ("shortcut": skip the climb)',
+  },
+  {
+    id: 'chapter-one-finale', title: 'The end of Chapter One: the hangar opens, the islanders gather and speak, the Overseer pays off its first words, the player lights the sky, the title and the tease', seconds: 300, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the account sheet, then the quest line to the rocket quest\'s end and docking (named setup shortcuts), then the finale (src/overseer-games/finale.js): doors open (finale-doors-open), the voiced lines with captions (finale-line, clip), control back and the player\'s own act (finale-input, a tap on the big button with touch: true), the title (finale-title), the tease (finale-tease) and control back within 2 s (finale-control-returned); with touch: true (390x844) the non-playable shots are skipped with one tap (finale-skip). Option skip (true: tap-skip the shots on any device)',
   },
   {
     id: 'sandbox-observatory', title: 'Docking, the lift to the Observatory: the first arrival (windows, music, the pearl, a gift by name), the quick return, and the way back to the bay', seconds: 330, tags: ['full'],
@@ -130,10 +239,16 @@ const SCENARIOS = [
     description: 'the first visit as a new player (veil, intro, mirror, account sheet with a throwaway sign-up, then driving to the dock: the tour is on its second step), in that order; then the page is opened again as a returning player would (the same browser storage). It checks that the intro and the mirror do not play, that the player is beamed in and the Overseer says "Welcome back, <name>", and that Pip\'s tour is on the step it was left on (not the first). Never on live (no sign-up there). options as sandbox-first-minutes',
   },
   {
+    id: 'overseer-personality', title: 'The Overseer\'s personality while you build: a thinking line that changes while it works, then varied in-character lines for what it built, what failed and a quiet moment, never the same twice in a row', seconds: 240, tags: ['full'],
+    starts: ['sandbox'],
+    description: 'the first-minutes path to the account sheet, then the Overseer\'s reactions (modules/overseer/reactions.js): the line pools are counted (reaction-variants: build, fail and idle each ten or more); a request is started the way asking does (a named setup shortcut, since asking spends credits and sign-in is Google only) and the work pill\'s headline is watched for several seconds (thinking-shown: it changes, never the same twice in a row); the request ends well three times and fails three times (reaction-build, reaction-fail, each spoken in the chat); the idle wait is shortened by a named shortcut and two idle lines are heard. no-repeat checks that no line of a kind equals the one before it. options as sandbox-first-minutes',
+  },
+  {
     id: 'overseer-alive', title: 'The Overseer is alive: halo and rings answer its voice, the emitter flares before a beam, the bay turns to a question, the hum rises as the player climbs, and the frame cost is unchanged', seconds: 240, tags: ['full'],
     starts: ['sandbox'],
     description: 'the first-minutes path to the account sheet, then the sky is watched (a screenshot each): quiet, a spoken line (halo brighter, rings quicker, for the length of the line), a message to the Overseer typed in the chat (the bay turns), a beam (the emitter flares, the shaft opens a moment later), and the hum on the ground (silent) and at four heights (rising). Named setup shortcuts: the Overseer is asked for a line, the beam is sent, the player is held at each height. Logs overseer-presence samples and perf-compare (draw calls and frame ms quiet vs. active). options as sandbox-first-minutes',
   },
+  OVERSEER_PRESENCE,
   {
     id: 'faces-and-emotes', title: 'Faces and emotes: the character blinks, looks at the Overseer when it speaks, changes expression on a hard landing and an explosion; the six emotes from the radial wheel (desktop or touch), seen by another player', seconds: 240, tags: ['full'],
     starts: ['sandbox'],
@@ -270,8 +385,26 @@ const HOOKS = {
     t.event('setup-shortcut', `a ${species} counted as caught (water.fish.give: the engine's catch event)`);
     return f;
   },
+  /** Puts the player on the beach facing the pier end (for the rod marker screenshot). Uses the world's own settle path. */
+  atBeach(t) {
+    HOOKS.allowed('atBeach');
+    const p = W() && W().player, g = G();
+    if (!p || !g) throw new Error('hook atBeach: the island is not ready');
+    const rod = W().byId.get('rod');
+    const x = 58, z = -2;
+    const y = (g.terrain && g.terrain.heightAt ? g.terrain.heightAt(x, z) : 1) + 1;
+    const local = g.planet && g.planet.round && g.planet.toLocal ? g.planet.toLocal([x, y, z]) : [x, y, z];
+    const at = Array.isArray(local) ? local : [local.x, local.y, local.z];
+    p.position = at; p.velocity = [0, 0, 0];
+    if (rod) {
+      const yaw = Math.atan2(rod.x - p.x, rod.z - p.z);
+      try { if (p.node && p.node.rotation) p.node.rotation.y = yaw; } catch { /* fine */ }
+      try { if (g.camera && g.camera.yaw !== undefined) g.camera.yaw = yaw; } catch { /* fine */ }
+    }
+    t.event('setup-shortcut', 'the player put on the beach facing the pier end (marker screenshot)');
+  },
   allowed(name) { if (isLive()) throw new Error(`hook ${name}: playtest hooks are never available on the live site`); },
-  names: ['explode', 'enterVehicle', 'dock', 'catchFish'],
+  names: ['explode', 'enterVehicle', 'dock', 'catchFish', 'atBeach'],
 };
 if (!isLive()) { window.hawkesPlaytestHooks = HOOKS; if (window.hawkesPlaytest) window.hawkesPlaytest.hooks = HOOKS; }
 
@@ -295,6 +428,7 @@ async function stageLanding(t, ctx) {
   if (ctx.options.at === 'sandbox') { t.event('start-at', 'sandbox: skipped the Play click (named shortcut)'); writeRun({ ...ctx.saved(), landed: true }); location.href = ctx.options.touch ? '/play/sandbox?touch=1' : '/play/sandbox'; await t.wait(30000); return; }
   await t.wait(1500);
   t.event('play-click', 'Play now (the hero button)');
+  if (ctx.id === 'first-load') markPlayClick();
   writeRun({ ...ctx.saved(), landed: true });
   $('[data-play-now]').click(); // enter.js fades the page, then opens /play/sandbox
   await t.wait(25000);
@@ -305,16 +439,159 @@ async function stageVeil(t, ctx) {
   t.scene('Sandbox loading');
   await t.until(() => W() && W().player && W().player.alive, 90000, 'the island to load (world and player)');
   t.event('world-ready');
+  t.scene('Sandbox: world ready');
   t.progress(0.14);
-  // Where sound is already allowed there is no veil: the intro just starts.
-  const veil = await t.until(() => $('.hp-enter button') || (G() && G().overseer && G().overseer.introPlaying), 12000, 'the click-to-enter veil or the intro').then(() => $('.hp-enter button'), () => null);
-  if (!veil) { t.event('veil-skipped', 'sound already allowed; the intro went on'); return; }
+  const firstFrameAt = performance.now();
+  // Title screen (live fly-over) or the legacy Enter veil, else the intro already running.
+  const titleOrVeil = await t.until(() =>
+    document.querySelector('.hp-title [data-prompt], .hp-title [data-play], .hp-title [data-continue], .hp-enter button')
+    || (G() && G().overseer && (G().overseer.titlePlaying || G().overseer.introPlaying)),
+  16000, 'the title screen, Enter veil, or the intro').then(() =>
+    document.querySelector('.hp-title [data-prompt], .hp-title [data-play], .hp-title [data-continue], .hp-enter button'),
+  () => null);
+  if (!titleOrVeil) { t.event('veil-skipped', 'sound already allowed; the intro went on'); return; }
+
+  // ---- Island title screen (replaces the opaque Enter veil on /play/sandbox)
+  if (document.querySelector('.hp-title')) {
+    await t.until(() => {
+      const logo = document.querySelector('.hp-title .hp-title-logo');
+      if (!logo) return false;
+      const cs = getComputedStyle(logo);
+      return Number(cs.opacity) > 0.6;
+    }, 5000, 'the title logo to be visible');
+    const logoMs = Math.round(performance.now() - firstFrameAt);
+    t.metric('titleLogoMs', logoMs);
+    if (logoMs > 3000) t.problem('bug', `title logo took ${logoMs} ms (need within 3 s of first frame)`);
+    t.scene('Title: fly-over');
+    t.event('title-logo', `logo visible in ${logoMs} ms`);
+    t.event('veil-shown', 'title screen');
+
+    const touch = Boolean(ctx.options && ctx.options.touch);
+    const logoEl = document.querySelector('.hp-title .hp-title-logo');
+    const promptEl = document.querySelector('.hp-title [data-prompt]');
+    if (logoEl) {
+      const r = logoEl.getBoundingClientRect();
+      if (r.width < 8 || r.height < 8 || r.top < -4 || r.bottom > innerHeight + 4) {
+        t.problem('bug', 'title logo not fully on screen');
+      }
+    }
+    if (promptEl && !promptEl.hidden) {
+      const r = promptEl.getBoundingClientRect();
+      if (r.width < 8 || r.height < 40 || r.top < -4 || r.bottom > innerHeight + 4) {
+        t.problem('bug', 'Tap to start / Press any key not fully on screen');
+      }
+      if (touch && r.top < innerHeight * 0.45) t.problem('warning', 'Tap to start should sit in the lower third on a phone');
+    }
+    if (touch) t.event('title-phone-layout', 'logo top / tap bottom checked');
+
+    // Sample fps during the fly-over (phone criterion: ≥30).
+    const fpsSamples = [];
+    let lastF = performance.now();
+    const fpsFor = 900;
+    const fpsT0 = performance.now();
+    while (performance.now() - fpsT0 < fpsFor) {
+      await new Promise((r) => requestAnimationFrame(r));
+      const now = performance.now();
+      fpsSamples.push(1000 / Math.max(1, now - lastF));
+      lastF = now;
+    }
+    const flyFps = fpsSamples.length ? Math.round(fpsSamples.reduce((a, b) => a + b, 0) / fpsSamples.length) : 0;
+    t.metric('titleFlyFps', flyFps);
+    if (touch && flyFps < 30) t.problem('bug', `title fly-over ${flyFps} fps (need ≥30 on phone)`);
+    t.event('title-fly-fps', `${flyFps} fps`);
+
+    let musicHeard = false;
+    const onMusic = (d) => { if (d && d.name && /^music-|^meadow/.test(d.name)) musicHeard = true; };
+    try { if (G()) G().on('music-start', onMusic); } catch { /* fine */ }
+    const inputAt = performance.now();
+    if (promptEl && !promptEl.hidden) {
+      if (touch) await tapButton(t, promptEl);
+      else { promptEl.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' })); promptEl.click(); }
+    } else {
+      await tap(t, ' ');
+    }
+    await t.until(() => document.querySelector('.hp-title [data-play], .hp-title [data-continue]'), 5000, 'Continue / Play after first input');
+    // Theme must start within 1 s of the gesture (gateway → sandbox kickPlay → music-start).
+    await t.until(() => musicHeard || (HP() && HP().audio && HP().audio.context && HP().audio.context.state === 'running'), 2000, 'the clearing theme after first input').catch(() => null);
+    const themeMs = Math.round(performance.now() - inputAt);
+    t.metric('titleThemeMs', themeMs);
+    if (!musicHeard && themeMs > 1000) t.problem('bug', `theme after input took ${themeMs} ms or never started (need within 1 s)`);
+    else if (themeMs > 1000) t.problem('warning', `menu after input took ${themeMs} ms`);
+    t.event('title-input', `menu in ${themeMs} ms; theme ${musicHeard ? 'heard' : 'audio unlocked'}`);
+    t.event('veil-passed', 'title first input');
+    t.scene('Title: menu');
+    t.progress(0.16);
+    try { if (G() && G().off) G().off('music-start', onMusic); } catch { /* fine */ }
+
+    const playBtn = document.querySelector('.hp-title [data-continue], .hp-title [data-play]');
+    const playAt = performance.now();
+    if (touch) await tapButton(t, playBtn);
+    else { playBtn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' })); playBtn.click(); }
+    await t.until(() => !document.querySelector('.hp-title') || (G() && G().overseer && G().overseer.introPlaying)
+      || (W() && W().player && W().player.controls), 8000, 'Play to swoop / intro / control');
+    const playMs = Math.round(performance.now() - playAt);
+    t.metric('titlePlayMs', playMs);
+    if (playMs > 3000) t.problem('bug', `Play to control/intro took ${playMs} ms (need within 3 s)`);
+    t.event('title-play', `control/intro in ${playMs} ms`);
+    await checkNotFlat(t, 'swoop and intro start');
+    return;
+  }
+
+  // ---- Legacy Enter veil (non-sandbox worlds)
   t.scene('Entry veil');
   t.event('veil-shown', 'Enter');
   await t.wait(1200);
-  veil.click();
+  titleOrVeil.click();
   t.event('veil-passed', 'clicked Enter');
   await t.until(() => !$('.hp-enter'), 8000, 'the veil to fade after Enter (the sound did not unlock?)');
+}
+
+/** Reads a grid of pixels from the canvas as it is drawn (inside the end of a frame, where the buffer is still there) and
+ *  says whether the frame is one flat colour: the character selection intro must never be a blue screen. */
+function sampleFrame() {
+  const w = W(), sc = w && w.scene, eng = sc && sc.getEngine && sc.getEngine();
+  if (!eng || !eng.onEndFrameObservable) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    let done = false;
+    const obs = eng.onEndFrameObservable.add(() => {
+      if (done) return;
+      done = true;
+      eng.onEndFrameObservable.remove(obs);
+      try {
+        const gl = eng._gl, rw = eng.getRenderWidth(), rh = eng.getRenderHeight(), px = new Uint8Array(4), seen = [];
+        for (let iy = 1; iy <= 8; iy++) for (let ix = 1; ix <= 8; ix++) {
+          gl.readPixels(Math.floor(rw * ix / 9), Math.floor(rh * iy / 9), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+          seen.push([px[0], px[1], px[2]]);
+        }
+        const mean = [0, 1, 2].map((c) => seen.reduce((n, q) => n + q[c], 0) / seen.length);
+        const spread = Math.max(...seen.map((q) => Math.max(Math.abs(q[0] - mean[0]), Math.abs(q[1] - mean[1]), Math.abs(q[2] - mean[2]))));
+        resolve({ flat: spread < 6, spread: Math.round(spread), mean: mean.map(Math.round) });
+      } catch { resolve(null); }
+    });
+    setTimeout(() => { if (!done) { done = true; try { eng.onEndFrameObservable.remove(obs); } catch { /* fine */ } resolve(null); } }, 2000);
+  });
+}
+/** Samples the frame for `ms`; any flat frame is a bug (the title's camera once took the world's picture with it). */
+async function checkNotFlat(t, label, ms = 2500, every = 250) {
+  const t0 = performance.now();
+  let n = 0, flat = 0, worst = null;
+  while (performance.now() - t0 < ms) {
+    const r = await sampleFrame();
+    if (r) { n++; if (r.flat) { flat++; worst = r; } }
+    await t.wait(every);
+  }
+  if (!n) { t.event('frame-not-sampled', `${label}: no pixels to read`); return; }
+  if (flat) t.problem('bug', `${label}: ${flat} of ${n} frames were one flat colour (rgb ${worst.mean.join(',')}): a blue screen instead of the island`);
+  else t.event('frame-not-flat', `${label}: ${n} frames, all with a picture`);
+  t.metric('flatFrames', flat);
+}
+
+/** After stageVeil has driven the title: mark complete and end (sandbox-title scenario). */
+async function stageTitle(t, ctx) {
+  t.scene('Title: done');
+  t.event('title-complete', 'fly-over, first input, Play swoop checked in veil stage');
+  t.progress(1);
+  if (ctx.id === 'sandbox-title') return 'stop';
 }
 
 /** What the page fetched so far: Babylon, the loaders and Havok's wasm come from our own /vendor, nothing from a CDN. */
@@ -338,6 +615,44 @@ function checkSelfHosted(t) {
   t.metric('assetsViaSite', viaSite.length);
 }
 
+/** Where the player sits on the canvas during the intro look (Babylon project), or null. */
+function introPlayerScreen() {
+  const w = W(), p = w && w.player, sc = w && w.scene, cam = sc && sc.activeCamera, B = window.BABYLON;
+  if (!p || !sc || !cam || !B) return null;
+  try {
+    const eng = sc.getEngine();
+    const rw = eng.getRenderWidth(), rh = eng.getRenderHeight();
+    const v = B.Vector3.Project(new B.Vector3(p.x, p.bottom + 0.95, p.z), B.Matrix.Identity(), sc.getTransformMatrix(), cam.viewport.toGlobal(rw, rh));
+    return { x: v.x, y: v.y, w: rw, h: rh };
+  } catch { return null; }
+}
+
+/** On a tall phone: character not pinned to an edge, mirror slab hidden for the look, Skip clear of the feet. */
+function checkIntroPortraitFrame(t) {
+  if (typeof window === 'undefined' || window.innerHeight <= window.innerWidth) return;
+  const scr = introPlayerScreen();
+  if (scr && scr.w > 0 && scr.h > 0) {
+    const nx = scr.x / scr.w, ny = scr.y / scr.h;
+    t.event('intro-portrait-frame', `player at ${(nx * 100).toFixed(0)}% x, ${(ny * 100).toFixed(0)}% y`);
+    if (nx < 0.18 || nx > 0.82) t.problem('error', `quality.clipping: intro portrait pins the player to the ${nx < 0.5 ? 'left' : 'right'} edge (${(nx * 100).toFixed(0)}%)`);
+    if (ny < 0.12 || ny > 0.78) t.problem('error', `intro portrait places the player too near the ${ny < 0.5 ? 'top' : 'bottom'} (${(ny * 100).toFixed(0)}%); subject should sit in the upper-middle`);
+    else t.event('intro-subject-centred', `upper-middle at ${(ny * 100).toFixed(0)}% y`);
+  } else t.event('intro-portrait-frame', 'no screen projection yet');
+  const mir = W() && [...W().entities].find((e) => e && e.alive && e.kind === 'mirror' && e.node);
+  if (mir) {
+    const on = mir.node.isEnabled ? mir.node.isEnabled() : true;
+    if (on) t.problem('error', 'intro portrait still shows the mirror slab during the sky look');
+    else t.event('intro-mirror-hidden', 'mirror off for the look-up');
+  }
+  const skip = document.querySelector('.ov-skip');
+  if (skip && scr) {
+    const r = skip.getBoundingClientRect();
+    if (r.width && r.top < scr.y + 24) t.problem('error', 'Skip sits on the player during the intro look');
+    else if (r.width) t.event('intro-skip-clear', 'Skip clear of the subject');
+  }
+  t.scene('Intro: portrait framing');
+}
+
 async function stageIntro(t, ctx) {
   const g = () => G() && G().overseer;
   const started = await t.until(() => g() && g().introPlaying, 25000, 'the Overseer\'s intro to start').then(() => true, () => false);
@@ -347,16 +662,179 @@ async function stageIntro(t, ctx) {
   }
   t.scene('Intro');
   t.event('intro-start');
+  // A beat into the look-up: portrait framing (character centred, mirror hidden, Skip clear) before any skip.
+  await t.wait(1200);
+  if (g() && g().introPlaying) checkIntroPortraitFrame(t);
+  await checkNotFlat(t, 'character selection intro', 2000, 400);
+  const heard = [];
+  const hear = () => { for (const p of document.querySelectorAll('.hc-log p.overseer')) { const l = p.textContent.replace(/\s+/g, ' ').trim(); if (l && !heard.includes(l)) { heard.push(l); t.event('overseer-said', l); } } };
   checkSelfHosted(t);
   t.progress(0.2);
   const watch = Number(ctx.options.watch ?? 8);
-  await t.until(() => !g().introPlaying, watch * 1000, 'the intro to run').then(() => t.event('intro-ended', 'watched to the end'), async () => {
+  await t.until(() => { hear(); return !g().introPlaying; }, watch * 1000, 'the intro to run').then(() => t.event('intro-ended', 'watched to the end'), async () => {
     t.event('intro-watched', `${watch} s`);
     await tap(t, 'Enter'); // any key skips (a moment after it starts)
     await t.until(() => !g().introPlaying, 6000, 'the intro to stop after a key');
     t.event('intro-skipped', 'a key press');
   });
   t.progress(0.3);
+}
+
+/** The Overseer's first-visit introduction, watched to the end with real input: at least three spoken lines, then the
+ *  prompt that starts building (a chat card; a real click opens the chat to the Overseer), and the intro's flag kept so a
+ *  return skips it (the second page load itself is `sandbox-return`'s). */
+/** One-shot samples (8, 15 and 25 s after the stage starts; no polling) of whether the canvas is presenting: the engine's
+ *  frame counter, the camera's position, the canvas's computed style and size, the GL context, the loading cover and the
+ *  Skip pill. They are metrics and a log line each, so a black screen in a run says where the picture stopped. */
+function sampleCanvas(t) {
+  const t0 = performance.now();
+  const take = (label) => {
+    try {
+      const H = HP(), w = H && H.world, scene = w && w.scene, eng = scene && scene.getEngine && scene.getEngine();
+      const cv = document.getElementById('stage');
+      const cs = cv ? getComputedStyle(cv) : null;
+      const r = cv ? cv.getBoundingClientRect() : null;
+      const cam = scene && scene.activeCamera;
+      const gl = eng && eng._gl;
+      const lost = gl && gl.isContextLost ? gl.isContextLost() : null;
+      const cover = document.getElementById('loading');
+      const info = {
+        at: `${((performance.now() - t0) / 1000).toFixed(1)}s`,
+        frameId: scene && Number.isFinite(scene.getFrameId && scene.getFrameId()) ? scene.getFrameId() : eng && eng.frameId,
+        ready: scene && scene.isReady ? scene.isReady() : null,
+        camera: cam && cam.position ? [cam.position.x, cam.position.y, cam.position.z].map((v) => Math.round(v * 10) / 10) : null,
+        canvas: cs ? { display: cs.display, opacity: cs.opacity, visibility: cs.visibility, w: Math.round(r.width), h: Math.round(r.height), attr: [cv.width, cv.height] } : null,
+        contextLost: lost,
+        cover: cover ? (cover.hidden ? 'hidden' : cover.classList.contains('fade') ? 'fading' : 'shown') : 'none',
+        skip: Boolean(document.querySelector('.ov-skip')),
+        bars: Boolean(document.querySelector('.ov-bars')),
+        introPlaying: Boolean(G() && G().overseer && G().overseer.introPlaying),
+      };
+      t.event('canvas-' + label, JSON.stringify(info));
+      if (t.metric) {
+        if (Number.isFinite(info.frameId)) t.metric('frameId' + label, info.frameId);
+        if (info.canvas) t.metric('canvasOpacity' + label, Number(info.canvas.opacity));
+        if (lost !== null) t.metric('contextLost' + label, lost ? 1 : 0);
+      }
+    } catch (e) { t.event('canvas-' + label, 'sample failed: ' + (e && e.message)); }
+  };
+  for (const s of [8, 15, 25]) setTimeout(() => take(s + 's'), s * 1000);
+}
+
+async function stageFirstVisit(t, ctx) {
+  sampleCanvas(t);
+  const g = () => G() && G().overseer;
+  const seen = [];
+  const touch = Boolean(HP().touchUi) || Boolean(ctx.options.touch);
+  await t.until(() => G() && G().on, 20000, 'the game events').catch(() => {});
+  let prompted = false;
+  G().on('intro', (d) => { if (d && d.state === 'prompt') prompted = true; });
+  const speech = [];
+  G().on('overseer-speech', (d) => { if (d && d.state === 'start') speech.push(d); });
+  const said = () => [...document.querySelectorAll('.hc-log p.overseer')].map((p) => p.textContent.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const started = await t.until(() => g() && g().introPlaying, 25000, 'the Overseer\'s intro to start').then(() => true, () => false);
+  if (!started) throw new Error('timed out waiting for the Overseer\'s intro to start (first visit)');
+  t.event('intro-start');
+  t.scene('First visit: the Overseer appears');
+  const t0 = performance.now();
+  const sec = () => ((performance.now() - t0) / 1000).toFixed(1);
+  const p = () => W() && W().player;
+  const start = { x: p().x, z: p().z };
+  // Portrait framing while the sky look still holds (before the first move).
+  await t.wait(1100);
+  if (g() && g().introPlaying) checkIntroPortraitFrame(t);
+
+  // 1. The first move: real input (the stick, or W), as soon as the player has control; it must show within 5 s of the intro's start.
+  await t.until(() => p() && p().controls !== false, 8000, 'the player to be given control during the intro').catch((e) => t.problem('error', e.message));
+  t.event('control-given', `${sec()} s after the intro started`);
+  let stick = null;
+  if (touch) { stick = stickHold(); stick.set(0, 1); } else setKeys({ w: true });
+  let moved = false;
+  await t.until(() => { moved = Math.hypot(p().x - start.x, p().z - start.z) > 0.3; return moved; }, 5000, 'the player to move').catch(() => {});
+  const ms = Math.round(performance.now() - t0);
+  if (moved && ms <= 5000) t.event('first-move', `${ms} ms after the intro started (${touch ? 'the stick' : 'W'})`);
+  else t.problem('error', `the first move came ${moved ? ms + ' ms' : 'never'} after the intro started; it must be within 5000 ms`);
+  t.metric && t.metric('firstMoveMs', ms);
+  t.scene('First visit: walking under the beam');
+
+  // 2. Each line: a caption naming the Overseer on a dark plate (or in the letterbox bar if a shot still uses one), clear of the controls; and its voice.
+  const rect = (el) => el.getBoundingClientRect();
+  const hit = (a, b) => !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom);
+  const caps = new Set();
+  let capProblems = 0, shots = 0;
+  const watch = () => {
+    for (const l of said()) if (!seen.includes(l)) { seen.push(l); t.event('overseer-said', l); }
+    const el = document.querySelector('.ov-cap.on');
+    if (el) {
+      const name = (el.querySelector('b') || {}).textContent || '', line = (el.querySelector('span') || {}).textContent || '';
+      if (line && !caps.has(line)) {
+        caps.add(line);
+        const r = rect(el.querySelector('.in')), plate = el.classList.contains('plate');
+        const bars = document.querySelector('.ov-bars'), bar = bars && bars.lastElementChild ? rect(bars.lastElementChild) : null;
+        const inBar = !plate && bar && r.top >= bar.top - 1 && r.bottom <= bar.bottom + 1;
+        const where = plate ? 'a dark plate' : inBar ? 'the letterbox bar' : 'OUTSIDE the letterbox bar';
+        t.event('intro-caption', `${name}: "${line}" in ${where}`);
+        if (!/overseer/i.test(name)) { capProblems++; t.problem('error', `a caption without the Overseer's name: "${line}"`); }
+        if (!plate && !inBar) { capProblems++; t.problem('error', `the caption "${line}" is not inside the letterbox bar`); }
+        if (touch) {
+          if (!plate) { capProblems++; t.problem('error', 'on a phone the caption must sit on a dark plate'); }
+          if (r.height > 0 && parseFloat(getComputedStyle(el.querySelector('span')).fontSize) < 16) { capProblems++; t.problem('error', 'the caption is under 16 px on a phone'); }
+          for (const c of document.querySelectorAll('#touch .pad, #touch .a, #touch .b, #touch button, .tl-zone button')) { const cr = rect(c); if (cr.width && hit(r, cr)) { capProblems++; t.problem('error', `the caption overlaps a control (${c.className || c.id})`); break; } }
+        }
+        if (!shots) { shots++; t.scene(`First visit: caption "${line}"`); }
+      }
+    }
+  };
+  // Walk on (a thumb or a key held) while the lines play, until the skip point.
+  const skipAfter = Number(ctx.options.skipAfter || 8.5);
+  await t.until(() => { watch(); return (performance.now() - t0) / 1000 >= skipAfter || !g().introPlaying; }, 20000, 'the intro lines');
+  const voiced = speech.filter((d) => d.voiced);
+  t.event('intro-voice', `${voiced.length} of ${speech.length} lines voiced so far`);
+  if (speech.length && !voiced.length) t.problem('error', 'none of the intro lines had a voice clip playing');
+
+  // 3. One key or tap skips the rest: control back within 0.5 s, the camera behind the player.
+  if (g().introPlaying) {
+    if (stick) stick.release(); else setKeys({});
+    const ts = performance.now();
+    if (touch) { const c = canvas(), id = ++touchId, x = innerWidth * 0.5, y = innerHeight * 0.25; touchEv('pointerdown', c, x, y, id); touchEv('pointerup', c, x, y, id); }
+    else await tap(t, 'Enter');
+    await t.until(() => !g().introPlaying, 2000, 'the intro to end after the skip');
+    await t.wait(450);
+    const back = performance.now() - ts;
+    const delta = Math.abs(wrap(camYaw() - p().node.rotation.y));
+    t.event('skip-control-back', `${Math.round(back)} ms after the ${touch ? 'tap' : 'key'}; controls ${p().controls !== false}; camera ${delta.toFixed(2)} rad off behind the player`);
+    t.scene('First visit: after the skip');
+    if (p().controls === false && !(G().mirror && G().mirror.pending)) t.problem('error', 'control did not come back after the skip');
+    if (delta > 0.35) t.problem('error', `the camera is not behind the player after the skip (${delta.toFixed(2)} rad off)`);
+  } else t.event('skip-not-needed', 'the intro had ended before the skip point');
+  watch();
+  if (seen.length >= 3) t.event('greeting-lines', `${seen.length} lines in character`);
+  else t.problem('error', `the Overseer said ${seen.length} lines in the intro; at least 3 are expected: ${JSON.stringify(seen)}`);
+
+  // 4. As a guest: the mirror is the next thing, and no "Ask for your first thing" card is on screen.
+  const guest = Boolean(window.HawkesGuest);
+  if (guest) {
+    await t.until(() => G().mirror && G().mirror.isOpen, 6000, 'the mirror to open after the intro').then(() => t.event('mirror-open-after-intro', 'the questions are on screen'), (e) => t.problem('error', e.message));
+    const card = [...document.querySelectorAll('.hc-card .act')].find((b) => /first thing/i.test(b.textContent));
+    if (card) t.problem('error', 'a guest sees the "Ask for your first thing" card'); else t.event('no-ask-card', 'no first-thing card for a guest');
+    t.scene('First visit: the mirror');
+  } else {
+    const card = await t.until(() => [...document.querySelectorAll('.hc-card .act')].find((b) => /first thing/i.test(b.textContent)), 8000, 'the prompt that starts building').catch((e) => { t.problem('error', e.message); return null; });
+    if (card) {
+      t.scene('First visit: the prompt to build');
+      t.event('build-prompt-shown', card.textContent.trim());
+      card.click();
+      const open = await t.until(() => document.querySelector('.hc-form.on'), 5000, 'the chat to open for the first ask').then(() => true, (e) => { t.problem('error', e.message); return false; });
+      if (open) t.event('build-prompt-used', 'the chat is open to the Overseer');
+      if (!prompted) t.problem('error', 'the intro never said it had prompted');
+    }
+  }
+  // A return skips it: the intro's flag is kept, so a second visit does not want it.
+  let flag = false; try { flag = Boolean(localStorage.getItem('hg_overseer_intro')); } catch { /* sandboxed */ }
+  const wants = Boolean(g().introWanted && g().introWanted());
+  if (flag && !wants) t.event('return-skips-intro', 'the flag is kept and the intro no longer wanted');
+  else t.problem('error', `a return would play the intro again (flag ${flag}, wanted ${wants})`);
+  t.progress(1);
 }
 
 async function stageMirror(t, ctx) {
@@ -392,10 +870,235 @@ async function stageMirror(t, ctx) {
   name.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); // Enter in the field is "That's me"
   await t.until(() => !$('.mr'), 10000, 'the mirror to close after the last answer');
   t.event('mirror-done', `${chosen}, ${who}`);
+  startFirstMinutes(t, ctx);
+  await checkFreeToMove(t, ctx);
   t.progress(0.45);
 }
 
+/** After the mirror the player is on the ground and answers input at once (the "stuck in a fall, cannot move" bug: the
+ *  title screen left the controls off, so nothing ever moved the character). Fails when, 3 s after the mirror closes, the
+ *  player is still airborne, or a move input (W, or the stick on touch) does not move them 1 m within 2 s. */
+async function checkFreeToMove(t, ctx) {
+  const p = () => W() && W().player;
+  if (!p()) return;
+  const touch = Boolean(ctx.options.touch || HP().touchUi);
+  await t.wait(3000);
+  const st = () => `grounded ${p().grounded}, vy ${Number(p().vy || 0).toFixed(2)}, controls ${p().controls}, at ${p().x.toFixed(1)}, ${p().y.toFixed(1)}, ${p().z.toFixed(1)}`;
+  const regrounds = () => (window.__regrounds || []).length;
+  const r0 = regrounds();
+  t.event('after-mirror-state', st());
+  if (!p().grounded) t.problem('error', `3 s after the mirror the player is still in the air (${st()})`);
+  if (p().controls === false) t.problem('error', `3 s after the mirror the player's controls are still off (${st()})`);
+  const x0 = p().x, z0 = p().z, tm = performance.now();
+  let stick = null;
+  if (touch) { try { stick = stickHold(); stick.set(0, 1); } catch (e) { t.problem('error', e.message); } } else setKeys({ w: true });
+  let moved = 0;
+  while (performance.now() - tm < 2000 && moved < 1) { await t.wait(100); moved = Math.hypot(p().x - x0, p().z - z0); }
+  if (stick) stick.release(); else releaseAll();
+  t.event('move-input', `${touch ? 'the stick' : 'W'} moved the player ${moved.toFixed(2)} m in ${Math.round(performance.now() - tm)} ms`);
+  if (moved < 1) t.problem('error', `a move input did not move the player 1 m within 2 s (${moved.toFixed(2)} m; ${st()})`);
+  if (regrounds() > r0) t.problem('error', 'the safety net had to re-ground the player after the mirror (an airborne state that should not happen)');
+}
+
+/** The HUD beside the mirror panel (modules/hudlayout): measured with the panel open, then closed. */
+async function stageMirrorLayout(t) {
+  await t.until(() => $('.mr .mr-q'), 40000, 'the mirror to open after the intro');
+  await t.wait(900); // the panel slides in (0.35 s) and the 0.3 s HUD transition settles
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const visible = (el) => {
+    if (!el || el.closest('[hidden], .hp-enter')) return false;
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity) < 0.05) return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 1 && r.height > 1;
+  };
+  const pieces = () => {
+    const out = [];
+    const add = (name, el) => { if (visible(el)) out.push({ name, r: el.getBoundingClientRect(), el }); };
+    document.querySelectorAll('.gs-acts button:not(.more), .jr-btn').forEach((b) => {
+      const lbl = (b.getAttribute('aria-label') || b.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 24);
+      add('action: ' + lbl, b);
+    });
+    document.querySelectorAll('.hc-card, .hc-card .act, .tour-track, .tour-stuck, .qs-btn, .qs-track').forEach((b) => {
+      const cls = (b.className || '').toString().trim().split(/\s+/)[0] || b.tagName.toLowerCase();
+      add('quest: ' + cls + ' ' + (b.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 24), b);
+    });
+    return out;
+  };
+  const check = (label) => {
+    const panel = $('.mr');
+    const pr = panel ? panel.getBoundingClientRect() : null;
+    const list = pieces();
+    const bad = [];
+    for (const { name, r, el } of list) {
+      if (r.left < -1 || r.top < -1 || r.right > vw + 1 || r.bottom > vh + 1) bad.push(`${name} is off screen (${Math.round(r.left)}-${Math.round(r.right)})`);
+      if (pr && r.right > pr.left - 2 && r.left < pr.right && r.bottom > pr.top && r.top < pr.bottom) bad.push(`${name} runs under the panel (${Math.round(r.right)} > ${Math.round(pr.left)})`);
+      const mx = Math.min(Math.max(r.left + r.width / 2, 0), vw - 1), my = Math.min(Math.max(r.top + r.height / 2, 0), vh - 1);
+      const top = document.elementFromPoint(mx, my);
+      if (top && !(el === top || el.contains(top) || top.contains(el))) bad.push(`${name} is covered by ${top.className || top.tagName}`);
+    }
+    return { list, bad, pr };
+  };
+  const open = check('open');
+  t.scene(`Mirror open at ${vw}x${vh}`);
+  t.event('hud-measured-open', `${vw}x${vh}: ${open.list.length} pieces, panel ${open.pr ? Math.round(open.pr.left) : '-'}..${open.pr ? Math.round(open.pr.right) : '-'}`);
+  const acts = open.list.filter((p) => p.name.startsWith('action:'));
+  const expectActs = (HP() && HP().hudLayout && HP().hudLayout.compact(vw, vh)) ? 1 : 4;
+  if (acts.length < expectActs) t.problem('error', `expected all ${expectActs} top-right actions beside the panel, found ${acts.length} (${acts.map((p) => p.name).join(', ')})`);
+  else t.event('actions-whole', acts.map((p) => p.name.replace('action: ', '')).join(', '));
+  const banner = open.list.filter((p) => p.name.startsWith('quest:'));
+  if (!banner.length) t.problem('error', 'no quest/prompt banner on screen with the mirror open');
+  else t.event('banner-whole', banner.map((p) => p.name).join(' | '));
+  const orangeBtn = $('.hc-card .act');
+  if (orangeBtn && visible(orangeBtn)) {
+    const br = orangeBtn.getBoundingClientRect();
+    const cx = Math.round(br.left + br.width / 2), cy = Math.round(br.top + br.height / 2);
+    const hit = document.elementFromPoint(cx, cy);
+    if (hit && (hit === orangeBtn || orangeBtn.contains(hit)) && (!open.pr || br.right <= open.pr.left - 2)) {
+      t.event('quest-button-clickable', `"${orangeBtn.textContent.trim()}" at ${Math.round(br.left)}..${Math.round(br.right)} (panel starts at ${open.pr ? Math.round(open.pr.left) : '-'})`);
+    } else {
+      t.problem('error', `quest banner orange button is not clear and clickable (${Math.round(br.left)}..${Math.round(br.right)}, panel ${open.pr ? Math.round(open.pr.left) : '-'})`);
+    }
+  } else {
+    t.problem('error', 'the quest banner orange button (.hc-card .act) is not visible with the mirror open');
+  }
+  const hl = HP() && HP().hudLayout;
+  if (hl && hl.compute && hl.zones) {
+    const r1280 = hl.compute(1280, 1280 - 16 - 400, 400);
+    const r1440 = hl.compute(1440, 1440 - 16 - 400, 400);
+    if (r1280 === 428 && r1440 === 428 && hl.zones.quest && hl.zones.actions && hl.zones.panel && hl.zones.chat) {
+      t.event('layout-zones-and-sizes', `zones=${Object.keys(hl.zones).join(',')}; 1280x720 reserve=${r1280}px, 1440x900 reserve=${r1440}px`);
+    } else {
+      t.problem('error', `hudLayout zones/compute mismatch: 1280=${r1280}, 1440=${r1440}`);
+    }
+  }
+  for (const b of open.bad) t.problem('error', b);
+  if (!open.bad.length) t.event('hud-clear-of-panel', 'nothing runs under the panel');
+  const first = acts[0];
+  // Measure .gs-acts itself — not first.el.parentElement (.jr-btn's parent is #ui, full viewport = 1280→1280).
+  const actsRow = document.querySelector('.gs-acts');
+  const chatEl = $('.hc-chat');
+  const openRight = actsRow ? actsRow.getBoundingClientRect().right : (first ? first.r.right : 0);
+  const openChatRight = chatEl && visible(chatEl) ? chatEl.getBoundingClientRect().right : 0;
+  const dur = actsRow ? parseFloat(getComputedStyle(actsRow).transitionDuration) : 0;
+  const chatDur = chatEl ? parseFloat(getComputedStyle(chatEl).transitionDuration) : 0;
+  if (actsRow && !(dur > 0)) t.problem('error', 'the action row has no transition: it would jump');
+  else if (chatEl && !(chatDur > 0)) t.problem('error', 'the banner/chat zone has no transition: it would jump');
+  else t.event('transition-set', `actions ${dur}s, banner ${chatDur}s`);
+  // Close the mirror and watch both the action row and the banner glide back.
+  const x = $('.mr .mr-x');
+  if (x) x.click(); // the panel's own Close
+  await t.wait(110);
+  const mid = actsRow ? actsRow.getBoundingClientRect().right : 0;
+  const midChat = chatEl && visible(chatEl) ? chatEl.getBoundingClientRect().right : 0;
+  await t.until(() => !$('.mr'), 10000, 'the mirror to close');
+  await t.wait(700);
+  const closed = actsRow ? actsRow.getBoundingClientRect().right : 0;
+  const closedChat = chatEl && visible(chatEl) ? chatEl.getBoundingClientRect().right : 0;
+  t.scene(`Mirror closed at ${vw}x${vh}`);
+  if (actsRow || first) {
+    if (closed > openRight + 40) t.event('hud-back', `actions moved from ${Math.round(openRight)} to ${Math.round(closed)}, banner from ${Math.round(openChatRight)} to ${Math.round(closedChat)}`);
+    else t.problem('error', `the action row did not move back (${Math.round(openRight)} -> ${Math.round(closed)})`);
+    if (mid > openRight + 1 && mid < closed - 1) t.event('hud-glides', `actions mid-way at ${Math.round(mid)}, banner mid-way at ${Math.round(midChat)}`);
+    else t.problem('warn', `no mid-way sample of the move back (${Math.round(openRight)} / ${Math.round(mid)} / ${Math.round(closed)})`);
+  }
+  const after = check('closed');
+  for (const b of after.bad) t.problem('error', b);
+  t.progress(0.6);
+}
+
+/** hud-overlap: every visible HUD control measured at each step, after the transition (no timers: transitionend). */
+async function stageHudOverlap(t) {
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const size = `${vw}x${vh}`;
+  const settle = () => new Promise((res) => {
+    let done = false;
+    const end = () => { if (done) return; done = true; document.removeEventListener('transitionend', onEnd, true); res(); };
+    const onEnd = () => requestAnimationFrame(() => requestAnimationFrame(end));
+    document.addEventListener('transitionend', onEnd, true);
+    setTimeout(end, 900); // a layout with nothing moving never fires transitionend
+  });
+  const label = (el) => {
+    const txt = (el.getAttribute('aria-label') || el.textContent || el.placeholder || el.title || '').trim().replace(/\s+/g, ' ').slice(0, 24);
+    return `${el.tagName.toLowerCase()}${el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/)[0] : ''} "${txt}"`;
+  };
+  const controls = () => {
+    const out = [];
+    document.querySelectorAll('button, a[href], input, select, textarea, [role=button]').forEach((el) => {
+      if (el.closest('[hidden], .hp-enter') || el.offsetParent === null && getComputedStyle(el).position !== 'fixed') return;
+      const cs = getComputedStyle(el);
+      if (cs.visibility === 'hidden' || cs.display === 'none' || parseFloat(cs.opacity) === 0) return;
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) out.push({ name: label(el), el, r });
+    });
+    return out;
+  };
+  const measure = async (step, open) => {
+    await settle();
+    t.scene(`HUD ${step} at ${size}`);
+    const list = controls();
+    const off = [], small = [], overlap = [];
+    for (const c of list) {
+      const r = c.r;
+      if (r.left < -1 || r.top < -1 || r.right > vw + 1 || r.bottom > vh + 1) off.push(c.name);
+      if (r.width < 44 || r.height < 44) small.push(`${c.name} ${Math.round(r.width)}x${Math.round(r.height)}`);
+    }
+    for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+      const a = list[i], b = list[j];
+      if (a.el.contains(b.el) || b.el.contains(a.el)) continue;
+      const w = Math.min(a.r.right, b.r.right) - Math.max(a.r.left, b.r.left);
+      const h = Math.min(a.r.bottom, b.r.bottom) - Math.max(a.r.top, b.r.top);
+      if (w > 1 && h > 1) overlap.push(`${a.name} overlaps ${b.name}`);
+    }
+    // The panel and the quest banner are not controls themselves: the panel against the banner counts too.
+    const panel = $('.mr, [data-hud-panel]');
+    if (panel) {
+      const pr = panel.getBoundingClientRect();
+      document.querySelectorAll('.tour-track, .tour-stuck, .qs-btn, .qs-track, .hc-card, .gs-acts, .jr-btn').forEach((b) => {
+        if (b.closest('[hidden], .hp-enter') || (b.offsetParent === null && getComputedStyle(b).position !== 'fixed')) return;
+        const cs = getComputedStyle(b);
+        if (cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity) === 0) return;
+        const r = b.getBoundingClientRect();
+        if (r.width > 0 && r.right > pr.left + 1 && r.left < pr.right - 1 && r.bottom > pr.top + 1 && r.top < pr.bottom - 1) overlap.push(`${label(b)} overlaps the panel ${label(panel)}`);
+      });
+    }
+    const tag = `${step} ${size}`;
+    t.event('hud-measured', `${tag}: ${list.length} controls${open ? ' (' + open + ')' : ''}`);
+    if (overlap.length) for (const o of overlap) t.problem('error', `hud-no-overlap failed at ${tag}: ${o}`);
+    else t.event('hud-no-overlap', tag);
+    if (off.length) for (const o of off) t.problem('error', `hud-in-viewport failed at ${tag}: ${o} is outside the screen`);
+    else t.event('hud-in-viewport', tag);
+    if (small.length) for (const o of small) t.problem('error', `hud-tap-targets failed at ${tag}: ${o} is under 44px`);
+    else t.event('hud-tap-targets', tag);
+  };
+  await t.until(() => $('.mr .mr-q'), 40000, 'the mirror to open after the intro');
+  await measure('mirror open', 'panel');
+  const x = $('.mr .mr-x');
+  if (x) x.click();
+  await t.until(() => !$('.mr'), 10000, 'the mirror to close');
+  await measure('mirror closed');
+  const HP = window.HawkesPlay;
+  if (HP && HP.chat && HP.chat.open()) {
+    await t.until(() => $('.hc-chat form.on, .hc-chat .on'), 5000, 'the chat input to open');
+    await measure('chat open', 'chat');
+    const input = $('.hc-chat input');
+    if (input) input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await measure('chat closed');
+  } else {
+    t.problem('warn', 'the Overseer chat could not be opened: its steps were not measured');
+  }
+  t.progress(0.6);
+}
+
 async function stageSheet(t, ctx) {
+  // A browser Studio signed in beforehand (its beta test sign-in, cloud/functions/src/testsignin.ts) never sees the sheet:
+  // the island just carries on, so there is nothing to wait for.
+  const signedIn = await fetch('/v1/users/me?soft=1', { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : {})).then((d) => d.user || null).catch(() => null);
+  if (signedIn) {
+    t.event('signed-in', 'this browser was signed in before the run: no account sheet');
+    t.progress(0.6);
+    return;
+  }
   await t.until(() => $('#gsEmail') || $('#gsGoogle'), 20000, 'the account sheet to open after the mirror');
   t.scene('Account sheet');
   t.event('sheet-shown', ($('#gsTitle') || {}).textContent || '');
@@ -475,6 +1178,144 @@ async function stageAsks(t) {
   if (calls.length) t.problem('error', 'a request to the Overseer was made with an empty balance');
   else t.event('no-failed-request', 'nothing was sent to the Overseer');
   t.progress(1);
+}
+
+/** The Overseer answers, and a failed ask is a plain message with Retry (never an endless spinner), after which the next ask works at once.
+ *  Needs a signed-in browser: on beta Studio signs one in first (testSignIn); elsewhere the sheet is Google only and
+ *  stageSheet ends the run `done` with a warning. */
+async function stageAnswer(t) {
+  const lines = () => [...document.querySelectorAll('.hc-log p.overseer')].map((p) => p.textContent.replace(/\s+/g, ' ').trim());
+  const retryBtn = () => [...document.querySelectorAll('.hc-card .act')].find((b) => /^retry$/i.test(b.textContent.trim()));
+  const status = () => { const s = document.querySelector('.hc-status'); return s && !s.hidden ? s.textContent.trim() : ''; };
+  const working = () => Boolean(HP().work && HP().work.active);
+  // Every ask the page sends, with the status it got (the second part checks the next ask is not "still working").
+  const seen = [];
+  const realFetch = window.fetch;
+  let failNext = false, silentNext = false;
+  const ANSWER_MS = 90000;
+  window.fetch = function (u, o) {
+    if (/\/v1\/games\/[^/]+\/ai$/.test(String(u)) && o && o.method === 'POST') {
+      if (silentNext) { silentNext = false; seen.push(200); return Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'Content-Type': 'application/json' } })); }
+      if (failNext) { failNext = false; seen.push(503); return Promise.resolve(new Response(JSON.stringify({ error: 'Gen is down' }), { status: 503, headers: { 'Content-Type': 'application/json' } })); }
+      const m = /\/v1\/games\/([^/]+)\/ai$/.exec(String(u)); if (m) gameId = m[1];
+      return realFetch.apply(this, arguments).then((r) => { seen.push(r.status); return r; });
+    }
+    return realFetch.apply(this, arguments);
+  };
+  // What the game's feed says while an ask runs (the Overseer's beats, its heartbeat with Gen's job status, thinking,
+  // chat), read on a stream of the playtest's own: when an ask hangs, the run says where it stood.
+  let gameId = null, feedLog = [], feedEs = null, feedT0 = Date.now();
+  const feedNote = (name, d) => { if (feedLog.length < 400) feedLog.push(`${Math.round((Date.now() - feedT0) / 1000)}s ${name}${d}`); };
+  const openFeed = async () => {
+    if (feedEs || !gameId || typeof EventSource === 'undefined') return;
+    const path = `/v1/games/${gameId}/live`;
+    const u = await realFetch(`/v1/stream-link?path=${encodeURIComponent(path)}`, { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null)).then((d) => (d && d.url) || path, () => path);
+    feedEs = new EventSource(u, { withCredentials: u.startsWith('/') });
+    feedEs.addEventListener('overseer', (e) => { let d = {}; try { d = JSON.parse(e.data); } catch { /* fine */ } feedNote('overseer', ` ${d.k}${d.k === 'alive' ? ` ${d.status} chars=${d.chars}` : d.k === 'op' ? ` ${d.op} ${d.id}` : d.k === 'end' ? ` ok=${d.ok} ops=${d.ops}` : ''}`); });
+    feedEs.addEventListener('thinking', (e) => feedNote('thinking', ` ${String(e.data).slice(0, 60)}`));
+    feedEs.addEventListener('chat', (e) => { let m = {}; try { m = JSON.parse(e.data); } catch { /* fine */ } feedNote('chat', ` ${m.role}: ${String(m.text || '').slice(0, 80)}`); });
+    feedEs.addEventListener('hello', (e) => feedNote('hello', ` ${String(e.data).slice(0, 60)}`));
+    feedEs.onerror = () => feedNote('stream', ' error');
+  };
+  const feedDump = (label) => {
+    const lines = feedLog.splice(0);
+    t.event('feed', `${label}: ${lines.length ? lines.join(' · ') : 'nothing on the feed'}`.slice(0, 1800));
+  };
+  const OFFER = /^Here is what I can do/;
+  const ask = async (text) => {
+    const input = await t.until(() => document.querySelector('.hc-form input'), 30000, 'the chat input');
+    keyEv('keydown', 'Enter'); await t.wait(200);
+    input.value = text;
+    input.form && input.form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    t.event('asked', text);
+  };
+  try {
+    await t.until(() => W() && W().player && G() && HP().chat, 60000, 'the island and its chat');
+    await t.wait(3000);
+    // 1. A real question gets an answer in the chat.
+    const before = new Set(lines());
+    await ask('What can you build for me here?');
+    await t.until(() => status() || working(), 20000, 'the Overseer to start working').catch(() => t.problem('warning', 'no work indicator or status appeared after the ask'));
+    t.scene('Asked: the Overseer works');
+    const askedAt = Date.now();
+    await t.until(() => lines().some((x) => !before.has(x)) || retryBtn(), ANSWER_MS, 'an answer or a plain failure in the chat')
+      .catch(() => { throw new Error(`the Overseer did not answer within ${ANSWER_MS / 1000} s (it "thinks forever")`); });
+    t.event('answer-time', `${Math.round((Date.now() - askedAt) / 1000)} s to the first answer`);
+    if (retryBtn() && !lines().some((x) => !before.has(x) && !/couldn.t|lost|stopped|wrong|busy|taking too long/i.test(x))) t.problem('error', 'the first ask failed: ' + lines().filter((x) => !before.has(x)).join(' | ').slice(0, 200));
+    else t.event('answer-shown', lines().filter((x) => !before.has(x)).join(' | ').slice(0, 160));
+    t.scene('The Overseer answered');
+    await t.until(() => !working(), 90000, 'the work indicator to end after the answer');
+    t.event('work-ended', 'the work indicator is gone');
+    t.progress(0.4);
+    // 1b. A build request really changes the game (J, 2026-11-06: every build ended "I couldn't finish that"): a red cube
+    // must be a new thing in the world, not just a message in the chat.
+    const ids = () => new Set(Object.keys((W() && W().graph && W().graph.entities) || {}).concat([...W().entities].map((e) => e.id).filter(Boolean)));
+    const thingsBefore = ids();
+    const beforeB = new Set(lines());
+    await openFeed().catch((x) => feedNote('stream', ` not opened: ${x.message}`));
+    feedLog = []; feedT0 = Date.now();
+    await ask('Add a red cube right in front of me.');
+    t.scene('Asked: add a red cube');
+    // (The example-asks offer is not an answer: only the Overseer's reply to this, or a failure, counts.)
+    const fresh = () => lines().filter((x) => !beforeB.has(x) && !OFFER.test(x));
+    await t.until(() => fresh().length || retryBtn(), ANSWER_MS, 'an answer to the build request')
+      .catch(() => { feedDump('build ask'); throw new Error(`the build request got no answer within ${ANSWER_MS / 1000} s (it "thinks forever")`); });
+    const said = fresh().join(' | ');
+    if (retryBtn()) t.problem('error', `the build request failed instead of building: ${said.slice(0, 200)}`);
+    await t.until(() => !working(), 90000, 'the work indicator to end after the build').catch((x) => { feedDump('build ask'); throw x; });
+    feedDump('build ask');
+    await t.wait(1500);
+    const added = [...ids()].filter((x) => !thingsBefore.has(x));
+    if (!added.length) t.problem('error', `the build request was answered ("${said.slice(0, 120)}") but the game has no new thing`);
+    else t.event('world-changed', `new things: ${added.slice(0, 5).join(', ')}`);
+    t.scene('The red cube is in the world');
+    t.progress(0.5);
+    // 2. A failed ask: a plain message and Retry, nothing spinning. (Named setup shortcut: this one request is answered 503.)
+    await t.wait(2000);
+    const before2 = new Set(lines());
+    t.event('setup-shortcut', 'the next ask is answered 503 by the page itself (Gen failing)');
+    failNext = true;
+    await ask('Add a small lantern near me.');
+    const retry = await t.until(retryBtn, 20000, 'a Retry button after the failed ask');
+    const msg = lines().filter((x) => !before2.has(x)).join(' | ');
+    if (!msg) t.problem('error', 'the failed ask said nothing');
+    else if (/503|Gen is down|undefined|\[object/.test(msg)) t.problem('error', `the failure shows a raw error: ${msg.slice(0, 160)}`);
+    else t.event('failure-plain-message', msg.slice(0, 160));
+    t.event('retry-shown', retry.textContent.trim());
+    t.scene('A failed ask: a plain message and Retry');
+    await t.wait(1500);
+    if (working() || status()) t.problem('error', 'the work indicator or status is still spinning after the failure');
+    else t.event('no-spinner', 'the work indicator and status ended');
+    // 2b. A silent ask (J, 2026-11-10: "it just thinks forever"): the page is told 200 but the server never heard it, so
+    // nothing ever comes back (named setup shortcut). The island must stop waiting by itself: a plain message with Retry
+    // within 75 s, and nothing left spinning.
+    await t.wait(1500);
+    const beforeS = new Set(lines());
+    const retriesBefore = document.querySelectorAll('.hc-card .act').length;
+    t.event('setup-shortcut', 'the next ask is answered 200 by the page itself and never reaches the server');
+    silentNext = true;
+    const silentAt = Date.now();
+    await ask('Paint the sky purple.');
+    await t.until(() => lines().some((x) => !beforeS.has(x)) && document.querySelectorAll('.hc-card .act').length > retriesBefore, 75000, 'the silent ask to end in a plain message with Retry')
+      .catch(() => { throw new Error('a silent ask kept waiting past 75 s: the Overseer would "think forever"'); });
+    await t.wait(1500);
+    if (working() || status()) t.problem('error', 'the work indicator or status is still on after the silent ask ended');
+    t.event('silent-ask-ends', `${Math.round((Date.now() - silentAt) / 1000)} s: ${lines().filter((x) => !beforeS.has(x)).join(' | ').slice(0, 140)}`);
+    t.scene('A silent ask: it stopped waiting and said so');
+    // 3. Retry with a real click: it goes through at once (not "still working"), and is answered.
+    const n = seen.length;
+    const before3 = new Set(lines());
+    retry.click();
+    t.event('retry-clicked', 'a real click');
+    await t.until(() => seen.length > n, 20000, 'the retried ask to reach the server');
+    if (seen[n] !== 200) t.problem('error', `the ask after a failure answered ${seen[n]} (expected 200: no "still working")`);
+    else t.event('next-ask-immediate', 'the ask after the failure was accepted at once');
+    await t.until(() => lines().some((x) => !before3.has(x)), ANSWER_MS, 'an answer to the retried ask')
+      .catch(() => { throw new Error(`the retried ask got no answer within ${ANSWER_MS / 1000} s`); });
+    t.event('retry-answered', lines().filter((x) => !before3.has(x)).join(' | ').slice(0, 160));
+    t.scene('Retried: answered');
+    t.progress(1);
+  } finally { window.fetch = realFetch; if (feedEs) feedEs.close(); }
 }
 
 /** Build: a new game of the signed-up account, and the editor opens on it (the run crosses the page in sessionStorage). */
@@ -610,52 +1451,236 @@ async function stageEditor(t) {
   t.progress(1);
 }
 
+/** Pip's pier directions as an in-engine beat: cinematic to the rod, glowing marker from the beach, pickup clears it. */
+async function stagePier(t, ctx) {
+  await t.until(() => W() && W().player && G(), 60000, 'the island to be ready');
+  // Google-only sign-up: close the forced account sheet and let Pip's tour (and the pier show) begin.
+  await t.until(() => $('#gsGoogle') || (window.HawkesGuest && !window.HawkesGuest.accountFirst) || (G().events && G().events.quests && G().events.quests.state('tour') === 'active'), 25000, 'the account sheet or an already-open tour').catch(() => {});
+  if (window.HawkesGuest && typeof window.HawkesGuest.playtestContinue === 'function') {
+    window.HawkesGuest.playtestContinue();
+    t.event('setup-shortcut', 'account sheet closed and gate lifted so Pip\'s tour can begin (playtest cannot Google-sign-up)');
+  } else if (window.HawkesGuest) {
+    window.HawkesGuest.accountFirst = false;
+    t.event('setup-shortcut', 'account gate lifted so Pip\'s tour can begin (playtest cannot Google-sign-up)');
+  }
+  const q = () => G() && G().events && G().events.quests;
+  const step = () => (q() && q().state('tour') === 'active' ? q().step('tour') : null);
+  const markOn = () => Boolean(window.__islandRodMark && window.__islandRodMark.on);
+  const cin = () => G() && G().cinematic && G().cinematic.isPlaying;
+  // Wait for Pip to start the tour and the pier show (or force it if the tour is already on).
+  await t.until(() => step() === 'drive' || step() === 'rod' || window.__islandPierShown, 90000, 'Pip\'s tour or pier show to start');
+  t.event('tour-start', `step: ${step() || 'pending'}`);
+  if (!window.__islandPierShown && typeof window.__islandShowPier === 'function') {
+    t.event('setup-shortcut', 'pier show started by hand (tour began without the first-visit beat)');
+    window.__islandShowPier();
+  }
+  await t.until(() => window.__islandPierShown || cin() || markOn(), 20000, 'the pier cinematic or rod marker');
+  t.event('pier-show-start', 'Pip\'s pier directions began');
+  t.progress(0.35);
+  // During the fly-over: wait until the camera is holding on the rod (late in the shot) or the shot ends.
+  if (cin()) {
+    t.event('pier-cinematic', 'camera flying from Pip along Gravel Road to the rod');
+    await t.wait(6000); // into the hold on the rod (~6.8 s of an 8 s path)
+    if (cin()) t.scene('Pier: cinematic hold');
+    await t.until(() => !cin(), 15000, 'the pier cinematic to end');
+    t.event('pier-cinematic-done', 'camera returned after the rod hold');
+  } else {
+    t.event('pier-cinematic-skipped-or-done', window.__islandPierShown ? 'already shown' : 'no cinematic');
+    t.scene('Pier: after show');
+  }
+  await t.until(() => markOn(), 8000, 'the glowing rod marker to be on');
+  t.event('rod-marker-on', 'pulsing light and shimmer on the fishing rod');
+  t.progress(0.55);
+  // From the beach: the marker must lead the player without reading text.
+  HOOKS.atBeach(t);
+  await t.wait(800);
+  t.scene(ctx.options.touch || (window.innerWidth < 600) ? 'Pier: marker from beach (phone)' : 'Pier: marker from beach');
+  t.event('marker-from-beach', markOn() ? 'glowing marker visible from the beach' : 'marker missing');
+  if (!markOn()) throw new Error('the rod marker was not on when viewed from the beach');
+  t.progress(0.7);
+  // Walk the pier and pick up the rod: marker clears with sound and burst.
+  if (G().player && G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(700); }
+  await walkTo(t, 'rod', 0.7, 60000, 'the fishing rod at the end of the pier');
+  await t.until(() => !markOn() || (HP().tools && HP().tools.held && HP().tools.held.name === 'rod'), 10000, 'the rod to be picked up and the marker to clear');
+  if (markOn()) throw new Error('the rod marker stayed on after picking up the rod');
+  t.event('rod-marker-off', 'pickup cleared the marker with a chime and burst');
+  t.event('pier-show-cleared', 'acceptance: cinematic, beach marker, pickup clear');
+  t.scene('Pier: marker cleared');
+  t.progress(1);
+  await t.wait(1200);
+}
+
+
+// ---------------------------------------------------------------------------------------------- the first minute after the mirror
+/** The clock starts when the mirror closes: ms to the first move, to being in the 4x4 and to the first success (the pier
+ *  reached, or the first fish: the game's own 'celebration' event), each logged once with a metric. Also, the beacon on the 4x4. */
+function startFirstMinutes(t, ctx) {
+  if (ctx.fm) return;
+  const fm = (ctx.fm = { t0: performance.now(), x: null, z: null, move: null, in4x4: null, success: null, catchMs: null, celebrations: [], texts: 0 });
+  const ms = () => Math.round(performance.now() - fm.t0);
+  const note = (key, label, detail) => { if (fm[key] !== null) return; fm[key] = ms(); t.event(label, `${fm[key]} ms after the mirror closed${detail ? ' (' + detail + ')' : ''}`); t.metric && t.metric(label + 'Ms', fm[key]); };
+  const wire = () => {
+    if (!G() || !G().on) return setTimeout(wire, 300);
+    G().on('celebration', (d) => {
+      fm.celebrations.push(d);
+      const voiced = Boolean(window.__playtestVoiced);
+      t.event('celebration', `${d.step}: particles ${d.particles}, sounds ${d.sounds.join('+') || 'none'}, camera ${d.camera}`);
+      if (d.step === 'drive') note('success', 'first-success', 'the 4x4 reached the pier');
+      if (d.step === 'fish') { if (fm.catchMs === null) { fm.catchMs = ms(); t.metric && t.metric('firstCatchMs', fm.catchMs); } note('success', 'first-success', 'the first catch'); }
+      if (!d.particles) t.problem('error', `the ${d.step} celebration made no particles`);
+      if (!d.sounds.includes('ui-quest')) t.problem('error', `the ${d.step} celebration played no ui-quest sound`);
+      if (d.step === 'fish' && !d.sounds.includes('fish-catch')) t.problem('error', 'the first catch played no fish-catch sound');
+      void voiced;
+    });
+    G().on('overseer-speech', (d) => { if (d && d.state === 'start' && d.voiced) { window.__playtestVoiced = true; t.event('voiced-line', `${d.text || d.line || 'the Overseer'}`); } });
+  };
+  wire();
+  const tick = setInterval(() => {
+    const p = W() && W().player;
+    if (!p) return;
+    if (fm.x === null) { fm.x = p.x; fm.z = p.z; }
+    if (fm.move === null && Math.hypot(p.x - fm.x, p.z - fm.z) > 0.5 && p.controls !== false) note('move', 'first-move', 'real input');
+    if (fm.in4x4 === null && G() && G().player && G().player.controller === 'drive') note('in4x4', 'reached-4x4', 'in the seat');
+    if (fm.success !== null && fm.catchMs !== null) clearInterval(tick);
+  }, 100);
+  fm.stop = () => clearInterval(tick);
+}
+/** Is the world point on screen? (the scene's active camera, projected) */
+function onScreen(pos) {
+  try {
+    const B = window.BABYLON, sc = HP().world.scene, cam = sc.activeCamera, e = sc.getEngine();
+    const w = e.getRenderWidth(), h = e.getRenderHeight();
+    const v = B.Vector3.Project(new B.Vector3(pos[0], pos[1], pos[2]), B.Matrix.Identity(), sc.getTransformMatrix(), cam.viewport.toGlobal(w, h));
+    const cw = innerWidth / w, ch = innerHeight / h;
+    const x = v.x * cw, y = v.y * ch;
+    return { on: v.z > 0 && v.z < 1 && x > 0 && x < innerWidth && y > 0 && y < innerHeight, x: Math.round(x), y: Math.round(y) };
+  } catch { return null; }
+}
+const visibleTextLines = () => {
+  const out = [];
+  for (const el of document.querySelectorAll('.tour-track:not([hidden]), .ov-cap.on, .hc-cap, .ui-bubble, .say-bubble')) {
+    const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+    if (r.width > 4 && r.height > 4 && cs.display !== 'none' && cs.visibility !== 'hidden' && (el.textContent || '').trim()) out.push((el.textContent || '').replace(/\s+/g, ' ').trim());
+  }
+  return out;
+};
+/** Walk to a thing: the keys, or on a phone the stick (touch), as a player does. */
+async function goTo(t, ctx, id, near, ms, what) {
+  if (!(ctx.options.touch || HP().touchUi)) return walkTo(t, id, near, ms, what);
+  const t0 = performance.now(); let s = null;
+  try {
+    for (;;) {
+      const p = W().player, g = W().byId.get(id);
+      if (!p || !g) throw new Error(`timed out waiting for ${what} to exist`);
+      const dx = g.x - p.x, dz = g.z - p.z, d = Math.hypot(dx, dz);
+      if (d <= near) return;
+      if (performance.now() - t0 > ms) throw new Error(`timed out walking to ${what} with the stick (${Math.round(d)} m away)`);
+      const yaw = camYaw(), sn = Math.sin(yaw), c = Math.cos(yaw);
+      if (!s) s = stickHold();
+      s.set((dx * c - dz * sn) / d, (dx * sn + dz * c) / d);
+      await t.wait(80);
+    }
+  } finally { if (s) s.release(); }
+}
+
 async function stageDrive(t, ctx) {
   const q = () => G() && G().events && G().events.quests;
   const step = () => (q() && q().state('tour') === 'active' ? q().step('tour') : null);
+  const touch = Boolean(ctx.options.touch || HP().touchUi);
+  startFirstMinutes(t, ctx);
+  const fm = ctx.fm;
+  // The beacon: a soft light on the 4x4 as soon as the mirror is done, seen from where the player stands, with at most one line of text.
+  await t.until(() => window.__islandJeepMark && window.__islandJeepMark.on, 20000, 'the beacon on the 4x4').then(() => {
+    const j = W().byId.get('jeep');
+    const sp = j ? onScreen([j.x, j.y + 6, j.z]) : null;
+    t.scene(touch ? 'After the mirror: the beacon (phone)' : 'After the mirror: the beacon');
+    t.event('beacon-on', `a column of light on the 4x4; its top ${sp ? (sp.on ? `on screen at ${sp.x},${sp.y}` : `off screen (${sp.x},${sp.y})`) : 'not measured'} at ${innerWidth}x${innerHeight}`);
+    fm.beaconSeen = Boolean(sp && sp.on);
+    const lines = visibleTextLines();
+    t.event('text-lines', `${lines.length} on screen: ${JSON.stringify(lines)}`);
+    if (lines.length > 1) t.problem('error', `after the mirror ${lines.length} lines of text are on screen (one short line at most): ${JSON.stringify(lines)}`);
+  }, (e) => t.problem('error', e.message));
   t.scene('Island: the tour begins');
   await t.until(() => step() === 'drive' || step() === 'rod', 90000, 'Pip\'s tour to start (the "drive" step)');
   t.event('tour-start', `step: ${step()}`);
+  // First visit: Pip's pier fly-over: a player may skip it with a key or a tap (as the intro), which a newcomer in a hurry does.
+  const cin = () => G() && G().cinematic && G().cinematic.isPlaying;
+  const skipShot = async () => {
+    if (touch) { const c = canvas(), id = ++touchId, x = innerWidth * 0.5, y = innerHeight * 0.3; touchEv('pointerdown', c, x, y, id); touchEv('pointerup', c, x, y, id); }
+    else await tap(t, 'Enter');
+  };
+  if (!cin() && !window.__islandPierShown) await t.wait(1500);
+  if (cin()) {
+    await t.wait(1500); t.scene('Island: the pier fly-over');
+    await skipShot();
+    t.event('pier-cinematic-skipped', `skipped with ${touch ? 'a tap' : 'a key'} after ${Math.round(performance.now() - fm.t0)} ms`);
+    await t.until(() => !cin(), 5000, 'the pier cinematic to end after the skip').catch(() => {});
+  }
+  // The camera nudge toward the 4x4 (about 2 s): let it play out, or skip it.
+  await t.wait(400);
+  if (cin()) { await t.wait(900); const j = W().byId.get('jeep'); const sp = j ? onScreen([j.x, j.y + 6, j.z]) : null; if (sp && sp.on) fm.beaconSeen = true; t.scene('Island: the camera nudge to the 4x4'); t.event('camera-nudge', 'the camera turned toward the 4x4 and its light'); await t.until(() => !cin(), 4000, 'the nudge to end').catch(() => {}); }
+  if (!fm.beaconSeen) t.problem('error', `the beacon was never on screen at ${innerWidth}x${innerHeight} (at the start or in the camera nudge)`);
   t.progress(0.65);
-  await t.wait(2500);
   const jeep = () => W().byId.get('jeep');
   const driving = () => G().player && G().player.controller === 'drive';
   if (step() === 'drive') {
     if (!driving()) {
-      await walkTo(t, 'jeep', 3.2, 40000, 'the 4x4');
+      await goTo(t, ctx, 'jeep', 3.2, 40000, 'the 4x4');
       t.event('at-the-4x4');
-      for (let i = 0; i < 4 && !driving(); i++) { await tap(t, 'e'); await t.wait(700); }
+      for (let i = 0; i < 4 && !driving(); i++) { if (touch) await tapButton(t, $('#touch .b')); else await tap(t, 'e'); await t.wait(700); }
       if (!driving()) {
-    t.problem('warning', 'E did not get the player into the 4x4 (the jeep: ' + (jeep() ? Math.round(Math.hypot(jeep().x - W().player.x, jeep().z - W().player.z)) + ' m away' : 'missing') + '): the hook put them in');
-    await HOOKS.enterVehicle(t, 'jeep');
-  }
-  if (!driving()) throw new Error('timed out getting into the 4x4 (E and hooks.enterVehicle)');
+        t.problem('warning', 'E did not get the player into the 4x4 (the jeep: ' + (jeep() ? Math.round(Math.hypot(jeep().x - W().player.x, jeep().z - W().player.z)) + ' m away' : 'missing') + '): the hook put them in');
+        await HOOKS.enterVehicle(t, 'jeep');
+      }
+      if (!driving()) throw new Error('timed out getting into the 4x4 (E and hooks.enterVehicle)');
     }
     t.scene('Island: driving');
-    t.event('drive-start', 'in the 4x4, W held');
-    keyEv('keydown', 'w'); down.add('w');
-    // Steer to the dock by the 4x4's own heading. Which way D turns it is learned: if the error grows while steering, flip.
+    t.event('drive-start', touch ? 'in the 4x4, the stick pushed forward' : 'in the 4x4, W held');
+    let stick = null;
+    if (touch) stick = stickHold(); else { keyEv('keydown', 'w'); down.add('w'); }
+    // Steer to the dock by the 4x4's own heading. Which way D (or the stick's side) turns it is learned: if the error grows while steering, flip.
     let sign = 1, bad = 0, ref = null;
     const t0 = performance.now();
-    while (step() === 'drive') {
-      if (performance.now() - t0 > 70000) throw new Error('timed out driving to the dock (the "drive" step never passed)');
-      const v = jeep().vehicle, dock = W().byId.get('dock');
-      if (!v || !dock) throw new Error('timed out: the 4x4 or the dock is gone');
-      const tx = dock.x - jeep().x, tz = dock.z - jeep().z;
-      const err = Math.atan2(tx * v.right.x + tz * v.right.z, tx * v.fwd.x + tz * v.fwd.z); // + : the dock is to the right
-      if (ref && performance.now() - ref.at > 700) { if (Math.abs(err) > Math.abs(ref.err) + 0.08) { if (++bad >= 2) { sign = -sign; bad = 0; } } else bad = 0; ref = null; }
-      if (!ref && Math.abs(err) > 0.3) ref = { at: performance.now(), err };
-      const steer = Math.abs(err) > 0.1 ? Math.sign(err) * sign : 0;
-      for (const [k, on] of [['d', steer > 0], ['a', steer < 0]]) { if (on && !down.has(k)) { down.add(k); keyEv('keydown', k); } if (!on && down.has(k)) { down.delete(k); keyEv('keyup', k); } }
-      await t.wait(100);
-    }
+    try {
+      while (step() === 'drive') {
+        if (performance.now() - t0 > 70000) throw new Error('timed out driving to the dock (the "drive" step never passed)');
+        const v = jeep().vehicle, dock = W().byId.get('dock');
+        if (!v || !dock) throw new Error('timed out: the 4x4 or the dock is gone');
+        const tx = dock.x - jeep().x, tz = dock.z - jeep().z;
+        const err = Math.atan2(tx * v.right.x + tz * v.right.z, tx * v.fwd.x + tz * v.fwd.z); // + : the dock is to the right
+        if (ref && performance.now() - ref.at > 700) { if (Math.abs(err) > Math.abs(ref.err) + 0.08) { if (++bad >= 2) { sign = -sign; bad = 0; } } else bad = 0; ref = null; }
+        if (!ref && Math.abs(err) > 0.3) ref = { at: performance.now(), err };
+        const steer = Math.abs(err) > 0.1 ? Math.sign(err) * sign : 0;
+        if (stick) stick.set(steer, 1);
+        else for (const [k, on] of [['d', steer > 0], ['a', steer < 0]]) { if (on && !down.has(k)) { down.add(k); keyEv('keydown', k); } if (!on && down.has(k)) { down.delete(k); keyEv('keyup', k); } }
+        await t.wait(100);
+      }
+    } finally { if (stick) stick.release(); }
     releaseAll();
     t.event('dock-reached', 'the "drive" step passed');
     t.metric('driveSeconds', Math.round((performance.now() - t0) / 100) / 10);
   }
   t.scene('Island: at the dock');
+  // The celebration: particles, the sounds, the camera move and the voiced line; the touch controls stay uncovered.
+  await t.until(() => fm.celebrations.some((c) => c.step === 'drive'), 4000, 'the pier celebration').catch((e) => t.problem('error', e.message));
+  await t.wait(500);
+  t.scene(touch ? 'Pier reached: the celebration (phone)' : 'Pier reached: the celebration');
+  celebrationClear(t, touch);
+  if (fm.success === null) t.problem('error', 'no first success was logged after reaching the pier');
+  else if (fm.success > 60000) t.problem('error', `first-success came ${fm.success} ms after the mirror closed (60000 ms or less is needed)`);
+  else t.event('first-success-in-time', `${fm.success} ms (60000 or less)`);
   t.progress(0.75);
   await t.wait(2500); // Pip's line and the Overseer's
+}
+/** The celebration leaves the controls free: no overlay of ours sits over the stick, the buttons or the HUD zones. */
+function celebrationClear(t, touch) {
+  if (!touch) return;
+  const hit = (a, b) => !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom);
+  const over = [...document.querySelectorAll('.ov-cap.on .in, .ov-bars > *, .hc-cap, .tour-track:not([hidden])')].map((e) => e.getBoundingClientRect()).filter((r) => r.width > 4 && r.height > 4);
+  let bad = 0;
+  for (const c of document.querySelectorAll('#touch .pad, #touch .a, #touch .b, #touch button')) { const cr = c.getBoundingClientRect(); if (cr.width && over.some((r) => hit(r, cr))) bad++; }
+  t.event('celebration-controls-clear', bad ? `${bad} touch control(s) covered` : 'no touch control covered');
+  if (bad) t.problem('error', `the celebration covers ${bad} touch control(s)`);
 }
 
 /** Shared world: two players in the room. The second is a stand-in (presence.standIn: a named setup shortcut, since one
@@ -709,6 +1734,68 @@ async function stagePresence(t) {
 /** The Overseer is alive (overseer.js presence): its halo and rings answer a spoken line, a typed message turns its bay, a beam
  *  is preceded by a flare, and a hum rises as the player climbs (silent on the ground). Draw calls and frame time are compared
  *  quiet and active. Named setup shortcuts: a line is asked of the Overseer, a beam is sent, the player is held at each height. */
+async function stageReact(t) {
+  const R = () => HP().reactions;
+  const heard = [];
+  releaseAll();
+  await t.until(() => W() && W().player && W().player.alive && R() && HP().work, 60000, 'the Overseer\'s reactions');
+  if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
+  G().on('reaction', (d) => { heard.push(d); t.event(`reaction-${d.kind}`, d.text); t.event('overseer-said', d.text); });
+  const n = (k) => R().POOLS[k].length;
+  t.event('reaction-variants', `build ${n('build')}, fail ${n('fail')}, idle ${n('idle')}, thinking ${n('think')}`);
+  for (const k of ['build', 'fail', 'idle']) if (n(k) < 10) t.problem('error', `only ${n(k)} ${k} variants`);
+  await t.wait(5000);
+  // 1. Thinking: a request begins as asking does; the pill's headline is watched.
+  t.event('setup-shortcut', 'a request started as asking does (H.work.begin): asking spends credits, and sign-in is Google only');
+  HP().work.begin({ text: 'a lighthouse on the point' });
+  const heads = [];
+  const t0 = Date.now();
+  while (Date.now() - t0 < 14000) {
+    const st = HP().work.state();
+    const h = st && st.headline;
+    if (h && heads[heads.length - 1] !== h) heads.push(h);
+    if (heads.length === 2) t.scene('Overseer: thinking');
+    await t.wait(300);
+  }
+  t.event('thinking-shown', `${heads.length} headlines while it worked: ${heads.join(' | ')}`);
+  if (heads.length < 3) t.problem('error', `the thinking line changed only ${heads.length} times in 14 s`);
+  const dup = heads.some((h, i) => i && h === heads[i - 1]);
+  if (dup) t.problem('error', 'the same thinking line twice in a row');
+  // 2. Built, failed, built...: each ends the request the way the server's events do.
+  const finish = async (ok, kind) => {
+    const before = heard.length;
+    HP().work.begin({ text: 'another try' });
+    await t.wait(1200);
+    t.event('setup-shortcut', `the request ends ${ok ? 'well' : 'badly'} (the server\'s end event)`);
+    HP().work.handle(ok ? { k: 'beat', title: 'Raising it', n: 1 } : { k: 'plan', beats: [] });
+    if (ok) HP().work.handle({ k: 'op' });
+    HP().work.handle({ k: 'end', ok, why: ok ? undefined : 'It would not come down.' });
+    await t.until(() => heard.length > before && heard[heard.length - 1].kind === kind, 60000, `the Overseer\'s ${kind} line`);
+    if (kind === 'build') t.scene('Overseer: built');
+    if (kind === 'fail') t.scene('Overseer: failed');
+    await t.wait(2500);
+  };
+  HP().work.handle({ k: 'end', ok: true });
+  await t.wait(2500);
+  for (let i = 0; i < 3; i++) { await finish(true, 'build'); await finish(false, 'fail'); }
+  // 3. Idle: the quiet wait shortened.
+  t.event('setup-shortcut', 'the idle wait shortened to 8 s (it is 75 s)');
+  R().IDLE_AFTER = 8; R().IDLE_GAP = 8;
+  await t.until(() => heard.filter((x) => x.kind === 'idle').length >= 2, 90000, 'two idle lines');
+  t.scene('Overseer: idle');
+  R().IDLE_AFTER = 75; R().IDLE_GAP = 120;
+  // 4. Never the same line twice in a row.
+  const bad = [];
+  for (const k of ['build', 'fail', 'idle']) {
+    const l = heard.filter((x) => x.kind === k);
+    t.event('reaction-count', `${k}: ${l.length} lines, ${new Set(l.map((x) => x.text)).size} different`);
+    l.forEach((x, i) => { if (i && x.text === l[i - 1].text) bad.push(x.text); });
+  }
+  if (heard.some((x, i) => i && x.text === heard[i - 1].text)) bad.push('(two in a row)');
+  if (bad.length) t.problem('error', `a line repeated: ${bad.join(' | ')}`);
+  else t.event('no-repeat', `${heard.length} reactions, none the same as the one before`);
+}
+
 async function stageAlive(t) {
   const O = () => G().overseer.presence();
   const mon = () => { try { return HP().monitor && HP().monitor.sample ? HP().monitor.sample() : null; } catch { return null; } };
@@ -882,39 +1969,51 @@ async function stageFish(t, ctx) {
   const q = () => G().events.quests;
   const step = () => (q().state('tour') === 'active' ? q().step('tour') : null);
   const strict = ctx.options.fish === 'strict';
+  const touch = Boolean(ctx.options.touch || HP().touchUi);
+  startFirstMinutes(t, ctx);
+  const fm = ctx.fm;
+  const press0 = () => (touch ? (() => { const c = canvas(), id = ++touchId; touchEv('pointerdown', c, innerWidth / 2, innerHeight * 0.4, id); return () => touchEv('pointerup', c, innerWidth / 2, innerHeight * 0.4, id); })() : (pointer('pointerdown', canvas()), () => pointer('pointerup', window)));
   try {
-    if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
+    if (G().player.controller === 'drive') { if (touch) await tapButton(t, $('#touch .b')); else await tap(t, 'e'); await t.wait(900); }
     t.scene('Island: the pier');
     await t.until(() => step() === 'rod' || step() === 'fish', 8000, 'the tour to ask for the rod');
     if (step() === 'rod') {
-      await walkTo(t, 'rod', 0.7, 45000, 'the fishing rod at the end of the pier');
+      await goTo(t, ctx, 'rod', 0.7, 45000, 'the fishing rod at the end of the pier');
       await t.until(() => step() !== 'rod', 8000, 'the rod to be picked up');
       t.event('rod-picked-up');
     }
     t.progress(0.85);
     await t.wait(1200);
     const heldRod = () => { try { const h = HP().tools.held; return h && h.name === 'rod'; } catch { return false; } };
-    for (const k of ['1', '2', '3', '4']) { if (heldRod()) break; await tap(t, k); await t.wait(250); }
+    if (touch) { for (let i = 0; i < 5 && !heldRod(); i++) { const b = $('.mh-touch button'); if (!b) break; await tapButton(t, b); await t.wait(300); } }
+    else for (const k of ['1', '2', '3', '4']) { if (heldRod()) break; await tap(t, k); await t.wait(250); }
     if (!heldRod()) throw new Error('timed out: the rod is not in hand after picking it up');
-    await lookAt(t, Math.PI / 2); // out to sea, east
+    if (touch) { await dragLook(t, -160); } else await lookAt(t, Math.PI / 2); // out to sea, east
     t.scene('Island: fishing');
     // The rod's documented hook (game.water.fish.assist, docs/api/60-water.md): every cast is a first cast, so the bite comes
     // in 2.5 to 4.5 s, as a new player's first does; the casting, hooking and reeling below are still real input.
     try { G().water.fish.assist(true); t.event('setup-shortcut', 'fishing assist on: a quick, common first bite'); } catch { /* the player's own first-catch help applies */ }
     const biting = () => { try { return G().water.fish.phase() === 'bite'; } catch { return false; } };
     for (let cast = 1; cast <= 4 && step() === 'fish'; cast++) {
-      await holdMouse(t, 900 + cast * 150);
+      { const up = press0(); await t.wait(900 + cast * 150); up(); }
       t.event('cast', `cast ${cast}`);
       const bitten = await t.until(() => biting() || step() !== 'fish', 22000, 'a bite').then(() => biting(), () => false);
       if (!bitten) { t.event('no-bite', `cast ${cast}`); continue; }
       t.event('bite');
-      pointer('pointerdown', canvas()); await t.wait(90); pointer('pointerup', window); // hook it
-      pointer('pointerdown', canvas()); // and reel while held
+      { const up = press0(); await t.wait(90); up(); } // hook it
+      const reel = press0(); // and reel while held
       await t.until(() => step() !== 'fish', 14000, 'the fish to be landed').then(() => 0, () => 0);
-      pointer('pointerup', window);
+      reel();
     }
     if (step() === 'fish') throw new Error('timed out: no fish was caught in four casts');
     t.event('fish-caught', 'the "fish" step passed');
+    await t.until(() => fm.celebrations.some((c) => c.step === 'fish'), 4000, 'the first-catch celebration').catch((e) => t.problem('error', e.message));
+    await t.wait(400);
+    t.scene(touch ? 'First catch: the celebration (phone)' : 'First catch: the celebration');
+    celebrationClear(t, touch);
+    const cel = fm.celebrations.find((c) => c.step === 'fish');
+    if (cel) t.event('first-catch-celebration', `particles ${cel.particles}, sounds ${cel.sounds.join('+')}, camera ${cel.camera}, voiced line ${window.__playtestVoiced ? 'yes' : 'NO'}`);
+    if (!window.__playtestVoiced) t.problem('error', 'no voiced Pip or Overseer line played in the first minutes');
     t.scene('Island: a fish caught');
     t.progress(1);
     await t.wait(2500);
@@ -922,7 +2021,7 @@ async function stageFish(t, ctx) {
     if (strict) throw e;
     t.problem('warning', `fishing did not complete: ${e.message}`);
     t.event('fish-incomplete', e.message);
-  } finally { pointer('pointerup', window); }
+  } finally { pointer('pointerup', window); if (fm && fm.stop) fm.stop(); }
 }
 
 // ---------------------------------------------------------------------------------------------- the Ridge Run
@@ -1056,6 +2155,8 @@ async function stageChapter(t, ctx) {
   const seen = [];
   G().on('tour', (d) => { seen.push(d.step); t.event('quest-done', d.step); });
   G().on('beat', (d) => t.event('islander-line', `${d.who}: ${d.text}`));
+  const voiced = { clip: 0, babble: 0 }; // each line a character spoke: a recorded clip (runtime.js speakRecorded) or the babble
+  G().on('voiced', (d) => { if (d && d.kind === 'clip') { voiced.clip++; t.event('voice-clip', `${d.who}: ${d.url}`); } else if (d && d.kind === 'babble') { voiced.babble++; t.event('voice-babble', `${d.who}`); } });
   G().on('bay-lit', () => t.event('bay-lit', 'the Overseer\'s bay is lit on the sphere'));
   const shortcut = async (until, why) => {
     for (let i = 0; i < 9 && step() && step() !== until; i++) { t.event('setup-shortcut', `${why}: passed "${step()}"`); q().advance('tour'); await t.wait(1500); }
@@ -1089,6 +2190,82 @@ async function stageChapter(t, ctx) {
   t.scene('Chapter One: the lit bay');
   await t.wait(7000); // Pip's "Huh. That's new." and the Overseer's closing line
   t.event('chapter-end', 'quests done: ' + seen.join(', '));
+  t.metric('linesRecorded', voiced.clip); t.metric('linesTextOnly', voiced.babble);
+  t.event('voices-recorded', `${voiced.clip} recorded clip(s), ${voiced.babble} babbled (text only) of ${voiced.clip + voiced.babble} spoken character lines`);
+  t.progress(1);
+}
+
+/** The end of Chapter One (src/overseer-games/finale.js). Setup shortcuts, named: the quest line passed to its end and the rocket
+ *  docked by the game's own dock path. Everything after is the game's own sequence; the player's act is real input (E, or a
+ *  touch pointer on the big button). With touch (or skip) the non-playable shots are skipped with one tap each. */
+async function stageFinale(t, ctx) {
+  const F = () => window.__island && window.__island.finale;
+  const touch = Boolean(ctx.options.touch || HP().touchUi);
+  const skip = touch || ctx.options.skip === true;
+  const mark = {};
+  const at = (n) => { mark[n] = performance.now(); };
+  for (const n of ['finale-start', 'finale-doors-open', 'finale-control', 'finale-input', 'finale-title', 'finale-tease', 'finale-control-returned', 'chapter-one-complete', 'finale-skip']) {
+    G().on(n, (d) => { at(n); t.event(n, JSON.stringify(d || {}).slice(0, 160)); });
+  }
+  const lines = [];
+  G().on('finale-line', (d) => { lines.push(d); t.event('finale-line', `${d.who}: ${d.text} [${d.clip ? 'recorded clip' : 'NO clip'}]`); if (!d.clip) t.problem('error', `no recording for the finale line "${d.text}"`); });
+  releaseAll();
+  await t.until(() => W() && W().player && W().player.alive && F() && HP().overseer && HP().overseer.dockShip, 60000, 'the world and the finale');
+  if (G().player.controller === 'drive') { await tap(t, 'e'); await t.wait(900); }
+  const q = () => G().events.quests;
+  for (let i = 0; i < 10 && q().state('tour') === 'active'; i++) { t.event('setup-shortcut', `the quest line passed "${q().step('tour')}" (the rocket quest's end)`); q().advance('tour'); await t.wait(700); }
+  await t.until(() => window.__islandPlayed && window.__islandPlayed.has('launch'), 15000, "the rocket quest's moment");
+  await t.wait(5000);
+  dockRocket(t);
+  await t.until(() => F().state.running, 12000, 'the finale to begin after docking');
+  const tapShot = async (why) => {
+    await t.until(() => G().cinematic && G().cinematic.playing, 10000, 'a shot to be playing').catch(() => {});
+    t.scene(`Finale: ${why}`);
+    await t.wait(touch ? 2500 : 4000);
+    if (skip && G().cinematic && G().cinematic.playing) {
+      const up = press(canvas()); await t.wait(90); up();
+      t.event('shot-skipped-by-tap', why);
+    }
+  };
+  await t.until(() => mark['finale-doors-open'], 10000, 'the hangar doors to open');
+  t.scene('Finale: the doors open');
+  await tapShot('the doors, light spilling out');
+  await t.until(() => !(G().cinematic && G().cinematic.playing) || mark['finale-control'], 40000, 'the doors shot to end').catch(() => {});
+  if (!mark['finale-control']) { await t.wait(1800); await tapShot('the islanders gather'); }
+  await t.until(() => mark['finale-control'], 60000, 'control to come back for the player\'s act');
+  const ctrl = W().player.controls !== false;
+  t.event('control-mid-sequence', `controls ${ctrl ? 'free' : 'LOCKED'} before the finale act`);
+  if (!ctrl) t.problem('error', 'the player had no control at the finale act');
+  t.scene('Finale: the player\'s turn');
+  await t.until(() => $('.fn-act') && !$('.fn-act').hidden, 8000, 'the big action button');
+  const r = $('.fn-act').getBoundingClientRect();
+  t.event('act-button', `${Math.round(r.width)}x${Math.round(r.height)} px at ${Math.round(r.left)},${Math.round(r.top)} in ${innerWidth}x${innerHeight}`);
+  if (r.height < 48 || r.width < 120) t.problem('error', 'the finale button is too small to tap');
+  await t.wait(2500);
+  if (touch) await tapButton(t, $('.fn-act')); else await tap(t, 'e');
+  await t.until(() => mark['finale-input'], 6000, 'the finale input to be logged');
+  t.scene('Finale: the sky lit');
+  await t.wait(touch ? 2500 : 5000);
+  if (skip && G().cinematic && G().cinematic.playing) { const up = press(canvas()); await t.wait(90); up(); t.event('shot-skipped-by-tap', 'fireworks'); }
+  await t.until(() => mark['finale-title'], 20000, 'the Chapter One complete title');
+  await t.wait(1800);
+  t.scene('Finale: Chapter One complete');
+  await t.until(() => mark['finale-tease'], 12000, 'the tease');
+  await t.wait(3200);
+  t.scene('Finale: the tease on the horizon');
+  await t.until(() => mark['finale-control-returned'], 15000, 'control to come back after the tease');
+  const gap = Math.round(mark['finale-control-returned'] - mark['finale-tease']);
+  t.event('control-returned', `${Math.round(performance.now() - mark['finale-control-returned'])} ms ago; the tease began ${gap} ms before`);
+  t.metric('teaseToControlMs', gap);
+  const ok = W().player.controls !== false && !(G().cinematic && G().cinematic.playing);
+  if (!ok) t.problem('error', 'control did not come back after the finale');
+  const spoken = new Set(lines.map((l) => l.who));
+  t.event('voiced-lines', `${lines.length} lines (${[...spoken].join(', ')})`);
+  if (lines.length < 4) t.problem('error', `only ${lines.length} voiced finale lines`);
+  if (!lines.some((l) => /free will/.test(l.text) && /shoe/.test(l.text))) t.problem('error', 'the Overseer never paid off the opening hook');
+  t.metric('finaleLines', lines.length);
+  await t.wait(2000);
+  t.scene('Back with control, the chapter done');
   t.progress(1);
 }
 
@@ -1296,6 +2473,76 @@ async function stageObservatory(t, ctx) {
     t.event('back-in-bay', 'the second time');
   }
   t.event('observatory-done', seen.join(', '));
+  t.progress(1);
+}
+
+/** Lore as memory: pick up three lore objects (E), each plays a 6 to 12 s memory on the spot with a voiced line; one tap skips; no repeat; the journal's painted pages. */
+async function stageMemories(t, ctx) {
+  const touch = Boolean(ctx && ctx.options && ctx.options.touch);
+  const J = () => window.__island && window.__island.journal;
+  const M = () => window.__island && window.__island.memories;
+  const log = { start: [], line: [], end: [] };
+  G().on('memory-start', (d) => { log.start.push(d); t.event('memory-start', `${d.id}: ${d.figures} figures, ${d.seconds} s`); });
+  G().on('memory-line', (d) => { log.line.push(d); t.event('memory-line', `${d.id} at ${d.at} s: "${d.text}" (${d.clip})`); });
+  G().on('memory-end', (d) => { log.end.push(d); t.event('memory-end', `${d.id}: ${d.seconds} s${d.skipped ? ' (skipped)' : ''}`); });
+  releaseAll();
+  await t.until(() => J() && M() && $('.jr-btn'), 20000, 'the journal and the memories');
+  const wasFound = new Set(J().model().lore.filter((l) => l.found).map((l) => l.id));
+  for (const [i, [thing, id, name]] of [['lore_chair', 'chair', 'the beach chair'], ['lore_drawing', 'drawing', 'the faded drawing'], ['lore_rock', 'tally', 'the scratched rock']].entries()) {
+    if (wasFound.has(id)) continue;
+    try { await walkTo(t, thing, 1.9, 70000, name); await t.wait(400); if (touch) throw new Error('touch: the use button is the phone layout\'s, tried by shortcut'); await tap(t, 'e'); }
+    catch (e) { if (!touch) t.problem('warning', `could not walk to ${name}: ${e.message}`); }
+    if (!M().active() && !log.start.some((x) => x.id === id)) { t.event('setup-shortcut', `picked up ${id} through the journal's own find (E not reached)`); J().find(id); }
+    await t.until(() => log.start.some((x) => x.id === id), 5000, `the memory of ${id} to start`);
+    await t.wait(1500);
+    t.scene(`Memory: ${name}`);
+    const over = $('.mm.on');
+    t.event('memory-tint', over ? 'the sepia veil and vignette are up' : 'no veil');
+    if (!over) t.problem('error', `no sepia veil over the world during the ${id} memory`);
+    if (i === 0) {
+      // One tap skips (touch pointers on the phone).
+      await t.wait(1200);
+      window.dispatchEvent(new PointerEvent('pointerdown', { pointerType: touch ? 'touch' : 'mouse', bubbles: true, clientX: window.innerWidth / 2, clientY: window.innerHeight / 2 }));
+      await t.until(() => log.end.some((x) => x.id === id), 4000, 'one tap to skip the memory');
+      t.event('memory-skipped', 'one tap ended it');
+      await t.until(() => !M().active(), 4000, 'the world to return');
+    } else {
+      await t.until(() => log.end.some((x) => x.id === id), 20000, `the ${id} memory to end`);
+      const d = log.end.find((x) => x.id === id);
+      if (d.seconds < 6 || d.seconds > 12) t.problem('error', `the ${id} memory lasted ${d.seconds} s (6 to 12)`);
+      await t.until(() => !M().active(), 4000, 'the world to return');
+    }
+    if (!log.line.some((x) => x.id === id)) t.problem('error', `no voiced line in the ${id} memory`);
+    await t.wait(600);
+  }
+  // Never again: a second pickup plays nothing.
+  const again = log.start.length;
+  J().find('chair');
+  await t.wait(1500);
+  t.event('no-replay', log.start.length === again ? 'a second pickup played no memory' : 'it played again');
+  if (log.start.length !== again) t.problem('error', 'a memory replayed on a second pickup');
+  // The journal: twelve painted pages.
+  $('.jr-btn').click();
+  await t.until(() => { const el = $('.jr'); return el && !el.hidden; }, 5000, 'the journal');
+  const pages = document.querySelectorAll('.jr-pg');
+  const imgs = [...document.querySelectorAll('.jr-pg img')];
+  await t.wait(2500);
+  const loaded = imgs.filter((i) => i.complete && i.naturalWidth > 0).length;
+  t.event('journal-pages', `${pages.length} pages, ${loaded} paintings loaded; panel ${Math.round($('.jr').getBoundingClientRect().width)} px wide of ${window.innerWidth}`);
+  if (pages.length !== 12) t.problem('error', `the journal has ${pages.length} pages, not 12`);
+  if (loaded < 12) t.problem('error', `only ${loaded} of 12 painted pages loaded`);
+  const strip = $('.jr-pages');
+  strip.scrollIntoView({ block: 'center' });
+  t.scene('Journal: painted pages');
+  if (strip) {
+    if (strip.scrollWidth <= strip.clientWidth) t.problem('error', 'the pages do not swipe sideways');
+    t.event('setup-shortcut', 'the swipe: the strip scrolled sideways (a synthetic touch cannot drive native scroll-snap)');
+    strip.scrollTo({ left: strip.clientWidth + 10, behavior: 'smooth' });
+    await t.wait(900);
+    t.event('page-swiped', $('.jr-count') ? $('.jr-count').textContent : '?');
+    t.scene('Journal: next page');
+  }
+  $('.jr-x').click();
   t.progress(1);
 }
 
@@ -1591,13 +2838,13 @@ async function stageGame(t, ctx) {
   t.scene(`${name}: beamed down`);
   await t.wait(2500);
   const esc = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
-  esc(); await t.wait(250); esc();
-  await t.until(() => [...document.querySelectorAll('.ui-menu-items button')].some((b) => /Return to the Observatory/.test(b.textContent)), 5000, 'the pause menu (Esc twice)');
+  esc();
+  await t.until(() => [...document.querySelectorAll('.gm-btn, .ui-menu-items button')].some((b) => /Return to the Observatory/.test(b.textContent)), 5000, 'the game menu (Esc once)');
   t.scene(`${name}: the pause menu`);
-  t.event('pause-menu', 'Esc twice opened it, with Return to the Observatory');
+  t.event('pause-menu', 'Esc opened it, with Return to the Observatory');
   await t.wait(800);
   writeRun({ ...ctx.saved(), leg: 'back', visit: ctx.visit });
-  [...document.querySelectorAll('.ui-menu-items button')].find((b) => /Return to the Observatory/.test(b.textContent)).click();
+  [...document.querySelectorAll('.gm-btn, .ui-menu-items button')].find((b) => /Return to the Observatory/.test(b.textContent)).click();
   t.event('return-chosen', name);
   await t.wait(30000);
   throw new Error(`Return to the Observatory did not leave ${name}`);
@@ -2091,15 +3338,20 @@ async function stageFeel(t, ctx) {
   await t.wait(1500);
   const jeep = () => W().byId.get('jeep');
   const driving = () => G().player && G().player.controller === 'drive';
+  const touch = Boolean(ctx.options.touch || HP().touchUi);
   if (!driving()) {
-    await walkTo(t, 'jeep', 3.2, 60000, 'the 4x4');
-    for (let i = 0; i < 4 && !driving(); i++) { await tap(t, 'e'); await t.wait(700); }
+    await goTo(t, ctx, 'jeep', 3.2, 60000, 'the 4x4');
+    for (let i = 0; i < 4 && !driving(); i++) { if (touch && $('#touch .b')) await tapButton(t, $('#touch .b')); else await tap(t, 'e'); await t.wait(700); }
     if (!driving()) {
     t.problem('warning', 'E did not get the player into the 4x4 (the jeep: ' + (jeep() ? Math.round(Math.hypot(jeep().x - W().player.x, jeep().z - W().player.z)) + ' m away' : 'missing') + '): the hook put them in');
     await HOOKS.enterVehicle(t, 'jeep');
   }
   if (!driving()) throw new Error('timed out getting into the 4x4 (E and hooks.enterVehicle)');
   }
+  // The pedals: the keys, or on a phone the stick (a: -1 left .. 1 right, f: -1 back .. 1 forward).
+  let pad = null;
+  const dr = (a, f) => { if (touch) { if (!pad) pad = stickHold(); pad.set(a, f); } else setKeys({ w: f > 0, s: f < 0, d: a > 0, a: a < 0 }); };
+  const undrive = () => { if (pad) { pad.release(); pad = null; } releaseAll(); };
   const F = () => HP().vehicles.feel;
   if (!F()) throw new Error('the vehicles feel layer is not loaded');
   const cam = () => W().scene.activeCamera;
@@ -2118,7 +3370,7 @@ async function stageFeel(t, ctx) {
   const seen = { fov: 0, rpm: 0, roll: 0, skid: 0, speed: 0 };
   const peek = () => { const s = F().sample(), j = jeep(); seen.fov = Math.max(seen.fov, s.fov); seen.rpm = Math.max(seen.rpm, s.rpm || 0); seen.roll = Math.max(seen.roll, Math.abs(s.roll)); seen.skid = Math.max(seen.skid, s.skid); seen.speed = Math.max(seen.speed, j ? j.speed : 0); return s; };
   const puffs0 = F().sample().puffs;
-  setKeys({ w: true });
+  dr(0, 1);
   const marks = [];
   for (let i = 0; i < 9; i++) {
     await t.wait(500);
@@ -2132,18 +3384,18 @@ async function stageFeel(t, ctx) {
   t.event('dust', `${F().sample().puffs - puffs0} puffs kicked up on the way`);
   // 2) weave: the body leans
   for (let i = 0; i < 4; i++) {
-    setKeys({ w: true, d: i % 2 === 0, a: i % 2 === 1 });
+    dr(i % 2 === 0 ? 1 : -1, 1);
     await t.wait(700);
     peek();
     if (i === 1) t.scene('4x4: leaning in a bend');
   }
   t.event('body-roll', `leaned up to ${(seen.roll * 57.3).toFixed(1)} degrees in the bends`);
-  // 3) the handbrake: a drift
-  setKeys({ w: true, a: true });
-  keyEv('keydown', ' ');
+  // 3) the handbrake: a drift (a phone has no handbrake: a hard turn at speed)
+  dr(-1, 1);
+  if (!touch) keyEv('keydown', ' ');
   for (let i = 0; i < 6; i++) { await t.wait(250); peek(); }
-  keyEv('keyup', ' ');
-  setKeys({ w: true });
+  if (!touch) keyEv('keyup', ' ');
+  dr(0, 1);
   t.event('drift-squeal', `tire squeal up to ${seen.skid.toFixed(2)}`);
   t.scene('4x4: drifting');
   // 4) a jump: a push upward at speed (named shortcut), then the landing
@@ -2155,7 +3407,7 @@ async function stageFeel(t, ctx) {
   let dip = 0;
   for (let i = 0; i < 24; i++) { await t.wait(100); dip = Math.min(dip, F().sample().dip); if (i === 3) t.scene('4x4: in the air'); }
   const after = F().sample();
-  releaseAll();
+  dr(0, 0);
   const sounds = (HP().juice && HP().juice.sound ? HP().juice.sound.played : 0) - sounds0;
   if (after.landed > before.landed) t.event('landing', `camera dip ${dip.toFixed(3)} m, ${after.puffs - before.puffs} puffs of dust, ${sounds} sounds`);
   else t.problem('warning', 'the 4x4 did not land from the jump in time');
@@ -2163,8 +3415,273 @@ async function stageFeel(t, ctx) {
   running = false;
   const fps = Math.round(frames / ((performance.now() - t0) / 1000));
   t.metric('driveFps', fps);
-  t.event('drive-fps', `${fps} fps while driving${ctx.options.touch ? ' (phone controls)' : ''}`);
-  if (ctx.options.touch && fps < 30) t.problem('error', `the phone tier held ${fps} fps while driving (30 needed)`);
+  t.event('drive-fps', `${fps} fps while driving${touch ? ' (phone controls)' : ''}`);
+  if (touch && fps < 30) t.problem('error', `the phone tier held ${fps} fps while driving (30 needed)`);
+  t.progress(0.72);
+  undrive();
+  await driveSurfaces(t, ctx, { jeep, driving, touch, dr, undrive });
+  if (!touch) await flyOver(t, ctx, { jeep, driving });
+  t.progress(1);
+}
+
+// ---- surface effects (vehicles-vfx.js): the 4x4 across road, sand, shallows and meadow, the headlights at dusk, then the helicopter low over grass and sea
+/** The nearest point (engine numbers) round (x, z) where the ground is what `want` says: 'road' (painted dirt), 'sand' (dry),
+ *  'shallows' (a little under the sea), 'grass' (meadow), 'sea' (anywhere the water is deeper than 1 m). Scans rings, 6 to 140 m. */
+function findGround(x, z, want, from = 6) {
+  const T = HP().terrain, Wt = HP().water;
+  if (!T || !T.heightAt || !T.materialAt) return null;
+  const lvl = (px, pz) => { try { const y = Wt && Wt.surfaceAt ? Wt.surfaceAt(px, pz) : null; return y === null || y === undefined ? null : y; } catch { return null; } };
+  for (let r = from; r <= 140; r += 6) {
+    for (let k = 0; k < 24; k++) {
+      const a = (k / 24) * Math.PI * 2 + r * 0.7, px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r;
+      const h = T.heightAt(px, pz), m = T.materialAt(px, pz), w = lvl(px, pz);
+      if (h === null || h === undefined) continue;
+      const ok = want === 'road' ? m === 'dirt' && h > 0.5 && w === null
+        : want === 'sand' ? m === 'sand' && h > (w === null ? 0.3 : w + 0.6)
+        : want === 'shallows' ? w !== null && h < w - 0.15 && h > w - 1.0
+        : want === 'sea' ? w !== null && h < w - 1.0
+        : m === 'grass' && h > 1 && w === null;
+      if (ok) return [px, h, pz];
+    }
+  }
+  return null;
+}
+async function driveSurfaces(t, ctx, { jeep, driving, touch, dr, undrive }) {
+  const F = () => HP().vehicles.feel, VF = () => HP().vehicles.vfx;
+  if (!VF()) throw new Error('the vehicles surface effects (vehicles-vfx.js) are not loaded');
+  const kindOf = { road: 'dust', sand: 'sand', grass: 'grass', shallows: 'spray' };
+  const seen = new Set(), logged = new Set();
+  const note = () => { for (const sw of VF().sample().switches) { const k = `${sw.t}`; if (!logged.has(k)) { logged.add(k); t.event('surface-switch', `${sw.from || 'start'} -> ${sw.ground}: ${sw.effect} (${sw.speed} m/s)`); seen.add(sw.ground); } } };
+  let frames = 0, running = true;
+  const t0 = performance.now();
+  const raf = () => { frames++; if (running) requestAnimationFrame(raf); };
+  requestAnimationFrame(raf);
+  let pad = null;
+  const drive = (a, f) => { if (touch) { if (!pad) pad = stickHold(); pad.set(a, f); } else setKeys({ w: f > 0, s: f < 0, d: a > 0, a: a < 0 }); };
+  const leg = async (want, ms) => {
+    const j = jeep();
+    const g = findGround(j.x, j.z, want);
+    if (!g) { t.problem('error', `no ${want} ground found within 140 m of the 4x4`); return false; }
+    const e0 = VF().sample().emitted[kindOf[want]];
+    const tl = performance.now();
+    steer.last = null; steer.slow = 0; steer.back = 0;
+    let got = false;
+    for (;;) {
+      const j2 = jeep(), s = VF().sample();
+      const r = steerAt(j2, g);
+      // steerAt sets the keys; a phone says the same on the stick
+      if (touch) { const d = down.has('d') ? 1 : down.has('a') ? -1 : 0, f = down.has('w') ? 1 : down.has('s') ? -1 : 0; setKeys({}); drive(d, f); }
+      note();
+      if (s.surface === want && VF().sample().emitted[kindOf[want]] - e0 > 8) { got = true; if (r.dist < 12 || performance.now() - tl > 3500) break; }
+      if (r.dist < 4) break;
+      if (performance.now() - tl > ms) break;
+      await t.wait(100);
+    }
+    note();
+    if (!got) t.problem('error', `driving toward ${want} ground for ${Math.round((performance.now() - tl) / 1000)} s never showed its ${kindOf[want]} effect (on ${VF().sample().surface})`);
+    else t.event('wheel-effect', `${kindOf[want]} on the ${want}: ${VF().sample().emitted[kindOf[want]] - e0} particles, ${Math.round(jeep().speed)} m/s`);
+    return got;
+  };
+  try {
+    await leg('road', 22000); t.scene('4x4: pale dust on the road');
+    await leg('sand', 30000); t.scene('4x4: a sand plume and tracks on the beach');
+    const tr = VF().sample().tracks;
+    if (tr.written > 3) t.event('tracks-on-sand', `${tr.written} track quads laid (${tr.live} showing, at most ${tr.cap})`); else t.problem('error', `the 4x4 left ${tr.written} tracks on the beach`);
+    await t.wait(1200); t.scene('4x4: tracks on the sand');
+    await leg('shallows', 30000); t.scene('4x4: spray and a wake in the shallows');
+    await leg('grass', 40000); t.scene('4x4: grass and dirt bits on the meadow');
+  } finally { running = false; }
+  note();
+  const fps = Math.round(frames / ((performance.now() - t0) / 1000));
+  t.metric('surfaceDriveFps', fps);
+  const need = ['road', 'sand', 'shallows', 'grass'].filter((k) => !seen.has(k));
+  t.event('surfaces-driven', `${[...seen].join(', ')}: ${JSON.stringify(VF().sample().emitted)}; ${fps} fps over ${Math.round((performance.now() - t0) / 1000)} s${touch ? ' (phone controls)' : ''}`);
+  if (need.length) t.problem('error', `the 4x4 never switched effect on: ${need.join(', ')}`);
+  if (touch && fps < 30) t.problem('error', `the phone tier held ${fps} fps over the four surfaces (30 needed)`);
+  // Headlights at dusk (the clock moved: a named shortcut), the road ahead lit.
+  const day0 = HP().sky.day;
+  const lt = HP().lighting;
+  if (lt && lt.setHour) {
+    lt.setHour(20.4);
+    t.event('setup-shortcut', 'the world clock set to dusk (H.lighting.setHour) so the lights can come on by themselves');
+    await t.until(() => { const l = VF().sample().lights; return l && l.on; }, 8000, 'the headlights to switch on at dusk').catch((e) => t.problem('error', e.message));
+    drive(0, 1);
+    await t.wait(1600);
+    const l = VF().sample().lights;
+    const v = jeep().vehicle;
+    t.event('headlights-on', `day ${HP().sky.day.toFixed(2)} (was ${day0.toFixed(2)}): lamp on ${l && l.on}, spot light ${v.light ? `range ${Math.round(v.light.range)} m, intensity ${v.light.intensity}` : 'missing'}, ${l && l.cone ? 'soft cone' : 'no cone (phone: no volumetric)'}, ${l ? l.flares : 0} lens flares`);
+    if (!v.light) t.problem('error', 'the headlight did not light the road ahead (no spot light)');
+    t.scene('4x4: headlights at dusk');
+    drive(0, -1); await t.wait(900);
+    const b = VF().sample().lights;
+    t.event('brake-lights', `brake lights ${b && b.brake ? 'on' : 'not seen'} under the brakes`);
+    t.scene('4x4: brake lights');
+    drive(0, 0);
+  } else t.problem('warning', 'no H.lighting.setHour: the dusk headlights were not checked');
+  if (pad) { pad.release(); pad = null; }
+  undrive();
+  // Tracks fade: wait with the car still. The last mark is at most 30 s old when it is gone.
+  const t1 = performance.now();
+  await t.until(() => VF().sample().tracks.live === 0, 34000, 'the tyre tracks to fade out').catch((e) => t.problem('error', e.message));
+  t.event('tracks-faded', `${Math.round((performance.now() - t1) / 1000)} s after the car stopped, ${VF().sample().tracks.live} tracks left`);
+  if (lt && lt.release) lt.release();
+}
+
+async function flyOver(t, ctx, { jeep, driving }) {
+  const VF = () => HP().vehicles.vfx;
+  const heli = () => W().byId.get('heli');
+  if (!heli()) { t.problem('warning', 'no helicopter in this world'); return; }
+  releaseAll();
+  const flying = () => G().player && G().player.controller === 'drive' && HP().vehicles.current && HP().vehicles.current.vehicle === heli().vehicle;
+  if (driving()) { await tap(t, 'e'); await t.wait(900); }
+  await goTo(t, ctx, 'heli', 3.5, 70000, 'the helicopter');
+  for (let i = 0; i < 4 && !flying(); i++) { await tap(t, 'e'); await t.wait(800); }
+  if (!flying()) { t.problem('warning', 'E did not put the player in the helicopter: the hook did'); await HOOKS.enterVehicle(t, 'heli'); }
+  if (!flying()) throw new Error('timed out getting into the helicopter');
+  t.event('in-the-helicopter');
+  const hk = (k, on) => { if (on && !down.has(k)) { down.add(k); keyEv('keydown', k); } if (!on && down.has(k)) { down.delete(k); keyEv('keyup', k); } };
+  keyEv('keydown', ' '); down.add(' ');
+  await t.wait(3500);
+  t.scene('Helicopter: rotor blur, lifting off');
+  const bl = VF().sample().rotorBlur;
+  t.event('rotor-blur', `the rotor disc at ${bl.toFixed(2)} opacity`);
+  if (bl < 0.05) t.problem('error', 'no rotor blur disc while the rotor turns');
+  // Fly at a point keeping 3 to 6 m up: space climbs, C descends, W tips it forward, A / D turn.
+  const hover = async (want, label) => {
+    const h = heli(), g = findGround(h.x, h.z, want, 10);
+    if (!g) { t.problem('error', `no ${want} ground found for the helicopter`); return; }
+    const t0 = performance.now();
+    let ok = false, still = 0;
+    while (performance.now() - t0 < 45000) {
+      const h2 = heli(), v = h2.vehicle, s = VF().sample();
+      const tx = g[0] - h2.x, tz = g[2] - h2.z, dist = Math.hypot(tx, tz);
+      const err = Math.atan2(tx * v.right.x + tz * v.right.z, tx * v.fwd.x + tz * v.fwd.z);
+      const alt = s.wash && s.wash.alt !== undefined && s.wash.mine !== false ? s.wash.alt : 9;
+      hk('w', dist > 7 && Math.abs(err) < 0.7);
+      hk('d', err > 0.12); hk('a', err < -0.12);
+      // altitude: climb under 3 m, sink over 6 m (a wash reports only under 8 m: no report means high)
+      if (!s.wash || !s.wash.ring || alt > 6) { hk(' ', false); hk('c', true); } else if (alt < 3) { hk('c', false); hk(' ', true); }
+      if (s.wash && s.wash.ring && s.wash.alt < 7 && s.wash.ground === (want === 'grass' ? 'grass' : 'shallows') && dist < 12) { still += 0.1; if (still > 1.5) { ok = true; break; } } else still = 0;
+      await t.wait(100);
+    }
+    for (const k of ['w', 'a', 'd', 'c', ' ']) hk(k, false);
+    const s = VF().sample();
+    if (ok) {
+      t.event(want === 'grass' ? 'downwash-ring-grass' : 'spray-disc-sea', `${label}: ring ${s.wash.radius} m wide at ${s.wash.alt} m up, strength ${s.wash.strength}${s.wash.spray ? ', spray disc' : ''}; ${JSON.stringify(VF().sample().emitted)}`);
+      t.scene(`Helicopter: ${label}`);
+      await t.wait(900);
+    } else t.problem('error', `the helicopter never showed its ${label} (${JSON.stringify(s.wash)})`);
+  };
+  await hover('grass', 'a downwash ring over grass');
+  await hover('sea', 'a spray disc over the sea');
+  t.event('washes', `${VF().washes().length} wash(es) told to the grass this frame`);
+  releaseAll();
+}
+
+
+// `vehicle-sound` (vehicles-sound.js): the 4x4 from rest to top speed (four engine layers in turn, a dip at each shift), the
+// tyre loop by ground, a second helicopter flown past the player (doppler), Rolo's rocket (ignition, roar, rumble).
+async function stageVehicleSound(t, ctx) {
+  await t.until(() => G() && G().vehicles && W().byId.get('jeep') && HP().vehicles.sound, 90000, 'the island, its 4x4 and the vehicle sound');
+  await t.wait(1500);
+  const S = () => HP().vehicles.sound.sample();
+  const jeep = () => W().byId.get('jeep');
+  const driving = () => G().player && G().player.controller === 'drive';
+  const touch = Boolean(ctx.options.touch || HP().touchUi);
+  const logged = new Set();
+  const flush = () => { for (const r of S().log) { const k = `${r.t}${r.what}`; if (logged.has(k)) continue; logged.add(k); if (r.what === 'shift') t.event('gear-shift', `${r.from} -> ${r.to} at ${r.speed} m/s`); else if (r.what === 'surface') t.event('tyre-surface', `${r.from || 'start'} -> ${r.to} (${r.ground}) at ${r.speed} m/s`); else if (r.what === 'layers') t.event('engine-layers', `active ${r.active}, gains ${r.gains.join('/')}, rpm ${r.rpm}, gear ${r.gear}`); } };
+  if (!driving()) {
+    await goTo(t, ctx, 'jeep', 3.2, 60000, 'the 4x4');
+    for (let i = 0; i < 4 && !driving(); i++) { if (touch && $('#touch .b')) await tapButton(t, $('#touch .b')); else await tap(t, 'e'); await t.wait(700); }
+    if (!driving()) { t.problem('warning', 'E did not get the player into the 4x4: the hook did'); await HOOKS.enterVehicle(t, 'jeep'); }
+    if (!driving()) throw new Error('timed out getting into the 4x4');
+  }
+  let pad = null;
+  const dr = (a, f) => { if (touch) { if (!pad) pad = stickHold(); pad.set(a, f); } else setKeys({ w: f > 0, s: f < 0, d: a > 0, a: a < 0 }); };
+  const undrive = () => { if (pad) { pad.release(); pad = null; } releaseAll(); };
+  await t.wait(1500);
+  t.scene('4x4: engine idling');
+  const everActive = new Set();
+  let maxActive = 0, followed = false;
+  // 1) rest to top speed
+  const t0 = performance.now();
+  dr(0, 1);
+  while (performance.now() - t0 < 26000) {
+    await t.wait(150);
+    const s = S();
+    s.layers.forEach((g, i) => { if (g > 0.05) everActive.add(i); });
+    maxActive = Math.max(maxActive, s.layers.filter((g) => g > 0.02).length);
+    if (touch && s.throttle > 0.5 && s.rpm > 0.4) followed = true;
+    flush();
+    if (s.shifts >= 3 && everActive.size >= 4 && s.speed > 20) break;
+  }
+  t.scene('4x4: flat out');
+  const s1 = S();
+  t.event('layers-crossfade', `layers heard in turn: ${[...everActive].sort().join(', ')}; at most ${maxActive} at once (limit ${s1.maxLayers}); rpm ${s1.rpm}, gear ${s1.gear}`);
+  if (touch) { if (followed) t.event('engine-follows-throttle', `the stick held forward: throttle ${s1.throttle}, rpm ${s1.rpm}`); else t.problem('error', 'the engine note did not follow the touch throttle'); if (maxActive > 2) t.problem('error', `a phone played ${maxActive} engine layers at once (2 allowed)`); }
+  else if (everActive.size < 4) t.problem('error', `only ${everActive.size} of the 4 engine layers were heard from rest to top speed`);
+  t.event('shift-dips', `${s1.shifts} gear shifts (each dips the volume 0.3 s and clunks)`);
+  if (s1.shifts < 2) t.problem('error', `only ${s1.shifts} gear shift(s) from rest to top speed (2 needed)`);
+  // 2) road > sand > shallows
+  const want = { road: 'road', sand: 'sand', shallows: 'water' };
+  const sw0 = S().surfaceSwitches;
+  for (const g of ['road', 'sand', 'shallows']) {
+    const to = findGround(jeep().x, jeep().z, g);
+    if (!to) { t.problem('error', `no ${g} ground near the 4x4`); continue; }
+    const tl = performance.now();
+    steer.last = null; steer.slow = 0; steer.back = 0;
+    for (;;) {
+      const r = steerAt(jeep(), to);
+      if (touch) { const d = down.has('d') ? 1 : down.has('a') ? -1 : 0, f = down.has('w') ? 1 : down.has('s') ? -1 : 0; setKeys({}); dr(d, f); }
+      flush();
+      if (S().tyre === want[g] && performance.now() - tl > 600) break;
+      if (r.dist < 3 || performance.now() - tl > 30000) break;
+      await t.wait(100);
+    }
+    flush();
+    if (S().tyre === want[g]) t.event('tyre-loop-change', `the ${want[g]} tyre loop plays on the ${g}`); else t.problem('error', `the tyre loop never became ${want[g]} on the ${g} (it was ${S().tyre})`);
+    t.scene(`4x4: ${want[g]} tyre loop`);
+  }
+  t.event('tyre-switches', `${S().surfaceSwitches - sw0} surface switches logged`);
+  undrive();
+  await t.wait(500);
+  // 3) a second helicopter flown past (named shortcut), the camera staying with the 4x4
+  const gv = G().vehicles, me = jeep();
+  const h = gv.make('helicopter', { x: me.x - 110, y: me.y + 14, z: me.z + 18 });
+  t.event('setup-shortcut', 'a second helicopter made 110 m from the player and flown past by autopilot (the camera stays with the 4x4)');
+  await t.wait(600);
+  const hv = h.vehicle;
+  const f = hv.fwd; const fl = Math.hypot(f.x, f.z) || 1;
+  const pm = jeep();
+  h.x = pm.x - (f.x / fl) * 110 + (f.z / fl) * 14; h.z = pm.z - (f.z / fl) * 110 - (f.x / fl) * 14; h.y = pm.y + 12;
+  gv.drive(h, { throttle: 1, hover: 12 });
+  const th = performance.now();
+  while (performance.now() - th < 45000 && !S().doppler) { await t.wait(200); flush(); }
+  const d = S().doppler;
+  if (d) t.event('doppler-drop', `the rotor was ${d.before}x coming and ${d.after}x going (a drop of ${d.drop}) as it passed ${d.distance} m away`); else t.problem('error', 'the helicopter passed and no doppler pitch drop was logged');
+  t.scene('Helicopter passing');
+  gv.drive(h, null);
+  // 4) Rolo's rocket: in by a hook, held up, then let go
+  if (driving()) { await tap(t, 'e'); await t.wait(800); }
+  await HOOKS.enterVehicle(t, 'rocket');
+  const R = () => S().rocket;
+  const hold = (k, on) => { if (on && !down.has(k)) { down.add(k); keyEv('keydown', k); } if (!on && down.has(k)) { down.delete(k); keyEv('keyup', k); } };
+  hold(' ', true);
+  await t.until(() => R() && R().phase === 'ignition', 12000, 'the rocket ignition sound').then(() => t.event('rocket-ignition', 'the ignition played')).catch((e) => t.problem('error', e.message));
+  await t.until(() => R() && R().phase === 'roar', 12000, 'the rocket roar').then(() => t.event('rocket-roar', `the roar follows the climb (${R().climb} m/s up, low-pass ${R().cutoff} Hz)`)).catch((e) => t.problem('error', e.message));
+  await t.wait(3500);
+  t.scene('Rolo\'s rocket: the climb');
+  hold(' ', false); hold('c', true);
+  await t.until(() => R() && R().phase === 'rumble', 20000, 'the rocket rumble tail').then(() => t.event('rocket-rumble', `the rumble tail played ${R().burned} s after ignition`)).catch((e) => t.problem('error', e.message));
+  hold('c', false);
+  flush();
+  // 5) what the sounds weigh
+  let bytes = 0, n = 0;
+  for (const r of performance.getEntriesByType('resource')) if (/\/audio\/sfx\/veh-/.test(r.name)) { bytes += r.encodedBodySize || r.transferSize || 0; n++; }
+  t.metric('vehicleAudioKB', Math.round(bytes / 1024));
+  t.event('audio-bytes', `${n} vehicle sound files, ${Math.round(bytes / 1024)} KB over the wire (2048 KB allowed)`);
+  if (bytes > 2 * 1024 * 1024) t.problem('error', 'the new vehicle audio is over 2 MB');
+  releaseAll();
   t.progress(1);
 }
 
@@ -2173,7 +3690,26 @@ async function stageFeel(t, ctx) {
 // embers, and ten barrels go off one after another. Real input (walking, a click); the launcher in hand and five more
 // barrels beside the five on the beach are one named shortcut. touch: true is the phone: the frame rate through the chain
 // is measured and under 30 is a problem.
+/** The layers of the last blast (mayhem-vfx.js `sample()`), one event each, and the smoke column still there later. */
+function blastLayers(t, label) {
+  const V = G() && G().mayhem && G().mayhem.vfx, s = V && V.sample();
+  if (!s || !s.ready) { t.problem('error', 'the layered blast (mayhem-vfx.js) was not ready: the flipbooks were not drawn'); return; }
+  const L = (s.last && s.last.layers) || {};
+  t.event('blast-layer-fireball', `${label}: ${s.fire} flipbook fireball particles in all (the last blast ${L.fireball || 0}), ${s.sheet} px sheets, ${s.tier} tier`);
+  t.event('blast-layer-smoke', `${label}: ${s.smoke} column particles fed; ${s.smokeAlive} smoke particles still alive`);
+  t.event('blast-layer-shockwave', `${label}: ${s.shock} ground rings, ${s.dust} dust particles${L.dust ? ' (' + L.dust.surface + ')' : ''}`);
+  t.event('blast-layer-sparks', `${label}: ${s.sparks} sparks with trails`);
+  t.event('blast-layer-flash', `${label}: ${s.flash} flashes, the longest lit ${s.flashFrames} frames`);
+  t.event('blast-layer-scorch', `${label}: ${s.scorch} scorch marks put down, ${s.scorchLive} on the ground now (fading over 60 s)`);
+  t.event('blast-layer-ripple', `${label}: ${s.ripple} heat ripples${s.tier === 'desktop' ? '' : ' (none off desktop High, as designed)'}`);
+  if (!s.fire || !s.smoke || !s.sparks || !s.flash || !s.scorch) t.problem('error', `a blast layer was missing (${JSON.stringify({ fire: s.fire, smoke: s.smoke, sparks: s.sparks, flash: s.flash, scorch: s.scorch })})`);
+  if (s.flash && s.flashFrames < 3) t.problem('warning', `the flash lit only ${s.flashFrames} frame(s)`);
+  if (s.tier === 'phone' && s.ripple) t.problem('error', 'a heat ripple was drawn on the phone tier');
+  if (s.tier === 'phone' && s.sheet !== 512) t.problem('error', `the phone read ${s.sheet} px flipbooks (512 needed)`);
+}
+
 async function stageBlast(t, ctx) {
+  if (ctx.options.touch) return stagePhonePerf(t, ctx); // the phone: touch pointers only (the stick, a thumb drag, FIRE)
   await t.until(() => G() && G().mayhem && G().mayhem.feel && W().byId.get('barrel_1'), 90000, 'the island, its barrels and the game feel layer');
   await t.wait(1500);
   const P = () => W().player;
@@ -2222,6 +3758,10 @@ async function stageBlast(t, ctx) {
     await t.wait(1100);
     t.scene('Blast: embers and smoke');
     await t.wait(2600);
+    t.scene('Blast: the smoke column 5 s on');
+    const V = G().mayhem.vfx, alive = V ? V.sample().smokeAlive : 0;
+    t.event('smoke-5s', `${alive} smoke particles still in the sky about 5 s after the first blast`);
+    if (alive < 10) t.problem('error', `the smoke column is gone after 5 s (${alive} particles)`);
     running = false;
     const s = F().sample(), fps = Math.round(frames / ((performance.now() - t0) / 1000));
     const mine = booms.slice(first);
@@ -2231,6 +3771,7 @@ async function stageBlast(t, ctx) {
     t.event('chain-rolling', `${mine.length} explosions over ${Math.round((mine.length ? mine[mine.length - 1].t - at0 : 0))} ms; gaps ms: ${gaps.join(', ')}`);
     if (mine.length < Math.min(8, total)) t.problem('warning', `only ${mine.length} of ${total} barrels went off in the chain`);
     if (mine.length > 3 && mine[mine.length - 1].t - at0 < 700) t.problem('error', 'the barrels went off almost all at once (no visible chain)');
+    blastLayers(t, 'desktop');
     t.metric('chainFps', fps);
     t.metric('chainWorstFrameMs', Math.round(worst));
     t.event('chain-fps', `${fps} fps through the shot and the ${mine.length}-barrel chain (worst frame ${Math.round(worst)} ms)${ctx.options.touch ? ', phone controls' : ''}`);
@@ -2244,14 +3785,155 @@ async function stageBlast(t, ctx) {
   }
   releaseAll();
   if (tries >= 4 && !booms.length) throw new Error('the rockets never landed');
+  // Rolo's rocket: put in it (a named shortcut), a burn with Space: the exhaust flame, the pad dust, the trail up the climb
+  const rk = W().byId.get('rocket');
+  if (rk && G().mayhem.vfx) {
+    await HOOKS.enterVehicle(t, 'rocket').catch((e) => t.problem('warning', String(e && e.message || e)));
+    const v0 = G().mayhem.vfx.sample(), y0 = rk.y;
+    keyEv('keydown', ' ');
+    await t.wait(1200); t.scene('Rocket: the exhaust flame and the pad dust');
+    await t.wait(4500); t.scene('Rocket: the trail up the climb');
+    const v1 = G().mayhem.vfx.sample();
+    keyEv('keyup', ' ');
+    t.event('rocket-exhaust', `${v1.exhaust - v0.exhaust} exhaust flame particles`);
+    t.event('rocket-pad-dust', `${v1.padDust - v0.padDust} dust particles thrown from the pad`);
+    t.event('rocket-smoke-trail', `${v1.trail - v0.trail} trail particles over a climb of ${Math.round(rk.y - y0)} m`);
+    if (v1.exhaust - v0.exhaust < 5) t.problem('error', 'the rocket showed no exhaust flame');
+    if (v1.trail - v0.trail < 5) t.problem('error', 'the rocket left no smoke trail');
+  }
   t.progress(1);
+}
+
+// ---------------------------------------------------------------------------------------------- phone performance
+/** Counts frames from now: stop() gives the average fps, the worst frame and how many frames took over 500 ms (a freeze). */
+function frameMeter() {
+  let frames = 0, worst = 0, freezes = 0, hitches = 0, running = true, last = performance.now();
+  const t0 = last;
+  const raf = (n) => { frames++; const d = n - last; worst = Math.max(worst, d); if (d > 500) freezes++; if (d > 100) hitches++; last = n; if (running) requestAnimationFrame(raf); };
+  requestAnimationFrame(raf);
+  return { stop() { running = false; return { fps: Math.round(frames / ((performance.now() - t0) / 1000)), worst: Math.round(worst), freezes, hitches }; } };
+}
+/** `phone-performance`: the phone controls only (pointer events of type touch). Driving, then the rocket launcher at ten barrels,
+ *  each with the frame rate, the worst frame and the freezes measured, and proof that the stick and buttons answered. */
+async function stagePhonePerf(t, ctx) {
+  await t.until(() => G() && G().vehicles && G().mayhem && W().byId.get('jeep') && W().byId.get('barrel_1') && HP().touchLayout, 90000, 'the island, its 4x4, barrels and touch layout');
+  if (!HP().touchUi) throw new Error('the phone controls are not on (open /play/sandbox?touch=1)');
+  await t.until(() => $('#touch .pad') && $('#touch .a') && $('#touch .b'), 15000, 'the stick and the buttons');
+  await t.wait(1500);
+  releaseAll();
+  const driving = () => G().player && G().player.controller === 'drive';
+  const P = () => W().player;
+  t.event('phone-ready', `${HP().device ? HP().device.tier : '?'} tier, ${innerWidth}x${innerHeight}, touch controls`);
+  // walk with the stick toward a thing, as a thumb does
+  const stickTo = async (id, near, ms, what) => {
+    const g = W().byId.get(id), t0 = performance.now(); let s = null;
+    try {
+      for (;;) {
+        const dx = g.x - P().x, dz = g.z - P().z, d = Math.hypot(dx, dz);
+        if (d <= near) return;
+        if (performance.now() - t0 > ms) throw new Error(`timed out walking to ${what} with the stick`);
+        const yaw = camYaw(), sn = Math.sin(yaw), c = Math.cos(yaw);
+        if (!s) s = stickHold();
+        s.set((dx * c - dz * sn) / d, (dx * sn + dz * c) / d);
+        await t.wait(80);
+      }
+    } finally { if (s) s.release(); }
+  };
+  // 1) driving
+  await stickTo('jeep', 3.2, 60000, 'the 4x4');
+  for (let i = 0; i < 4 && !driving(); i++) { await tapButton(t, $('#touch .b')); await t.wait(700); }
+  if (!driving()) throw new Error('timed out getting into the 4x4 with B');
+  await t.wait(1200);
+  t.scene('Phone: in the 4x4');
+  const jeep = W().byId.get('jeep');
+  const head = () => Math.atan2(jeep.vehicle.fwd.x, jeep.vehicle.fwd.z);
+  const m1 = frameMeter();
+  const st = stickHold();
+  const a0 = { x: jeep.x, z: jeep.z };
+  st.set(0, 1); await t.wait(3000);
+  const moved = Math.hypot(jeep.x - a0.x, jeep.z - a0.z);
+  t.scene('Phone: driving');
+  let turned = 0;
+  for (let i = 0; i < 5; i++) { const h = head(); st.set(i % 2 ? -1 : 1, 1); await t.wait(900); turned = Math.max(turned, Math.abs(wrap(head() - h))); if (i === 2) t.scene('Phone: steering'); }
+  const brake = press($('#touch .a')); st.set(0, 0);
+  const sp0 = jeep.vehicle.speed || 0; await t.wait(1500);
+  const sp1 = jeep.vehicle.speed || 0; brake(); st.release();
+  await t.wait(1500);
+  const d = m1.stop();
+  t.event('touch-steer-responds', `the stick drove the 4x4 ${moved.toFixed(1)} m and turned it up to ${turned.toFixed(2)} rad`);
+  if (moved < 3) t.problem('error', `the stick did not drive the 4x4 (${moved.toFixed(1)} m in 3 s)`);
+  if (turned < 0.15) t.problem('error', `the stick did not steer the 4x4 (${turned.toFixed(2)} rad)`);
+  t.event('touch-brake-responds', `A held: speed ${Number(sp0).toFixed(1)} to ${Number(sp1).toFixed(1)}`);
+  if (sp0 > 4 && sp1 > sp0 * 0.9) t.problem('error', 'the brake button did not slow the 4x4');
+  t.metric('driveFps', d.fps); t.metric('driveWorstFrameMs', d.worst); t.metric('driveFreezes', d.freezes);
+  t.event('drive-fps', `${d.fps} fps driving with touch (worst frame ${d.worst} ms, ${d.freezes} freezes over 500 ms)`);
+  if (d.fps < 30) t.problem('error', `the phone held ${d.fps} fps while driving (30 needed)`);
+  if (d.freezes) t.problem('error', `${d.freezes} freeze(s) over 500 ms while driving (worst ${d.worst} ms)`);
+  // 2) the barrels
+  await tapButton(t, $('#touch .b')); await t.wait(1200);
+  const barrels = () => [...W().entities].filter((e) => e.data && (e.data.barrel || e.data.explosive) && !e._exploded);
+  const b1 = W().byId.get('barrel_1');
+  G().mayhem.spawnMany('barrel', 5, { at: [b1.x + 2.6, b1.y, b1.z], pattern: 'line', spacing: 1.3 });
+  P().tool = 'rocket-launcher';
+  t.event('setup-shortcut', 'the rocket launcher put in hand and five more fuel barrels spawned beside the five on the beach, so ten in all');
+  await t.wait(1200);
+  const total = barrels().length;
+  await stickTo('barrel_1', 9, 60000, 'the fuel barrels');
+  const booms = [];
+  G().on('explosion', () => booms.push(performance.now()));
+  await t.until(() => $('.mh-fire:not([hidden])'), 8000, 'the FIRE button');
+  let result = null;
+  for (let tries = 0; tries < 4 && !result; tries++) {
+    // turn to the barrels with a thumb drag (the first drags learn which way it turns)
+    let sign = 1, last = null;
+    for (let k = 0; k < 30; k++) {
+      const p = W().byId.get('barrel_1'), err = wrap(Math.atan2(p.x - P().x, p.z - P().z) - camYaw());
+      if (Math.abs(err) < 0.3) break;
+      if (last !== null && Math.abs(err) > Math.abs(last) + 0.02) sign = -sign;
+      last = err;
+      await dragLook(t, Math.sign(err) * sign * Math.min(160, Math.abs(err) * 140 + 30)); await t.wait(100);
+    }
+    const m2 = frameMeter(), first = booms.length;
+    await tapButton(t, $('.mh-fire:not([hidden])'), 200);
+    t.event('touch-fire-tapped', `FIRE tapped, shot ${tries + 1}`);
+    await t.until(() => booms.length > first, 7000, 'the rocket to land').catch(() => {});
+    await t.wait(5500);
+    const r = m2.stop();
+    if (booms.length > first) result = { ...r, n: booms.length - first };
+    else { t.problem('warning', `shot ${tries + 1} did not land`); await stickTo('barrel_1', Math.max(3.5, 9 - (tries + 1) * 1.8), 20000, 'the fuel barrels'); }
+  }
+  if (!result) throw new Error('FIRE never sent a rocket that landed');
+  t.scene('Phone: the chain');
+  t.event('touch-fire-responds', `FIRE tapped with a thumb: ${result.n} explosions of ${total} barrels`);
+  t.metric('blastFps', result.fps); t.metric('blastWorstFrameMs', result.worst); t.metric('blastFreezes', result.freezes);
+  t.event('blast-fps', `${result.fps} fps through the shot and the chain with touch (worst frame ${result.worst} ms, ${result.freezes} freezes over 500 ms)`);
+  t.metric('blastHitchesOver100ms', result.hitches);
+  if (result.hitches) t.problem('error', `${result.hitches} frame(s) over 100 ms in the 5-barrel chain on the phone (worst ${result.worst} ms)`);
+  blastLayers(t, 'phone');
+  if (result.fps < 30) t.problem('error', `the phone held ${result.fps} fps through the explosions (30 needed)`);
+  if (result.freezes) t.problem('error', `${result.freezes} freeze(s) over 500 ms in the explosions (worst ${result.worst} ms)`);
+  releaseAll();
 }
 
 const RUN = {
   models: stageModels,
   hats: stageHats,
-  landing: stageLanding, veil: stageVeil, intro: stageIntro, mirror: stageMirror, sheet: stageSheet, asks: stageAsks, toeditor: stageToEditor, editor: stageEditor, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, faces: stageFaces, progress: stageProgress, wish: stageWish, alive: stageAlive, touch: stageTouch, leave: stageLeave, back: stageBack,
+  landing: stageLanding, veil: stageVeil, title: stageTitle, intro: stageIntro, firstvisit: stageFirstVisit, mirror: stageMirror, mirrorlayout: stageMirrorLayout, hudoverlap: stageHudOverlap, sheet: stageSheet, asks: stageAsks, answer: stageAnswer, toeditor: stageToEditor, editor: stageEditor, pier: stagePier, drive: stageDrive, fish: stageFish, chapter: stageChapter, presence: stagePresence, introc: stageIntroCascade, arrivals: stageArrivals, back2: stageBack2, observatory: stageObservatory, finale: stageFinale, wardrobe: stageWardrobe, race: stageRace, feel: stageFeel, vsound: stageVehicleSound, blast: stageBlast, board: stageBoard, game: stageGame, journal: stageJournal, memories: stageMemories, faces: stageFaces, progress: stageProgress, wish: stageWish, react: stageReact, alive: stageAlive, touch: stageTouch, phoneperf: stagePhonePerf, motion: runCharacterMotion, soundscape: (t, ctx) => runIslandSoundscape(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), hours: (t, ctx) => runIslandHours(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, stickHold, tapButton, $, options: ctx && ctx.options }), wind: (t, ctx) => runIslandWind(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, stickHold, tapButton, $, options: ctx && ctx.options }), look: (t, ctx) => runIslandLook(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, stickHold, tapButton, $, options: ctx && ctx.options }), music: (t, ctx) => runIslandMusic(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), islandalive: (t, ctx) => runIslandAlive(t, { setKeys, lookAt, camYaw, releaseAll, stickHold, dragLook, options: ctx && ctx.options }), sidestories: (t, ctx) => runSideStories(t, { setKeys, lookAt, camYaw, releaseAll, stickHold, dragLook, tapButton, touchEv, HOOKS, options: ctx && ctx.options }), routines: (t, ctx) => runIslandRoutines(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), landcam: (t, ctx) => runLandingCameraFeel(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, options: ctx && ctx.options }), leave: stageLeave, back: stageBack,
+  castfaces: (t, ctx) => runCastFaces(t, { setKeys, lookAt, camYaw, releaseAll, stickHold, dragLook, touchEv, options: ctx && ctx.options }),
+  paintedart: (t, ctx) => runPaintedIslandArt(t, { setKeys, lookAt, camYaw, releaseAll, stickHold, dragLook, touchEv, options: ctx && ctx.options }),
+  castvoice: (t, ctx) => runCastVoice(t, { setKeys, lookAt, camYaw, releaseAll, HOOKS, touchEv, tapButton, stickHold, options: ctx && ctx.options }),
+  impact: (t, ctx) => runIslandImpact(t, { setKeys, releaseAll, stickHold, press, pointer, canvas, dragLook, HOOKS, $, options: ctx && ctx.options }),
+  destruction: (t, ctx) => runIslandDestruction(t, { setKeys, lookAt, camYaw, releaseAll, stickHold, tapButton, HOOKS, $, options: ctx && ctx.options }),
+  fishshow: (t, ctx) => runFishingShowcase(t, { press, pointer, canvas, dragLook, $, options: ctx && ctx.options }),
+  mix: (t, ctx) => runIslandMix(t, { setKeys, lookAt, camYaw, releaseAll, HOOKS, touchEv, tapButton, stickHold, options: ctx && ctx.options }),
+  ovsound: (t, ctx) => runOverseerSound(t, { setKeys, lookAt, camYaw, releaseAll, HOOKS, touchEv, options: ctx && ctx.options }),
+  ovpres: (t, ctx) => runOverseerPresence(t, { setKeys, lookAt, camYaw, holdMouse, walkTo, tap, HOOKS, releaseAll, stickHold, tapButton, $, options: ctx && ctx.options }),
+  worldmem: (t, ctx) => runWorldMemory(t, { setKeys, lookAt, camYaw, releaseAll, HOOKS, options: ctx && ctx.options }),
 };
+
+STAGES.push('pier');
+ORDERS['sandbox-pier-marker'] = ['landing', 'veil', 'intro', 'mirror', 'pier'];
+RUN.gamemenu = (t, ctx) => runGameMenu(t, ctx);
 // Island invitations (island-invite): after the sheet, the inviter's stage, then the friend's page on a closed island.
 STAGES.push('invite', 'gone', 'own');
 ORDERS['island-invite'] = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'invite', 'gone', 'own'];
@@ -2304,10 +3986,12 @@ RUN.farrive = stageFriendArrive;
 STAGES.push('moment');
 ORDERS['share-moment'] = ['landing', 'veil', 'intro', 'mirror', 'sheet', 'moment'];
 RUN.moment = stageMoment;
+RUN.firstload = (t, ctx) => runFirstLoad(t, ctx, { W, G, HP, setKeys, stickHold, tap, isLive });
 /** The stages a page that follows a leg change carries on with (the first-minutes ones are already done). */
 const legSeq = (id, prior) => (id === 'editor-bridge' && prior && prior.leg === 'editor' ? ['editor'] : id === 'island-invite' && prior && (prior.leg === 'gone' || prior.leg === 'own') ? [prior.leg] : null);
 
-const ENDS = { 'island-invite-friend': 'farrive', 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'ask-the-overseer': 'asks', 'editor-bridge': 'editor', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models', 'gen-hats': 'hats' };
+ORDERS['first-load'] = ['landing', 'veil', 'firstload'];
+const ENDS = { 'sandbox-title': 'title', 'cast-voice': 'castvoice', 'cast-faces': 'castfaces', 'painted-island-art': 'paintedart', 'chapter-one-finale': 'finale', 'first-load': 'firstload', 'hud-overlap': 'hudoverlap', 'mirror-panel-layout': 'mirrorlayout', 'character-motion': 'motion', 'landing-camera-feel': 'landcam', 'island-soundscape': 'soundscape', 'island-hours': 'hours', 'island-music': 'music', 'island-look': 'look', 'island-wind': 'wind', 'island-impact': 'impact', 'island-water': 'water', 'island-destruction': 'destruction', 'fishing-showcase': 'fishshow', 'island-mix': 'mix', 'overseer-sound': 'ovsound', 'island-routines': 'routines', 'island-alive': 'islandalive', 'side-stories': 'sidestories', 'overseer-personality': 'react', 'overseer-presence': 'ovpres', 'overseer-first-visit': 'firstvisit', 'island-invite-friend': 'farrive', 'sandbox-daily-wish': 'wish', 'island-invite': 'own', 'share-moment': 'moment', 'sandbox-progress': 'progress', 'world-memory': 'worldmem', smoke: 'intro', 'sandbox-first-minutes': 'fish', 'sandbox-pier-marker': 'pier', 'sandbox-chapter-one': 'chapter', 'presence-who': 'presence', 'sandbox-observatory': 'observatory', 'observatory-wardrobe': 'wardrobe', 'island-race': 'race', 'vehicle-feel': 'feel', 'rocket-blast-feel': 'blast', 'sandbox-travel-board': 'board', 'island-journal': 'journal', 'lore-memories': 'memories', 'ask-the-overseer': 'asks', 'overseer-ask': 'answer', 'editor-bridge': 'editor', 'faces-and-emotes': 'faces', 'overseer-alive': 'alive', 'touch-controls': 'touch', 'phone-performance': 'phoneperf', 'sandbox-return': 'back', 'island-arrivals': 'back2', 'gen-models-pilot': 'models', 'gen-models-all': 'models', 'gen-hats': 'hats' };
 
 
 // ---------------------------------------------------------------------------------------------- share-moment
@@ -2414,6 +4098,7 @@ async function stageInvite(t, ctx) {
   await t.until(() => W() && W().player && $('.gs-acts [data-intent="invite"]'), 40000, 'the Invite button');
   const btn = $('.gs-acts [data-intent="invite"]');
   t.event('invite-button', `"${btn.textContent}" among the buttons top right`);
+  if (!/Copy invite link/.test(btn.textContent)) t.problem('error', 'the button does not say Copy invite link');
   t.scene('Island: the Invite button');
   const joined = [];
   G().on('joined', (d) => { joined.push(d); });
@@ -2425,10 +4110,10 @@ async function stageInvite(t, ctx) {
   t.event('invite-link', `${link.pathname}?invite=… for room ${room}${link.searchParams.get('ref') ? ' and ?ref=' + link.searchParams.get('ref') : ' (a guest: no referral code)'}`);
   if (link.pathname !== '/play/sandbox' || !room) t.problem('error', 'the invitation link does not open the island');
   t.scene('Island: the invitation link');
-  // The pause menu offers it too (Esc twice).
-  await tap(t, 'Escape'); await t.wait(200); await tap(t, 'Escape');
-  await t.until(() => /Invite a friend/.test(($('.ui-menu') || {}).textContent || ''), 5000, 'the pause menu with Invite a friend').then(
-    () => { t.event('pause-menu-invite', 'Esc twice: Paused > Resume, Invite a friend, Change my look'); t.scene('Island: the pause menu'); const r = [...document.querySelectorAll('.ui-menu .ui-btn')].find((b) => /Resume/.test(b.textContent)); if (r) r.click(); },
+  // The game menu offers it too (one Esc).
+  await tap(t, 'Escape');
+  await t.until(() => /Invite a friend/.test(($('.gm-panel, .ui-menu') || {}).textContent || ''), 5000, 'the game menu with Invite a friend').then(
+    () => { t.event('pause-menu-invite', 'Esc: Paused > Resume, Invite a friend, Change my look'); t.scene('Island: the pause menu'); const r = [...document.querySelectorAll('.gm-btn, .ui-menu .ui-btn')].find((b) => /Resume/.test(b.textContent)); if (r) r.click(); },
     (e) => t.problem('error', e.message));
   const st = await fetch(`/v1/island-invite/${token}`).then((r) => r.json());
   t.event('invite-status', `${st.state}${st.name ? ' (' + st.name + ')' : ''}`);
@@ -2472,6 +4157,8 @@ async function stageInvite(t, ctx) {
   const who = real ? ((joined[0] && joined[0].name) || '') : 'Visitor';
   await t.until(() => (who ? document.body.innerText.includes(`${who} is here.`) : /\S+ is here\./.test(document.body.innerText)), 15000, 'the Overseer to name the friend').then(
     () => t.event('friend-named', `${who || 'the friend'}, in the chat and over the newcomer`), (e) => t.problem('error', e.message));
+  await t.until(() => { const w = $('[data-invite="welcome"]'); return w && /joined your island/.test(w.textContent); }, 10000, 'the welcome card for the newcomer').then(
+    () => t.event('welcome-moment', `a card on screen: "${$('[data-invite="welcome"] b').textContent}"`), (e) => t.problem('error', e.message));
   await t.wait(1500);
   t.scene('Island: the friend beside the inviter');
   clearInterval(beat);
@@ -2526,12 +4213,21 @@ export function install() {
     isReady: () => (onEditor() ? document.readyState === 'complete' : onSandbox() || onGame() ? Boolean(W() && W().player) || document.readyState === 'complete' : document.readyState === 'complete'),
     async start(id, options, t) {
       if (id === SITE_LAYOUT.id) return runSiteLayout(t, options);
+      if (id === PHONE_HUD_LAYOUT.id) return runPhoneHudLayout(t, options);
+      if (id === 'hud-overlap') return runHudOverlap(t, options);
+      if (id === LOADING_WRAPPER.id) return runLoadingWrapper(t, options);
+      if (id === SICKOFIT_PAGE.id) return runSickofitPage(t, options);
       if (id === AVATAR_ANIMATIONS.id) return runAvatarAnimations(t, options);
+      if (id === STORE_PAGES.id) return runStorePages(t, options);
+      if (id === COMMUNITY_LIBRARY.id) return runCommunityLibrary(t, options);
+      if (id === PROFILE_PAGE.id) return runProfilePage(t, options);
       if (id === WORLD_REPORT.id) return runWorldReport(t, options);
       if (id === SERVER_LIMITS.id) return runServerLimits(t, options);
+      if (id === WORLD_QUALITY.id) return runWorldQuality(t, options);
       if (id === 'observatory-wardrobe' && options.touch) options = { at: 'sandbox', ...options }; // (touch: straight to the island with the phone controls)
-      if ((id === 'vehicle-feel' || id === 'rocket-blast-feel') && options.touch) options = { at: 'sandbox', ...options };
-      if (id === 'touch-controls') options = { at: 'sandbox', touch: true, ...options }; // (the phone controls, straight to the island)
+      if ((id === 'vehicle-feel' || id === 'rocket-blast-feel' || id === 'sandbox-first-minutes') && options.touch) options = { at: 'sandbox', ...options };
+      if (id === CHARACTER_MOTION.id) options = { at: 'sandbox', ...options }; // (straight to the island; touch: true adds the phone controls)
+      if (id === 'touch-controls' || id === 'phone-performance') options = { at: 'sandbox', touch: true, ...options }; // (the phone controls, straight to the island)
       const events = [];
       // Everything the run says is kept, so the page that follows can carry the whole report.
       const ev = t.event.bind(t);
@@ -2539,6 +4235,7 @@ export function install() {
       t.event = (type, detail) => { events.push(['e', type, detail]); ev(type, detail); };
       t.scene = (name) => { events.push(['s', name]); sc(name); };
       const ctx = {
+        id,
         options,
         saved: () => ({ id, options: { ...options, resumed: undefined }, events, name: ctx.name, what: ctx.what, visit: ctx.visit, tour: ctx.tour }),
         leg: options.resumed && options.resumed.leg,
@@ -2557,7 +4254,7 @@ export function install() {
       t.event('plan', `${id}: ${STAGES[from]} to ${STAGES[to]}${isLive() ? ' (live: no sign-up)' : ''}`);
       let named = '';
       try {
-        const seq = legSeq(id, prior) || (id === 'island-arrivals' && prior && prior.leg === 'return' ? ['back2'] : id === 'sandbox-return' && prior && prior.leg === 'return' ? ['back'] : id === 'sandbox-travel-board' && prior && prior.leg === 'game' ? ['game'] : id === 'sandbox-travel-board' && prior && prior.leg === 'back' ? ['board'] : ORDERS[id] ? ORDERS[id].slice(ORDERS[id].indexOf(STAGES[from])) : STAGES.slice(from, to + 1));
+        const seq = legSeq(id, prior) || (id === 'island-arrivals' && prior && prior.leg === 'return' ? ['back2'] : id === 'sandbox-return' && prior && prior.leg === 'return' ? ['back'] : id === 'sandbox-travel-board' && prior && prior.leg === 'game' ? ['game'] : id === 'sandbox-travel-board' && prior && prior.leg === 'back' ? ['board'] : ORDERS[id] ? ORDERS[id].slice(ORDERS[id].indexOf(STAGES[from])) : STAGES.slice(from, to + 1).filter((s) => s !== 'firstvisit')); // firstvisit is only for overseer-first-visit's own order: 'intro' already watched or skipped the intro
         for (const stage of seq) {
           named = stage;
           if ((await RUN[named](t, ctx)) === 'stop') return;

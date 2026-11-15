@@ -145,3 +145,21 @@ The ship reacts, with the same meshes (no draw calls added): while the speech de
 game.overseer.presence();   // { speaking, flare, idle, quiet, attending, turn, halo: {alpha, scale}, rings: {speed}, seams: {glow}, night, hum: {level, playing, altitude, distance}, beams }
 HawkesPlay.overseer.attend(seconds);   // face the player, as a question does
 ```
+
+## Reactions (`H.reactions`, modules/overseer/reactions.js)
+
+The Overseer answers what it just did, every time, in its own voice. `build` (a request came down), `fail` (it did not) and
+`idle` (the player has been quiet 75 s, at most one per 120 s) each have twelve or more lines; `think` is the work pill's
+headline while it works (it changes every 4 s until the first beat). Sky presence also uses `delight`, `interest`, `awe`
+and `night`. Each kind is a shuffled deck: every line is used before any repeats and never the same twice in a row.
+`H.reactions.say(kind)`, `pick(kind)`, `history()`, `reset()`, `IDLE_AFTER` / `IDLE_GAP` (settable); `game.on('reaction')`
+gives `{ kind, text }`. Spoken through the speech desk when `H.lines.blocked()` is clear, dropped after 25 s. Tests
+`test/engine/reactions.test.ts`; playtest `overseer-personality`.
+
+## Sky presence (`H.skyPresence`, modules/overseer/presence.js)
+
+A soft face of light and aurora in the clouds toward the Overseer's position (shader / billboard layers, never a hard
+mesh). It turns its gaze to the player, pulses with the voice envelope, fades during intros and cinematics, and plays
+reactions: delight (blast), interest (catch), idle blink (30 s quiet), awe (first build), night squint, rocket (boarding).
+Each asks `H.reactions.say`. `window.__overseerPresence` / `H.skyPresence.sample()`: `{ visible, gazeTarget, gaze,
+lastReaction, speak, alpha, costMs, upperThird }`. Playtest `overseer-presence`.

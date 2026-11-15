@@ -8,14 +8,26 @@
 const H = window.HawkesPlay;
 const sfx = (name, o) => { if (game.hasAsset(name)) game.sound(name, o); };
 const pip = () => game.all('Pip')[0] || null;
-const say = (text, seconds = 4) => { const p = pip(); if (p && p.say) p.say(text, seconds); };
+const say = (text, seconds = 4) => { const p = pip(); if (p && p.say) { p.say(text, seconds); duck('pip', 0.35, Math.min(seconds, 4)); } };
 const overseer = (text, seconds = 5, voice = null) => {
   // Spoken through the Overseer (its voice, by name; the music and the sea dip under it), else just its words.
   if (voice && game.overseer && game.overseer.speak) game.overseer.speak(text, voice, seconds);
   else if (game.overseer && game.overseer.say) game.overseer.say(text, seconds);
 };
-// A neighbour's line in the chat window (text only, like islanders.js), for a quest's beat.
-const npc = (who, color, text) => { if (H && H.chat && H.chat.line) H.chat.line({ kind: 'npc', who, text, color, keep: 14 }); game.emit('beat', { who, text }); };
+// A neighbour's line, for a quest's beat: in the chat window, and over the neighbour in their own voice when they are
+// near enough to be seen (quality rule 6: characters speak in the world, not only in a log).
+const neighbour = (who) => {
+  const C = window.__islanders && window.__islanders.CAST;
+  const id = C && Object.keys(C).find((k) => C[k].who === who);
+  const e = id && game.find ? game.find(id) : null;
+  return e && e.alive ? e : null;
+};
+const npc = (who, color, text) => {
+  if (H && H.chat && H.chat.line) H.chat.line({ kind: 'npc', who, text, color, keep: 14 });
+  const e = neighbour(who), p = game.player;
+  if (e && e.say && p && Math.hypot(e.x - p.x, e.z - p.z) < 30) { try { if (e.lookAt) e.lookAt(p); e.say(text, Math.min(8, 2.5 + text.length / 18)); } catch { /* the chat line stands */ } }
+  game.emit('beat', { who, text });
+};
 const confetti = () => {
   const p = game.player;
   if (!p) return;
@@ -36,7 +48,7 @@ const audioLog = (window.__islandAudioLog = []);
 const logAudio = (what, name) => { audioLog.push({ t: Math.round(performance.now()), what, name }); try { console.log(`island audio: ${what} ${name}`); } catch { /* fine */ } };
 const FADE_IN = 1.5; // seconds from silent to the sound's own level, once it has loaded
 const MUSIC_VOLUME = 0.14; // (Quiet enough to talk over: J, 2026-10-24, "I can't hear the voices".)
-function loop(name, target) {
+function loop(name, target, ambience) {
   if (!game.hasAsset(name) || !H || !H.audio || !H.audio.media) return null;
   try {
     const el = new Audio();
@@ -45,34 +57,138 @@ function loop(name, target) {
     el.loop = true;
     el.volume = 0;
     el.src = game.asset(name);
-    H.audio.media(el, { background: true }); // (background: it dips under the Overseer's voice)
+    H.audio.media(el, { background: true, ambience: Boolean(ambience) }); // (the music bus, or the ambience bus: both dip under a voice, 8 and 4 dB)
     const s = { name, el, target, fade: 0, ready: false };
     sounds.push(s);
     return s;
   } catch { return null; }
 }
-const music = loop('meadow.mp3', MUSIC_VOLUME);
-const sea = loop('ocean-waves.mp3', 0);
-const birds = loop('forest.mp3', 0.05);
-/** Asks for the file now; it plays and fades in when the browser says it can play through. */
+// ---- The music: one theme per area, crossfaded (J, 2026-11-11: "the island's music changes as the player crosses it").
+// Themes are assets by name (made with Hawkes Gen; docs/world-bible.md "Music"); a theme whose file is not in the game
+// falls back to the old meadow loop, so the island is never silent. Each file is asked for only when the player nears
+// its area (the clearing's at once), so the new music stays under 3 MB and never holds the first frame.
+const THEMES = { clearing: 'music-clearing.mp3', road: 'music-road.mp3', pier: 'music-pier.mp3' };
+const DRIVE_LAYER = 'music-drive.mp3';
+const STINGERS = { drive: 'stinger-first-drive.mp3', fish: 'stinger-first-catch.mp3', boom: 'stinger-barrel-chain.mp3', fly: 'stinger-helicopter-view.mp3', launch: 'stinger-rocket-launch.mp3' };
+const MUSIC_FADE = 2.5; // seconds for a crossfade between themes (2-3 s: no hard cut)
+const musicTracks = {};
+for (const k of Object.keys(THEMES)) musicTracks[k] = loop(THEMES[k], MUSIC_VOLUME);
+const driveTrack = loop(DRIVE_LAYER, 0.1);
+const meadow = Object.values(musicTracks).some(Boolean) ? null : loop('meadow.mp3', MUSIC_VOLUME);
+const music = musicTracks.clearing || meadow;
+let theme = 'clearing';
+const mix = { clearing: 1, road: 0, pier: 0, drive: 0 }; // each theme's share now, moving toward its goal over MUSIC_FADE
+/** Which area the player is in (the same cuts as the ambience beds in modules/soundscape: road from x 38, pier from x 65). */
+function areaAt(x, was) {
+  const hy = 3; // (a few metres of hysteresis: standing on a line never flips it back and forth)
+  if (was === 'pier') return x > 65 - hy ? 'pier' : x > 38 - hy ? 'road' : 'clearing';
+  if (was === 'road') return x > 65 + hy ? 'pier' : x > 38 - hy ? 'road' : 'clearing';
+  return x > 65 + hy ? 'pier' : x > 38 + hy ? 'road' : 'clearing';
+}
+const trackFor = (k) => musicTracks[k] || music;
+function nearEnough(k, x) { return k === 'clearing' || (k === 'road' ? x > 18 : x > 45); }
+const stung = (window.__islandStung = window.__islandStung || new Set());
+/** One short phrase for a moment, once. Logged as a stinger event either way (the file may not be in the game yet). */
+function stinger(step) {
+  if (stung.has(step) || !STINGERS[step]) return;
+  stung.add(step);
+  const name = STINGERS[step];
+  const has = game.hasAsset(name);
+  logAudio(has ? 'stinger' : 'stinger-missing', name);
+  game.emit('stinger', { step, name, played: has });
+  if (has) { sfx(name, { volume: 0.7 }); duck('stinger', 0.4, 3); }
+}
+// Music dips under every voice line: the Overseer's through the speech desk, Pip's here, an islander's bark (H.audio.voiceDuck:
+// music 8 dB down and the ambience 4 dB, in 150 ms, back in 600 ms; the lowest asked of the stingers' own dips wins).
+// Every dip and recovery is logged with the level it left and the level it came back to (the playtest reads them).
+function duck(owner, level, seconds) {
+  const A = H && H.audio;
+  if (!A || !A.duck) return;
+  const before = A.background ? A.background.gain.value : 1;
+  const voice = owner !== 'stinger' && A.voiceDuck;
+  if (voice) A.voiceDuck(owner, true); else A.duck(owner, level);
+  const lv = A.levels || {};
+  game.emit('music-dip', { owner, level: voice ? 0.4 : level, before: Math.round(before * 100) / 100, db: voice ? 8 : null, ambienceDb: voice ? 4 : null });
+  logAudio('dip', owner);
+  game.after(seconds, () => { if (voice) A.voiceDuck(owner, false); else A.duck(owner, null); game.emit('music-recover', { owner }); logAudio('recover', owner); });
+  return lv;
+}
+const sea = loop('ocean-waves.mp3', 0, true);
+const birds = loop('forest.mp3', 0.05, true);
+/** Asks for the file now; it plays and fades in once enough is buffered to start (not the whole loop). */
 function fetchSound(s) {
   if (!s || s.asked) return;
   s.asked = true;
   const ready = () => { if (s.ready) return; s.ready = true; logAudio('ready', s.name); playSound(s); };
-  s.el.addEventListener('canplaythrough', ready, { once: true });
+  // canplay / loadeddata: enough to begin. canplaythrough waits for the entire loop file and can sit past the
+  // playtest's post-tap window (island-music saw start only at ~4.2 s).
+  s.el.addEventListener('canplay', ready, { once: true });
+  s.el.addEventListener('loadeddata', ready, { once: true });
   s.el.preload = 'auto';
   logAudio('request', s.name);
   try { s.el.load(); } catch { /* it tries again on play */ }
+  // Disk / HTTP cache: readyState may already be high with no event.
+  if (s.el.readyState >= 2) ready();
 }
 function playSound(s) {
-  s.el.play().then(() => { if (!s.started) { s.started = true; s.fadeFrom = performance.now(); logAudio('start', s.name); } }).catch(() => {});
+  if (!s || !s.el) return;
+  try {
+    const ctx = H && H.audio && H.audio.context;
+    if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+  } catch { /* fine */ }
+  s.el.play().then(() => {
+    if (!s.ready) { s.ready = true; logAudio('ready', s.name); }
+    if (s.started) return;
+    s.started = true;
+    s.fadeFrom = performance.now();
+    logAudio('start', s.name);
+    // Clearing / area theme: the playtest and analytics look for this (and the start log line).
+    if (/^music-|^meadow/.test(s.name)) {
+      try { game.emit('music-start', { name: s.name, theme }); } catch { /* fine */ }
+    }
+  }).catch(() => {});
+}
+/** Resume the context and (re)try every asked loop: call from a user gesture so autoplay unlocks. */
+function kickPlay() {
+  startSound();
+  for (const s of sounds) {
+    if (!s || !s.el || !s.asked) continue;
+    if (s.el.readyState >= 2 && !s.ready) { s.ready = true; logAudio('ready', s.name); }
+    if (s.el.paused && (s.ready || s.el.readyState >= 2)) playSound(s);
+  }
 }
 let sounding = false;
 function startSound() {
   if (sounding || game.mode !== 'play') return;
   sounding = true;
   // The music first (it carries the first minute), then the sea and the birds.
-  for (const s of [music, sea, birds]) fetchSound(s);
+  for (const s of [trackFor('clearing'), sea, birds]) fetchSound(s);
+  gulls();
+}
+// First tap / key / click after the page loads: unlock and start the clearing theme in that gesture (browser rule).
+(function armUnlock() {
+  const go = () => {
+    kickPlay();
+    const m = trackFor('clearing');
+    if (m && m.started) {
+      for (const t of ['pointerdown', 'touchstart', 'keydown']) window.removeEventListener(t, go, true);
+    }
+  };
+  for (const t of ['pointerdown', 'touchstart', 'keydown']) window.addEventListener(t, go, true);
+})();
+// Now and then a gull over the shore, heard only near the sea (the site's own sound, runtime.js siteSound).
+function gulls() {
+  game.after(18 + Math.random() * 30, () => {
+    const p = game.player;
+    try {
+      if (p && H && H.lib && H.lib.siteSound && seaDistance(p.x, p.z) < 25) {
+        // Over the water, to one side and up: wildlife is placed in the world (the mix pans it and darkens it with distance).
+        const a = Math.random() * Math.PI * 2, d = 18 + Math.random() * 22;
+        H.lib.siteSound('seagull', { volume: 0.3, at: [p.x + Math.cos(a) * d, p.y + 9 + Math.random() * 6, p.z + Math.sin(a) * d] });
+      }
+    } catch { /* quiet */ }
+    gulls();
+  });
 }
 // The sea is heard by the shore: quiet, and fading out as you walk inland (silent ~70 m from the water) or go up; the
 // birds stay over the land. (A loop the browser held back starts as soon as sound is allowed: the first click or key.)
@@ -93,6 +209,8 @@ game.every(0.25, () => {
   if (!game.player) return;
   const now = performance.now();
   for (const s of sounds) {
+    // Enough buffered to start, even if canplay was missed (cache, late listener).
+    if (!s.ready && s.el && s.el.readyState >= 2) { s.ready = true; logAudio('ready', s.name); }
     if (!s.ready) continue;
     // A loop the browser held back starts as soon as sound is allowed: the first click or key.
     if (s.el.paused && H.audio.context && H.audio.context.state === 'running') playSound(s);
@@ -106,7 +224,25 @@ game.every(0.25, () => {
   const want = SEA_MAX * near * up;
   seaVol += (want - seaVol) * 0.35; // (eased: no jumps as you walk)
   const level = (s, v) => { if (s) s.el.volume = Math.max(0, Math.min(1, v * s.fade)); };
-  level(music, music && music.target);
+  // The music: the area picks the theme; shares move toward it at 1/MUSIC_FADE a second (the loop runs every 0.25 s).
+  const area = areaAt(p.x, theme);
+  if (area !== theme) {
+    game.emit('music-change', { from: theme, to: area, fade: MUSIC_FADE });
+    logAudio('music-change', `${theme}>${area}`);
+    theme = area;
+  }
+  // Ask for the next area's file when the player is nearing it (and a driving layer once they sit in a vehicle).
+  for (const k of Object.keys(THEMES)) if (nearEnough(k, p.x)) fetchSound(trackFor(k));
+  const driving = Boolean(H.vehicles && H.vehicles.current);
+  if (driving) fetchSound(driveTrack);
+  const step = 0.25 / MUSIC_FADE;
+  for (const k of Object.keys(mix)) {
+    const goal = k === 'drive' ? (driving ? 1 : 0) : (k === theme ? 1 : 0);
+    mix[k] += Math.max(-step, Math.min(step, goal - mix[k]));
+  }
+  if (meadow) level(meadow, meadow.target);
+  else for (const k of Object.keys(THEMES)) level(musicTracks[k], MUSIC_VOLUME * mix[k]);
+  level(driveTrack, driveTrack && driveTrack.target * mix.drive);
   level(sea, seaVol);
   const onLand = d > 0;
   level(birds, onLand && h < 60 ? 0.05 : 0.01);
@@ -117,9 +253,10 @@ let began = false;
 function begin() {
   if (began || game.mode !== 'play') return;
   // The guest page (/play/sandbox): the account comes first, then the tour goes on in the editor (public/play/guest.js).
-  if (window.HawkesGuest && window.HawkesGuest.accountFirst) return void game.after(2, begin);
+  // Poll often: playtests clear accountFirst and expect music within a second of the next tap.
+  if (window.HawkesGuest && window.HawkesGuest.accountFirst) return void game.after(0.25, begin);
   began = true;
-  startSound();
+  kickPlay();
   // Pip walks over to meet you (and stays put after: the tour sends you places, Pip waves you on).
   const p = pip();
   const living = H && H.living;
@@ -127,13 +264,261 @@ function begin() {
   const me = H && H.presence && H.presence.look;
   const name = me && me.name;
   const back = window.HawkesGuest && window.HawkesGuest.resume; // a return: the step they left on (guest.js)
+  if (!back) game.after(0.5, lightJeepMark);
   game.after(1.2, () => say(back ? (name ? `Hey, ${name}! You're back!` : "Hey, you're back!") : name ? `Hi, ${name}! I'm Pip. Welcome to the island!` : 'Hi! I\'m Pip. Welcome to the island!', 4));
   game.after(3.4, () => {
     const q = game.events && game.events.quests;
     if (q && q.state('tour') === 'available') q.start('tour');
-    say(back ? (back === 'done' ? 'The island is all yours now.' : 'Right, where were we?') : 'Come on, I\'ll show you around. The 4x4 first!', 4);
+    if (back) {
+      say(back === 'done' ? 'The island is all yours now.' : 'Right, where were we?', 4);
+      return;
+    }
+    // First visit: Pip's pier directions are an in-engine beat (camera fly + glowing rod marker), not a long caption.
+    const nudge = () => { say("Come on — the 4x4 first!", 4); nudgeToJeep(); };
+    showPier().then(nudge).catch(nudge);
   });
 }
+
+// ------------------------------------------------------------------ Pip shows the pier (tour start, first visit)
+// One short line while the cinematic camera flies from Pip down Gravel Road, over the ridge, along the pier and holds on
+// the fishing rod. A soft pulsing light and particle shimmer light the rod and stay until it is picked up (quality rule 6:
+// tell it through play, not a paragraph of text). Skippable like the intro; the marker still comes on if skipped.
+const PIER_LINE = 'The rod is at the very end of the pier!';
+const rodMark = (window.__islandRodMark = window.__islandRodMark || { on: false, light: null, glow: null, parts: null, pulse: null });
+function rodPos() {
+  const rod = game.find && game.find('rod');
+  if (rod && rod.alive) return [rod.x, rod.y + 0.9, rod.z];
+  const [x, y, z] = at(HOME.rod[0], HOME.rodY + 0.7, HOME.rod[1]);
+  return [x, y, z];
+}
+function clearRodMark(why) {
+  if (!rodMark.on && !rodMark.light && !rodMark.parts && !rodMark.glow) return;
+  const pos = rodPos();
+  if (rodMark.pulse) { try { rodMark.pulse(); } catch { /* gone */ } rodMark.pulse = null; }
+  if (rodMark.parts) { try { rodMark.parts.stop(); rodMark.parts.dispose(); } catch { /* gone */ } rodMark.parts = null; }
+  if (rodMark.glow) { try { rodMark.glow.dispose(); } catch { /* gone */ } rodMark.glow = null; }
+  if (rodMark.light) { try { rodMark.light.dispose(); } catch { /* gone */ } rodMark.light = null; }
+  rodMark.on = false;
+  if (why === 'pickup') {
+    try { game.burst(pos, { color: '#ffd84a', count: 28, speed: 4.5, size: 0.18 }); } catch { /* fine */ }
+    try { game.burst([pos[0], pos[1] + 0.3, pos[2]], { color: '#fff4c4', count: 16, speed: 3, size: 0.1 }); } catch { /* fine */ }
+    try { if (H && H.lib && H.lib.siteSound) H.lib.siteSound('lore-glint', { volume: 0.55, at: pos }); else sfx('teleport.mp3', { volume: 0.4 }); } catch { /* quiet */ }
+  }
+  game.emit('rod-marker', { state: 'off', why: why || 'clear' });
+  game.emit('pier-show', { state: 'cleared', why: why || 'clear' });
+}
+function lightRodMark() {
+  if (rodMark.on) return;
+  const B = window.BABYLON, sc = H && H.world && H.world.scene;
+  const pos = rodPos();
+  if (!B || !sc) { rodMark.on = true; game.emit('rod-marker', { state: 'on' }); return; }
+  try {
+    const light = new B.PointLight('rod-mark-light', new B.Vector3(pos[0], pos[1], pos[2]), sc);
+    light.diffuse = new B.Color3(1, 0.85, 0.35);
+    light.specular = new B.Color3(1, 0.9, 0.5);
+    light.intensity = 2.4;
+    light.range = 42;
+    rodMark.light = light;
+    // Soft glowing orb so the marker reads from the beach even when PointLights are few on a phone.
+    const glow = B.MeshBuilder.CreateSphere('rod-mark-glow', { diameter: 0.55, segments: 12 }, sc);
+    const mat = new B.StandardMaterial('rod-mark-glow', sc);
+    mat.disableLighting = true;
+    mat.emissiveColor = new B.Color3(1, 0.82, 0.28);
+    mat.alpha = 0.72;
+    mat.alphaMode = B.Engine.ALPHA_ADD;
+    try { mat.disableDepthWrite = true; } catch { /* fine */ }
+    glow.material = mat;
+    glow.position.set(pos[0], pos[1], pos[2]);
+    glow.isPickable = false;
+    glow.metadata = { decor: true };
+    rodMark.glow = glow;
+    const ps = new B.ParticleSystem('rod-mark-shimmer', H.touchUi ? 24 : 48, sc);
+    ps.particleTexture = H.world.dot;
+    ps.emitter = new B.Vector3(pos[0], pos[1], pos[2]);
+    ps.minEmitBox = new B.Vector3(-0.2, -0.1, -0.2);
+    ps.maxEmitBox = new B.Vector3(0.2, 0.35, 0.2);
+    ps.color1 = new B.Color4(1, 0.92, 0.45, 0.85);
+    ps.color2 = new B.Color4(1, 0.78, 0.25, 0.45);
+    ps.colorDead = new B.Color4(1, 0.85, 0.4, 0);
+    ps.minSize = 0.04; ps.maxSize = 0.12;
+    ps.minLifeTime = 0.6; ps.maxLifeTime = 1.4;
+    ps.emitRate = H.touchUi ? 10 : 22;
+    ps.blendMode = B.ParticleSystem.BLENDMODE_ADD;
+    ps.direction1 = new B.Vector3(-0.15, 0.4, -0.15);
+    ps.direction2 = new B.Vector3(0.15, 0.9, 0.15);
+    ps.minEmitPower = 0.15; ps.maxEmitPower = 0.45;
+    ps.gravity = new B.Vector3(0, 0.05, 0);
+    ps.start();
+    rodMark.parts = ps;
+    const t0 = performance.now();
+    // game.every returns a cancel function.
+    rodMark.pulse = game.every(0.05, () => {
+      if (!rodMark.on || !rodMark.light) return;
+      const t = (performance.now() - t0) / 1000;
+      const k = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(t * 2.6));
+      rodMark.light.intensity = 1.6 + 1.6 * k;
+      if (rodMark.glow && rodMark.glow.material) {
+        rodMark.glow.material.alpha = 0.45 + 0.4 * k;
+        const s = 0.85 + 0.35 * k;
+        rodMark.glow.scaling.set(s, s, s);
+      }
+      // Keep the marker over the rod if Stuck? moved it.
+      const p = rodPos();
+      rodMark.light.position.set(p[0], p[1], p[2]);
+      if (rodMark.glow) rodMark.glow.position.set(p[0], p[1], p[2]);
+      if (rodMark.parts && rodMark.parts.emitter) rodMark.parts.emitter.set(p[0], p[1], p[2]);
+    });
+    rodMark.on = true;
+    game.emit('rod-marker', { state: 'on' });
+  } catch (err) {
+    try { if (H && H.report) H.report(err, 'rod-marker'); } catch { /* fine */ }
+    rodMark.on = true;
+    game.emit('rod-marker', { state: 'on' });
+  }
+}
+// (The island-look playtest lights the beacon for its bloom shot through this; nothing else calls it from outside.)
+window.__islandLightRodMark = lightRodMark;
+/** Pip points east and the camera flies the path to the rod. Resolves when the shot ends (or is skipped). */
+async function showPier() {
+  if (window.__islandPierShown) { lightRodMark(); return { skipped: true, already: true }; }
+  window.__islandPierShown = true;
+  game.emit('pier-show', { state: 'start' });
+  // Pip faces down Gravel Road (east) while speaking.
+  const p = pip();
+  try { if (p && p.lookAt) p.lookAt(at(40, ground(40, 0) + 1, 0)); } catch { /* fine */ }
+  say(PIER_LINE, 5);
+  lightRodMark(); // (on before the hold, so the beach can see it even if the shot is skipped early)
+  const cin = game.cinematic;
+  if (!cin || !cin.path) {
+    game.emit('pier-show', { state: 'end', skipped: true, noCinematic: true });
+    return { skipped: true };
+  }
+  const rod = rodPos();
+  const pipAt = p && p.alive ? [p.x, p.y + 1.4, p.z] : at(-1, ground(-1, 2.2) + 1.4, 2.2);
+  const keys = [
+    { pos: [pipAt[0] - 2.5, pipAt[1] + 1.2, pipAt[2] + 4.5], look: [pipAt[0] + 6, pipAt[1] - 0.2, pipAt[2] - 1], at: 0 },
+    { pos: at(18, ground(18, -6) + 7, -6), look: at(34, ground(34, 0) + 2, 0), at: 1.8 },
+    { pos: at(42, ground(42, -10) + 9, -10), look: at(62, 2, 0), at: 3.6 },
+    { pos: at(68, 7.5, -11), look: [rod[0], rod[1], rod[2]], at: 5.4 },
+    { pos: at(80, 4.2, -5.5), look: [rod[0], rod[1] - 0.1, rod[2]], at: 6.8, hold: 1.2 },
+  ];
+  game.emit('pier-cinematic', { state: 'flying' });
+  let r = { skipped: true };
+  try {
+    r = await cin.path(keys, {
+      seconds: 8,
+      fade: { in: 0.45, out: 0.5 },
+      letterbox: typeof window !== 'undefined' ? window.innerWidth >= window.innerHeight : true,
+      skippable: true,
+      ease: 'inOut',
+    });
+  } catch (err) { try { if (H && H.report) H.report(err, 'pier-show'); } catch { /* fine */ } }
+  game.emit('pier-cinematic', { state: r && r.skipped ? 'skipped' : 'done', skipped: Boolean(r && r.skipped) });
+  game.emit('pier-show', { state: 'end', skipped: Boolean(r && r.skipped) });
+  return r || { skipped: true };
+}
+window.__islandShowPier = showPier; // (playtest / Stuck? never needs it; tests may call it)
+game.on('pickup', (d) => {
+  if (d && d.gives === 'tool' && d.tool === 'rod') clearRodMark('pickup');
+});
+// ------------------------------------------------------------------ the 4x4's beacon (follow the light, not text)
+// After the mirror a soft column of warm light stands on the 4x4 (tall enough to read from the start on a phone, with a
+// pulsing glow and a shimmer), and the camera turns toward it for two seconds. It goes out when the player gets in.
+// The first thing to do is a light on the horizon; the one short line is Pip's "Come on — the 4x4 first!".
+const jeepMark = (window.__islandJeepMark = window.__islandJeepMark || { on: false, parts: [], pulse: null, since: 0 });
+function clearJeepMark(why) {
+  if (!jeepMark.on) return;
+  jeepMark.on = false;
+  if (jeepMark.pulse) { try { jeepMark.pulse(); } catch { /* gone */ } jeepMark.pulse = null; }
+  for (const o of jeepMark.parts) { try { if (o.stop) o.stop(); o.dispose(); } catch { /* gone */ } }
+  jeepMark.parts = [];
+  game.emit('jeep-beacon', { state: 'off', why: why || 'clear' });
+}
+function lightJeepMark() {
+  if (jeepMark.on) return;
+  const jeep = game.find && game.find('jeep');
+  const B = window.BABYLON, sc = H && H.world && H.world.scene;
+  jeepMark.on = true; jeepMark.since = performance.now();
+  if (!jeep || !jeep.alive || !B || !sc) { game.emit('jeep-beacon', { state: 'on', visual: false }); return; }
+  try {
+    const mk = () => ({ x: jeep.x, y: jeep.y, z: jeep.z });
+    const p0 = mk();
+    const col = B.MeshBuilder.CreateCylinder('jeep-beacon', { diameterTop: 0.9, diameterBottom: 2.4, height: 16, tessellation: 20 }, sc);
+    const cm = new B.StandardMaterial('jeep-beacon', sc);
+    cm.disableLighting = true; cm.emissiveColor = new B.Color3(1, 0.82, 0.3); cm.alpha = 0.3; cm.alphaMode = B.Engine.ALPHA_ADD;
+    try { cm.disableDepthWrite = true; cm.backFaceCulling = false; } catch { /* fine */ }
+    col.material = cm; col.isPickable = false; col.metadata = { decor: true }; col.renderingGroupId = 1;
+    const light = new B.PointLight('jeep-beacon-light', new B.Vector3(p0.x, p0.y + 3, p0.z), sc);
+    light.diffuse = new B.Color3(1, 0.85, 0.35); light.intensity = 2.2; light.range = 30;
+    const ps = new B.ParticleSystem('jeep-beacon-shimmer', H.touchUi ? 30 : 60, sc);
+    ps.particleTexture = H.world.dot; ps.emitter = new B.Vector3(p0.x, p0.y + 1, p0.z);
+    ps.minEmitBox = new B.Vector3(-1, 0, -1); ps.maxEmitBox = new B.Vector3(1, 0.5, 1);
+    ps.color1 = new B.Color4(1, 0.92, 0.45, 0.85); ps.color2 = new B.Color4(1, 0.78, 0.25, 0.45); ps.colorDead = new B.Color4(1, 0.85, 0.4, 0);
+    ps.minSize = 0.08; ps.maxSize = 0.22; ps.minLifeTime = 1; ps.maxLifeTime = 2.4; ps.emitRate = H.touchUi ? 14 : 30;
+    ps.blendMode = B.ParticleSystem.BLENDMODE_ADD;
+    ps.direction1 = new B.Vector3(-0.2, 1.5, -0.2); ps.direction2 = new B.Vector3(0.2, 3, 0.2);
+    ps.minEmitPower = 0.5; ps.maxEmitPower = 1.2; ps.start();
+    jeepMark.parts = [col, light, ps];
+    const t0 = performance.now();
+    jeepMark.pulse = game.every(0.05, () => {
+      const pl = game.player;
+      if (pl && pl.controller === 'drive') { clearJeepMark('entered'); return; }
+      const k = 0.5 + 0.5 * Math.sin((performance.now() - t0) / 1000 * 2.4);
+      const q = mk();
+      col.position.set(q.x, q.y + 8, q.z); cm.alpha = 0.2 + 0.2 * k;
+      light.position.set(q.x, q.y + 3, q.z); light.intensity = 1.6 + 1.4 * k;
+      ps.emitter.set(q.x, q.y + 1, q.z);
+    });
+    game.emit('jeep-beacon', { state: 'on', visual: true });
+  } catch (err) { try { if (H && H.report) H.report(err, 'jeep-beacon'); } catch { /* fine */ } game.emit('jeep-beacon', { state: 'on', visual: false }); }
+}
+/** Two seconds: the camera turns from where the player stands to the 4x4 and its light, then hands back. */
+async function nudgeToJeep() {
+  const jeep = game.find && game.find('jeep'), p = game.player, cin = game.cinematic;
+  if (!jeep || !jeep.alive || !p || !cin || !cin.path || cin.isPlaying) return;
+  const dx = jeep.x - p.x, dz = jeep.z - p.z, d = Math.hypot(dx, dz) || 1;
+  const ux = dx / d, uz = dz / d;
+  const cam = [p.x - ux * 3 + uz * 1.2, p.y + 2.4, p.z - uz * 3 - ux * 1.2];
+  game.emit('jeep-nudge', { state: 'start' });
+  try {
+    await cin.path([
+      { pos: cam, look: [p.x + ux * 6, p.y + 1.6, p.z + uz * 6], at: 0 },
+      { pos: cam, look: [jeep.x, jeep.y + 5, jeep.z], at: 1.6, hold: 0.5 },
+    ], { seconds: 2.2, fade: { in: 0, out: 0.25 }, letterbox: false, skippable: true, ease: 'inOut' });
+  } catch { /* the light is still there */ }
+  game.emit('jeep-nudge', { state: 'end' });
+}
+window.__islandNudge = nudgeToJeep;
+
+// ------------------------------------------------------------------ a first success lands: arriving at the pier, the first fish
+// Particles (a burst and a rising ring), the site's sounds (ui-quest; fish-catch for the fish), a short camera move that
+// never uses the letterbox (the touch controls stay uncovered) and the Overseer's recorded line (the MOMENTS table below).
+function celebrate(step) {
+  const p = game.player;
+  if (!p) return;
+  const fish = step === 'fish';
+  const o = { particles: false, sounds: [], camera: false };
+  try {
+    game.burst([p.x, p.y + 0.4, p.z], { color: '#fff4c4', count: 36, speed: 3.5, size: 0.16 });
+    game.burst([p.x, p.y + 2.2, p.z], { color: fish ? '#7dd3fc' : '#ffd84a', count: 40, speed: 5, size: 0.2 });
+    o.particles = true;
+  } catch { /* the confetti stands */ }
+  const site = (n, v) => { try { if (H && H.lib && H.lib.siteSound) { H.lib.siteSound(n, { volume: v }); o.sounds.push(n); } } catch { /* quiet */ } };
+  site('ui-quest', 0.6);
+  if (fish) game.after(0.25, () => site('fish-catch', 0.7));
+  // A short camera move: a slow push-in and a lift, 1.8 s, then control is back (skippable by any input).
+  const cin = game.cinematic;
+  if (cin && cin.path && !cin.isPlaying) {
+    const yaw = p.node ? p.node.rotation.y : 0, fx = Math.sin(yaw), fz = Math.cos(yaw);
+    cin.path([
+      { pos: [p.x - fx * 5, p.y + 2.2, p.z - fz * 5], look: [p.x, p.y + 1.4, p.z], at: 0 },
+      { pos: [p.x - fx * 3.4, p.y + 2.8, p.z - fz * 3.4], look: [p.x, p.y + 2, p.z], at: 1.6 },
+    ], { seconds: 1.8, fade: { in: 0, out: 0.2 }, letterbox: false, skippable: true, ease: 'inOut' }).catch(() => {});
+    o.camera = true;
+  }
+  game.emit('celebration', { step, ...o });
+}
+
 // After the Overseer's intro (it plays every time here) and the mirror that follows it, or straight away when there
 // are neither. The mirror says when you're done (game.on('mirror')); while it's open (or about to open) Pip waits.
 const mirrorBusy = () => Boolean(game.mirror && game.mirror.pending);
@@ -151,14 +536,14 @@ function warmVoice() {
 }
 function soundAfterVoice() {
   if (sounding) return;
-  Promise.race([voiceWarm, new Promise((r) => setTimeout(r, 1500))]).then(() => startSound());
+  Promise.race([voiceWarm, new Promise((r) => setTimeout(r, 1500))]).then(() => kickPlay());
 }
 // The gateway's one gesture (Enter, a click or a tap) unlocks the sound: the music, the sea and the birds start right then.
-game.on('gateway', () => { warmVoice(); startSound(); });
+game.on('gateway', () => { warmVoice(); kickPlay(); });
 game.on('intro', (d) => {
   if (!d) return;
   if (d.state === 'start') soundAfterVoice();
-  if (d.state === 'end') { startSound(); game.after(1, afterMirror); } // (skipped or not, the island sounds)
+  if (d.state === 'end') { kickPlay(); game.after(1, afterMirror); } // (skipped or not, the island sounds)
 });
 game.onStart(() => {
   const intro = Boolean(H && H.overseer && H.overseer.introWanted && H.overseer.introWanted());
@@ -171,16 +556,17 @@ game.onStart(() => {
 // The Overseer speaks each moment (the community library's Overseer voice, by name), and its words show as a caption.
 // "Do with it what you will" is the beginning's alone: said once, in the intro.
 const MOMENTS = {
-  drive: { sound: 'level-up.mp3', pip: 'You made it! That was Gravel Road, I named it just now. The rod is at the end of the pier. Hold click to cast, click when the bobber dips.', overseer: 'You found your way. Good.', voice: 'overseer-found-your-way.mp3' },
-  fish: { sound: 'power-up.mp3', npc: ['Admiral Bobbin', '#facc15', 'Fine cast. Eight out of ten. The two is for the wind, which I take personally.'], pip: 'A fish! Here, take the rocket launcher. See the barrels up the beach? Go on.', overseer: 'The sea gives. Remember that.', voice: 'overseer-the-sea-gives.mp3', give: ['rocket-launcher'] },
-  boom: { sound: 'level-up.mp3', npc: ['Channel', '#7dd3fc', 'Breaking: BOOM, live from the beach. Eyewitnesses: one. Ratings: record.'], pip: 'BOOM! Goodbye, Barrel! Goodbye, Other Barrel! Now ask the Overseer for something: hold Q and pick anything.', overseer: 'Destruction is a kind of freedom too.', voice: 'overseer-destruction.mp3' },
+  // (Pier directions are the tour-start cinematic below: one short line + camera fly + rod marker. Here Pip only names the road.)
+  drive: { sound: 'level-up.mp3', pip: 'You made it! I just named that Gravel Road.', overseer: 'You found your way. Good.', voice: 'overseer-found-your-way.mp3' },
+  fish: { sound: 'power-up.mp3', npc: ['Admiral Bobbin', '#facc15', 'Fine cast. Eight out of ten. The two is for the wind, which I take personally.'], pip: 'A fish! Take the rocket launcher. Barrels, up the beach. Go on!', overseer: 'The sea gives. Remember that.', voice: 'overseer-the-sea-gives.mp3', give: ['rocket-launcher'] },
+  boom: { sound: 'level-up.mp3', npc: ['Channel', '#7dd3fc', 'Breaking: BOOM, live from the beach. Eyewitnesses: one. Ratings: record.'], pip: 'BOOM! Goodbye, Barrel! Now ask the Overseer for anything.', overseer: 'Destruction is a kind of freedom too.', voice: 'overseer-destruction.mp3' },
   // (The Overseer's "Ask, and I will send it down" is said when they first hold Q: below.)
-  spawn: { sound: 'teleport.mp3', pip: 'It came from the Overseer! It listens, too: tell it what you want in the chat. Anything!' },
+  spawn: { sound: 'teleport.mp3', pip: 'It came from the Overseer! Tell it what you want. Anything!' },
   // The Overseer in the chat: what you ask for, it makes (on the player's credits). Its answer is in the chat too.
-  ask: { sound: 'teleport.mp3', npc: ['Mrs Ember', '#fb923c', 'A letter came for the new one, dear. It says: mind the third plank, it sticks. That is all. Sorry.'], pip: 'It heard you! Now go up the hill. Dolores lives there. Say hello, she pretends she does not mind.', overseer: 'I heard you. Watch the sky.' },
+  ask: { sound: 'teleport.mp3', npc: ['Mrs Ember', '#fb923c', 'A letter came for the new one, dear. It says: mind the third plank, it sticks. That is all. Sorry.'], pip: 'It heard you! Now up the hill. Say hi to Dolores.', overseer: 'I heard you. Watch the sky.' },
   // Quest 6: the hill. Dolores was not waiting. The reward is the view and the pad (a beam on the helicopter).
-  hill: { sound: 'power-up.mp3', npc: ['Dolores', '#4ade80', 'I was not waiting. The pad is free. Use it. I will not watch.'], pip: 'Told you! She likes you. The helicopter is right there on the pad. Go up, way up.', seconds: 5, pad: true },
-  fly: { sound: 'victory.mp3', pip: 'Look down! That speck in the sea is our island. The spawn gun and the gravity gun are yours too.', overseer: 'That is your world. All of it.', voice: 'overseer-your-world.mp3', seconds: 6, give: ['spawn-gun', 'gravity-gun'] },
+  hill: { sound: 'power-up.mp3', npc: ['Dolores', '#4ade80', 'I was not waiting. The pad is free. Use it. I will not watch.'], pip: 'Told you she likes you. Take the helicopter. Way up!', seconds: 5, pad: true },
+  fly: { sound: 'victory.mp3', pip: 'Look down! That speck is our island. The spawn and gravity guns are yours.', overseer: 'That is your world. All of it.', voice: 'overseer-your-world.mp3', seconds: 6, give: ['spawn-gun', 'gravity-gun'] },
   // Quest 8: the launch pad. Rolo's rocket goes up; the planet is whole and the Overseer's bay is lit on its hull, far off and open.
   launch: { sound: 'victory.mp3', npc: ['Rolo', '#22d3ee', 'huh. it flew. that is fine. that is mostly fine.'], pip: "Huh. That's new.", overseer: 'It is yours, if you come.', seconds: 6, bay: true },
 };
@@ -195,12 +581,23 @@ game.on('tour', (d) => {
   sfx(m.sound, { volume: 0.55 });
   confetti();
   game.camera.shake(0.08, 0.2);
+  stinger(d.step);
+  if (d.step === 'drive' || d.step === 'fish') celebrate(d.step);
   game.after(0.6, () => say(m.pip, 6));
   if (m.npc) game.after(0.2, () => npc(m.npc[0], m.npc[1], m.npc[2]));
   if (m.pad) game.after(1.2, () => { const h = game.all('Helicopter').find((e) => e.alive); const O = H && H.overseer; try { if (h && O && O.beam) O.beam(h, { radius: 2.4, seconds: 3 }); } catch { /* fine */ } });
   if (m.bay) game.after(1, () => game.emit('bay-lit', { far: true }));
   if (m.overseer) game.after(m.bay ? 3.2 : 1.4, () => overseer(m.overseer, m.seconds || 5, m.voice));
   if (m.give && game.mayhem && game.mayhem.giveTool) game.after(1, () => { for (const t of m.give) game.mayhem.giveTool(t); });
+});
+
+// The bay lights up: the chapter's climax happens in the sky, not only in words. The ship turns its open bay toward the
+// player, its seams and halo flare twice, the beam's sound, and the ground hums under them (quality rule 6).
+game.on('bay-lit', () => {
+  const O = H && H.overseer;
+  try { if (O && O.attend) O.attend(25); if (O && O.flare) { O.flare(1.5); game.after(0.9, () => O.flare(1.2)); } } catch { /* the words still say it */ }
+  sfx('teleport.mp3', { volume: 0.6 });
+  game.camera.shake(0.05, 0.6);
 });
 
 // ------------------------------------------------------------------ a return: the tour picks up where it stopped
@@ -504,15 +901,15 @@ game.every(0.5, () => {
 
 // ------------------------------------------------------------------ Pip notices when you have stopped getting anywhere
 const NUDGES = {
-  drive: 'The path goes east, to the dock. The 4x4 is faster: press E at it.',
-  rod: 'The rod is at the very end of the pier. Walk right into it.',
-  fish: 'Hold click to cast the rod out into the sea. Wait for the bobber to dip.',
-  boom: 'The fuel barrels are up the beach. Switch to the rocket launcher and fire!',
-  spawn: 'Hold Q and pick anything. The Overseer will beam it down.',
-  ask: 'Type what you want in the chat. Anything at all!',
-  hill: 'Up the slope past my hut, to the helipad. Dolores is the cactus. She will say she was not waiting.',
-  launch: "Rolo's rocket is on the pad across the island. E to fill it, E to get in, hold SPACE.",
-  fly: 'The helicopter is on the hill. Get in and keep going up.',
+  drive: 'The dock is east. Follow the light!',
+  rod: 'The rod is at the very end of the pier!',
+  fish: 'Cast it out and wait for the dip.',
+  boom: 'Barrels! Up the beach, in the light.',
+  spawn: 'Ask the Overseer. It is listening.',
+  ask: 'Tell it what you want. Anything at all!',
+  hill: 'Up past my hut. Dolores is waiting. She will deny it.',
+  launch: "Rolo's rocket! Across the island, on the pad.",
+  fly: 'The helicopter is on the hill. Up, up!',
 };
 const NUDGE_AFTER = 30; // seconds on one step
 const nudged = (window.__islandNudged = window.__islandNudged || new Set());
@@ -522,7 +919,11 @@ game.every(1, () => {
   if (step !== nudgeStep) { nudgeStep = step; nudgeSince = game.time; return; }
   if (!step || nudged.has(step) || game.time - nudgeSince < NUDGE_AFTER || !NUDGES[step]) return;
   nudged.add(step);
-  say(`${NUDGES[step]} Stuck? ${H && H.touchUi ? 'Tap Stuck?' : 'Press R'} and I'll get you back.`, 7);
+  // Shown, not told (quality rule 6): the Overseer's light points at the place, and Pip says one short line (the
+  // tracker keeps the controls; R or Stuck? is on it).
+  const goal = NAMES[step] && game.all(NAMES[step]).find((e) => e.alive);
+  try { if (goal && H && H.overseer && H.overseer.beam) H.overseer.beam(goal, { radius: 2, seconds: 2.5 }); } catch { /* the words still say it */ }
+  say(NUDGES[step], 5);
   game.emit('nudge', { step });
 });
 
@@ -561,7 +962,7 @@ if (typeof document !== 'undefined' && !document.getElementById('tour-style')) {
   st.textContent = [
     'body.tour-on .qs-track{display:none!important}',
     '.tour-track{position:fixed;left:12px;top:max(10px,env(safe-area-inset-top));z-index:25;width:min(300px,calc(100vw - 24px));box-sizing:border-box;padding:8px 11px;border-radius:12px;background:rgba(10,14,24,.7);border:1px solid rgba(255,216,74,.45);color:#fff;font:600 14px/1.3 system-ui,sans-serif;pointer-events:none;backdrop-filter:blur(4px)}',
-    '.tour-track[hidden]{display:none}',
+    '.tour-track[hidden],.tour-track.quiet{display:none}',
     '.tour-track .n{display:block;font:800 11px system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#ffd84a}',
     '.tour-track .t{display:block}',
     '.tour-track .h{display:none;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.18);font-weight:500;font-size:13px;color:#dbe7ff}',
@@ -637,6 +1038,8 @@ function drawTour() {
     tour.h.textContent = (HINTS[step] || [])[H && H.touchUi ? 1 : 0] || '';
   }
   el.classList.toggle('hint', now - tour.since >= HINT_AFTER);
+  // The first quest is led by the beacon: no tracker (one short line on screen, Pip's) until a player has idled a while.
+  el.classList.toggle('quiet', step === 'drive' && now - tour.since < HINT_AFTER);
   // The marker over the place; fades as the player arrives.
   const target = NAMES[step] ? markTarget(step) : null;
   if (!target) { clearMark(); return; }
@@ -827,7 +1230,7 @@ function challenge(why) {
   if (raced.challenged || game.mode !== 'play' || !game.race) return;
   raced.challenged = true;
   const ridge = game.race.courses.find((c) => c.id === 'ridge');
-  say(`See the lights by the dock? Race me! Three laps round the hills in the 4x4${ridge && ridge.par ? `, and my time is ${nice(ridge.par)}` : ''}. The speedboat has its own!`, 8);
+  say(`Race me! Three laps in the 4x4 from the lights by the dock${ridge && ridge.par ? `. Beat ${nice(ridge.par)}` : ''}!`, 7);
   game.emit('race-challenge', { why });
 }
 // Near a start gate, or the tour done: Pip's challenge, once.

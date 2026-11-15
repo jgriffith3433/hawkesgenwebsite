@@ -13,6 +13,10 @@ that's it. That's the whole story."*
   visible, the one constant in every world.
 - **The AI is the Overseer.** The building assistant speaks as the Overseer. The Overseer's tone: calm, vast, a little
   amused, generous. It gives; it never commands.
+- **The Overseer's sound (2026-11-11):** the player knows it by ear — a vast treated voice from the sky (low octave,
+  chorus, cathedral reverb, high shelf; light chain on a phone), a short leitmotif in three moods (wonder / amused /
+  ominous) that ducks the area music, and a beam that hums louder as you approach. Captions stay. See world-bible
+  "The Overseer's sound"; code `modules/overseer/sound.js`.
 - **Everything that appears is beamed in by the Overseer:** the player when they spawn, things the assistant builds,
   things a spawn gun makes, assets as they arrive from Hawkes Gen. A beam of light comes down from the ship to the spot.
 - **You can fly to the Overseer.** It is a real place: a player who builds or takes a rocket or a space ship can leave the
@@ -21,6 +25,10 @@ that's it. That's the whole story."*
   and above the atmosphere there is space, the planet below, and the Overseer.
 - **The beginning:** the Overseer beams you down, and while you look up at it in the sky it tells you: *"I have given you
   the power of free will. Do with it what you will."* That is the whole story. Everything after that is the player's.
+- **The title screen (2026-11-12):** Pressing Play opens on a title over a live fly-over of the island at golden hour
+  (clearing, beach, pier, hangar, Overseer), not an opaque Enter veil. The Hawkes Games lockup rises, then *Press any
+  key* / *Tap to start*; the first input starts the clearing theme and offers Continue (returning), New island and
+  Settings. Play swoops the camera into the player's hands, then the beginning above (or a return with no intro).
 - **The mirror (J, 2026-10-24):** the first thing a player does with free will is decide who they are. Right after the
   beginning, before anyone greets them, they stand in front of a mirror and the Overseer asks: *"What are you?"* (an
   animal, a robot, a shoe, a toaster...), *"How do you look?"* and *"What are you called?"*. It's funny on purpose, and
@@ -119,7 +127,7 @@ The first six are the existing tour in the sandbox (the mirror and the two ends 
 no credits, no prices, no promises about product features.
 
 1. **Who are you?** *(the mirror; exists)* Answer what, how, and what you are called. *Beat:* the Overseer is delighted by your shoe. *Reward:* your body and name, and Pip walking over.
-2. **A drive to the dock.** *(exists)* Take the 4x4 down the path. *Beat:* Pip talks too fast and names the road. *Reward:* the Overseer's "You found your way. Good."
+2. **A drive to the dock.** *(exists)* Take the 4x4 down the path. *Beat:* Pip first shows the pier (one short line and a camera fly from Pip along Gravel Road that holds on the fishing rod, lighting a soft glowing marker that stays until the rod is picked up); then Pip talks too fast and names the road when you arrive. *Reward:* the Overseer's "You found your way. Good."
 3. **The sea gives.** *(exists)* Catch a fish at the end of the pier. *Beat:* Admiral Bobbin rates your cast. Plank joints are noticed (hint 1). *Reward:* the rocket launcher.
 4. **Barrel and goodbye.** *(exists)* Blow up the fuel barrels on the beach. *Beat:* Pip introduces each barrel by name. Channel arrives, live. *Reward:* the Overseer's "Destruction is a kind of freedom too."
 5. **Ask.** *(exists)* Ask the Overseer for anything in chat. *Beat:* it comes down the light. Mrs Ember hands you a letter "for the new one". *Reward:* what you asked for, kept.
@@ -127,18 +135,48 @@ no credits, no prices, no promises about product features.
 7. **Way up.** *(exists as "fly")* Take the helicopter up until the island is a speck. *Beat:* the Overseer: "That is your world. All of it." *Reward:* the spawn gun and gravity gun.
 8. **The launch pad.** *(new work)* Rolo has built a rocket and cannot say why. Finish its fuel, fire it, and go up to see the planet whole. *Beat:* a lit bay on the sphere's hull, far off and open. *Reward:* the first sight of the hangar (not a docking). The chapter ends with Pip saying "Huh. That's new" and the Overseer only: "It is yours, if you come."
 
-**Built (Chapter One in the sandbox, `sandbox.js`, `config.quests` "tour"):** the tour's steps are the quests (the rod and the fish are one quest, spawning and asking one): drive, rod+fish, boom, spawn+ask, **hill** (Dolores's hello, within a few metres, passes it: she says "I was not waiting. The pad is free. Use it. I will not watch.", a beam on the helicopter), fly, **launch** (Rolo: "huh. it is built. i cannot say why." E at the rocket pours in the last can; going up until the planet is whole, 1,000 m, ends the chapter: the Overseer's bay, lit far off, Pip: "Huh. That's new." and the Overseer: "It is yours, if you come."). Each beat has one neighbour's line in the chat window, text only: Bobbin on the cast, Channel live from the beach, Mrs Ember's letter, Dolores, Rolo. Any quest done early is kept and passes when the line reaches it. Small things to notice, never frightening: E at the pier's planks ("cut by hand ... a hand a little bigger than yours"; Pip: "Huh."), at the harbour desk's logbook (pages torn out cleanly; Bobbin: "A gull."), and asking the Overseer what it saw before you ("I saw the sea."). The Overseer never says why it gave free will.
+**Built (Chapter One in the sandbox, `sandbox.js`, `config.quests` "tour"):** the tour's steps are the quests (the rod and the fish are one quest, spawning and asking one): when Pip begins the tour, Pip turns east with one short voiced line (*"The rod is at the very end of the pier!"*) while the cinematic camera flies from Pip down Gravel Road, crests the ridge over the bay and holds on the fishing rod at the pier's end as a soft pulsing golden light and particle shimmer come on (staying visible from the beach until the rod is picked up, when the marker clears with a chime and small burst); then drive, rod+fish, boom, spawn+ask, **hill** (Dolores's hello, within a few metres, passes it: she says "I was not waiting. The pad is free. Use it. I will not watch.", a beam on the helicopter), fly, **launch** (Rolo: "huh. it is built. i cannot say why." E at the rocket pours in the last can; going up until the planet is whole, 1,000 m, ends the chapter: the Overseer's bay, lit far off, Pip: "Huh. That's new." and the Overseer: "It is yours, if you come."). Each beat has one neighbour's line in the chat window, text only: Bobbin on the cast, Channel live from the beach, Mrs Ember's letter, Dolores, Rolo. Any quest done early is kept and passes when the line reaches it. Small things to notice, never frightening: E at the pier's planks ("cut by hand ... a hand a little bigger than yours"; Pip: "Huh."), at the harbour desk's logbook (pages torn out cleanly; Bobbin: "A gull."), and asking the Overseer what it saw before you ("I saw the sea."). The Overseer never says why it gave free will.
 
-**The journal (built, `src/overseer-games/journal.js`).** Lists the eight quests (all skippable), the six neighbours (unmet ones are "?") and the twelve lore titles of section 7. Findable now, with E: 1 the logbook, 2 the planks, 3 the letter at Mrs Ember's mailbox, 4 the dock lamp, 5 Rolo's slip near the rocket pad, 6 Dolores's tally on a rock on the hill, 9 the chair on the beach, 10 Pip's drawing by the barrels. Waiting: 7, 8, 11, 12 ("not on this island yet"). Kept in the Overseer's memory.
+**World marks (built, `src/overseer-games/world-marks.js`).** Every finished tour quest leaves one lasting, visible change near where it happened: painted road markers after the drive; pier lamps lit warmer and a fish mural after the catch; a fenced blast site with a sign after the barrels; a glowing arrival pad after the first spawn; a ribbon on Mrs Ember's mailbox after asking; Dolores's cairn after the hill hello; a windsock and helipad edge lights after the climb; a banner and lit pad lights after the rocket. Each mark appears with a sparkle, a quest sound and a nearby islander cheering in voice. Kept in the Overseer's memory (`marks`: `{ done, last }`) and mirrored onto the island's scene config (`chapterMarks`) so save / goLive keep it with the island; a return visit pans the camera across the newest mark for 3–5 s with an Overseer line (guest.js `welcome-back`). Playtest `world-memory`.
+
+**The journal (built, `src/overseer-games/journal.js`).** Lists the eight quests (all skippable), the six neighbours (unmet ones are "?") and the twelve lore titles of section 7 as **painted pages** (a Hawkes Gen illustration, the title and the finder's words). Findable now, with E: 1 the logbook, 2 the planks, 3 the letter at Mrs Ember's mailbox, 4 the dock lamp, 5 Rolo's slip near the rocket pad, 6 Dolores's tally on a rock on the hill, 9 the chair on the beach, 10 Pip's drawing by the barrels. Waiting: 7, 8, 11, 12 ("not on this island yet"). Kept in the Overseer's memory. On a phone the pages swipe sideways.
+
+**Memories (built, `src/overseer-games/memories.js`).** Picking up a findable lore object the first time is not a text card: the world goes warm sepia with a soft vignette for about nine seconds, two or three translucent glowing figures (the engine's own person bodies, a ghost material, no new 3D) replay a short moment from the island's past on that spot, and the Overseer remembers it aloud in one recorded line (George, as its other clips; the words are its own, never "why"). One tap (or Space) skips it. It never replays. The journal then holds the painted page. Events `memory-start` / `memory-line` / `memory-end`. Playtest `lore-memories`. The Overseer remembers the island; it does not explain it.
 
 #### 5b. The islanders on the island (built: `src/overseer-games/islanders.js`)
 
-Five of the six neighbours stand on the sandbox island in Chapter One (Pip is the guide and already lived there; **Channel** fits, so he is in). Each is a `friend` that stays at their post, wearing the mirror's own body for what they are (a rubber duck, a toaster, a roll-bot, a cactus, a TV robot), and is talked to with E (or a tap on the phone's button): one short line in the chat window, text only, no voice. Where they stand: Bobbin on the pier, Mrs Ember by the mailbox below Pip's hut, Channel on the beach by the fuel barrels, Rolo by the rocket's pad, Dolores up by the helipad.
+Five of the six neighbours stand on the sandbox island in Chapter One (Pip is the guide and already lived there; **Channel** fits, so he is in). Each is a `friend` that stays on the island (no random wander: `shape.stays`), wearing the mirror's own body for what they are (a rubber duck, a toaster, a roll-bot, a cactus, a TV robot), and is talked to with E (or a tap on the phone's button): one short line in the chat window, text only, no voice. **Routines (built):** each of the five walks between two or three named spots on a schedule from the game clock (Bobbin: pier end, harbour desk, dock; Mrs Ember: mailbox, garden, bench; Rolo: rocket, repair slip, pad side; Dolores: hill, tally rock, helipad edge; Channel: beach, chair, barrels), with an idle activity at each (fishing, tending, sitting, waving). When the player comes within about four metres they pause, turn to face them, and carry on afterwards. Pip still stays put by the hut as the guide.
 
 - **They remember what you did, by what is true.** What the player has done this visit (a fish caught, a barrel blown up, the helicopter flown, the Overseer asked, the 4x4 driven) is answered first, once each, in the neighbour's own voice; counts kept by the Overseer's memory (`H.memory`: fish, booms, flights, visits) are answered on a later visit ("number five", "back again"). Otherwise they say their ordinary lines: the running jokes, never the same one twice in a row.
 - **They use the name the player chose, and nothing else about the mirror.** What the player is (a shoe, a toaster) is never mentioned, joked about or guessed at; the name is simply used, warmly, if there is one.
 - **Mrs Ember's first letter** is addressed "to the new one" and says only: "Mind the third plank. It sticks." It names no sender and no reason.
+- **Barks (built, 2026-11-11).** Walking past, an islander within about 6 m (the routine's notice is 6 m, 7.5 m to let go) turns to the player and says one short bark in their recorded voice, captioned over their head (islanders.js `BARKS`: 8 or 9 each, by context `first`, `rod`, `drive`, `boom` (the barrels), `fish`, else `any`; the newest deed in the last 4 minutes wins; none repeats within 5 minutes; one bark per islander a minute; one voice at a time; only when the player can see the head, clear of the thumbs' corners). Every bark is a fixed line with its clip in `public/play/audio/voice` (eleven were made for this in Hawkes Gen: Russell, Sarah, River, Matilda, Daniel); the rest reuse existing clips. The first bark is the hello and passes the hill. E still gives the longer text line. Playtest `island-alive`.
 - Nobody here says why anything is as it is. The hints stay at the edge (Dolores watches the climb; Rolo's rocket "I can't say why").
+
+#### 5c. The finale: the end of Chapter One (built: `src/overseer-games/finale.js`)
+
+When Rolo's rocket settles on the pad in the Overseer's hangar (the first docking after quest 8), the chapter closes as an in-engine set piece (cinematic camera, letterbox in landscape, captions in a band at the bottom; any tap or the Skip button skips a shot):
+
+1. **The doors.** The hangar's back wall opens in two grinding slabs; warm light spills across the floor; a low rumble and a rising chord. The Overseer: *"You came. Good. Come in."* (the bay's "It is yours, if you come", answered).
+2. **The neighbours.** Beamed in at the door, they walk over and each says one line in their own voice: Pip *"Huh! That is a lot of floor. Hi, Floor!"*, Bobbin *"Carry on. That is an order. It is also a suggestion."*, Mrs Ember *"Dear, I brought you a letter. It says: well done. It has no sender. Sorry."* (the letter is the first one's mate: still no sender), Rolo *"huh. you parked it. nicely. one wobble. that is fine."*, Dolores *"I came up. I was not waiting. The view is fine."*, Channel *"Breaking: a hangar, a crowd, and the new one. Ratings: record."*
+3. **The payoff.** The Overseer closes the opening joke: *"I gave you free will, and told you a shoe would do. It would have. You did better."* (it never names what the player is: the shoe is its own example, from the first words).
+4. **The player's move (control is theirs).** *"Now, one thing. Free will is only the next thing, and it is yours. Light the sky."* A big "Light the sky" button (E, a click or a tap) is the player's own act; nothing advances until they make it.
+5. **The sky.** Fireworks over the bay's mouth, the cast cheers, *"Thank you for coming. That is all of the first part."* Then the title on the letterbox: **Chapter One complete** / *What Are You?*, under the island's chord.
+6. **The tease.** Five seconds at the bay's mouth: a pale lamp lights on the far shore, blinks twice, with a thin column of light, under a low dark motif. The Overseer, one line: *"I did not light that one."* (It only hints at hint 1 of section 4: someone built before. It does not say who or why.) Control is back at once.
+
+Kept once per device (`hg_chapter_one`); the journal's Chapter One has "Replay the end of Chapter One" once it has played (works where the hangar is, else the Overseer asks for the rocket to come back to the bay). Ten new recordings (`public/play/audio/voice`, filed in `hawkes.library.json` `voiceLines`; Pip in Jessica, the rest as 5b); the music is synthesized in the engine. Playtest `chapter-one-finale`.
+
+#### 5d. Side favours (built: `src/overseer-games/favours.js`)
+
+After the pier quest (*The sea gives*), three neighbours each have one short personal favour — BotW-style: a voiced ask grown from their want and running joke, two steps that use verbs the island already has, shown by a world marker and the islander pointing (no text panel), then walk back for a voiced payoff with a reaction gesture and a gift. Unlock is quiet: once the fish quest is done, walking near Bobbin, Mrs Ember or Rolo and tapping the action button (E / phone) starts their favour. One favour at a time. Ember's boom makes Channel notice live. Barks still obey the 5-minute no-repeat rule.
+
+| Who | Want / joke | Ask (voiced) | Step 1 | Step 2 | Payoff | Gift |
+|---|---|---|---|---|---|---|
+| **Admiral Bobbin** | A proper fleet; the logbook always lists the same boat with a longer name | *The log needs a new name. Take the boat out, then catch me a fish. Salute optional.* | Take the speedboat out (drive) | Catch a fish | Salute; *Fleet of two. Logbook updated. Same boat, longer name. Carry on.* | Wardrobe: harbour medal |
+| **Mrs Ember** | Every letter reaches someone; forecasts are right and she apologises | *A letter for the beach, dear. Carry it to the chair, then a small boom so he notices. Sorry.* | Carry her letter to the beach chair | A small boom (blast the barrels) so Channel notices | Wave; *It reached him. Forecast: clear. Sorry. Take this stamp.* | Wardrobe: stamp-flower |
+| **Rolo** | Fix things; estimates in wobbles and small tuesdays | *huh. need scrap. drive the 4x4 to the barrels. then blow them. estimate: two wobbles.* | Drive the 4x4 to the barrels | Blow the barrels | Shrug; *huh. that was a small tuesday. take this. mostly fine.* | Wardrobe: antenna; 4x4 painted cyan |
+
+Journal gains a **Favours** section (done / active / locked). Events: `favour-ask`, `favour-step`, `favour-payoff`, `favour-gift`. Playtest `side-stories` (touch at 390x844). Voice clips in `public/play/audio/voice` from the cast ids in `cast.json`.
 
 #### 6. Three later chapters
 
@@ -190,7 +228,7 @@ anything. They are written in the voice of whoever left them.
 1. **Premise:** kept. "The island was lived in before you, and nobody remembers who." Hint 4's "others" stays vague.
 2. **The player's name:** "the Newly Free" stays, as a name people say fondly. It is never forced on the player.
 3. **Cast:** the six and their names stay: Pip, Admiral Bobbin, Mrs Ember, Rolo, Dolores, Channel.
-4. **Who may speak:** the neighbours speak as **text only** in the chat window for now. No voice lines are made; voice would be priced with `hawkesgen_estimate` and asked for later.
+4. **Who may speak:** every line is in the chat window and over the speaker's head. **Voices:** a line plays its own recording when there is one (runtime.js `recordedLine`: `public/play/audio/voice/<speaker>-<hash>.mp3`, listed in `index.json`; the speaker is the character's id, pip, bobbin, ember, rolo, dolores, channel, or overseer, and the hash is FNV-1a of the words, lower case), else the babble. Made in Hawkes Gen on ElevenLabs (Nov 2026): the Overseer in George (as its older clips), Pip in Jessica, Bobbin in Russell, Mrs Ember in Sarah, Rolo in River, Dolores in Matilda, Channel in Daniel. A line whose words change (a name, a time) has no recording and babbles.
 5. **Chapter One:** quests 6 (the hill visit) and 8 (the launch pad) are new work; the rest is the shipped tour. Docking stays out of Chapter One.
 6. **Cracked mirror:** kept, in Chapter Three.
 7. **Chapter Four:** "pick the next planet".
@@ -213,6 +251,15 @@ anything. They are written in the voice of whoever left them.
   rocket or a space ship reaches space and the Overseer. Players can build all four.
 - **The intro:** plays the first time a player enters a world (the sandbox, their first game), short and skippable; after
   that, being beamed in is enough. A game can turn the intro off, or always play it.
+  **First-visit lines (J: "the Overseer is the game's face"):** four lines, about 14 s, in its voice: *"You found your way.
+  Good."* as the player appears in the beam, *"I have given you the power of free will."*, *"Do with it what you will."*,
+  and last *"Ask, and I will send it down."* Captions sit on a dark plate (no letterbox crop); a short look-up at the
+  Overseer (~5.5 s, with a push-in) then settles behind the player while the lines finish; on a portrait phone the look
+  uses a milder pitch, more distance/height and a wider FOV so the body stays in the upper-middle (not pinned to an
+  edge), the nearby mirror is hidden for that sky look, and Skip sits clear of the feet. Control from the beam. A large
+  Skip pill (or any key/click) ends it. The intro then leaves a card in the chat, *Ask for your first thing* ("a
+  lighthouse, a tune, a hat"); one tap opens the chat to the Overseer, which is how building begins. The mirror still
+  follows. A return (the intro's flag on the device) skips all of it. Only the free-will lines have a voice clip so far.
 - **Mirrors:** a key thing in every game (modules/mirror). Each mirror decides its questions (a game might only allow
   robots, or ask first or third person), who players may be, and whether it opens by itself when they arrive.
 - **The lights (races, modules/race):** a side activity on the island, never a quest and never a gate to anything
@@ -341,7 +388,7 @@ first place that is the Overseer's own rather than a landing place, and it is ke
   **Sky Racer** and **Leap**, the Overseer's featured games. Each has a plate with its name, one line and how many are there
   now (*"● 2 playing"*). Standing under one and pressing E makes the Overseer say where (*"Leap. A village, a hill and a rocket
   at the top. Hold still."*), the room fades, and the player is beamed down into that game as the character they made, with
-  their name. Nothing in the games changes; the way back is always there: Esc twice opens a pause menu with **Return to the
+  their name. Nothing in the games changes; the way back is always there: Esc opens the game menu with **Return to the
   Observatory** (and a button in the corner), and a beam puts them down at the board with *"Name. You are back from Leap.
   The stars kept your place."* The sandbox stays home: the return skips the intro and the mirror.
 
@@ -361,6 +408,29 @@ first place that is the Overseer's own rather than a landing place, and it is ke
 *Open for later tasks:* a thing the Overseer makes on request arrives through the usual asset flow; wearing a Gen-made model
 on the character's anchors (a made hat) comes with the Gen-model bodies (`presence-models.js`). The cracked
 mirror of Chapter Three is not here: it is in the hangar, facing the wall, and this room does not mention it.
+
+### Reactions while you build (built: `modules/overseer/reactions.js`)
+
+A character that responds. Each time a request finishes the Overseer says something about it, a different thing each time:
+what it noticed when the thing came down (**build**), what the world did when it would not (**fail**: "It did not want to
+come down. Ask again."; never what a system did) and, when the player has been quiet for a while, an invitation (**idle**:
+"Take your time. The sky is not going anywhere."). While it works the pill's headline is a thinking line ("Gathering light",
+"Asking the sea") that changes. Twelve or more of each, in the voice rules above (calm, no exclamation marks, never "done"),
+and never the same line twice in a row. It is amused by plans, never by a failure, and thanks the player for trying.
+
+The sky presence also draws on these decks (and four more: **delight**, **interest**, **awe**, **night**) when its face
+in the clouds reacts: a blast or rocket widens it, a catch leans its gaze in, thirty seconds of quiet is a slow blink, a
+first build is a soft swell, and night is a squint. Same shuffled decks, never the same line twice in a row.
+
+### The sky presence (built: `modules/overseer/presence.js`)
+
+The Overseer is not only a voice and a distant hull. From the island it is a **vast soft presence in the clouds** toward
+`OVERSEER_AT` — a face / eye of light and aurora (shader and billboard layers, never a hard mesh), in the style of the
+landing page's sky. It slowly turns its gaze to follow the player, brightens and pulses with the voice envelope when it
+speaks, and fades during cinematics that frame it. It sits in the sky's far layer with the ship, partially veiled by soft
+cloud wisps so it reads as behind weather. Reference: Majora's Mask's moon over Clock Town — always visible, always
+watching — without dread: calm, vast, a little amused. `window.__overseerPresence` reports visible / gaze / last reaction
+for playtests. On a phone portrait it sits in the upper third and stays cheap (under 2 ms a frame).
 
 ### The "seems good" ledger
 
@@ -519,7 +589,7 @@ line burnt in. Nothing on it says the Overseer is software; "Made with Hawkes Ge
 
 ### Visitors (built: `src/invites.ts`, `public/play/guest.js`)
 
-A player can bring a friend to their island. **Invite a friend** (the button top right, and the pause menu on Esc twice;
+A player can bring a friend to their island. **Invite a friend** (the button top right, and the game menu on Esc;
 on a phone the native share sheet) makes a link, `/play/sandbox?invite=<token>`, to the island's own room. It needs no account,
 for either of them. The link holds for a day. If the inviter has an account, their referral code rides in it
 (`&ref=<code>`), kept like the landing page's `?ref=`: a sign-up through it credits them as the site does today.

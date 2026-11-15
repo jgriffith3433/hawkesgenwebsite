@@ -262,7 +262,7 @@ function page(o: { title: string; head: string; body: string }) {
 <body class="landing">
   <header class="bar">
     <a class="hg-brand" href="/"><img src="/favicon.svg" alt=""><span>Hawkes Games</span></a>
-    <nav class="hg-nav-links" data-site-nav><a href="/games">Games</a><a href="/community">Community library</a><a href="/entities">Engine codex</a><a href="/avatars">Avatars</a><a href="/net">Hawkes Net</a><a href="/#pricing">Pricing</a></nav>
+    <nav class="hg-nav-links" data-site-nav><a href="/games">Worlds</a><a href="/community">Community library</a><a href="/entities">Engine codex</a><a href="/avatars">Avatars</a><a href="/net">Hawkes Net</a><a href="/#pricing">Pricing</a></nav>
     <a class="btn btn-primary btn-sm" href="/app">Build a game</a>
   </header>
   ${o.body}

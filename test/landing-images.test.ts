@@ -35,8 +35,8 @@ test('the manifest icons exist', () => {
 });
 
 test('every <img> on the landing page has alt text, including the ones its scripts build', () => {
+  // (The play-first landing page of 2026-11-01 has no <img> of its own: the sky is a canvas. Any it gains need alt.)
   const imgs = [...html.matchAll(/<img\b[^>]*>/gi)].map((m) => m[0]);
-  assert.ok(imgs.length >= 3);
   for (const t of imgs) assert.match(t, /\salt="/, t.slice(0, 80));
   assert.deepEqual([...html.matchAll(/<img src="' \+ [^>]*>/g)].filter((m) => /alt=""/.test(m[0])), [], 'library pictures name the thing');
 });

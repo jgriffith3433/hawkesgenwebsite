@@ -465,7 +465,7 @@
     const airborne = !seated && !swim && !grounded && A.t > (fm ? 0 : 0.1);
     if (airborne) A.peak = Math.max(A.peak, -vy);
     if (airborne && !A.was) A.takeT = 0;
-    if (!airborne && A.was && A.t < 0.01 && !swim) { A.landT = 0; A.depth = lerp(0.9, 0.8, clamp(A.peak / 10, 0, 1)); }
+    if (!airborne && A.was && A.t < 0.01 && !swim) { A.landT = 0; A.depth = lerp(0.94, 0.72, clamp(A.peak / 12, 0, 1)); }
     if (!airborne && A.was) A.peak = 0;
     A.was = airborne;
     A.takeT += dt; A.landT += dt;
@@ -474,9 +474,19 @@
     const moving = !forced || forced === 'walk' || forced === 'run';
     const sp = moving ? speed : 0;
     pp.idleT = sp > 0.4 || airborne || swim || seated ? 0 : pp.idleT + dt;
-    const ampW = sp < 0.15 ? 0 : sp < 2.5 ? 0.56 * Math.pow(sp / 2.5, 0.8) : Math.min(0.96, 0.56 + ((sp - 2.5) / 3.5) * 0.4);
+    let ampW = sp < 0.15 ? 0 : sp < 2.5 ? 0.56 * Math.pow(sp / 2.5, 0.8) : Math.min(0.96, 0.56 + ((sp - 2.5) / 3.5) * 0.4);
     const run01 = clamp((sp - 2.5) / 3.5, 0, 1), walk01 = clamp(sp / 2.5, 0, 1);
-    const ph = rig.phase;
+    // The stride's own clock: as quick as the speed needs for the planted foot to stay put (presence-core.js strideHz),
+    // so a walk speeding into a run never skates. (It used to tick at 4 + 1.6 x speed whatever the legs reached: the feet
+    // slid at about half the speed.)
+    const duty = C().strideDuty(run01);
+    pp.duty = duty; pp.speedNow = sp; pp.airborne = airborne; // (for P.motion: the playtest's trace)
+    if (!pp.legW) { pp.legW = legLength(rig); pp.soleY = FEET - HIP_Y; } // (the sole below the hip: in the world, and in the hip's own space)
+    // (the run's squash makes the body narrower by 1 / sqrt(sy): a little less reach)
+    const reach = pp.legW / Math.sqrt(1 + 0.06 * run01);
+    ampW = C().strideAmp(sp, reach, ampW, duty); // (wider when short legs can't step quickly enough)
+    pp.ph = (pp.ph || 0) + Math.PI * 2 * C().strideHz(sp, reach, ampW, duty) * dt;
+    const ph = pp.ph;
 
     // ---- the joints
     const L = rig.hipL, R = rig.hipR, SL = rig.shL, SR = rig.shR, neck = rig.neck, chest = rig.chest;
@@ -532,14 +542,17 @@
     } else {
       // on the ground: idle, walk, run, a crouch, a landing
       const sxz = undefined;
-      // stride
-      const swing = Math.sin(ph) * ampW;
-      L.rotation.x = swing; R.rotation.x = -swing;
+      // stride (a hip turned +x puts its foot behind): each foot goes back under the body at the ground speed, then swings forward
+      // The legs swing about the vertical, not about the leaning body (rx, below): a swing about a tipped axis sweeps the foot
+      // unevenly, and an uneven sweep is a slide.
+      const legLean = pp.leanS || 0;
+      L.rotation.x = -C().strideAngle(ph, ampW, duty) - legLean; R.rotation.x = -C().strideAngle(ph + Math.PI, ampW, duty) - legLean;
+      const swing = -Math.cos(ph) * ampW; // (the arms swing smoothly against the legs)
       SL.rotation.x = -swing * 0.9; SR.rotation.x = swing * 0.9;
       SL.rotation.z = 0.06 + run01 * 0.08; SR.rotation.z = -0.06 - run01 * 0.08;
       bob = (1 - Math.cos(2 * ph)) * 0.5 * lerp(0.04, 0.09, run01) * walk01;
       const lean = run01 * 0.21 + walk01 * 0.03;
-      pose.rotation.y = Math.sin(ph) * 0.07 * walk01;
+      pose.rotation.y = Math.sin(ph) * 0.025 * walk01 * (1 - run01); // (a small hip turn; more swings the planted foot sideways)
       const breath = 1 + 0.0125 * (1 + Math.sin((t * 2 * Math.PI) / 3.2)) * (1 - walk01);
       sy = breath * (1 + 0.06 * run01);
       // idle: arms sway 4 degrees; weight shifts and a look around once it has been still a while
@@ -557,8 +570,11 @@
       if (A.landT < 0.31) {
         const tt = A.landT;
         landK = tt < 0.09 ? lerp(1, A.depth, ease(tt / 0.09)) : (() => { const u = (tt - 0.09) / 0.22; return u < 0.55 ? lerp(A.depth, 1.05, ease(u / 0.55)) : lerp(1.05, 1, ease((u - 0.55) / 0.45)); })();
-        const dep = clamp((1 - landK) / 0.2, -0.3, 1);
-        SL.rotation.x += 0.5 * dep; SR.rotation.x += 0.5 * dep; L.rotation.x -= 0.25 * dep; R.rotation.x -= 0.25 * dep;
+        // Knee bend scales with how hard the land was (depth): a 1.5 m fall reads as a clear crouch, a hop almost nothing.
+        const hard = clamp((1 - A.depth) / 0.22, 0, 1);
+        const dep = clamp((1 - landK) / 0.2, -0.3, 1) * (0.35 + 0.65 * hard);
+        SL.rotation.x += 0.7 * dep; SR.rotation.x += 0.7 * dep; L.rotation.x -= 0.45 * dep; R.rotation.x -= 0.45 * dep;
+        bob -= 0.04 * dep;
       }
       sy *= landK;
       setPose(pose, sy, rx, sxz);
@@ -604,6 +620,26 @@
       if (mf) expr = mf; else if (!em && expr === pp.rest) expr = C().restFace(expr, pp.idleT);
     }
     face(rig, dt, expr, em);
+  }
+  /** Hip to sole in meters as the person stands now (its shape and size scale it): the stride's length comes from it. */
+  /** How far the sole goes forward or back as the hip turns (m per unit of sin(angle)): the leg's reach in the world.
+   *  Measured on the body as it stands (no lean, no run squash), so a short, tall or wide shape strides by its own legs:
+   *  its scale along the stride is not its scale up and down. */
+  function legLength(rig) {
+    const hip = rig.hipL, pose = rig.pose;
+    if (!hip || !pose) return 0.52;
+    const keep = { r: hip.rotation.clone(), s: pose.scaling.clone(), pr: pose.rotation.clone(), p: pose.position.clone() };
+    try {
+      pose.scaling.set(1, 1, 1); pose.rotation.set(0, 0, 0); pose.position.set(0, 0, 0);
+      if (rig.root) rig.root.computeWorldMatrix(true);
+      const at = (a) => { hip.rotation.set(a, 0, 0); pose.computeWorldMatrix(true); hip.computeWorldMatrix(true); return B.Vector3.TransformCoordinates(new B.Vector3(0, FEET - HIP_Y, 0), hip.getWorldMatrix()); };
+      const f = at(0.3), b = at(-0.3);
+      const d = Math.hypot(f.x - b.x, f.z - b.z) / (2 * Math.sin(0.3));
+      return d > 0.05 && d < 5 ? d : 0.52;
+    } catch { return 0.52; } finally {
+      hip.rotation.copyFrom(keep.r); pose.scaling.copyFrom(keep.s); pose.rotation.copyFrom(keep.pr); pose.position.copyFrom(keep.p);
+      try { pose.computeWorldMatrix(true); hip.computeWorldMatrix(true); } catch {}
+    }
   }
   /** The cheap level (docs/characters.md "A crowd"): the legs and arms swing with the stride (presence.js animate did that), the
    *  body leans into a run; no springs, no gaze, no blinking. The face is settled once (lids open) and left as it is. */
@@ -657,13 +693,14 @@
     Hd.pitch += (clamp(-G.y / 3, -0.3, 0.3) - Hd.pitch) * Math.min(1, dt * 4);
     neck.rotation.y += Hd.yaw; neck.rotation.x += Hd.pitch;
     const blink = spec.blink ? C().blinkStep(pp.blink, t) : 0;
+    if (P.alive) P.alive.blinkSeen(rig, blink);
     if (blink > 0 && !pp.inBlink) pp.blinks = (pp.blinks || 0) + 1;
     pp.inBlink = blink > 0;
     // the expression, blended over 0.15 s
     const tgt = C().EXPRESSIONS[exprName] || C().EXPRESSIONS.neutral, cur = pp.expr, k = Math.min(1, dt / 0.15);
     for (const key of Object.keys(tgt)) cur[key] += (tgt[key] - cur[key]) * k;
     const shown = C().shape(cur, spec.gain);
-    const talk = md && md.talking() && spec.talk ? C().talkOpen(t) : 0;
+    const talk = rig.alive && rig.alive.mouthDraw != null && spec.talk ? rig.alive.mouthDraw : md && md.talking() && spec.talk ? C().talkOpen(t) : 0; // the voice's own jaw when the cast has one (presence-alive.js)
     if (!pp.faceMesh) return;
     const rest = pp.rest === 'happy' ? 0.0 : 0;
     void rest;

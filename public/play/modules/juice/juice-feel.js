@@ -152,7 +152,7 @@
       const g = G();
       g.on('kill', () => { hitStop(M.hitStopFor('kill')); rumble(0.4, 0.7, 90); });
     },
-    leave() { stop.until = 0; stop.cool = 0; slo.until = 0; H.slow('juice:hitstop', null); H.slow('juice:slowmo', null); shk.trauma = 0; flashK = 0; land.dip = 0; recoilK.v = 0; if (flashEl) flashEl.style.opacity = '0'; },
+    leave() { stop.until = 0; stop.cool = 0; slo.until = 0; H.slow('juice:hitstop', null); H.slow('juice:slowmo', null); shk.trauma = 0; flashK = 0; land.dip = 0; land.v = 0; land.dipAt = 0; land.settleMs = 0; recoilK.v = 0; J.feel.lastLand = null; if (flashEl) flashEl.style.opacity = '0'; },
   });
   const myVehicle = () => (H.vehicles && H.vehicles.current) || null;
   J.sound && J.sound.hits.push(({ a, b, speed, at }) => {
@@ -166,31 +166,53 @@
 
   // ------------------------------------------------------------------ the camera: FOV at speed, landing, bob, recoil
   const fov = { k: 0, punch: 0 };
-  const land = { dip: 0, v: 0, air: false, minVy: 0, wasGrounded: true, airT: 0 };
+  // Landing: fall height from impact speed (h = v² / 2g). ≥0.5 m gets a surface step, dust and a camera dip that settles
+  // in under 0.3 s; small hops under that get almost nothing. dipAt is the real-time the dip started (settle timing).
+  const land = { dip: 0, v: 0, air: false, minVy: 0, minV: null, wasGrounded: true, airT: 0, dipAt: 0, settleMs: 0 };
   const bob = { phase: 0, amt: 0 };
   const recoilK = { v: 0 };
   /** Kicks the view up (a gun going off): amount 0-1. */
   function recoil(amount = 0.3) { if (J.allowed('recoil')) recoilK.v = clamp(recoilK.v + amount * 0.035, 0, 0.12); }
   const applied = { cam: null, x: 0, y: 0, z: 0, rx: 0, up: null, fov: 0 };
   let speedT = { last: null, v: 0 };
+  const SURFACE_COLOR = { sand: [0.86, 0.78, 0.58], snow: [0.95, 0.97, 1], grass: [0.55, 0.52, 0.4], dirt: [0.55, 0.45, 0.33], stone: [0.62, 0.62, 0.62], wood: [0.6, 0.5, 0.38] };
   function watchPlayer(dt) {
     const p = W() && W().player;
     if (!p || !p.alive || dt <= 0) return;
     const g = Boolean(p.grounded);
-    if (!g) { land.airT += dt; land.minVy = Math.min(land.minVy, p.vy); }
-    if (g && !land.wasGrounded && land.airT > 0.12 && !p._ragdoll) {
-      const hit = -land.minVy;
-      if (hit > 4) {
-        const k = clamp((hit - 4) / 16, 0, 1);
-        if (J.allowed('landing')) land.v -= k * 2.2;
-        if (k > 0.45) { shake(k * 0.35); rumble(k * 0.7, k * 0.4, 110); }
-        const surface = (() => { try { const on = p.standing && p.standing.alive ? p.standing : null; return on ? M.surfaceOf(on, [p.x, p.bottom, p.z]) : 'dirt'; } catch { return 'dirt'; } })();
-        if (J.sound) J.sound.footstep(surface, { mine: true, loudness: clamp(0.3 + k * 0.7, 0.3, 1), pitch: 0.8 - k * 0.2, key: 'land' });
-        if (k > 0.15 && J.sound) J.sound.play({ material: M.SURFACES.includes(surface) && !M.MATERIALS.includes(surface) ? 'dirt' : surface, loudness: 0.25 + k * 0.6, size: k > 0.6 ? 'crash' : 'knock', mine: true, key: 'land-thud', gap: 0.3, weight: 1.5 });
-        emit('land', { speed: hit, surface, entity: p });
+    if (!g) { land.airT += dt; if (p.vy < land.minVy) { land.minVy = p.vy; land.minV = [p.vx || 0, p.vy, p.vz || 0]; } }
+    if (g && !land.wasGrounded && land.airT > 0.08 && !p._ragdoll) {
+      // How hard: the speed into the ground it lands on. Running down a steep hill, the ground falls away under a jump, and
+      // landing on it is a glancing touch, not a fall from the jump's height (it used to throw the runner into a ragdoll).
+      const n = p.groundNormal, v0 = land.minV;
+      const hit = n && v0 ? Math.max(0, -(v0[0] * n[0] + v0[1] * n[1] + v0[2] * n[2])) : -land.minVy;
+      const grav = Math.abs((W().config && W().config.gravity) ?? 24);
+      const height = (hit * hit) / (2 * Math.max(1, grav));
+      // Under half a metre: a hop. Over it: scale from a soft touch at 0.5 m to a heavy land by ~4 m.
+      if (height >= 0.5) {
+        const amount = clamp((height - 0.35) / 2.8, 0.1, 1);
+        if (J.allowed('landing')) { land.v -= amount * 3.4; land.dipAt = realNow(); land.settleMs = 0; }
+        if (amount > 0.55) { shake(amount * 0.3); rumble(amount * 0.65, amount * 0.35, 100); }
+        const surface = (() => {
+          try {
+            const on = p.standing && p.standing.alive ? p.standing : null;
+            if (on) return M.surfaceOf(on, [p.x, p.bottom, p.z]);
+            if (H.terrain && H.terrain.active) return M.surfaceOf({ isTerrain: true }, [p.x, p.bottom, p.z]) || 'dirt';
+            return 'dirt';
+          } catch { return 'dirt'; }
+        })();
+        const color = SURFACE_COLOR[surface] || SURFACE_COLOR.dirt;
+        // Surface step set (soundscape when present): louder and lower the farther the fall.
+        let sounded = false;
+        if (J.sound) sounded = Boolean(J.sound.footstep(surface, { mine: true, loudness: clamp(0.38 + amount * 0.7, 0.38, 1.1), pitch: 0.95 - amount * 0.32, key: 'land' }));
+        const info = { speed: hit, height, surface, color, entity: p, amount, sound: sounded, dipAt: land.dipAt };
+        J.feel.lastLand = info;
+        J.feel.lands = (J.feel.lands || 0) + 1;
+        emit('land', info);
+        try { const g0 = G(); if (g0 && g0.emit) g0.emit('land', { height, surface, color, amount, speed: hit }); } catch { /* fine */ }
       }
     }
-    if (g) { land.airT = 0; land.minVy = 0; }
+    if (g) { land.airT = 0; land.minVy = 0; land.minV = null; }
     land.wasGrounded = g;
   }
   function runCamera(dt, render) {
@@ -206,9 +228,14 @@
     }
     shk.trauma = M.traumaDecay(shk.trauma, dt);
     shk.t += dt;
-    // The landing dip: a spring pulled down, back up.
-    land.v += (-land.dip * 60 - land.v * 9) * dt;
-    land.dip = clamp(land.dip + land.v * dt, -0.45, 0.2);
+    // The landing dip: a stiff spring so it settles in under 0.3 s (Mario Odyssey style: a weight, then gone).
+    land.v += (-land.dip * 480 - land.v * 38) * dt;
+    land.dip = clamp(land.dip + land.v * dt, -0.38, 0.15);
+    if (land.dipAt && Math.abs(land.dip) < 0.006 && Math.abs(land.v) < 0.08) {
+      land.settleMs = (realNow() - land.dipAt) * 1000;
+      if (J.feel.lastLand) J.feel.lastLand.dipMs = land.settleMs;
+      land.dipAt = 0;
+    }
     recoilK.v = Math.max(0, recoilK.v - dt * recoilK.v * 9 - dt * 0.01);
     fov.punch = Math.max(0, fov.punch - dt * 0.4);
     if (!render || !cam || shareOwns() || codex() || !cam.position || !cam.rotation) return;
@@ -292,7 +319,8 @@
     get stopped() { return Boolean(stop.until); },
     get slowed() { return Boolean(slo.until); },
     get dip() { return land.dip; },
-    always: false, camSpeed: 0, hitstops: 0, slowmos: 0, rumbles: 0,
+    get settleMs() { return land.settleMs; },
+    always: false, camSpeed: 0, hitstops: 0, slowmos: 0, rumbles: 0, lands: 0, lastLand: null,
     cameraOverride: null,
     myVehicle,
   };

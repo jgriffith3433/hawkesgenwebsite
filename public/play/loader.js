@@ -17,7 +17,10 @@
   const M = window.HawkesModules;
   const done = new Map();
   const doc = typeof document !== 'undefined' ? document : null;
-  function script(src) {
+  // Optional scripts (module.json "optional": true → manifest.optional): a missing file logs and continues, so
+  // ambience never leaves the player stuck on the loading screen when Hosting lags the Functions deploy.
+  const softOf = () => new Set(M.optional || []);
+  function script(src, soft) {
     if (done.has(src)) return done.get(src);
     prog.total++; tick();
     const p = new Promise((resolve, reject) => {
@@ -25,13 +28,22 @@
       s.src = src;
       s.async = false; // scripts added this way still run in the order they were added
       s.onload = () => { prog.done++; tick(); resolve(); };
-      s.onerror = () => reject(new Error(`Could not load ${src.replace(/\?.*$/, '')}`));
+      s.onerror = () => {
+        const path = src.replace(/\?.*$/, '');
+        if (soft) {
+          prog.done++; tick();
+          try { console.warn('Hawkes Play: optional module did not load', path); } catch { /* fine */ }
+          resolve();
+          return;
+        }
+        reject(new Error(`Could not load ${path}`));
+      };
       doc.head.appendChild(s);
     });
     done.set(src, p);
     return p;
   }
-  const all = (list) => Promise.all(list.map(script));
+  const all = (list, soft) => Promise.all(list.map((src) => script(src, soft)));
   // Real progress for the loading screen (play.html): scripts and the game's own fetch, counted as they start and finish.
   const prog = M.progress = { done: 0, total: 0 };
   const tick = () => { try { if (typeof M.onprogress === 'function') M.onprogress(prog.done, prog.total); } catch { /* a screen never breaks loading */ } };
@@ -91,9 +103,14 @@
     for (const n of list) loaded.add(n);
     const hk = H && H.hooks;
     const before = hk ? { scene: hk.scene.length, game: hk.game.length, world: hk.world.length } : null;
+    const soft = softOf();
     const urls = [];
-    for (const n of list) { const m = (M.modules || []).find((x) => x.name === n); if (m) urls.push(...(m.scripts || [])); }
-    return all(urls).then(() => {
+    for (const n of list) {
+      const m = (M.modules || []).find((x) => x.name === n);
+      if (!m) continue;
+      for (const u of m.scripts || []) urls.push({ src: u, soft: soft.has(u) || m.optional === true });
+    }
+    return Promise.all(urls.map((u) => script(u.src, u.soft))).then(() => {
       const w = H && H.world;
       if (!w || !w.started || !before) return;
       const report = (err) => { try { H.report(err); } catch { /* */ } };
@@ -138,14 +155,42 @@
     go();
   }
 
+  /** The game's own lazy modules, once the world has been drawn (HawkesPlay.worldDrawn) and the page is idle; then the rest. */
+  function afterFirstFrame(want) {
+    const H = () => window.HawkesPlay;
+    // (worldDrawn is already resolved until run() has made the world, so wait for the world to start first.)
+    const drawn = () => new Promise((res) => {
+      let tries = 0;
+      const go = () => {
+        const w = H() && H().world;
+        if ((!w || !w.started) && tries++ < 480) return void setTimeout(go, 100);
+        Promise.resolve(H() && H().worldDrawn).then(res, res);
+      };
+      go();
+    });
+    Promise.all([want, drawn()]).then(([names]) => {
+      const idle = window.requestIdleCallback || ((f) => setTimeout(f, 1));
+      return new Promise((res) => idle(res, { timeout: 1500 })).then(() => bring(names)).then(() => later());
+    }).catch((err) => console.warn('Hawkes Play: a module did not load', err));
+  }
+
   M.load = function (which = 'play', o = {}) {
     if (which === 'editor') return M.load('play').then(() => all(M.editor)).then(() => window.HawkesPlay && window.HawkesPlay.ready);
     const babylon = window.BABYLON ? [] : M.babylon;
     const havok = typeof window.HavokPhysics === 'function' || !M.havok ? [] : [M.havok];
+    const soft = softOf();
     const eager = M.eager || M.scripts;
-    const base = all([...babylon, ...havok, ...eager]);
+    const required = eager.filter((u) => !soft.has(u));
+    const optional = eager.filter((u) => soft.has(u));
+    const base = Promise.all([all([...babylon, ...havok, ...required]), all(optional, true)]);
     if ('bundle' in o && o.bundle !== undefined) { prog.total++; tick(); Promise.resolve(o.bundle).then(() => { prog.done++; tick(); }, () => {}); }
     const want = 'bundle' in o && o.bundle !== undefined ? Promise.resolve(o.bundle).then((b) => M.needs(b), () => mods().map((m) => m.name)) : Promise.resolve(mods().map((m) => m.name));
+    // With a bundle, the lazy modules the game uses (vehicles, homes, events, share...) come after the first frame, nearest
+    // need first (the ones this game uses, then the rest): the world is playable on the core alone, and a thing of a kind
+    // still waiting is a stand-in until its module joins (bring() rebuilds it). The editor and a load without a bundle
+    // keep them in front of the world.
+    const streamed = 'bundle' in o && o.bundle !== undefined;
+    if (streamed) return base.then(() => { afterFirstFrame(want); return window.HawkesPlay && window.HawkesPlay.ready; });
     return want.then((names) => Promise.all([base, bring(names)])).then(() => { later(); return window.HawkesPlay && window.HawkesPlay.ready; });
   };
 })();

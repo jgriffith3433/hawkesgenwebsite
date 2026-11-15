@@ -167,18 +167,23 @@
     const tiltB = new B.TransformNode('ov-tilt-b', scene); tiltB.parent = turn; tiltB.rotation.set(-24 * RAD, 30 * RAD, -12 * RAD); ringB.parent = tiltB;
     const halo = B.MeshBuilder.CreatePlane('ov-halo', { size: r * 4.4 }, scene);
     halo.material = mats.halo; halo.billboardMode = B.Mesh.BILLBOARDMODE_ALL; halo.parent = turn;
-    // The bay's light, seen from afar (the hangar itself is dock.js's, close up).
+    // The bay's light, only when near (dock.js draws the hangar close up). From afar a flat emissive plane read as a
+    // beige placeholder quad in the middle of the rings, so it stays out of the far layer.
     const bayGlow = B.MeshBuilder.CreatePlane('ov-bay-glow', { width: bay.halfW * 2, height: bay.top - bay.floor }, scene);
-    bayGlow.material = mat(scene, 'ov-bay', { emissive: new B.Color3(1, 0.86, 0.62), unlit: true });
+    const bayMat = mat(scene, 'ov-bay', { emissive: new B.Color3(1, 0.86, 0.62), unlit: true, alpha: 0.55 });
+    bayMat.opacityTexture = glowTexture(scene);
+    bayMat.alphaMode = B.Engine.ALPHA_ADD;
+    bayMat.disableDepthWrite = true;
+    bayGlow.material = bayMat;
     bayGlow.parent = turn;
     const bayDist = Math.sqrt(Math.max(0, r * r - bay.halfW * bay.halfW)) * 0.985;
     bayGlow.position.set(Math.sin(bay.yaw) * bayDist, (bay.floor + bay.top) / 2, Math.cos(bay.yaw) * bayDist);
     bayGlow.rotation.y = bay.yaw + Math.PI;
-    // The far hull (no hole: the bay's light covers it).
+    // The far hull (no hole: the bay is only lit when near).
     const farHull = hull(scene, 'ov-hull-far', r, PHONE ? 36 : 48, null);
     farHull.material = mats.hull;
-    const decorMeshes = [seam, ringA, ringB, halo, bayGlow];
-    for (const m of [farHull, ...decorMeshes]) { m.isPickable = false; m.metadata = { decor: true, noGlow: true, overseer: true }; m.receiveShadows = false; m.alwaysSelectAsActiveMesh = true; }
+    const decorMeshes = [seam, ringA, ringB, halo]; // bayGlow is near-only (setLod)
+    for (const m of [farHull, bayGlow, ...decorMeshes]) { m.isPickable = false; m.metadata = { decor: true, noGlow: true, overseer: true }; m.receiveShadows = false; m.alwaysSelectAsActiveMesh = true; }
     return { cfg, scene, r, bay, mats, decor, turn, seam, ringA, ringB, halo, bayGlow, farHull, decorMeshes, lod: null, near: null, model: null, t: 0 };
   }
 
@@ -215,6 +220,8 @@
     if (bg) { if (far) bg.add(O.farHull, 2); else bg.remove(O.farHull); }
     O.farHull.setEnabled(Boolean(far) && !O.model);
     O.halo.setEnabled(Boolean(far));
+    // Near-only: a solid beige bay plane in the far rings looked like a missing-texture quad on the intro.
+    if (O.bayGlow) { if (bg) bg.remove(O.bayGlow); O.bayGlow.setEnabled(!far); }
     if (O.near) O.near.show(!far);
     if (O.model) { for (const m of O.model.meshes) { if (far) bg.add(m, 2); else if (bg) bg.remove(m); } }
     for (const f of lodListeners) try { f(lod); } catch (err) { H.report(err, 'overseer'); }
@@ -521,6 +528,8 @@ void main(void) {
     const color = L.hex(opts.color || (O ? O.cfg.glow : DEFAULTS.glow), '#8fd8ff');
     const radius = clamp(num(opts.radius, 1.1), 0.3, 120);
     const seconds = Math.max(0.3, num(opts.seconds, 1.6));
+    // Heard as well as seen: a soft whoosh and hum where it lands (the site's own sound, runtime.js siteSound), if it has it.
+    if (opts.sound !== false) { try { if (H.lib && H.lib.siteSound) H.lib.siteSound('beam-down', { volume: 0.35, at: at0 }); } catch { /* silent beam */ } }
     const near = beamMesh(scene, 'ov-beam'), nm = beamMaterial(scene, true);
     near.material = nm;
     let far = null, fm = null;
@@ -616,7 +625,7 @@ void main(void) {
     beams.push(b);
     flare(0.7); // the emitter flares first; the shaft opens a moment later (WINDUP)
     if (opts.sound !== false) whoosh(at0, radius);
-    if (G()) G().emit('beam', { at: at0, radius, entity: ent || null });
+    if (G()) G().emit('beam', { at: at0, radius, seconds, entity: ent || null });
     return b;
   }
   /** Makes a beam mesh a cone: its top ring `k` times as wide as its bottom (each beam has its own copy). */
@@ -634,7 +643,7 @@ void main(void) {
     try {
       const g = G();
       const id = H.assets && H.assets.pick ? H.assets.pick('beam', { kind: 'sound' }) : null;
-      if (id && g && g.sound) { g.sound(id); return; }
+      if (id && g && g.sound) { g.sound(id, { at }); return; }
       const ac = H.audio && H.audio.context;
       if (!ac || ac.state !== 'running') return;
       const cam = W() && W().scene.activeCamera;
@@ -643,7 +652,9 @@ void main(void) {
       if (vol < 0.004) return;
       const t0 = ac.currentTime;
       const out = ac.createGain(); out.gain.setValueAtTime(0.0001, t0); out.gain.exponentialRampToValueAtTime(vol, t0 + 0.08); out.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.4);
-      out.connect(H.audio.master);
+      // Heard from the beam (modules/mix: HRTF on a desktop, stereo on a phone).
+      const sp = H.audio.spatial ? H.audio.spatial(at, { who: 'beam', ref: 6, max: 160 }) : null;
+      out.connect(sp ? sp.input : (H.audio.effects || H.audio.master));
       for (const [f0, f1, type] of [[1320, 440, 'sine'], [990, 660, 'triangle']]) {
         const o = ac.createOscillator(); o.type = type;
         o.frequency.setValueAtTime(f0, t0); o.frequency.exponentialRampToValueAtTime(f1, t0 + 1.2);
@@ -790,7 +801,7 @@ void main(void) {
   function say(text, seconds = 4, o = {}) {
     const t = String(text || '').trim();
     if (!t) return null;
-    if (H.speech) return H.speech.say({ text: t, seconds, priority: o.priority, owner: o.owner, voice: o.voice, external: o.external, action: o.action, onEnd: o.onEnd });
+    if (H.speech) return H.speech.say({ text: t, seconds, priority: o.priority, owner: o.owner, voice: o.voice, external: o.external, action: o.action, onEnd: o.onEnd, mood: o.mood });
     if (H.chat) H.chat.line({ kind: 'overseer', text: t, keep: Math.max(14, Number(seconds) || 0), now: true });
     return null;
   }
@@ -834,8 +845,10 @@ void main(void) {
   };
   /** Where a line's voice is (a game's own asset first, else the community library's), or null. */
   function voiceUrl(name) {
+    if (typeof name === 'string' && name.startsWith('/play/audio/voice/')) return name; // a recorded line (runtime.js recordedLine)
     try { if (H.lib.hasAsset(name)) return H.lib.assetUrl(name); } catch { /* not this game's */ }
     const id = VOICES[name];
+    if (id && H.lib.assetGone && H.lib.assetGone(id)) return null; // the library no longer has it: no request, no voice
     return id ? `/v1/community/${id}/file` : null;
   }
   /** An Audio for a line, through the game's sound (H.audio), not yet playing; null when there's no voice for it.
@@ -846,7 +859,9 @@ void main(void) {
     try {
       const a = new Audio(url);
       a.crossOrigin = 'anonymous';
-      if (H.audio && H.audio.media) H.audio.media(a, { voice: true });
+      // Sound identity: vast treated voice (sound.js); falls back to a plain voice-bus route.
+      if (H.overseerSound && H.overseerSound.route) H.overseerSound.route(a);
+      else if (H.audio && H.audio.media) H.audio.media(a, { voice: true });
       return duckWhile(a);
     } catch { return null; }
   }
@@ -856,8 +871,8 @@ void main(void) {
     if (!a || a.__ducks) return a;
     a.__ducks = true;
     let on = false;
-    const start = () => { if (on) return; on = true; speaking++; if (H.audio && H.audio.duck) H.audio.duck('overseer', 0.22); };
-    const stop = () => { if (!on) return; on = false; speaking = Math.max(0, speaking - 1); if (!speaking && H.audio && H.audio.duck) H.audio.duck('overseer', null); };
+    const start = () => { if (on) return; on = true; speaking++; if (H.audio && H.audio.voiceDuck) H.audio.voiceDuck('overseer', true); else if (H.audio && H.audio.duck) H.audio.duck('overseer', 0.22); };
+    const stop = () => { if (!on) return; on = false; speaking = Math.max(0, speaking - 1); if (!speaking && H.audio && H.audio.voiceDuck) H.audio.voiceDuck('overseer', false); else if (!speaking && H.audio && H.audio.duck) H.audio.duck('overseer', null); };
     a.addEventListener('playing', start);
     for (const ev of ['ended', 'pause', 'error', 'emptied']) a.addEventListener(ev, stop);
     return a;

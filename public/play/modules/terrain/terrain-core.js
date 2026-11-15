@@ -98,7 +98,10 @@
       snow: v.snow === false ? false : v.snow === true ? null : num(v.snow, null),
       colors: v.colors && typeof v.colors === 'object' ? v.colors : {},
       textures: v.textures && typeof v.textures === 'object' ? v.textures : {},
+      maps: v.maps && typeof v.maps === 'object' ? v.maps : {},
       tile: clamp(num(v.tile, 4), 0.25, 64),
+      macro: v.macro === false ? false : v.macro && typeof v.macro === 'object' ? v.macro : (v.macro ? {} : null),
+      splat: v.splat && typeof v.splat === 'object' ? v.splat : {},
       scatter: v.scatter === false ? false : v.scatter && typeof v.scatter === 'object' ? v.scatter : null,
       add: Array.isArray(v.add) ? v.add.filter((s) => s && typeof s === 'object') : [],
       edits: Array.isArray(v.edits) ? v.edits.filter(validEdit) : [],
@@ -417,18 +420,38 @@
     out[o] = nx / len; out[o + 1] = 1 / len; out[o + 2] = nz / len;
   }
   const tmpN = [0, 0, 0];
-  /** How much of each ground layer a sample shows (height, slope, beach, snow line, paint): writes 5 weights. */
+  /** Snow line height, or Infinity when this ground has no snow (island beaches use the snow channel for wet sand). */
+  function snowLine(f) {
+    const c = f.cfg;
+    if (c.snow === false) return Infinity;
+    if (c.snow !== null && c.snow !== undefined) return c.snow;
+    return f.max > 40 ? Math.max(35, f.max * 0.72) : Infinity;
+  }
+  /** True when the snow weight channel is wet sand (sea beaches with no alpine snow line). */
+  function wetSandMode(f) { return f.cfg.sea !== false && snowLine(f) === Infinity; }
+  /** How much of each ground layer a sample shows (height, slope, beach, snow/wet sand, paint): writes 5 weights.
+   *  Order: grass, dirt (roads), rock (cliffs above ~35°), snow (or wet sand below the tide), sand (dry beach). */
   function weightsAt(f, ix, iz, out, o, nrm) {
     const c = f.cfg, i = iz * f.n + ix, h = f.heights[i];
     let ny = nrm;
     if (ny === undefined) { sampleNormal(f, ix, iz, tmpN, 0); ny = tmpN[1]; }
     const slope = Math.acos(clamp(ny, -1, 1)) * 57.2958;
-    let rock = smooth(33, 43, slope);
+    // Cliffs from ~35° (brief: rock above 35 degrees); a soft shoulder so edges blend.
+    let rock = smooth(35, 45, slope);
     let dirt = smooth(22, 31, slope) * (1 - rock);
-    const sandy = c.shape === 'dunes' ? 1 : c.sea !== false ? 1 - smooth(c.sea + 1.2, c.sea + 2.4, h) : 0;
-    let sand = sandy * (1 - rock);
-    const line = c.snow === false ? Infinity : c.snow !== null ? c.snow : f.max > 40 ? Math.max(35, f.max * 0.72) : Infinity;
-    const snow = line === Infinity ? 0 : smooth(line - 4, line + 4, h) * (1 - smooth(40, 52, slope));
+    const line = snowLine(f);
+    let sand = 0, snow = 0;
+    if (c.shape === 'dunes') {
+      sand = 1 - rock;
+    } else if (c.sea !== false) {
+      // Wet sand below the tide, dry sand up the shore, then grass inland (Uncharted-style soft bands).
+      const wet = (1 - smooth(c.sea - 0.15, c.sea + 0.35, h)) * (1 - rock);
+      sand = smooth(c.sea - 0.15, c.sea + 0.35, h) * (1 - smooth(c.sea + 1.1, c.sea + 2.6, h)) * (1 - rock);
+      if (line === Infinity) snow = wet; // snow channel = wet sand on islands
+      else snow = smooth(line - 4, line + 4, h) * (1 - smooth(40, 52, slope));
+    } else if (line !== Infinity) {
+      snow = smooth(line - 4, line + 4, h) * (1 - smooth(40, 52, slope));
+    }
     if (c.shape === 'craters') { rock = Math.max(rock, 0.55); dirt = Math.max(dirt, 0.3); }
     const grass = Math.max(0, 1 - rock - dirt - sand - snow);
     const s = grass + dirt + rock + snow + sand || 1;
@@ -436,7 +459,8 @@
     const pl = f.paintLayer[i], pa = f.paintAmt[i] / 255;
     if (pl && pa > 0) { for (let k = 0; k < 5; k++) out[o + k] *= 1 - pa; out[o + pl - 1] += pa; }
   }
-  /** The name of the layer that shows most at x, z ('grass', 'rock', ...), or null outside. */
+  /** The name of the layer that shows most at x, z ('grass', 'rock', ...), or null outside.
+   *  Wet sand (snow channel on islands) still reads as 'sand' so footsteps keep the same surface names. */
   function layerAt(f, x, z) {
     const ix = Math.round((x - f.x0) / f.cell), iz = Math.round((z - f.z0) / f.cell);
     if (ix < 0 || iz < 0 || ix >= f.n || iz >= f.n) return null;
@@ -444,6 +468,7 @@
     weightsAt(f, ix, iz, w, 0);
     let best = 0;
     for (let k = 1; k < 5; k++) if (w[k] > w[best]) best = k;
+    if (best === 3 && wetSandMode(f)) return 'sand';
     return LAYERS[best];
   }
 
@@ -461,6 +486,7 @@
   const api = {
     LAYERS, COLORS, SHAPES, OPS,
     normalize, generate, makeField, applyEdit, stamp, heightAt, normalAt, sampleNormal, weightsAt, layerAt,
+    snowLine, wetSandMode,
     measure, compact, fingerprint, validEdit, bumpVolume, rng, makeNoise, fbm, hashSeed, guessShape,
   };
   root.HawkesTerrainCore = api;
