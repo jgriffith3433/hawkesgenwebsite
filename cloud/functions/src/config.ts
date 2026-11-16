@@ -12,6 +12,9 @@ export const SECRETS = {
   platformKey: defineSecret('PORTAL_PLATFORM_KEY'),
   /** Resend's sending key (mail.ts); "unset" where no mail is sent (staging). */
   resend: defineSecret('RESEND_API_KEY'),
+  /** The Google key the server signs people in with (accounts.ts signInWithIdp): Identity Toolkit only, server only. It was
+   *  in the committed .env files until 2026-11-16, when that key leaked and was replaced. */
+  webApiKey: defineSecret('PORTAL_WEB_API_KEY'),
 };
 
 export const env = (k: string): string | undefined => process.env[k] || undefined;
