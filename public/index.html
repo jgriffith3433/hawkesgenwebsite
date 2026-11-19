@@ -2,12 +2,192 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Hawkes Games</title>
-<meta name="color-scheme" content="light">
-<meta name="theme-color" content="#ffffff">
-<script>(function(){var s=location.search,h=location.hash;if(navigator.webdriver||s.length>1||h.length>1){location.replace('/home'+s+h);}})();</script>
-<style>html,body{margin:0;height:100%;background:#fff}</style>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>The Atom</title>
+<meta name="description" content="The Atom (10⁻¹⁰ m): the building brick of everything · one ten-billionth of a meter · hydrogen's electron clouds, drawn from the real equations. Explained simply by an AI narrator, with captions. One of nine scales, from the nucleus to the universe.">
+<meta name="theme-color" content="#03050b">
+<meta name="color-scheme" content="dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#eef4ff;--dim:rgba(214,228,255,.66);--acc:#8fc2ff}
+html,body{margin:0;height:100%;background:#03050b;overflow:hidden;color:var(--ink);font-family:"Space Grotesk",system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+#hud{position:fixed;left:0;right:0;top:0;pointer-events:none;text-align:center;padding:max(14px,env(safe-area-inset-top)) 16px 30px;background:linear-gradient(rgba(3,5,11,.72),rgba(3,5,11,.3) 65%,transparent)}
+.k{font:600 11px/1 "JetBrains Mono",ui-monospace,monospace;letter-spacing:.38em;color:var(--dim);text-transform:uppercase}
+.k b{color:var(--acc);font-weight:600}
+.name{font-weight:700;font-size:clamp(30px,6.2vw,76px);line-height:1.02;letter-spacing:.06em;text-transform:uppercase;margin:.18em 0 .12em;color:#fff;text-shadow:0 0 28px rgba(110,165,255,.7),0 0 6px rgba(160,200,255,.55),0 2px 14px rgba(0,0,0,.9);animation:rise 1.1s cubic-bezier(.2,.8,.2,1)}
+@keyframes rise{from{opacity:0;letter-spacing:.3em;filter:blur(6px)}to{opacity:1;letter-spacing:.06em;filter:blur(0)}}
+.sub{font:400 clamp(11px,1.3vw,14px)/1.5 "JetBrains Mono",ui-monospace,monospace;color:var(--dim);letter-spacing:.05em;max-width:920px;margin:0 auto}
+#cc{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(max(12px,env(safe-area-inset-bottom)) + 74px);width:max-content;max-width:min(92vw,820px);text-align:center;pointer-events:none}
+#cc span{display:inline-block;font:500 clamp(16px,2.2vw,25px)/1.4 "Space Grotesk",system-ui,sans-serif;color:#fff;background:rgba(3,6,14,.74);padding:.34em .8em;border-radius:10px;box-shadow:0 0 0 1px rgba(143,194,255,.22),0 8px 30px rgba(0,0,0,.5)}
+#cc span:empty{display:none}
+#snd{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(max(12px,env(safe-area-inset-bottom)) + 132px);font:600 clamp(12px,1.5vw,15px)/1 "JetBrains Mono",ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;color:#03050b;background:linear-gradient(180deg,#d7e9ff,#8fc2ff);padding:.8em 1.2em;border-radius:999px;box-shadow:0 0 30px rgba(143,194,255,.6);cursor:pointer;user-select:none;-webkit-user-select:none;animation:pulse 1.6s ease-in-out infinite;white-space:nowrap}
+#snd.on{left:auto;right:max(14px,env(safe-area-inset-right));top:max(14px,env(safe-area-inset-top));bottom:auto;transform:none;animation:none;background:rgba(3,6,14,.7);color:var(--acc);box-shadow:0 0 0 1px rgba(143,194,255,.4);font-size:11px;padding:.7em 1em}
+@keyframes pulse{50%{box-shadow:0 0 54px rgba(143,194,255,.95)}}
+#ruler{position:fixed;left:max(52px,env(safe-area-inset-left));right:max(52px,env(safe-area-inset-right));bottom:max(12px,env(safe-area-inset-bottom));height:56px}
+#ruler:before{content:"";position:absolute;left:0;right:0;top:20px;height:1px;background:linear-gradient(90deg,transparent,rgba(143,194,255,.55) 6%,rgba(143,194,255,.55) 94%,transparent)}
+#ruler a{position:absolute;top:0;transform:translateX(-50%);text-decoration:none;color:var(--dim);font:400 10px/1.25 "JetBrains Mono",ui-monospace,monospace;letter-spacing:.04em;text-align:center;white-space:nowrap;padding-top:30px;outline:none}
+#ruler a:before{content:"";position:absolute;left:50%;top:15px;width:9px;height:9px;margin-left:-5px;border-radius:50%;background:#0b1326;box-shadow:0 0 0 1.5px rgba(143,194,255,.75);transition:transform .2s,background .2s}
+#ruler a:hover,#ruler a:focus-visible{color:#fff}
+#ruler a:hover:before,#ruler a:focus-visible:before{transform:scale(1.5);background:var(--acc)}
+#ruler a.up{padding-top:0;top:-14px}
+#ruler a.up:before{top:29px}
+#ruler a.me{color:#fff;font-weight:600}
+#ruler a.me:before{background:#fff;box-shadow:0 0 0 2px var(--acc),0 0 18px 4px rgba(143,194,255,.9);transform:scale(1.35)}
+#ruler a b{display:block;font-weight:600;color:var(--acc)}
+#ruler .cap{position:absolute;top:-30px;font:400 10px/1 "JetBrains Mono",ui-monospace,monospace;letter-spacing:.2em;text-transform:uppercase;color:rgba(214,228,255,.4)}
+#ruler .cap.l{left:-30px}#ruler .cap.r{right:-30px}
+@media (max-width:760px){#ruler a:not(.me) span{display:none}#ruler a:not(.me) b{font-size:9px}#ruler .cap{display:none}#cc{bottom:calc(max(12px,env(safe-area-inset-bottom)) + 70px)}}
+.nav{position:fixed;top:50%;transform:translateY(-50%);z-index:5;display:flex;flex-direction:column;align-items:center;gap:7px;text-decoration:none;color:rgba(214,228,255,.7);font:400 10px/1.25 "JetBrains Mono",ui-monospace,monospace;letter-spacing:.08em;text-align:center;text-transform:uppercase;padding:14px 8px;outline:none;text-shadow:0 0 8px #000}
+.nav i{display:grid;place-items:center;width:48px;height:48px;border-radius:50%;background:rgba(3,6,14,.62);box-shadow:0 0 0 1.5px rgba(143,194,255,.55);font:300 28px/1 system-ui,sans-serif;font-style:normal;color:#fff;padding-bottom:3px;box-sizing:border-box;transition:transform .2s,box-shadow .2s,background .2s}
+.nav:hover i,.nav:focus-visible i{transform:scale(1.12);background:rgba(143,194,255,.25);box-shadow:0 0 0 2px #8fc2ff,0 0 24px rgba(143,194,255,.75)}
+.nav.l{left:max(6px,env(safe-area-inset-left))}
+.nav.r{right:max(6px,env(safe-area-inset-right))}
+.nav b{display:block;color:#8fc2ff;font-weight:600}
+@media (max-width:760px){.nav span{display:none}.nav i{width:40px;height:40px;font-size:23px}}
+@media (prefers-reduced-motion:reduce){.name,#snd{animation:none}}
+</style>
 </head>
-<body></body>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div class="k" id="k"></div>
+  <h1 class="name" id="name"></h1>
+  <div class="sub" id="sub"></div>
+</div>
+<div id="cc" aria-live="polite"><span id="cap"></span></div>
+<div id="snd" role="button" tabindex="0" aria-label="Turn the narration sound on">&#128266; Tap anywhere to hear it explained</div>
+<nav id="ruler" aria-label="The nine scales, from the nucleus to the universe"></nav>
+<audio id="au" src="./narration.mp3" preload="auto" loop muted autoplay playsinline></audio>
+<script>
+(function () {
+'use strict';
+// One of nine pages, one per scale of the world (10^-15 m to 10^27 m). Each draws its scale from the real numbers and
+// an AI voice explains it; the captions are cut from the voice's own timing. The ruler at the bottom links the nine.
+var D = {"i":1,"scales":[{"exp":-15,"name":"The Nucleus","short":"nucleus","size":"10⁻¹⁵ m","sub":"the heart of an atom · a millionth of a billionth of a meter · uranium-235: 92 protons, 143 neutrons","domain":"doseofdestruction.com"},{"exp":-10,"name":"The Atom","short":"atom","size":"10⁻¹⁰ m","sub":"the building brick of everything · one ten-billionth of a meter · hydrogen's electron clouds, drawn from the real equations","domain":"hawkesgames.com"},{"exp":-5,"name":"The Cell","short":"cell","size":"10⁻⁵ m","sub":"the smallest living thing · a hundredth of a millimeter · you are about 37 trillion of these","domain":"hawkesbiomedical.com"},{"exp":0,"name":"You","short":"you","size":"10⁰ m","sub":"the human scale · about a meter and a bit · 7 × 10²⁷ atoms, 37 trillion cells, 86 billion neurons","domain":"icanbe.ai"},{"exp":7,"name":"The Planet","short":"planet","size":"10⁷ m","sub":"Earth · 12,742 km across · a thin skin of rock and air around a ball of hot stone and metal","domain":"yoobalandgame.com"},{"exp":9,"name":"The Star","short":"star","size":"10⁹ m","sub":"the Sun · 1.39 million km across · a million Earths would fit inside","domain":"imaginelivetv.com"},{"exp":13,"name":"The Solar System","short":"solar system","size":"10¹³ m","sub":"the Sun's neighborhood · 9 billion km across at Neptune · real orbits and real speeds, distances squeezed to fit","domain":"theplacedepartment.com"},{"exp":21,"name":"The Galaxy","short":"galaxy","size":"10²¹ m","sub":"","domain":"phorigins.com"},{"exp":27,"name":"The Universe","short":"universe","size":"10²⁷ m","sub":"everything we could ever see · 93 billion light-years across · 13.8 billion years old","domain":"hawkesgen.ai"}],"cues":[[0,0.69,"Hi."],[0.69,4.88,"I'm the AI in this page, and this glowing cloud is an atom."],[4.88,6.66,"Everything is made of atoms."],[6.66,10.26,"Your shoes, your dog, the air, and you."],[10.26,12.5,"They are the building bricks of the world,"],[12.5,15.23,"like the smallest Lego pieces there are."],[15.23,17.33,"In the middle is a tiny dot."],[17.33,19.11,"Around it lives an electron."],[19.11,22.12,"But the electron is not a little ball going in a circle."],[22.12,26.56,"It's more like a fan spinning so fast that you can't say where the blade is."],[26.56,30.68,"So I draw every place it might be, and it makes these cloud shapes."],[30.68,33.54,"Give it more energy, and the cloud changes shape."],[33.54,35.11,"How small is an atom?"],[35.11,39.79,"Ten million of them, side by side, would just reach across the head of a pin."],[39.79,41.49,"And here is the strange part."],[41.49,44.14,"An atom is almost completely empty."],[44.14,47.24,"If you squeezed the empty space out of every person on Earth,"],[47.24,50.959999999999994,"all of us together would fit inside one sugar cube."]],"dur":50.96};
+var TAU = Math.PI * 2;
+function rng(seed) { var a = seed >>> 0; return function () { a = (a + 0x6D2B79F5) | 0; var t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function gauss(r) { var u = 1 - r(), v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * v); }
+function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function smooth(t) { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); }
+// a soft glowing dot, drawn from a cached sprite (fast enough for tens of thousands a frame)
+var sprites = {};
+function sprite(col) {
+  if (sprites[col]) return sprites[col];
+  var s = document.createElement('canvas'); s.width = s.height = 64; var g = s.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, col); gr.addColorStop(0.25, col); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.globalAlpha = 1; g.fillRect(0, 0, 64, 64);
+  return (sprites[col] = s);
+}
+function dot(x, c, y, r, col, a) { x.globalAlpha = a == null ? 1 : a; x.drawImage(sprite(col), c - r, y - r, r * 2, r * 2); }
+function label(x, text, px, py, align, col, size) {
+  x.save(); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; x.font = '500 ' + (size || 12) + 'px "JetBrains Mono", ui-monospace, monospace'; x.textAlign = align || 'left'; x.textBaseline = 'middle';
+  x.lineWidth = 4; x.strokeStyle = 'rgba(3,5,11,.85)'; x.strokeText(text, px, py); x.fillStyle = col || 'rgba(214,228,255,.9)'; x.fillText(text, px, py); x.restore();
+}
+function lead(x, x0, y0, x1, y1, col) { x.save(); x.globalAlpha = 0.6; x.globalCompositeOperation = 'source-over'; x.strokeStyle = col || 'rgba(143,194,255,.7)'; x.lineWidth = 1; x.beginPath(); x.moveTo(x0, y0); x.lineTo(x1, y1); x.stroke(); x.restore(); }
+function scaleBar(x, W, H, px, text) { // a labelled length, bottom-left above the ruler
+  var bx = Math.max(22, W * 0.03), by = H - 150; x.save(); x.globalAlpha = 0.9; x.strokeStyle = '#fff'; x.lineWidth = 1.5; x.beginPath(); x.moveTo(bx, by - 5); x.lineTo(bx, by); x.lineTo(bx + px, by); x.lineTo(bx + px, by - 5); x.stroke(); x.restore();
+  label(x, text, bx, by + 14, 'left', 'rgba(238,244,255,.92)', 12);
+}
+var H3 = { rng: rng, gauss: gauss, clamp: clamp, lerp: lerp, smooth: smooth, dot: dot, label: label, lead: lead, scaleBar: scaleBar, TAU: TAU };
+
+// THE ATOM: hydrogen's electron, drawn as it really is: a cloud of where it can be found.
+// Each cloud is thousands of points sampled from |psi|^2 of a real hydrogen wavefunction (lengths in Bohr radii a0):
+//   1s: e^-r   2s: (2-r)e^(-r/2)   2p: z e^(-r/2)   3p: (6-r) z e^(-r/3)   3d: (3z^2-r^2) e^(-r/3),  xz e^(-r/3)
+//   4f: z(5z^2-3r^2) e^(-r/4)
+// Blue and orange are the two signs of the wave. a0 = 0.0529 nm.
+var SCENE = (function () {
+  var r = H3.rng(21), NP = 9000, HOLD = 7.5, FADE = 1.8;
+  var ORB = [
+    { n: '1s', q: 'n = 1, l = 0', L: 5.5, f: function (x, y, z, d) { return Math.exp(-d); } },
+    { n: '2p', q: 'n = 2, l = 1', L: 13, f: function (x, y, z, d) { return z * Math.exp(-d / 2); } },
+    { n: '2s', q: 'n = 2, l = 0', L: 13, f: function (x, y, z, d) { return (2 - d) * Math.exp(-d / 2); } },
+    { n: '3d', q: 'n = 3, l = 2, m = 0', L: 24, f: function (x, y, z, d) { return (3 * z * z - d * d) * Math.exp(-d / 3); } },
+    { n: '3p', q: 'n = 3, l = 1', L: 26, f: function (x, y, z, d) { return (6 - d) * z * Math.exp(-d / 3); } },
+    { n: '3d', q: 'n = 3, l = 2, m = 1', L: 24, f: function (x, y, z, d) { return x * z * Math.exp(-d / 3); } },
+    { n: '4f', q: 'n = 4, l = 3', L: 36, f: function (x, y, z, d) { return z * (5 * z * z - 3 * d * d) * Math.exp(-d / 4); } }
+  ];
+  function sample(o) { // rejection sampling of |psi|^2 in a box of half-width L
+    if (o.pts) return o.pts; var L = o.L, max = 0, i, x, y, z, v;
+    for (i = 0; i < 6000; i++) { x = (r() * 2 - 1) * L; y = (r() * 2 - 1) * L; z = (r() * 2 - 1) * L; v = o.f(x, y, z, Math.hypot(x, y, z)); if (v * v > max) max = v * v; }
+    max *= 1.15; var a = new Float32Array(NP * 4), n = 0, guard = 0;
+    while (n < NP && guard++ < 4e6) { x = (r() * 2 - 1) * L; y = (r() * 2 - 1) * L; z = (r() * 2 - 1) * L; v = o.f(x, y, z, Math.hypot(x, y, z)); if (r() * max < v * v) { a[n * 4] = x; a[n * 4 + 1] = y; a[n * 4 + 2] = z; a[n * 4 + 3] = v >= 0 ? 1 : -1; n++; } }
+    o.count = n; return (o.pts = a);
+  }
+  function init() { sample(ORB[0]); sample(ORB[1]); }
+  function cloud(x, o, W, H, t, alpha) {
+    var a = sample(o), s = Math.min(W, H) * 0.3 / o.L, cx = W / 2, cy = H * 0.47, ya = t * 0.25, ca = Math.cos(ya), sa = Math.sin(ya), tilt = 0.35 + 0.12 * Math.sin(t * 0.13), ct = Math.cos(tilt), stt = Math.sin(tilt);
+    var pos = H3.dot, size = Math.max(1.6, Math.min(W, H) * 0.0042), i, n = o.count;
+    for (i = 0; i < n; i++) {
+      var X = a[i * 4], Y = a[i * 4 + 2], Z = a[i * 4 + 1]; // the orbital's z axis points up the screen
+      var x1 = X * ca + Z * sa, z1 = -X * sa + Z * ca, y1 = Y * ct - z1 * stt, z2 = Y * stt + z1 * ct, p = 1 + z2 / (o.L * 4);
+      pos(x, cx + x1 * s * p, cy - y1 * s * p, size * p, a[i * 4 + 3] > 0 ? 'rgba(120,185,255,1)' : 'rgba(255,170,95,1)', alpha * 0.5);
+    }
+  }
+  function draw(x, W, H, t, dt, nt) {
+    var cx = W / 2, cy = H * 0.47, g = x.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H) * 0.7); g.addColorStop(0, '#0a1024'); g.addColorStop(1, '#02030a'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+    var k = Math.floor(t / HOLD) % ORB.length, loc = t % HOLD, o = ORB[k], nx = ORB[(k + 1) % ORB.length]; sample(nx);
+    var f = H3.smooth((loc - (HOLD - FADE)) / FADE);
+    x.globalCompositeOperation = 'lighter';
+    cloud(x, o, W, H, t, 1 - f); if (f > 0) cloud(x, nx, W, H, t, f);
+    H3.dot(x, cx, cy, 5, 'rgba(255,255,255,1)', 1); H3.dot(x, cx, cy, 16, 'rgba(255,220,170,1)', 0.5); // the nucleus: far smaller than this dot
+    x.globalCompositeOperation = 'source-over'; x.globalAlpha = 1;
+    var shown = f > 0.5 ? nx : o, s = Math.min(W, H) * 0.3 / shown.L;
+    H3.label(x, 'the nucleus (100,000 times smaller than the cloud)', cx + 14, cy + 22, 'left', 'rgba(255,225,190,.85)', 11);
+    var ly = Math.max(H * 0.2 + 26, cy - Math.min(W, H) * 0.36);
+    H3.label(x, shown.n + ' orbital', cx, ly, 'center', '#fff', 15);
+    H3.label(x, shown.q + '  ·  each speck is one place the electron could be', cx, ly + 20, 'center', 'rgba(214,228,255,.8)', 11);
+    var bar = shown.L > 20 ? 10 : shown.L > 10 ? 5 : 2;
+    H3.scaleBar(x, W, H, bar * s, bar + ' Bohr radii = ' + (bar * 0.0529).toFixed(2) + ' nanometers');
+  }
+  return { init: init, draw: draw };
+})();
+
+
+// ---------------------------------------------------------------- page
+var cv = document.getElementById('c'), cx = cv.getContext('2d'), W = 0, Hh = 0, dpr = 1;
+function fit() { dpr = Math.min(devicePixelRatio || 1, 2); W = innerWidth; Hh = innerHeight; cv.width = Math.round(W * dpr); cv.height = Math.round(Hh * dpr); cx.setTransform(dpr, 0, 0, dpr, 0, 0); if (SCENE.resize) SCENE.resize(W, Hh); }
+addEventListener('resize', fit);
+var me = D.scales[D.i];
+document.getElementById('k').innerHTML = 'Scale ' + (D.i + 1) + ' of ' + D.scales.length + ' · <b>' + me.size + '</b>';
+document.getElementById('name').textContent = me.name;
+document.getElementById('sub').textContent = me.sub;
+var ruler = document.getElementById('ruler'), lo = D.scales[0].exp, hi = D.scales[D.scales.length - 1].exp;
+ruler.innerHTML = '<span class="cap l">← smaller</span><span class="cap r">bigger →</span>' + D.scales.map(function (s, i) {
+  return '<a href="https://' + s.domain + '/" class="' + (i === D.i ? 'me ' : '') + (i % 2 ? 'up' : '') + '" style="left:' + ((s.exp - lo) / (hi - lo) * 100).toFixed(2) + '%"' + (i === D.i ? ' aria-current="page"' : '') + ' title="' + s.name + ' · ' + s.size + ' · ' + s.domain + '"><b>' + s.size + '</b><span>' + s.short + '</span></a>';
+}).join('');
+
+// the arrows at the sides: one scale smaller, one scale bigger (they wrap round at the ends); the arrow keys do the same
+(function () { var n = D.scales.length, pv = D.scales[(D.i - 1 + n) % n], nx = D.scales[(D.i + 1) % n];
+  function nav(cls, s, arrow, word) { var a = document.createElement('a'); a.className = 'nav ' + cls; a.href = 'https://' + s.domain + '/'; a.title = word + ': ' + s.name + ' (' + s.size + ')'; a.setAttribute('aria-label', word + ': ' + s.name); a.innerHTML = '<i>' + arrow + '</i><span>' + word + '<b>' + s.short + '</b></span>'; document.body.appendChild(a); return a; }
+  var L = nav('l', pv, '‹', D.i === 0 ? 'biggest' : 'smaller'), R = nav('r', nx, '›', D.i === n - 1 ? 'smallest' : 'bigger');
+  addEventListener('keydown', function (e) { if (e.altKey || e.ctrlKey || e.metaKey) return; if (e.key === 'ArrowLeft') location.href = L.href; else if (e.key === 'ArrowRight') location.href = R.href; });
+})();
+
+// the voice: muted until the first tap (browsers require it); the captions and the picture follow its clock either way
+var au = document.getElementById('au'), snd = document.getElementById('snd'), cap = document.getElementById('cap'), started = false, t0 = performance.now(), shown = -2;
+function nt() { return (!au.paused && au.readyState > 1 && isFinite(au.currentTime)) ? au.currentTime : ((performance.now() - t0) / 1000) % (D.dur + 2); }
+function setSnd() { snd.classList.add('on'); snd.innerHTML = au.muted ? '&#128263; Sound off' : '&#128266; Sound on'; snd.setAttribute('aria-label', au.muted ? 'Turn the sound on' : 'Turn the sound off'); }
+function begin() { if (started) return; started = true; au.muted = false; au.currentTime = 0; t0 = performance.now(); var p = au.play(); if (p && p.catch) p.catch(function () {}); setSnd(); }
+addEventListener('pointerdown', function (e) { if (!started) { begin(); return; } if (e.target === snd) { au.muted = !au.muted; setSnd(); } }, { passive: true });
+addEventListener('keydown', function (e) { if (!started) begin(); else if (e.target === snd && (e.key === 'Enter' || e.key === ' ')) { au.muted = !au.muted; setSnd(); } });
+var pp = au.play(); if (pp && pp.catch) pp.catch(function () {});
+
+var last = performance.now(), T = +(new URLSearchParams(location.search).get("t") || 0); // ?t=seconds jumps the picture ahead
+fit(); SCENE.init(W, Hh);
+function frame(now) {
+  requestAnimationFrame(frame);
+  var dt = Math.min(0.05, (now - last) / 1000); last = now; T += dt;
+  var n = nt();
+  cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = 1;
+  SCENE.draw(cx, W, Hh, T, dt, n);
+  var q = -1; for (var j = 0; j < D.cues.length; j++) { if (n >= D.cues[j][0] && n < D.cues[j][1]) { q = j; break; } }
+  if (q !== shown) { shown = q; cap.textContent = q < 0 ? '' : D.cues[q][2]; }
+}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
 </html>
