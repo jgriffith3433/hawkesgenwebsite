@@ -7,7 +7,7 @@ name: Firebase
 
 on:
   push:
-    branches: [beta, main]
+    branches: [beta] # main is published by GitHub Pages now (pages.yml); run this by hand to deploy Firebase live
     paths: ['public/**', 'cloud/**', 'src/templates.ts', 'src/overseer-games/**', 'docs/world/**', 'docs/api/**', 'firebase.json', '.firebaserc', '.github/workflows/firebase.yml']
   workflow_dispatch:
 
