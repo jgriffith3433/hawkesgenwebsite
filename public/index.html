@@ -3,9 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>The Atom</title>
-<meta name="description" content="The Atom (10⁻¹⁰ m): the building brick of everything · one ten-billionth of a meter · hydrogen's electron clouds, drawn from the real equations. Explained simply by an AI narrator, with captions. Flip the page for its opposite: an anti-atom. One of nine scales, from the nucleus to the universe.">
+<title>The Neuron · How an A.I. works, part 2 of 9</title>
+<meta name="description" content="The Neuron: the smallest working part · it multiplies, adds up, and glows or stays dark · this small model has 36,864 of them. Part 2 of nine on how a large language model works, drawn from real numbers and explained simply by an A.I. narrator, with captions. Flip the page for its opposite: a feature.">
 <meta name="theme-color" content="#03050b">
+<meta property="og:title" content="The Neuron · How an A.I. works, part 2 of 9">
+<meta property="og:description" content="The Neuron: the smallest working part · it multiplies, adds up, and glows or stays dark · this small model has 36,864 of them. Part 2 of nine on how a large language model works, drawn from real numbers and explained simply by an A.I. narrator, with captions. Flip the page for its opposite: a feature.">
 <meta name="color-scheme" content="dark">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -80,7 +82,7 @@ body.flip .nav{color:rgba(40,28,16,.75);text-shadow:none;font-family:Georgia,ser
 body.flip .nav i{background:rgba(255,252,244,.82);color:#17110a;box-shadow:0 0 0 1.5px rgba(70,45,20,.6)}
 body.flip .nav:hover i,body.flip .nav:focus-visible i{background:#17110a;color:#f1eadc;box-shadow:0 0 0 2px #7a3d0e}
 body.flip .nav b{color:#7a3d0e}
-@media (max-width:760px){#ruler a:not(.me) span{display:none}#ruler a:not(.me) b{font-size:9px}#ruler .cap{display:none}#cc{bottom:calc(max(12px,env(safe-area-inset-bottom)) + 70px)}.nav span{display:none}.nav i{width:40px;height:40px;font-size:23px}#flip{font-size:10px;padding:.8em .9em}}
+@media (max-width:760px){.nav{top:auto;bottom:calc(max(12px,env(safe-area-inset-bottom)) - 4px);transform:none;padding:4px 2px}.nav.l{left:max(4px,env(safe-area-inset-left))}.nav.r{right:max(4px,env(safe-area-inset-right))}#hud,#hud2{padding-top:calc(max(14px,env(safe-area-inset-top)) + 42px)}.sub,.bsub{font-size:11px;line-height:1.4}#ruler a:not(.me) span{display:none}#ruler a:not(.me) b{font-size:9px}#ruler .cap{display:none}#cc{bottom:calc(max(12px,env(safe-area-inset-bottom)) + 70px)}.nav span{display:none}.nav i{width:40px;height:40px;font-size:23px}#flip{font-size:10px;padding:.8em .9em}}
 @media (prefers-reduced-motion:reduce){#snd,.bname{animation:none}}
 /* ---- talking to the page. Front: a glass panel on the right. Back: paper, on the left, the bubbles swapped. */
 #askb{position:fixed;right:max(14px,env(safe-area-inset-right));top:calc(max(14px,env(safe-area-inset-top)) + 44px);z-index:9;border:0;cursor:pointer;font:600 11px/1 "JetBrains Mono",ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;color:#03050b;background:linear-gradient(180deg,#d7e9ff,#8fc2ff);padding:.9em 1.15em;border-radius:999px;box-shadow:0 0 22px rgba(143,194,255,.5),0 6px 16px rgba(0,0,0,.5);transition:transform .2s}
@@ -152,10 +154,11 @@ body.flip #askm{box-shadow:0 0 0 1px rgba(70,45,20,.45)}
 <script>
 (function () {
 'use strict';
-// One of nine pages, one per scale of the world (10^-15 m to 10^27 m). The front draws the scale from the real
-// numbers while an AI voice explains it; the back of the page (Flip) is its opposite, told by the other narrator.
-// Captions are cut from the voices' own timing. The ruler and the side arrows link the nine sites.
-var D = {"i":1,"key":"atom","title":"The Atom","chat":"https://api.hawkesgen.ai/v1/public/scale-chat","scales":[{"exp":-15,"name":"The Nucleus","short":"nucleus","size":"10⁻¹⁵ m","sub":"the heart of an atom · a millionth of a billionth of a meter · uranium-235: 92 protons, 143 neutrons","domain":"doseofdestruction.com"},{"exp":-10,"name":"The Atom","short":"atom","size":"10⁻¹⁰ m","sub":"the building brick of everything · one ten-billionth of a meter · hydrogen's electron clouds, drawn from the real equations","domain":"hawkesgames.com"},{"exp":-5,"name":"The Cell","short":"cell","size":"10⁻⁵ m","sub":"the smallest living thing · a hundredth of a millimeter · you are about 37 trillion of these","domain":"hawkesbiomedical.com"},{"exp":0,"name":"You","short":"you","size":"10⁰ m","sub":"the human scale · about a meter and a bit · 7 × 10²⁷ atoms, 37 trillion cells, 86 billion neurons","domain":"icanbe.ai"},{"exp":7,"name":"The Planet","short":"planet","size":"10⁷ m","sub":"Earth · 12,742 km across · a thin skin of rock and air around a ball of hot stone and metal","domain":"yoobalandgame.com"},{"exp":9,"name":"The Star","short":"star","size":"10⁹ m","sub":"the Sun · 1.39 million km across · a million Earths would fit inside","domain":"imaginelivetv.com"},{"exp":13,"name":"The Solar System","short":"solar system","size":"10¹³ m","sub":"the Sun's neighborhood · 9 billion km across at Neptune · real orbits and real speeds, distances squeezed to fit","domain":"theplacedepartment.com"},{"exp":21,"name":"The Galaxy","short":"galaxy","size":"10²¹ m","sub":"","domain":"phorigins.com"},{"exp":27,"name":"The Universe","short":"universe","size":"10²⁷ m","sub":"everything we could ever see · 93 billion light-years across · 13.8 billion years old","domain":"hawkesgen.ai"}],"sides":[{"cues":[[0,0.69,"Hi."],[0.69,4.88,"I'm the AI in this page, and this glowing cloud is an atom."],[4.88,6.66,"Everything is made of atoms."],[6.66,10.26,"Your shoes, your dog, the air, and you."],[10.26,12.5,"They are the building bricks of the world,"],[12.5,15.23,"like the smallest Lego pieces there are."],[15.23,17.33,"In the middle is a tiny dot."],[17.33,19.11,"Around it lives an electron."],[19.11,22.12,"But the electron is not a little ball going in a circle."],[22.12,26.56,"It's more like a fan spinning so fast that you can't say where the blade is."],[26.56,30.68,"So I draw every place it might be, and it makes these cloud shapes."],[30.68,33.54,"Give it more energy, and the cloud changes shape."],[33.54,35.11,"How small is an atom?"],[35.11,39.79,"Ten million of them, side by side, would just reach across the head of a pin."],[39.79,41.49,"And here is the strange part."],[41.49,44.14,"An atom is almost completely empty."],[44.14,47.24,"If you squeezed the empty space out of every person on Earth,"],[47.24,50.959999999999994,"all of us together would fit inside one sugar cube."]],"dur":50.96},{"name":"an anti-atom","size":"10⁻¹⁰ m","sub":"antihydrogen · the atom's mirror image · every charge reversed, every shape the same","cues":[[0,1.41,"You turned the page."],[1.41,2.75,"I'm the other AI."],[2.75,4.2,"The one on the back."],[4.2,6.15,"Here is the atom's opposite."],[6.15,10.31,"It is called antimatter, and this is an anti-atom."],[10.31,12.06,"It looks exactly the same."],[12.06,13.13,"The same cloud."],[13.13,14.56,"The same shapes."],[14.56,16.98,"But everything inside is backwards."],[16.98,20.41,"Where the atom has a plus, this has a minus."],[20.41,23.73,"Scientists have really made these, a few at a time."],[23.73,25.91,"But they are very hard to keep."],[25.91,28.85,"Because when an atom and an anti-atom touch,"],[28.85,32.87,"they both disappear, in a flash of pure light."],[32.87,36.2,"Nobody knows why the universe is made of one kind,"],[36.2,38.699999999999996,"and almost none of the other."]],"dur":38.7}]};
+// One of nine pages on how a large language model works, from one piece of a word up to the data center. The front
+// draws one part from real numbers (most of them computed with GPT-2 small, a small open model from 2019) while an AI
+// voice explains it; the back of the page (Flip) is its opposite, told by the other narrator. Each picture is a film
+// timed to its narrator. Captions are cut from the voices' own timing. The ruler and the side arrows link the nine sites.
+var D = {"i":1,"key":"neuron","title":"The Neuron · How an A.I. works, part 2 of 9","chat":"https://api.hawkesgen.ai/v1/public/scale-chat","scales":[{"exp":1,"name":"The Token","short":"token","size":"1 piece","sub":"where every sentence starts · a word, or a piece of a word, swapped for a number · the small model in this page knows 50,257 pieces","domain":"doseofdestruction.com"},{"exp":2,"name":"The Neuron","short":"neuron","size":"1 light","sub":"the smallest working part · it multiplies, adds up, and glows or stays dark · this small model has 36,864 of them","domain":"hawkesgames.com"},{"exp":3,"name":"Attention","short":"attention","size":"144 lookers","sub":"how the pieces share what they know · each piece looks back at the ones before it · real looking, from the small model in this page","domain":"hawkesbiomedical.com"},{"exp":4,"name":"The Layers","short":"layers","size":"12 floors","sub":"one piece's trip up through the machine · every layer reads a running note and adds to it · 12 layers here, many more in big models","domain":"icanbe.ai"},{"exp":5,"name":"The Guess","short":"guess","size":"50,257 scores","sub":"what comes out at the top · not one word, but a score for every piece it knows · real scores from the small model in this page","domain":"yoobalandgame.com"},{"exp":6,"name":"The Mistake","short":"mistake","size":"1 surprise","sub":"how a machine finds out it was wrong · hide the next piece, guess, then look · the mistake is how surprised it was","domain":"imaginelivetv.com"},{"exp":7,"name":"Reading","short":"reading","size":"15 trillion pieces","sub":"the first school · guess the next piece of things people wrote, over and over · a tiny model learning from one book, for real","domain":"theplacedepartment.com"},{"exp":8,"name":"What It Knows","short":"what it knows","size":"frozen numbers","sub":"everything it learned, baked in · not one number changes while you talk to it · and it can't always tell knowing from guessing","domain":"phorigins.com"},{"exp":9,"name":"The Data Center","short":"data center","size":"16,000 chips","sub":"where a model gets made · buildings full of chips, all doing the same small sum · numbers from a maker who published them, with the year","domain":"hawkesgen.ai"}],"data":{"neuron":{"layer":8,"index":2661,"examples":[{"topic":"sport","pieces":["She"," kicked"," the"," ball"," into"," the"," net"," and"," the"," crowd"," cheered","."],"acts":[0,0,0,2.261,0,0,0.205,0,0,0.15,0,0],"peak":3},{"topic":"cooking","pieces":["First",","," stir"," the"," soup"," slowly"," and"," add"," a"," pinch"," of"," salt","."],"acts":[0,0,0,0,2.029,0,0,0,0,0,0,0,0],"peak":4},{"topic":"cooking","pieces":["Then"," bake"," the"," bread"," until"," the"," crust"," is"," golden"," brown","."],"acts":[0,0,0.108,2.007,0,0,0.04,0,0,0,0],"peak":3},{"topic":"weather","pieces":["A"," strong"," wind"," blew"," the"," leaves"," across"," the"," yard","."],"acts":[0,0,0,0,0,1.711,0,0,0.989,0],"peak":5},{"topic":"law","pieces":["The"," judge"," sentenced"," him"," to"," five"," years"," in"," prison","."],"acts":[0,0,0,1.693,0,0,0,0,0.06,0],"peak":3},{"topic":"music","pieces":["He"," tuned"," his"," guitar"," and"," began"," to"," sing","."],"acts":[0,0,0,1.636,0,0,0,0,0],"peak":3}],"quiet":[{"topic":"weather","pieces":["The"," snow"," melted"," when"," the"," warm"," sun"," came"," out","."],"peakv":-0.031},{"topic":"feelings","pieces":["He"," felt"," lonely"," and"," a"," little"," bit"," scared","."],"peakv":-0.031},{"topic":"web","pieces":["The"," page"," returned"," a"," 404"," error"," again","."],"peakv":-0.029},{"topic":"weather","pieces":["Dark"," clouds"," rolled"," in"," and"," it"," began"," to"," rain","."],"peakv":-0.018}],"nsent":42,"ntopics":14,"per_layer":3072,"layers":12,"all":36864},"feature":{"model":"gpt2-small","layer":"8-res-jb","index":17608,"set":"res-jb","explain":["keywords related to physical structures such as bridges","references to various bridges and bridge-related contexts"],"maxAct":56.90554809570312,"fracNonzero":0.0003881454467773438,"pos":[" Strait","port","bridge","roads"," bridge","layer"," bridges","yard"," Simulator"," Bridges"],"examples":[{"pieces":[" seemed"," to"," become"," what"," they"," hated","."," The"," bridge"," lanes"," closed","."," Investigations"],"acts":[0,0,0,0,0,0,0,0,56.91,3.21,0,0,0],"peak":8,"max":56.91},{"pieces":[" film",","," a"," cold"," war"," spy"," drama"," called"," Bridge"," of"," Sp","ies",","],"acts":[0,0,0,0,0,0,0,0,52.9,4.37,0,0,0],"peak":8,"max":52.9},{"pieces":[" is"," about"," my"," eight"," years",","," and"," the"," bridge"," stuff"," is"," part"," of"],"acts":[0,0,0,0,0,0,0,0,52.71,0,0,0,0],"peak":8,"max":52.71},{"pieces":[" ","(","Any","body"," want"," to"," buy"," a"," bridge","?)"," "," ","The"],"acts":[0,0,0,0,0,0,0,0,50.27,0,0,0,0],"peak":8,"max":50.27},{"pieces":[" so"," much"," time"," at"," center","back","."," The"," bridge"," from"," James"," Riley"," to"],"acts":[0,0,0,0,0,0,0,0,49.76,0,0,0,0],"peak":8,"max":49.76},{"pieces":["is",")"," July"," 1",","," 2014"," "," ","Bridge","port"," Sound"," Tigers"," "],"acts":[0,0,0,0,0,0,0,0,49.27,0,0,0,0],"peak":8,"max":49.27},{"pieces":[" out"," with"," new"," friends",","," playing"," chess"," or"," bridge"," in"," the"," sand",","],"acts":[0,0,0,0,0,0,0,0,49.18,0,0,0,0],"peak":8,"max":49.18},{"pieces":[" funding"," coming"," from"," the"," federal"," Surface"," Transportation"," and"," Bridge"," Replacement"," program","."," "],"acts":[0,0,0,0,0,0,0,0,49.15,0,0,0,0],"peak":8,"max":49.15},{"pieces":[" train"," caught"," fire"," after"," it"," crashed"," at"," a"," bridge"," near"," Stras","bourg","."],"acts":[0,0,0,0,0,0,0,0,47.99,0,0,0,0],"peak":8,"max":47.99},{"pieces":[" ","Also"," known"," locally"," as"," the"," M","athon"," Bridge",","," the"," deck"," is"],"acts":[0,0,0,0,0,0,0,0,47.68,0,0,0.4,0],"peak":8,"max":47.68},{"pieces":[" filed",","," according"," to"," renewable"," energy"," consultancy"," firm"," Bridge"," to"," India"," (","BT"],"acts":[0,0,0,0,0,0,0,0,47.64,0,0,0,0],"peak":8,"max":47.64},{"pieces":[","," will"," only"," be"," banned"," after"," taking"," a"," bridge"," too"," far","."," That"],"acts":[0,0,0,0,0,0,0,0,47.36,0,0,0,0],"peak":8,"max":47.36},{"pieces":["6",".","2"," million"," plan"," to"," rebuild"," the"," bridge"," in"," a"," project"," that"],"acts":[0,0,0,0,0,0,0,0,47.2,0,0,0,0],"peak":8,"max":47.2},{"pieces":["3"," million"," contract"," to"," rebuild"," the"," Grand"," Avenue"," bridge"," east"," of"," Sheridan"," Road"],"acts":[0,0,0,0,0,0,0,0,46.89,0,0,0,0],"peak":8,"max":46.89}],"dims":[288,41,342],"dimShare":[0.006873494479805231,0.005284687969833612,0.005072616972029209],"dictSize":24576,"url":"https://www.neuronpedia.org/gpt2-small/8-res-jb/17608"}},"sides":[{"cues":[[0,0.44,"Hi."],[0.44,2.42,"I'm the A.I. in this page."],[2.42,4.66,"Let's look at one of my smallest parts."],[4.66,7.73,"It's called a neuron, and it's much simpler than it sounds."],[7.73,9.18,"Think of a tiny light."],[9.18,10.34,"Numbers come in."],[10.34,13.1,"The light multiplies each one, adds them all up,"],[13.1,15.71,"and then it either glows, or stays dark."],[15.71,16.95,"That's all it can do."],[16.95,21.34,"The small model in this page has more than thirty six thousand of these lights."],[21.34,23.66,"So what does one light mean?"],[23.66,25.16,"Let's watch a real one."],[25.16,26.69,"It glows for a ball."],[26.69,27.69,"And for soup."],[27.69,28.55,"And bread."],[28.55,29.54,"And leaves."],[29.54,30.79,"And a guitar."],[30.79,32.13,"It is not the ball light."],[32.13,34.09,"It's not the soup light, either."],[34.09,35.26,"From what I can tell,"],[35.26,38.59,"you can almost never point at one light and say what it means."],[38.59,41.6,"Each light helps out with lots of different things."],[41.6,43.5,"So where do the meanings live?"],[43.5,45.339999999999996,"Flip the page."]],"dur":45.34},{"name":"a feature","size":"a pattern","sub":"one meaning, spread over many lights · found with a tool called a sparse autoencoder · the tool is still blurry","cues":[[0,1.29,"You turned the page."],[1.29,3.25,"I'm the other A.I."],[3.25,5.43,"One light means almost nothing."],[5.43,8.03,"But many lights together can mean something."],[8.03,10.1,"A meaning is a pattern."],[10.1,13.96,"Lots of lights, each glowing a little, all at once."],[13.96,18.08,"Scientists built a special pair of glasses to find these patterns."],[18.08,20.41,"They call each one a feature."],[20.41,23.87,"Here is a real one, from the small model in this page."],[23.87,25.73,"It wakes up for bridges."],[25.73,27.35,"A bridge that closed."],[27.35,29.08,"A bridge being rebuilt."],[29.08,30.89,"A bridge near a town."],[30.89,35.38,"In a much bigger model, scientists found one for the Golden Gate Bridge."],[35.38,37.14,"When they turned it all the way up,"],[37.14,40.17,"the model started saying that it was the bridge."],[40.17,41.88,"But the glasses are foggy."],[41.88,45.51,"This pattern also wakes up for bridge, the card game."],[45.51,48.37,"And different glasses find different patterns."],[48.37,51.089999999999996,"We are still learning to see."]],"dur":51.09}]};
 var TAU = Math.PI * 2;
 function rng(seed) { var a = seed >>> 0; return function () { a = (a + 0x6D2B79F5) | 0; var t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function gauss(r) { var u = 1 - r(), v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * v); }
@@ -183,102 +186,262 @@ function scaleBar(x, W, H, px, text) { // a labelled length, bottom-left above t
 var H3 = { rng: rng, gauss: gauss, clamp: clamp, lerp: lerp, smooth: smooth, dot: dot, label: label, lead: lead, scaleBar: scaleBar, TAU: TAU };
 
 
-// ---------------------------------------------------------------- the front: the scale
-// THE ATOM: hydrogen's electron, drawn as it really is: a cloud of where it can be found.
-// Each cloud is thousands of points sampled from |psi|^2 of a real hydrogen wavefunction (lengths in Bohr radii a0):
-//   1s: e^-r   2s: (2-r)e^(-r/2)   2p: z e^(-r/2)   3p: (6-r) z e^(-r/3)   3d: (3z^2-r^2) e^(-r/3),  xz e^(-r/3)
-//   4f: z(5z^2-3r^2) e^(-r/4)
-// Blue and orange are the two signs of the wave. a0 = 0.0529 nm.
+// The drawing kit shared by the eighteen pictures. Every picture is a film timed to its narrator: K.at(side, 'words')
+// gives the second at which the caption containing those words starts, and the picture is a function of that clock.
+var K = (function () {
+  var SANS = '"Space Grotesk",system-ui,sans-serif', MONO = '"JetBrains Mono",ui-monospace,monospace';
+  var C = { ink: '#eef4ff', dim: 'rgba(214,228,255,.62)', faint: 'rgba(214,228,255,.28)', acc: '#8fc2ff', warm: '#ffc46b', hot: '#ff7a5c', good: '#7dffb0', vio: '#c9a2ff', bg: '#03050b' };
+  var GROUP = ['#ffc46b', '#ff7a9c', '#8fc2ff', '#7dffb0', '#ff9a5c', '#c9a2ff', '#6fe3e1', '#f5f07a', '#b8c4d9'];
+  function at(side, words) { var cs = D.sides[side].cues, w = words.toLowerCase(); for (var i = 0; i < cs.length; i++) if (cs[i][2].toLowerCase().indexOf(w) >= 0) return cs[i][0]; if (window.console) console.warn('no caption has: ' + words); return 0; }
+  function end(side) { return D.sides[side].dur; }
+  // the narrator's clock; once the explanation is over the picture rests on its last moment (plus a slow idle clock)
+  function clock(side, nt) { return nt > 1e8 ? D.sides[side].dur + 2 : nt; }
+  function cl(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+  function ramp(n, a, d) { return H3.smooth((n - a) / (d || 0.6)); }               // 0 -> 1 starting at second a, over d seconds
+  function span(n, a, b, d) { d = d || 0.5; return Math.min(ramp(n, a, d), 1 - ramp(n, b, d)); }   // on between a and b
+  function bump(n, a, d) { var u = (n - a) / (d || 0.8); return u < 0 || u > 1 ? 0 : Math.sin(u * Math.PI); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function font(size, o) { o = o || {}; return (o.w || 500) + ' ' + size.toFixed(1) + 'px ' + (o.mono ? MONO : SANS); }
+  function text(x, s, px, py, size, o) {
+    o = o || {}; var al = o.al == null ? 1 : o.al; if (al <= 0.003) return 0; x.save(); x.globalAlpha = al; x.globalCompositeOperation = 'source-over'; x.font = font(size, o); x.textAlign = o.a || 'left'; x.textBaseline = o.base || 'middle';
+    if (o.glow) { x.shadowColor = o.glow; x.shadowBlur = size * 0.7; }
+    // a line never runs off the screen: if it would, it is drawn smaller (pictures written for a wide screen stay readable on a phone)
+    var w = x.measureText(s).width, sw = x.canvas.clientWidth || innerWidth, room = (o.a === 'center' ? 2 * Math.min(px, sw - px) : o.a === 'right' ? px : sw - px) - 6;
+    if (!o.free && w > room && room > 20) { var k = Math.max(0.5, room / w); x.font = font(size * k, o); w = x.measureText(s).width; }
+    x.fillStyle = o.c || C.ink; x.fillText(s, px, py); x.restore(); return w;
+  }
+  function width(x, s, size, o) { x.save(); x.font = font(size, o); var w = x.measureText(s).width; x.restore(); return w; }
+  function rr(x, px, py, w, h, r) { r = Math.min(r, w / 2, h / 2); x.beginPath(); x.moveTo(px + r, py); x.arcTo(px + w, py, px + w, py + h, r); x.arcTo(px + w, py + h, px, py + h, r); x.arcTo(px, py + h, px, py, r); x.arcTo(px, py, px + w, py, r); x.closePath(); }
+  function box(x, px, py, w, h, o) { // a rounded panel: o.fill, o.line, o.r, o.al, o.lw
+    o = o || {}; var al = o.al == null ? 1 : o.al; if (al <= 0.003) return; x.save(); x.globalAlpha = al; x.globalCompositeOperation = 'source-over'; rr(x, px, py, w, h, o.r == null ? 8 : o.r);
+    if (o.fill) { x.fillStyle = o.fill; x.fill(); } if (o.line) { x.strokeStyle = o.line; x.lineWidth = o.lw || 1.2; x.stroke(); } x.restore();
+  }
+  // a piece of text in its own little box. Spaces at the front of a piece are shown as a small dot so they can be seen.
+  function chipW(x, s, size, o) { return width(x, show(s), size, o) + size * 0.9; }
+  function show(s) { return s.replace(/^ /, '·').replace(/\n/g, '↵'); }
+  function chip(x, s, px, py, size, o) { // left edge px, centre line py; returns its width
+    o = o || {}; var w = o.wd || chipW(x, s, size, o), h = size * 1.75, al = o.al == null ? 1 : o.al; if (al <= 0.003) return w;
+    box(x, px, py - h / 2, w, h, { fill: o.bg || 'rgba(143,194,255,.10)', line: o.bd || 'rgba(143,194,255,.55)', r: size * 0.38, al: al, lw: o.lw });
+    text(x, o.raw ? s : show(s), px + w / 2, py + size * 0.04, size, { a: 'center', c: o.c || C.ink, mono: o.mono, w: o.w || 500, al: al, glow: o.glow }); return w;
+  }
+  // lay pieces out in centred rows that fit a width; returns [{x, y, w}] and the height used
+  function flow(x, list, size, cx, top, maxW, gap, o) {
+    var ws = list.map(function (s) { return chipW(x, s, size, o); }), rows = [[]], rw = [0], i;
+    for (i = 0; i < list.length; i++) { var r = rows.length - 1; if (rows[r].length && rw[r] + gap + ws[i] > maxW) { rows.push([]); rw.push(0); r++; } rw[r] += (rows[r].length ? gap : 0) + ws[i]; rows[r].push(i); }
+    var out = [], lh = size * ((o && o.lh) || 2.5); rows.forEach(function (row, r) { var px = cx - rw[r] / 2; row.forEach(function (k) { out[k] = { x: px, y: top + r * lh + size, w: ws[k], row: r }; px += ws[k] + gap; }); });
+    out.h = rows.length * lh; out.rows = rows.length; return out;
+  }
+  function bar(x, px, py, w, h, f, col, o) { // a track with a filled part f (0..1)
+    o = o || {}; var al = o.al == null ? 1 : o.al; if (al <= 0.003) return; box(x, px, py, w, h, { fill: o.track || 'rgba(143,194,255,.10)', r: h / 2, al: al }); if (f > 0.002) box(x, px, py, Math.max(h, w * cl(f)), h, { fill: col || C.acc, r: h / 2, al: al });
+  }
+  function line(x, x0, y0, x1, y1, col, lw, al) { if (al != null && al <= 0.003) return; x.save(); x.globalAlpha = al == null ? 1 : al; x.strokeStyle = col || C.acc; x.lineWidth = lw || 1; x.lineCap = 'round'; x.beginPath(); x.moveTo(x0, y0); x.lineTo(x1, y1); x.stroke(); x.restore(); }
+  function arc(x, x0, y0, x1, y1, lift, col, lw, al, f) { // a curved link from one point up and over to another; f draws only the first part of it
+    if (al != null && al <= 0.003) return; x.save(); x.globalAlpha = al == null ? 1 : al; x.strokeStyle = col || C.acc; x.lineWidth = lw || 1; x.lineCap = 'round'; x.beginPath(); var mx = (x0 + x1) / 2, my = Math.min(y0, y1) - lift, n = 28, m = Math.max(1, Math.round(n * (f == null ? 1 : cl(f))));
+    for (var i = 0; i <= m; i++) { var u = i / n, a = (1 - u) * (1 - u), b = 2 * u * (1 - u), c = u * u; x.lineTo(a * x0 + b * mx + c * x1, a * y0 + b * my + c * y1); } x.stroke(); x.restore();
+  }
+  function disc(x, px, py, r, col, al) { if (al != null && al <= 0.003) return; x.save(); x.globalAlpha = al == null ? 1 : al; x.fillStyle = col || C.ink; x.beginPath(); x.arc(px, py, r, 0, 7); x.fill(); x.restore(); }
+  function ring(x, px, py, r, col, lw, al) { if (al != null && al <= 0.003) return; x.save(); x.globalAlpha = al == null ? 1 : al; x.strokeStyle = col || C.ink; x.lineWidth = lw || 1; x.beginPath(); x.arc(px, py, r, 0, 7); x.stroke(); x.restore(); }
+  function glow(x, px, py, r, col, al) { x.save(); x.globalCompositeOperation = 'lighter'; H3.dot(x, px, py, r, col, al); x.restore(); }
+  function clear(x, W, H, col) { x.globalCompositeOperation = 'source-over'; x.globalAlpha = 1; x.fillStyle = col || C.bg; x.fillRect(0, 0, W, H); }
+  // the part of the screen a picture may use: under the title, above the captions, between the side arrows
+  function area(W, H) {
+    var wide = W > 760, top = wide ? Math.max(178, H * 0.235) : Math.max(206, H * 0.25), bot = H - (wide ? 192 : 196), l = wide ? 78 : 14, r = W - (wide ? 78 : 14);
+    return { x: l, y: top, w: r - l, h: Math.max(120, bot - top), cx: (l + r) / 2, cy: (top + bot) / 2, r: r, b: bot, wide: wide, u: Math.max(0.62, Math.min(1.25, Math.min((r - l) / 900, (bot - top) / 430))) };
+  }
+  function credit(x, A, s, al) { // where the numbers come from; on a narrow screen it takes two lines
+    var size = Math.max(9.5, 11 * A.u), o = { a: 'center', c: C.dim, mono: true, w: 400, al: al == null ? 0.85 : al };
+    if (width(x, s, size, o) <= A.w) return void text(x, s, A.cx, A.b + 3, size, o);
+    var mid = s.length / 2, cut = -1, i; for (i = 0; i < s.length; i++) if (s[i] === ' ' && (cut < 0 || Math.abs(i - mid) < Math.abs(cut - mid))) cut = i;
+    text(x, s.slice(0, cut), A.cx, A.b - 4, size, o); text(x, s.slice(cut + 1), A.cx, A.b - 4 + size * 1.25, size, o);
+  } // where the numbers come from
+  function pct(p, d) { var v = p * 100; return (v >= 10 ? v.toFixed(d == null ? 0 : d) : v >= 1 ? v.toFixed(d == null ? 1 : d) : v >= 0.1 ? v.toFixed(2) : v >= 0.001 ? v.toFixed(3) : v.toExponential(0)) + '%'; }
+  function commas(n) { return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+  function dial(x, px, py, r, ang, col, al) { // a little dial with its mark at an angle
+    if (al != null && al <= 0.003) return; x.save(); x.globalAlpha = al == null ? 1 : al; x.strokeStyle = col || C.acc; x.lineWidth = Math.max(0.8, r * 0.16); x.beginPath(); x.arc(px, py, r, 0, 7); x.stroke(); x.beginPath(); x.moveTo(px, py); x.lineTo(px + Math.sin(ang) * r * 0.92, py - Math.cos(ang) * r * 0.92); x.stroke(); x.restore();
+  }
+  function tick(x, px, py, r, ok, al) { // a check mark or a cross
+    if (al != null && al <= 0.003) return; x.save(); x.globalAlpha = al == null ? 1 : al; x.lineWidth = Math.max(1.6, r * 0.3); x.lineCap = 'round'; x.strokeStyle = ok ? C.good : C.hot; x.beginPath();
+    if (ok) { x.moveTo(px - r * 0.6, py); x.lineTo(px - r * 0.15, py + r * 0.5); x.lineTo(px + r * 0.7, py - r * 0.55); } else { x.moveTo(px - r * 0.55, py - r * 0.55); x.lineTo(px + r * 0.55, py + r * 0.55); x.moveTo(px + r * 0.55, py - r * 0.55); x.lineTo(px - r * 0.55, py + r * 0.55); } x.stroke(); x.restore();
+  }
+  return { C: C, GROUP: GROUP, at: at, end: end, clock: clock, cl: cl, ramp: ramp, span: span, bump: bump, lerp: lerp, text: text, width: width, rr: rr, box: box, chip: chip, chipW: chipW, show: show, flow: flow, bar: bar, line: line, arc: arc, disc: disc, ring: ring, glow: glow, clear: clear, area: area, credit: credit, pct: pct, commas: commas, dial: dial, tick: tick };
+})();
+
+
+// ---------------------------------------------------------------- the front
+// THE NEURON. First, what one neuron does, with small made-up numbers: each number coming in is multiplied by the
+// number on its wire, the results are added, and the neuron glows by that much if the total is above zero and stays
+// dark if it is not. Then all 36,864 neurons in the recall steps of GPT-2 small (OpenAI, 2019) are drawn as dots:
+// 12 layers of 3,072. Then one real neuron is watched (layer 9, number 2,661 of its layer): out of 42 very different
+// sentences it glows most on "ball" (a sports sentence), "soup" and "bread" (cooking), "leaves" (weather) and "guitar"
+// (music), with its real strength beside each word. It is not a light for any one of those things.
 var SCENE = (function () {
-  var r = H3.rng(21), NP = 9000, HOLD = 7.5, FADE = 1.8;
-  var ORB = [
-    { n: '1s', q: 'n = 1, l = 0', L: 5.5, f: function (x, y, z, d) { return Math.exp(-d); } },
-    { n: '2p', q: 'n = 2, l = 1', L: 13, f: function (x, y, z, d) { return z * Math.exp(-d / 2); } },
-    { n: '2s', q: 'n = 2, l = 0', L: 13, f: function (x, y, z, d) { return (2 - d) * Math.exp(-d / 2); } },
-    { n: '3d', q: 'n = 3, l = 2, m = 0', L: 24, f: function (x, y, z, d) { return (3 * z * z - d * d) * Math.exp(-d / 3); } },
-    { n: '3p', q: 'n = 3, l = 1', L: 26, f: function (x, y, z, d) { return (6 - d) * z * Math.exp(-d / 3); } },
-    { n: '3d', q: 'n = 3, l = 2, m = 1', L: 24, f: function (x, y, z, d) { return x * z * Math.exp(-d / 3); } },
-    { n: '4f', q: 'n = 4, l = 3', L: 36, f: function (x, y, z, d) { return z * (5 * z * z - 3 * d * d) * Math.exp(-d / 4); } }
-  ];
-  function sample(o) { // rejection sampling of |psi|^2 in a box of half-width L
-    if (o.pts) return o.pts; var L = o.L, max = 0, i, x, y, z, v;
-    for (i = 0; i < 6000; i++) { x = (r() * 2 - 1) * L; y = (r() * 2 - 1) * L; z = (r() * 2 - 1) * L; v = o.f(x, y, z, Math.hypot(x, y, z)); if (v * v > max) max = v * v; }
-    max *= 1.15; var a = new Float32Array(NP * 4), n = 0, guard = 0;
-    while (n < NP && guard++ < 4e6) { x = (r() * 2 - 1) * L; y = (r() * 2 - 1) * L; z = (r() * 2 - 1) * L; v = o.f(x, y, z, Math.hypot(x, y, z)); if (r() * max < v * v) { a[n * 4] = x; a[n * 4 + 1] = y; a[n * 4 + 2] = z; a[n * 4 + 3] = v >= 0 ? 1 : -1; n++; } }
-    o.count = n; return (o.pts = a);
+  var d = D.data.neuron, EX = [0, 1, 2, 3, 5].map(function (i) { return d.examples[i]; }), t = {}, C = K.C, field = null;
+  var WIRE = [1.5, 0.7, 0.9, -0.4], IN = [[0.8, -0.3, 1.2, 0.5], [-0.9, 0.4, -0.7, 0.6]];
+  function init() {
+    t.parts = K.at(0, 'one of my smallest parts'); t.light = K.at(0, 'Think of a tiny light'); t.come = K.at(0, 'Numbers come in'); t.mult = K.at(0, 'multiplies each one'); t.glows = K.at(0, 'either glows'); t.all = K.at(0, "That's all it can do");
+    t.many = K.at(0, 'thirty six thousand'); t.mean = K.at(0, 'what does one light mean'); t.watch = K.at(0, "Let's watch a real one"); t.e0 = K.at(0, 'glows for a ball'); t.e1 = K.at(0, 'And for soup'); t.e2 = K.at(0, 'And bread'); t.e3 = K.at(0, 'And leaves'); t.e4 = K.at(0, 'And a guitar');
+    t.not = K.at(0, 'not the ball light'); t.soup = K.at(0, 'not the soup light'); t.tell = K.at(0, 'From what I can tell'); t.each = K.at(0, 'helps out with lots'); t.where = K.at(0, 'where do the meanings live'); t.flip = K.at(0, 'Flip the page');
+    t.e = [t.e0, t.e1, t.e2, t.e3, t.e4];
   }
-  function init() { sample(ORB[0]); sample(ORB[1]); }
-  function cloud(x, o, W, H, t, alpha) {
-    var a = sample(o), s = Math.min(W, H) * 0.3 / o.L, cx = W / 2, cy = H * 0.47, ya = t * 0.25, ca = Math.cos(ya), sa = Math.sin(ya), tilt = 0.35 + 0.12 * Math.sin(t * 0.13), ct = Math.cos(tilt), stt = Math.sin(tilt);
-    var pos = H3.dot, size = Math.max(1.6, Math.min(W, H) * 0.0042), i, n = o.count;
-    for (i = 0; i < n; i++) {
-      var X = a[i * 4], Y = a[i * 4 + 2], Z = a[i * 4 + 1]; // the orbital's z axis points up the screen
-      var x1 = X * ca + Z * sa, z1 = -X * sa + Z * ca, y1 = Y * ct - z1 * stt, z2 = Y * stt + z1 * ct, p = 1 + z2 / (o.L * 4);
-      pos(x, cx + x1 * s * p, cy - y1 * s * p, size * p, a[i * 4 + 3] > 0 ? 'rgba(120,185,255,1)' : 'rgba(255,170,95,1)', alpha * 0.5);
+  function dots(c) { // 12 layers of 3,072 lights
+    if (field && field.c === c) return field; field = document.createElement('canvas'); field.c = c; field.width = 192 * c; field.height = (192 + 11 * 3) * c; var g = field.getContext('2d'), r = H3.rng(21);
+    for (var L = 0; L < 12; L++) for (var i = 0; i < 3072; i++) { var v = Math.pow(r(), 4); g.fillStyle = 'rgba(' + (v > 0.5 ? '255,214,140,' : '143,194,255,') + (0.16 + v * 0.84).toFixed(2) + ')'; g.fillRect((i % 192) * c, ((11 - L) * 19 + Math.floor(i / 192)) * c, Math.max(1, c - 1), Math.max(1, c - 1)); } return field;
+  }
+  function bulb(x, px, py, r, on, tt) { // the light itself
+    K.glow(x, px, py, r * (1.6 + 2.2 * on), 'rgba(255,214,140,1)', 0.85 * on); K.disc(x, px, py, r, on > 0.02 ? 'rgba(255,' + Math.round(196 + 40 * on) + ',' + Math.round(107 + 100 * on) + ',' + (0.15 + 0.85 * on).toFixed(3) + ')' : 'rgba(143,194,255,.08)');
+    K.ring(x, px, py, r, on > 0.3 ? C.warm : C.acc, 2, 0.9);
+  }
+  function sentence(x, e, px, py, size, al, lit, maxW) { // a line of real text; the piece that woke the neuron is marked, with how strongly
+    var i, w = 0, ws = []; x.save(); x.font = '500 ' + size + 'px "Space Grotesk",system-ui,sans-serif'; for (i = 0; i < e.pieces.length; i++) { ws.push(x.measureText(e.pieces[i]).width); w += ws[i]; } x.restore();
+    var sc = w > maxW ? maxW / w : 1, cx = px; size *= sc;
+    for (i = 0; i < e.pieces.length; i++) { var pw = ws[i] * sc, hot = i === e.peak;
+      if (hot && lit > 0.01) { K.box(x, cx + (e.pieces[i][0] === ' ' ? size * 0.22 : 0) - 3, py - size * 0.75, pw - (e.pieces[i][0] === ' ' ? size * 0.22 : 0) + 6, size * 1.5, { fill: 'rgba(255,196,107,' + (0.3 * lit).toFixed(3) + ')', line: C.warm, r: size * 0.3, al: al * lit }); }
+      K.text(x, e.pieces[i], cx, py, size, { al: al * (hot ? 1 : 0.62), c: hot && lit > 0.3 ? '#fff' : C.ink, w: hot ? 700 : 400 }); cx += pw; }
+    return cx;
+  }
+  function draw(x, W, H, tt, dt, nt) {
+    var n = K.clock(0, nt), A = K.area(W, H), u = A.u, i, fs = Math.max(11.5, 16 * u);
+    K.clear(x, W, H);
+    // ---- 1. what a neuron does
+    var a = K.span(n, t.parts, t.many, 0.6);
+    if (a > 0.01) {
+      var round = n < t.glows + 2.2 ? 0 : 1, inp = IN[round], R = Math.min(A.h * 0.2, 62 * u), bx = A.cx + A.w * (A.wide ? 0.16 : 0.2), by = A.cy, lx = A.cx - A.w * (A.wide ? 0.3 : 0.4), sp = Math.min(A.h * 0.2, 64 * u);
+      var t0 = round ? t.glows + 2.2 : t.come, go = K.ramp(n, t0, 0.8), mul = round ? K.ramp(n, t0 + 0.5, 0.6) : K.ramp(n, t.mult, 0.8), add = round ? K.ramp(n, t0 + 1, 0.6) : K.ramp(n, t.mult + 1.5, 0.9), sum = 0, lit;
+      for (i = 0; i < 4; i++) sum += inp[i] * WIRE[i];
+      lit = (round ? K.ramp(n, t0 + 1.4, 0.4) : K.ramp(n, t.glows, 0.6)) * Math.max(0, Math.min(1, sum / 2));
+      for (i = 0; i < 4; i++) { var y = by + (i - 1.5) * sp, pr = inp[i] * WIRE[i];
+        K.line(x, lx + fs * 3.4, y, bx - R, by + (i - 1.5) * R * 0.3, 'rgba(143,194,255,.5)', 1 + Math.abs(WIRE[i]) * 1.6, a * K.ramp(n, t.light, 0.8));
+        K.text(x, (inp[i] > 0 ? '+' : '') + inp[i].toFixed(1), lx, y, fs * 1.5, { mono: true, w: 600, al: a * go, c: C.ink });
+        var mxp = K.lerp(lx + fs * 3.4, bx - R, 0.45), myp = K.lerp(y, by + (i - 1.5) * R * 0.3, 0.45);
+        K.text(x, '×' + WIRE[i].toFixed(1), mxp, myp - fs * 0.9, fs * 0.95, { a: 'center', mono: true, c: C.acc, al: a * K.ramp(n, t.light + 0.6, 0.6) });
+        if (mul > 0.01) K.text(x, (pr > 0 ? '+' : '') + pr.toFixed(2), K.lerp(mxp, bx - R * 0.2, add * 0.9), K.lerp(myp + fs * 0.9, by, add * 0.9), fs * 1.1, { a: 'center', mono: true, w: 600, c: pr >= 0 ? C.warm : C.vio, al: a * mul * (1 - add * 0.85) });
+      }
+      bulb(x, bx, by, R, lit, tt);
+      if (add > 0.3) K.text(x, (sum > 0 ? '+' : '') + sum.toFixed(2), bx, by, R * 0.5, { a: 'center', mono: true, w: 600, c: lit > 0.3 ? '#3a2400' : C.ink, al: a * K.ramp(n, t0 + (round ? 1.2 : t.mult - t.come + 2.2), 0.4) });
+      var verdict = round ? K.ramp(n, t0 + 1.5, 0.4) : K.ramp(n, t.glows + 0.4, 0.5);
+      K.text(x, sum > 0 ? 'above zero: it glows' : 'below zero: it stays dark', bx, by + R + fs * 1.6, fs * 1.1, { a: 'center', mono: true, c: sum > 0 ? C.warm : C.dim, al: a * verdict });
+      K.text(x, 'numbers in', lx + fs * 1.4, by - sp * 2 - fs * 0.6, fs * 0.85, { a: 'center', mono: true, c: C.dim, w: 400, al: a * go }); K.text(x, 'multiply · add up · glow or not', A.cx, A.y + fs * 0.5, fs, { a: 'center', mono: true, c: C.dim, w: 400, al: a * K.ramp(n, t.mult, 0.6) });
     }
-  }
-  function draw(x, W, H, t, dt, nt) {
-    var cx = W / 2, cy = H * 0.47, g = x.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H) * 0.7); g.addColorStop(0, '#0a1024'); g.addColorStop(1, '#02030a'); x.fillStyle = g; x.fillRect(0, 0, W, H);
-    var k = Math.floor(t / HOLD) % ORB.length, loc = t % HOLD, o = ORB[k], nx = ORB[(k + 1) % ORB.length]; sample(nx);
-    var f = H3.smooth((loc - (HOLD - FADE)) / FADE);
-    x.globalCompositeOperation = 'lighter';
-    cloud(x, o, W, H, t, 1 - f); if (f > 0) cloud(x, nx, W, H, t, f);
-    H3.dot(x, cx, cy, 5, 'rgba(255,255,255,1)', 1); H3.dot(x, cx, cy, 16, 'rgba(255,220,170,1)', 0.5); // the nucleus: far smaller than this dot
-    x.globalCompositeOperation = 'source-over'; x.globalAlpha = 1;
-    var shown = f > 0.5 ? nx : o, s = Math.min(W, H) * 0.3 / shown.L;
-    H3.label(x, 'the nucleus (100,000 times smaller than the cloud)', cx + 14, cy + 22, 'left', 'rgba(255,225,190,.85)', 11);
-    var ly = Math.max(H * 0.2 + 26, cy - Math.min(W, H) * 0.36);
-    H3.label(x, shown.n + ' orbital', cx, ly, 'center', '#fff', 15);
-    H3.label(x, shown.q + '  ·  each speck is one place the electron could be', cx, ly + 20, 'center', 'rgba(214,228,255,.8)', 11);
-    var bar = shown.L > 20 ? 10 : shown.L > 10 ? 5 : 2;
-    H3.scaleBar(x, W, H, bar * s, bar + ' Bohr radii = ' + (bar * 0.0529).toFixed(2) + ' nanometers');
+    // ---- 2. all of them
+    var b = K.span(n, t.many, t.watch, 0.6);
+    if (b > 0.01) {
+      var dp = Math.min(devicePixelRatio || 1, 2), c = Math.max(1, Math.floor(Math.min(A.h - fs * 3, A.w * 0.8) * dp / 225)), fw = 192 * c / dp, fh = 225 * c / dp, fx = Math.round((A.cx - fw / 2) * dp) / dp, fy = Math.round((A.y + fs * 2.2) * dp) / dp, rev = K.ramp(n, t.many, 2.4);
+      x.save(); x.globalAlpha = b; x.imageSmoothingEnabled = false; x.beginPath(); x.rect(fx, fy + fh * (1 - rev), fw, fh * rev); x.clip(); x.drawImage(dots(c), fx, fy, fw, fh); x.restore();
+      K.text(x, K.commas(Math.round(d.all * rev)) + ' lights · 12 layers of 3,072', A.cx, A.y + fs * 0.6, fs * 1.15, { a: 'center', mono: true, al: b });
+      var ny = fy + ((11 - d.layer) * 19 + Math.floor(d.index / 192) + 0.5) * c / dp, nx = fx + (d.index % 192 + 0.5) * c / dp, one = b * K.ramp(n, t.mean, 0.6);
+      if (one > 0.01) { K.ring(x, nx, ny, 7 + Math.sin(tt * 4) * 1.5, C.warm, 2, one); K.glow(x, nx, ny, 16, 'rgba(255,214,140,1)', one); var tx = A.wide ? fx + fw + 22 : nx, ty = A.wide ? ny : fy + fh + fs; if (A.wide) K.line(x, nx + 8, ny, tx - 6, ty, C.warm, 1, one * 0.7); K.text(x, 'this one', tx, ty, fs, { c: C.warm, mono: true, a: A.wide ? 'left' : 'center', al: one }); }
+      if (A.wide) for (i = 0; i < 12; i += 11) K.text(x, 'layer ' + (i + 1), fx - 10, fy + ((11 - i) * 19 + 8) * c / dp, fs * 0.75, { a: 'right', mono: true, c: C.dim, w: 400, al: b * rev });
+    }
+    // ---- 3. one real light, and what makes it glow
+    var s = K.ramp(n, t.watch, 0.7);
+    if (s > 0.01) {
+      var which = -1, str = 0; for (i = 0; i < 5; i++) if (n >= t.e[i]) which = i;
+      var allOn = K.ramp(n, t.each, 0.8), R2 = Math.min(A.h * (A.wide ? 0.2 : 0.11), 70 * u), gx = A.wide ? A.x + A.w * 0.17 : A.cx, gy = A.wide ? A.cy - fs : A.y + R2 + fs * 0.4;
+      var lx2 = A.wide ? A.x + A.w * 0.36 : A.x + 6, mw = A.wide ? A.w * 0.62 : A.w - 12, top = A.wide ? A.cy - 2.6 * fs * 2.3 : gy + R2 + fs * 2.6, lhh = A.wide ? fs * 2.6 : Math.min(fs * 2.4, (A.b - top) / 5.2), ss = A.wide ? fs * 1.45 : fs * 1.12;
+      for (i = 0; i < 5; i++) { var e = EX[i], on = K.ramp(n, t.e[i], 0.35), now = which === i && n < t.not ? 1 : 0, lit2 = Math.max(now, allOn, 0.55 * on); if (on <= 0.01) continue;
+        var py = top + i * lhh, endx = sentence(x, e, lx2, py, ss, s * on, lit2, mw - fs * 4.5);
+        K.text(x, e.acts[e.peak].toFixed(1), Math.min(endx + fs * 0.9, lx2 + mw - fs * 2.2), py, fs * 0.95, { mono: true, w: 600, c: C.warm, al: s * on * lit2 });
+        if (now) str = e.acts[e.peak] / 2.4 * K.ramp(n, t.e[i], 0.25);
+      }
+      if (allOn > 0) str = Math.max(str, allOn * (0.55 + 0.25 * Math.sin(tt * 2.2)));
+      bulb(x, gx, gy, R2, str, tt);
+      K.text(x, 'one real light', gx, gy - R2 - fs * 1.1, fs, { a: 'center', mono: true, c: C.dim, w: 400, al: s });
+      var q = K.span(n, t.not, t.where, 0.4), lab = n < t.soup ? 'the "ball" light?' : n < t.tell ? 'the "soup" light?' : 'no single meaning';
+      if (q > 0.01 && A.wide) { K.text(x, lab, gx, gy + R2 + fs * 1.5, fs * 1.1, { a: 'center', mono: true, c: n < t.tell ? C.ink : C.warm, al: q }); if (n < t.tell) { var lw = K.width(x, lab, fs * 1.1, { mono: true }); K.line(x, gx - lw / 2 - 4, gy + R2 + fs * 1.5, gx + lw / 2 + 4, gy + R2 + fs * 1.5, C.hot, 2, q * K.ramp(n, (n < t.soup ? t.not : t.soup) + 0.7, 0.4)); } }
+      var w2 = K.ramp(n, t.where, 0.6); if (w2 > 0.01) K.text(x, 'so where do the meanings live?  ↖ flip the page', A.cx, A.b - fs * 0.9, fs * 1.15, { a: 'center', c: C.acc, w: 600, al: w2 * (0.75 + 0.25 * Math.sin(tt * 3)) });
+    }
+    K.credit(x, A, s > 0.5 ? 'real: neuron ' + K.commas(d.index) + ' of layer ' + (d.layer + 1) + ' in GPT-2 small (2019), on ' + d.nsent + ' test sentences about ' + d.ntopics + ' subjects · the number is how strongly it fired' : b > 0.5 ? 'the lights in the 12 recall steps of GPT-2 small (OpenAI, 2019)' : 'a drawing of what every one of them does (these six numbers are made up)');
   }
   return { init: init, draw: draw };
 })();
 
 
 // ---------------------------------------------------------------- the back: its opposite (drawn light on black, shown as ink on paper)
-// THE OPPOSITE OF THE ATOM: antihydrogen. A positron (the electron's mirror, charge +) round an antiproton
-// (charge -). Its clouds are the same |psi|^2 as hydrogen's, shown here with the two signs of the wave swapped.
-// When matter and antimatter meet they annihilate: all their mass becomes energy (E = mc^2: for one hydrogen atom
-// and one anti-atom, 1,878 MeV, about nine times the energy of a uranium fission). The electron and positron give
-// two gamma rays flying back to back (511 keV each, so momentum is conserved); the proton and antiproton give a spray
-// of pions. CERN's ALPHA experiment has trapped antihydrogen for over 16 minutes.
+// THE OPPOSITE OF ONE NEURON: a feature, one meaning spread over many lights. 768 lights stand for the 768 numbers
+// GPT-2 small carries for each piece of text. One light alone, then a pattern of many faint lights at once. A lens
+// (the tool: a sparse autoencoder) passes over and picks the pattern out. The feature shown is real: number 17,608 of
+// the 24,576 patterns one such tool found in layer 8 of GPT-2 small (the open "res-jb" set by Joseph Bloom, read from
+// Neuronpedia). The text beside it is real text that woke it, with its real strength: a bridge whose lanes closed, a
+// plan to rebuild a bridge, a train at a bridge near Strasbourg. Then the Golden Gate Bridge feature that Anthropic
+// found in a much bigger model, Claude 3 Sonnet, in 2024: turned all the way up, the model said it was the bridge.
+// Then the tool's limits: the same pattern also wakes for bridge the card game, and a tool told to look for a
+// different number of patterns finds different ones.
 var SCENE2 = (function () {
-  var r = H3.rng(31), NP = 7000, anti = null, small = null, CYC = 15;
+  var f = D.data.feature, t = {}, C = K.C, r = H3.rng(17608), COLS = 32, ROWS = 24, pat = [], pat2 = [], base = [];
+  var SHOW = [f.examples[0], f.examples[12], f.examples[8]], CARD = f.examples[6];
   function init() {
-    var L = 13, max = 0, i, X, Y, Z, v; function f(x, y, z) { return z * Math.exp(-Math.hypot(x, y, z) / 2); }
-    for (i = 0; i < 5000; i++) { X = (r() * 2 - 1) * L; Y = (r() * 2 - 1) * L; Z = (r() * 2 - 1) * L; v = f(X, Y, Z); if (v * v > max) max = v * v; }
-    anti = new Float32Array(NP * 4); var n = 0; while (n < NP) { X = (r() * 2 - 1) * L; Y = (r() * 2 - 1) * L; Z = (r() * 2 - 1) * L; v = f(X, Y, Z); if (r() * max * 1.15 < v * v) { anti[n * 4] = X; anti[n * 4 + 1] = Y; anti[n * 4 + 2] = Z; anti[n * 4 + 3] = v > 0 ? 1 : -1; n++; } }
-    small = new Float32Array(1800 * 3); for (i = 0; i < 1800; i++) { var rr = -0.5 * Math.log(r() * r() * r() + 1e-12), z = r() * 2 - 1, q = Math.sqrt(1 - z * z), a = r() * 6.2832; small[i * 3] = Math.cos(a) * q * rr; small[i * 3 + 1] = Math.sin(a) * q * rr; small[i * 3 + 2] = z * rr; } // 1s: r^2 e^(-2r)
+    t.one = K.at(1, 'One light means almost nothing'); t.many = K.at(1, 'many lights together'); t.pattern = K.at(1, 'A meaning is a pattern'); t.lots = K.at(1, 'each glowing a little'); t.glasses = K.at(1, 'special pair of glasses');
+    t.feature = K.at(1, 'call each one a feature'); t.real = K.at(1, 'Here is a real one'); t.wakes = K.at(1, 'wakes up for bridges'); t.b0 = K.at(1, 'A bridge that closed'); t.b1 = K.at(1, 'A bridge being rebuilt'); t.b2 = K.at(1, 'A bridge near a town');
+    t.golden = K.at(1, 'Golden Gate Bridge'); t.up = K.at(1, 'turned it all the way up'); t.saying = K.at(1, 'started saying'); t.foggy = K.at(1, 'glasses are foggy'); t.card = K.at(1, 'the card game'); t.diff = K.at(1, 'different glasses'); t.learn = K.at(1, 'still learning to see');
+    t.b = [t.b0, t.b1, t.b2];
+    for (var i = 0; i < COLS * ROWS; i++) { base.push(r()); if (r() < 0.085) pat.push([i, 0.25 + r() * 0.75]); if (r() < 0.07) pat2.push([i, 0.25 + r() * 0.75]); }
   }
-  function draw(x, W, H, t, dt, nt) {
-    var cx = W / 2, cy = H * 0.47, s = Math.min(W, H) * 0.3 / 13, tc = t % CYC, i;
-    x.fillStyle = '#000'; x.fillRect(0, 0, W, H); x.globalCompositeOperation = 'lighter';
-    var hit = 8.2, gone = tc > hit && tc < 12.2, back = H3.smooth((tc - 12.2) / 2.2), alive = tc <= hit ? 1 : tc >= 12.2 ? back : 0;
-    var ya = t * 0.25, ca = Math.cos(ya), sa = Math.sin(ya), tl = 0.35, ct = Math.cos(tl), st = Math.sin(tl), size = Math.max(1.6, Math.min(W, H) * 0.0042);
-    if (alive > 0) for (i = 0; i < NP; i++) { var X = anti[i * 4], Y = anti[i * 4 + 2], Z = anti[i * 4 + 1], x1 = X * ca + Z * sa, z1 = -X * sa + Z * ca, y1 = Y * ct - z1 * st, z2 = Y * st + z1 * ct, p = 1 + z2 / 52;
-      H3.dot(x, cx + x1 * s * p, cy - y1 * s * p, size * p, anti[i * 4 + 3] > 0 ? 'rgba(255,170,95,1)' : 'rgba(120,185,255,1)', 0.5 * alive); } // the signs swapped
-    if (alive > 0) { H3.dot(x, cx, cy, 5, 'rgba(255,255,255,1)', alive); H3.dot(x, cx, cy, 16, 'rgba(170,210,255,1)', 0.5 * alive); }
-    // an ordinary atom drifts in from the left
-    var ax = tc < hit ? cx - W * 0.6 + (W * 0.6 - s * 1.5) * H3.smooth(tc / hit) : cx;
-    if (tc < hit) { for (i = 0; i < 1800; i++) H3.dot(x, ax + small[i * 3] * s, cy + small[i * 3 + 1] * s, size * 0.9, 'rgba(120,185,255,1)', 0.45); H3.dot(x, ax, cy, 4, 'rgba(255,255,255,1)', 1); }
-    // annihilation: a flash, two gamma rays back to back, and a spray of pions
-    if (gone) { var f = (tc - hit) / 4, a2 = Math.pow(1 - f, 2); H3.dot(x, cx, cy, s * (4 + f * 60), 'rgba(255,255,255,1)', a2); H3.dot(x, cx, cy, s * (10 + f * 110), 'rgba(255,235,190,1)', a2 * 0.7);
-      x.globalAlpha = Math.min(1, a2 * 1.6); x.strokeStyle = '#ffffff'; x.lineWidth = 1.8;
-      for (var k = -1; k <= 1; k += 2) { x.beginPath(); var ang = 0.5; for (var q = 0; q < 70; q++) { var d = f * Math.max(W, H) * 0.75 * (q / 70), wv = Math.sin(q * 0.9 - t * 30) * 7; x.lineTo(cx + k * (Math.cos(ang) * d - Math.sin(ang) * wv), cy - k * (Math.sin(ang) * d + Math.cos(ang) * wv)); } x.stroke(); }
-      for (i = 0; i < 5; i++) { var pa = 1.6 + i * 1.19, pd = f * Math.max(W, H) * 0.5; x.globalAlpha = a2; x.setLineDash([6, 6]); x.beginPath(); x.moveTo(cx, cy); x.lineTo(cx + Math.cos(pa) * pd, cy + Math.sin(pa) * pd); x.stroke(); x.setLineDash([]); H3.dot(x, cx + Math.cos(pa) * pd, cy + Math.sin(pa) * pd, 6, 'rgba(255,200,150,1)', a2); } }
-    x.globalCompositeOperation = 'source-over'; x.globalAlpha = 1;
-    if (tc < hit) { H3.label(x, 'an ordinary atom', ax, cy - s * 4.2, 'center', '#9fc8ff', 12); H3.label(x, 'antiproton (−) in the middle', cx + 14, cy + 22, 'left', 'rgba(214,228,255,.9)', 11); H3.label(x, 'positron cloud (+): the same shape as the electron’s', cx, cy + Math.min(W, H) * 0.27, 'center', '#ffc79a', 11); }
-    else if (gone) { H3.label(x, 'they touch: both are gone', cx, cy - Math.min(W, H) * 0.2, 'center', '#fff', 14); H3.label(x, 'all of their mass became light: E = mc², 1,878 MeV', cx, cy + Math.min(W, H) * 0.24, 'center', 'rgba(214,228,255,.9)', 12); H3.label(x, 'two gamma rays, back to back', cx + Math.min(W, H) * 0.2, cy - Math.min(W, H) * 0.14, 'left', '#fff', 11); }
-    H3.scaleBar(x, W, H, 5 * s, '5 Bohr radii = 0.26 nanometers (the same size as the atom)');
+  function snippet(x, e, px, py, size, al, lit, maxW) {
+    var i, w = 0, ws = []; x.save(); x.font = '500 ' + size + 'px "Space Grotesk",system-ui,sans-serif'; for (i = 0; i < e.pieces.length; i++) { ws.push(x.measureText(e.pieces[i]).width); w += ws[i]; } x.restore();
+    var sc = w > maxW ? maxW / w : 1, cx = px; size *= sc;
+    for (i = 0; i < e.pieces.length; i++) { var pw = ws[i] * sc, hot = i === e.peak, sp = e.pieces[i][0] === ' ' ? size * 0.22 : 0;
+      if (hot) K.box(x, cx + sp - 3, py - size * 0.75, pw - sp + 6, size * 1.5, { fill: 'rgba(255,196,107,' + (0.32 * lit).toFixed(3) + ')', line: C.warm, r: size * 0.3, al: al * lit });
+      K.text(x, e.pieces[i], cx, py, size, { al: al * (hot ? 1 : 0.6), w: hot ? 700 : 400 }); cx += pw; }
+    return cx;
+  }
+  function bridge(x, cx, cy, w, al, k) { // a suspension bridge, drawn as it "appears" (k from 0 to 1)
+    if (al <= 0.01) return; var h = w * 0.3, dk = cy + h * 0.45, t1 = cx - w * 0.25, t2 = cx + w * 0.25, top = cy - h * 0.55, i;
+    K.line(x, cx - w / 2, dk, cx - w / 2 + w * k, dk, C.warm, 3, al);
+    [t1, t2].forEach(function (tx) { if (k > (tx - cx + w / 2) / w) { K.line(x, tx, dk + h * 0.25, tx, top, C.warm, 4, al); K.line(x, tx - w * 0.012, top + h * 0.2, tx + w * 0.012, top + h * 0.2, C.warm, 2, al); } });
+    x.save(); x.globalAlpha = al; x.strokeStyle = C.warm; x.lineWidth = 2; x.beginPath();
+    for (i = 0; i <= 80 * k; i++) { var px = cx - w / 2 + w * i / 80, y; if (px < t1) y = K.lerp(dk, top, Math.pow((px - (cx - w / 2)) / (t1 - (cx - w / 2)), 1.6)); else if (px > t2) y = K.lerp(top, dk, 1 - Math.pow((cx + w / 2 - px) / (cx + w / 2 - t2), 1.6)); else { var q = (px - cx) / (t2 - cx); y = K.lerp(dk - h * 0.12, top, q * q); } if (i) x.lineTo(px, y); else x.moveTo(px, y); if (i % 4 === 0) { x.moveTo(px, y); x.lineTo(px, dk); x.moveTo(px, y); } }
+    x.stroke(); x.restore();
+  }
+  function draw(x, W, H, tt, dt, nt) {
+    var n = K.clock(1, nt), A = K.area(W, H), u = A.u, i, fs = Math.max(11.5, 16 * u);
+    K.clear(x, W, H, '#000');
+    var gw = A.wide ? Math.min(A.w * 0.44, A.h * 1.25) : Math.min(A.w * 0.94, A.h * 0.5 * 1.33), cell = gw / COLS, gh = cell * ROWS, gx = A.wide ? A.x + A.w * 0.02 : A.cx - gw / 2, gy = A.wide ? A.cy - gh / 2 : A.y + fs * 1.6;
+    var rx = A.wide ? gx + gw + A.w * 0.05 : A.x + 6, rw = A.wide ? A.r - rx - 6 : A.w - 12, ry = A.wide ? gy : gy + gh + fs * 1.4, rb = A.b;
+    // how awake the pattern is right now
+    var wake = 0, cur = -1; for (i = 0; i < 3; i++) if (n >= t.b[i] && n < t.golden) cur = i;
+    wake = n < t.many ? 0 : n < t.glasses ? K.ramp(n, t.many, 1.2) * (0.6 + 0.25 * Math.sin(tt * 2)) : n < t.real ? 0.75 : n < t.golden ? (cur >= 0 ? 0.55 + 0.45 * K.bump(n, t.b[cur], 1.5) : 0.6 + 0.4 * K.bump(n, t.wakes, 1.4)) : n < t.foggy ? 0.5 + 0.5 * K.ramp(n, t.up, 1.6) : n < t.diff ? 0.55 + 0.35 * K.bump(n, t.card, 2) : 0.6;
+    var single = K.span(n, t.one, t.many, 0.4), lens = K.ramp(n, t.glasses, 1.5), found = K.ramp(n, t.glasses + 1.4, 0.8), other = K.span(n, t.diff, t.learn + 6, 0.8), isPat = {};
+    for (i = 0; i < pat.length; i++) isPat[pat[i][0]] = pat[i][1];
+    for (i = 0; i < COLS * ROWS; i++) { var px = gx + (i % COLS + 0.5) * cell, py = gy + (Math.floor(i / COLS) + 0.5) * cell, v = 0.07 + 0.05 * Math.sin(tt * (0.7 + base[i]) + base[i] * 30); if (isPat[i]) v = Math.max(v, isPat[i] * wake);
+      if (i === 11 * COLS + 9) v = Math.max(v, single);
+      K.disc(x, px, py, cell * 0.3, v > 0.3 ? C.warm : C.acc, Math.min(1, 0.18 + v)); if (v > 0.3) K.glow(x, px, py, cell * 1.3, 'rgba(255,214,140,1)', v * 0.75);
+      if (isPat[i] && found > 0.01 && other < 0.5) K.ring(x, px, py, cell * 0.46, C.ink, 1.3, found * 0.9); }
+    if (other > 0.01) for (i = 0; i < pat2.length; i++) K.ring(x, gx + (pat2[i][0] % COLS + 0.5) * cell, gy + (Math.floor(pat2[i][0] / COLS) + 0.5) * cell, cell * 0.46, C.vio, 1.5, other);
+    if (single > 0.01) { var sx = gx + 9.5 * cell, sy = gy + 11.5 * cell; K.ring(x, sx, sy, cell * 0.8, C.ink, 1.5, single); K.text(x, 'one light', sx, sy - cell * 1.5, fs, { a: 'center', mono: true, al: single }); }
+    // the lens
+    if (lens > 0.01) { var lr = gh * 0.44, lx = K.lerp(gx - lr, gx + gw / 2, lens), ly = gy + gh / 2, fog = K.span(n, t.foggy, t.diff, 0.6);
+      K.ring(x, lx, ly, lr, C.ink, 3, 0.9 * K.cl(lens * 3)); K.line(x, lx + lr * 0.72, ly + lr * 0.72, lx + lr * 1.15, ly + lr * 1.15, C.ink, 5, 0.9 * K.cl(lens * 3));
+      if (fog > 0.01) for (i = 0; i < 9; i++) K.glow(x, lx + Math.cos(i * 2.4 + tt * 0.2) * lr * 0.55, ly + Math.sin(i * 1.7 + tt * 0.15) * lr * 0.55, lr * 0.55, 'rgba(214,228,255,1)', 0.16 * fog); }
+    var gl = K.span(n, t.glasses, t.real, 0.5); if (gl > 0.01) { K.text(x, 'the glasses: a tool called a sparse autoencoder', gx + gw / 2, gy - fs * 0.9, fs * 0.95, { a: 'center', mono: true, c: C.dim, w: 400, al: gl }); }
+    var p1 = K.span(n, t.pattern, t.glasses, 0.5); if (p1 > 0.01) K.text(x, 'one meaning = one pattern of many lights', gx + gw / 2, gy - fs * 0.9, fs * 0.95, { a: 'center', mono: true, c: C.ink, al: p1 });
+    // ---- beside the lights: what wakes this pattern
+    var re = K.span(n, t.real, t.golden, 0.5), ss = Math.min(fs * 1.5, rw / 22);
+    if (re > 0.01) {
+      K.text(x, 'a real feature', rx, ry + fs * 0.4, fs * 1.4, { w: 700, al: re }); K.text(x, 'number ' + K.commas(f.index) + ' of ' + K.commas(f.dictSize) + ' · layer 8 · GPT-2 small', rx, ry + fs * 2.1, fs * 0.85, { mono: true, c: C.dim, w: 400, al: re });
+      for (i = 0; i < 3; i++) { var on = re * K.ramp(n, t.b[i], 0.4); if (on <= 0.01) continue; var yy = ry + fs * 4.6 + i * Math.min(fs * 3.4, (rb - ry - fs * 5) / 3), ex = snippet(x, SHOW[i], rx, yy, ss, on, cur === i ? 1 : 0.55, rw - fs * 3);
+        K.bar(x, rx, yy + ss * 1.05, rw * 0.5, 4, SHOW[i].max / 60, C.warm, { al: on }); K.text(x, SHOW[i].max.toFixed(0), rx + rw * 0.5 + 8, yy + ss * 1.05 + 2, fs * 0.8, { mono: true, c: C.warm, al: on }); }
+      K.text(x, 'it wakes up for: bridges', rx, ry + fs * 3.3 - fs * 0.2, fs * 0.95, { mono: true, c: C.warm, al: re * K.ramp(n, t.wakes, 0.5) });
+    }
+    var go = K.span(n, t.golden, t.foggy, 0.5);
+    if (go > 0.01) { var bw = Math.min(rw * 0.9, (rb - ry) * 1.9), bcx = rx + rw / 2, bcy = ry + (rb - ry) * 0.42, k = K.ramp(n, t.golden + 0.4, 2.2), lvl = K.ramp(n, t.up, 1.6);
+      bridge(x, bcx, bcy, bw, go, k); K.text(x, 'in a much bigger model: Claude 3 Sonnet (Anthropic, 2024)', bcx, ry + fs * 0.3, fs * 0.82, { a: 'center', mono: true, c: C.dim, w: 400, al: go });
+      var sy2 = bcy + bw * 0.24; K.bar(x, bcx - bw * 0.3, sy2, bw * 0.6, 6, lvl, C.warm, { al: go * K.ramp(n, t.up - 0.3, 0.4) }); K.text(x, 'the feature, turned up', bcx, sy2 + fs * 1.3, fs * 0.8, { a: 'center', mono: true, c: C.dim, w: 400, al: go * K.ramp(n, t.up - 0.3, 0.4) });
+      K.text(x, '“I am the Golden Gate Bridge”', bcx, sy2 + fs * 3.2, Math.min(fs * 1.5, rw / 17), { a: 'center', w: 700, c: C.ink, al: go * K.ramp(n, t.saying + 0.8, 0.6) }); }
+    var fo = K.span(n, t.foggy, t.diff, 0.5);
+    if (fo > 0.01) { K.text(x, 'but the glasses are foggy', rx, ry + fs * 0.4, fs * 1.4, { w: 700, al: fo }); var c1 = fo * K.ramp(n, t.card - 0.4, 0.5); snippet(x, CARD, rx, ry + fs * 4, ss, c1, 1, rw - fs);
+      K.text(x, 'the same pattern, for a card game: strength ' + CARD.max.toFixed(0), rx, ry + fs * 6, fs * 0.85, { mono: true, c: C.warm, al: c1 }); }
+    var di = K.span(n, t.diff, t.learn + 60, 0.5);
+    if (di > 0.01) { K.text(x, 'different glasses, different patterns', rx, ry + fs * 0.4, Math.min(fs * 1.4, rw / 19), { w: 700, al: di });
+      var lines = ['this tool was told to find ' + K.commas(f.dictSize) + ' patterns.', 'told to find more, it finds others,', 'and it misses a lot of what is there.', '', 'so a feature is what a tool reports:', 'the best view we have, and a blurry one.'];
+      for (i = 0; i < lines.length; i++) K.text(x, lines[i], rx, ry + fs * (3 + i * 1.55), Math.min(fs * 1.02, rw / 24), { mono: true, c: i > 3 ? C.ink : C.dim, w: 400, al: di * K.ramp(n, t.diff + 0.5 + i * 0.45, 0.5) }); }
+    K.credit(x, A, n >= t.golden && n < t.foggy ? 'reported by Anthropic, “Mapping the mind of a large language model”, 2024' : n >= t.real ? 'real: feature ' + K.commas(f.index) + ', layer 8 of GPT-2 small, from the open “res-jb” set (Joseph Bloom), read from Neuronpedia' : '768 lights for the 768 numbers GPT-2 small carries for each piece · the pattern is a drawing');
   }
   return { init: init, draw: draw };
 })();
 
 
-// The page itself: captions, the voice, the ruler of nine scales, the side arrows, and the flip.
-// Each page has two sides. The front is the scale; the back is its opposite, with the other narrator. Flipping turns
+// The page itself: captions, the voice, the ruler of the nine parts, the side arrows, and the flip.
+// Each page has two sides. The front is one part of how the machine works; the back is its opposite, with the other narrator. Flipping turns
 // the whole page over in 3D (it swaps sides when it is edge-on) and everything on the back runs the other way:
 // ink on paper instead of light on black, the ruler and arrows reversed.
 function Chrome(D, opt) {
@@ -292,11 +455,11 @@ function Chrome(D, opt) {
   var cc = el('div', 'cc', '<span id="cap"></span>'); cc.setAttribute('aria-live', 'polite');
   var snd = el('div', 'snd', '&#128266; Tap anywhere to hear it explained'); snd.setAttribute('role', 'button'); snd.tabIndex = 0;
   var flipB = el('div', 'flip', ''); flipB.setAttribute('role', 'button'); flipB.tabIndex = 0;
-  var ruler = el('nav', 'ruler', ''); ruler.setAttribute('aria-label', 'The nine scales, from the nucleus to the universe');
+  var ruler = el('nav', 'ruler', ''); ruler.setAttribute('aria-label', 'The nine parts, from one piece of a word to the data center');
   var navL = el('a', '', '', 'nav l'), navR = el('a', '', '', 'nav r'), shade = el('div', 'shade', ''), cap = doc.getElementById('cap');
   var A = [new Audio('./narration.mp3'), new Audio('./narration-flip.mp3')]; A[0].loop = A[1].loop = false; /* each explanation plays once */ A[0].preload = 'auto'; A[1].preload = 'none'; A[0].muted = A[1].muted = true;
   var subs = [], side = 0, started = false, done = false, userMute = false, t0 = performance.now(), shown = -2, turning = false, fresh = false;
-  function nt() { var a = A[side]; if (a.ended || done) return 1e9; if (!a.paused && a.readyState > 1 && isFinite(a.currentTime)) return a.currentTime; var s = (performance.now() - t0) / 1000; if (s > D.sides[side].dur + 1) { done = true; setSnd(); } return s; } // once through, then quiet
+  function nt() { if (opt.fix != null) return opt.fix + (opt.go ? (performance.now() - t0) / 1000 : 0); var a = A[side]; if (a.ended || done) return 1e9; if (!a.paused && a.readyState > 1 && isFinite(a.currentTime)) return a.currentTime; var s = (performance.now() - t0) / 1000; if (s > D.sides[side].dur + 1) { done = true; setSnd(); } return s; } // once through, then quiet
   function over() { return done || A[side].ended; }
   function setSnd() { if (!started) return; snd.classList.add('on'); snd.innerHTML = over() ? '&#8635; Play again' : userMute ? '&#128263; Sound off' : '&#128266; Sound on'; snd.setAttribute('aria-label', userMute ? 'Turn the sound on' : 'Turn the sound off'); }
   function playSide() { done = false; A[1 - side].pause(); var a = A[side]; a.muted = !started || userMute; try { a.currentTime = 0; } catch (e) {} t0 = performance.now(); shown = -2; var p = a.play(); if (p && p.catch) p.catch(function () {}); }
@@ -306,11 +469,11 @@ function Chrome(D, opt) {
     body.classList.toggle('flip', back);
     ruler.innerHTML = '<span class="cap l">' + (back ? '← bigger' : '← smaller') + '</span><span class="cap r">' + (back ? 'smaller →' : 'bigger →') + '</span>' + D.scales.map(function (s, i) {
       var pct = (s.exp - lo) / (hi - lo) * 100; if (back) pct = 100 - pct;
-      return '<a href="https://' + s.domain + '/" class="' + (i === D.i ? 'me ' : '') + (i % 2 ? 'up' : '') + '" style="left:' + pct.toFixed(2) + '%"' + (i === D.i ? ' aria-current="page"' : '') + ' title="' + s.name + ' · ' + s.size + ' · ' + s.domain + '"><b>' + s.size + '</b><span>' + s.short + '</span></a>';
+      return '<a href="https://' + s.domain + '/" class="' + (i === D.i ? 'me ' : '') + (i % 2 ? 'up' : '') + '" style="left:' + pct.toFixed(2) + '%"' + (i === D.i ? ' aria-current="page"' : '') + ' title="Part ' + (i + 1) + ': ' + s.name + ' · ' + s.domain + '"><b>' + (i + 1) + '</b><span>' + s.short + '</span></a>';
     }).join('');
     var smaller = D.scales[(D.i - 1 + n) % n], bigger = D.scales[(D.i + 1) % n];
-    function nav(a, s, arrow, word) { a.href = 'https://' + s.domain + '/'; a.title = word + ': ' + s.name + ' (' + s.size + ')'; a.setAttribute('aria-label', word + ': ' + s.name); a.innerHTML = '<i>' + arrow + '</i><span>' + word + '<b>' + s.short + '</b></span>'; }
-    var wS = D.i === 0 ? 'biggest' : 'smaller', wB = D.i === n - 1 ? 'smallest' : 'bigger';
+    function nav(a, s, arrow, word) { a.href = 'https://' + s.domain + '/'; a.title = word + ': ' + s.name; a.setAttribute('aria-label', word + ': ' + s.name); a.innerHTML = '<i>' + arrow + '</i><span>' + word + '<b>' + s.short + '</b></span>'; }
+    var wS = D.i === 0 ? 'the last part' : 'before this', wB = D.i === n - 1 ? 'back to the start' : 'next';
     if (back) { nav(navL, bigger, '‹', wB); nav(navR, smaller, '›', wS); } else { nav(navL, smaller, '‹', wS); nav(navR, bigger, '›', wB); }
     var b = D.sides[1];
     doc.getElementById('bk').textContent = 'the other side of ' + me.name.toLowerCase() + '  ·  ' + b.size;
@@ -352,7 +515,8 @@ function Chrome(D, opt) {
 
 // Talking to the page. A visitor types or speaks a question; the answer comes back as text and is read aloud in the
 // voice of the side they are on. The server (D.chat) is told which scale and which side, so the page knows what it is
-// showing. Replies are spoken with the browser's own voice (a different one on the back of the page).
+// showing. Replies are spoken with the browser's own voice (a different one on the back of the page). The pictures are
+// timed to the narrator, so opening the chat only quiets the narrator: the film stays where it is.
 function Chat(D, CH, page) {
   var doc = document, API = D.chat.replace(/\/+$/, ''), SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   var busy = false, voice = true, hist = [], rec = null, au = null, greeted = [false, false], lastSide = -1;
@@ -373,7 +537,7 @@ function Chat(D, CH, page) {
     btn.textContent = isOpen() ? 'Close the chat' : 'Ask about ' + lc; btn.classList.toggle('open', isOpen());
     $('askwho').textContent = 'The A.I. on this page'; $('askon').textContent = (s ? 'the back: ' : 'the front: ') + lc;
     inp.placeholder = 'Ask about ' + lc + '…';
-    var qs = s ? ['What am I looking at?', 'Why is this the opposite?', 'Is that known for sure?'] : ['What am I looking at?', 'How big is it, really?', 'What is its opposite?'];
+    var qs = s ? ['What am I looking at?', 'Why is this the opposite?', 'Is that known for sure?'] : ['What am I looking at?', 'Are those numbers real?', 'Do you work like this too?'];
     chips.innerHTML = ''; qs.forEach(function (q) { var b = doc.createElement('button'); b.type = 'button'; b.textContent = q; b.onclick = function () { send(q); }; chips.appendChild(b); });
     if (!isOpen()) return;
     if (lastSide >= 0 && lastSide !== s) add('', (s ? 'you turned the page: now ' : 'you turned back: now ') + lc, 'i');
@@ -426,14 +590,14 @@ function Chat(D, CH, page) {
 
 // ---------------------------------------------------------------- page
 var cv = document.getElementById('c'), cx = cv.getContext('2d'), W = 0, Hh = 0, dpr = 1, me = D.scales[D.i];
-document.getElementById('k').innerHTML = 'Scale ' + (D.i + 1) + ' of ' + D.scales.length + ' · <b>' + me.size + '</b>';
+document.getElementById('k').innerHTML = 'Part ' + (D.i + 1) + ' of ' + D.scales.length + ' · <b>' + me.size + '</b>';
 document.getElementById('name').textContent = me.name;
 document.getElementById('sub').textContent = me.sub;
-var CH = Chrome(D, {});
+var QS = new URLSearchParams(location.search), CH = Chrome(D, QS.get('n') != null ? { fix: +QS.get('n'), go: QS.get('go') != null } : {}); // ?n=seconds holds the film at that moment (&go lets it run on from there)
 function fit() { dpr = Math.min(devicePixelRatio || 1, 2); W = innerWidth; Hh = innerHeight; cv.width = Math.round(W * dpr); cv.height = Math.round(Hh * dpr); cx.setTransform(dpr, 0, 0, dpr, 0, 0); }
 addEventListener('resize', fit); fit();
-var last = performance.now(), T = +(new URLSearchParams(location.search).get('t') || 0), Tb = T, inited = [false, false]; // ?t=seconds jumps the picture ahead
-if (new URLSearchParams(location.search).get('flip') != null) CH.flip();
+var last = performance.now(), T = 0, Tb = 0, inited = [false, false];
+if (QS.get('flip') != null) CH.flip();
 function frame(now) {
   requestAnimationFrame(frame);
   var dt = Math.min(0.05, (now - last) / 1000); last = now; var s = CH.side(), sc = s ? SCENE2 : SCENE;
